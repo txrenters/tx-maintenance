@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from "vue";
 import { router } from "@inertiajs/vue3";
 import AuthenticationCard from "@/Components/AuthenticationCard.vue";
 import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
+import { usePage } from "@inertiajs/vue3";
+import { ref, provide } from "vue";
 
 import {
   Sidebar,
@@ -45,7 +46,6 @@ import {
   LayoutDashboard,
   ListTodo,
 } from "lucide-vue-next";
-import { usePage } from "@inertiajs/vue3";
 
 const page = usePage();
 
@@ -267,10 +267,19 @@ const logout = () => {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <Link :href="route('profile.show')" prefetch>
+                  <Link :href="route('profile.settings')" prefetch>
                     <DropdownMenuItem class="cursor-pointer">
                       <BadgeCheck />
                       Account
+                    </DropdownMenuItem>
+                  </Link>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <Link :href="route('profile.show')" prefetch>
+                    <DropdownMenuItem class="cursor-pointer">
+                      <BadgeCheck />
+                      Settings
                     </DropdownMenuItem>
                   </Link>
                 </DropdownMenuGroup>
@@ -290,6 +299,8 @@ const logout = () => {
       <SidebarRail />
     </Sidebar>
     <SidebarInset>
+      <Toaster />
+
       <slot />
     </SidebarInset>
   </SidebarProvider>

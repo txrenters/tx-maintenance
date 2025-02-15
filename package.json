@@ -6,6 +6,8 @@
         "dev": "vite"
     },
     "devDependencies": {
+        "@iconify-json/radix-icons": "^1.2.2",
+        "@iconify/vue": "^4.3.0",
         "@inertiajs/vue3": "^2.0.3",
         "@tailwindcss/forms": "^0.5.7",
         "@tailwindcss/typography": "^0.5.10",
@@ -20,12 +22,15 @@
         "vue": "^3.3.13"
     },
     "dependencies": {
-        "@vueuse/core": "^12.6.1",
+        "@vee-validate/zod": "^4.15.0",
+        "@vueuse/core": "^12.7.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-vue-next": "^0.475.0",
         "radix-vue": "^1.9.14",
         "tailwind-merge": "^3.0.1",
-        "tailwindcss-animate": "^1.0.7"
+        "tailwindcss-animate": "^1.0.7",
+        "vee-validate": "^4.15.0",
+        "zod": "^3.24.2"
     }
 }

@@ -46,6 +46,35 @@ import {
     AvatarImage,
 } from '@/Components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/Components/ui/dialog'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from '@/Components/ui/card'
+import { RadioGroup, RadioGroupItem } from '@/Components/ui/radio-group'
+import {
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/Components/ui/form'
+import Toaster from '@/Components/ui/toast/Toaster.vue'
+import { Loader2 } from "lucide-vue-next";
+
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -66,9 +95,32 @@ createInertiaApp({
             .component("Input", Input)
             .component("Label", Label)
             .component("Badge", Badge)
+            .component("Loader2", Loader2)
             .component("Checkbox", Checkbox)
             .component("Textarea", Textarea)
             .component("Switch", Switch)
+            .component("Toaster", Toaster)
+            .component("FormControl", FormControl)
+            .component("FormDescription", FormDescription)
+            .component("FormField", FormField)
+            .component("FormItem", FormItem)
+            .component("FormLabel", FormLabel)
+            .component("FormMessage", FormMessage)
+            .component("RadioGroup", RadioGroup)
+            .component("RadioGroupItem", RadioGroupItem)
+            .component("Card", Card)
+            .component("CardContent", CardContent)
+            .component("CardDescription", CardDescription)
+            .component("CardFooter", CardFooter)
+            .component("CardHeader", CardHeader)
+            .component("CardTitle", CardTitle)
+            .component("Dialog", Dialog)
+            .component("DialogContent", DialogContent)
+            .component("DialogDescription", DialogDescription)
+            .component("DialogFooter", DialogFooter)
+            .component("DialogHeader", DialogHeader)
+            .component("DialogTitle", DialogTitle)
+            .component("DialogTrigger", DialogTrigger)
             .component("Tabs", Tabs)
             .component("TabsContent", TabsContent)
             .component("TabsList", TabsList)

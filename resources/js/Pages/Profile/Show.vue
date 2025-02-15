@@ -1,6 +1,12 @@
 <script setup>
 import AppLayout from "@/Layouts/AppLayout.vue";
-import SidebarNav from "@/Pages/Profile/Partials/SidebarNav.vue";
+import DeleteUserForm from "@/Pages/Profile/Partials/DeleteUserForm.vue";
+import LogoutOtherBrowserSessionsForm from "@/Pages/Profile/Partials/LogoutOtherBrowserSessionsForm.vue";
+import SectionBorder from "@/Components/SectionBorder.vue";
+import TwoFactorAuthenticationForm from "@/Pages/Profile/Partials/TwoFactorAuthenticationForm.vue";
+import UpdatePasswordForm from "@/Pages/Profile/Partials/UpdatePasswordForm.vue";
+import UpdateProfileInformationForm from "@/Pages/Profile/Partials/UpdateProfileInformationForm.vue";
+import Appearance from "@/Pages/Profile/Partials/Appearance.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -11,31 +17,45 @@ defineProps({
 </script>
 
 <template>
-  <Head :title="(title = 'Profile')" />
+  <Head :title="(title = 'User Settings')" />
 
   <header
     class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
   >
     <BreadcrumbContainer :title="title" />
   </header>
+  <Separator />
 
-  <div class="space-y-6 p-10 pb-16 md:block">
-    <div class="space-y-0.5">
-      <h2 class="text-2xl font-bold tracking-tight">{{ title }}</h2>
-      <p class="text-muted-foreground">
-        Manage your account settings and set e-mail preferences.
-      </p>
-    </div>
-    <Separator class="my-6" />
-    <div class="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
-      <aside class="-mx-4 lg:w-1/5">
-        <SidebarNav />
-      </aside>
-      <div class="flex-1 lg:max-w-2xl">
-        <div class="space-y-6">
-          <slot />
-        </div>
+  <div>
+    <div class="max-w-7xl mx-auto py-10 sm:px-6 lg:px-8">
+      <div>
+        <Appearance />
+
+        <SectionBorder />
       </div>
+
+      <div v-if="$page.props.jetstream.canUpdatePassword">
+        <UpdatePasswordForm class="mt-10 sm:mt-0" />
+
+        <SectionBorder />
+      </div>
+
+      <div v-if="$page.props.jetstream.canManageTwoFactorAuthentication">
+        <TwoFactorAuthenticationForm
+          :requires-confirmation="confirmsTwoFactorAuthentication"
+          class="mt-10 sm:mt-0"
+        />
+
+        <SectionBorder />
+      </div>
+
+      <LogoutOtherBrowserSessionsForm :sessions="sessions" class="mt-10 sm:mt-0" />
+
+      <template v-if="$page.props.jetstream.hasAccountDeletionFeatures">
+        <SectionBorder />
+
+        <DeleteUserForm class="mt-10 sm:mt-0" />
+      </template>
     </div>
   </div>
 </template>

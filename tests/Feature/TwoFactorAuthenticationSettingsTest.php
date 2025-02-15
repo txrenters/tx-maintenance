@@ -1,4 +1,4 @@
-<?php
+git remote add origin https://github.com/ronilcajan/texas-renters.git<?php
 
 namespace Tests\Feature;
 
