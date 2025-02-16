@@ -7,6 +7,10 @@ defineOptions({ layout: AuthLayout });
 
 defineProps({
   status: String,
+  title: {
+    type: String,
+    default: "Login",
+  },
 });
 
 const form = useForm({
@@ -18,6 +22,8 @@ const submit = () => {
 };
 </script>
 <template>
+  <Head :title="title" />
+
   <div>
     <div class="mx-auto grid w-[350px] gap-3">
       <div class="grid gap-2 text-center">

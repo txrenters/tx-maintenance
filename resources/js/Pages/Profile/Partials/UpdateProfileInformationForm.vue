@@ -15,6 +15,10 @@ const form = useForm({
   _method: "PUT",
   name: props.user.name,
   email: props.user.email,
+  phone: props.user.phone,
+  company: props.user.company,
+  address: props.user.address,
+  website: props.user.website,
   photo: null,
 });
 
@@ -198,6 +202,52 @@ const clearPhotoFileInput = () => {
             A new verification link has been sent to your email address.
           </div>
         </div>
+      </div>
+
+      <!-- Phone -->
+      <div class="col-span-6 sm:col-span-4">
+        <Label for="phone">Phone</Label>
+        <Input
+          id="phone"
+          v-model="form.phone"
+          type="text"
+          class="mt-1 block w-full"
+          autocomplete="phone"
+        />
+        <Label class="mt-1 text-destructive text-xs">{{ form.errors.phone }}</Label>
+      </div>
+
+      <!-- Company -->
+      <div class="col-span-6 sm:col-span-4">
+        <Label for="company">Company</Label>
+        <Input
+          id="company"
+          v-model="form.company"
+          type="text"
+          class="mt-1 block w-full"
+          autocomplete="company"
+        />
+        <Label class="mt-1 text-destructive text-xs">{{ form.errors.company }}</Label>
+      </div>
+
+      <!-- Website -->
+      <div class="col-span-6 sm:col-span-4">
+        <Label for="website">Website</Label>
+        <Input
+          id="website"
+          v-model="form.website"
+          type="url"
+          class="mt-1 block w-full"
+          autocomplete="website"
+        />
+        <Label class="mt-1 text-destructive text-xs">{{ form.errors.website }}</Label>
+      </div>
+
+      <!-- Address -->
+      <div class="col-span-6 sm:col-span-4">
+        <Label for="address">Address</Label>
+        <Textarea class="mt-1 block w-full" v-model="form.address" />
+        <Label class="mt-1 text-destructive text-xs">{{ form.errors.address }}</Label>
       </div>
     </template>
 

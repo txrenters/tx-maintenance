@@ -63,9 +63,9 @@ const submit = () => {
             <Input id="password" v-model="form.password" type="password" required />
           </div>
           <div class="flex items-center space-x-2">
-            <Checkbox v-model="form.remember" />
+            <Checkbox v-model="form.remember" id="remember_me" />
             <label
-              for="terms"
+              for="remember_me"
               class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
               Remember me

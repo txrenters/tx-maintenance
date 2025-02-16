@@ -1,9 +1,9 @@
 <script setup>
 import { router } from "@inertiajs/vue3";
-import AuthenticationCard from "@/Components/AuthenticationCard.vue";
-import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
 import { usePage } from "@inertiajs/vue3";
-import { ref, provide } from "vue";
+import { ref } from "vue";
+import { Icon } from "@iconify/vue";
+import { useColorMode } from "@vueuse/core";
 
 import {
   Sidebar,
@@ -39,6 +39,7 @@ import {
   Phone,
   LayoutTemplate,
   ContactRound,
+  Settings,
   Settings2,
   CalendarClock,
   CalendarDays,
@@ -58,7 +59,7 @@ const data = {
   teams: [
     {
       name: "Texas Renters",
-      logo: GalleryVerticalEnd,
+      logo: "/logo-ct.png",
       plan: "",
     },
   ],
@@ -116,7 +117,7 @@ const data = {
     },
     {
       name: "Users",
-      url: "#",
+      url: route("users.index"),
       icon: UserRoundCog,
     },
     {
@@ -127,10 +128,14 @@ const data = {
   ],
 };
 
+console.log(page.url.startsWith("/users"));
+
 const activeTeam = ref(data.teams[0]);
 const logout = () => {
   router.post(route("logout"));
 };
+
+const mode = useColorMode();
 </script>
 
 <template>
@@ -142,18 +147,18 @@ const logout = () => {
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <SidebarMenuButton
-                  size="lg"
+                  size="md"
                   class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <div
-                    class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+                    class="flex items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
                   >
-                    <component :is="activeTeam.logo" class="size-4" />
+                    <img :src="activeTeam.logo" width="" />
                   </div>
-                  <div class="grid flex-1 text-left text-sm leading-tight">
+                  <!-- <div class="grid flex-1 text-left text-sm leading-tight">
                     <span class="truncate font-semibold">{{ activeTeam.name }}</span>
                     <span class="truncate text-xs">{{ activeTeam.plan }}</span>
-                  </div>
+                  </div> -->
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
             </DropdownMenu>
@@ -166,7 +171,11 @@ const logout = () => {
           <SidebarMenu>
             <SidebarMenuItem v-for="item in data.projects" :key="item.name">
               <SidebarMenuButton as-child>
-                <Link :href="item.url" prefetch>
+                <Link
+                  :href="item.url"
+                  prefetch
+                  :class="{ 'font-bold border': item.isActive }"
+                >
                   <component :is="item.icon" />
                   <span>{{ item.name }}</span>
                 </Link>
@@ -218,7 +227,11 @@ const logout = () => {
           <SidebarMenu>
             <SidebarMenuItem v-for="item in data.settings" :key="item.name">
               <SidebarMenuButton as-child>
-                <Link :href="item.url" prefetch>
+                <Link
+                  :href="item.url"
+                  prefetch
+                  :class="{ 'font-bold border': item.isActive }"
+                >
                   <component :is="item.icon" />
                   <span>{{ item.name }}</span>
                 </Link>
@@ -278,7 +291,7 @@ const logout = () => {
                 <DropdownMenuGroup>
                   <Link :href="route('profile.show')" prefetch>
                     <DropdownMenuItem class="cursor-pointer">
-                      <BadgeCheck />
+                      <Settings />
                       Settings
                     </DropdownMenuItem>
                   </Link>
@@ -300,8 +313,44 @@ const logout = () => {
     </Sidebar>
     <SidebarInset>
       <Toaster />
+      <header
+        class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
+      >
+        <div class="flex justify-between w-full">
+          <BreadcrumbContainer :title="page.props.title" />
+          <div class="mr-5">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline">
+                  <Icon
+                    icon="radix-icons:moon"
+                    class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+                  />
+                  <Icon
+                    icon="radix-icons:sun"
+                    class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+                  />
+                  <span class="sr-only">Toggle theme</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @click="mode = 'light'"> Light </DropdownMenuItem>
+                <DropdownMenuItem @click="mode = 'dark'"> Dark </DropdownMenuItem>
+                <DropdownMenuItem @click="mode = 'auto'"> System </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+      <Separator />
 
-      <slot />
+      <div class="space-y-0.5 p-5">
+        <h2 class="text-2xl font-bold tracking-tight">{{ page.props.title }}</h2>
+      </div>
+
+      <div class="flex flex-1 flex-col gap-4 p-4 mt-4 pt-0">
+        <slot />
+      </div>
     </SidebarInset>
   </SidebarProvider>
 </template>

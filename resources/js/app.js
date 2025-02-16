@@ -16,6 +16,12 @@ import { Textarea } from '@/Components/ui/textarea';
 import { Switch } from '@/Components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import Toaster from '@/Components/ui/toast/Toaster.vue'
+import { Loader2 } from "lucide-vue-next";
+import Pagination from '@/Components/Pagination.vue';
+import PaginationResultRange from '@/Components/PaginationResultRange.vue';
+import SearchBar from '@/Components/SearchBar.vue';
+
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -72,9 +78,16 @@ import {
     FormLabel,
     FormMessage,
 } from '@/Components/ui/form'
-import Toaster from '@/Components/ui/toast/Toaster.vue'
-import { Loader2 } from "lucide-vue-next";
 
+import {
+    Table,
+    TableBody,
+    TableCaption,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/Components/ui/table'
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -100,6 +113,16 @@ createInertiaApp({
             .component("Textarea", Textarea)
             .component("Switch", Switch)
             .component("Toaster", Toaster)
+            .component("Pagination", Pagination)
+            .component("PaginationResultRange", PaginationResultRange)
+            .component("SearchBar", SearchBar)
+            .component("Table", Table)
+            .component("TableBody", TableBody)
+            .component("TableCaption", TableCaption)
+            .component("TableCell", TableCell)
+            .component("TableHead", TableHead)
+            .component("TableHeader", TableHeader)
+            .component("TableRow", TableRow)
             .component("FormControl", FormControl)
             .component("FormDescription", FormDescription)
             .component("FormField", FormField)
