@@ -1,5 +1,4 @@
 <script setup>
-import { ref } from "vue";
 import { useColorMode } from "@vueuse/core";
 import FormSection from "@/Components/FormSection.vue";
 

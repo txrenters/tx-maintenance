@@ -17,10 +17,23 @@ import { Switch } from '@/Components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Toaster from '@/Components/ui/toast/Toaster.vue'
-import { Loader2 } from "lucide-vue-next";
 import Pagination from '@/Components/Pagination.vue';
 import PaginationResultRange from '@/Components/PaginationResultRange.vue';
 import SearchBar from '@/Components/SearchBar.vue';
+import { Skeleton } from '@/components/ui/skeleton'
+import { PlusCircle } from "lucide-vue-next";
+import { Loader2 } from "lucide-vue-next";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/Components/ui/alert-dialog'
 
 import {
     Breadcrumb,
@@ -88,6 +101,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/Components/ui/table'
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select'
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -113,6 +135,24 @@ createInertiaApp({
             .component("Textarea", Textarea)
             .component("Switch", Switch)
             .component("Toaster", Toaster)
+            .component("PlusCircle", PlusCircle)
+            .component("Skeleton", Skeleton)
+            .component("AlertDialog", AlertDialog)
+            .component("AlertDialogAction", AlertDialogAction)
+            .component("AlertDialogCancel", AlertDialogCancel)
+            .component("AlertDialogContent", AlertDialogContent)
+            .component("AlertDialogDescription", AlertDialogDescription)
+            .component("AlertDialogFooter", AlertDialogFooter)
+            .component("AlertDialogHeader", AlertDialogHeader)
+            .component("AlertDialogTitle", AlertDialogTitle)
+            .component("AlertDialogTrigger", AlertDialogTrigger)
+            .component("Select", Select)
+            .component("SelectContent", SelectContent)
+            .component("SelectGroup", SelectGroup)
+            .component("SelectItem", SelectItem)
+            .component("SelectLabel", SelectLabel)
+            .component("SelectTrigger", SelectTrigger)
+            .component("SelectValue", SelectValue)
             .component("Pagination", Pagination)
             .component("PaginationResultRange", PaginationResultRange)
             .component("SearchBar", SearchBar)

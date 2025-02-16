@@ -18,6 +18,7 @@ Route::middleware([
     Route::get('/user/settings', ProfileController::class)->name('profile.settings');
 
     Route::resource('/users', UserController::class);
+    Route::post('/users/store', [UserController::class,'store'])->name('users.store_');
 });
 
 

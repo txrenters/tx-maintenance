@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -18,6 +22,7 @@ class UserController extends Controller
         $perPage = $request->per_page
         ? ($request->per_page == 'All' ? User::count() : $request->per_page)
         : 10;
+
         $users = User::query()
             ->filter(request(['search']))
             ->latest()
@@ -34,8 +39,8 @@ class UserController extends Controller
                     'website' => $user->website,
                     'address' => $user->address,
                     'profile_photo_url' => $user->profile_photo_url,
-                    'role_id' => $user->roles->first()->id ?? null,
-                    'role' => $user->getRoleNames()[0],
+                    'role_id' => optional($user->roles->first())->id,
+                    'role' => $user->getRoleNames()->first(),
                 ];
             });
 
@@ -48,21 +53,36 @@ class UserController extends Controller
             'filter' => $request->only(['search','per_page']),
         ]);
     }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreUserRequest $request)
     {
-        //
+        // Gate::authorize('create_user', User::class);        
+        $request->validated();
+
+        $data = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'company' => $request->company,
+            'website' => $request->website,
+            'address' => $request->address,
+            'email_verified_at' => now(),
+            'password' => bcrypt($request->email),
+        ];
+
+        DB::transaction(function() use ($data, $request) {
+            $user = User::create($data);
+
+            $role = Role::find($request->role_id);
+            if ($role) {
+                $user->assignRole($role);
+            }        
+        
+        });
+
+        return redirect()->back();
     }
 
     /**
@@ -74,26 +94,42 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateUserRequest $request, User $user)
     {
-        //
+        // Gate::authorize('update_user', User::class);
+
+        $request->validated();
+
+        $data = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'company' => $request->company,
+            'website' => $request->website,
+            'address' => $request->address,
+        ];
+
+        DB::transaction(function() use ($data, $user, $request) {
+            $user->update($data);
+            $role = Role::find($request->role_id);
+            if ($role) {
+                $user->syncRoles($role);
+            }      
+        });
+
+    
+        return redirect()->back();
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(User $user)
     {
-        //
+        $user->delete();
+
+        return redirect()->back();
     }
 }

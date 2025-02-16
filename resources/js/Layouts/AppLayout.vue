@@ -1,7 +1,7 @@
 <script setup>
+import { ref, computed } from "vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
-import { ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { useColorMode } from "@vueuse/core";
 
@@ -27,23 +27,16 @@ import {
 
 import {
   BadgeCheck,
-  Bell,
   ChevronRight,
   ChevronsUpDown,
-  Forward,
-  Frame,
-  GalleryVerticalEnd,
   LogOut,
-  MoreHorizontal,
   UserRoundCog,
   Phone,
   LayoutTemplate,
   ContactRound,
   Settings,
-  Settings2,
   CalendarClock,
   CalendarDays,
-  Trash2,
   LayoutDashboard,
   ListTodo,
 } from "lucide-vue-next";
@@ -63,6 +56,9 @@ const data = {
       plan: "",
     },
   ],
+};
+
+const navs = computed(() => ({
   navMain: [
     {
       title: "Work Order",
@@ -85,51 +81,50 @@ const data = {
     {
       name: "Dashboard",
       url: route("dashboard"),
+      isActive: page.url.startsWith("/dashboard"),
       icon: LayoutDashboard,
     },
     {
       name: "Calendar",
       url: "#",
+      isActive: page.url.startsWith("/calendar"),
+
       icon: CalendarDays,
     },
     {
       name: "Meetings",
       url: "#",
+      isActive: page.url.startsWith("/meetings"),
       icon: CalendarClock,
     },
   ],
-
   settings: [
     {
       name: "Templates",
       url: "#",
+      isActive: page.url.startsWith("/templates"),
       icon: LayoutTemplate,
     },
     {
       name: "Vendors",
       url: "#",
+      isActive: page.url.startsWith("/vendors"),
       icon: ContactRound,
     },
     {
       name: "Twilio Numbers",
       url: "#",
+      isActive: page.url.startsWith("/twilio_numbers"),
       icon: Phone,
     },
     {
       name: "Users",
       url: route("users.index"),
+      isActive: page.url.startsWith("/users"),
       icon: UserRoundCog,
     },
-    {
-      name: "General",
-      url: "#",
-      icon: Settings2,
-    },
   ],
-};
-
-console.log(page.url.startsWith("/users"));
-
+}));
 const activeTeam = ref(data.teams[0]);
 const logout = () => {
   router.post(route("logout"));
@@ -169,7 +164,7 @@ const mode = useColorMode();
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem v-for="item in data.projects" :key="item.name">
+            <SidebarMenuItem v-for="item in navs.projects" :key="item.name">
               <SidebarMenuButton as-child>
                 <Link
                   :href="item.url"
@@ -187,7 +182,7 @@ const mode = useColorMode();
           <SidebarGroupLabel>Feature</SidebarGroupLabel>
           <SidebarMenu>
             <Collapsible
-              v-for="item in data.navMain"
+              v-for="item in navs.navMain"
               :key="item.title"
               as-child
               :default-open="item.isActive"
@@ -225,7 +220,7 @@ const mode = useColorMode();
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem v-for="item in data.settings" :key="item.name">
+            <SidebarMenuItem v-for="item in navs.settings" :key="item.name">
               <SidebarMenuButton as-child>
                 <Link
                   :href="item.url"
@@ -348,7 +343,7 @@ const mode = useColorMode();
         <h2 class="text-2xl font-bold tracking-tight">{{ page.props.title }}</h2>
       </div>
 
-      <div class="flex flex-1 flex-col gap-4 p-4 mt-4 pt-0">
+      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
         <slot />
       </div>
     </SidebarInset>

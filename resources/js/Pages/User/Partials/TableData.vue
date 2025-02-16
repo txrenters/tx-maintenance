@@ -1,8 +1,20 @@
 <script setup>
 import { MoreHorizontal } from "lucide-vue-next";
+import { ref, defineEmits } from "vue";
+
+const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
+
 defineProps({
   userData: Object,
 });
+
+const openEditDialog = (user) => {
+  emit("openEditDialog", true, user);
+};
+
+const openDeleteDialog = (user) => {
+  emit("openDeleteDialog", true, user);
+};
 </script>
 <template>
   <Table>
@@ -12,7 +24,7 @@ defineProps({
           <span class="sr-only">img</span>
         </TableHead>
         <TableHead>Name</TableHead>
-        <TableHead>Role</TableHead>
+        <TableHead class="hidden md:table-cell">Role</TableHead>
         <TableHead class="hidden md:table-cell"> Company </TableHead>
         <TableHead class="hidden md:table-cell"> Website </TableHead>
         <TableHead class="hidden md:table-cell"> Address </TableHead>
@@ -26,17 +38,18 @@ defineProps({
         <TableCell class="hidden sm:table-cell">
           <img
             class="aspect-square rounded-md object-cover"
-            height="64"
+            height="54"
             :src="user.profile_photo_url"
-            width="64"
+            width="54"
           />
         </TableCell>
         <TableCell class="font-medium">
           {{ user.name }}
-          <p class="text-xs">{{ user.email }}</p>
-          <p class="text-xs">{{ user.phone }}</p>
+          <p class="text-xs font-normal">{{ user.email }}</p>
+          <p class="text-xs font-normal">{{ user.phone }}</p>
+          <Badge variant="outline" class="mt-2 md:hidden"> {{ user.role }} </Badge>
         </TableCell>
-        <TableCell>
+        <TableCell class="hidden md:table-cell">
           <Badge variant="outline"> {{ user.role }} </Badge>
         </TableCell>
         <TableCell class="hidden md:table-cell">
@@ -58,11 +71,14 @@ defineProps({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem>Edit</DropdownMenuItem>
-              <DropdownMenuItem>Delete</DropdownMenuItem>
+              <DropdownMenuItem @click="openEditDialog(user)">Edit</DropdownMenuItem>
+              <DropdownMenuItem @click="openDeleteDialog(user)">Delete</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </TableCell>
+      </TableRow>
+      <TableRow v-if="userData.length === 0">
+        <TableCell colspan="3">No user found!</TableCell>
       </TableRow>
     </TableBody>
   </Table>
