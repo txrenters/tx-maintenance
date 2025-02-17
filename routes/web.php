@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +21,10 @@ Route::middleware([
 
     Route::resource('/users', UserController::class);
     Route::post('/users/store', [UserController::class,'store'])->name('users.store_');
+
+    Route::resource('/twilio_numbers', TwilioPhoneNumberController::class);
+    Route::get('/twilio_numbers/import/twilio_numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
+
 });
 
 

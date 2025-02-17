@@ -21,8 +21,7 @@ import Pagination from '@/Components/Pagination.vue';
 import PaginationResultRange from '@/Components/PaginationResultRange.vue';
 import SearchBar from '@/Components/SearchBar.vue';
 import { Skeleton } from '@/components/ui/skeleton'
-import { PlusCircle } from "lucide-vue-next";
-import { Loader2 } from "lucide-vue-next";
+import { PlusCircle, Loader2 } from "lucide-vue-next";
 import {
     AlertDialog,
     AlertDialogAction,

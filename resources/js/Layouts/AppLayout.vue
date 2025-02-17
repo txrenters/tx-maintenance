@@ -113,7 +113,7 @@ const navs = computed(() => ({
     },
     {
       name: "Twilio Numbers",
-      url: "#",
+      url: route("twilio_numbers.index"),
       isActive: page.url.startsWith("/twilio_numbers"),
       icon: Phone,
     },
