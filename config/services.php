@@ -34,5 +34,10 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'propertyware' => [
+            'url' => env('PROPERTYWARE_URL'),
+            'username' => env('PROPERTYWARE_USERNAME'),
+            'password' => env('PROPERTYWARE_PASSWORD'),
+    ]
 
 ];

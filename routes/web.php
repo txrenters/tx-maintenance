@@ -5,6 +5,7 @@ use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VendorController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -23,7 +24,9 @@ Route::middleware([
     Route::post('/users/store', [UserController::class,'store'])->name('users.store_');
 
     Route::resource('/twilio_numbers', TwilioPhoneNumberController::class);
-    Route::get('/twilio_numbers/import/twilio_numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
+    Route::get('/twilio_numbers/import/numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
+
+    Route::resource('/vendors', VendorController::class);
 
 });
 

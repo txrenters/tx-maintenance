@@ -43,7 +43,7 @@ class UserSeeder extends Seeder
             'current_team_id' => null,
         ]);
 
-        $woc->assignRole('work-order-coordinator');
+        $woc->assignRole('woc');
         $admin->givePermissionTo(['view','create','edit']);
 
     }

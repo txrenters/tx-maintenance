@@ -12,12 +12,11 @@ defineOptions({ layout: AppLayout });
 
 const props = defineProps({
   title: String,
-  twilio_numbers: Object,
-  twilios: Object,
+  vendors: Object,
   filter: Object,
 });
 
-const url = ref(route("twilio_numbers.index"));
+const url = ref(route("vendors.index"));
 const search = ref(props.filter.search);
 
 const isCreateDialogOpen = ref(false);
@@ -87,29 +86,6 @@ const handleImportTwilioNumbers = () => {
 </script>
 <template>
   <Head :title="title" />
-
-  <div class="flex items-center">
-    <div class="ml-auto flex items-center gap-2">
-      <Button
-        size="sm"
-        :disabled="loader"
-        class="h-7 gap-1"
-        @click="handleImportTwilioNumbers"
-      >
-        <CloudDownload v-if="!loader" class="h-3.5 w-3.5" />
-        <Loader2 v-else class="w-4 h-4 animate-spin" />
-        <span class="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          Sync {{ title }}
-        </span>
-      </Button>
-      <Button size="sm" class="h-7 gap-1" @click="isCreateDialogOpen = true">
-        <UserPlus class="h-3.5 w-3.5" />
-        <span class="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          Assign a Twilio Number
-        </span>
-      </Button>
-    </div>
-  </div>
   <Card>
     <CardHeader>
       <SearchBar :url="url" v-model="search" />
@@ -118,7 +94,7 @@ const handleImportTwilioNumbers = () => {
     </CardHeader>
     <CardContent>
       <TableData
-        :data="twilio_numbers.data"
+        :data="vendors.data"
         @openEditDialog="handleEditDialog"
         @openDeleteDialog="handleAlertDialog"
       />
@@ -126,8 +102,8 @@ const handleImportTwilioNumbers = () => {
     <CardFooter
       class="border-t px-6 py-4 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-3"
     >
-      <PaginationResultRange :data="twilio_numbers" />
-      <Pagination :pagination="twilio_numbers.links" />
+      <PaginationResultRange :data="vendors" />
+      <Pagination :pagination="vendors.links" />
     </CardFooter>
   </Card>
 

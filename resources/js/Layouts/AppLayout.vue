@@ -107,7 +107,7 @@ const navs = computed(() => ({
     },
     {
       name: "Vendors",
-      url: "#",
+      url: route("vendors.index"),
       isActive: page.url.startsWith("/vendors"),
       icon: ContactRound,
     },
@@ -338,12 +338,7 @@ const mode = useColorMode();
         </div>
       </header>
       <Separator />
-
-      <div class="space-y-0.5 p-5">
-        <h2 class="text-2xl font-bold tracking-tight">{{ page.props.title }}</h2>
-      </div>
-
-      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div class="flex flex-1 flex-col gap-4 p-4 pt-4">
         <slot />
       </div>
     </SidebarInset>
