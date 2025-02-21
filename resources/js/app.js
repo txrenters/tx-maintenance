@@ -20,7 +20,7 @@ import Toaster from '@/Components/ui/toast/Toaster.vue'
 import Pagination from '@/Components/Pagination.vue';
 import PaginationResultRange from '@/Components/PaginationResultRange.vue';
 import SearchBar from '@/Components/SearchBar.vue';
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton } from '@/components/ui/skeleton';
 import { PlusCircle, Loader2 } from "lucide-vue-next";
 import {
     AlertDialog,

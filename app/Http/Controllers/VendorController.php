@@ -20,7 +20,7 @@ class VendorController extends Controller
         $vendors = Vendor::query()
             ->with('user')
             ->filter(request(['search']))
-            ->latest()
+            ->orderBy('name','ASC')
             ->paginate($perPage)
             ->withQueryString()
             ->through(function ($vendor) {
@@ -34,7 +34,7 @@ class VendorController extends Controller
                     'vendor_type' => $vendor->vendor_type,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
-                    'status' => $vendor->is_active ? "true" : false,
+                    'status' => $vendor->is_active ? true : false,
                 ];
             });
 

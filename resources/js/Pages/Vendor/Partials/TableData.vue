@@ -47,7 +47,7 @@ const openDeleteDialog = (user) => {
           {{ vendor.twilio_number }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          {{ vendor.status }}
+          <Switch :checked="vendor.status" @update:checked="vendor.status = $event" />
         </TableCell>
         <TableCell class="hidden md:table-cell">
           {{ vendor.address }}

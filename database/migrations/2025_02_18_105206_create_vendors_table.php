@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('vendors', function (Blueprint $table) {
             $table->id();
-            $table->string('uuid')->unique();
+            $table->string('propertyware_id')->unique();
             $table->string('name')->nullable();
             $table->string('name_on_check')->nullable();
             $table->string('account_number')->nullable();

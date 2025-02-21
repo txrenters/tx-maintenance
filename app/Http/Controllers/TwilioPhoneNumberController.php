@@ -19,6 +19,7 @@ class TwilioPhoneNumberController extends Controller
          : 10;
         $twilio_numbers = TwilioPhoneNumber::query()
                     ->filter(request(['search']))
+                    ->orderBy('name')
                     ->latest()
                     ->paginate($perPage)
                     ->withQueryString()
@@ -34,7 +35,7 @@ class TwilioPhoneNumberController extends Controller
                             'twilio_status' => $twilio->twilio_status,
                         ];
                     });
-        $twilios = TwilioPhoneNumber::get();
+        $twilios = TwilioPhoneNumber::orderBy('name')->get();
 
         return inertia('Twilio/Index', [
             'title' => 'Twilio Numbers',

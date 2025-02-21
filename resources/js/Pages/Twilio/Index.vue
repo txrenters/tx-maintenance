@@ -117,11 +117,7 @@ const handleImportTwilioNumbers = () => {
           <CardDescription> Manage your users and view their roles. </CardDescription> -->
     </CardHeader>
     <CardContent>
-      <TableData
-        :data="twilio_numbers.data"
-        @openEditDialog="handleEditDialog"
-        @openDeleteDialog="handleAlertDialog"
-      />
+      <TableData :data="twilio_numbers.data" />
     </CardContent>
     <CardFooter
       class="border-t px-6 py-4 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-3"
