@@ -159,8 +159,6 @@ const handleAlertDialog = (open, user) => {
   <Card>
     <CardHeader>
       <SearchBar :url="url" v-model="search" />
-      <!-- <CardTitle>{{ title }}</CardTitle>
-          <CardDescription> Manage your users and view their roles. </CardDescription> -->
     </CardHeader>
     <CardContent>
       <TableData

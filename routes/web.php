@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
@@ -28,6 +29,8 @@ Route::middleware([
     Route::get('/twilio_numbers/import/numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
 
     Route::resource('/vendors', VendorController::class);
+
+    Route::resource('/service_status', ServiceStatusController::class);
 
 
     Route::get('/work', function(){

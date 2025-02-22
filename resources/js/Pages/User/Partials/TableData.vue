@@ -1,7 +1,4 @@
 <script setup>
-import { MoreHorizontal } from "lucide-vue-next";
-import { ref } from "vue";
-
 const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
 
 defineProps({

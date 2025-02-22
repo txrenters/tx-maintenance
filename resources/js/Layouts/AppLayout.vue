@@ -39,6 +39,11 @@ import {
   CalendarDays,
   LayoutDashboard,
   ListTodo,
+  Users,
+  Building2,
+  Handshake,
+  Circle,
+  ClipboardList,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -61,13 +66,26 @@ const data = {
 const navs = computed(() => ({
   navMain: [
     {
-      title: "Work Order",
+      title: "Work Orders",
       url: "#",
       icon: ListTodo,
       isActive: false,
       items: [
         {
           title: "Ongoing",
+          url: "#",
+        },
+
+        {
+          title: "Invoices",
+          url: "#",
+        },
+        {
+          title: "Meetings",
+          url: "#",
+        },
+        {
+          title: "Reports",
           url: "#",
         },
         {
@@ -77,12 +95,20 @@ const navs = computed(() => ({
       ],
     },
   ],
-  projects: [
+  menu: [
     {
       name: "Dashboard",
       url: route("dashboard"),
       isActive: page.url.startsWith("/dashboard"),
       icon: LayoutDashboard,
+    },
+  ],
+  menu2: [
+    {
+      name: "Tasks",
+      url: "#",
+      isActive: page.url.startsWith("/tasks"),
+      icon: ClipboardList,
     },
     {
       name: "Calendar",
@@ -92,25 +118,45 @@ const navs = computed(() => ({
       icon: CalendarDays,
     },
     {
-      name: "Meetings",
-      url: "#",
-      isActive: page.url.startsWith("/meetings"),
-      icon: CalendarClock,
-    },
-  ],
-  settings: [
-    {
-      name: "Templates",
-      url: "#",
-      isActive: page.url.startsWith("/templates"),
-      icon: LayoutTemplate,
-    },
-    {
       name: "Vendors",
       url: route("vendors.index"),
       isActive: page.url.startsWith("/vendors"),
       icon: ContactRound,
     },
+    {
+      name: "Owners",
+      url: "#", //route("owners.index"),
+      isActive: page.url.startsWith("/owners"),
+      icon: Users,
+    },
+    {
+      name: "Tenants",
+      url: "#",
+      isActive: page.url.startsWith("/tenants"),
+      icon: Users,
+    },
+    {
+      name: "Properties",
+      url: "#",
+      isActive: page.url.startsWith("/properties"),
+      icon: Building2,
+    },
+  ],
+  settings: [
+    {
+      name: "Task Templates",
+      url: "#",
+      isActive: page.url.startsWith("/templates"),
+      icon: LayoutTemplate,
+    },
+
+    {
+      name: "Service Status",
+      url: route("service_status.index"),
+      isActive: page.url.startsWith("/service_status"),
+      icon: Circle,
+    },
+
     {
       name: "Twilio Numbers",
       url: route("twilio_numbers.index"),
@@ -164,7 +210,7 @@ const mode = useColorMode();
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem v-for="item in navs.projects" :key="item.name">
+            <SidebarMenuItem v-for="item in navs.menu" :key="item.name">
               <SidebarMenuButton as-child>
                 <Link
                   :href="item.url"
@@ -177,9 +223,6 @@ const mode = useColorMode();
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Feature</SidebarGroupLabel>
           <SidebarMenu>
             <Collapsible
               v-for="item in navs.navMain"
@@ -215,6 +258,20 @@ const mode = useColorMode();
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
+          </SidebarMenu>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="item in navs.menu2" :key="item.name">
+              <SidebarMenuButton as-child>
+                <Link
+                  :href="item.url"
+                  prefetch
+                  :class="{ 'font-bold border': item.isActive }"
+                >
+                  <component :is="item.icon" />
+                  <span>{{ item.name }}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
