@@ -7,6 +7,7 @@ use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\WOCNumbersController;
 use Illuminate\Support\Facades\Route;
 use Twilio\Rest\Client;
 
@@ -27,6 +28,8 @@ Route::middleware([
 
     Route::resource('/twilio_numbers', TwilioPhoneNumberController::class);
     Route::get('/twilio_numbers/import/numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
+
+    Route::resource('/woc_numbers', WOCNumbersController::class);
 
     Route::resource('/vendors', VendorController::class);
 

@@ -66,14 +66,14 @@ class User extends Authenticatable
         ];
     }
 
-    public function role(): BelongsTo
-    {
-        return $this->belongsTo(Role::class);
-    }
-
     public function vendor(): HasMany
     {
         return $this->hasMany(Vendor::class);
+    }
+
+    public function wocNumbers(): HasMany
+    {
+        return $this->hasMany(WOCNumbers::class);
     }
 
 

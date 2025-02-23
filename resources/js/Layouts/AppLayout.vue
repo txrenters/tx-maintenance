@@ -41,7 +41,7 @@ import {
   ListTodo,
   Users,
   Building2,
-  Handshake,
+  UserRoundCheck,
   Circle,
   ClipboardList,
 } from "lucide-vue-next";
@@ -162,6 +162,12 @@ const navs = computed(() => ({
       url: route("twilio_numbers.index"),
       isActive: page.url.startsWith("/twilio_numbers"),
       icon: Phone,
+    },
+    {
+      name: "WOC Numbers",
+      url: route("woc_numbers.index"),
+      isActive: page.url.startsWith("/woc_numbers"),
+      icon: UserRoundCheck,
     },
     {
       name: "Users",

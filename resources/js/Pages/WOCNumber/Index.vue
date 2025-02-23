@@ -2,9 +2,8 @@
 import { ref } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import TableData from "./Partials/TableData.vue";
-import { useForm, router } from "@inertiajs/vue3";
+import { useForm } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { CloudDownload, UserPlus } from "lucide-vue-next";
 
 const { toast } = useToast();
 
@@ -12,11 +11,13 @@ defineOptions({ layout: AppLayout });
 
 const props = defineProps({
   title: String,
-  service_status: Object,
+  woc_numbers: Object,
+  woc_users: Object,
+  twilio_numbers: Object,
   filter: Object,
 });
 
-const url = ref(route("service_status.index"));
+const url = ref(route("woc_numbers.index"));
 const search = ref(props.filter.search);
 
 const isCreateDialogOpen = ref(false);
@@ -24,39 +25,39 @@ const isEditDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 
 const form = useForm({
-  name: "",
-  description: "",
+  user_id: "",
+  twilio_phone_number_id: "",
 });
 
 const editForm = useForm({
   id: "",
-  name: "",
-  description: "",
+  user_id: "",
+  twilio_phone_number_id: "",
 });
 
 const deleteForm = useForm({
   id: "",
 });
 
-const setEditForm = (status) => {
-  editForm.id = status.id;
-  editForm.name = status.name;
-  editForm.description = status.description;
+const setEditForm = (woc_user) => {
+  editForm.id = woc_user.id;
+  editForm.user_id = String(woc_user.user_id);
+  editForm.twilio_phone_number_id = String(woc_user.twilio_phone_number_id);
 };
 
-const setDeleteForm = (status) => {
-  deleteForm.id = status.id;
+const setDeleteForm = (woc_user) => {
+  deleteForm.id = woc_user.id;
 };
 
 const handleCreateSubmit = () => {
-  form.post(route("service_status.store"), {
+  form.post(route("woc_numbers.store"), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       form.reset();
       toast({
         title: "Success!",
-        description: "Service status has been created successfully!",
+        description: "WOC twilio number has been set successfully!",
       });
       isCreateDialogOpen.value = false;
     },
@@ -67,19 +68,19 @@ const handleCreateSubmit = () => {
         description: "There was a problem with your request. Please try again!",
       });
     },
-    only: ["service_status"],
+    only: ["woc_numbers"],
   });
 };
 
 const handleUpdateSubmit = () => {
-  editForm.put(route("service_status.update", editForm.id), {
+  editForm.put(route("woc_numbers.update", editForm.id), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       form.reset();
       toast({
         title: "Success!",
-        description: "Service status has been updated successfully!",
+        description: "WOC twilio number has been updated successfully!",
       });
       isEditDialogOpen.value = false;
     },
@@ -90,19 +91,19 @@ const handleUpdateSubmit = () => {
         description: "There was a problem with your request. Please try again!",
       });
     },
-    only: ["service_status"],
+    only: ["woc_numbers"],
   });
 };
 
 const handleDeleteSubmit = () => {
-  deleteForm.delete(route("service_status.destroy", deleteForm.id), {
+  deleteForm.delete(route("woc_numbers.destroy", deleteForm.id), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       deleteForm.reset();
       toast({
         title: "Success!",
-        description: "Service status has been deleted successfully!",
+        description: "WOC twilio number has been deleted successfully!",
       });
       isDeleteDialogOpen.value = false;
     },
@@ -114,7 +115,7 @@ const handleDeleteSubmit = () => {
       });
       isDeleteDialogOpen.value = false;
     },
-    only: ["service_status"],
+    only: ["woc_numbers"],
   });
 };
 
@@ -136,7 +137,7 @@ const handleAlertDialog = (open, status) => {
       <Button size="sm" class="h-7 gap-1" @click="isCreateDialogOpen = true">
         <PlusCircle class="h-3.5 w-3.5" />
         <span class="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          Create Service Status
+          Set WOC Twilio Number
         </span>
       </Button>
     </div>
@@ -147,7 +148,7 @@ const handleAlertDialog = (open, status) => {
     </CardHeader>
     <CardContent>
       <TableData
-        :data="service_status.data"
+        :data="woc_numbers.data"
         @openEditDialog="handleEditDialog"
         @openDeleteDialog="handleAlertDialog"
       />
@@ -155,30 +156,64 @@ const handleAlertDialog = (open, status) => {
     <CardFooter
       class="border-t px-6 py-4 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-3"
     >
-      <PaginationResultRange :data="service_status" />
-      <Pagination :pagination="service_status.links" />
+      <PaginationResultRange :data="woc_numbers" />
+      <Pagination :pagination="woc_numbers.links" />
     </CardFooter>
   </Card>
 
   <Dialog v-model:open="isCreateDialogOpen">
     <DialogContent class="sm:max-w-[525px]">
       <DialogHeader>
-        <DialogTitle>Add New Service Status </DialogTitle>
+        <DialogTitle>Set Work Order Coordinator Twilio Number </DialogTitle>
         <DialogDescription>
-          Create a new service status here. Click create when you're done.
+          Set a twilio number for your work order coordinator here. Click set when you're
+          done.
         </DialogDescription>
       </DialogHeader>
       <form id="dialogForm" @submit="handleSubmit($event, onSubmit)">
         <div class="mb-3">
-          <Label for="name">Name </Label>
-          <Input type="text" class="mt-2" v-model="form.name" />
-          <Label class="mt-1 text-destructive text-xs">{{ form.errors.name }}</Label>
+          <Label for="roles" class="mb-2">Name</Label>
+          <Select class="mt-2" v-model="form.user_id">
+            <SelectTrigger>
+              <SelectValue placeholder="Select a work order coordinator" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Work order coordinator</SelectLabel>
+                <SelectItem
+                  v-for="user in woc_users"
+                  :value="String(user.id)"
+                  :key="user.id"
+                >
+                  {{ user.name }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Label class="mt-1 text-destructive text-xs">{{ form.errors.user_id }}</Label>
         </div>
         <div class="mb-3">
-          <Label for="description">Description </Label>
-          <Textarea v-model="form.description" class="mt-2"></Textarea>
+          <Label for="roles" class="mb-2">Twilio Phone Number</Label>
+          <Select class="mt-2" v-model="form.twilio_phone_number_id">
+            <SelectTrigger>
+              <SelectValue placeholder="Select a twilio phone number" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Twilio phone number</SelectLabel>
+                <SelectItem
+                  v-for="twilio in twilio_numbers"
+                  :value="String(twilio.id)"
+                  :key="twilio.id"
+                >
+                  {{ twilio.name }} -
+                  {{ twilio.phone_number }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           <Label class="mt-1 text-destructive text-xs">{{
-            form.errors.description
+            form.errors.twilio_phone_number_id
           }}</Label>
         </div>
       </form>
@@ -192,7 +227,7 @@ const handleAlertDialog = (open, status) => {
           @click.prevent="handleCreateSubmit"
         >
           <Loader2 v-if="form.processing" class="w-4 h-4 animate-spin" />
-          Create</Button
+          Set</Button
         >
       </DialogFooter>
     </DialogContent>
@@ -201,22 +236,58 @@ const handleAlertDialog = (open, status) => {
   <Dialog v-model:open="isEditDialogOpen">
     <DialogContent class="sm:max-w-[525px]">
       <DialogHeader>
-        <DialogTitle>Edit Service Status </DialogTitle>
+        <DialogTitle>Edit Work Order Coordinator Twilio Number </DialogTitle>
         <DialogDescription>
-          Edit a service status here. Click save changes when you're done.
+          Edit a twilio number for your work order coordinator here. Click save changes
+          when you're done.
         </DialogDescription>
       </DialogHeader>
       <form id="dialogForm" @submit="handleSubmit($event, onSubmit)">
         <div class="mb-3">
-          <Label for="name">Name </Label>
-          <Input type="text" class="mt-2" v-model="editForm.name" />
-          <Label class="mt-1 text-destructive text-xs">{{ editForm.errors.name }}</Label>
+          <Label for="roles" class="mb-2">Name</Label>
+          <Select class="mt-2" v-model="editForm.user_id">
+            <SelectTrigger>
+              <SelectValue placeholder="Select a work order coordinator" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Work order coordinator</SelectLabel>
+                <SelectItem
+                  v-for="user in woc_users"
+                  :value="String(user.id)"
+                  :key="user.id"
+                >
+                  {{ user.name }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Label class="mt-1 text-destructive text-xs">{{
+            editForm.errors.user_id
+          }}</Label>
         </div>
         <div class="mb-3">
-          <Label for="description">Description </Label>
-          <Textarea v-model="editForm.description" class="mt-2"></Textarea>
+          <Label for="roles" class="mb-2">Twilio Phone Number</Label>
+          <Select class="mt-2" v-model="editForm.twilio_phone_number_id">
+            <SelectTrigger>
+              <SelectValue placeholder="Select a twilio phone number" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Twilio phone number</SelectLabel>
+                <SelectItem
+                  v-for="twilio in twilio_numbers"
+                  :value="String(twilio.id)"
+                  :key="twilio.id"
+                >
+                  {{ twilio.name }} -
+                  {{ twilio.phone_number }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           <Label class="mt-1 text-destructive text-xs">{{
-            editForm.errors.description
+            editForm.errors.twilio_phone_number_id
           }}</Label>
         </div>
       </form>

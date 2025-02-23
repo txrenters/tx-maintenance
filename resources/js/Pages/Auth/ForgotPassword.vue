@@ -22,7 +22,7 @@ const submit = () => {
 };
 </script>
 <template>
-  <Head :title="title" />
+  <Head title="Reset Password"></Head>
 
   <div>
     <div class="mx-auto grid w-[350px] gap-3">
