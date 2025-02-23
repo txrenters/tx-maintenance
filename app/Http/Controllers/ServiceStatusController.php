@@ -55,7 +55,7 @@ class ServiceStatusController extends Controller
 
         ServiceStatus::create($request->all());
 
-        return redirect()->back();
+        return redirect()->route('service_status.index');
 
     }
 
@@ -73,7 +73,7 @@ class ServiceStatusController extends Controller
 
         $serviceStatus->update($request->all());
 
-        return redirect()->back();
+        return redirect()->route('service_status.index');
     }
 
     /**
@@ -85,6 +85,6 @@ class ServiceStatusController extends Controller
 
         $serviceStatus->delete();
 
-        return redirect()->back();
+        return redirect()->route('service_status.index');
     }
 }

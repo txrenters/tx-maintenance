@@ -156,19 +156,19 @@ const navs = computed(() => ({
       isActive: page.url.startsWith("/service_status"),
       icon: Circle,
     },
-
-    {
-      name: "Twilio Numbers",
-      url: route("twilio_numbers.index"),
-      isActive: page.url.startsWith("/twilio_numbers"),
-      icon: Phone,
-    },
     {
       name: "WOC Numbers",
       url: route("woc_numbers.index"),
       isActive: page.url.startsWith("/woc_numbers"),
       icon: UserRoundCheck,
     },
+    {
+      name: "Twilio Numbers",
+      url: route("twilio_numbers.index"),
+      isActive: page.url.startsWith("/twilio_numbers"),
+      icon: Phone,
+    },
+
     {
       name: "Users",
       url: route("users.index"),

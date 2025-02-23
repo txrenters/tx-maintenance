@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -16,7 +17,7 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        // Gate::authorize('view_user', User::class);
+        Gate::authorize('view_user', User::class);
 
         $perPage = $request->per_page
         ? ($request->per_page == 'All' ? User::count() : $request->per_page)
@@ -57,7 +58,8 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request)
     {
-        // Gate::authorize('create_user', User::class);        
+        Gate::authorize('create_user', User::class);    
+
         $request->validated();
 
         $data = [
@@ -81,15 +83,7 @@ class UserController extends Controller
         
         });
 
-        return redirect()->back();
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
+        return redirect()->route('users.index');
     }
 
     /**
@@ -97,7 +91,7 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user)
     {
-        // Gate::authorize('update_user', User::class);
+        Gate::authorize('update_user', $user);
 
         $request->validated();
 
@@ -119,7 +113,7 @@ class UserController extends Controller
         });
 
     
-        return redirect()->back();
+        return redirect()->route('users.index');
     }
 
     /**
@@ -127,8 +121,10 @@ class UserController extends Controller
      */
     public function destroy(User $user)
     {
+        Gate::authorize('delete_user', $user);
+
         $user->delete();
 
-        return redirect()->back();
+        return redirect()->route('users.index');
     }
 }
