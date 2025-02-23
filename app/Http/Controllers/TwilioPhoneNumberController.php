@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\TwilioPhoneNumber;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class TwilioPhoneNumberController extends Controller
 {
@@ -12,7 +13,7 @@ class TwilioPhoneNumberController extends Controller
      */
     public function index(Request $request)
     {
-         // Gate::authorize('view_user', User::class);
+        Gate::authorize('view_twilio_number', TwilioPhoneNumber::class);
 
         $perPage = $request->per_page
          ? ($request->per_page == 'All' ? TwilioPhoneNumber::count() : $request->per_page)
@@ -43,53 +44,5 @@ class TwilioPhoneNumberController extends Controller
             'twilios' => $twilios,
             'filter' => $request->only(['search','per_page']),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(TwilioPhoneNumber $twilioPhoneNumber)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(TwilioPhoneNumber $twilioPhoneNumber)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, TwilioPhoneNumber $twilioPhoneNumber)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(TwilioPhoneNumber $twilioPhoneNumber)
-    {
-        //
     }
 }
