@@ -16,6 +16,7 @@ return new class extends Migration
             $table->id();
             $table->string('propertyware_id')->unique();
             $table->string('name')->nullable();
+            $table->string('email')->nullable();
             $table->string('name_on_check')->nullable();
             $table->string('account_number')->nullable();
             $table->string('credit_limit')->nullable();

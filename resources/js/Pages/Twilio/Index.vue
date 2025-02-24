@@ -102,12 +102,6 @@ const handleImportTwilioNumbers = () => {
           Sync {{ title }}
         </span>
       </Button>
-      <Button size="sm" class="h-7 gap-1" @click="isCreateDialogOpen = true">
-        <UserPlus class="h-3.5 w-3.5" />
-        <span class="sr-only sm:not-sr-only sm:whitespace-nowrap">
-          Assign a Twilio Number
-        </span>
-      </Button>
     </div>
   </div>
   <Card>
@@ -126,52 +120,4 @@ const handleImportTwilioNumbers = () => {
       <Pagination :pagination="twilio_numbers.links" />
     </CardFooter>
   </Card>
-
-  <Dialog v-model:open="isCreateDialogOpen">
-    <DialogContent class="sm:max-w-[525px]">
-      <DialogHeader>
-        <DialogTitle>WOC Twillio Number </DialogTitle>
-        <DialogDescription>
-          Assign number here. Click assign when you're done.
-        </DialogDescription>
-      </DialogHeader>
-      <form id="dialogForm" @submit="handleSubmit($event, onSubmit)">
-        <div class="mb-3">
-          <Label for="name">Current Number </Label>
-          <Input type="text" class="mt-2" v-model="form.name" />
-          <Label class="mt-1 text-destructive text-xs">{{ form.errors.name }}</Label>
-        </div>
-        <div class="mb-3">
-          <Label for="roles" class="mb-2">Assign Number</Label>
-          <Select class="mt-2" v-model="form.name">
-            <SelectTrigger>
-              <SelectValue placeholder="Select a number" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Numbers</SelectLabel>
-                <SelectItem v-for="twilio in twilios" :value="twilio.id" :key="twilio.id">
-                  {{ twilio.name }} - {{ twilio.phone_number }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Label class="mt-1 name-destructive text-xs">{{ form.errors.role_id }}</Label>
-        </div>
-      </form>
-      <DialogFooter class="flex gap-2">
-        <Button type="button" variant="outline" @click="isCreateDialogOpen = false">
-          Cancel</Button
-        >
-        <Button
-          type="submit"
-          :disabled="form.processing"
-          @click.prevent="handleCreateSubmit"
-        >
-          <Loader2 v-if="form.processing" class="w-4 h-4 animate-spin" />
-          Assign</Button
-        >
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>

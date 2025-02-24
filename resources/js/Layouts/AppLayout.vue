@@ -48,7 +48,7 @@ import {
 
 const page = usePage();
 
-const data = {
+const data = computed(() => ({
   user: {
     name: page.props.auth.user.name,
     email: page.props.auth.user.email,
@@ -61,7 +61,7 @@ const data = {
       plan: "",
     },
   ],
-};
+}));
 
 const navs = computed(() => ({
   navMain: [
@@ -177,7 +177,7 @@ const navs = computed(() => ({
     },
   ],
 }));
-const activeTeam = ref(data.teams[0]);
+const activeTeam = ref(data.value.teams[0]);
 const logout = () => {
   router.post(route("logout"));
 };
