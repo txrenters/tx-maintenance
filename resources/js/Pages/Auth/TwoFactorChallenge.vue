@@ -6,7 +6,6 @@ import AuthenticationCardLogo from '@/Components/AuthenticationCardLogo.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 
 const recovery = ref(false);
 
@@ -58,22 +57,20 @@ const submit = () => {
         <form @submit.prevent="submit">
             <div v-if="! recovery">
                 <InputLabel for="code" value="Code" />
-                <TextInput
-                    id="code"
+                <Textarea id="code"
                     ref="codeInput"
                     v-model="form.code"
                     type="text"
                     inputmode="numeric"
                     class="mt-1 block w-full"
                     autofocus
-                    autocomplete="one-time-code"
-                />
+                    autocomplete="one-time-code" />
                 <InputError class="mt-2" :message="form.errors.code" />
             </div>
 
             <div v-else>
                 <InputLabel for="recovery_code" value="Recovery Code" />
-                <TextInput
+                <Textarea
                     id="recovery_code"
                     ref="recoveryCodeInput"
                     v-model="form.recovery_code"

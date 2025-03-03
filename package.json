@@ -29,6 +29,7 @@
         "lodash.debounce": "^4.0.8",
         "lucide-vue-next": "^0.475.0",
         "radix-vue": "^1.9.14",
+        "script-runner": "^0.1.8",
         "tailwind-merge": "^3.0.1",
         "tailwindcss-animate": "^1.0.7",
         "vee-validate": "^4.15.0",

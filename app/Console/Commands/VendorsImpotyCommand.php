@@ -9,6 +9,8 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+use function PHPUnit\Framework\isEmpty;
+
 class VendorsImpotyCommand extends Command
 {
     /**
@@ -16,7 +18,7 @@ class VendorsImpotyCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'vendors:import';
+    protected $signature = 'import:vendors';
 
     /**
      * The console command description.
@@ -38,14 +40,20 @@ class VendorsImpotyCommand extends Command
      */
     public function handle()
     {
-        $vendors = $this->propertyWareService->getVendors();
+        $vendors = collect($this->propertyWareService->getVendors())->toArray();
         $now = now()->format('Y-m-d H:i:s');
 
         try {
             DB::beginTransaction();
 
-            $vendorEmails = array_map(fn($vendor) => (string) ($vendor['email'] ?? null) . '@renters.com', $vendors);
-            $vendorIds = array_map(fn($vendor) => (string) ($vendor['ID'] ?? null), $vendors);
+            $vendors = json_decode(json_encode($vendors), true);
+
+            $vendorEmails = array_map(fn($vendor) => !empty($vendor['email']) 
+                ? (string) $vendor['email'] 
+                : ((string) ($vendor['ID'] ?? 'unknown') . '@renters.com'), 
+            $vendors);
+
+            $vendorIds = array_map(fn($vendor) => isset($vendor['ID']) ? (string) $vendor['ID'] : '', $vendors);
 
             // Fetch existing users and vendors in one go
             $existingUsers = User::whereIn('email', $vendorEmails)
@@ -60,39 +68,40 @@ class VendorsImpotyCommand extends Command
             $vendorsData = [];
 
             foreach ($vendors as $vendor) {
-                foreach ($vendor as $vendor_values) {
-                    $data = json_decode(json_encode($vendor_values), true);
+                $data = json_decode(json_encode($vendor), true);
 
-                    $vendorId = $data['ID'] ?? null;
-                    $vendorEmail = $data['email'] ?? ($vendorId . '@renters.com');
+                $vendorId = $data['ID'] ?? null;
+                $vendorEmail = isEmpty($data['email']) ? ($vendorId . '@renters.com') : $data['email'];
 
-                    if (!$vendorId || in_array($vendorId, $existingVendors)) {
-                        continue; // Skip if vendor exists
-                    }
+                if (!$vendorId || in_array($vendorId, $existingVendors)) {
+                    continue; // Skip if vendor exists
+                }
 
-                    if (!isset($existingUsers[$vendorEmail])) {
-                        // Prepare user data
-                        $address = trim(implode(' ', array_filter([
-                            $data['address'] ?? null,
-                            $data['address2'] ?? null,
-                            $data['city'] ?? null,
-                            $data['state'] ?? null,
-                            $data['country'] ?? null,
-                            $data['zip'] ?? null,
-                        ])));
+                if (!isset($existingUsers[$vendorEmail])) {
+                    // Prepare user data
+                    $address = trim(implode(' ', array_filter([
+                        $data['address'] ?? null,
+                        $data['address2'] ?? null,
+                        $data['city'] ?? null,
+                        $data['state'] ?? null,
+                        $data['country'] ?? null,
+                        $data['zip'] ?? null,
+                    ])));
 
-                        $usersData[] = [
-                            'email' => $vendorEmail,
-                            'name' => $data['name'] ?? null,
-                            'phone' => $data['phone'] ?? null,
-                            'company' => $data['companyName'] ?? null,
-                            'address' => $address,
-                            'website' => $data['website'] ?? null,
-                            'password' => bcrypt($vendorEmail), // Default password as email
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-                    }
+                    $usersData = [
+                        'email' => $vendorEmail,
+                        'name' => $data['name'] ?? null,
+                        'phone' => $data['phone'] ?? null,
+                        'company' => $data['companyName'] ?? null,
+                        'address' => $address,
+                        'website' => $data['website'] ?? null,
+                        'password' => bcrypt($vendorEmail), // Default password as email
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+
+                    $user = User::create($usersData);
+                    $user->assignRole('vendor'); // Assign 'vendor' role
 
                     $vendorsData[] = [
                         'propertyware_id' => $vendorId,
@@ -106,38 +115,17 @@ class VendorsImpotyCommand extends Command
                         'taxID' => $data['taxID'] ?? null,
                         'vendor_type' => $data['vendorType'] ?? null,
                         'twilio_number' => '',
-                        'is_active' => isset($data['active']) && $data['active'] === 'true',
-                        'user_id' => null, // Will be updated later
+                        'is_active' => isset($data['active']) && $data['active'] == 'true' ? true : false,
+                        'user_id' => $user->id,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
                 }
             }
 
-            // Bulk insert users
-            if (!empty($usersData)) {
-                DB::table('users')->insertOrIgnore($usersData);
-            }
-
-            // Refresh user IDs
-            $newUsers = User::whereIn('email', array_column($usersData, 'email'))
-                ->pluck('id', 'email')
-                ->toArray();
-
-            // Assign role to all newly inserted users in one go
-            $usersWithRole = User::whereIn('id', $newUsers)->get();
-            foreach ($usersWithRole as $user) {
-                $user->assignRole('vendor'); // Assign 'vendor' role
-            }
-
-            // Update vendorsData with correct user_id
-            foreach ($vendorsData as &$vendor) {
-                $vendor['user_id'] = $newUsers[$vendor['email']] ?? null;
-            }
-
             // Bulk insert vendors
             if (!empty($vendorsData)) {
-                DB::table('vendors')->insertOrIgnore($vendorsData);
+                DB::table('vendors')->insert($vendorsData);
             }
 
             DB::commit();
