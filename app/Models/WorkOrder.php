@@ -9,4 +9,8 @@ class WorkOrder extends Model
 {
     /** @use HasFactory<\Database\Factories\WorkOrderFactory> */
     use HasFactory;
+
+    protected $table = 'work_orders';
+
+    protected $guarded = [];
 }

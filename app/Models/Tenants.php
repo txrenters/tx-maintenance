@@ -9,4 +9,8 @@ class Tenants extends Model
 {
     /** @use HasFactory<\Database\Factories\TenantsFactory> */
     use HasFactory;
+
+    protected $table = 'tenants';
+
+    protected $guarded = [];
 }

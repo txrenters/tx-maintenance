@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 use function PHPUnit\Framework\isEmpty;
 
-class VendorsImpotyCommand extends Command
+class VendorsImportCommand extends Command
 {
     /**
      * The name and signature of the console command.
@@ -48,37 +48,15 @@ class VendorsImpotyCommand extends Command
 
             $vendors = json_decode(json_encode($vendors), true);
 
-            $vendorEmails = array_map(fn($vendor) => !empty($vendor['email']) 
-                ? (string) $vendor['email'] 
-                : ((string) ($vendor['ID'] ?? 'unknown') . '@renters.com'), 
-            $vendors);
-
-            $vendorIds = array_map(fn($vendor) => isset($vendor['ID']) ? (string) $vendor['ID'] : '', $vendors);
-
-            // Fetch existing users and vendors in one go
-            $existingUsers = User::whereIn('email', $vendorEmails)
-                ->pluck('id', 'email')
-                ->toArray();
-
-            $existingVendors = Vendor::whereIn('propertyware_id', $vendorIds)
-                ->pluck('propertyware_id')
-                ->toArray();
-
-            $usersData = [];
-            $vendorsData = [];
-
             foreach ($vendors as $vendor) {
-                $data = json_decode(json_encode($vendor), true);
+                $data = (array)$vendor;
 
                 $vendorId = $data['ID'] ?? null;
                 $vendorEmail = isEmpty($data['email']) ? ($vendorId . '@renters.com') : $data['email'];
 
-                if (!$vendorId || in_array($vendorId, $existingVendors)) {
-                    continue; // Skip if vendor exists
-                }
+                $existingVendor = Vendor::where('propertyware_id', $vendorId)->first();
 
-                if (!isset($existingUsers[$vendorEmail])) {
-                    // Prepare user data
+                if (!$existingVendor) {
                     $address = trim(implode(' ', array_filter([
                         $data['address'] ?? null,
                         $data['address2'] ?? null,
@@ -86,7 +64,7 @@ class VendorsImpotyCommand extends Command
                         $data['state'] ?? null,
                         $data['country'] ?? null,
                         $data['zip'] ?? null,
-                    ])));
+                    ])));                   
 
                     $usersData = [
                         'email' => $vendorEmail,
@@ -103,7 +81,7 @@ class VendorsImpotyCommand extends Command
                     $user = User::create($usersData);
                     $user->assignRole('vendor'); // Assign 'vendor' role
 
-                    $vendorsData[] = [
+                    $vendorsData = [
                         'propertyware_id' => $vendorId,
                         'name' => $data['name'] ?? null,
                         'email' => $vendorEmail,
@@ -120,14 +98,9 @@ class VendorsImpotyCommand extends Command
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
+                    Vendor::create($vendorsData);
                 }
             }
-
-            // Bulk insert vendors
-            if (!empty($vendorsData)) {
-                DB::table('vendors')->insert($vendorsData);
-            }
-
             DB::commit();
             Log::info('Vendor import completed successfully.');
         } catch (\Exception $e) {
@@ -135,7 +108,4 @@ class VendorsImpotyCommand extends Command
             Log::error('Vendor import failed: ' . $e->getMessage());
         }
     }
-
-
-    
 }

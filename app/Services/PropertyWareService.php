@@ -29,9 +29,11 @@ class PropertyWareService
     {
         try {
             $client = $this->iniate();
-            $vendors = $client->getVendors();
-            return $vendors;
+
+            $response = $client->getVendors();
         
+            return $response;
+            
         } catch (Exception $e) {
             Log::error('SOAP request failed: ' . $e->getMessage());
             return 'Error: ' . $e->getMessage();
@@ -41,8 +43,13 @@ class PropertyWareService
     public function getWorkOrders()
     {
         try {
+            $params = array(
+                'pageNumber' => 1,
+                'orderByNewestFirst' => 1,
+            );
+
             $client = $this->iniate();
-            $workOrders = $client->getWorkOrders();
+            $workOrders = $client->getWorkOrders($params);
             return $workOrders;
         
         } catch (Exception $e) {
@@ -51,6 +58,44 @@ class PropertyWareService
         }
     }
 
+    public function getOwners()
+    {
+        try {
+            $client = $this->iniate();
+            $allOwners = [];
+            $pageNumber = 1;
+            $hasMorePages = true; // Assume there are more pages initially
+        
+            while ($hasMorePages) {
+                // Call the API with pagination
+                $params = [
+                    'pageNumber' => $pageNumber,
+                    'orderByNewestFirst' => 1,
+                ];
+                $response = $client->getOwners($params);
+        
+                if (!empty($response)) {
+                    $owners = json_decode(json_encode($response), true);
+                    $allOwners = array_merge($allOwners, $owners);
+                }
+        
+                // Check if we received less than the expected page size (e.g., 10), meaning no more pages
+                if (count($owners) < 10) {
+                    $hasMorePages = false;
+                } else {
+                    $pageNumber++; // Increment to fetch the next page
+                }
+            }
+        
+            return $allOwners;
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: ' . $e->getMessage());
+            return 'Error: ' . $e->getMessage();
+        }
+        
+    }
+    
     public function iniate()
     {
             $options = array(

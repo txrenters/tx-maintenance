@@ -34,6 +34,12 @@ class RolesAndPermissionsSeeder extends Seeder
 
         Role::create(['name' => 'vendor'])
             ->givePermissionTo(['view','create','edit']);
+        
+        Role::create(['name' => 'tenant'])
+            ->givePermissionTo(['view','create','edit']);
+        
+        Role::create(['name' => 'owner'])
+            ->givePermissionTo(['view','create','edit']);
 
         Role::create(['name' => 'woc'])
             ->givePermissionTo(['view','create','edit']);
