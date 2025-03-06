@@ -1,15 +1,15 @@
 <script setup>
-import { cn } from "@/lib/utils";
-import { X } from "lucide-vue-next";
+import { cn } from '@/lib/utils';
+import { X } from 'lucide-vue-next';
 import {
   DialogClose,
   DialogContent,
   DialogOverlay,
   DialogPortal,
   useForwardPropsEmits,
-} from "reka-ui";
-import { computed } from "vue";
-import { sheetVariants } from ".";
+} from 'reka-ui';
+import { computed } from 'vue';
+import { sheetVariants } from '.';
 
 defineOptions({
   inheritAttrs: false,
@@ -26,12 +26,12 @@ const props = defineProps({
 });
 
 const emits = defineEmits([
-  "escapeKeyDown",
-  "pointerDownOutside",
-  "focusOutside",
-  "interactOutside",
-  "openAutoFocus",
-  "closeAutoFocus",
+  'escapeKeyDown',
+  'pointerDownOutside',
+  'focusOutside',
+  'interactOutside',
+  'openAutoFocus',
+  'closeAutoFocus',
 ]);
 
 const delegatedProps = computed(() => {
@@ -55,7 +55,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       <slot />
 
       <DialogClose
-        class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+        class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-neutral-100 dark:ring-offset-neutral-950 dark:focus:ring-neutral-300 dark:data-[state=open]:bg-neutral-800"
       >
         <X class="w-4 h-4" />
       </DialogClose>

@@ -17,7 +17,7 @@ class ServiceStatus extends Model
 
     public function work_orders() : HasMany
     {
-        return $this->hasMany(WorkOrder::class);
+        return $this->hasMany(WorkOrder::class)->latest('created_date');
     }
 
     public function scopeFilter($query, array $filters)

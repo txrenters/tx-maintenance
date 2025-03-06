@@ -174,7 +174,7 @@ const logout = () => {
   router.post(route("logout"));
 };
 
-const mode = useColorMode();
+const mode = useColorMode({ disableTransition: false });
 </script>
 
 <template>
@@ -190,7 +190,7 @@ const mode = useColorMode();
                   class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <div
-                    class="flex items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+                    class="flex items-center justify-center rounded-lg text-sidebar-primary-foreground"
                   >
                     <img :src="activeTeam.logo" width="" />
                   </div>

@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Models\ServiceStatus;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class WorkOrderController extends Controller
 {
@@ -16,16 +17,22 @@ class WorkOrderController extends Controller
      */
     public function index(Request $request)
     {
-        $service_status = ServiceStatus::with(['work_orders.owner.user','work_orders.service_status','work_orders.vendors'])->get();
+        $service_status = ServiceStatus::with([
+            'work_orders.service_status',
+            'work_orders.vendors',
+            'work_orders.requested_by',
+            'work_orders.managed_by'
+        ])->get();
 
-        // dd($service_status);
+        $categories = DB::table('work_orders')->select('category')->orderBy('category')->distinct()->get();
 
-        $vendors = Vendor::select('id', 'name')->get();
+        $vendors = DB::table('vendors')->select('id','name')->orderBy('name')->get();
 
         return inertia('WorkOrder/Index',[
             'title' => 'Work Orders',
             'service_status' => $service_status,
             'vendors' => $vendors,
+            'categories' => $categories,
             'filter' => $request->only(['search','per_page']),
         ]);
     }

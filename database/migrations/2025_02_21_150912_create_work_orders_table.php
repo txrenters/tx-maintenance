@@ -55,8 +55,6 @@ return new class extends Migration
             $table->decimal('total_cost',10,2)->nullable();
             $table->decimal('total_hour_work',10,2)->nullable();
             $table->string('type')->nullable();
-            $table->string('owner_full_name')->nullable();
-            $table->string('requested_by')->nullable();
 
             $table->bigInteger('building_id')->nullable();
             $table->bigInteger('lease_id')->nullable();

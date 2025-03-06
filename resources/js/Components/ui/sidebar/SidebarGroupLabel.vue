@@ -1,6 +1,6 @@
 <script setup>
 import { cn } from '@/lib/utils';
-import { Primitive } from 'radix-vue';
+import { Primitive } from 'reka-ui';
 
 const props = defineProps({
   asChild: { type: Boolean, required: false },

@@ -27,14 +27,14 @@ class WorkOrder extends Model
         return $this->belongsTo(ServiceStatus::class,'service_status_id');
     }
 
-    public function owner(): BelongsTo
+    public function managed_by(): BelongsTo
     {
         return $this->belongsTo(Owner::class,'owner_id');
     }
 
-    public function tenant(): BelongsTo
+    public function requested_by(): BelongsTo
     {
-        return $this->belongsTo(Tenants::class);
+        return $this->belongsTo(Tenants::class,'tenant_id');
     }
 
     public function vendor(): BelongsTo

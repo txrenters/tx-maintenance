@@ -1,6 +1,7 @@
 import './bootstrap';
 import '../css/app.css';
 
+
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -110,6 +111,10 @@ import {
     SelectValue,
 } from '@/Components/ui/select'
 
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css'
+import Multiselect from 'vue-multiselect'
+
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
@@ -123,6 +128,8 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .component("Head", Head)
+            .component("VueDatePicker", VueDatePicker)
+            .component("Multiselect", Multiselect)
             .component("Link", Link)
             .component("NavLink", NavLink)
             .component("Button", Button)
