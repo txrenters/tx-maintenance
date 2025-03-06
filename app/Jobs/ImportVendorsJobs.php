@@ -32,81 +32,68 @@ class ImportVendorsJobs implements ShouldQueue
      */
     public function handle(): void
     {
-        DB::beginTransaction();
+        $vendors = collect($this->data)->toArray();
+        $now = now()->format('Y-m-d H:i:s');
 
         try {
-            $vendorData = [];
-            
-            // Ensure these keys exist before accessing them
-            $vendorId = !empty($this->data['ID']) ? (string) $this->data['ID'] : null;
-            $vendorEmail = !empty($this->data['email']) && !empty($this->data['email']) ? $this->data['email'] : ($vendorId . '@renters.com');
-    
-            if (!$vendorId) {
-                continue; // Skip this iteration if there's no valid vendorId
-            }
-    
-            $checkUser = User::where('email', $vendorEmail)->select('id')->first();
-            $existingVendor = Vendor::where('uuid', $vendorId)->lockForUpdate()->first();
-    
-            if (!$existingVendor) {
-                // Only populate vendor data if necessary fields exist
-                $vendorData[] = [
-                    'propertyware_id' => $vendorId,
-                    'name' => !empty($this->data['name']) ? (string) $this->data['name'] : null,
-                    'name_on_check' => !empty($this->data['nameOnCheck']) ? (string) $this->data['nameOnCheck'] : null,
-                    'account_number' => !empty($this->data['accountNumber']) ? (string) $this->data['accountNumber'] : null,
-                    'credit_limit' => !empty($this->data['creditLimit']) ? (string) $this->data['creditLimit'] : null,
-                    'payment_term_days_to_pay' => !empty($this->data['paymentTermDaysToPay']) ? (string) $this->data['paymentTermDaysToPay'] : null,
-                    'payment_terms' => !empty($this->data['paymentTerms']) ? (string) $this->data['paymentTerms'] : null,
-                    'taxID' => !empty($this->data['taxID']) ? (string) $this->data['taxID'] : null,
-                    'vendor_type' =>  !empty($this->data['vendorType']) ? (string) $this->data['vendorType'] : null,
-                    'twilio_number' => '',
-                    'is_active' => !empty($this->data['active']) ? ($this->data['active'] == 'true' ? true : false) : null,
-                    'user_id' => null, // Will be updated later
-                ];
-    
-                // If the user does not exist, create a new user
-                if (!$checkUser) {
-                    $address = trim(implode(' ', [
-                        !empty($this->data['address']) ? (string) $this->data['address'] : null,
-                        !empty($this->data['address2']) ? (string) $this->data['address2'] : null,
-                        !empty($this->data['city']) ? (string) $this->data['city'] : null,
-                        !empty($this->data['state']) ? (string) $this->data['state'] : null,
-                        !empty($this->data['country']) ? (string) $this->data['country'] : null,
-                        !empty($this->data['zip']) ? (string) $this->data['zip'] : null,
-                    ]));
-    
-                    $user = User::create([
+            DB::beginTransaction();
+
+            $vendors = json_decode(json_encode($vendors), true);
+
+            foreach ($vendors as $vendor) {
+                $data = (array)$vendor;
+
+                $vendorId = $data['ID'] ?? null;
+                $vendorEmail = empty($data['email']) ? ($vendorId . '@renters.com') : $data['email'];
+
+                $existingVendor = Vendor::where('propertyware_id', $vendorId)->first();
+
+                if (!$existingVendor) {
+                    $address = trim(implode(' ', array_filter([
+                        $data['address'] ?? null,
+                        $data['address2'] ?? null,
+                        $data['city'] ?? null,
+                        $data['state'] ?? null,
+                        $data['country'] ?? null,
+                        $data['zip'] ?? null,
+                    ])));                   
+
+                    $usersData = [
                         'email' => $vendorEmail,
-                        'name' => !empty($this->data['name']) ? (string) $this->data['name'] : null,
-                        'phone' => !empty($this->data['phone']) ? (string) $this->data['phone'] : null,
-                        'company' => !empty($this->data['companyName']) ? (string) $this->data['companyName'] : null,
+                        'name' => $data['name'] ?? null,
+                        'phone' => $data['phone'] ?? null,
+                        'company' => $data['companyName'] ?? null,
                         'address' => $address,
-                        'website' =>  !empty($this->data['website']) ? (string) $this->data['website'] : null,
-                        'password' => bcrypt($vendorEmail), // Set email as default password
-                    ]);
-    
-                    $user->assignRole('vendor');
-    
-                    // Update vendorData to include the user_id for this vendor
-                    $vendorData[count($vendorData) - 1]['user_id'] = $user->id;
-                } else {
-                    // If user exists, assign the existing user's ID to vendor
-                    $vendorData[count($vendorData) - 1]['user_id'] = $checkUser->id;
-                }
-            }
-            
-            // Batch insert vendor data, associating users with vendors
-            if (!empty($vendorData)) {
-                // Vendor::insert($vendorData); 
-                // Perform a batch insert to reduce queries
-                foreach (array_chunk($vendorData, 100) as $chunk) {
-                    Vendor::insert($chunk);
-                }
-            }
+                        'website' => $data['website'] ?? null,
+                        'password' => bcrypt($vendorEmail), // Default password as email
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
 
+                    $user = User::create($usersData);
+                    $user->assignRole('vendor'); // Assign 'vendor' role
+
+                    $vendorsData = [
+                        'propertyware_id' => $vendorId,
+                        'name' => $data['name'] ?? null,
+                        'email' => $vendorEmail,
+                        'name_on_check' => $data['nameOnCheck'] ?? null,
+                        'account_number' => $data['accountNumber'] ?? null,
+                        'credit_limit' => $data['creditLimit'] ?? null,
+                        'payment_term_days_to_pay' => $data['paymentTermDaysToPay'] ?? null,
+                        'payment_terms' => $data['paymentTerms'] ?? null,
+                        'taxID' => $data['taxID'] ?? null,
+                        'vendor_type' => $data['vendorType'] ?? null,
+                        'twilio_number' => '',
+                        'is_active' => isset($data['active']) && $data['active'] == 'true' ? true : false,
+                        'user_id' => $user->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    Vendor::create($vendorsData);
+                }
+            }
             DB::commit();
-
             Log::info('Vendor import completed successfully.');
         } catch (\Exception $e) {
             DB::rollBack();

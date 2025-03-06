@@ -1,16 +1,15 @@
 <script setup>
-const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
+const emit = defineEmits(["isDialogOpen", "statusChanged"]);
 
 defineProps({
   data: Object,
 });
 
 const openEditDialog = (user) => {
-  emit("openEditDialog", true, user);
+  emit("isDialogOpen", true, user);
 };
-
-const openDeleteDialog = (user) => {
-  emit("openDeleteDialog", true, user);
+const updateStatus = (checked, vendor) => {
+  emit("statusChanged", checked, vendor); // Emit event to parent
 };
 </script>
 <template>
@@ -44,7 +43,10 @@ const openDeleteDialog = (user) => {
           {{ vendor.twilio_number }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          <Switch :checked="vendor.status" @update:checked="vendor.status = $event" />
+          <Switch
+            :checked="vendor.status"
+            @update:checked="updateStatus($event, vendor.id)"
+          />
         </TableCell>
         <TableCell class="hidden md:table-cell">
           {{ vendor.address }}
@@ -67,7 +69,7 @@ const openDeleteDialog = (user) => {
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">
-        <TableCell colspan="3">No vendors found!</TableCell>
+        <TableCell colspan="6">No vendors found!</TableCell>
       </TableRow>
     </TableBody>
   </Table>

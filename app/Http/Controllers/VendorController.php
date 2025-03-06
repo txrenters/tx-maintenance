@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TwilioPhoneNumber;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,7 @@ class VendorController extends Controller
         : 10;
 
         $vendors = Vendor::query()
-            ->with('user')
+            ->with(['user'])
             ->filter(request(['search']))
             ->orderBy('name','ASC')
             ->paginate($perPage)
@@ -38,60 +39,37 @@ class VendorController extends Controller
                 ];
             });
 
+        $twilio_numbers = TwilioPhoneNumber::select('id','name','phone_number')->get();
         return inertia('Vendor/Index', [
             'title' => 'Vendors',
+            'twilio_numbers' => $twilio_numbers,
             'vendors' => $vendors,
             'filter' => $request->only(['search','per_page']),
         ]);
-
-
     }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Vendor $vendor)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Vendor $vendor)
-    {
-        //
-    }
-
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Vendor $vendor)
     {
-        //
+        $request->validate([
+            'twilio_number' => 'required'
+        ]);
+
+        $vendor->update(['twilio_number' => $request->twilio_number]);
+
+        return redirect()->back();
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Vendor $vendor)
+    public function update_status(Request $request, Vendor $vendor)
     {
-        //
+        $request->validate([
+            'status' => 'required'
+        ]);
+
+        $vendor->update(['is_active' => $request->status ? true : false]);
+
+        return redirect()->back();
+
     }
 }

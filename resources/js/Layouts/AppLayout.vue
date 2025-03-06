@@ -35,12 +35,10 @@ import {
   LayoutTemplate,
   ContactRound,
   Settings,
-  CalendarClock,
   CalendarDays,
   LayoutDashboard,
   ListTodo,
   Users,
-  Building2,
   UserRoundCheck,
   Circle,
   ClipboardList,
@@ -69,11 +67,11 @@ const navs = computed(() => ({
       title: "Work Orders",
       url: "#",
       icon: ListTodo,
-      isActive: false,
+      isActive: page.url.startsWith("/work_orders"),
       items: [
         {
           title: "Ongoing",
-          url: "#",
+          url: route("work_orders.index"),
         },
 
         {
@@ -125,21 +123,15 @@ const navs = computed(() => ({
     },
     {
       name: "Owners",
-      url: "#", //route("owners.index"),
+      url: route("owners.index"),
       isActive: page.url.startsWith("/owners"),
       icon: Users,
     },
     {
       name: "Tenants",
-      url: "#",
+      url: route("tenants.index"),
       isActive: page.url.startsWith("/tenants"),
       icon: Users,
-    },
-    {
-      name: "Properties",
-      url: "#",
-      isActive: page.url.startsWith("/properties"),
-      icon: Building2,
     },
   ],
   settings: [

@@ -43,19 +43,30 @@ class PropertyWareService
     public function getWorkOrders()
     {
         try {
-            $params = array(
-                'pageNumber' => 1,
-                'orderByNewestFirst' => 1,
-            );
 
             $client = $this->iniate();
-            $workOrders = $client->getWorkOrders($params);
-            return $workOrders;
+            $allWorkOrders = [];
         
+            for ($pageNumber = 1; $pageNumber <= 5; $pageNumber++) { 
+                $params = [
+                    'pageNumber' => $pageNumber,
+                    'orderByNewestFirst' => 1,
+                ];
+                $response = $client->getWorkOrders($params);
+        
+                if (!empty($response)) {
+                    $orders = json_decode(json_encode($response), true);
+                    $allWorkOrders = array_merge($allWorkOrders, $orders);
+                }
+            }
+        
+            return $allWorkOrders;
+
         } catch (Exception $e) {
             Log::error('SOAP request failed: ' . $e->getMessage());
             return 'Error: ' . $e->getMessage();
         }
+
     }
 
     public function getOwners()
@@ -95,7 +106,7 @@ class PropertyWareService
         }
         
     }
-    
+
     public function iniate()
     {
             $options = array(
@@ -117,3 +128,4 @@ class PropertyWareService
             return $client;
     }
 }
+

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ServiceStatus extends Model
 {
@@ -13,6 +14,11 @@ class ServiceStatus extends Model
     protected $table = 'service_status';
 
     protected $guarded = [];
+
+    public function work_orders() : HasMany
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
 
     public function scopeFilter($query, array $filters)
     {

@@ -71,6 +71,11 @@ class User extends Authenticatable
         return $this->hasMany(Vendor::class);
     }
 
+    public function owner(): HasMany
+    {
+        return $this->hasMany(Owner::class);
+    }
+
     public function wocNumbers(): HasMany
     {
         return $this->hasMany(WOCNumbers::class);

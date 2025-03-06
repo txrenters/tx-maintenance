@@ -43,7 +43,7 @@ class WOCNumbersController extends Controller
         $twilio_numbers = TwilioPhoneNumber::select('id','name','phone_number')->get();
 
         return inertia('WOCNumber/Index', [
-            'title' => 'Twilio Numbers',
+            'title' => 'Work Order Coordinator Numbers',
             'woc_numbers' => $woc_numbers,
             'woc_users' => $woc_users,
             'twilio_numbers' => $twilio_numbers,

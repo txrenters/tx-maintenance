@@ -4,7 +4,6 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import TableData from "./Partials/TableData.vue";
 import { useForm, router } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { CloudDownload, UserPlus } from "lucide-vue-next";
 
 const { toast } = useToast();
 
@@ -13,35 +12,31 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({
   title: String,
   vendors: Object,
+  twilio_numbers: Object,
   filter: Object,
 });
 
 const url = ref(route("vendors.index"));
 const search = ref(props.filter.search);
 
-const isCreateDialogOpen = ref(false);
+const isDialogOpen = ref(false);
 
-const form = useForm({
-  name: "",
-  email: "",
-  phone: "",
-  company: "",
-  website: "",
-  address: "",
-  role_id: "",
+const editForm = useForm({
+  id: "",
+  twilio_number: "",
 });
 
-const handleCreateSubmit = () => {
-  form.post(route("users.store_"), {
+const handleAssignTwilioSubmit = () => {
+  editForm.put(route("vendors.update", editForm.id), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
-      form.reset();
+      editForm.reset();
       toast({
         title: "Success",
-        description: "User has been created successfully!",
+        description: "Vendor has been updated successfully!",
       });
-      isCreateDialogOpen.value = false;
+      isDialogOpen.value = false;
     },
     onError: () => {
       toast({
@@ -50,26 +45,31 @@ const handleCreateSubmit = () => {
         description: "There was a problem with your request. Please try again!",
       });
     },
-    only: ["users"],
+    only: ["vendors"],
   });
 };
 
-const loader = ref(false);
+const setEditForm = (vendor) => {
+  editForm.id = String(vendor.id);
+  editForm.twilio_number = vendor.twilio_number;
+};
+const handleOpenDialog = (open, vendor) => {
+  isDialogOpen.value = open;
+  setEditForm(vendor);
+};
 
-const handleImportTwilioNumbers = () => {
-  loader.value = true;
-  router.get(
-    route("import_twilio_numbers"),
-    {},
+const handleStatusChange = (checked, vendor) => {
+  router.put(
+    route("vendors.change_status", vendor),
+    { status: checked },
     {
       preserveState: true,
       preserveScroll: true,
       onSuccess: () => {
         toast({
           title: "Success",
-          description: "Twilio numbers has been imported successfully!",
+          description: `Vendor status updated to ${checked ? "Active" : "Inactive"}!`,
         });
-        loader.value = false;
       },
       onError: () => {
         toast({
@@ -77,9 +77,8 @@ const handleImportTwilioNumbers = () => {
           title: "Uh oh! Something went wrong.",
           description: "There was a problem with your request. Please try again!",
         });
-        loader.value = false;
       },
-      only: ["twilio_numbers"],
+      only: ["vendors"],
     }
   );
 };
@@ -93,7 +92,11 @@ const handleImportTwilioNumbers = () => {
           <CardDescription> Manage your users and view their roles. </CardDescription> -->
     </CardHeader>
     <CardContent>
-      <TableData :data="vendors.data" />
+      <TableData
+        :data="vendors.data"
+        @isDialogOpen="handleOpenDialog"
+        @statusChanged="handleStatusChange"
+      />
     </CardContent>
     <CardFooter
       class="border-t px-6 py-4 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-3"
@@ -103,7 +106,7 @@ const handleImportTwilioNumbers = () => {
     </CardFooter>
   </Card>
 
-  <Dialog v-model:open="isCreateDialogOpen">
+  <Dialog v-model:open="isDialogOpen">
     <DialogContent class="sm:max-w-[525px]">
       <DialogHeader>
         <DialogTitle>WOC Twillio Number </DialogTitle>
@@ -111,40 +114,41 @@ const handleImportTwilioNumbers = () => {
           Assign number here. Click assign when you're done.
         </DialogDescription>
       </DialogHeader>
-      <form id="dialogForm" @submit="handleSubmit($event, onSubmit)">
-        <div class="mb-3">
-          <Label for="name">Current Number </Label>
-          <Input type="text" class="mt-2" v-model="form.name" />
-          <Label class="mt-1 text-destructive text-xs">{{ form.errors.name }}</Label>
-        </div>
-        <div class="mb-3">
-          <Label for="roles" class="mb-2">Assign Number</Label>
-          <Select class="mt-2" v-model="form.name">
+      <form id="dialogForm" @submit="handleAssignTwilioSubmit($event, onSubmit)">
+        <div class="mb-3 flex flex-col gap-4">
+          <Label for="roles">Assign Number</Label>
+          <Select class="mt-2" v-model="editForm.twilio_number">
             <SelectTrigger>
               <SelectValue placeholder="Select a number" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectLabel>Numbers</SelectLabel>
-                <SelectItem v-for="twilio in twilios" :value="twilio.id" :key="twilio.id">
+                <SelectItem
+                  v-for="twilio in twilio_numbers"
+                  :value="String(twilio.phone_number)"
+                  :key="String(twilio.id)"
+                >
                   {{ twilio.name }} - {{ twilio.phone_number }}
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Label class="mt-1 name-destructive text-xs">{{ form.errors.role_id }}</Label>
+          <Label class="mt-1 text-destructive text-xs">{{
+            editForm.errors.twilio_number
+          }}</Label>
         </div>
       </form>
       <DialogFooter class="flex gap-2">
-        <Button type="button" variant="outline" @click="isCreateDialogOpen = false">
+        <Button type="button" variant="outline" @click="isDialogOpen = false">
           Cancel</Button
         >
         <Button
           type="submit"
-          :disabled="form.processing"
-          @click.prevent="handleCreateSubmit"
+          :disabled="editForm.processing"
+          @click.prevent="handleAssignTwilioSubmit"
         >
-          <Loader2 v-if="form.processing" class="w-4 h-4 animate-spin" />
+          <Loader2 v-if="editForm.processing" class="w-4 h-4 animate-spin" />
           Assign</Button
         >
       </DialogFooter>
