@@ -114,7 +114,13 @@ import {
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import Multiselect from 'vue-multiselect'
-
+import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
@@ -128,6 +134,13 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .component("Head", Head)
+            .component("ScrollArea", ScrollArea)
+            .component("ScrollBar", ScrollBar)
+            .component("Tooltip", Tooltip)
+            .component("TooltipContent", TooltipContent)
+            .component("TooltipProvider", TooltipProvider)
+            .component("TooltipTrigger", TooltipTrigger)
+
             .component("VueDatePicker", VueDatePicker)
             .component("Multiselect", Multiselect)
             .component("Link", Link)

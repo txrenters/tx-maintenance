@@ -72,6 +72,7 @@ return new class extends Migration
             $table->string('local_status')->default('Created');
             $table->boolean('is_emergency')->default(false);
             $table->boolean('is_single_vendor')->default(true);
+            $table->string('vendor_notes')->nullable();
             $table->foreignIdFor(ServiceStatus::class,'service_status_id')->constrained()->cascadeOnDelete();
             $table->foreignIdFor(Owner::class,'owner_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignIdFor(Tenants::class,'tenant_id')->nullable()->constrained()->cascadeOnDelete();

@@ -1,12 +1,31 @@
 <script setup>
 import { onMounted, reactive, ref, computed } from "vue";
+import { usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useForm } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { DateTime } from "luxon";
+import { useFilter } from "reka-ui";
 
 import {
+  Combobox,
+  ComboboxAnchor,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/Components/ui/combobox";
+import {
+  TagsInput,
+  TagsInputInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+} from "@/Components/ui/tags-input";
+
+import {
+  Loader2,
   ChevronRight,
   ClipboardList,
   MessagesSquare,
@@ -20,32 +39,8 @@ import {
   FileText,
   FileDown,
 } from "lucide-vue-next";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+
 const { toast } = useToast();
-
-// Reactive state
-const value = ref([{ name: "Javascript", code: "js" }]);
-const options = ref([
-  { name: "Vue.js", code: "vu" },
-  { name: "Javascript", code: "js" },
-  { name: "Open Source", code: "os" },
-]);
-
-// Method to add a new tag
-const addTag = (newTag) => {
-  const tag = {
-    name: newTag,
-    code: newTag.substring(0, 2) + Math.floor(Math.random() * 10000000),
-  };
-  options.value.push(tag);
-  value.value.push(tag);
-};
-
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
@@ -62,7 +57,7 @@ const search = ref(props.filter.search);
 const openWorkOrder = ref(false);
 
 const formatDate = (date) => {
-  if (!date) return "Unknown Date";
+  if (!date) return "------";
 
   let parsedDate;
 
@@ -83,7 +78,7 @@ const formatDate = (date) => {
   return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
 };
 
-const work_order = reactive({
+const workOrderForm = useForm({
   id: "",
   work_order_no: "",
   category: "",
@@ -95,50 +90,78 @@ const work_order = reactive({
   total_hour_work: "",
   authorized_to_enter: "",
   source: "",
-  estimated_cost: "",
-  estimated_time: "",
-  additional_work_need: "",
+  cost_estimate: "",
+  hour_estimate: "",
+  additional_work_needed_reschedule: "",
   last_modified: "",
   closing_comments: "",
   service_status: "",
   zone: "",
   created_date: "",
-  updated_at: "",
+  scheduled_end_date: "",
   end_date: "",
   management_plan: "",
   description: "",
   vendor_notes: "",
   is_emergency: "",
+  vendor_id: "",
   vendors: Array,
-  additional_work_need: "",
 });
 
 const handleWorkOrder = (order) => {
+  workOrderForm.reset();
   openWorkOrder.value = true;
-  work_order.work_order_no = order.work_order_no;
-  work_order.description = order.description;
-  work_order.location = order.location;
-  work_order.managed_by = order.managed_by;
-  work_order.requested = order.requested_by;
-  work_order.vendors = order.vendors;
-  work_order.priority = order.priority;
-  work_order.status = order.status;
-  work_order.is_emergency = order.is_emergency ? "Emergency" : "Non-emergency";
-  work_order.total_cost = order.total_cost ?? "0";
-  work_order.total_hour_work = order.total_hour_work ?? "0";
-  work_order.estimated_cost = order.estimated_cost ?? "0";
-  work_order.hour_estimate = order.hour_estimate ?? "0";
-  work_order.type = order.type;
-  work_order.source = order.source;
-  work_order.service_status = order.service_status.name;
-  work_order.category = order.category;
-  work_order.additional_work_need = order.additional_work_need;
-  work_order.created_date = order.created_date ? order.created_date : "";
-  work_order.updated_at = order.updated_at ? order.updated_at : "";
-  work_order.end_date = order.end_date ? new Date(order.end_date) : "";
-  work_order.authorized_to_enter = order.authorized_to_enter;
-  work_order.additional_work_need = order.additional_work_needed_reschedule;
-  work_order.zone = order.zone;
+  workOrderForm.id = order.id;
+  workOrderForm.work_order_no = order.work_order_no;
+  workOrderForm.description = order.description;
+  workOrderForm.location = order.location;
+  workOrderForm.managed_by = order.managed_by;
+  workOrderForm.requested = order.requested_by;
+  workOrderForm.vendors = order.vendors;
+  workOrderForm.management_plan = order.management_plan;
+  workOrderForm.priority = order.priority;
+  workOrderForm.status = order.status;
+  workOrderForm.is_emergency = order.is_emergency ? "Emergency" : "Non-emergency";
+  workOrderForm.total_cost = order.total_cost ?? "0";
+  workOrderForm.total_hour_work = order.total_hour_work ?? "0";
+  workOrderForm.cost_estimate = order.cost_estimate ?? "0";
+  workOrderForm.hour_estimate = order.hour_estimate ?? "0";
+  workOrderForm.type = order.type;
+  workOrderForm.closing_comments = order.closing_comments;
+  workOrderForm.source = order.source;
+  workOrderForm.service_status = order.service_status.name;
+  workOrderForm.category = order.category;
+  workOrderForm.created_date = order.created_date ? order.created_date : "";
+  workOrderForm.scheduled_end_date = order.scheduled_end_date
+    ? order.scheduled_end_date
+    : "";
+  workOrderForm.end_date = order.end_date ? new Date(order.end_date) : "";
+  workOrderForm.authorized_to_enter = order.authorized_to_enter;
+  workOrderForm.additional_work_needed_reschedule =
+    order.additional_work_needed_reschedule;
+  workOrderForm.zone = order.zone;
+  workOrderForm.vendor_notes = order.vendor_notes;
+};
+
+const handleUpdateSubmit = () => {
+  workOrderForm.put(route("work_orders.update", workOrderForm.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Work order has been updated successfully!",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+    },
+    only: ["work_orders"],
+  });
 };
 // In case of a range picker, you'll receive [Date, Date]
 const format = (date) => {
@@ -148,7 +171,18 @@ const format = (date) => {
   return `${month}/${day}/${year}`;
 };
 
-console.log(format);
+const open = ref(false);
+const searchTerm = ref("");
+
+const { contains } = useFilter({ sensitivity: "base" });
+const filteredVendors = computed(() => {
+  const options = props.vendors.filter((i) => !workOrderForm.vendors.includes(i.name));
+  return searchTerm.value
+    ? options.filter((option) => contains(option.name, searchTerm.value))
+    : options;
+});
+
+usePoll(2000, { only: ["work_orders"] });
 </script>
 <template>
   <Head :title="title" />
@@ -225,27 +259,28 @@ console.log(format);
     >
       <DialogHeader class="p-6 pb-0 text-left">
         <DialogTitle class="text-2xl text-primary"
-          >#{{ work_order.work_order_no }}</DialogTitle
+          >#{{ workOrderForm.work_order_no }}</DialogTitle
         >
         <DialogDescription>
           <div class="flex gap-2 mb-2">
-            <Badge :variant="work_order.priority === 'High' ? 'destructive' : 'outline'"
-              >Priority: {{ work_order.priority }}</Badge
-            >
-            <Badge variant="outline">Status: {{ work_order.status }}</Badge>
             <Badge
-              v-if="work_order.service_status !== 'New'"
+              :variant="workOrderForm.priority === 'High' ? 'destructive' : 'outline'"
+              >Priority: {{ workOrderForm.priority }}</Badge
+            >
+            <Badge variant="outline">Status: {{ workOrderForm.status }}</Badge>
+            <Badge
+              v-if="workOrderForm.service_status !== 'New'"
               :variant="
-                work_order.is_emergency === 'Non-emergency' ? 'outline' : 'destructive'
+                workOrderForm.is_emergency === 'Non-emergency' ? 'outline' : 'destructive'
               "
-              >{{ work_order.is_emergency }}</Badge
+              >{{ workOrderForm.is_emergency }}</Badge
             >
           </div>
 
           <div class="p-2 border rounded-lg">
             <Label>Description:</Label>
             <p class="font-semibold">
-              {{ work_order.description }}
+              {{ workOrderForm.description }}
             </p>
           </div>
         </DialogDescription>
@@ -371,10 +406,74 @@ console.log(format);
       <Separator />
       <div class="grid gap-3 overflow-y-auto px-6">
         <div class="grid grid-cols-2 gap-3">
-          <div v-if="work_order.service_status === 'New'">
+          <div>
+            <Label for="message">Vendors:</Label>
+            <template v-if="workOrderForm.service_status !== 'New'">
+              <p v-for="vendor in workOrderForm.vendors" :key="vendor.id">
+                {{ vendor.name }}
+              </p>
+              <br />
+            </template>
+
+            <Combobox
+              v-model="workOrderForm.vendors"
+              v-model:open="open"
+              :ignore-filter="true"
+              v-if="workOrderForm.service_status === 'New'"
+            >
+              <ComboboxAnchor as-child>
+                <TagsInput v-model="workOrderForm.vendors" class="px-2 py-2 gap-2 w-full">
+                  <div class="flex gap-2 flex-wrap items-center">
+                    <TagsInputItem
+                      v-for="vendor in workOrderForm.vendors"
+                      :key="vendor"
+                      :value="vendor"
+                    >
+                      <TagsInputItemText />
+                      <TagsInputItemDelete />
+                    </TagsInputItem>
+                  </div>
+
+                  <ComboboxInput v-model="searchTerm" as-child>
+                    <TagsInputInput
+                      placeholder="Vendors..."
+                      class="min-w-[200px] w-full p-0 border-none focus-visible:ring-0 h-auto"
+                      @keydown.enter.prevent
+                    />
+                  </ComboboxInput>
+                </TagsInput>
+
+                <ComboboxList class="w-[--reka-popper-anchor-width] h-32">
+                  <ComboboxEmpty />
+                  <ComboboxGroup>
+                    <ComboboxItem
+                      v-for="vendor in vendors"
+                      :key="vendor.id"
+                      :value="vendor.name"
+                      @select.prevent="
+                        (ev) => {
+                          if (typeof ev.detail.value === 'string') {
+                            searchTerm = '';
+                            workOrderForm.vendors.push(ev.detail.value);
+                          }
+
+                          if (filteredVendors.length === 0) {
+                            open = false;
+                          }
+                        }
+                      "
+                    >
+                      {{ vendor.name }}
+                    </ComboboxItem>
+                  </ComboboxGroup>
+                </ComboboxList>
+              </ComboboxAnchor>
+            </Combobox>
+          </div>
+          <div v-if="workOrderForm.service_status === 'New'">
             <Label for="message">Emergency:</Label>
-            <Select v-model="work_order.is_emergency">
-              <SelectTrigger class="w-[180px]">
+            <Select v-model="workOrderForm.is_emergency">
+              <SelectTrigger class="w-full">
                 <SelectValue placeholder="Select an emergency" />
               </SelectTrigger>
               <SelectContent>
@@ -387,8 +486,8 @@ console.log(format);
           </div>
           <div>
             <Label for="message">Category:</Label>
-            <Select>
-              <SelectTrigger class="w-[180px]">
+            <Select v-model="workOrderForm.category">
+              <SelectTrigger class="w-full">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
@@ -404,39 +503,24 @@ console.log(format);
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label for="message">Vendors:</Label>
-            <p v-for="vendor in work_order.vendors" :key="vendor.id">
-              {{ vendor.name }}
-            </p>
-            <Multiselect
-              id="tagging"
-              v-model="value"
-              tag-placeholder="Add this as new tag"
-              placeholder="Search or add a tag"
-              label="name"
-              track-by="code"
-              :options="options"
-              :multiple="true"
-              :taggable="true"
-              @tag="addTag"
-            />
-          </div>
+
           <div>
             <Label for="message">Manage by:</Label>
             <div class="flex gap-2 items-center">
-              <Avatar class="w-5 h-5" v-if="work_order?.managed_by">
+              <Avatar class="w-5 h-5" v-if="workOrderForm?.managed_by">
                 <AvatarImage
-                  :src="work_order?.managed_by?.user?.profile_photo_url || 'default.jpg'"
+                  :src="
+                    workOrderForm?.managed_by?.user?.profile_photo_url || 'default.jpg'
+                  "
                 />
                 <AvatarFallback>
-                  {{ work_order.managed_by?.first_name?.charAt(0)
-                  }}{{ work_order.managed_by?.last_name?.charAt(0) }}
+                  {{ workOrderForm.managed_by?.first_name?.charAt(0)
+                  }}{{ workOrderForm.managed_by?.last_name?.charAt(0) }}
                 </AvatarFallback>
               </Avatar>
               <p>
-                {{ work_order.managed_by?.first_name }}
-                {{ work_order.managed_by?.last_name }}
+                {{ workOrderForm.managed_by?.first_name }}
+                {{ workOrderForm.managed_by?.last_name }}
               </p>
             </div>
           </div>
@@ -444,63 +528,65 @@ console.log(format);
           <div>
             <Label for="message">Location:</Label>
 
-            <p>{{ work_order.location }}</p>
+            <p>{{ workOrderForm.location }}</p>
           </div>
 
           <div>
             <Label for="message">Requested by:</Label>
             <div class="flex gap-2 items-center">
-              <Avatar class="w-5 h-5" v-if="work_order?.requested">
+              <Avatar class="w-5 h-5" v-if="workOrderForm?.requested">
                 <AvatarImage
-                  :src="work_order?.requested?.user?.profile_photo_url || 'default.jpg'"
+                  :src="
+                    workOrderForm?.requested?.user?.profile_photo_url || 'default.jpg'
+                  "
                 />
                 <AvatarFallback>
-                  {{ work_order.requested?.first_name?.charAt(0)
-                  }}{{ work_order.requested?.last_name?.charAt(0) }}
+                  {{ workOrderForm.requested?.first_name?.charAt(0)
+                  }}{{ workOrderForm.requested?.last_name?.charAt(0) }}
                 </AvatarFallback>
               </Avatar>
               <p>
-                {{ work_order.requested?.first_name }}
-                {{ work_order.requested?.last_name }}
+                {{ workOrderForm.requested?.first_name }}
+                {{ workOrderForm.requested?.last_name }}
               </p>
             </div>
           </div>
           <div>
             <Label for="message">Type:</Label>
-            <p>{{ work_order.type }}</p>
+            <p>{{ workOrderForm.type }}</p>
           </div>
           <div>
             <Label for="message">Service Status:</Label>
-            <p>{{ work_order.service_status }}</p>
+            <p>{{ workOrderForm.service_status }}</p>
           </div>
           <div>
             <Label for="message">Authorized to enter:</Label>
-            <p>{{ work_order.authorized_to_enter }}</p>
+            <p>{{ workOrderForm.authorized_to_enter }}</p>
           </div>
           <div>
             <Label for="message">Source:</Label>
-            <p>{{ work_order.source }}</p>
+            <p>{{ workOrderForm.source }}</p>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <Label for="message">Total Cost:</Label>
-            <p>${{ work_order.total_cost }}</p>
+            <p>${{ workOrderForm.total_cost }}</p>
           </div>
           <div>
             <Label for="message">Total Hour Worked:</Label>
-            <p>{{ work_order.total_hour_work }}</p>
+            <p>{{ workOrderForm.total_hour_work }}</p>
           </div>
 
           <div>
             <Label for="message">Estimated cost:</Label>
-            <Input type="number" class="mt-1" v-model="work_order.estimated_cost" />
+            <Input type="number" class="mt-1" v-model="workOrderForm.cost_estimate" />
           </div>
 
           <div>
             <Label for="message">Estimated Time (Hrs) :</Label>
-            <Input type="number" class="mt-1" v-model="work_order.estimated_time" />
+            <Input type="number" class="mt-1" v-model="workOrderForm.hour_estimate" />
           </div>
         </div>
 
@@ -508,21 +594,21 @@ console.log(format);
           <div class="grid grid-cols-2 gap-4 items-center">
             <div>
               <Label for="message">Created Date:</Label>
-              <p>{{ formatDate(work_order.created_date) }}</p>
+              <p>{{ formatDate(workOrderForm.created_date) }}</p>
             </div>
             <div>
-              <Label for="message">Modified Date:</Label>
-              <p>{{ formatDate(work_order.updated_at) }}</p>
+              <Label for="message">Scheduled End Date:</Label>
+              <p>{{ formatDate(workOrderForm.updated_at) }}</p>
             </div>
             <div>
               <Label for="message">Zone:</Label>
-              <Input class="mt-1" v-model="work_order.zone" />
+              <Input class="mt-1" v-model="workOrderForm.zone" />
             </div>
             <div>
               <Label for="message">End Date:</Label>
               <VueDatePicker
                 class="mt-1"
-                v-model="work_order.end_date"
+                v-model="workOrderForm.end_date"
                 :format="format"
                 position="left"
               />
@@ -531,29 +617,55 @@ console.log(format);
 
           <div class="grid gap-1.5 mt-5">
             <Label for="message">Management Plan</Label>
-            <Textarea placeholder="Type your message here." />
+            <Textarea
+              placeholder="Type your message here."
+              v-model="workOrderForm.management_plan"
+            />
           </div>
           <div class="grid gap-1.5 mt-5">
             <Label for="message">Additional Work Needed </Label>
             <Textarea
               placeholder="Type your message here."
               rows="1"
-              v-model="work_order.additional_work_need"
+              v-model="workOrderForm.additional_work_needed_reschedule"
             />
           </div>
           <div class="grid gap-1.5 mt-5">
             <Label for="message">Closing Comments</Label>
-            <Textarea placeholder="Type your message here." rows="1" />
+            <Textarea
+              placeholder="Type your message here."
+              v-model="workOrderForm.closing_comments"
+              rows="1"
+            />
           </div>
           <div class="grid gap-1.5 mt-5 mb-5">
             <Label for="message">Vendor Notes</Label>
-            <Textarea placeholder="Type your message here." />
+            <Textarea
+              placeholder="Type your message here."
+              v-model="workOrderForm.vendor_notes"
+            />
           </div>
         </div>
       </div>
       <DialogFooter class="p-6 pt-0">
-        <Button type="submit" variant="destructive"> Close Work Order </Button>
-        <Button type="submit"> Save changes </Button>
+        <Button
+          type="submit"
+          variant="destructive"
+          :disabled="workOrderForm.processing"
+          @click.prevent="handleUpdateSubmit"
+        >
+          <Loader2 v-if="workOrderForm.processing" class="w-4 h-4 animate-spin" />
+
+          Close Work Order
+        </Button>
+        <Button
+          type="submit"
+          :disabled="workOrderForm.processing"
+          @click.prevent="handleUpdateSubmit"
+        >
+          <Loader2 v-if="workOrderForm.processing" class="w-4 h-4 animate-spin" />
+          Save changes
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

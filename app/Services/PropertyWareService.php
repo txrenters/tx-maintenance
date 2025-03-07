@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use PhpParser\Node\Expr\Cast\Object_;
 use RuntimeException;
 
 class PropertyWareService
@@ -47,7 +49,7 @@ class PropertyWareService
             $client = $this->iniate();
             $allWorkOrders = [];
         
-            for ($pageNumber = 1; $pageNumber <= 15; $pageNumber++) { 
+            for ($pageNumber = 1; $pageNumber <= 5; $pageNumber++) { 
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
@@ -107,10 +109,88 @@ class PropertyWareService
         
     }
 
+    public function updateWorkOrder(object $data, $work_order, $vendor='')
+    {
+        try {
+            Log::info("Work Order ID:", ['propertyware_id' => $work_order->propertyware_id]);
+
+            $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                <ID xsi:type="xsd:long">' . $work_order->propertyware_id . '</ID>
+                <building xsi:type="urn:Building">
+                <ID xsi:type="xsd:long">' . $work_order->building_id . '</ID>
+                </building>
+                <portfolio xsi:type="urn:Portfolio">
+                <ID xsi:type="xsd:long">' . $work_order->portfolio_id . '</ID>
+                </portfolio>
+                <location xsi:type="xsd:string">' . $work_order->location . '</location>
+                 <category xsi:type="xsd:string">' . $data->category . '</category>
+                <costEstimate xsi:type="xsd:double">' . (float) $data->cost_estimate . '</costEstimate>
+                <hourEstimate xsi:type="xsd:double">' . (float) $data->hour_estimate . '</hourEstimate>
+                <closingComments xsi:type="xsd:string">' . $data->closing_comments . '</closingComments>
+                <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                    xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                    <customFields xsi:type="ns2:CustomField">
+                        <fieldName xsi:type="xsd:string">Management Plan</fieldName>
+                        <value xsi:type="xsd:string">'.$data->management_plan.'</value>
+                    </customFields>
+                    <customFields xsi:type="urn:CustomField">
+                        <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
+                        <value xsi:type="xsd:string">' . $data->additional_work_needed_reschedule . '</value>
+                    </customFields>
+                      <customFields xsi:type="urn:CustomField">
+                        <fieldName xsi:type="xsd:string">Zone</fieldName>
+                        <value xsi:type="xsd:string">' . $data->zone . '</value>
+                    </customFields>
+                </customFields>
+                '.$vendor.'
+                </workOrder>
+                </ser:updateWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+            // Execute the cURL request
+            $response = curl_exec($curl);
+
+            Log::info("Updating work order successful: " . json_encode($response));
+            
+        } catch (Exception $e) {
+            Log::error('Updating work order failed: ' . $e->getMessage());
+            return 'Error: ' . $e->getMessage();
+        }
+    }
+
+    
+
     public function iniate()
     {
             $options = array(
-                'cache_wsdl' => 0,
+                'cache_wsdl' => WSDL_CACHE_NONE,
                 'trace' => 1,
                 'login' => $this->username,
                 'password' =>$this->password,

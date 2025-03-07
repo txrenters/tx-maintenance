@@ -3,9 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\User;
-use App\Models\Owner;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -33,9 +31,8 @@ class ImportOwnersJob implements ShouldQueue
     {
         $owners = collect($this->data)->toArray();
         Log::info('Owners import is running.');
-
+        DB::beginTransaction();
         try {
-            DB::beginTransaction();
 
             $owners = json_decode(json_encode($owners), true);
             $chunkSize = 100; // Process 100 onwer at a time
@@ -47,9 +44,11 @@ class ImportOwnersJob implements ShouldQueue
                 foreach ($ownerChunk as $owner) {
                     $data = (array)$owner;
 
-                    $existingOwner = DB::table('owners')->where('propertyware_id', $data['ID'])->exists();
+                    $existingOwner = DB::table('owners')->where('propertyware_id', $data['ID']?? null)->exists();
 
                     if (!$existingOwner) {
+
+                        $ownerEmail =  $data['email'] ?? $data['ID'].'@texasrenters.com';
 
                         $address = trim(implode(' ', array_filter([
                             $data['address'] ?? null,
@@ -61,7 +60,7 @@ class ImportOwnersJob implements ShouldQueue
                         ])));                   
         
                         $usersData = [
-                            'email' => $data['email'] ?? null,
+                            'email' => $ownerEmail,
                             'name' => $data['name'] ?? null,
                             'phone' => $data['phone'] ?? null,
                             'company' => $data['companyName'] ?? null,
@@ -70,7 +69,7 @@ class ImportOwnersJob implements ShouldQueue
                             'password' => bcrypt($data['email']), // Default password as email
                         ];
         
-                        $user = User::updateOrCreate(['email' => $data['email']],$usersData);
+                        $user = User::updateOrCreate(['email' => $ownerEmail], $usersData);
                         $user->assignRole('owner'); // Assign 'owner' role
 
                         $ownerData = [
@@ -81,7 +80,7 @@ class ImportOwnersJob implements ShouldQueue
                             'name_on_check' => $data['nameOnCheck'] ?? null,
                             'first_name' => $data['firstName'] ?? null,
                             'last_name' => $data['lastName'] ?? null,
-                            'email' => $data['email'] ?? null,
+                            'email' => $ownerEmail,
                             'mobile' => isset($data['mobile']) ? (string) $data['mobile'] : null,
                             'phone' => isset($data['phone']) ? (is_array($data['phone']) ? json_encode($data['phone']) : (string) $data['phone']) : null,
                             'home_phone' => isset($data['homePhone']) ? (is_array($data['homePhone']) ? json_encode($data['homePhone']) : (string) $data['homePhone']) : null,
@@ -109,12 +108,11 @@ class ImportOwnersJob implements ShouldQueue
                     }
                 }
             }
-
             DB::commit();
             Log::info('Owners imported successfully.');
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Failed to begin transaction: ' . $th->getMessage());
+            Log::error('Importing vendors failed: ' . $th->getMessage());
         }
     }
 }

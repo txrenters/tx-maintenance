@@ -38,16 +38,15 @@ class ImportWorkOrderJob implements ShouldQueue
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
 
+        DB::beginTransaction();
+
         try {
-            DB::beginTransaction();
 
             $work_orders = json_decode(json_encode($work_orders), true);
             $chunkSize = 100; // Process 100 vendors at a time
             foreach (array_chunk($work_orders, $chunkSize) as $workOrderChunk) {
                 foreach($workOrderChunk as $order){
-
                     $data = (array)$order;
-
                     $work_order_propertyware_id = $data['ID'] ?? null;
                     $owner_propertyware_id = $data['owner']['ID'] ?? null;
                     $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
@@ -119,7 +118,9 @@ class ImportWorkOrderJob implements ShouldQueue
 
 
                     if($owner_propertyware_id){
+                        
                         $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id.'@texasrenter.com';
+
                         $address = trim(implode(' ', array_filter([
                             $data['owner']['address'] ?? null,
                             $data['owner']['address2'] ?? null,
@@ -479,7 +480,7 @@ class ImportWorkOrderJob implements ShouldQueue
             }
 
          
-            Log::info('Work order successfully!');
+            Log::info('Work order imported successfully!');
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order failed: ' . $th->getMessage());

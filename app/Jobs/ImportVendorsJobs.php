@@ -35,9 +35,9 @@ class ImportVendorsJobs implements ShouldQueue
         $vendors = collect($this->data)->toArray();
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Vendor import is running.');
+        DB::beginTransaction();
 
         try {
-            DB::beginTransaction();
         
             $vendors = json_decode(json_encode($vendors), true);
             $chunkSize = 100; // Process 100 vendors at a time
@@ -98,8 +98,8 @@ class ImportVendorsJobs implements ShouldQueue
                             'twilio_number' => '',
                             'is_active' => isset($data['active']) && $data['active'] == 'true' ? true : false,
                             'user_id' => $user->id, // Make sure $user is not null
-                            'created_at' => now(),
-                            'updated_at' => now(),
+                            'created_at' =>  $now,
+                            'updated_at' =>  $now,
                         ];
         
                         DB::table('vendors')->updateOrInsert(
