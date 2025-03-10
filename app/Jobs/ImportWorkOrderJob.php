@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Models\Vendor;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -41,7 +40,6 @@ class ImportWorkOrderJob implements ShouldQueue
         DB::beginTransaction();
 
         try {
-
             $work_orders = json_decode(json_encode($work_orders), true);
             $chunkSize = 100; // Process 100 vendors at a time
             foreach (array_chunk($work_orders, $chunkSize) as $workOrderChunk) {
@@ -50,7 +48,8 @@ class ImportWorkOrderJob implements ShouldQueue
                     $work_order_propertyware_id = $data['ID'] ?? null;
                     $owner_propertyware_id = $data['owner']['ID'] ?? null;
                     $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
-
+                    
+                    $tenant = '';
                     if($tenant_propertyware_id){
                         $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id. "@texasrenter.com";
 
@@ -113,9 +112,11 @@ class ImportWorkOrderJob implements ShouldQueue
                             ['propertyware_id' => $data['requestedByContact']['ID']], 
                             $tenantData
                         );
-                    }
-                    $tenant = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
 
+                        $tenant = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id') ?? null;
+                    }
+                    
+                    $owner = '';
 
                     if($owner_propertyware_id){
                         
@@ -170,9 +171,11 @@ class ImportWorkOrderJob implements ShouldQueue
                             ['propertyware_id' => $data['owner']['ID']],
                             $ownerData
                         );
+
+                        $owner = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
+
                     }
 
-                    $owner = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
                     $woc = User::role('woc')->first();
 
                     $work_order_data = [
@@ -216,7 +219,7 @@ class ImportWorkOrderJob implements ShouldQueue
                         'portfolio_id' => $data['portfolio']['ID'] ?? null,
                         'unit_id' => !empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
                         'owner_id' => $owner,      
-                        'tenant_id' => $tenant,                          
+                        'tenant_id' => !empty($tenant) ? (int) $tenant : null,
                         'user_id' => $woc?->id,  
                         'created_at' => $now,
                         'updated_at' => $now,            
@@ -316,10 +319,9 @@ class ImportWorkOrderJob implements ShouldQueue
                     DB::table('work_order_documents')->insert($documentsData);
 
                     if(!empty($data['lease']) && is_array($data['lease'])){
+                        DB::table('work_order_tenants')->where('work_order_id', $work_order)->delete();
                         foreach($data['lease']['tenants'] as $tenant){
-
                             $tenantEmail =  $tenant['email'] ?? $tenant['ID']. '@texasrenter.com';
-
                             $address = trim(implode(' ', array_filter([
                                 $tenant['address'] ?? null,
                                 $tenant['address2'] ?? null,
@@ -328,7 +330,6 @@ class ImportWorkOrderJob implements ShouldQueue
                                 $tenant['country'] ?? null,
                                 $tenant['zip'] ?? null,
                             ])));                   
-            
                             $usersData = [
                                 'email' => $tenantEmail,
                                 'name' => $tenant['firstName'] ?? null.' '.$tenant['lastName'] ?? null,
@@ -337,10 +338,8 @@ class ImportWorkOrderJob implements ShouldQueue
                                 'address' => $address,
                                 'password' => bcrypt($tenantEmail), // Default password as email
                             ];
-            
                             $user = User::updateOrCreate(['email' => $tenantEmail],$usersData);
                             $user->assignRole('tenant'); // Assign 'owner' role
-
                             $tenantData = [
                                 'client_data' => $tenant['clientData'] ?? null,
                                 'propertyware_id' =>  $tenant['ID'] ?? null,
@@ -383,7 +382,6 @@ class ImportWorkOrderJob implements ShouldQueue
                             );
                             $tenant = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
 
-                            DB::table('work_order_tenants')->where('work_order_id', $work_order)->delete();
                             DB::table('work_order_tenants')->insert([
                                 'work_order_id' => $work_order,
                                 'tenant_id' => $tenant,
@@ -394,10 +392,9 @@ class ImportWorkOrderJob implements ShouldQueue
                     }
 
                     if(!empty($data['portfolio'])){
+                        DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
                         foreach($data['portfolio']['owners'] as $owner){
-
                             $ownerEmail =  $owner['email'] ?? $owner['ID'] .'@texasrenter.com';
-
                             $address = trim(implode(' ', array_filter([
                                 $owner['address'] ?? null,
                                 $owner['address2'] ?? null,
@@ -418,7 +415,6 @@ class ImportWorkOrderJob implements ShouldQueue
             
                             $user = User::updateOrCreate(['email' =>  $ownerEmail ], $usersData);
                             $user->assignRole('owner'); // Assign 'owner' role
-
                             $ownerData = [
                                 'client_data' => $owner['clientData'] ?? null,
                                 'propertyware_id' =>  $owner['ID'] ?? null,
@@ -451,8 +447,6 @@ class ImportWorkOrderJob implements ShouldQueue
                                 $ownerData
                             );
                             $owner = DB::table('owners')->where('propertyware_id', $owner['ID'])->value('id');
-
-                            DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
                             DB::table('work_order_owners')->insert([
                                 'work_order_id' => $work_order,
                                 'owner_id' => $owner,
@@ -463,9 +457,9 @@ class ImportWorkOrderJob implements ShouldQueue
                     }
 
                     if(!empty($data['vendorIDs'])){
+                        DB::table('work_order_vendors')->where('work_order_id', $work_order)->delete();
                         foreach($data['vendorIDs'] as $vendor){
                             $vendorData = Vendor::where('propertyware_id', $vendor)->first();
-                            DB::table('work_order_vendors')->where('work_order_id', $work_order)->delete();
                             DB::table('work_order_vendors')->insert([
                                 'work_order_id' => $work_order,
                                 'vendor_id' => $vendorData->id,

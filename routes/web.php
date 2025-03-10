@@ -5,6 +5,7 @@ use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceStatusController;
+use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
@@ -43,6 +44,8 @@ Route::middleware([
 
     Route::resource('/service_status', ServiceStatusController::class);
     Route::resource('/work_orders', WorkOrderController::class);
+
+    Route::resource('/task_templates', TaskTemplateController::class);
 
 
     Route::get('/convo', function(){

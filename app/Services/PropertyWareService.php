@@ -109,10 +109,12 @@ class PropertyWareService
         
     }
 
-    public function updateWorkOrder(object $data, $work_order, $vendor='')
+    public function updateWorkOrder(array $data, $work_order, $vendors='')
     {
         try {
             Log::info("Work Order ID:", ['propertyware_id' => $work_order->propertyware_id]);
+
+            $vendors = $vendorIDsXml ?? ''; // Ensure $vendors is defined
 
             $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -122,42 +124,46 @@ class PropertyWareService
                 xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
                 <soapenv:Header/>
                 <soapenv:Body>
-                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                <ID xsi:type="xsd:long">' . $work_order->propertyware_id . '</ID>
-                <building xsi:type="urn:Building">
-                <ID xsi:type="xsd:long">' . $work_order->building_id . '</ID>
-                </building>
-                <portfolio xsi:type="urn:Portfolio">
-                <ID xsi:type="xsd:long">' . $work_order->portfolio_id . '</ID>
-                </portfolio>
-                <location xsi:type="xsd:string">' . $work_order->location . '</location>
-                 <category xsi:type="xsd:string">' . $data->category . '</category>
-                <costEstimate xsi:type="xsd:double">' . (float) $data->cost_estimate . '</costEstimate>
-                <hourEstimate xsi:type="xsd:double">' . (float) $data->hour_estimate . '</hourEstimate>
-                <closingComments xsi:type="xsd:string">' . $data->closing_comments . '</closingComments>
-                <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                    xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                    <customFields xsi:type="ns2:CustomField">
-                        <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                        <value xsi:type="xsd:string">'.$data->management_plan.'</value>
-                    </customFields>
-                    <customFields xsi:type="urn:CustomField">
-                        <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                        <value xsi:type="xsd:string">' . $data->additional_work_needed_reschedule . '</value>
-                    </customFields>
-                      <customFields xsi:type="urn:CustomField">
-                        <fieldName xsi:type="xsd:string">Zone</fieldName>
-                        <value xsi:type="xsd:string">' . $data->zone . '</value>
-                    </customFields>
-                </customFields>
-                '.$vendor.'
-                </workOrder>
-                </ser:updateWorkOrder>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">' . (int)$work_order->propertyware_id . '</ID>
+                            <building xsi:type="urn:Building">
+                                <ID xsi:type="xsd:long">' . (int)$work_order->building_id . '</ID>
+                            </building>
+                            <portfolio xsi:type="urn:Portfolio">
+                                <ID xsi:type="xsd:long">' . (int)$work_order->portfolio_id . '</ID>
+                            </portfolio>
+                            <location xsi:type="xsd:string">' . htmlspecialchars($work_order->location, ENT_XML1, 'UTF-8') . '</location>
+                            <category xsi:type="xsd:string">' . htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8') . '</category>
+                            <costEstimate xsi:type="xsd:double">' . (float) ($data['cost_estimate'] ?? 0) . '</costEstimate>
+                            <hourEstimate xsi:type="xsd:double">' . (float) ($data['hour_estimate'] ?? 0) . '</hourEstimate>
+                            <closingComments xsi:type="xsd:string">' . htmlspecialchars($data['closing_comments'] ?? '', ENT_XML1, 'UTF-8') . '</closingComments>
+                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
+                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                                <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">Management Plan</fieldName>
+                                    <value xsi:type="xsd:string">' . htmlspecialchars($data['management_plan'] ?? '', ENT_XML1, 'UTF-8') . '</value>
+                                </customFields>
+                                <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
+                                    <value xsi:type="xsd:string">' . htmlspecialchars($data['additional_work_needed_reschedule'] ?? '', ENT_XML1, 'UTF-8') . '</value>
+                                </customFields>
+                                <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">Zone</fieldName>
+                                    <value xsi:type="xsd:string">' . htmlspecialchars($data['zone'] ?? '', ENT_XML1, 'UTF-8') . '</value>
+                                </customFields>
+                            </customFields>
+                            ' . $vendors . '
+                        </workOrder>
+                    </ser:updateWorkOrder>
                 </soapenv:Body>
                 </soapenv:Envelope>';
+            
+            // Remove unnecessary whitespace for cleaner request
+            $xmlPayload = trim(str_replace(["\n", "\r"], '', $xmlPayload));
+            
             // Initialize cURL
-            $curl = curl_init();
+            $curl = curl_init();            
 
             // Set cURL options
             curl_setopt_array($curl, [
@@ -190,7 +196,7 @@ class PropertyWareService
     public function iniate()
     {
             $options = array(
-                'cache_wsdl' => WSDL_CACHE_NONE,
+                'cache_wsdl' => \WSDL_CACHE_NONE, // Use global scope
                 'trace' => 1,
                 'login' => $this->username,
                 'password' =>$this->password,

@@ -137,8 +137,8 @@ const navs = computed(() => ({
   settings: [
     {
       name: "Task Templates",
-      url: "#",
-      isActive: page.url.startsWith("/templates"),
+      url: route("task_templates.index"),
+      isActive: page.url.startsWith("/task_templates"),
       icon: LayoutTemplate,
     },
 

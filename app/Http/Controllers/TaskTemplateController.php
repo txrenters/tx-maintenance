@@ -5,15 +5,43 @@ namespace App\Http\Controllers;
 use App\Models\TaskTemplate;
 use App\Http\Requests\StoreTaskTemplateRequest;
 use App\Http\Requests\UpdateTaskTemplateRequest;
+use App\Models\ServiceStatus;
+use Illuminate\Http\Request;
 
 class TaskTemplateController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        // Gate::authorize('view_status', ServiceStatus::class);
+
+        $perPage = $request->per_page
+        ? ($request->per_page == 'All' ? TaskTemplate::count() : $request->per_page)
+        : 10;
+
+        $templates = TaskTemplate::query()
+            ->with('currentServiceStatus')
+            ->filter(request(['search']))
+            ->orderBy('name','ASC')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function ($temlate) {
+                return [
+                    'id' => $temlate->id,
+                    'name' => $temlate->name,
+                    'description' => $temlate->description,
+                    'current_service_status' => $temlate->currentServiceStatus->name,
+                    'is_emergency' => $temlate->is_current_service_status_emergency ? 'Emergency' : 'Non-emergency',
+                ];
+            });
+
+        return inertia('TaskTemplate/Index', [
+            'title' => 'Task Templates',
+            'templates' => $templates,
+            'filter' => $request->only(['search','per_page']),
+        ]);
     }
 
     /**
@@ -21,7 +49,12 @@ class TaskTemplateController extends Controller
      */
     public function create()
     {
-        //
+        $statuses = ServiceStatus::all();
+
+        return inertia('TaskTemplate/Create', [
+            'title' => 'Create Task Template',
+            'statuses' => $statuses,
+        ]); 
     }
 
     /**
@@ -29,7 +62,11 @@ class TaskTemplateController extends Controller
      */
     public function store(StoreTaskTemplateRequest $request)
     {
-        //
+        $request->validated();
+
+        TaskTemplate::create($request->all());
+
+        return redirect()->route('task_templates.index');
     }
 
     /**
@@ -45,7 +82,13 @@ class TaskTemplateController extends Controller
      */
     public function edit(TaskTemplate $taskTemplate)
     {
-        //
+        $statuses = ServiceStatus::all();
+
+        return inertia('TaskTemplate/Edit', [
+            'title' => 'Edit Task Template',
+            'template' => $taskTemplate,
+            'statuses' => $statuses,
+        ]);
     }
 
     /**
@@ -53,7 +96,11 @@ class TaskTemplateController extends Controller
      */
     public function update(UpdateTaskTemplateRequest $request, TaskTemplate $taskTemplate)
     {
-        //
+        $request->validated();
+
+        $taskTemplate->update($request->all());
+
+        return redirect()->route('task_templates.index');
     }
 
     /**
@@ -61,6 +108,8 @@ class TaskTemplateController extends Controller
      */
     public function destroy(TaskTemplate $taskTemplate)
     {
-        //
+        $taskTemplate->delete();
+
+        return redirect()->route('task_templates.index');
     }
 }

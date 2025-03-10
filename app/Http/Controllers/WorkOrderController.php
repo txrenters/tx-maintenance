@@ -3,14 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
-use App\Http\Requests\StoreWorkOrderRequest;
-use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
 use App\Models\Vendor;
-use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WorkOrderController extends Controller
 {
@@ -43,6 +42,8 @@ class WorkOrderController extends Controller
      */
     public function update(Request $request, WorkOrder $workOrder)
     {
+        $now = now();
+
         $request->validate([
             'work_order_no' => 'required'
         ]);
@@ -60,33 +61,42 @@ class WorkOrderController extends Controller
             'additional_work_needed_reschedule' => $request->additional_work_needed_reschedule,
         ];
 
-        $workOrder->update($data);
 
-        $propertyware = new PropertyWareService;
-        
+        DB::beginTransaction();
+        try {
 
-        $vendorIDsXml = "";
+            $workOrder->update($data);
 
-        if($request->service_status == 'New'){
-            $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
-            foreach($request->vendors as $vendor){
-                $vendorData = Vendor::select('id', 'propertyware_id')
-                ->where('name', 'LIKE', "%{$vendor}%")
-                ->first();
-            
-                DB::table('work_order_vendors')->insert([
-                    'work_order_id' => $workOrder->id,
-                    'vendor_id' => $vendorData->id
-                ]);
+            $vendorIDsXml = "";
 
-                $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
+            if($request->service_status == 'New'){
+                DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
+                $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
+                foreach($request->vendors as $vendor){
+                    $vendorData = Vendor::select('id', 'propertyware_id')
+                    ->where('name', 'LIKE', "%{$vendor}%")
+                    ->first();
+                
+                    DB::table('work_order_vendors')->insert([
+                        'work_order_id' => $workOrder->id,
+                        'vendor_id' => $vendorData->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                    $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
+                }
+                $vendorIDsXml .= "</vendorIDs>\n";
             }
-            $vendorIDsXml .= "</vendorIDs>\n";
+
+            UpdateWorkOrder::dispatch($data, $workOrder, $vendorIDsXml);
+            
+            DB::commit();
+            Log::info('Work Order Updated', ['work_order_id' => $workOrder->id]);
+
+        } catch (\Throwable $th) {
+           Log::error('Work Order failed: '.$th);
+           DB::rollBack();
         }
-
-        $propertyware->updateWorkOrder($request, $workOrder, $vendorIDsXml);
-
-
         return redirect()->back();
 
     }

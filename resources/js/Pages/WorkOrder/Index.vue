@@ -117,7 +117,10 @@ const handleWorkOrder = (order) => {
   workOrderForm.location = order.location;
   workOrderForm.managed_by = order.managed_by;
   workOrderForm.requested = order.requested_by;
-  workOrderForm.vendors = order.vendors;
+  workOrderForm.vendors =
+    order.service_status.name === "New"
+      ? Object.values(order.vendors).map((vendor) => vendor.name)
+      : order.vendors;
   workOrderForm.management_plan = order.management_plan;
   workOrderForm.priority = order.priority;
   workOrderForm.status = order.status;
