@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Owner;
 use App\Models\User;
 use App\Models\Vendor;
 use Carbon\Carbon;
@@ -113,7 +114,9 @@ class ImportWorkOrderJob implements ShouldQueue
                             $tenantData
                         );
 
-                        $tenant = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id') ?? null;
+                        $tenant = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
+
+                        Log::info('Tenant ID: ' . $tenant);
                     }
                     
                     $owner = '';
@@ -173,10 +176,12 @@ class ImportWorkOrderJob implements ShouldQueue
                         );
 
                         $owner = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
+                        Log::info('Owner ID: ' . $owner);
 
                     }
 
                     $woc = User::role('woc')->first();
+                    Log::info('WOC ID: ' . $woc->id);
 
                     $work_order_data = [
                         'client_data' => $data['clientData'] ?? null,
@@ -235,7 +240,7 @@ class ImportWorkOrderJob implements ShouldQueue
                                 if($service_status_id) {
                                     $work_order_data['service_status_id'] = $service_status_id ?? '';
                                 }
-                            } else if ($customField['fieldName'] == 'zone') {
+                            } else if ($customField['fieldName'] == 'Zone') {
                                 $work_order_data['zone'] = $customField['value'] ?? '';
                             } else if ($customField['fieldName'] == 'Additional work needed- Reschedule') {
                                 $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
@@ -340,6 +345,7 @@ class ImportWorkOrderJob implements ShouldQueue
                             ];
                             $user = User::updateOrCreate(['email' => $tenantEmail],$usersData);
                             $user->assignRole('tenant'); // Assign 'owner' role
+
                             $tenantData = [
                                 'client_data' => $tenant['clientData'] ?? null,
                                 'propertyware_id' =>  $tenant['ID'] ?? null,
@@ -372,7 +378,7 @@ class ImportWorkOrderJob implements ShouldQueue
                                 'is_name_on_lease' =>  $tenant['namedOnLease'] ?? null,
                                 'is_dirty' =>  $tenant['dirty'] ?? null,
                                 'comments' =>  $tenant['comments'] ?? null,
-                                'user_id' => $user->id,
+                                'user_id' => $user?->id,
                                 'created_at' => $now,
                                 'updated_at' => $now,
                             ];
@@ -381,6 +387,8 @@ class ImportWorkOrderJob implements ShouldQueue
                                 $tenantData
                             );
                             $tenant = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
+
+                            Log::info('Tenant ID: ' . $tenant);
 
                             DB::table('work_order_tenants')->insert([
                                 'work_order_id' => $work_order,
@@ -393,6 +401,9 @@ class ImportWorkOrderJob implements ShouldQueue
 
                     if(!empty($data['portfolio'])){
                         DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
+
+                        $work_order_owner_data = [];
+                        
                         foreach($data['portfolio']['owners'] as $owner){
                             $ownerEmail =  $owner['email'] ?? $owner['ID'] .'@texasrenter.com';
                             $address = trim(implode(' ', array_filter([
@@ -442,30 +453,43 @@ class ImportWorkOrderJob implements ShouldQueue
                                 'updated_at' => $now,
                             ];
 
-                            DB::table('owners')->updateOrInsert(
+                            $ownerRecord = Owner::updateOrCreate(
                                 ['propertyware_id' => $owner['ID'] ?? null],
                                 $ownerData
                             );
-                            $owner = DB::table('owners')->where('propertyware_id', $owner['ID'])->value('id');
-                            DB::table('work_order_owners')->insert([
+                    
+                            $ownerId = $ownerRecord?->id;
+
+                            Log::info('Owner ID: ' . $ownerId);
+                            Log::info('Work Order ID: ' . $work_order);
+
+                            $work_order_owner_data[] = [
                                 'work_order_id' => $work_order,
-                                'owner_id' => $owner,
+                                'owner_id' => $ownerId,
                                 'created_at' => $now,
                                 'updated_at' => $now,
-                            ]);
+                            ];
                         }   
+
+                         // Batch insert work order owners
+                        if (!empty($work_order_owner_data)) {
+                            DB::table('work_order_owners')->insert($work_order_owner_data);
+                        }
                     }
 
                     if(!empty($data['vendorIDs'])){
                         DB::table('work_order_vendors')->where('work_order_id', $work_order)->delete();
                         foreach($data['vendorIDs'] as $vendor){
-                            $vendorData = Vendor::where('propertyware_id', $vendor)->first();
-                            DB::table('work_order_vendors')->insert([
-                                'work_order_id' => $work_order,
-                                'vendor_id' => $vendorData->id,
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ]);
+                            $vendorData = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
+                            if($vendorData){
+                                DB::table('work_order_vendors')->insert([
+                                    'work_order_id' => $work_order,
+                                    'vendor_id' => $vendorData,
+                                    'created_at' => $now,
+                                    'updated_at' => $now,
+                                ]);
+                                Log::info('Vendor ID: ' . $vendorData);
+                            }
                         }   
                     }
                 }

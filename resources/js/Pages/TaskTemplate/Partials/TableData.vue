@@ -1,13 +1,9 @@
 <script setup>
-const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
+const emit = defineEmits(["openDeleteDialog"]);
 
 defineProps({
   data: Object,
 });
-
-const openEditDialog = (user) => {
-  emit("openEditDialog", true, user);
-};
 
 const openDeleteDialog = (user) => {
   emit("openDeleteDialog", true, user);
@@ -30,17 +26,28 @@ const openDeleteDialog = (user) => {
       <TableRow v-for="template in data" :key="template.id">
         <TableCell class="font-medium">
           {{ template.name }}
-          <p class="text-xs font-normal mt-1">{{ tenant.current_service_status }}</p>
-          <p class="text-xs font-normal mt-1">{{ tenant.is_emergency }}</p>
+          <p class="text-xs font-normal my-1 md:hidden">
+            {{ template.current_service_status }}
+          </p>
+          <Badge
+            class="md:hidden"
+            :variant="template.is_emergency === 'Emergency' ? 'destructive' : 'default'"
+          >
+            {{ template.is_emergency }}</Badge
+          >
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          {{ tenant.description }}
+          {{ template.description }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          {{ tenant.current_service_status }}
+          {{ template.current_service_status }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          {{ tenant.is_emergency }}
+          <Badge
+            :variant="template.is_emergency === 'Emergency' ? 'destructive' : 'default'"
+          >
+            {{ template.is_emergency }}</Badge
+          >
         </TableCell>
         <TableCell>
           <DropdownMenu>
@@ -52,8 +59,17 @@ const openDeleteDialog = (user) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem @click="openEditDialog(vendor)">Edit</DropdownMenuItem>
-              <DropdownMenuItem @click="openDeleteDialog(vendor)"
+              <DropdownMenuItem>
+                <Link class="w-full" :href="route('task_templates.show', template.id)"
+                  >View</Link
+                >
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link class="w-full" :href="route('task_templates.edit', template.id)"
+                  >Edit</Link
+                >
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openDeleteDialog(template)"
                 >Delete</DropdownMenuItem
               >
             </DropdownMenuContent>

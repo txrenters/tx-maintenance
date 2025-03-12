@@ -200,8 +200,10 @@ usePoll(2000, { only: ["work_orders"] });
       >
         <div class="text-center font-semibol">
           <!-- Status Name -->
-          <div class="h-16 flex items-center justify-center border p-3 text-sm">
-            <p>{{ status.name }}</p>
+          <div
+            class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
+          >
+            <p>{{ status.name }} ({{ status.work_orders.length }})</p>
           </div>
 
           <!-- Work Orders List -->
@@ -210,10 +212,11 @@ usePoll(2000, { only: ["work_orders"] });
               @click="handleWorkOrder(work_order)"
               v-for="work_order in status.work_orders"
               :key="work_order.id"
-              class="mb-2 bg-primary rounded-lg p-4 text-white cursor-pointer shadow-md"
+              class="mb-2 rounded-lg p-4 text-white cursor-pointer shadow-md"
               :class="{
-                'bg-red-500': work_order.is_emergency === '1',
-                'bg-primary': work_order.is_emergency === '0',
+                'bg-destructive': work_order.is_emergency === 1,
+                'bg-primary': work_order.is_emergency === 0,
+                'bg-primary': work_order.is_emergency === 0,
               }"
             >
               <!-- Work Order Number & Date -->

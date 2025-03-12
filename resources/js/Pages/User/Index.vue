@@ -18,7 +18,6 @@ const props = defineProps({
 
 const url = ref(route("users.index"));
 const search = ref(props.filter.search);
-const per_page = ref(props.filter.per_page);
 
 const isCreateDialogOpen = ref(false);
 const isEditDialogOpen = ref(false);

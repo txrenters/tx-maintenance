@@ -200,6 +200,7 @@ class PropertyWareService
                 'trace' => 1,
                 'login' => $this->username,
                 'password' =>$this->password,
+                'connection_timeout' => 60, // Increase timeout to 60 seconds
                 'stream_context' => stream_context_create(array(
                     'ssl' => array(
                         'verify_peer' => false,

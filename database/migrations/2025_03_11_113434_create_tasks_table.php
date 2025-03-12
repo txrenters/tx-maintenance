@@ -21,7 +21,7 @@ return new class extends Migration
             $table->boolean('is_optional')->default(false);
             $table->boolean('is_emergency')->default(false);
             $table->enum('type', ['Vendor', 'Woc']);
-            $table->foreignIdFor(ServiceStatus::class,'next_service_status_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(ServiceStatus::class,'next_service_status_id')->nullable()->nullOnDelete();
             $table->foreignIdFor(TaskTemplate::class)->constrained()->cascadeOnDelete();
             $table->timestamps();
         });

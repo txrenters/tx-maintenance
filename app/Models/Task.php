@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
@@ -14,14 +16,19 @@ class Task extends Model
 
     protected $guarded = [];
 
-    public function taskTemplate()
+    public function taskTemplate(): BelongsTo
     {
         return $this->belongsTo(TaskTemplate::class);
     }
 
-    public function nextServiceStatus()
+    public function nextServiceStatus(): BelongsTo
     {
         return $this->belongsTo(ServiceStatus::class,'next_service_status_id');
+    }
+
+    public function taskDetails(): HasMany
+    {
+        return $this->hasMany(TaskDetail::class, 'task_id');
     }
 
     public function scopeFilter($query, array $filter): void

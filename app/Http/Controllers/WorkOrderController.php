@@ -23,7 +23,10 @@ class WorkOrderController extends Controller
             'work_orders.vendors',
             'work_orders.requested_by',
             'work_orders.managed_by'
-        ])->get();
+        ])
+        ->whereNot('name','Closed')
+        ->whereNot('name','Not Change')
+        ->get();
 
         $categories = DB::table('work_orders')->select('category')->orderBy('category')->distinct()->get();
 

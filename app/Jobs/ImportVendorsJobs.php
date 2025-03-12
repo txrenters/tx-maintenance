@@ -51,7 +51,7 @@ class ImportVendorsJobs implements ShouldQueue
         
                     $existingVendor = DB::table('vendors')->where('propertyware_id', $vendorId)->exists();
         
-                    if (!$existingVendor) {
+                    if (!$existingVendor && $vendorId) {
                         $address = trim(implode(' ', array_filter([
                             $data['address'] ?? null,
                             $data['address2'] ?? null,
@@ -64,7 +64,7 @@ class ImportVendorsJobs implements ShouldQueue
                         // Create or update the user
                         $usersData = [
                             'email' => $vendorEmail,
-                            'name' => $data['name'] ?? null,
+                            'name'  => $user['name'] ?? 'Unknown', // Default if missing
                             'phone' => $data['phone'] ?? null,
                             'company' => $data['companyName'] ?? null,
                             'address' => $address,
@@ -86,7 +86,7 @@ class ImportVendorsJobs implements ShouldQueue
         
                         $vendorsData = [
                             'propertyware_id' => $vendorId,
-                            'name' => $data['name'] ?? null,
+                            'name' => $data['name'] ?? 'Unknown',
                             'email' => $vendorEmail,
                             'name_on_check' => $data['nameOnCheck'] ?? null,
                             'account_number' => $data['accountNumber'] ?? null,
@@ -96,7 +96,7 @@ class ImportVendorsJobs implements ShouldQueue
                             'taxID' => $data['taxID'] ?? null,
                             'vendor_type' => $data['vendorType'] ?? null,
                             'twilio_number' => '',
-                            'is_active' => isset($data['active']) && $data['active'] == 'true' ? true : false,
+                            'is_active' => isset($data['active']) && $data['active'] === 'true' ? 1 : 0,
                             'user_id' => $user->id, // Make sure $user is not null
                             'created_at' =>  $now,
                             'updated_at' =>  $now,

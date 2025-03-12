@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from "vue";
+import { reactive, onMounted } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useForm } from "@inertiajs/vue3";
@@ -10,43 +10,30 @@ defineOptions({ layout: AppLayout });
 
 const props = defineProps({
   title: String,
+  template: Object,
   statuses: Object,
 });
 
 const form = useForm({
-  name: "",
-  description: "",
-  current_service_status_id: "",
-  is_current_service_status_emergency: "",
-  next_service_status_id: "",
-  is_next_service_status_emergency: "",
+  id: props.template.id,
+  name: props.template.name,
+  description: props.template.description,
+  current_service_status_id: String(props.template.current_service_status_id),
+  is_current_service_status_emergency:
+    props.template.is_current_service_status_emergency === "Emergency"
+      ? "Emergency"
+      : "Non-emergency",
+  next_service_status_id: String(props.template.next_service_status_id),
+  is_next_service_status_emergency:
+    props.template.is_next_service_status_emergency === "Emergency"
+      ? "Emergency"
+      : "Non-emergency",
+  tasks: props.template.tasks,
   tasks: [],
 });
 
 // Reactive tasks array (used for local state)
-const tasks = reactive([
-  {
-    name: "",
-    is_option: "No",
-    is_mandatory: "Yes",
-    task_for: "",
-    due_date: "",
-    task_service_status_id: "",
-    is_task_service_status_emergency: "",
-    task_details: [
-      {
-        task_for: "Yes",
-        task_service_status_id: "",
-        is_task_service_status_emergency: "",
-      },
-      {
-        task_for: "No",
-        task_service_status_id: "",
-        is_task_service_status_emergency: "",
-      },
-    ],
-  },
-]);
+const tasks = reactive([]);
 
 // Function to add a new task
 const addTask = () => {
@@ -83,14 +70,14 @@ const removeTask = (index) => {
 
 const submitForm = () => {
   form.tasks = tasks;
-  form.post(route("task_templates.store"), {
+  form.put(route("task_templates.update", form.id), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       form.reset();
       toast({
         title: "Success",
-        description: "Task template has been created successfully!",
+        description: "Task template has been updated successfully!",
       });
     },
     onError: () => {
@@ -102,6 +89,60 @@ const submitForm = () => {
     },
   });
 };
+
+onMounted(() => {
+  if (props.template?.tasks) {
+    tasks.push(
+      ...props.template.tasks.map((task) => ({
+        id: task.id,
+        name: task.name || "",
+        is_option: task.is_optional === 1 ? "Yes" : "No",
+        is_mandatory: task.is_mandatory === 1 ? "Yes" : "No",
+        task_for: task.type || "",
+        due_date: task.due_date || "",
+        task_service_status_id: String(task.next_service_status_id),
+        is_task_service_status_emergency:
+          task.is_task_service_status_emergency === 1 ? "Emergency" : "Non-emergency",
+        task_details:
+          (task.task_details?.length ?? 0) >= 2
+            ? [
+                {
+                  task_for: task.task_details[0].task_for,
+                  task_service_status_id: String(
+                    task.task_details[0].task_service_status_id
+                  ),
+                  is_task_service_status_emergency: task.task_details[0]
+                    .is_task_service_status_emergency
+                    ? "Emergency"
+                    : "Non-emergency",
+                },
+                {
+                  task_for: task.task_details[1].task_for,
+                  task_service_status_id: String(
+                    task.task_details[1].task_service_status_id
+                  ),
+                  is_task_service_status_emergency: task.task_details[1]
+                    .is_task_service_status_emergency
+                    ? "Emergency"
+                    : "Non-emergency",
+                },
+              ]
+            : [
+                {
+                  task_for: "Yes",
+                  task_service_status_id: "",
+                  is_task_service_status_emergency: "",
+                },
+                {
+                  task_for: "No",
+                  task_service_status_id: "",
+                  is_task_service_status_emergency: "",
+                },
+              ],
+      }))
+    );
+  }
+});
 </script>
 <template>
   <Head :title="title" />
@@ -252,7 +293,6 @@ const submitForm = () => {
                 <Label>No</Label>
                 <Switch
                   v-model="task.is_mandatory"
-                  :checked="task.is_mandatory === 'Yes'"
                   @update:checked="$event = $event ? 'Yes' : 'No'"
                 />
                 <Label>Yes</Label>
@@ -439,7 +479,7 @@ const submitForm = () => {
     >
       <Button type="submit" :disabled="form.processing" @click="submitForm">
         <Loader2 v-if="form.processing" class="w-4 h-4 animate-spin" />
-        Create Now</Button
+        Save Changes</Button
       >
     </CardFooter>
   </Card>

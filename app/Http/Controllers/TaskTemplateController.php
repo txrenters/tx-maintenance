@@ -6,7 +6,11 @@ use App\Models\TaskTemplate;
 use App\Http\Requests\StoreTaskTemplateRequest;
 use App\Http\Requests\UpdateTaskTemplateRequest;
 use App\Models\ServiceStatus;
+use App\Models\Task;
+use App\Models\TaskDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TaskTemplateController extends Controller
 {
@@ -64,9 +68,59 @@ class TaskTemplateController extends Controller
     {
         $request->validated();
 
-        TaskTemplate::create($request->all());
+        DB::beginTransaction();
 
-        return redirect()->route('task_templates.index');
+        try{
+
+            $taskTemplate = TaskTemplate::create([
+                'name' => $request->name,
+                'description' => $request->description,
+                'current_service_status_id' => $request->current_service_status_id,
+                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency' ? true : false,
+                'next_service_status_id' => $request->next_service_status_id,
+                'is_next_service_status_emergency' => $request->is_next_service_status_emergency == 'Emergency' ? true : false,
+            ]);
+    
+            foreach($request->tasks as $task){
+                $taskDate = [
+                    'name' => $task['name'],
+                    'is_optional' => $task['is_option'] == 'Yes' ? true : false,
+                    'is_mandatory'=> $task['is_mandatory'] == 'Yes' ? true : false,
+                    'type' => $task['task_for'],
+                    'due_date' => $task['due_date'],
+                    'next_service_status_id' => $task['task_service_status_id'],
+                    'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
+                    'task_template_id' => $taskTemplate->id,
+                ];
+    
+                if (!empty($task['name'])) { // Ensure task name exists before inserting
+                    $createdTask = Task::create($taskDate);
+                
+                    if($task['is_option'] == 'No'){ // If task option is No, no need to add task details
+                        continue;
+                    }
+                    // Check if 'task_details' is an array before looping
+                    if (!empty($task['task_details']) && is_array($task['task_details'])) {
+                        foreach ($task['task_details'] as $taskDetail) {
+                            TaskDetail::create([
+                                'task_id' => $createdTask->id, // Corrected: Use created task ID
+                                'task_for' => $taskDetail['task_for'] ?? null,
+                                'task_service_status_id' => $taskDetail['task_service_status_id'] ?? null,
+                                'is_task_service_status_emergency' => ($taskDetail['is_task_service_status_emergency'] ?? '') === 'Emergency',
+                            ]);
+                        }
+                    }
+                }
+                
+            }
+            DB::commit();
+            Log::info('Task template created successfully');
+        }catch(\Exception $e){
+            DB::rollBack();
+            Log::error('Error creating task template:'.  $e->getMessage());
+        }
+
+        return redirect()->back();
     }
 
     /**
@@ -74,7 +128,16 @@ class TaskTemplateController extends Controller
      */
     public function show(TaskTemplate $taskTemplate)
     {
-        //
+        $statuses = ServiceStatus::all();
+
+        $taskTemplate = TaskTemplate::with(['currentServiceStatus','nextServiceStatus','tasks.taskDetails.taskServiceStatus','tasks.nextServiceStatus'])->find($taskTemplate->id);
+
+        // dd($taskTemplate);
+        return inertia('TaskTemplate/Show', [
+            'title' => 'Task Template',
+            'template' => $taskTemplate,
+            'statuses' => $statuses,
+        ]);
     }
 
     /**
@@ -83,6 +146,8 @@ class TaskTemplateController extends Controller
     public function edit(TaskTemplate $taskTemplate)
     {
         $statuses = ServiceStatus::all();
+
+        $taskTemplate = TaskTemplate::with('tasks.taskDetails')->find($taskTemplate->id);
 
         return inertia('TaskTemplate/Edit', [
             'title' => 'Edit Task Template',
@@ -97,10 +162,76 @@ class TaskTemplateController extends Controller
     public function update(UpdateTaskTemplateRequest $request, TaskTemplate $taskTemplate)
     {
         $request->validated();
+        DB::beginTransaction();
+        try{
 
-        $taskTemplate->update($request->all());
+           $taskTemplate->update([
+                'name' => $request->name,
+                'description' => $request->description,
+                'current_service_status_id' => $request->current_service_status_id,
+                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency' ? true : false,
+                'next_service_status_id' => $request->next_service_status_id,
+                'is_next_service_status_emergency' => $request->is_next_service_status_emergency == 'Emergency' ? true : false,
+            ]);
 
-        return redirect()->route('task_templates.index');
+            Task::where('task_template_id', $taskTemplate->id)->delete();
+
+            foreach($request->tasks as $task){
+                $taskData = [
+                    'name' => $task['name'],
+                    'is_optional' => $task['is_option'] == 'Yes' ? true : false,
+                    'is_mandatory'=> $task['is_mandatory'] == 'Yes' ? true : false,
+                    'type' => $task['task_for'],
+                    'due_date' => $task['due_date'],
+                    'next_service_status_id' => $task['task_service_status_id'] ?? null,
+                    'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
+                    'task_template_id' => $taskTemplate->id,
+                ];
+    
+                if (!empty($task['name'])) { 
+
+                    $taskId = $task['id'] ?? null;
+                    $taskModel = null; // Correctly initialize as null
+                    
+                    if ($taskId) {
+                        $taskModel = Task::find($taskId);
+                        if ($taskModel) {
+                            $taskModel->update($taskData);
+                        }
+                    } 
+                
+                    // If taskModel is still null, create a new task
+                    if (!$taskModel) {
+                        $taskModel = Task::create($taskData);
+                    }
+
+                    if (!empty($task['task_details']) && is_array($task['task_details'])) {
+
+                        TaskDetail::where('task_id', $taskModel->id)->delete();
+
+                        if($task['is_option'] == 'No'){ // If task option is No, no need to add task details
+                            continue;
+                        }
+                        foreach ($task['task_details'] as $taskDetail) {
+                            TaskDetail::create([
+                                'task_id' => $taskModel->id, // Corrected: Use created task ID
+                                'task_for' => $taskDetail['task_for'] ,
+                                'task_service_status_id' => $taskDetail['task_service_status_id'],
+                                'is_task_service_status_emergency' => ($taskDetail['is_task_service_status_emergency'] ?? '') === 'Emergency',
+                            ]);
+                        }
+                    }
+                }
+                
+            }
+            Log::info('Task template updated successfully');
+            DB::commit();
+        }catch(\Exception $e){
+            DB::rollBack();
+            Log::error('Error editing task template: '.  $e->getMessage());
+        }
+        return redirect()->back();
+
     }
 
     /**
@@ -110,6 +241,6 @@ class TaskTemplateController extends Controller
     {
         $taskTemplate->delete();
 
-        return redirect()->route('task_templates.index');
+        return redirect()->back();
     }
 }
