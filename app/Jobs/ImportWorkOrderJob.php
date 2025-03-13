@@ -51,9 +51,10 @@ class ImportWorkOrderJob implements ShouldQueue
                     $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
                     
                     $tenant = '';
+
+                    //save the the tenant who requested the work order
                     if($tenant_propertyware_id){
                         $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id. "@texasrenter.com";
-
                         $address = trim(implode(' ', array_filter([
                             $data['requestedByContact']['address'] ?? null,
                             $data['requestedByContact']['address2'] ?? null,
@@ -115,16 +116,13 @@ class ImportWorkOrderJob implements ShouldQueue
                         );
 
                         $tenant = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
-
-                        Log::info('Tenant ID: ' . $tenant);
                     }
                     
                     $owner = '';
 
+                    // actually this is not the owner, this is the person who manage the work order
                     if($owner_propertyware_id){
-                        
                         $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id.'@texasrenter.com';
-
                         $address = trim(implode(' ', array_filter([
                             $data['owner']['address'] ?? null,
                             $data['owner']['address2'] ?? null,
@@ -176,12 +174,9 @@ class ImportWorkOrderJob implements ShouldQueue
                         );
 
                         $owner = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
-                        Log::info('Owner ID: ' . $owner);
-
                     }
 
-                    $woc = User::role('woc')->first();
-                    Log::info('WOC ID: ' . $woc->id);
+                    $woc = User::role('woc')->first(); // assign a woc on a work order
 
                     $work_order_data = [
                         'client_data' => $data['clientData'] ?? null,
@@ -193,7 +188,7 @@ class ImportWorkOrderJob implements ShouldQueue
                         'approved_date' => !empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                         'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                         'category' => $data['category'] ?? null,
-                        'closing_comments' => $data['closingComments'] ?? null,
+                        'closing_comments' => $data['closingComments'] ?? null, 
                         'completed_date' => !empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
                         'cost_estimate' => $data['costEstimate'] ?? null,
                         'created_date' => !empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,
@@ -388,8 +383,6 @@ class ImportWorkOrderJob implements ShouldQueue
                             );
                             $tenant = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
 
-                            Log::info('Tenant ID: ' . $tenant);
-
                             DB::table('work_order_tenants')->insert([
                                 'work_order_id' => $work_order,
                                 'tenant_id' => $tenant,
@@ -460,9 +453,6 @@ class ImportWorkOrderJob implements ShouldQueue
                     
                             $ownerId = $ownerRecord?->id;
 
-                            Log::info('Owner ID: ' . $ownerId);
-                            Log::info('Work Order ID: ' . $work_order);
-
                             $work_order_owner_data[] = [
                                 'work_order_id' => $work_order,
                                 'owner_id' => $ownerId,
@@ -488,7 +478,6 @@ class ImportWorkOrderJob implements ShouldQueue
                                     'created_at' => $now,
                                     'updated_at' => $now,
                                 ]);
-                                Log::info('Vendor ID: ' . $vendorData);
                             }
                         }   
                     }

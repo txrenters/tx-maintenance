@@ -1,8 +1,7 @@
 <script setup>
-import { onMounted, reactive, ref, computed } from "vue";
-import { usePoll } from "@inertiajs/vue3";
+import { onMounted, reactive, ref, computed, watch } from "vue";
+import { useForm, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { useForm } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 import { useFilter } from "reka-ui";
@@ -38,6 +37,7 @@ import {
   Paperclip,
   FileText,
   FileDown,
+  EllipsisVertical,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -48,7 +48,7 @@ const props = defineProps({
   service_status: Object,
   vendors: Object,
   categories: Object,
-  filter: Array,
+  filter: Object,
 });
 
 const url = ref(route("work_orders.index"));
@@ -108,8 +108,123 @@ const workOrderForm = useForm({
   vendors: Array,
 });
 
+const closeWorkOrderForm = useForm({
+  id: "",
+});
+
+// In case of a range picker, you'll receive [Date, Date]
+const format = (date) => {
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
+const open = ref(false);
+const searchTerm = ref("");
+
+const { contains } = useFilter({ sensitivity: "base" });
+const filteredVendors = computed(() => {
+  const options = props.vendors.filter((i) => !workOrderForm.vendors.includes(i.name));
+  return searchTerm.value
+    ? options.filter((option) => contains(option.name, searchTerm.value))
+    : options;
+});
+
+const badgeClass = computed(() => {
+  if (task.status === "completed") return "bg-green-500 text-white";
+  if (task.status === "pending") return "bg-yellow-500 text-black";
+  if (task.status === "processing") return "bg-blue-500 text-white";
+  return "bg-gray-300 text-black";
+});
+
+const handleUpdateSubmit = () => {
+  workOrderForm.put(route("work_orders.update", workOrderForm.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Work order has been updated successfully!",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+    },
+    only: ["service_status"],
+  });
+};
+
+const handleCloseOrderSubmit = () => {
+  closeWorkOrderForm.put(route("work_orders.close", closeWorkOrderForm.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Work order has been closed successfully!",
+      });
+      openWorkOrder.value = false;
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+    },
+    only: ["service_status"],
+  });
+};
+const activeTab = ref("details"); // Default tab
+
+const handleSwitchTab = (tab) => {
+  activeTab.value = tab;
+  workOrderTasks.value = [];
+
+  if (activeTab.value === "tasks") {
+    fetchWorkOrderTask();
+  }
+};
+const isLoading = ref(false);
+const workOrderTasks = ref([]);
+
+const fetchWorkOrderTask = async () => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(route("work_order.tasks", workOrderForm.id));
+    workOrderTasks.value = response.data.tasks;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const handleTaskStatusChange = async (task_id, status) => {
+  try {
+    workOrderTasks.value = [];
+    isLoading.value = true;
+    const response = await axios.put(route("work_order.task.change", task_id), {
+      status: status,
+    });
+    await fetchWorkOrderTask(); // Refetch the updated task list
+  } catch (error) {
+    console.error("Error updating task:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 const handleWorkOrder = (order) => {
   workOrderForm.reset();
+  activeTab.value = "details";
+  workOrderTasks.value = [];
+
   openWorkOrder.value = true;
   workOrderForm.id = order.id;
   workOrderForm.work_order_no = order.work_order_no;
@@ -144,52 +259,18 @@ const handleWorkOrder = (order) => {
     order.additional_work_needed_reschedule;
   workOrderForm.zone = order.zone;
   workOrderForm.vendor_notes = order.vendor_notes;
+
+  closeWorkOrderForm.reset();
+  closeWorkOrderForm.id = order.id;
 };
-
-const handleUpdateSubmit = () => {
-  workOrderForm.put(route("work_orders.update", workOrderForm.id), {
-    preserveState: true,
-    preserveScroll: true,
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Work order has been updated successfully!",
-      });
-    },
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem with your request. Please try again!",
-      });
-    },
-    only: ["work_orders"],
-  });
-};
-// In case of a range picker, you'll receive [Date, Date]
-const format = (date) => {
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-  return `${month}/${day}/${year}`;
-};
-
-const open = ref(false);
-const searchTerm = ref("");
-
-const { contains } = useFilter({ sensitivity: "base" });
-const filteredVendors = computed(() => {
-  const options = props.vendors.filter((i) => !workOrderForm.vendors.includes(i.name));
-  return searchTerm.value
-    ? options.filter((option) => contains(option.name, searchTerm.value))
-    : options;
-});
-
-usePoll(2000, { only: ["work_orders"] });
+usePoll(5000, { only: ["service_status"] });
 </script>
 <template>
   <Head :title="title" />
 
+  <div class="flex">
+    <SearchBar :url="url" v-model="search" />
+  </div>
   <!-- Scrollable Service Status Area -->
   <ScrollArea class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]">
     <div class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide">
@@ -251,6 +332,7 @@ usePoll(2000, { only: ["work_orders"] });
                 </Avatar>
               </div>
             </div>
+
             <ScrollBar orientation="vertical" />
           </ScrollArea>
         </div>
@@ -261,7 +343,7 @@ usePoll(2000, { only: ["work_orders"] });
 
   <Dialog v-model:open="openWorkOrder">
     <DialogContent
-      class="sm:max-w-[700px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+      class="sm:max-w-[800px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
     >
       <DialogHeader class="p-6 pb-0 text-left">
         <DialogTitle class="text-2xl text-primary"
@@ -282,24 +364,21 @@ usePoll(2000, { only: ["work_orders"] });
               >{{ workOrderForm.is_emergency }}</Badge
             >
           </div>
-
-          <div class="p-2 border rounded-lg">
-            <Label>Description:</Label>
-            <p class="font-semibold">
-              {{ workOrderForm.description }}
-            </p>
-          </div>
         </DialogDescription>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-center gap-2 flex-wrap">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'details' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('details')"
+                >
                   <ClipboardList class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Work Order Details</p>
+                <p>Details</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -307,7 +386,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'tasks' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('tasks')"
+                >
                   <ListChecks class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -320,7 +403,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'conversation' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('conversation')"
+                >
                   <MessagesSquare class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -333,12 +420,16 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'owner_conversation' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('owner_conversation')"
+                >
                   <MessageSquareText class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Vendor Conversation</p>
+                <p>Onwer Conversation</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -346,7 +437,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'tenant_conversation' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('tenant_conversation')"
+                >
                   <MessageSquareShare class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -359,7 +454,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'meetings' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('meetings')"
+                >
                   <Calendar class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -372,7 +471,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'attachements' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('attachments')"
+                >
                   <Paperclip class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -385,7 +488,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'invoices' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('invoices')"
+                >
                   <FileText class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -398,7 +505,11 @@ usePoll(2000, { only: ["work_orders"] });
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="outline" size="icon">
+                <Button
+                  :variant="activeTab === 'reports' ? '' : 'outline'"
+                  size="icon"
+                  @click="handleSwitchTab('reports')"
+                >
                   <FileDown class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -410,7 +521,7 @@ usePoll(2000, { only: ["work_orders"] });
         </div>
       </DialogHeader>
       <Separator />
-      <div class="grid gap-3 overflow-y-auto px-6">
+      <div class="grid gap-3 overflow-y-auto px-6" v-if="activeTab === 'details'">
         <div class="grid grid-cols-2 gap-3">
           <div>
             <Label for="message">Vendors:</Label>
@@ -644,6 +755,15 @@ usePoll(2000, { only: ["work_orders"] });
               rows="1"
             />
           </div>
+          <div class="grid gap-1.5 mt-5">
+            <Label>Description:</Label>
+            <div class="border mt-2" v-if="workOrderForm.description">
+              <p class="text-sm p-2 rounded">
+                {{ workOrderForm.description }}
+              </p>
+            </div>
+          </div>
+
           <div class="grid gap-1.5 mt-5 mb-5">
             <Label for="message">Vendor Notes</Label>
             <Textarea
@@ -653,15 +773,14 @@ usePoll(2000, { only: ["work_orders"] });
           </div>
         </div>
       </div>
-      <DialogFooter class="p-6 pt-0">
+      <DialogFooter class="p-6 pt-0" v-if="activeTab === 'details'">
         <Button
           type="submit"
           variant="destructive"
-          :disabled="workOrderForm.processing"
-          @click.prevent="handleUpdateSubmit"
+          :disabled="closeWorkOrderForm.processing"
+          @click.prevent="handleCloseOrderSubmit"
         >
-          <Loader2 v-if="workOrderForm.processing" class="w-4 h-4 animate-spin" />
-
+          <Loader2 v-if="closeWorkOrderForm.processing" class="w-4 h-4 animate-spin" />
           Close Work Order
         </Button>
         <Button
@@ -673,6 +792,88 @@ usePoll(2000, { only: ["work_orders"] });
           Save changes
         </Button>
       </DialogFooter>
+
+      <div
+        class="overflow-y-auto px-6 mb-6 w-full min-h-[88px]"
+        v-if="activeTab === 'tasks'"
+      >
+        <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
+        <div class="flex justify-center" v-if="isLoading">
+          <Loader2 class="w-12 h-12 animate-spin text-primary" />
+        </div>
+
+        <div class="flex" v-if="!isLoading && workOrderTasks.length === 0">
+          <p class="font-semibold">No tasks available</p>
+        </div>
+
+        <div v-else>
+          <div
+            class="w-full p-2 mb-2 rounded-lg shadow hover:bg-secondary"
+            v-for="task in workOrderTasks"
+            :key="task.id"
+          >
+            <div class="flex justify-between">
+              <div class="flex flex-col gap-2">
+                <div class="flex text-xs items-center gap-1">
+                  <Badge
+                    :variant="
+                      task.status === 'pending'
+                        ? 'secondary'
+                        : task.status === 'completed'
+                        ? 'destructive'
+                        : '' /* Default */
+                    "
+                  >
+                    {{ task.status }}</Badge
+                  >
+                  <p>{{ task.due_date ?? "No due date" }}</p>
+                </div>
+                <p class="text-sm">{{ task.task.name }}</p>
+                <div class="flex flex-col text-xs gap-1">
+                  <p>Assigned: {{ task.task.type }}</p>
+                  <p class="flex gap-1 items-center">
+                    <Avatar class="w-5 h-5">
+                      <AvatarImage
+                        :src="task.assigned_user?.profile_photo_url || 'default.jpg'"
+                      />
+                      <AvatarFallback></AvatarFallback>
+                    </Avatar>
+                    {{ task.assigned_user.name }}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button aria-haspopup="true" size="icon" variant="ghost">
+                      <EllipsisVertical class="w-3 h-3" />
+                      <span class="sr-only">Toggle menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Mark as</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      class="cursor-pointer hover:bg-secondary"
+                      @click="handleTaskStatusChange(task.id, 'pending')"
+                      >Pending</DropdownMenuItem
+                    >
+                    <DropdownMenuItem
+                      class="cursor-pointer hover:bg-secondary"
+                      @click="handleTaskStatusChange(task.id, 'processing')"
+                      >Processing</DropdownMenuItem
+                    >
+                    <DropdownMenuItem
+                      class="cursor-pointer hover:bg-secondary"
+                      @click="handleTaskStatusChange(task.id, 'completed')"
+                      >Complete</DropdownMenuItem
+                    >
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

@@ -72,6 +72,7 @@ const navs = computed(() => ({
         {
           title: "Ongoing",
           url: route("work_orders.index"),
+          isActive: page.component === "WorkOrder/Index",
         },
 
         {
@@ -87,8 +88,9 @@ const navs = computed(() => ({
           url: "#",
         },
         {
-          title: "Archives",
-          url: "#",
+          title: "Closed",
+          url: route("work_orders.closed_work_orders"),
+          isActive: page.component === "WorkOrder/Close",
         },
       ],
     },
@@ -223,6 +225,7 @@ const mode = useColorMode({ disableTransition: false });
               :key="item.title"
               as-child
               :default-open="item.isActive"
+              :data-state="item.isActive"
               class="group/collapsible"
             >
               <SidebarMenuItem>
@@ -243,7 +246,11 @@ const mode = useColorMode({ disableTransition: false });
                       :key="subItem.title"
                     >
                       <SidebarMenuSubButton as-child>
-                        <Link :href="subItem.url" prefetch>
+                        <Link
+                          :href="subItem.url"
+                          prefetch
+                          :class="{ 'font-semibold p-2 border': subItem.isActive }"
+                        >
                           <span>{{ subItem.title }}</span>
                         </Link>
                       </SidebarMenuSubButton>

@@ -72,7 +72,7 @@ const handleAlertDialog = (open, user) => {
     <CardHeader>
       <SearchBar :url="url" v-model="search" />
     </CardHeader>
-    <CardContent>
+    <CardContent> 
       <TableData :data="templates.data" @openDeleteDialog="handleAlertDialog" />
     </CardContent>
     <CardFooter

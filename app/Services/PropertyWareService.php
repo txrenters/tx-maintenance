@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -191,7 +192,238 @@ class PropertyWareService
         }
     }
 
-    
+    public function closeWorkOrder(object $workOrder)
+    {
+        try {
+            $workorderId = $workOrder->propertyware_id;
+            $portfolioId = (int)$workOrder->portfolio_id;
+            $buildigId = $workOrder->building_id;
+            $location = $workOrder->location;
+
+            $xmlPayload = '
+                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:ser="http://service.web.propertyware.realpage.com"
+                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                    <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                    <building xsi:type="urn:Building">
+                    <ID xsi:type="xsd:long">' . $buildigId . '</ID>
+                    </building>
+                    <portfolio xsi:type="urn:Portfolio">
+                    <ID xsi:type="xsd:long">' . $portfolioId . '</ID>
+                    </portfolio>
+                    <location xsi:type="xsd:string">' . $location . '</location>
+                    <status xsi:type="xsd:string">Close</status>
+                    <completedDate xsi:type="xsd:string">Open</completedDate>
+                    <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                        xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                        <customFields xsi:type="ns2:CustomField">
+                            <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                            <value xsi:type="xsd:string">Close</value>
+                            </customFields>
+                    </customFields>
+                    </workOrder>
+                    </ser:updateWorkOrder>
+                    </soapenv:Body>
+                    </soapenv:Envelope>
+                ';
+
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+            // Execute the cURL request
+            $response = curl_exec($curl);
+
+            if (curl_errno($curl)) {
+                Log::error('cURL error: ' . curl_error($curl));
+                return false;
+            }
+            // Close cURL
+            curl_close($curl);
+
+            Log::info("Work order {$workOrder->work_order_no} successfully closed.");
+
+            return true;
+        } catch (\Exception $exception) {
+            return false;
+            Log::error('Closing work order failed: '.$exception);
+        }
+
+    }
+
+    public function reOpenWorkOrder(object $workOrder)
+    {
+        try {
+            $workorderId = $workOrder->propertyware_id;
+            $portfolioId = (int)$workOrder->portfolio_id;
+            $buildigId = $workOrder->building_id;
+            $location = $workOrder->location;
+
+            $xmlPayload = '
+                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:ser="http://service.web.propertyware.realpage.com"
+                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                    <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                    <building xsi:type="urn:Building">
+                    <ID xsi:type="xsd:long">' . $buildigId . '</ID>
+                    </building>
+                    <portfolio xsi:type="urn:Portfolio">
+                    <ID xsi:type="xsd:long">' . $portfolioId . '</ID>
+                    </portfolio>
+                    <location xsi:type="xsd:string">' . $location . '</location>
+                    <status xsi:type="xsd:string">Open</status>
+                    <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                        xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                        <customFields xsi:type="ns2:CustomField">
+                            <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                            <value xsi:type="xsd:string">Open</value>
+                            </customFields>
+                    </customFields>
+                    </workOrder>
+                    </ser:updateWorkOrder>
+                    </soapenv:Body>
+                    </soapenv:Envelope>
+                ';
+
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+           // Execute the cURL request
+            $response = curl_exec($curl);
+
+            if (curl_errno($curl)) {
+                Log::error('cURL error: ' . curl_error($curl));
+                return false;
+            }
+
+            // Close cURL
+            curl_close($curl);
+
+            Log::info("Work order {$workOrder->work_order_no} successfully reopened.");
+
+            return true;
+
+        } catch (\Exception $exception) {
+            Log::error('Re-opening work order failed: '.$exception);
+            return false;
+        }
+
+    }
+
+    public function changeServiceStatusPropertyWare($workOrder, $servicestatusData)
+    {
+
+        $workorderId = $workOrder->propertyware_id;
+        $portfolioId = (int)$workOrder->portfolio_id;
+        $buildigId = $workOrder->building_id;
+        $location = $workOrder->location;
+        $serviceStatus = $servicestatusData->name;
+        $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                <building xsi:type="urn:Building">
+                <ID xsi:type="xsd:long">' . $buildigId . '</ID>
+                </building>
+                <portfolio xsi:type="urn:Portfolio">
+                <ID xsi:type="xsd:long">' . $portfolioId . '</ID>
+                </portfolio>
+                <location xsi:type="xsd:string">' . $location . '</location>
+                <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                    xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                    <customFields xsi:type="ns2:CustomField">
+                        <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                        <value xsi:type="xsd:string">' . $serviceStatus . '</value>
+                        </customFields>
+                </customFields>
+                </workOrder>
+                </ser:updateWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
+
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+           // Execute the cURL request
+            $response = curl_exec($curl);
+
+            if (curl_errno($curl)) {
+                Log::error('cURL error: ' . curl_error($curl));
+                return false;
+            }
+
+            // Close cURL
+            curl_close($curl);
+
+            Log::info(`Work order {$workOrder->work_order_no} service status successfully changed.`);
+
+            return true;
+
+    }
+
 
     public function iniate()
     {
