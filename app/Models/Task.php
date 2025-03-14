@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Task extends Model
 {
@@ -28,7 +29,12 @@ class Task extends Model
 
     public function taskDetails(): HasMany
     {
-        return $this->hasMany(TaskDetail::class, 'task_id');
+        return $this->hasMany(TaskDetail::class, 'task_id')->latest('created_at');
+    }
+
+    public function taskDetailYesOption(): HasOne
+    {
+        return $this->hasOne(TaskDetail::class, 'task_id')->where('task_for', 'Yes');
     }
 
     public function scopeFilter($query, array $filter): void

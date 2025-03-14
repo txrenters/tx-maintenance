@@ -10,4 +10,5 @@ Route::get('/user', function (Request $request) {
 
 
 Route::get('/work_orders/{workOrder}/tasks',[WorkOrderAPIController::class, 'tasks'])->name('work_order.tasks');
-Route::put('/work_orders/{task}/task/change',[WorkOrderAPIController::class, 'task_change'])->name('work_order.task.change');
+Route::patch('/work_orders/{task}/task/change',[WorkOrderAPIController::class, 'task_change'])->name('work_order.task.change');
+Route::patch('/work_orders/{workOrder}/service_status/change',[WorkOrderAPIController::class, 'service_status_change'])->name('work_order.service_status_change');

@@ -8,8 +8,8 @@ defineProps({
 const openEditDialog = (user) => {
   emit("isDialogOpen", true, user);
 };
-const updateStatus = (checked, work_order) => {
-  emit("statusChanged", checked, work_order); // Emit event to parent
+const updateStatus = (work_order) => {
+  emit("statusChanged", work_order); // Emit event to parent
 };
 </script>
 <template>
@@ -43,15 +43,24 @@ const updateStatus = (checked, work_order) => {
           {{ work_order.completed_at }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          <div class="flex gap-2 items-center">
-            Open
-            <Switch
-              class="bg-red-500"
-              :checked="work_order.status"
-              @update:checked="updateStatus($event, work_order.id)"
-            />
-            Close
-          </div>
+          <TableCell>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button aria-haspopup="true" size="icon" variant="ghost">
+                  <MoreHorizontal class="h-4 w-4" />
+                  <span class="sr-only">Toggle menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem
+                  @click="updateStatus(work_order.id)"
+                  class="cursor-pointer"
+                  >Re-Open</DropdownMenuItem
+                >
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Models\WorkOrder;
 use App\Jobs\UpdateWorkOrder;
+use App\Jobs\UpdateWorkOrderData;
 use App\Models\ServiceStatus;
 use App\Models\TaskTemplate;
 use App\Models\User;
@@ -52,6 +53,18 @@ class WorkOrderController extends Controller
             'filter' => $request->only(['search','per_page']),
         ]);
     }
+
+    public function show(WorkOrder $workOrder)
+    {
+        $workOrder->load([
+            'service_status',
+            'vendors',
+            'requested_by',
+            'managed_by'
+            ])->first();
+
+        return response()->json($workOrder, 200);
+    }
     
     /**
      * Update the specified resource in storage.
@@ -62,9 +75,7 @@ class WorkOrderController extends Controller
 
         $now = now();
 
-
         $data = [
-            'is_emergency' => $request->is_emergency == 'Emergency' ? true : false,
             'category' => $request->category,
             'cost_estimate' => $request->cost_estimate,
             'hour_estimate' => $request->hour_estimate,
@@ -80,82 +91,34 @@ class WorkOrderController extends Controller
         DB::beginTransaction();
         try {
 
-            $workOrder->update($data);
+            UpdateWorkOrderData::dispatch($workOrder->id, $data)->delay(now()->addSeconds(5));
 
             $vendorIDsXml = "";
 
-            $workOrder_tasks = WorkOrder::with(['tasks'])->find($workOrder->id)->where('');
-
-            if($request->service_status == 'New' && $workOrder_tasks->tasks->count() == 0){
+            if($request->service_status == 'New'){
 
                 DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
 
-                $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
-                foreach($request->vendors as $vendor){
-                    $vendorData = Vendor::select('id', 'propertyware_id')
-                        ->where('name', 'LIKE', "%{$vendor}%")
-                        ->first();
+                if($request->vendors){
+                    $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
                 
-                    DB::table('work_order_vendors')->insert([
-                        'work_order_id' => $workOrder->id,
-                        'vendor_id' => $vendorData->id,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ]);
-                    $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
-                }
-                $vendorIDsXml .= "</vendorIDs>\n";
-
-                
-                $is_emergency = $request->is_emergency; 
-
-                $task_template = TaskTemplate::with(['currentServiceStatus','tasks'])
-                    ->whereHas('currentServiceStatus', function($q){
-                        $q->where('name', 'New');
-                    })
-                    ->where('is_current_service_status_emergency', $is_emergency)
-                    ->first();
-
-                if(!empty($task_template->tasks)){
-                    $tasks = [];
-
-                    foreach($task_template->tasks as $task){
-                        // if task is for work order coodinator, assigned a task to it
-                        if($task->type == 'Woc'){
-                            $assigned_user_id = User::role('woc')->first();
-                            $tasks[] = [
-                                'work_order_id' => $workOrder->id,
-                                'assigned_user_id' => $assigned_user_id->id,
-                                'task_id' => $task->id,
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ];
-                        }else{
-                            // if multiple vendor, assign task to every vendor, its okay they have the same task
-                            foreach($request->vendors as $vendor){
-                                $assigned_user_id = User::with('vendor')
-                                    ->whereHas('vendor', function($q) use ($vendor){
-                                        $q->where('name', 'LIKE', $vendor);
-                                    })
-                                    ->role('vendors')
-                                    ->first();
-
-                                $tasks[] = [
-                                    'work_order_id' => $workOrder->id,
-                                    'assigned_user_id' => $assigned_user_id->id,
-                                    'task_id' => $task->id,
-                                    'created_at' => $now,
-                                    'updated_at' => $now,
-                                ];
-                            }
-                        }
+                    foreach($request->vendors as $vendor){
+                        $vendorData = Vendor::select('id', 'propertyware_id')
+                            ->where('name', 'LIKE', "%{$vendor}%")
+                            ->first();
+                    
+                        DB::table('work_order_vendors')->insert([
+                            'work_order_id' => $workOrder->id,
+                            'vendor_id' => $vendorData->id,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                        $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
                     }
-
-                    if(!empty($tasks)){
-                        DB::table('work_order_tasks')->insert($tasks);
-                    }
+                    $vendorIDsXml .= "</vendorIDs>\n";
                 }
             }
+
             UpdateWorkOrder::dispatch($data, $workOrder, $vendorIDsXml);
             
             DB::commit();
@@ -204,6 +167,92 @@ class WorkOrderController extends Controller
             'work_orders' => $work_orders,
             'filter' => $request->only(['search','per_page']),
         ]);
+    }
+
+    public function emergency_change(Request $request, WorkOrder $workOrder)
+    {   
+        $data =  $request->validate([
+            'is_emergency' => is_null($request->is_emergency) ? false : ($request->is_emergency == 'Emergency' ? true : false),
+        ]);
+
+        UpdateWorkOrderData::dispatch($workOrder->id, $data)->delay(now()->addSeconds(5));
+
+        $now = now();
+
+        $is_emergency = is_null($request->is_emergency) ? false : ($request->is_emergency == 'Emergency');
+
+        $task_template = TaskTemplate::with(['currentServiceStatus','tasks'])
+            ->whereHas('currentServiceStatus', function($q){
+                $q->where('name', 'New');
+            })
+            ->where('is_current_service_status_emergency', $is_emergency)
+            ->first();
+
+        if(!empty($task_template->tasks)){
+            $tasks = [];
+
+            foreach($task_template->tasks as $task){
+                // if task is for work order coodinator, assigned a task to it
+
+                $task_due_date = $now; // Default to today
+
+                if ($task->due_date === 'same day') {
+                    // Do nothing, $task_due_date is already today
+                } else {
+                    // Extract numeric value from string like "1 day", "2 days"
+                    preg_match('/\d+/', $task->due_date, $matches);
+                    
+                    if (!empty($matches)) {
+                        $days = (int) $matches[0]; // Convert extracted number to integer
+                        $task_due_date = $task_due_date->addDays($days);
+                    }
+                }
+                
+                if($task->type == 'Woc'){
+                    $assigned_user_id = User::role('woc')->first();
+                    $tasks[] = [
+                        'due_date' => $task_due_date,
+                        'work_order_id' => $workOrder->id,
+                        'assigned_user_id' => $assigned_user_id->id,
+                        'task_id' => $task->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }else{
+                    // if multiple vendor, assign task to every vendor, its okay they have the same task
+                    if (empty($request->vendors)) {
+                        foreach ($request->vendors as $vendor) {
+                            $assigned_user_id = User::with('vendor')
+                                ->whereHas('vendor', function ($q) use ($vendor) {
+                                    $q->where('name', 'LIKE', $vendor);
+                                })
+                                ->role('vendors')
+                                ->first();
+                        
+                            if (!$assigned_user_id) {
+                                continue; // Skip if no matching user
+                            }
+                        
+                            $tasks[] = [
+                                'due_date' => $task_due_date,
+                                'work_order_id' => $workOrder->id,
+                                'assigned_user_id' => $assigned_user_id->id,
+                                'task_id' => $task->id,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                        }
+                    }
+                    
+                }
+            }
+
+            if(!empty($tasks)){
+                DB::table('work_order_tasks')->insert($tasks);
+            }
+        }
+
+        return redirect()->back();
     }
 
     /**

@@ -27,7 +27,7 @@ const workOderForm = useForm({
 
 const setWorkOrder = () => {};
 
-const handleWorkOrderOpen = (checked, work_order) => {
+const handleWorkOrderOpen = (work_order) => {
   workOderForm.id = work_order;
   workOderForm.put(route("work_orders.open", workOderForm.id), {
     preserveState: true,
