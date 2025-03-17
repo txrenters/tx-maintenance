@@ -5,58 +5,15 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
 import { DateTime } from "luxon";
 
 const props = defineProps({
-  workOrderTasks: Array,
+  VendorConvo: Array,
   isLoading: Boolean,
-  service_status: Array,
-  service_status_id: String,
-  isEmergency: String,
   workOrder: Number,
-  handleTaskStatusChange: Function,
 });
 
 const option = ref("");
 
 const statusLoading = ref(false);
-const handleServiceStatusChange = async (newValue) => {
-  statusLoading.value = true;
-  try {
-    const response = await axios.patch(
-      route("work_order.service_status_change", props.workOrder),
-      {
-        is_emergency: props.isEmergency,
-        service_status_id: newValue,
-      }
-    );
-    emit("status-updated", newValue);
-  } catch (error) {
-    console.error("Error updating status:", error);
-  } finally {
-    statusLoading.value = false;
-  }
-};
-
 const emit = defineEmits(["update-task-status"]);
-// const selected_service_status_id = defineModel(); // Auto binds to v-model
-
-// Ensure every task has an 'option' property to avoid undefined errors
-props.workOrderTasks?.forEach((task) => {
-  if (!("option" in task)) {
-    task.option = "No"; // Set default value
-  }
-});
-
-// Watch for changes in task.option and emit updates dynamically
-watchEffect(() => {
-  props.workOrderTasks?.forEach((task) => {
-    watch(
-      () => task.option,
-      (newValue) => {
-        option.value = newValue;
-      },
-      { deep: true }
-    );
-  });
-});
 
 const handleStatusChange = (taskId, status) => {
   emit("update-task-status", { taskId, status, option: option.value });

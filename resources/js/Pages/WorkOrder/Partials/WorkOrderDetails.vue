@@ -28,7 +28,7 @@ const props = defineProps({
   closeWorkOrderForm: Object,
 });
 
-const emit = defineEmits(["save", "close", "emergencyChanged"]);
+const emit = defineEmits(["save", "close", "emergencyChanged", "vendorChanged"]);
 
 const open = ref(false);
 
@@ -81,6 +81,10 @@ const handleCloseOrderSubmit = () => {
 const updateEmergency = () => {
   emit("emergencyChanged"); // Emit event to parent
 };
+
+const vendorChange = () => {
+  emit("vendorChanged"); // Emit event to parent
+};
 </script>
 
 <template>
@@ -91,9 +95,16 @@ const updateEmergency = () => {
     <div class="grid grid-cols-2 gap-3">
       <div>
         <Label for="message">Vendors:</Label>
-        <template
-          v-if="workOrder?.service_status !== 'New' && workOrder.is_emergency === null"
+        <Button
+          size="small"
+          class="text-xs p-1 ml-2 mb-1"
+          title="Assign vendor"
+          :disabled="isLoading"
+          v-if="workOrder.local_status !== 'Updated'"
+          @click="vendorChange(workOrder.id)"
+          >Assign vendor</Button
         >
+        <template v-if="workOrder.local_status === 'Updated'">
           <p v-for="vendor in workOrder.vendors" :key="vendor.id">
             {{ vendor.name }}
           </p>
@@ -104,7 +115,7 @@ const updateEmergency = () => {
           v-model="workOrder.vendors"
           v-model:open="open"
           :ignore-filter="true"
-          v-if="workOrder.service_status === 'New'"
+          v-else
         >
           <ComboboxAnchor as-child>
             <TagsInput v-model="workOrder.vendors" class="px-2 py-2 gap-2 w-full">
@@ -155,9 +166,9 @@ const updateEmergency = () => {
           </ComboboxAnchor>
         </Combobox>
       </div>
-      <div v-if="workOrder.service_status === 'New'">
+      <div v-if="workOrder.is_emergency === null">
         <Label for="message">Emergency:</Label>
-        <Select v-model="workOrder.is_emergency" @change="updateEmergency">
+        <Select v-model="workOrder.is_emergency" @update:modelValue="updateEmergency">
           <SelectTrigger class="w-full">
             <SelectValue placeholder="Select an emergency" />
           </SelectTrigger>

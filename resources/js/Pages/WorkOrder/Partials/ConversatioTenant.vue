@@ -5,11 +5,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
 import { DateTime } from "luxon";
 
 const props = defineProps({
-  workOrderTasks: Array,
+  TenantConversation: Array,
   isLoading: Boolean,
-  service_status: Array,
-  service_status_id: String,
-  isEmergency: String,
   workOrder: Number,
   handleTaskStatusChange: Function,
 });

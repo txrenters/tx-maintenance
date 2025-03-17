@@ -37,6 +37,12 @@ class Task extends Model
         return $this->hasOne(TaskDetail::class, 'task_id')->where('task_for', 'Yes');
     }
 
+    public function taskDetailNoOption(): HasOne
+    {
+        return $this->hasOne(TaskDetail::class, 'task_id')->where('task_for', 'No');
+    }
+
+
     public function scopeFilter($query, array $filter): void
     {
         if(!empty($filter['search'])){

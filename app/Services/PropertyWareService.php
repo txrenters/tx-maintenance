@@ -2,11 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\WorkOrder;
-use Carbon\Carbon;
+use App\Models\Vendor;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use PhpParser\Node\Expr\Cast\Object_;
 use RuntimeException;
 
 class PropertyWareService
@@ -50,7 +49,7 @@ class PropertyWareService
             $client = $this->iniate();
             $allWorkOrders = [];
         
-            for ($pageNumber = 1; $pageNumber <= 5; $pageNumber++) { 
+            for ($pageNumber = 1; $pageNumber <= 15; $pageNumber++) { 
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
@@ -70,6 +69,32 @@ class PropertyWareService
             return 'Error: ' . $e->getMessage();
         }
 
+    }
+
+
+    public function getWorkOrderByNumber($workOrder)
+    {
+        try {
+            $client = $this->iniate(); // Ensure this initializes the SOAP client properly
+            // $response = $client->getWorkOrder($workOrder->propertyware_id);
+
+            // if (!empty($response)) {
+            //     return json_decode(json_encode($response), true);
+            // }
+
+            // return 'No work order found';
+
+            // Get all available SOAP functions
+            $criteria = $client->getWorkOrderSearchCriteria();
+
+            return json_decode(json_encode($criteria), true);
+
+        return 'No work order found';
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: ' . $e->getMessage());
+            return 'Error: ' . $e->getMessage();
+        }
     }
 
     public function getOwners()
@@ -110,12 +135,10 @@ class PropertyWareService
         
     }
 
-    public function updateWorkOrder(array $data, $work_order, $vendors='')
+    public function updateWorkOrder(array $data, $work_order)
     {
         try {
             Log::info("Work Order ID:", ['propertyware_id' => $work_order->propertyware_id]);
-
-            $vendors = $vendorIDsXml ?? ''; // Ensure $vendors is defined
 
             $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -154,7 +177,6 @@ class PropertyWareService
                                     <value xsi:type="xsd:string">' . htmlspecialchars($data['zone'] ?? '', ENT_XML1, 'UTF-8') . '</value>
                                 </customFields>
                             </customFields>
-                            ' . $vendors . '
                         </workOrder>
                     </ser:updateWorkOrder>
                 </soapenv:Body>
@@ -424,7 +446,97 @@ class PropertyWareService
 
     }
 
+    public function changeWorkOrderVendors($workOrder, $vendors)
+    {
 
+        $now = now();
+
+        $vendorIDsXml = "";
+
+        DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
+
+        if($vendors){
+            $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
+        
+            foreach($vendors as $vendor){
+                $vendorData = Vendor::select('id', 'propertyware_id')
+                    ->where('name', 'LIKE', "%{$vendor}%")
+                    ->first();
+            
+                DB::table('work_order_vendors')->insert([
+                    'work_order_id' => $workOrder->id,
+                    'vendor_id' => $vendorData->id,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
+            }
+            $vendorIDsXml .= "</vendorIDs>\n";
+        }
+
+        $workorderId = $workOrder->propertyware_id;
+        $portfolioId = (int)$workOrder->portfolio_id;
+        $buildigId = $workOrder->building_id;
+        $location = $workOrder->location;
+
+        $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                    <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                    <building xsi:type="urn:Building">
+                    <ID xsi:type="xsd:long">' . $buildigId . '</ID>
+                    </building>
+                    <portfolio xsi:type="urn:Portfolio">
+                    <ID xsi:type="xsd:long">' . $portfolioId . '</ID>
+                    </portfolio>
+                    <location xsi:type="xsd:string">' . $location . '</location>
+                    ' . $vendorIDsXml . '
+                    </workOrder>
+                    </workOrder>
+                    </ser:updateWorkOrder>
+                    </soapenv:Body>
+                </soapenv:Envelope>';
+
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+           // Execute the cURL request
+            $response = curl_exec($curl);
+
+            if (curl_errno($curl)) {
+                Log::error('cURL error: ' . curl_error($curl));
+                return false;
+            }
+
+            // Close cURL
+            curl_close($curl);
+
+            Log::info(`Work order  {$workOrder->work_order_no} vendors successfully changed.`);
+
+            return true;
+    }
     public function iniate()
     {
             $options = array(
@@ -432,7 +544,8 @@ class PropertyWareService
                 'trace' => 1,
                 'login' => $this->username,
                 'password' =>$this->password,
-                'connection_timeout' => 60, // Increase timeout to 60 seconds
+                'connection_timeout' => 240,
+                'exceptions' => true, 
                 'stream_context' => stream_context_create(array(
                     'ssl' => array(
                         'verify_peer' => false,

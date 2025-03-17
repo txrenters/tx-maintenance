@@ -30,9 +30,8 @@ class UpdateWorkOrderRequest extends FormRequest
             'end_date' => 'nullable|date',
             'management_plan' => 'nullable|string',
             'closing_comments' => 'nullable|string',
-            'vendor_notes' => 'nullable|string',
+            'is_emergency' => 'string',
             'additional_work_needed_reschedule' => 'nullable|string',
-            'service_status' => 'required|string',
         ];
     }
 }

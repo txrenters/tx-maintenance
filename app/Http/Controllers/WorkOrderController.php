@@ -3,16 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\SyncWorkOrderDetails;
 use App\Models\WorkOrder;
 use App\Jobs\UpdateWorkOrder;
-use App\Jobs\UpdateWorkOrderData;
 use App\Models\ServiceStatus;
-use App\Models\TaskTemplate;
-use App\Models\User;
-use App\Models\Vendor;
+use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
+use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -61,7 +61,7 @@ class WorkOrderController extends Controller
             'vendors',
             'requested_by',
             'managed_by'
-            ])->first();
+        ])->first();
 
         return response()->json($workOrder, 200);
     }
@@ -71,67 +71,22 @@ class WorkOrderController extends Controller
      */
     public function update(UpdateWorkOrderRequest $request, WorkOrder $workOrder)
     {
-        $request->validated();
-
-        $now = now();
-
-        $data = [
-            'category' => $request->category,
-            'cost_estimate' => $request->cost_estimate,
-            'hour_estimate' => $request->hour_estimate,
-            'zone' => $request->zone,
-            'end_date' => $request->end_date ? Carbon::parse($request->end_date)->toDateString() : null,
-            'management_plan' => $request->management_plan,
-            'closing_comments' =>  $request->closing_comments,
-            'vendor_notes' => $request->vendor_notes,
-            'additional_work_needed_reschedule' => $request->additional_work_needed_reschedule,
-        ];
-
-
-        DB::beginTransaction();
+        $validatedData = $request->validated();
+        
         try {
-
-            UpdateWorkOrderData::dispatch($workOrder->id, $data)->delay(now()->addSeconds(5));
-
-            $vendorIDsXml = "";
-
-            if($request->service_status == 'New'){
-
-                DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
-
-                if($request->vendors){
-                    $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
-                
-                    foreach($request->vendors as $vendor){
-                        $vendorData = Vendor::select('id', 'propertyware_id')
-                            ->where('name', 'LIKE', "%{$vendor}%")
-                            ->first();
-                    
-                        DB::table('work_order_vendors')->insert([
-                            'work_order_id' => $workOrder->id,
-                            'vendor_id' => $vendorData->id,
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ]);
-                        $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
-                    }
-                    $vendorIDsXml .= "</vendorIDs>\n";
-                }
-            }
-
-            UpdateWorkOrder::dispatch($data, $workOrder, $vendorIDsXml);
-            
-            DB::commit();
-            Log::info('Work Order Updated', ['work_order_id' => $workOrder->id]);
-
+            UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
+    
+            Log::info('Work Order Update Dispatched', ['work_order_id' => $workOrder->id]);
+            return redirect()->back()->with('success', 'Work order update has been queued.');
         } catch (\Throwable $th) {
-            Log::error('Work Order failed: ' . $th->getMessage(), [
-                'exception' => $th->getTraceAsString()
+            Log::error('Work Order update failed: ' . $th->getMessage(), [
+                'work_order_id' => $workOrder->id,
+                'exception' => $th->getTraceAsString(),
             ]);
-            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to queue work order update.');
         }
 
-        return redirect()->back();
+        return redirect()->back()->with('error', 'Failed to queue work order update.');
 
     }
 
@@ -169,90 +124,39 @@ class WorkOrderController extends Controller
         ]);
     }
 
-    public function emergency_change(Request $request, WorkOrder $workOrder)
-    {   
-        $data =  $request->validate([
-            'is_emergency' => is_null($request->is_emergency) ? false : ($request->is_emergency == 'Emergency' ? true : false),
+    public function vendor_change(Request $request,WorkOrder $workOrder)
+    {        
+        $request->validate([
+            'vendors' =>  'required|array'
         ]);
 
-        UpdateWorkOrderData::dispatch($workOrder->id, $data)->delay(now()->addSeconds(5));
+        $this->propertyWareServices->changeWorkOrderVendors($workOrder, $request->vendors);
 
-        $now = now();
+        $workOrder->update([
+            'local_status' => 'Updated'
+        ]);
 
-        $is_emergency = is_null($request->is_emergency) ? false : ($request->is_emergency == 'Emergency');
+        return redirect()->back()->with('success', 'Work order vendors updated successfully.');
+       
+    }
 
-        $task_template = TaskTemplate::with(['currentServiceStatus','tasks'])
-            ->whereHas('currentServiceStatus', function($q){
-                $q->where('name', 'New');
-            })
-            ->where('is_current_service_status_emergency', $is_emergency)
-            ->first();
+    public function emergency_change(Request $request, WorkOrder $workOrder)
+    {   
+        $request->validate([
+            'is_emergency' => 'nullable|string',
+        ]);
 
-        if(!empty($task_template->tasks)){
-            $tasks = [];
+        $isEmergency = $request->is_emergency == 'Emergency';
 
-            foreach($task_template->tasks as $task){
-                // if task is for work order coodinator, assigned a task to it
+        $workOrder->update(['is_emergency' => $isEmergency]);
 
-                $task_due_date = $now; // Default to today
+        $serviceStatusId = 1; // actual ID for 'New'
 
-                if ($task->due_date === 'same day') {
-                    // Do nothing, $task_due_date is already today
-                } else {
-                    // Extract numeric value from string like "1 day", "2 days"
-                    preg_match('/\d+/', $task->due_date, $matches);
-                    
-                    if (!empty($matches)) {
-                        $days = (int) $matches[0]; // Convert extracted number to integer
-                        $task_due_date = $task_due_date->addDays($days);
-                    }
-                }
-                
-                if($task->type == 'Woc'){
-                    $assigned_user_id = User::role('woc')->first();
-                    $tasks[] = [
-                        'due_date' => $task_due_date,
-                        'work_order_id' => $workOrder->id,
-                        'assigned_user_id' => $assigned_user_id->id,
-                        'task_id' => $task->id,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }else{
-                    // if multiple vendor, assign task to every vendor, its okay they have the same task
-                    if (empty($request->vendors)) {
-                        foreach ($request->vendors as $vendor) {
-                            $assigned_user_id = User::with('vendor')
-                                ->whereHas('vendor', function ($q) use ($vendor) {
-                                    $q->where('name', 'LIKE', $vendor);
-                                })
-                                ->role('vendors')
-                                ->first();
-                        
-                            if (!$assigned_user_id) {
-                                continue; // Skip if no matching user
-                            }
-                        
-                            $tasks[] = [
-                                'due_date' => $task_due_date,
-                                'work_order_id' => $workOrder->id,
-                                'assigned_user_id' => $assigned_user_id->id,
-                                'task_id' => $task->id,
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ];
-                        }
-                    }
-                    
-                }
-            }
+        WorkOrderTask::where('work_order_id',$workOrder->id)->delete();
 
-            if(!empty($tasks)){
-                DB::table('work_order_tasks')->insert($tasks);
-            }
-        }
+        TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $serviceStatusId);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Work order emergency status updated successfully.');
     }
 
     /**

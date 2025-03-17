@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
-import { useForm, usePoll } from "@inertiajs/vue3";
+import { router, useForm, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
@@ -22,6 +22,7 @@ import {
   FileDown,
   EllipsisVertical,
 } from "lucide-vue-next";
+import ConversationVendor from "./Partials/ConversationVendor.vue";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -184,25 +185,62 @@ const handleCloseOrderSubmit = () => {
 };
 
 const handleEmergencySubmit = () => {
-  closeWorkOrderForm.put(route("work_orders.emergency.change", workOrderForm.id), {
-    preserveState: true,
-    preserveScroll: true,
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Work order emergency has been changed successfully!",
-      });
-      openWorkOrder.value = false;
+  router.put(
+    route("work_orders.emergency.change", {
+      workOrder: closeWorkOrderForm.id, // Ensure workOrder ID is included
+      is_emergency: workOrderForm.is_emergency,
+    }),
+    {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Work order emergency has been changed successfully!",
+        });
+        openWorkOrder.value = false;
+        handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
+      },
+      onError: () => {
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "There was a problem with your request. Please try again!",
+        });
+      },
+      only: ["service_status"],
+    }
+  );
+};
+
+const handleVendorSubmit = () => {
+  isLoading.value = true;
+  router.put(
+    route("work_orders.vendor.change", workOrderForm.id),
+    {
+      vendors: workOrderForm.vendors,
     },
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem with your request. Please try again!",
-      });
-    },
-    only: ["service_status"],
-  });
+    {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Work order emergency has been changed successfully!",
+        });
+        handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
+      },
+      onError: () => {
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "There was a problem with your request. Please try again!",
+        });
+      },
+      only: ["service_status"],
+    }
+  );
+  isLoading.value = false;
 };
 
 const handleWorkOrder = async (orderId) => {
@@ -236,6 +274,8 @@ const handleWorkOrder = async (orderId) => {
         ? "Emergency"
         : "Non-emergency";
 
+    workOrderForm.local_status = order.local_status;
+
     workOrderForm.total_cost = order.total_cost ?? "0";
     workOrderForm.total_hour_work = order.total_hour_work ?? "0";
     workOrderForm.cost_estimate = order.cost_estimate ?? "0";
@@ -260,8 +300,6 @@ const handleWorkOrder = async (orderId) => {
     // Reset close form
     closeWorkOrderForm.reset();
     closeWorkOrderForm.id = order.id;
-
-    console.log(workOrderForm.is_emergency);
   } catch (error) {
     console.error("Failed to fetch work order:", error);
   }
@@ -286,10 +324,10 @@ usePoll(5000, { only: ["service_status"] });
       class="sm:max-w-[800px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
     >
       <DialogHeader class="p-6 pb-0 text-left">
-        <DialogTitle class="text-2xl text-primary"
+        <DialogTitle class="text-2xl text-primary" v-if="!isLoading"
           >#{{ workOrderForm.work_order_no }}</DialogTitle
         >
-        <DialogDescription>
+        <DialogDescription v-if="!isLoading">
           <div class="flex gap-2 mb-2">
             <Badge
               :variant="workOrderForm.priority === 'High' ? 'destructive' : 'outline'"
@@ -314,6 +352,7 @@ usePoll(5000, { only: ["service_status"] });
         </div>
       </DialogHeader>
       <Separator />
+
       <WorkOrderDetails
         :workOrder="workOrderForm"
         :categories="categories"
@@ -323,6 +362,7 @@ usePoll(5000, { only: ["service_status"] });
         @save="handleUpdateSubmit"
         @close="handleCloseOrderSubmit"
         @emergencyChanged="handleEmergencySubmit"
+        @vendorChanged="handleVendorSubmit"
         v-if="activeTab === 'details'"
       />
 
@@ -336,6 +376,13 @@ usePoll(5000, { only: ["service_status"] });
         @status-updated="handleServiceStatusChanged"
         @update-task-status="updateTaskStatus"
         v-if="activeTab === 'tasks'"
+      />
+
+      <ConversationVendor
+        :VendorConvo="VendorConvo"
+        :workOrder="workOrderForm.id"
+        :isLoading="isLoading"
+        v-if="activeTab === 'conversation'"
       />
     </DialogContent>
   </Dialog>
