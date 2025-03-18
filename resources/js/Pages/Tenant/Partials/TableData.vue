@@ -31,8 +31,8 @@ const openDeleteDialog = (user) => {
         <TableCell class="font-medium">
           {{ tenant.name }}
           <p class="text-xs font-normal">{{ tenant.email }}</p>
-          <p class="text-xs font-normal">{{ tenant.mobile_phone }}</p>
-          <p class="text-xs font-normal">{{ tenant.home_phone }}</p>
+          <p class="text-xs font-normal md:hidden">{{ tenant.mobile_phone }}</p>
+          <p class="text-xs font-normal md:hidden">{{ tenant.home_phone }}</p>
         </TableCell>
         <TableCell class="hidden md:table-cell">
           {{ tenant.mobile_phone }}

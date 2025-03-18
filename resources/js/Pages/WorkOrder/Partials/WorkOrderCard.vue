@@ -32,6 +32,21 @@ const formatDate = (date) => {
 const handleWorkOrder = (work_order) => {
   emit("showWorkOrder", work_order); // Emit event to parent
 };
+
+const countCompletedTask = (tasks) => {
+  // Filter tasks where the 'completed' property is true
+  const completedTasks = tasks.filter((task) => task.status === "completed");
+  // Return the count of completed tasks
+  return completedTasks.length;
+};
+
+const checkDueTask = (tasks) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  const dueTasks = tasks.filter((task) => task.due_date === today);
+  // Return the count of completed tasks
+  return dueTasks.length > 0;
+};
 </script>
 
 <template>
@@ -58,7 +73,8 @@ const handleWorkOrder = (work_order) => {
             class="mb-2 rounded-lg p-4 text-white cursor-pointer shadow-md"
             :class="{
               'bg-destructive': work_order.is_emergency === 1,
-              'bg-primary': work_order.is_emergency || !work_order.is_emergency,
+              'bg-primary': work_order.is_emergency === null,
+              'bg-green-500': work_order.is_emergency === 0,
             }"
           >
             <!-- Work Order Number & Date -->
@@ -71,26 +87,40 @@ const handleWorkOrder = (work_order) => {
             <!-- Location -->
             <p class="text-sm text-gray-100">{{ work_order.location }}</p>
 
-            <!-- Owner Info -->
-            <div
-              v-if="work_order.requested_by"
-              class="flex justify-end mt-4 items-center gap-2"
-            >
-              <p class="text-sm text-gray-100">
-                {{ work_order.requested_by?.first_name }}
-                {{ work_order.requested_by?.last_name }}
-              </p>
-              <Avatar class="w-5 h-5">
-                <AvatarImage
-                  :src="
-                    work_order?.requested_by?.user?.profile_photo_url || 'default.jpg'
-                  "
-                />
-                <AvatarFallback>
-                  {{ work_order.requested_by?.first_name?.charAt(0)
-                  }}{{ work_order.requested_by?.last_name?.charAt(0) }}
-                </AvatarFallback>
-              </Avatar>
+            <!-- Requested Info -->
+            <div class="flex justify-between items-center mt-4">
+              <div class="flex gap-1 items-center">
+                <Badge
+                  variant="destructive"
+                  class="uppercase"
+                  v-if="checkDueTask(work_order.tasks)"
+                  >Due</Badge
+                >
+                <p class="text-xs" v-if="work_order.tasks.length > 0">
+                  {{ countCompletedTask(work_order.tasks) }}/{{ work_order.tasks.length }}
+                  Tasks
+                </p>
+              </div>
+              <div
+                v-if="work_order.requested_by"
+                class="flex justify-end items-center gap-2"
+              >
+                <p class="text-sm text-gray-100">
+                  {{ work_order.requested_by?.first_name }}
+                  {{ work_order.requested_by?.last_name }}
+                </p>
+                <Avatar class="w-5 h-5">
+                  <AvatarImage
+                    :src="
+                      work_order?.requested_by?.user?.profile_photo_url || 'default.jpg'
+                    "
+                  />
+                  <AvatarFallback>
+                    {{ work_order.requested_by?.first_name?.charAt(0)
+                    }}{{ work_order.requested_by?.last_name?.charAt(0) }}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
             </div>
           </div>
 

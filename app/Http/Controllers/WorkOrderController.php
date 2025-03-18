@@ -34,14 +34,16 @@ class WorkOrderController extends Controller
             'work_orders.service_status',
             'work_orders.vendors',
             'work_orders.requested_by',
-            'work_orders.managed_by'
-            ])
+            'work_orders.managed_by',
+            'work_orders.tasks',
+            ])  
             ->filter(request(['search']))
             ->whereNot('name','Closed')
             ->whereNot('name','Not Change')
             ->get();
+    
 
-        $categories = DB::table('work_orders')->select('category')->orderBy('category')->distinct()->get();
+        $categories = DB::table('work_order_categories')->select('name','id')->orderBy('name')->get();
 
         $vendors = DB::table('vendors')->select('id','name')->orderBy('name')->get();
 
@@ -60,7 +62,8 @@ class WorkOrderController extends Controller
             'service_status',
             'vendors',
             'requested_by',
-            'managed_by'
+            'managed_by',
+            'woc.wocNumber.twilioPhoneNumber'
         ])->first();
 
         return response()->json($workOrder, 200);

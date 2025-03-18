@@ -1,0 +1,113 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+
+class WorkOrderCategorySeeder extends Seeder
+{
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        $categories = [
+            ['name' => 'General Maintenance'],
+            ['name' => 'AC Filter Delivery'],
+            ['name' => 'Appliances'],
+            ['name' => 'Appraiser Inspection'],
+            ['name' => 'Attic door'],
+            ['name' => 'back steps'],
+            ['name' => 'Blinds'],
+            ['name' => 'Broken Deck'],
+            ['name' => 'Broken Window'],
+            ['name' => 'Cabinetry'],
+            ['name' => 'Carpet Fitting'],
+            ['name' => 'Carpet Replacement'],
+            ['name' => 'carpet Steam clean'],
+            ['name' => 'Central Heating'],
+            ['name' => 'City Violation'],
+            ['name' => 'Cleaning'],
+            ['name' => 'Clogged Sink'],
+            ['name' => 'Code Work'],
+            ['name' => 'Connect ice machine'],
+            ['name' => 'Dishwasher'],
+            ['name' => 'Door'],
+            ['name' => 'Drainage'],
+            ['name' => 'Electrical'],
+            ['name' => 'Eviction'],
+            ['name' => 'Exterior Paint'],
+            ['name' => 'Exterior repairs'],
+            ['name' => 'Fan'],
+            ['name' => 'Faucet'],
+            ['name' => 'Faucet Leak'],
+            ['name' => 'Fence'],
+            ['name' => 'Fireplace Inspection'],
+            ['name' => 'Flood'],
+            ['name' => 'Flooring'],
+            ['name' => 'Foundation'],
+            ['name' => 'Framing'],
+            ['name' => 'Front door'],
+            ['name' => 'Front Door Replacement'],
+            ['name' => 'Garage door'],
+            ['name' => 'Garbage Disposal'],
+            ['name' => 'Gas Inspection'],
+            ['name' => 'Gas Leak'],
+            ['name' => 'Gate Lock'],
+            ['name' => 'Gate repair'],
+            ['name' => 'Glass repair'],
+            ['name' => 'Glass Window'],
+            ['name' => 'Heater'],
+            ['name' => 'HOA Violation'],
+            ['name' => 'HVAC'],
+            ['name' => 'HVAC Fan'],
+            ['name' => 'HVAC Maintenance'],
+            ['name' => 'Interior and Exterior Paint'],
+            ['name' => 'Interior Paint'],
+            ['name' => 'Kitchen Sink'],
+            ['name' => 'Lawn service'],
+            ['name' => 'Light Fixture'],
+            ['name' => 'Lock Box'],
+            ['name' => 'Mail Box Lock'],
+            ['name' => 'Main Door Lock'],
+            ['name' => 'Make ready'],
+            ['name' => 'Marketing'],
+            ['name' => 'Microwave'],
+            ['name' => 'Mold'],
+            ['name' => 'Paint'],
+            ['name' => 'Pest Control'],
+            ['name' => 'Pictures'],
+            ['name' => 'Pictures'],
+            ['name' => 'Pool Service'],
+            ['name' => 'Power Wash'],
+            ['name' => 'Re-key'],
+            ['name' => 'Redecoration - Caused by a Leak'],
+            ['name' => 'Refrigerator'],
+            ['name' => 'Roof Inspection'],
+            ['name' => 'Roof Leak'],
+            ['name' => 'Security Deposit'],
+            ['name' => 'Siding'],
+            ['name' => 'Slab Leak'],
+            ['name' => 'Smoke Alarm'],
+            ['name' => 'Smoke Detectors'],
+            ['name' => 'Sprinkler System'],
+            ['name' => 'Stove'],
+            ['name' => 'Sub Floor Repair'],
+            ['name' => 'Swimming Pool'],
+            ['name' => 'Thermostat'],
+            ['name' => 'Tile Repair'],
+            ['name' => 'Tub'],
+            ['name' => 'Utility Bill'],
+            ['name' => 'Water Bill'],
+            ['name' => 'Water Heater'],
+            ['name' => 'Window'],
+            ['name' => 'Window Leak'],
+            ['name' => 'Window Repair'],
+            ['name' => 'Window Seals']
+        ];
+
+        DB::table('work_order_categories')->insert($categories);
+    }
+}

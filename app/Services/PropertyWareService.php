@@ -75,16 +75,7 @@ class PropertyWareService
     public function getWorkOrderByNumber($workOrder)
     {
         try {
-            $client = $this->iniate(); // Ensure this initializes the SOAP client properly
-            // $response = $client->getWorkOrder($workOrder->propertyware_id);
-
-            // if (!empty($response)) {
-            //     return json_decode(json_encode($response), true);
-            // }
-
-            // return 'No work order found';
-
-            // Get all available SOAP functions
+            $client = $this->iniate();
             $criteria = $client->getWorkOrderSearchCriteria();
 
             return json_decode(json_encode($criteria), true);

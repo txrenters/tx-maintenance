@@ -342,7 +342,9 @@ class ImportWorkOrderJob implements ShouldQueue
     private function processTenants(array $data, int $work_order, string $now): void
     {
         if (!empty($data['lease']) && is_array($data['lease'])) {
+            
             DB::table('work_order_tenants')->where('work_order_id', $work_order)->delete();
+
             foreach ($data['lease']['tenants'] as $tenant) {
                 $tenantEmail = $tenant['email'] ?? $tenant['ID'] . '@texasrenter.com';
                 $address = trim(implode(' ', array_filter([

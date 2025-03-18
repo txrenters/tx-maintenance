@@ -10,4 +10,4 @@ Artisan::command('inspire', function () {
 
 // Schedule::command('import:vendors')->everyFiveMinutes()->withoutOverlapping();
 // Schedule::command('import:owners')->everyFiveMinutes()->withoutOverlapping();
-// Schedule::command('import:work-orders')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('import:work-orders')->everyFiveMinutes()->withoutOverlapping();

@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -71,9 +72,24 @@ class User extends Authenticatable
         return $this->hasMany(Vendor::class);
     }
 
+    public function tenant(): HasMany
+    {
+        return $this->hasMany(Tenants::class);
+    }
+
     public function owner(): HasMany
     {
         return $this->hasMany(Owner::class);
+    }
+
+    public function work_orders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'user_id');
+    }
+
+    public function wocNumber(): HasOne
+    {
+        return $this->hasOne(WOCNumbers::class);
     }
 
     public function wocNumbers(): HasMany

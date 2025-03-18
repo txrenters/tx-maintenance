@@ -101,7 +101,7 @@ const vendorChange = () => {
           title="Assign vendor"
           :disabled="isLoading"
           v-if="workOrder.local_status !== 'Updated'"
-          @click="vendorChange(workOrder.id)"
+          @click.prevent="vendorChange(workOrder.id)"
           >Assign vendor</Button
         >
         <template v-if="workOrder.local_status === 'Updated'">
@@ -189,11 +189,11 @@ const vendorChange = () => {
           <SelectContent>
             <SelectGroup>
               <SelectItem
-                :value="category.category"
+                :value="category.name"
                 v-for="category in categories"
-                :key="category.category"
+                :key="category.name"
               >
-                {{ category.category }}
+                {{ category.name }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>

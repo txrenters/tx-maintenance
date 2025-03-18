@@ -31,8 +31,7 @@ class ServiceStatus extends Model
         $query->when($filters['search'] ?? null, function ($query, $search) {
             $query->whereHas('work_order', function($q) use ($search){
                     $q->where('work_order_no', $search);
-                })
-                ->orWhere('name', 'like', '%'.$search.'%');
+                });
         });
     }
     

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { router, useForm, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -7,12 +7,12 @@ import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
-import { debounce } from "lodash";
+import VendorConversation from "./Partials/VendorConversation.vue";
+import TenantConversation from "./Partials/TenantConversation.vue";
 
 import {
   ClipboardList,
   MessagesSquare,
-  List,
   ListChecks,
   MessageSquareText,
   MessageSquareShare,
@@ -20,9 +20,8 @@ import {
   Paperclip,
   FileText,
   FileDown,
-  EllipsisVertical,
 } from "lucide-vue-next";
-import ConversationVendor from "./Partials/ConversationVendor.vue";
+import OwnerConversation from "./Partials/OwnerConversation.vue";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -69,6 +68,12 @@ const workOrderForm = useForm({
   is_emergency: "",
   vendor_id: "",
   vendors: Array,
+  vendors: Array,
+  managed_by: "",
+  requested: "",
+  local_status: "",
+  vendor_notes: "",
+  woc: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -79,7 +84,7 @@ const activeTab = ref("details");
 const tabButtons = [
   { name: "details", tooltip: "Details", icon: ClipboardList },
   { name: "tasks", tooltip: "Tasks", icon: ListChecks },
-  { name: "conversation", tooltip: "Conversation", icon: MessagesSquare },
+  { name: "vendor_conversation", tooltip: "Vendor Conversation", icon: MessagesSquare },
   { name: "owner_conversation", tooltip: "Owner Conversation", icon: MessageSquareText },
   {
     name: "tenant_conversation",
@@ -96,22 +101,91 @@ const switchTab = (tabName) => {
   activeTab.value = tabName;
   workOrderTasks.value = [];
 
-  if (activeTab.value === "tasks") {
-    fetchWorkOrderTask();
+  if (activeTab.value === "tasks" && workOrderForm.id) {
+    fetchWorkOrderTask(workOrderForm.id);
   }
 
   if (activeTab.value === "details" && workOrderForm.id) {
     handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
   }
+
+  if (activeTab.value === "vendor_conversation" && workOrderForm.id) {
+    fetchVendorConversation(workOrderForm.id);
+  }
+
+  if (activeTab.value === "tenant_conversation" && workOrderForm.id) {
+    fetchTenantConversation(workOrderForm.id);
+  }
+
+  if (activeTab.value === "owner_conversation" && workOrderForm.id) {
+    fetchOwnerConversation(workOrderForm.id);
+  }
 };
 
 const isLoading = ref(false);
-const workOrderTasks = ref([]);
 
-const fetchWorkOrderTask = async () => {
+const ownerConversation = ref([]);
+const workOrderOwners = ref([]);
+
+const fetchOwnerConversation = async (workOrderId) => {
   try {
     isLoading.value = true;
-    const response = await axios.get(route("work_order.tasks", workOrderForm.id));
+    const response = await axios.get(route("work_order.owner_conversation", workOrderId));
+
+    ownerConversation.value = response.data.owner_conversation;
+    workOrderOwners.value = response.data.owners;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const tenantConversation = ref([]);
+const workOrderTenants = ref([]);
+
+const fetchTenantConversation = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(
+      route("work_order.tenant_conversation", workOrderId)
+    );
+
+    tenantConversation.value = response.data.tenant_conversation;
+    workOrderTenants.value = response.data.tenants;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const vendorConversation = ref([]);
+const workOrderVendors = ref([]);
+
+const fetchVendorConversation = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(
+      route("work_order.vendor_conversation", workOrderId)
+    );
+
+    vendorConversation.value = response.data.vendor_conversation;
+    workOrderTenants.value = response.data.tenants;
+    workOrderVendors.value = response.data.vendors;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const workOrderTasks = ref([]);
+
+const fetchWorkOrderTask = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(route("work_order.tasks", workOrderId));
     workOrderTasks.value = response.data.tasks;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -198,7 +272,6 @@ const handleEmergencySubmit = () => {
           title: "Success",
           description: "Work order emergency has been changed successfully!",
         });
-        openWorkOrder.value = false;
         handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
       },
       onError: () => {
@@ -297,6 +370,8 @@ const handleWorkOrder = async (orderId) => {
     workOrderForm.zone = order.zone;
     workOrderForm.vendor_notes = order.vendor_notes;
 
+    workOrderForm.woc = order.woc;
+
     // Reset close form
     closeWorkOrderForm.reset();
     closeWorkOrderForm.id = order.id;
@@ -324,11 +399,11 @@ usePoll(5000, { only: ["service_status"] });
       class="sm:max-w-[800px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
     >
       <DialogHeader class="p-6 pb-0 text-left">
-        <DialogTitle class="text-2xl text-primary" v-if="!isLoading"
-          >#{{ workOrderForm.work_order_no }}</DialogTitle
-        >
-        <DialogDescription v-if="!isLoading">
-          <div class="flex gap-2 mb-2">
+        <DialogTitle class="text-2xl text-primary">
+          <p v-if="!isLoading">#{{ workOrderForm.work_order_no }}</p>
+        </DialogTitle>
+        <DialogDescription>
+          <div class="flex gap-2 mb-2" v-if="!isLoading">
             <Badge
               :variant="workOrderForm.priority === 'High' ? 'destructive' : 'outline'"
               >Priority: {{ workOrderForm.priority }}</Badge
@@ -378,11 +453,29 @@ usePoll(5000, { only: ["service_status"] });
         v-if="activeTab === 'tasks'"
       />
 
-      <ConversationVendor
-        :VendorConvo="VendorConvo"
-        :workOrder="workOrderForm.id"
+      <VendorConversation
+        :vendorConversation="vendorConversation"
+        :workOrderTenants="workOrderTenants"
+        :workOrderVendors="workOrderVendors"
+        :workOrder="workOrderForm"
         :isLoading="isLoading"
-        v-if="activeTab === 'conversation'"
+        v-if="activeTab === 'vendor_conversation'"
+      />
+
+      <OwnerConversation
+        :ownerConversation="ownerConversation"
+        :workOrderOwners="workOrderOwners"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        v-if="activeTab === 'owner_conversation'"
+      />
+
+      <TenantConversation
+        :tenantConversation="tenantConversation"
+        :workOrderTenants="workOrderTenants"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        v-if="activeTab === 'tenant_conversation'"
       />
     </DialogContent>
   </Dialog>

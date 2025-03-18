@@ -19,7 +19,7 @@ class WorkOrder extends Model
 
     public function woc(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class,'user_id');
     }
 
     public function service_status(): BelongsTo
@@ -49,12 +49,27 @@ class WorkOrder extends Model
 
     public function tenants(): BelongsToMany
     {
-        return $this->belongsToMany(Tenants::class, 'work_order_tenants');
+        return $this->belongsToMany(Tenants::class, 'work_order_tenants', 'work_order_id', 'tenant_id');
     }
 
     public function vendors(): BelongsToMany
     {
         return $this->belongsToMany(Vendor::class, 'work_order_vendors');
+    }
+
+    public function tenant_conversation(): HasMany
+    {
+        return $this->hasMany(Conversation::class)->where('conversation_type','tenant');
+    }
+
+    public function owner_conversation(): HasMany
+    {
+        return $this->hasMany(Conversation::class)->where('conversation_type','owner');
+    }
+
+    public function vendor_conversation(): HasMany
+    {
+        return $this->hasMany(Conversation::class)->where('conversation_type','vendor_tenant');
     }
 
     public function tasks(): HasMany

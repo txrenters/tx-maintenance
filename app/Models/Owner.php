@@ -44,7 +44,7 @@ class Owner extends Model
                 'email',
                 'phone',
                 'mobile',
-                'company',
+                'company', 
                 'name_on_check',
                 ], 'LIKE', "%{$search}%");
         }
