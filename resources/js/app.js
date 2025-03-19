@@ -114,6 +114,7 @@ import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import Multiselect from 'vue-multiselect'
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import { Progress } from '@/Components/ui/progress';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -134,6 +135,7 @@ createInertiaApp({
             .component("Multiselect", Multiselect)
             .component("Link", Link)
             .component("NavLink", NavLink)
+            .component("Progress", Progress)
             .component("Button", Button)
             .component("Input", Input)
             .component("Label", Label)

@@ -72,6 +72,16 @@ class WorkOrder extends Model
         return $this->hasMany(Conversation::class)->where('conversation_type','vendor_tenant');
     }
 
+    public function service_schedules(): HasMany
+    {
+        return $this->hasMany(ServiceSchedule::class)->orderBy('status','ASC');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachments::class, 'work_order_id');
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(WorkOrderTask::class)

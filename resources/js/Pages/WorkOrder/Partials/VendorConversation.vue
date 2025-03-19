@@ -142,8 +142,7 @@ const vendor_phone_number = ref(
 
 <template>
   <div class="overflow-y-auto px-6 w-full min-h-[300px]">
-    <p class="font-semibold uppercase text-xs mb-3">Tenant and Vendor Conversation</p>
-
+    <p class="font-semibold uppercase text-xs mb-3">Vendors and Tenant Conversation</p>
     <div
       class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
     >
@@ -247,13 +246,13 @@ const vendor_phone_number = ref(
     </div>
 
     <div class="flex items-center gap-2 mt-4 mb-6">
-      <Textarea
+      <Input
         v-model="newMessage"
         placeholder="Type a message..."
         class="flex-1"
         @keyup.enter="sendMessage"
       />
-      <Button @click.prevent="sendMessage" :disabled="isLoading">
+      <Button @click.prevent="sendMessage" :disabled="isLoading" size="icon">
         <Send v-if="!isLoading" />
         <Loader2 v-else class="w-4 h-4 animate-spin" />
       </Button>

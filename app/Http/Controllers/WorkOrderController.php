@@ -81,6 +81,7 @@ class WorkOrderController extends Controller
     
             Log::info('Work Order Update Dispatched', ['work_order_id' => $workOrder->id]);
             return redirect()->back()->with('success', 'Work order update has been queued.');
+
         } catch (\Throwable $th) {
             Log::error('Work Order update failed: ' . $th->getMessage(), [
                 'work_order_id' => $workOrder->id,
@@ -140,7 +141,6 @@ class WorkOrderController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Work order vendors updated successfully.');
-       
     }
 
     public function emergency_change(Request $request, WorkOrder $workOrder)

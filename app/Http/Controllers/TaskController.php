@@ -41,7 +41,7 @@ class TaskController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(WorkOrder $workOrder)
+    public function tasks(WorkOrder $workOrder)
     {
         $workOrder->load(['tasks.task.taskDetails.taskServiceStatus','tasks.task.nextServiceStatus','tasks.assigned_user']);
     
@@ -51,7 +51,10 @@ class TaskController extends Controller
     public function service_status_change(Request $request, WorkOrder $workOrder)
     {
         if($request->service_status_id == 1){
-            $workOrder->update(['is_emergency' => null]);
+            $workOrder->update([
+                'is_emergency' => null,
+                'local_status' => 'Created'
+            ]);
         }
         WorkOrderTask::where('work_order_id',$workOrder->id)->where('status', '!=', 'completed')->delete();
 

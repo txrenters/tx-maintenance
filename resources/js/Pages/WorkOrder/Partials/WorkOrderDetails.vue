@@ -102,7 +102,9 @@ const vendorChange = () => {
           :disabled="isLoading"
           v-if="workOrder.local_status !== 'Updated'"
           @click.prevent="vendorChange(workOrder.id)"
-          >Assign vendor</Button
+        >
+          <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
+          Assign vendor</Button
         >
         <template v-if="workOrder.local_status === 'Updated'">
           <p v-for="vendor in workOrder.vendors" :key="vendor.id">

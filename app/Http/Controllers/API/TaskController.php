@@ -10,11 +10,8 @@ use App\Services\TaskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-class WorkOrderAPIController extends Controller
+class TaskController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function tasks(WorkOrder $workOrder)
     {
         $workOrder->load(['tasks.task.taskDetails.taskServiceStatus','tasks.task.nextServiceStatus','tasks.assigned_user']);
@@ -22,8 +19,27 @@ class WorkOrderAPIController extends Controller
         return response()->json($workOrder, 200);
     }
 
-    public function task_change(Request $request, WorkOrderTask $task)
-    {        
+    public function service_status_change(Request $request, WorkOrder $workOrder)
+    {
+        if($request->service_status_id == 1){
+            $workOrder->update([
+                'is_emergency' => null,
+                'local_status' => 'Created'
+            ]);
+        }
+        WorkOrderTask::where('work_order_id',$workOrder->id)->where('status', '!=', 'completed')->delete();
+
+        TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
+
+        return redirect()->back();
+
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, WorkOrderTask $task)
+    {
         $currentTask = WorkOrderTask::with('task.taskDetails','task.taskDetailYesOption')->find($task->id);
         
         $option =  $request->option;
@@ -41,7 +57,7 @@ class WorkOrderAPIController extends Controller
 
         // Ensure $currentTask is valid
         if (!$currentTask || !$currentTask->task) {
-            return response()->json(['error' => 'Invalid task data'], 400);
+            return redirect()->back();
         }
 
         if ($allCompleted) {
@@ -83,20 +99,6 @@ class WorkOrderAPIController extends Controller
         }
 
         Log::info('Task updated successfully: ', [ 'task_id' => $task->id]);
-        return response()->json($task, 200);
+        return redirect()->back();
     }
-
-    public function service_status_change(Request $request, WorkOrder $workOrder)
-    {
-        if($request->service_status_id == 1){
-            $workOrder->update(['is_emergency' => null]);
-        }
-        WorkOrderTask::where('work_order_id',$workOrder->id)->where('status', '!=', 'completed')->delete();
-
-        TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
-
-        return response()->json(['message' => 'Created successfully!'], 200);
-
-    }
-
 }

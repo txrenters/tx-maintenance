@@ -239,7 +239,7 @@ const woc_phone_number = ref(
         class="flex-1"
         @keyup.enter="sendMessage"
       />
-      <Button @click.prevent="sendMessage" :disabled="isLoading">
+      <Button @click.prevent="sendMessage" :disabled="isLoading" size="icon">
         <Send v-if="!isLoading" />
         <Loader2 v-else class="w-4 h-4 animate-spin" />
       </Button>

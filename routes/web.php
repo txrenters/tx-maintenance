@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\OwnerController;
@@ -67,6 +68,9 @@ Route::middleware([
         }
 
     });
+
+    Route::post('/attachments',[AttachmentsController::class, 'store'])->name('api.attachments.store');
+
 
 });
 

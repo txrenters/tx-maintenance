@@ -1,43 +1,82 @@
 <script setup>
 import { ref, watchEffect, watch } from "vue";
+import { router, useForm } from "@inertiajs/vue3";
 import { Loader2, EllipsisVertical, Ellipsis } from "lucide-vue-next";
 import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
 import { DateTime } from "luxon";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const props = defineProps({
   workOrderTasks: Array,
-  isLoading: Boolean,
   service_status: Array,
-  service_status_id: String,
   isEmergency: String,
-  workOrder: Number,
+  workOrder: Object,
+  isLoading: Boolean,
   handleTaskStatusChange: Function,
 });
+const { toast } = useToast();
 
 const option = ref("");
 
-const statusLoading = ref(false);
+const emit = defineEmits(["update-task-status"]);
+
+const service_status_id = ref(props.workOrder.service_status_id);
+
 const handleServiceStatusChange = async (newValue) => {
-  statusLoading.value = true;
-  try {
-    const response = await axios.patch(
-      route("work_order.service_status_change", props.workOrder),
-      {
-        is_emergency: props.isEmergency,
-        service_status_id: newValue,
-      }
-    );
-    emit("status-updated", newValue);
-  } catch (error) {
-    console.error("Error updating status:", error);
-  } finally {
-    statusLoading.value = false;
-  }
+  props.isLoading = true;
+  router.post(
+    route("api.work_order.service_status_change", props.workOrder),
+    { is_emergency: props.isEmergency, service_status_id: newValue },
+    {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Task has been changed successfully!",
+        });
+
+        emit("update-task-status"); // use this to notify parent component that I need the new task to be fetch
+        service_status_id.value = newValue;
+        props.isLoading = false;
+      },
+      onError: () => {
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "There was a problem with your request. Please try again!",
+        });
+        props.isLoading = false;
+      },
+    }
+  );
 };
 
-const emit = defineEmits(["update-task-status"]);
-// const selected_service_status_id = defineModel(); // Auto binds to v-model
+const updateTaskStatus = async (taskId, status) => {
+  router.post(
+    route("api.work_order.task.change", taskId),
+    { status: status, option: option.value },
+    {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({
+          title: "Success",
+          description: "Task has been changed successfully!",
+        });
 
+        emit("update-task-status"); // use this to notify parent component that I need the new task to be fetch
+      },
+      onError: () => {
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "There was a problem with your request. Please try again!",
+        });
+      },
+    }
+  );
+};
 // Ensure every task has an 'option' property to avoid undefined errors
 props.workOrderTasks?.forEach((task) => {
   if (!("option" in task)) {
@@ -57,11 +96,6 @@ watchEffect(() => {
     );
   });
 });
-
-const handleStatusChange = (taskId, status) => {
-  emit("update-task-status", { taskId, status, option: option.value });
-};
-
 const formatDate = (date) => {
   if (!date) return "------";
 
@@ -93,7 +127,7 @@ const formatDate = (date) => {
         <Select
           :modelValue="service_status_id"
           @update:modelValue="handleServiceStatusChange"
-          :disabled="statusLoading"
+          :disabled="isLoading"
         >
           <SelectTrigger class="w-full">
             <SelectValue placeholder="Select an emergency" />
@@ -101,7 +135,7 @@ const formatDate = (date) => {
           <SelectContent>
             <SelectGroup>
               <template v-for="status in service_status" :key="status.id">
-                <SelectItem :value="String(status.id)"> {{ status.name }} </SelectItem>
+                <SelectItem :value="status.id"> {{ status.name }} </SelectItem>
               </template>
             </SelectGroup>
           </SelectContent>
@@ -157,19 +191,19 @@ const formatDate = (date) => {
                 <DropdownMenuLabel>Mark as</DropdownMenuLabel>
                 <DropdownMenuItem
                   class="cursor-pointer hover:bg-secondary"
-                  @click="() => handleStatusChange(task.id, 'pending')"
+                  @click="() => updateTaskStatus(task.id, 'pending')"
                 >
                   Pending
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   class="cursor-pointer hover:bg-secondary"
-                  @click="() => handleStatusChange(task.id, 'processing')"
+                  @click="() => updateTaskStatus(task.id, 'processing')"
                 >
                   Processing
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   class="cursor-pointer hover:bg-secondary"
-                  @click="() => handleStatusChange(task.id, 'completed')"
+                  @click="() => updateTaskStatus(task.id, 'completed')"
                 >
                   Complete
                 </DropdownMenuItem>

@@ -26,7 +26,12 @@ const handleSwitchTab = (tabName) => {
           size="icon"
           @click="handleSwitchTab(button.name)"
         >
-          <component :is="button.icon" class="w-4 h-4" v-if="button.icon" />
+          <span v-if="button.icon === 'VOT'" class="text-xs">{{ button.icon }}</span>
+
+          <!-- If the icon exists and is not 'vot', render the icon -->
+          <component :is="button.icon" class="w-4 h-4" v-else-if="button.icon" />
+
+          <!-- If there is no icon at all, show the label -->
           <span v-else>{{ button.label }}</span>
           <!-- Fallback if no icon -->
         </Button>

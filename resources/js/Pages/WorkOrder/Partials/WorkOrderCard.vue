@@ -43,7 +43,7 @@ const countCompletedTask = (tasks) => {
 const checkDueTask = (tasks) => {
   const today = new Date().toISOString().split("T")[0];
 
-  const dueTasks = tasks.filter((task) => task.due_date === today);
+  const dueTasks = tasks.filter((task) => task.due_date >= today);
   // Return the count of completed tasks
   return dueTasks.length > 0;
 };

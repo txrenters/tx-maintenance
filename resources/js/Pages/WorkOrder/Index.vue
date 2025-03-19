@@ -9,6 +9,9 @@ import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
+import OwnerConversation from "./Partials/OwnerConversation.vue";
+import ServiceSchedule from "./Partials/ServiceSchedule.vue";
+import Attachments from "./Partials/Attachments.vue";
 
 import {
   ClipboardList,
@@ -21,7 +24,6 @@ import {
   FileText,
   FileDown,
 } from "lucide-vue-next";
-import OwnerConversation from "./Partials/OwnerConversation.vue";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -84,15 +86,19 @@ const activeTab = ref("details");
 const tabButtons = [
   { name: "details", tooltip: "Details", icon: ClipboardList },
   { name: "tasks", tooltip: "Tasks", icon: ListChecks },
-  { name: "vendor_conversation", tooltip: "Vendor Conversation", icon: MessagesSquare },
-  { name: "owner_conversation", tooltip: "Owner Conversation", icon: MessageSquareText },
+  { name: "vendor_conversation", tooltip: "Vendor and Tenant Conversation", icon: "VOT" },
+  {
+    name: "owner_conversation",
+    tooltip: "Owner and WOC Conversation",
+    icon: MessageSquareText,
+  },
   {
     name: "tenant_conversation",
-    tooltip: "Tenant Conversation",
+    tooltip: "Tenant and WOC Conversation",
     icon: MessageSquareShare,
   },
-  { name: "meetings", tooltip: "Scheduled Meetings", icon: Calendar },
-  { name: "attachements", tooltip: "Attachments", icon: Paperclip },
+  { name: "service_schedule", tooltip: "Service Schedule", icon: Calendar },
+  { name: "attachments", tooltip: "Attachments", icon: Paperclip },
   { name: "invoices", tooltip: "Generate Invoice", icon: FileText },
   { name: "reports", tooltip: "Reports", icon: FileDown },
 ];
@@ -119,6 +125,14 @@ const switchTab = (tabName) => {
 
   if (activeTab.value === "owner_conversation" && workOrderForm.id) {
     fetchOwnerConversation(workOrderForm.id);
+  }
+
+  if (activeTab.value === "service_schedule" && workOrderForm.id) {
+    fetchVendorServiceSchedules(workOrderForm.id);
+  }
+
+  if (activeTab.value === "attachments" && workOrderForm.id) {
+    fetchAttachments(workOrderForm.id);
   }
 };
 
@@ -185,7 +199,7 @@ const workOrderTasks = ref([]);
 const fetchWorkOrderTask = async (workOrderId) => {
   try {
     isLoading.value = true;
-    const response = await axios.get(route("work_order.tasks", workOrderId));
+    const response = await axios.get(route("api.work_order.tasks", workOrderId));
     workOrderTasks.value = response.data.tasks;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -194,22 +208,30 @@ const fetchWorkOrderTask = async (workOrderId) => {
   }
 };
 
-const handleServiceStatusChanged = async () => {
-  await fetchWorkOrderTask(); // Refetch the updated task list
-};
-
-const updateTaskStatus = async (task) => {
+const vendorServiceSchedules = ref([]);
+const fetchVendorServiceSchedules = async (workOrderId) => {
   try {
-    workOrderTasks.value = [];
     isLoading.value = true;
-    const response = await axios.patch(route("work_order.task.change", task.taskId), {
-      status: task.status,
-      option: task.option,
-    });
-
-    await fetchWorkOrderTask(); // Refetch the updated task list
+    const response = await axios.get(route("work_order.service_schedules", workOrderId));
+    vendorServiceSchedules.value = response.data.service_schedules;
+    workOrderVendors.value = response.data.vendors;
+    workOrderTenants.value = response.data.tenants;
   } catch (error) {
-    console.error("Error updating task:", error);
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+const workOrderAttachments = ref([]);
+
+const fetchAttachments = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(route("api.attachments.show", workOrderId));
+
+    workOrderAttachments.value = response.data.attachments;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
   } finally {
     isLoading.value = false;
   }
@@ -299,7 +321,7 @@ const handleVendorSubmit = () => {
       onSuccess: () => {
         toast({
           title: "Success",
-          description: "Work order emergency has been changed successfully!",
+          description: "Vendor has been set successfully!",
         });
         handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
       },
@@ -444,12 +466,10 @@ usePoll(5000, { only: ["service_status"] });
       <WorkOrderTask
         :workOrderTasks="workOrderTasks"
         :service_status="service_status"
-        :service_status_id="String(workOrderForm.service_status_id)"
         :isEmergency="workOrderForm.is_emergency"
-        :workOrder="workOrderForm.id"
+        :workOrder="workOrderForm"
         :isLoading="isLoading"
-        @status-updated="handleServiceStatusChanged"
-        @update-task-status="updateTaskStatus"
+        @update-task-status="fetchWorkOrderTask(workOrderForm.id)"
         v-if="activeTab === 'tasks'"
       />
 
@@ -476,6 +496,24 @@ usePoll(5000, { only: ["service_status"] });
         :workOrder="workOrderForm"
         :isLoading="isLoading"
         v-if="activeTab === 'tenant_conversation'"
+      />
+
+      <ServiceSchedule
+        :vendorServiceSchedules="vendorServiceSchedules"
+        :workOrderVendors="workOrderVendors"
+        :workOrderTenants="workOrderTenants"
+        :workOrder="workOrderForm"
+        @fetch-schedule="fetchVendorServiceSchedules(workOrderForm.id)"
+        :isLoading="isLoading"
+        v-if="activeTab === 'service_schedule'"
+      />
+
+      <Attachments
+        :workOrderAttachments="workOrderAttachments"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        @fetch-attachments="fetchAttachments(workOrderForm.id)"
+        v-if="activeTab === 'attachments'"
       />
     </DialogContent>
   </Dialog>
