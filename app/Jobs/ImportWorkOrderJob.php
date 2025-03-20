@@ -202,7 +202,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 'approved_date' => !empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,
-                'closing_comments' => $data['closingComments'] ?? null,
+                'closing_comments' => $data['closingComments'] ?? '',
                 'completed_date' => !empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
                 'cost_estimate' => $data['costEstimate'] ?? null,
                 'created_date' => !empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,

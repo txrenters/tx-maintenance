@@ -149,8 +149,8 @@ const formatDate = (date) => {
       <p class="font-semibold">No tasks available</p>
     </div>
     <div v-else>
-      <div
-        class="w-full p-2 mb-2 rounded-lg shadow hover:bg-secondary"
+      <Card
+        class="w-full p-2 mb-2 hover:bg-secondary"
         :class="task.status === 'completed' ? 'bg-secondary' : ''"
         v-for="task in workOrderTasks"
         :key="task.id"
@@ -250,7 +250,7 @@ const formatDate = (date) => {
             </p>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   </div>
 </template>

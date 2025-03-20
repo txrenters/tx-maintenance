@@ -1,21 +1,17 @@
 <script setup>
 import { cn } from '@/lib/utils';
-import { Circle } from 'lucide-vue-next';
-import {
-  RadioGroupIndicator,
-  RadioGroupItem,
-  useForwardProps,
-} from 'radix-vue';
+import { Check } from 'lucide-vue-next';
+import { RadioGroupIndicator, RadioGroupItem, useForwardProps } from 'reka-ui';
 import { computed } from 'vue';
 
 const props = defineProps({
   id: { type: String, required: false },
-  value: { type: String, required: false },
+  value: { type: [String, Number, Object, null], required: false },
   disabled: { type: Boolean, required: false },
-  required: { type: Boolean, required: false },
-  name: { type: String, required: false },
   asChild: { type: Boolean, required: false },
   as: { type: null, required: false },
+  name: { type: String, required: false },
+  required: { type: Boolean, required: false },
   class: { type: null, required: false },
 });
 
@@ -33,13 +29,13 @@ const forwardedProps = useForwardProps(delegatedProps);
     v-bind="forwardedProps"
     :class="
       cn(
-        'aspect-square h-4 w-4 rounded-full border border-primary text-primary ring-offset-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'peer aspect-square h-4 w-4 rounded-full border border-neutral-200 border-neutral-900 text-neutral-900 shadow focus:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:border-neutral-50 dark:text-neutral-50 dark:focus-visible:ring-neutral-300',
         props.class,
       )
     "
   >
     <RadioGroupIndicator class="flex items-center justify-center">
-      <Circle class="h-2.5 w-2.5 fill-current text-current" />
+      <Check class="h-3.5 w-3.5 text-neutral-900 dark:text-neutral-50" />
     </RadioGroupIndicator>
   </RadioGroupItem>
 </template>

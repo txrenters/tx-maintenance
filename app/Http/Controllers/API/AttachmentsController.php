@@ -11,26 +11,10 @@ use Illuminate\Support\Facades\Storage;
 class AttachmentsController extends Controller
 {
     /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-    {
+    {        
         $validatedData = $request->validate([
             'title' => 'required',
             'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:2048',
@@ -39,6 +23,7 @@ class AttachmentsController extends Controller
         ]);
 
         $validatedData['user_id'] = auth()->id();
+        $validatedData['created_at'] = !isset($request->date) ? now() : $request->date;
 
         if($request->hasFile('filename')){
             $file = $request->file('filename');
@@ -62,26 +47,16 @@ class AttachmentsController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Attachments $attachments)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Attachments $attachments)
-    {
-        //
-    }
-
-    /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Attachments $attachments)
+    public function destroy(Attachments $attachment)
     {
-        //
+        if ($attachment->filename) {
+            Storage::disk('public')->delete($attachment->filename);
+        }
+
+        $attachment->delete();
+
+        return redirect()->back();
     }
 }

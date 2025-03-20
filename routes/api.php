@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\API\AttachmentsController;
+use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\ConversationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -26,3 +27,6 @@ Route::post('/service_schedule/submit',[ServiceScheduleController::class, 'store
 Route::post('/service_schedule/{serviceSchedule}/complete',[ServiceScheduleController::class, 'update_status'])->name('service_schedule.status.completed');
 
 Route::get('/attachments/{workOrder}',[AttachmentsController::class, 'show'])->name('api.attachments.show');
+
+Route::get('/invoices/{workOrder}',[InvoiceController::class, 'index'])->name('api.invoices.index');
+

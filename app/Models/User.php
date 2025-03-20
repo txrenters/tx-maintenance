@@ -67,17 +67,22 @@ class User extends Authenticatable
         ];
     }
 
-    public function vendor(): HasMany
+    public function vendor(): HasOne
+    {
+        return $this->hasOne(Vendor::class, 'user_id');
+    }
+
+    public function vendors(): HasMany
     {
         return $this->hasMany(Vendor::class);
     }
 
-    public function tenant(): HasMany
+    public function tenants(): HasMany
     {
         return $this->hasMany(Tenants::class);
     }
 
-    public function owner(): HasMany
+    public function owners(): HasMany
     {
         return $this->hasMany(Owner::class);
     }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vendor extends Model
 {
@@ -20,6 +21,11 @@ class Vendor extends Model
     public function work_orders(): BelongsToMany
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_vendors');
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
     }
 
     public function scopeFilter($query, array $filter): void

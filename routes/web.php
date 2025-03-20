@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\AttachmentsController;
+use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\OwnerController;
@@ -70,6 +71,10 @@ Route::middleware([
     });
 
     Route::post('/attachments',[AttachmentsController::class, 'store'])->name('api.attachments.store');
+    Route::delete('/attachments/{attachment}',[AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
+
+    Route::post('/invoices',[InvoiceController::class, 'store'])->name('api.invoices.store');
+    Route::post('/invoices/{invoice}',[InvoiceController::class, 'update'])->name('api.invoices.update');
 
 
 });

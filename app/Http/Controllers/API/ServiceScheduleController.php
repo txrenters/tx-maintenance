@@ -46,23 +46,6 @@ class ServiceScheduleController extends Controller
             return redirect()->back()->with('error', 'Failed to set service schedule. Please try again.');
         }
     }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
     /**
      * Update the specified resource in storage.
      */
@@ -75,13 +58,5 @@ class ServiceScheduleController extends Controller
         $serviceSchedule->update($validatedData);
 
         return redirect()->back();
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
     }
 }

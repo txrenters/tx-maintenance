@@ -12,6 +12,7 @@ import TenantConversation from "./Partials/TenantConversation.vue";
 import OwnerConversation from "./Partials/OwnerConversation.vue";
 import ServiceSchedule from "./Partials/ServiceSchedule.vue";
 import Attachments from "./Partials/Attachments.vue";
+import Invoices from "./Partials/Invoices.vue";
 
 import {
   ClipboardList,
@@ -99,7 +100,7 @@ const tabButtons = [
   },
   { name: "service_schedule", tooltip: "Service Schedule", icon: Calendar },
   { name: "attachments", tooltip: "Attachments", icon: Paperclip },
-  { name: "invoices", tooltip: "Generate Invoice", icon: FileText },
+  { name: "invoices", tooltip: "Invoice", icon: FileText },
   { name: "reports", tooltip: "Reports", icon: FileDown },
 ];
 
@@ -133,6 +134,10 @@ const switchTab = (tabName) => {
 
   if (activeTab.value === "attachments" && workOrderForm.id) {
     fetchAttachments(workOrderForm.id);
+  }
+
+  if (activeTab.value === "invoices" && workOrderForm.id) {
+    fetchInvoices(workOrderForm.id);
   }
 };
 
@@ -222,14 +227,27 @@ const fetchVendorServiceSchedules = async (workOrderId) => {
     isLoading.value = false;
   }
 };
-const workOrderAttachments = ref([]);
 
+const workOrderAttachments = ref([]);
 const fetchAttachments = async (workOrderId) => {
   try {
     isLoading.value = true;
     const response = await axios.get(route("api.attachments.show", workOrderId));
 
     workOrderAttachments.value = response.data.attachments;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const workOrderInvoices = ref([]);
+const fetchInvoices = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(route("api.invoices.index", workOrderId));
+    workOrderInvoices.value = response.data.invoices;
   } catch (error) {
     console.error("Error fetching tasks:", error);
   } finally {
@@ -514,6 +532,14 @@ usePoll(5000, { only: ["service_status"] });
         :isLoading="isLoading"
         @fetch-attachments="fetchAttachments(workOrderForm.id)"
         v-if="activeTab === 'attachments'"
+      />
+
+      <Invoices
+        :workOrderInvoices="workOrderInvoices"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        @fetch-invoices="fetchInvoices(workOrderForm.id)"
+        v-if="activeTab === 'invoices'"
       />
     </DialogContent>
   </Dialog>

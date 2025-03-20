@@ -122,8 +122,8 @@ const handleMeetingSubmit = () => {
       <p class="font-semibold">No scheduled service available</p>
     </div>
     <div class="mb-10" v-else>
-      <div
-        class="w-full p-2 mb-2 rounded-lg shadow hover:bg-secondary"
+      <Card
+        class="w-full p-4 mb-2 hover:bg-secondary"
         v-for="schedule in vendorServiceSchedules"
         :key="schedule.id"
       >
@@ -162,6 +162,12 @@ const handleMeetingSubmit = () => {
                 >
                   Complete
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  class="cursor-pointer hover:bg-secondary"
+                  @click="() => updateScheduleStatus(schedule.id, 'cancelled')"
+                >
+                  Cancel
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -192,7 +198,7 @@ const handleMeetingSubmit = () => {
             </p>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   </div>
 
@@ -207,7 +213,9 @@ const handleMeetingSubmit = () => {
         >
       </DialogHeader>
       <Separator />
-      <div class="px-4">
+      <div
+        class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-4"
+      >
         <div class="flex gap-4 mb-4">
           <div class="w-full">
             <Label>Tenant</Label>
@@ -285,6 +293,8 @@ const handleMeetingSubmit = () => {
         </div>
       </div>
       <DialogFooter class="p-6 pt-0">
+        <Button @click="openService = false" variant="destructive">Cancel</Button>
+
         <Button
           type="submit"
           :disabled="serviceScheduleForm.processing"

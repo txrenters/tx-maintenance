@@ -38,6 +38,7 @@
         "tailwindcss-animate": "^1.0.7",
         "vee-validate": "^4.15.0",
         "vue-multiselect": "^3.2.0",
+        "vue-picture-cropper": "^0.7.0",
         "zod": "^3.24.2"
     }
 }

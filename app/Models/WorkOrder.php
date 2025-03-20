@@ -57,7 +57,7 @@ class WorkOrder extends Model
         return $this->belongsToMany(Vendor::class, 'work_order_vendors');
     }
 
-    public function tenant_conversation(): HasMany
+   public function tenant_conversation(): HasMany
     {
         return $this->hasMany(Conversation::class)->where('conversation_type','tenant');
     }
@@ -80,6 +80,11 @@ class WorkOrder extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(Attachments::class, 'work_order_id');
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
     }
 
     public function tasks(): HasMany

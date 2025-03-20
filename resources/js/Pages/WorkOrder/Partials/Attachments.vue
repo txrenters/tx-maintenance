@@ -1,8 +1,19 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
-import { Loader2, Camera, File, FileText, FileSpreadsheet } from "lucide-vue-next";
+import {
+  Loader2,
+  Camera,
+  File,
+  FileText,
+  FileSpreadsheet,
+  Download,
+} from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import Files from "./Files.vue";
+import CameraModal from "./CameraModal.vue";
+import ImageCropper from "./ImageCropper.vue";
+
 const { toast } = useToast();
 
 const props = defineProps({
@@ -34,27 +45,66 @@ const afterPics = computed(() => {
   return (props.workOrderAttachments || []).filter((file) => file?.type === "after");
 });
 
-console.log(attachmentFile);
+const openCropper = ref(false);
+const selectedImage = ref("");
 
-const isImage = (file) => {
-  return file.filetype.startsWith("image/");
+const handleCapturedImage = (capturedImage) => {
+  selectedImage.value = "";
+  if (!capturedImage?.blob) return; // Ensure blob exists
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    selectedImage.value = e.target.result;
+    openCropper.value = true; // Show the crop modal
+  };
+
+  reader.readAsDataURL(capturedImage.blob); // Directly read blob
 };
 
-const getFileIcon = (filename) => {
-  const ext = filename.split(".").pop().toLowerCase();
-  switch (ext) {
-    case "pdf":
-      return FileText;
-    case "doc":
-    case "docx":
-      return FileText;
-    case "xls":
-    case "xlsx":
-    case "txt":
-      return FileSpreadsheet;
-    default:
-      return File;
-  }
+const openExpandModal = ref(false);
+const expandedImage = ref("");
+const expandedImageName = ref("");
+const deleteFileForm = useForm({ id: "" });
+
+const handleExpandImage = (imageSelected) => {
+  expandedImage.value = imageSelected.attachment_url;
+  expandedImageName.value = imageSelected.title;
+  deleteFileForm.id = imageSelected.id;
+  openExpandModal.value = true;
+};
+
+const openDeleteModal = ref(false);
+const handleDeleteImage = (imageSelected) => {
+  deleteFileForm.id = imageSelected;
+  openDeleteModal.value = true;
+};
+
+const handleDeleteImageSubmit = () => {
+  deleteFileForm.delete(route("api.attachments.destroy", deleteFileForm.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Attachments has been deleted successfully!",
+      });
+      openExpandModal.value = false;
+      openDeleteModal.value = false;
+      deleteFileForm.reset();
+      handleFetchAttachment();
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+    },
+  });
+};
+
+const handleFetchAttachment = () => {
+  emit("fetch-attachments");
 };
 
 const handleFormSubmit = () => {
@@ -72,11 +122,11 @@ const handleFormSubmit = () => {
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Service schedule has been set successfully!",
+        description: "Attachments has been saved successfully!",
       });
       openAttachmentModal.value = false;
       attachmentForm.reset();
-      emit("fetch-attachments");
+      handleFetchAttachment();
     },
     onError: () => {
       toast({
@@ -106,113 +156,76 @@ const handleFormSubmit = () => {
       </Button>
     </div>
     <div class="mb-3">
-      <p class="font-semibold uppercase mb-2 p-2 bg-primary text-white">Attachments</p>
-      <div class="flex gap-5 flex-wrap" v-if="!isLoading">
-        <div
-          v-for="file in attachmentFile"
-          :key="file.id"
-          class="rounded cursor-pointer hover:opacity-75"
-          :title="file.title"
-        >
-          <template v-if="isImage(file)">
-            <div class="w-48">
-              <img
-                :src="file.attachment_url"
-                alt="Preview"
-                class="w-full h-auto border"
-              />
-            </div>
-          </template>
-          <template v-else>
-            <!-- Show file icon -->
-            <div class="file-icon p-2 border rouded">
-              <a :href="file.attachment_url" download="">
-                <component
-                  :is="getFileIcon(file.filename)"
-                  width="90"
-                  height="90"
-                  stroke-width="1"
-                ></component>
-              </a>
-            </div>
-          </template>
-          <p class="text-xs text-wrap w-20">{{ file.title }}</p>
-        </div>
-      </div>
+      <p class="font-semibold uppercase mb-4 p-2 bg-primary text-white">Attachments</p>
+
+      <Files
+        :files="attachmentFile"
+        :loading="isLoading"
+        @expandImage="handleExpandImage"
+        @deleteImage="handleDeleteImage"
+      />
     </div>
     <div class="mb-3">
-      <p class="font-semibold uppercase mb-2 p-2 bg-primary text-white">
+      <p class="font-semibold uppercase mb-4 p-2 bg-primary text-white">
         Before Pictures
       </p>
-      <div class="flex gap-5 flex-wrap" v-if="!isLoading">
-        <div
-          v-for="file in beforePics"
-          :key="file.id"
-          class="rounded cursor-pointer hover:opacity-75"
-          :title="file.title"
-        >
-          <template v-if="isImage(file)">
-            <div class="w-48">
-              <img
-                :src="file.attachment_url"
-                alt="Preview"
-                class="w-full h-auto border"
-              />
-            </div>
-          </template>
-          <template v-else>
-            <!-- Show file icon -->
-            <div class="file-icon p-2 border rouded">
-              <a :href="file.attachment_url" download="">
-                <component
-                  :is="getFileIcon(file.filename)"
-                  width="90"
-                  height="90"
-                  stroke-width="1"
-                ></component>
-              </a>
-            </div>
-          </template>
-          <p class="text-xs text-wrap w-20">{{ file.title }}</p>
-        </div>
-      </div>
+      <Files
+        :files="beforePics"
+        :loading="isLoading"
+        @expandImage="handleExpandImage"
+        @deleteImage="handleDeleteImage"
+      />
     </div>
     <div class="mb-3">
-      <p class="font-semibold uppercase mb-2 p-2 bg-primary text-white">After Pictures</p>
-      <div class="flex gap-5 flex-wrap" v-if="!isLoading">
-        <div
-          v-for="file in afterPics"
-          :key="file.id"
-          class="rounded cursor-pointer hover:opacity-75"
-          :title="file.title"
-        >
-          <template v-if="isImage(file)">
-            <div class="w-48">
-              <img
-                :src="file.attachment_url"
-                alt="Preview"
-                class="w-full h-auto border"
-              />
-            </div>
-          </template>
-          <template v-else>
-            <!-- Show file icon -->
-            <div class="file-icon p-2 border rouded">
-              <a :href="file.attachment_url" download="">
-                <component
-                  :is="getFileIcon(file.filename)"
-                  width="90"
-                  height="90"
-                  stroke-width="1"
-                ></component>
-              </a>
-            </div>
-          </template>
-          <p class="text-xs text-wrap w-20">{{ file.title }}</p>
-        </div>
-      </div>
+      <p class="font-semibold uppercase mb-4 p-2 bg-primary text-white">After Pictures</p>
+      <Files
+        :files="afterPics"
+        :loading="isLoading"
+        @expandImage="handleExpandImage"
+        @deleteImage="handleDeleteImage"
+      />
     </div>
   </div>
+  <CameraModal
+    :show="openCameraModal"
+    @update:show="openCameraModal = $event"
+    @capturedImage="handleCapturedImage"
+  />
+  <ImageCropper
+    :show="openCropper"
+    :workOrder_id="workOrder.id"
+    :image="selectedImage"
+    @fetch-attachments="handleFetchAttachment"
+    @update:show="openCropper = $event"
+  />
+  <Dialog v-model:open="openExpandModal">
+    <DialogContent
+      class="sm:max-w-[900px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+    >
+      <DialogHeader class="p-6 pb-0 text-left">
+        <DialogTitle> Image Preview</DialogTitle>
+        <DialogDescription> </DialogDescription>
+      </DialogHeader>
+      <Separator />
+      <div class="flex flex-row flex-nowrap overflow-x-auto scrollbar-hide px-6">
+        <div class="mb-3 w-full">
+          <img :src="expandedImage" alt="" class="w-full mt-3" />
+          <Label>{{ expandedImageName }}</Label>
+        </div>
+      </div>
+      <DialogFooter class="p-6 pt-0">
+        <Button
+          type="submit"
+          :disabled="deleteFileForm.processing"
+          @click.prevent="handleDeleteImageSubmit"
+          variant="destructive"
+        >
+          <Loader2 v-if="deleteFileForm.processing" class="w-4 h-4 animate-spin" />
+          Delete
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
   <Dialog v-model:open="openAttachmentModal">
     <DialogContent
       class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
@@ -222,7 +235,7 @@ const handleFormSubmit = () => {
         <DialogDescription> Select any files and then click submit.</DialogDescription>
       </DialogHeader>
       <Separator />
-      <div class="px-4">
+      <div class="flex flex-col flex-nowrap overflow-x-auto scrollbar-hide px-6">
         <div class="mb-3">
           <Label>Title</Label>
           <Input
@@ -248,6 +261,8 @@ const handleFormSubmit = () => {
         </Progress>
       </div>
       <DialogFooter class="p-6 pt-0">
+        <Button @click="openAttachmentModal = false" variant="destructive">Cancel</Button>
+
         <Button
           type="submit"
           :disabled="attachmentForm.processing"
@@ -259,4 +274,26 @@ const handleFormSubmit = () => {
       </DialogFooter>
     </DialogContent>
   </Dialog>
+  <AlertDialog v-model:open="openDeleteModal">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This action cannot be undone. This will permanently delete files from our
+          servers.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          class="destructive"
+          :disabled="deleteFileForm.processing"
+          @click.prevent="handleDeleteImageSubmit"
+        >
+          <Loader2 v-if="deleteFileForm.processing" class="w-4 h-4 animate-spin" />
+          Continue
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
