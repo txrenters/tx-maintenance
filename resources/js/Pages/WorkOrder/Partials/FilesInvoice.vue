@@ -1,13 +1,5 @@
 <script setup>
-import {
-  Download,
-  Eye,
-  Expand,
-  CircleX,
-  X,
-  EllipsisVertical,
-  Ellipsis,
-} from "lucide-vue-next";
+import { Download, Expand, X, EllipsisVertical, Ellipsis } from "lucide-vue-next";
 import { DateTime } from "luxon";
 
 const props = defineProps({
@@ -15,7 +7,7 @@ const props = defineProps({
   loading: Boolean,
 });
 
-const emit = defineEmits(["expandImage", "deleteImage"]);
+const emit = defineEmits(["expandImage", "deleteImage", "updateInvoice"]);
 
 const openImageModal = (image) => {
   emit("expandImage", image);
@@ -120,7 +112,6 @@ const formatDate = (date) => {
             download=""
             class="relative flex items-center justify-center w-20 h-20"
             title="Download"
-            v-if="!loading"
           >
             <!-- Delete Icon (Small X) -->
 
@@ -137,24 +128,27 @@ const formatDate = (date) => {
               :src="getFileIcon(file.filename)"
               class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
               alt="File Icon"
-              @load="loading = true"
             />
           </a>
         </div>
         <div v-else class="w-20 h-20 bg-gray-200 animate-pulse p-3 border"></div>
       </template>
       <div class="flex flex-col gap-1 flex-grow">
-        <p class="mt-2 font-semibold">Name: {{ file.title }}</p>
+        <p class="mt-2 font-semibold">Invoice: {{ file.title }}</p>
         <p class="text-sm">Amount: ${{ file.amount }}</p>
         <p class="text-xs">
           <Badge :variant="file.status === 'decline' ? 'destructive' : ''">{{
             file.status
           }}</Badge>
         </p>
+        <p class="text-sm">Vendor: {{ file.vendor.name }}</p>
         <p class="text-sm">Date: {{ formatDate(file.created_at) }}</p>
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div
+        class="flex flex-col gap-1"
+        v-if="!$page.props.auth.user.roles.includes('vendor')"
+      >
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button aria-haspopup="true" size="icon" variant="ghost">

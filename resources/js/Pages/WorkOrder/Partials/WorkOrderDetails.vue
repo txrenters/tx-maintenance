@@ -100,7 +100,10 @@ const vendorChange = () => {
           class="text-xs p-1 ml-2 mb-1"
           title="Assign vendor"
           :disabled="isLoading"
-          v-if="workOrder.local_status !== 'Updated'"
+          v-if="
+            workOrder.local_status !== 'Updated' &&
+            !$page.props.auth.user.roles.includes('vendor')
+          "
           @click.prevent="vendorChange(workOrder.id)"
         >
           <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
@@ -120,7 +123,11 @@ const vendorChange = () => {
           v-else
         >
           <ComboboxAnchor as-child>
-            <TagsInput v-model="workOrder.vendors" class="px-2 py-2 gap-2 w-full">
+            <TagsInput
+              v-model="workOrder.vendors"
+              class="px-2 py-2 gap-2 w-full"
+              v-if="!$page.props.auth.user.roles.includes('vendor')"
+            >
               <div class="flex gap-2 flex-wrap items-center">
                 <TagsInputItem
                   v-for="vendor in workOrder.vendors"
@@ -170,7 +177,11 @@ const vendorChange = () => {
       </div>
       <div v-if="workOrder.is_emergency === null">
         <Label for="message">Emergency:</Label>
-        <Select v-model="workOrder.is_emergency" @update:modelValue="updateEmergency">
+        <Select
+          v-model="workOrder.is_emergency"
+          @update:modelValue="updateEmergency"
+          v-if="!$page.props.auth.user.roles.includes('vendor')"
+        >
           <SelectTrigger class="w-full">
             <SelectValue placeholder="Select an emergency" />
           </SelectTrigger>
@@ -181,10 +192,14 @@ const vendorChange = () => {
             </SelectGroup>
           </SelectContent>
         </Select>
+        <p>{{ workOrder.is_emergency ?? "" }}</p>
       </div>
       <div>
         <Label for="message">Category:</Label>
-        <Select v-model="workOrder.category">
+        <Select
+          v-model="workOrder.category"
+          v-if="!$page.props.auth.user.roles.includes('vendor')"
+        >
           <SelectTrigger class="w-full">
             <SelectValue placeholder="Select a category" />
           </SelectTrigger>
@@ -200,6 +215,7 @@ const vendorChange = () => {
             </SelectGroup>
           </SelectContent>
         </Select>
+        <p v-else>{{ workOrder.category }}</p>
       </div>
 
       <div>
@@ -296,7 +312,11 @@ const vendorChange = () => {
         </div>
         <div>
           <Label for="message">Zone:</Label>
-          <Input class="mt-1" v-model="workOrder.zone" />
+          <Input
+            class="mt-1"
+            v-model="workOrder.zone"
+            :disabled="$page.props.auth.user.roles.includes('vendor')"
+          />
         </div>
         <div>
           <Label for="message">End Date:</Label>
@@ -314,6 +334,7 @@ const vendorChange = () => {
         <Textarea
           placeholder="Type your message here."
           v-model="workOrder.management_plan"
+          :disabled="$page.props.auth.user.roles.includes('vendor')"
         />
       </div>
       <div class="grid gap-1.5 mt-5">
@@ -321,6 +342,7 @@ const vendorChange = () => {
         <Textarea
           placeholder="Type your message here."
           rows="1"
+          :disabled="$page.props.auth.user.roles.includes('vendor')"
           v-model="workOrder.additional_work_needed_reschedule"
         />
       </div>
@@ -330,6 +352,7 @@ const vendorChange = () => {
           placeholder="Type your message here."
           v-model="workOrder.closing_comments"
           rows="1"
+          :disabled="$page.props.auth.user.roles.includes('vendor')"
         />
       </div>
       <div class="grid gap-1.5 mt-5">
@@ -340,14 +363,6 @@ const vendorChange = () => {
           </p>
         </div>
       </div>
-
-      <div class="grid gap-1.5 mt-5 mb-5">
-        <Label for="message">Vendor Notes</Label>
-        <Textarea
-          placeholder="Type your message here."
-          v-model="workOrder.vendor_notes"
-        />
-      </div>
     </div>
   </div>
   <DialogFooter class="p-6 pt-0">
@@ -356,6 +371,7 @@ const vendorChange = () => {
       variant="destructive"
       :disabled="closeWorkOrderForm.processing"
       @click.prevent="handleCloseOrderSubmit"
+      v-if="!$page.props.auth.user.roles.includes('vendor')"
     >
       <Loader2 v-if="closeWorkOrderForm.processing" class="w-4 h-4 animate-spin" />
       Close Work Order

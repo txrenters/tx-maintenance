@@ -82,9 +82,19 @@ class User extends Authenticatable
         return $this->hasMany(Tenants::class);
     }
 
+    public function tenant(): HasOne
+    {
+        return $this->hasOne(Tenants::class, 'user_id');
+    }
+
     public function owners(): HasMany
     {
         return $this->hasMany(Owner::class);
+    }
+
+    public function owner(): HasOne
+    {
+        return $this->hasOne(Owner::class, 'user_id');
     }
 
     public function work_orders(): HasMany

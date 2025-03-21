@@ -15,22 +15,11 @@ class InvoiceController extends Controller
      */
     public function index(WorkOrder $workOrder)
     {
-        $workOrder->load(['invoices']);
+        $workOrder->load(['invoices.vendor']);
     
         return response()->json($workOrder, 200);
     }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
+    
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -41,8 +30,8 @@ class InvoiceController extends Controller
         ]);
 
         $user = User::with('vendor')->find(auth()->id());
-        // $validatedData['vendor_id'] = $user->vendor->id;
-        $validatedData['vendor_id'] = 6; // test only
+        $validatedData['vendor_id'] = $user->vendor->id;
+        // $validatedData['vendor_id'] = 6; // test only
 
         if($request->hasFile('filename')){
             $file = $request->file('filename');
@@ -54,23 +43,6 @@ class InvoiceController extends Controller
 
         return redirect()->back();
     }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Invoice $invoice)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Invoice $invoice)
-    {
-        //
-    }
-
     /**
      * Update the specified resource in storage.
      */
@@ -81,13 +53,5 @@ class InvoiceController extends Controller
         ]);
 
         return redirect()->back();
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Invoice $invoice)
-    {
-        //
     }
 }

@@ -31,6 +31,7 @@
         "lodash.debounce": "^4.0.8",
         "lucide-vue-next": "^0.475.0",
         "luxon": "^3.5.0",
+        "qalendar": "^3.9.0",
         "radix-vue": "^1.9.14",
         "reka-ui": "^2.1.0",
         "script-runner": "^0.1.8",

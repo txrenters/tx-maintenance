@@ -35,7 +35,7 @@ console.log(props.title);
   <div class="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
     <Card>
       <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle class="text-sm font-medium"> Total Revenue </CardTitle>
+        <CardTitle class="text-sm font-medium"> Work Orders </CardTitle>
         <DollarSign class="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -45,7 +45,7 @@ console.log(props.title);
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle class="text-sm font-medium"> Subscriptions </CardTitle>
+        <CardTitle class="text-sm font-medium"> Tasks </CardTitle>
         <Users class="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -55,7 +55,7 @@ console.log(props.title);
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle class="text-sm font-medium"> Sales </CardTitle>
+        <CardTitle class="text-sm font-medium"> Invoices </CardTitle>
         <CreditCard class="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -65,7 +65,7 @@ console.log(props.title);
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle class="text-sm font-medium"> Active Now </CardTitle>
+        <CardTitle class="text-sm font-medium"> Completed </CardTitle>
         <Activity class="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>

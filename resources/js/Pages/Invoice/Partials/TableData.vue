@@ -18,10 +18,10 @@ const openDeleteDialog = (user) => {
     <TableHeader>
       <TableRow>
         <TableHead>Name</TableHead>
-        <TableHead class="hidden md:table-cell"> Mobile </TableHead>
-        <TableHead class="hidden md:table-cell"> Phone </TableHead>
+        <TableHead class="hidden md:table-cell"> Amount </TableHead>
         <TableHead class="hidden md:table-cell"> Status </TableHead>
-        <TableHead class="hidden md:table-cell"> Address </TableHead>
+        <TableHead class="md:table-cell"> Work Order </TableHead>
+        <TableHead class="md:table-cell"> Vendor </TableHead>
 
         <!-- <TableHead>
           <span class="sr-only">Actions</span>
@@ -29,23 +29,28 @@ const openDeleteDialog = (user) => {
       </TableRow>
     </TableHeader>
     <TableBody>
-      <TableRow v-for="owner in data" :key="owner.id">
+      <TableRow v-for="invoice in data" :key="invoice.id">
         <TableCell class="font-medium">
-          {{ owner.name }}
-          <p class="text-xs font-normal">{{ owner.email }}</p>
-          <p class="text-xs font-normal">{{ owner.mobile }}</p>
+          {{ invoice.title }}
+          <p class="text-xs font-normal mt-1 md:hidden">{{ invoice.amount }}</p>
+          <Badge
+            class="mt-1 md:hidden"
+            :variant="invoice.status === 'decline' ? 'destructive' : ''"
+          >
+            {{ invoice.status }}</Badge
+          >
         </TableCell>
+        <TableCell class="hidden md:table-cell">{{ invoice.amount }} </TableCell>
         <TableCell class="hidden md:table-cell">
-          {{ owner.mobile }}
+          <Badge :variant="invoice.status === 'decline' ? 'destructive' : ''">
+            {{ invoice.status }}</Badge
+          >
         </TableCell>
-        <TableCell class="hidden md:table-cell">
-          {{ owner.phone }}
+        <TableCell class="md:table-cell">
+          {{ invoice.work_order_no }}
         </TableCell>
-        <TableCell class="hidden md:table-cell">
-          {{ owner.status }}
-        </TableCell>
-        <TableCell class="hidden md:table-cell">
-          {{ owner.address }}
+        <TableCell class="md:table-cell">
+          {{ invoice.vendor }}
         </TableCell>
         <!-- <TableCell>
           <DropdownMenu>
@@ -65,7 +70,7 @@ const openDeleteDialog = (user) => {
         </TableCell> -->
       </TableRow>
       <TableRow v-if="data.length === 0">
-        <TableCell colspan="5">No owners found!</TableCell>
+        <TableCell colspan="5">No invoices found!</TableCell>
       </TableRow>
     </TableBody>
   </Table>

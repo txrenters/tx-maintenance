@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\TaskScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+#[ScopedBy([TaskScope::class])]
 class WorkOrderTask extends Model
 {
     use SoftDeletes;

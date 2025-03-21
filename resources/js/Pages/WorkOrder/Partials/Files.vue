@@ -112,7 +112,6 @@ const formatDate = (date) => {
             download=""
             class="relative flex items-center justify-center w-32 h-32"
             title="Download"
-            v-if="!loading"
           >
             <!-- Delete Icon (Small X) -->
 
@@ -129,7 +128,6 @@ const formatDate = (date) => {
               :src="getFileIcon(file.filename)"
               class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
               alt="File Icon"
-              @load="loading = true"
             />
           </a>
         </div>

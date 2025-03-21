@@ -113,7 +113,12 @@ const handleMeetingSubmit = () => {
   <div class="overflow-y-auto px-6 w-full min-h-[300px]">
     <div class="flex justify-between items-center mb-3">
       <p class="font-semibold uppercase text-xs">Service Schedule - Vendor and Tenant</p>
-      <Button :disabled="isLoading" size="icon" @click.prevent="openService = true">
+      <Button
+        :disabled="isLoading"
+        size="icon"
+        @click.prevent="openService = true"
+        v-if="$page.props.auth.user.roles.includes('vendor')"
+      >
         <CalendarPlus v-if="!isLoading" class="" />
         <Loader2 v-else class="w-4 h-4 animate-spin" />
       </Button>
@@ -123,30 +128,24 @@ const handleMeetingSubmit = () => {
     </div>
     <div class="mb-10" v-else>
       <Card
-        class="w-full p-4 mb-2 hover:bg-secondary"
+        class="w-full p-4 mb-2 bg-primary/80 text-white"
         v-for="schedule in vendorServiceSchedules"
         :key="schedule.id"
       >
         <div class="flex justify-between">
-          <div class="flex flex-col gap-2 w-full">
+          <div class="flex flex-col w-full">
             <div class="flex text-xs items-center gap-1">
-              <Badge
-                :variant="
-                  schedule.status === 'scheduled'
-                    ? 'secondary'
-                    : schedule.status === 'completed'
-                    ? 'destructive'
-                    : ''
-                "
-              >
-                {{ schedule.status }}
-              </Badge>
               <p>{{ formatDate(schedule.scheduled_date) }}</p>
             </div>
-            <p class="text-sm font-semibold">{{ schedule.title }}</p>
+            <p class="text-sm mt-2 font-semibold">{{ schedule.title }}</p>
             <p class="text-xs">{{ schedule.description }}</p>
           </div>
-          <div v-if="schedule.status !== 'completed'">
+          <div
+            v-if="
+              schedule.status !== 'completed' ||
+              $page.props.auth.user.roles.includes('vendor')
+            "
+          >
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -172,30 +171,39 @@ const handleMeetingSubmit = () => {
             </DropdownMenu>
           </div>
         </div>
-        <div class="flex justify-between mt-4">
-          <div class="flex flex-col text-xs gap-1">
-            <p>Tenant</p>
-            <p class="flex gap-1 items-center">
-              <Avatar class="w-5 h-5">
-                <AvatarImage
-                  :src="schedule.tenant.user?.profile_photo_url || 'default.jpg'"
-                />
-                <AvatarFallback></AvatarFallback>
-              </Avatar>
-              {{ schedule.tenant.first_name }} {{ schedule.tenant.last_name }}
-            </p>
+        <div class="flex justify-between mt-2 items-center">
+          <div class="flex gap-3">
+            <div class="flex flex-col text-xs gap-1">
+              <p>Tenant</p>
+              <p class="flex gap-1 items-center">
+                <Avatar class="w-5 h-5">
+                  <AvatarImage
+                    :src="schedule.tenant.user?.profile_photo_url || 'default.jpg'"
+                  />
+                  <AvatarFallback></AvatarFallback>
+                </Avatar>
+                {{ schedule.tenant.first_name }} {{ schedule.tenant.last_name }}
+              </p>
+            </div>
+            <div class="flex flex-col text-xs gap-1">
+              <p>Vendor</p>
+              <p class="flex gap-1 items-center">
+                <Avatar class="w-5 h-5">
+                  <AvatarImage
+                    :src="schedule.vendor.user?.profile_photo_url || 'default.jpg'"
+                  />
+                  <AvatarFallback></AvatarFallback>
+                </Avatar>
+                {{ schedule.vendor.name }}
+              </p>
+            </div>
           </div>
-          <div class="flex flex-col text-xs gap-1 text-right">
-            <p>Vendor</p>
-            <p class="flex gap-1 items-center">
-              <Avatar class="w-5 h-5">
-                <AvatarImage
-                  :src="schedule.vendor.user?.profile_photo_url || 'default.jpg'"
-                />
-                <AvatarFallback></AvatarFallback>
-              </Avatar>
-              {{ schedule.vendor.name }}
-            </p>
+          <div>
+            <Badge
+              :class="schedule.status === 'cancelled' ? 'bg-red-500' : 'bg-green-500'"
+            >
+              {{ schedule.status }}
+            </Badge>
           </div>
         </div>
       </Card>
@@ -214,7 +222,7 @@ const handleMeetingSubmit = () => {
       </DialogHeader>
       <Separator />
       <div
-        class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-4"
+        class="flex flex-col flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-4"
       >
         <div class="flex gap-4 mb-4">
           <div class="w-full">

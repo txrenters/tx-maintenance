@@ -28,6 +28,11 @@ class Vendor extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function vendor_notes(): HasMany
+    {
+        return $this->hasMany(VendorNotes::class);
+    }
+
     public function scopeFilter($query, array $filter): void
     {
         if(!empty($filter['search'])){

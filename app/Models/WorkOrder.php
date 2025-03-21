@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\WorkOrderScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
+#[ScopedBy([WorkOrderScope::class])]
 class WorkOrder extends Model
 {
     /** @use HasFactory<\Database\Factories\WorkOrderFactory> */
@@ -37,11 +41,6 @@ class WorkOrder extends Model
         return $this->belongsTo(Tenants::class,'tenant_id');
     }
 
-    public function vendor(): BelongsTo
-    {
-        return $this->belongsTo(Vendor::class);
-    }
-    
     public function owners(): BelongsToMany
     {
         return $this->belongsToMany(Owner::class, 'work_order_owners');
@@ -52,9 +51,19 @@ class WorkOrder extends Model
         return $this->belongsToMany(Tenants::class, 'work_order_tenants', 'work_order_id', 'tenant_id');
     }
 
+    public function vendor(): HasOne
+    {
+        return $this->hasOne(Vendor::class);
+    }
+
     public function vendors(): BelongsToMany
     {
         return $this->belongsToMany(Vendor::class, 'work_order_vendors');
+    }
+
+    public function vendor_notes(): HasMany
+    {
+        return $this->hasMany(VendorNotes::class, 'work_order_id');
     }
 
    public function tenant_conversation(): HasMany
@@ -80,6 +89,11 @@ class WorkOrder extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(Attachments::class, 'work_order_id');
+    }
+
+    public function invoice(): HasOne
+    {
+        return $this->hasOne(Invoice::class);
     }
 
     public function invoices(): HasMany

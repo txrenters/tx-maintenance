@@ -5,21 +5,36 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { usePage } from "@inertiajs/vue3";
 
 const props = defineProps({
   buttons: Array, // Expecting an array of button objects
   activeTab: String, // The currently active tab
 });
 
+const page = usePage();
+
 const emit = defineEmits(["switchTab"]);
 
 const handleSwitchTab = (tabName) => {
   emit("switchTab", tabName);
 };
+
+const canAccess = (requiredRoles) => {
+  // Ensure roles are valid arrays
+  const userRoles = page.props.auth.user.roles || []; // Default to an empty array if undefined
+  requiredRoles = requiredRoles || []; // Default to an empty array if undefined
+
+  // Use filter to find matching roles
+  const matchingRoles = userRoles.filter((role) => requiredRoles.includes(role));
+
+  // Return true if there are any matches, otherwise false
+  return matchingRoles.length > 0;
+};
 </script>
 <template>
   <TooltipProvider v-for="button in buttons" :key="button.name">
-    <Tooltip>
+    <Tooltip v-if="canAccess(button.requires)">
       <TooltipTrigger as-child>
         <Button
           :variant="activeTab === button.name ? '' : 'outline'"

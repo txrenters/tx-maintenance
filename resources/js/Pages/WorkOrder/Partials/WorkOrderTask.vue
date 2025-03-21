@@ -123,7 +123,7 @@ const formatDate = (date) => {
   <div class="overflow-y-auto px-6 mb-6 w-full min-h-[300px]">
     <div class="flex justify-between items-center my-3">
       <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
-      <div class="">
+      <div class="" v-if="$page.props.auth.user.roles.includes('admin')">
         <Select
           :modelValue="service_status_id"
           @update:modelValue="handleServiceStatusChange"
@@ -150,8 +150,8 @@ const formatDate = (date) => {
     </div>
     <div v-else>
       <Card
-        class="w-full p-2 mb-2 hover:bg-secondary"
-        :class="task.status === 'completed' ? 'bg-secondary' : ''"
+        class="w-full p-2 mb-2 bg-primary"
+        :class="task.status === 'completed' ? 'bg-green-400' : 'text-white'"
         v-for="task in workOrderTasks"
         :key="task.id"
       >
@@ -159,12 +159,12 @@ const formatDate = (date) => {
           <div class="flex flex-col gap-2 w-full">
             <div class="flex text-xs items-center gap-1">
               <Badge
-                :variant="
+                :class="
                   task.status === 'pending'
-                    ? 'secondary'
+                    ? 'bg-red-500'
                     : task.status === 'completed'
-                    ? 'destructive'
-                    : ''
+                    ? 'bg-primary'
+                    : 'bg-white text-black'
                 "
               >
                 {{ task.status }}

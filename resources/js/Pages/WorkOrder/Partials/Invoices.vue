@@ -70,6 +70,8 @@ const openDeleteModal = ref(false);
 const handleUpdateInvoice = (invoice, status) => {
   updateInvoiceForm.id = invoice.id;
   updateInvoiceForm.status = status;
+
+  console.log(updateInvoiceForm);
   updateInvoiceForm.post(route("api.invoices.update", updateInvoiceForm.id), {
     preserveState: true,
     preserveScroll: true,
@@ -79,6 +81,37 @@ const handleUpdateInvoice = (invoice, status) => {
         description: "Invoice has been updated successfully!",
       });
       updateInvoiceForm.reset();
+      handleFetchInvoices();
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+    },
+  });
+};
+
+const handleFormSubmit = () => {
+  if (!attachmentForm.title || !attachmentForm.amount || !attachmentForm.filename) {
+    toast({
+      variant: "destructive",
+      title: "Uh oh! Something went wrong.",
+      description: "There was a problem with your request. Please try again!",
+    });
+    return;
+  }
+  attachmentForm.post(route("api.invoices.store"), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Invoice has been sent successfully!",
+      });
+      openAttachmentModal.value = false;
+      attachmentForm.reset();
       handleFetchInvoices();
     },
     onError: () => {
@@ -102,12 +135,8 @@ const handleFetchInvoices = () => {
       <div>
         <p class="font-semibold uppercase text-xs mb-3">Invoices</p>
       </div>
-      <div class="flex gap-2">
-        <Button
-          :disabled="isLoading"
-          size="icon"
-          @click.prevent="openAttachmentModal = true"
-        >
+      <div class="flex gap-2" v-if="$page.props.auth.user.roles.includes('vendor')">
+        <Button :disabled="isLoading" size="icon" @click="openAttachmentModal = true">
           <File v-if="!isLoading" class="" />
           <Loader2 v-else class="w-4 h-4 animate-spin" />
         </Button>
@@ -122,18 +151,62 @@ const handleFetchInvoices = () => {
       />
     </div>
   </div>
-  <CameraModal
-    :show="openCameraModal"
-    @update:show="openCameraModal = $event"
-    @capturedImage="handleCapturedImage"
-  />
-  <ImageCropper
-    :show="openCropper"
-    :workOrder_id="workOrder.id"
-    :image="selectedImage"
-    @fetch-attachments="handleFetchAttachment"
-    @update:show="openCropper = $event"
-  />
+  <Dialog v-model:open="openAttachmentModal">
+    <DialogContent
+      class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+    >
+      <DialogHeader class="p-6 pb-0 text-left">
+        <DialogTitle> Upload Invoice </DialogTitle>
+        <DialogDescription>
+          Select pdf and image files only and then click submit.</DialogDescription
+        >
+      </DialogHeader>
+      <Separator />
+      <div class="flex flex-col flex-nowrap overflow-x-auto scrollbar-hide px-6">
+        <div class="mb-3">
+          <Label>Title</Label>
+          <Input
+            type="text"
+            placeholder="Enter file description"
+            v-model="attachmentForm.title"
+          />
+        </div>
+        <div class="mb-3">
+          <Label>Amount</Label>
+          <Input
+            type="number"
+            placeholder="Enter invoice amount"
+            v-model="attachmentForm.amount"
+          />
+        </div>
+        <div class="mb-3">
+          <Label>File</Label>
+          <Input
+            type="file"
+            accept=".jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .xls, .xlsx"
+            @input="attachmentForm.filename = $event.target.files[0]"
+          />
+        </div>
+        <Progress
+          v-if="attachmentForm.progress"
+          :value="attachmentForm.progress.percentage"
+          :model-value="attachmentForm.progress.percentage"
+        >
+          {{ attachmentForm.progress.percentage }}%
+        </Progress>
+      </div>
+      <DialogFooter class="p-6 pt-0">
+        <Button
+          type="submit"
+          :disabled="attachmentForm.processing"
+          @click.prevent="handleFormSubmit"
+        >
+          <Loader2 v-if="attachmentForm.processing" class="w-4 h-4 animate-spin" />
+          Submit
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
   <Dialog v-model:open="openExpandModal">
     <DialogContent
       class="sm:max-w-[900px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\AttachmentScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ScopedBy([AttachmentScope::class])]
 class Attachments extends Model
 {
     protected $table = 'attachments';

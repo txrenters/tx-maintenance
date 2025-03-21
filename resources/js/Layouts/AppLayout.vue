@@ -41,6 +41,7 @@ import {
   Users,
   UserRoundCheck,
   Circle,
+  Files,
   ClipboardList,
 } from "lucide-vue-next";
 
@@ -70,25 +71,12 @@ const navs = computed(() => ({
       isActive: page.url.startsWith("/work_orders"),
       items: [
         {
-          title: "Ongoing",
+          title: "Active",
           url: route("work_orders.index"),
           isActive: page.component === "WorkOrder/Index",
         },
-
         {
-          title: "Invoices",
-          url: "#",
-        },
-        {
-          title: "Meetings",
-          url: "#",
-        },
-        {
-          title: "Reports",
-          url: "#",
-        },
-        {
-          title: "Closed",
+          title: "Completed",
           url: route("work_orders.closed_work_orders"),
           isActive: page.component === "WorkOrder/Close",
         },
@@ -109,31 +97,42 @@ const navs = computed(() => ({
       url: "#",
       isActive: page.url.startsWith("/tasks"),
       icon: ClipboardList,
+      requires: ["admin", "woc", "vendor"], // Only admin
     },
     {
       name: "Calendar",
-      url: "#",
-      isActive: page.url.startsWith("/calendar"),
-
+      url: route("scheduled_service"),
+      isActive: page.url.startsWith("/scheduled_service"),
       icon: CalendarDays,
+      requires: ["admin", "woc", "vendor"], // Only admin
+    },
+    {
+      name: "Invoices",
+      url: route("invoices.index"),
+      isActive: page.url.startsWith("/work_order/invoices"),
+      icon: Files,
+      requires: ["admin", "woc", "vendor"], // Only admin
     },
     {
       name: "Vendors",
       url: route("vendors.index"),
       isActive: page.url.startsWith("/vendors"),
       icon: ContactRound,
+      requires: ["admin", "woc"], // Only admin
     },
     {
       name: "Owners",
       url: route("owners.index"),
       isActive: page.url.startsWith("/owners"),
       icon: Users,
+      requires: ["admin", "woc"], // Only admin
     },
     {
       name: "Tenants",
       url: route("tenants.index"),
       isActive: page.url.startsWith("/tenants"),
       icon: Users,
+      requires: ["admin", "woc"], // Only admin
     },
   ],
   settings: [
@@ -174,6 +173,18 @@ const navs = computed(() => ({
 const activeTeam = ref(data.value.teams[0]);
 const logout = () => {
   router.post(route("logout"));
+};
+
+const canAccess = (requiredRoles) => {
+  // Ensure roles are valid arrays
+  const userRoles = page.props.auth.user.roles || []; // Default to an empty array if undefined
+  requiredRoles = requiredRoles || []; // Default to an empty array if undefined
+
+  // Use filter to find matching roles
+  const matchingRoles = userRoles.filter((role) => requiredRoles.includes(role));
+
+  // Return true if there are any matches, otherwise false
+  return matchingRoles.length > 0;
 };
 
 const mode = useColorMode({ disableTransition: false });
@@ -262,7 +273,7 @@ const mode = useColorMode({ disableTransition: false });
           </SidebarMenu>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in navs.menu2" :key="item.name">
-              <SidebarMenuButton as-child>
+              <SidebarMenuButton as-child v-if="canAccess(item.requires)">
                 <Link
                   :href="item.url"
                   prefetch
@@ -275,7 +286,7 @@ const mode = useColorMode({ disableTransition: false });
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup v-if="page.props.auth.user.roles.includes('admin')">
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in navs.settings" :key="item.name">

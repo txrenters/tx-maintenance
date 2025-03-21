@@ -13,7 +13,7 @@ import OwnerConversation from "./Partials/OwnerConversation.vue";
 import ServiceSchedule from "./Partials/ServiceSchedule.vue";
 import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
-
+import VendorNotes from "./Partials/VendorNotes.vue";
 import {
   ClipboardList,
   MessagesSquare,
@@ -24,6 +24,7 @@ import {
   Paperclip,
   FileText,
   FileDown,
+  NotebookPen,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -85,23 +86,60 @@ const closeWorkOrderForm = useForm({
 
 const activeTab = ref("details");
 const tabButtons = [
-  { name: "details", tooltip: "Details", icon: ClipboardList },
-  { name: "tasks", tooltip: "Tasks", icon: ListChecks },
-  { name: "vendor_conversation", tooltip: "Vendor and Tenant Conversation", icon: "VOT" },
+  {
+    name: "details",
+    tooltip: "Details",
+    icon: ClipboardList,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "tasks",
+    tooltip: "Tasks",
+    icon: ListChecks,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "vendor_notes",
+    tooltip: "Vendor Notes",
+    icon: NotebookPen,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "vendor_conversation",
+    tooltip: "Vendor and Tenant Conversation",
+    icon: "VOT",
+    requires: ["admin", "woc", "vendor"],
+  },
   {
     name: "owner_conversation",
     tooltip: "Owner and WOC Conversation",
     icon: MessageSquareText,
+    requires: ["admin", "woc", "owner"],
   },
   {
     name: "tenant_conversation",
     tooltip: "Tenant and WOC Conversation",
     icon: MessageSquareShare,
+    requires: ["admin", "woc", "tenant"],
   },
-  { name: "service_schedule", tooltip: "Service Schedule", icon: Calendar },
-  { name: "attachments", tooltip: "Attachments", icon: Paperclip },
-  { name: "invoices", tooltip: "Invoice", icon: FileText },
-  { name: "reports", tooltip: "Reports", icon: FileDown },
+  {
+    name: "service_schedule",
+    tooltip: "Service Schedule",
+    icon: Calendar,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "attachments",
+    tooltip: "Attachments",
+    icon: Paperclip,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "invoices",
+    tooltip: "Invoice",
+    icon: FileText,
+    requires: ["admin", "woc", "vendor"],
+  },
 ];
 
 const switchTab = (tabName) => {
@@ -138,6 +176,10 @@ const switchTab = (tabName) => {
 
   if (activeTab.value === "invoices" && workOrderForm.id) {
     fetchInvoices(workOrderForm.id);
+  }
+
+  if (activeTab.value === "vendor_notes" && workOrderForm.id) {
+    fetchVendorNotes(workOrderForm.id);
   }
 };
 
@@ -248,6 +290,20 @@ const fetchInvoices = async (workOrderId) => {
     isLoading.value = true;
     const response = await axios.get(route("api.invoices.index", workOrderId));
     workOrderInvoices.value = response.data.invoices;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+const workOrderNotes = ref([]);
+const fetchVendorNotes = async (workOrderId) => {
+  try {
+    console.log(workOrderId);
+
+    isLoading.value = true;
+    const response = await axios.get(route("api.vendor_notes.show", workOrderId));
+    workOrderNotes.value = response.data.vendor_notes;
   } catch (error) {
     console.error("Error fetching tasks:", error);
   } finally {
@@ -540,6 +596,14 @@ usePoll(5000, { only: ["service_status"] });
         :isLoading="isLoading"
         @fetch-invoices="fetchInvoices(workOrderForm.id)"
         v-if="activeTab === 'invoices'"
+      />
+
+      <VendorNotes
+        :workOrderNotes="workOrderNotes"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        @fetch-notes="fetchVendorNotes(workOrderForm.id)"
+        v-if="activeTab === 'vendor_notes'"
       />
     </DialogContent>
   </Dialog>

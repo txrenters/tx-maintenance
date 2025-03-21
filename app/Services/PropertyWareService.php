@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Vendor;
+use App\Models\WorkOrder;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -366,7 +367,6 @@ class PropertyWareService
 
     public function changeServiceStatusPropertyWare($workOrder, $servicestatusData)
     {
-
         $workorderId = $workOrder->propertyware_id;
         $portfolioId = (int)$workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
@@ -527,6 +527,142 @@ class PropertyWareService
             Log::info(`Work order  {$workOrder->work_order_no} vendors successfully changed.`);
 
             return true;
+    }
+
+    public function addVendorNotes($notes)
+    {
+        
+        $workOrder = WorkOrder::find($notes->work_order_id);
+
+        $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                <ser:attachNoteToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                <note xsi:type="urn:Note" xmlns:urn="urn:PWServices">
+                <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
+                soapenc:arrayType="urn:ClientDataItem[]"
+                xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
+                <body xsi:type="xsd:string">'.$notes->description.'</body>
+                <date xsi:type="xsd:dateTime">'.date('Y-m-d').'</date>
+                <private xsi:type="xsd:boolean">0</private>
+                <subject xsi:type="xsd:string">'.$notes->title.'</subject>
+
+                </note>
+                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
+                soapenc:arrayType="urn:ClientDataItem[]"
+                xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
+                <ID xsi:type="xsd:long">' . $workOrder->propertyware_id . '</ID>
+                </workOrder>
+                </ser:attachNoteToWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
+            // Initialize cURL
+            $curl = curl_init();
+
+            // Set cURL options
+            curl_setopt_array($curl, [
+                CURLOPT_URL => $this->url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $xmlPayload,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: text/xml',
+                    'SOAPAction: ""', // Empty SOAPAction header
+                ],
+                CURLOPT_USERPWD => $this->username . ':' . $this->password,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+            // Execute the cURL request
+            $response = curl_exec($curl);
+
+            if (curl_errno($curl)) {
+                Log::error('cURL error: ' . curl_error($curl));
+                return false;
+            }
+
+            // Close cURL
+            curl_close($curl);
+
+            Log::info("Work order notes added successfully in the propertyware .");
+
+            return true;
+
+    }
+
+    public function addVedorAttachment()
+    {
+        $workorderId = $workOrder->_id;
+        $fileContents  = file_get_contents('uploads/WorkOrderFiles/' . $workOrder->number . '/' . $fileName);
+        $fileData = base64_encode($fileContents); // Read the document content and encode it as base64
+        //dd($fileData);
+
+        $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+        xmlns:ser="http://service.web.propertyware.realpage.com"
+        xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+        <soapenv:Header/>
+        <soapenv:Body>
+            <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+            <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
+                <ID xsi:type="xsd:long">0</ID>
+                <description xsi:type="xsd:string">Document description</description>
+                <fileData xsi:type="xsd:string">' . $fileData . '</fileData>
+                <filename xsi:type="xsd:string">'.$request->title.'.'.explode("/",$fileType)[1].'</filename>
+                <privateFile xsi:type="xsd:boolean">false</privateFile>
+                <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
+                <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
+            </document>
+            <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                <!-- Include other work order properties here -->
+            </workOrder>
+            </ser:attachDocumentToWorkOrder>
+        </soapenv:Body>
+        </soapenv:Envelope>';
+
+
+
+        // Initialize cURL
+        $curl = curl_init();
+
+        // Set cURL options
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $this->url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $xmlPayload,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: text/xml',
+                'SOAPAction: ""', // Empty SOAPAction header
+            ],
+            CURLOPT_USERPWD => $this->username . ':' . $this->password,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_VERBOSE => true,
+        ]);
+
+        // Execute the cURL request
+        $response = curl_exec($curl);
+
+        // Check for errors
+        if (curl_errno($curl)) {
+            $error = curl_error($curl);
+            // Handle the error
+            return  'cURL Error: ' . $error;
+        }
+
+        // Close cURL
+        curl_close($curl);
+
     }
     public function iniate()
     {
