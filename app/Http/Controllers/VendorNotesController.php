@@ -17,7 +17,7 @@ class VendorNotesController extends Controller
      */
     public function getNotes(WorkOrder $workOrder)
     {
-        $workOrder->load(['vendor_notes.vendor']);
+        $workOrder->load(['vendors','vendor_notes.vendor']);
     
         return response()->json($workOrder, 200);
     }
@@ -48,6 +48,46 @@ class VendorNotesController extends Controller
             
         } catch (\Exception $th) {
             //throw $th;
+            DB::rollBack();
+            Log::error('Vendor notes failed: '. $th->getMessage());
+        }
+
+        return redirect()->back();
+    }
+
+    public function update(Request $request)
+    {
+        $validatedData = $request->validate([
+            'cost_estimate' => 'required',
+            'time_estimate' => 'nullable',
+            'scheduled_end_date' => 'nullable',
+            'work_order_id' => 'required|exists:work_orders,id',
+        ]);
+
+        $user = User::with('vendor')->find(auth()->id());
+        $vendorId = $user->vendor->id;
+
+        $propertywareServices = new PropertyWareService();
+
+        DB::beginTransaction();
+        try {
+
+            $workOrder = WorkOrder::find($request->work_order_id);
+
+            $workOrder->vendors()->updateExistingPivot($vendorId, [
+                'cost_estimate' => $validatedData['cost_estimate'],
+                'time_estimate' => $validatedData['time_estimate'],
+                'scheduled_end_date' => $validatedData['scheduled_end_date'],
+            ]);
+
+            $note = $propertywareServices->updateWorkOrderDetails($workOrder);
+
+            if($note){
+                DB::commit();
+                Log::info('Work order updated successfully!');
+            }
+            
+        } catch (\Exception $th) {
             DB::rollBack();
             Log::error('Vendor notes failed: '. $th->getMessage());
         }

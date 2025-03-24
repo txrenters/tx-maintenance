@@ -34,14 +34,17 @@ class ImportWorkOrderJob implements ShouldQueue
             foreach ($workOrderChunk as $order) {
                 $data = (array)$order;
 
-                // Process tenant and user
-                $tenant = $this->processTenantAndUser($data);
+                if($data['ID']){
+                    // Process tenant and user
+                    $tenant = $this->processTenantAndUser($data);
 
-                // Process owner and user
-                $owner = $this->processOwnerAndUser($data);
+                    // Process owner and user
+                    $owner = $this->processOwnerAndUser($data);
 
-                // Process work order and related data
-                $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+                    // Process work order and related data
+                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+                }
+                
             }
         }
 
@@ -192,6 +195,7 @@ class ImportWorkOrderJob implements ShouldQueue
             $work_order_propertyware_id = $data['ID'] ?? null;
             $woc = User::role('woc')->first();
 
+           
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
@@ -243,10 +247,13 @@ class ImportWorkOrderJob implements ShouldQueue
             if(!empty($data['customFields']) && is_array($data['customFields'])){
                 foreach ($data['customFields'] as $customField) {
                     if ($customField['fieldName'] == 'Service Status') {
-                        $service_status_id =  DB::table('service_status')->where('name', $customField['value'] ?? null)->value('id');
-                        if($service_status_id) {
-                            $work_order_data['service_status_id'] = $service_status_id ?? 1;
-                        }
+
+                        $service_status_id =  DB::table('service_status')
+                            ->whereLike('name','%' . ($customField['value'] ?? '') . '%')
+                            ->value('id');
+
+                        $work_order_data['service_status_id'] = $service_status_id ?? 1;
+
                     } else if ($customField['fieldName'] == 'Zone') {
                         $work_order_data['zone'] = $customField['value'] ?? '';
                     } else if ($customField['fieldName'] == 'Additional work needed- Reschedule') {

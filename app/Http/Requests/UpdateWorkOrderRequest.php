@@ -27,7 +27,6 @@ class UpdateWorkOrderRequest extends FormRequest
             'cost_estimate' => 'nullable|numeric',
             'hour_estimate' => 'nullable|numeric',
             'zone' => 'nullable|string',
-            'end_date' => 'nullable|date',
             'management_plan' => 'nullable|string',
             'closing_comments' => 'nullable|string',
             'is_emergency' => 'string',

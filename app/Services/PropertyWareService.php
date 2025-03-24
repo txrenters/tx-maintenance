@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -72,23 +73,6 @@ class PropertyWareService
 
     }
 
-
-    public function getWorkOrderByNumber($workOrder)
-    {
-        try {
-            $client = $this->iniate();
-            $criteria = $client->getWorkOrderSearchCriteria();
-
-            return json_decode(json_encode($criteria), true);
-
-        return 'No work order found';
-
-        } catch (Exception $e) {
-            Log::error('SOAP request failed: ' . $e->getMessage());
-            return 'Error: ' . $e->getMessage();
-        }
-    }
-
     public function getOwners()
     {
         try {
@@ -151,8 +135,7 @@ class PropertyWareService
                             </portfolio>
                             <location xsi:type="xsd:string">' . htmlspecialchars($work_order->location, ENT_XML1, 'UTF-8') . '</location>
                             <category xsi:type="xsd:string">' . htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8') . '</category>
-                            <costEstimate xsi:type="xsd:double">' . (float) ($data['cost_estimate'] ?? 0) . '</costEstimate>
-                            <hourEstimate xsi:type="xsd:double">' . (float) ($data['hour_estimate'] ?? 0) . '</hourEstimate>
+                          
                             <closingComments xsi:type="xsd:string">' . htmlspecialchars($data['closing_comments'] ?? '', ENT_XML1, 'UTF-8') . '</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -174,31 +157,23 @@ class PropertyWareService
                 </soapenv:Body>
                 </soapenv:Envelope>';
             
-            // Remove unnecessary whitespace for cleaner request
-            $xmlPayload = trim(str_replace(["\n", "\r"], '', $xmlPayload));
-            
-            // Initialize cURL
-            $curl = curl_init();            
+            // Execute SOAP request
+            $response = $this->execute($xmlPayload);
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
+            // Log and return response status
+            if ($response) {
+                Log::info('Updating work order is successfully!', [
+                    'workOrderId' => $work_order->work_order_no,
+                ]);
+                return true;
+            }
+
+            Log::error('Updating work order failed!', [
+                'workOrderId' => $work_order->work_order_no,
             ]);
 
-            // Execute the cURL request
-            $response = curl_exec($curl);
-
-            Log::info("Updating work order successful: " . json_encode($response));
+            
+            return false;
             
         } catch (Exception $e) {
             Log::error('Updating work order failed: ' . $e->getMessage());
@@ -247,37 +222,23 @@ class PropertyWareService
                     </soapenv:Envelope>
                 ';
 
-            // Initialize cURL
-            $curl = curl_init();
+            $response = $this->execute($xmlPayload);
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
+            // Log and return response status
+            if ($response) {
+                Log::info('Work order service status has been closed successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+                return true;
+            }
+
+            Log::error('Work order service status has been closed failed!', [
+                'workOrderId' => $workOrder->work_order_no,
+
             ]);
 
-            // Execute the cURL request
-            $response = curl_exec($curl);
-
-            if (curl_errno($curl)) {
-                Log::error('cURL error: ' . curl_error($curl));
-                return false;
-            }
-            // Close cURL
-            curl_close($curl);
-
-            Log::info("Work order {$workOrder->work_order_no} successfully closed.");
-
-            return true;
+            
+            return false;
         } catch (\Exception $exception) {
             return false;
             Log::error('Closing work order failed: '.$exception);
@@ -325,38 +286,23 @@ class PropertyWareService
                     </soapenv:Envelope>
                 ';
 
-            // Initialize cURL
-            $curl = curl_init();
+            $response = $this->execute($xmlPayload);
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ]);
-
-           // Execute the cURL request
-            $response = curl_exec($curl);
-
-            if (curl_errno($curl)) {
-                Log::error('cURL error: ' . curl_error($curl));
-                return false;
+            // Log and return response status
+            if ($response) {
+                Log::info('Work order service status has been reopen successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+                return true;
             }
 
-            // Close cURL
-            curl_close($curl);
+            Log::error('Work order service status has been reopen failed!', [
+                'workOrderId' => $workOrder->work_order_no,
 
-            Log::info("Work order {$workOrder->work_order_no} successfully reopened.");
+            ]);
 
-            return true;
+            
+            return false;
 
         } catch (\Exception $exception) {
             Log::error('Re-opening work order failed: '.$exception);
@@ -402,38 +348,23 @@ class PropertyWareService
                 </soapenv:Body>
                 </soapenv:Envelope>';
 
-            // Initialize cURL
-            $curl = curl_init();
+            $response = $this->execute($xmlPayload);
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ]);
-
-           // Execute the cURL request
-            $response = curl_exec($curl);
-
-            if (curl_errno($curl)) {
-                Log::error('cURL error: ' . curl_error($curl));
-                return false;
+            // Log and return response status
+            if ($response) {
+                Log::info('Work order service status has been changed successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+                return true;
             }
 
-            // Close cURL
-            curl_close($curl);
+            Log::error('Work order service status changed failed!', [
+                'workOrderId' => $workOrder->work_order_no,
 
-            Log::info(`Work order {$workOrder->work_order_no} service status successfully changed.`);
+            ]);
 
-            return true;
+            
+            return false;
 
     }
 
@@ -495,38 +426,22 @@ class PropertyWareService
                     </soapenv:Body>
                 </soapenv:Envelope>';
 
-            // Initialize cURL
-            $curl = curl_init();
+            // Execute SOAP request
+            $response = $this->execute($xmlPayload);
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ]);
-
-           // Execute the cURL request
-            $response = curl_exec($curl);
-
-            if (curl_errno($curl)) {
-                Log::error('cURL error: ' . curl_error($curl));
-                return false;
+            // Log and return response status
+            if ($response) {
+                Log::info('Work order vendor has been added successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+                return true;
             }
 
-            // Close cURL
-            curl_close($curl);
-
-            Log::info(`Work order  {$workOrder->work_order_no} vendors successfully changed.`);
-
-            return true;
+            Log::error('Work order vendor added failed!', [
+                'workOrderId' => $workOrder->work_order_no,
+            ]);
+            
+            return false;
     }
 
     public function addVendorNotes($notes)
@@ -535,103 +450,218 @@ class PropertyWareService
         $workOrder = WorkOrder::find($notes->work_order_id);
 
         $xmlPayload = '
-                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+            xmlns:ser="http://service.web.propertyware.realpage.com"
+            xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+            <soapenv:Header/>
+            <soapenv:Body>
+            <ser:attachNoteToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+            <note xsi:type="urn:Note" xmlns:urn="urn:PWServices">
+            <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
+            soapenc:arrayType="urn:ClientDataItem[]"
+            xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
+            <body xsi:type="xsd:string">'.$notes->description.'</body>
+            <date xsi:type="xsd:dateTime">'.date('Y-m-d').'</date>
+            <private xsi:type="xsd:boolean">0</private>
+            <subject xsi:type="xsd:string">'.$notes->title.'</subject>
+
+            </note>
+            <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+            <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
+            soapenc:arrayType="urn:ClientDataItem[]"
+            xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
+            <ID xsi:type="xsd:long">' . $workOrder->propertyware_id . '</ID>
+            </workOrder>
+            </ser:attachNoteToWorkOrder>
+            </soapenv:Body>
+            </soapenv:Envelope>';
+
+            $response = $this->execute($xmlPayload);
+
+             // Log and return response status
+             if ($response) {
+                Log::info('Vendor notes has been added successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+                return true;
+            }
+
+            Log::error('Vendor attachment upload failed!', [
+                'workOrderId' => $workOrder->work_order_no,
+            ]);
+
+            return false;
+
+    }
+
+    public function uploadVendorAttachment($workOrderId, $attachments)
+    {
+        try {
+
+            if (!$attachments || !$workOrderId) {
+                throw new \Exception('Invalid work order ID or attachments.');
+            }
+
+            $workorder = WorkOrder::find($workOrderId);
+            if (!$workorder) {
+                throw new \Exception('Work order not found.');
+            }
+            $workorderId = $workorder->propertyware_id;
+
+            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $attachments->filename);
+
+            $absolutePath = public_path('storage/attachments/' . basename($attachments->filename));
+
+            if (!file_exists($absolutePath)) {
+                throw new \Exception('Attachment file does not exist: ' . $absolutePath);
+            }
+            $fileContents = file_get_contents($absolutePath);
+            $fileData = base64_encode($fileContents);
+
+            // Sanitize and construct filename
+            $title = $attachments->title;
+            $filePath = $attachments->filename;
+
+            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+            $sanitizedTitle = preg_replace('/[^a-zA-Z0-9-_]/', '_', $title);
+            $filename = $sanitizedTitle . '_' . uniqid() . '.' . $fileExtension;
+
+            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                 xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
                 xmlns:ser="http://service.web.propertyware.realpage.com"
                 xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
                 <soapenv:Header/>
                 <soapenv:Body>
-                <ser:attachNoteToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                <note xsi:type="urn:Note" xmlns:urn="urn:PWServices">
-                <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
-                soapenc:arrayType="urn:ClientDataItem[]"
-                xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
-                <body xsi:type="xsd:string">'.$notes->description.'</body>
-                <date xsi:type="xsd:dateTime">'.date('Y-m-d').'</date>
-                <private xsi:type="xsd:boolean">0</private>
-                <subject xsi:type="xsd:string">'.$notes->title.'</subject>
-
-                </note>
-                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
-                soapenc:arrayType="urn:ClientDataItem[]"
-                xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
-                <ID xsi:type="xsd:long">' . $workOrder->propertyware_id . '</ID>
-                </workOrder>
-                </ser:attachNoteToWorkOrder>
+                    <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
+                        <ID xsi:type="xsd:long">0</ID>
+                        <description xsi:type="xsd:string">'.$attachments->title.'</description>
+                        <fileData xsi:type="xsd:string">' . $fileData . '</fileData>
+                        <filename xsi:type="xsd:string">'.$filename.'</filename>
+                        <privateFile xsi:type="xsd:boolean">false</privateFile>
+                        <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
+                        <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
+                    </document>
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                        <!-- Include other work order properties here -->
+                    </workOrder>
+                    </ser:attachDocumentToWorkOrder>
                 </soapenv:Body>
                 </soapenv:Envelope>';
-            // Initialize cURL
-            $curl = curl_init();
 
-            // Set cURL options
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $this->url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $xmlPayload,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: text/xml',
-                    'SOAPAction: ""', // Empty SOAPAction header
-                ],
-                CURLOPT_USERPWD => $this->username . ':' . $this->password,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ]);
 
-            // Execute the cURL request
-            $response = curl_exec($curl);
+            // Execute SOAP request
+            $response = $this->execute($xmlPayload);
 
-            if (curl_errno($curl)) {
-                Log::error('cURL error: ' . curl_error($curl));
-                return false;
+            // Log and return response status
+            if ($response) {
+                Log::info('Vendor attachment has been uploaded successfully!', [
+                    'workOrderId' => $workOrderId,
+                    'filename' => $filename,
+                ]);
+                return true;
             }
 
-            // Close cURL
-            curl_close($curl);
+            Log::error('Vendor attachment upload failed!', [
+                'workOrderId' => $workOrderId,
+                'filename' => $filename,
+            ]);
 
-            Log::info("Work order notes added successfully in the propertyware .");
-
-            return true;
-
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error in uploadVendorAttachment: ' . $e->getMessage(), [
+                'workOrderId' => $workOrderId,
+                'filename' => $attachments->filename ?? 'N/A',
+            ]);
+            return false;
+        }
     }
 
-    public function addVedorAttachment()
+    public function updateWorkOrderDetails($workOrder)
     {
-        $workorderId = $workOrder->_id;
-        $fileContents  = file_get_contents('uploads/WorkOrderFiles/' . $workOrder->number . '/' . $fileName);
-        $fileData = base64_encode($fileContents); // Read the document content and encode it as base64
-        //dd($fileData);
+        $cost_etimate = 0;
+        $time_estimate = 0;
+        $scheduled_end_date = null;
 
-        $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-        xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-        xmlns:ser="http://service.web.propertyware.realpage.com"
-        xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-        <soapenv:Header/>
-        <soapenv:Body>
-            <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-            <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
-                <ID xsi:type="xsd:long">0</ID>
-                <description xsi:type="xsd:string">Document description</description>
-                <fileData xsi:type="xsd:string">' . $fileData . '</fileData>
-                <filename xsi:type="xsd:string">'.$request->title.'.'.explode("/",$fileType)[1].'</filename>
-                <privateFile xsi:type="xsd:boolean">false</privateFile>
-                <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
-                <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
-            </document>
-            <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                <ID xsi:type="xsd:long">' . $workorderId . '</ID>
-                <!-- Include other work order properties here -->
-            </workOrder>
-            </ser:attachDocumentToWorkOrder>
-        </soapenv:Body>
-        </soapenv:Envelope>';
+        try {
+            if (!$workOrder) {
+                throw new \Exception('Work order not found.');
+            }
+            $workOrder = WorkOrder::with('vendors')->find($workOrder->id);
+
+            $workorderId = $workOrder->propertyware_id;
+
+            foreach($workOrder->vendors as $vendor){
+                $cost_etimate += $vendor->pivot->cost_estimate;
+                $time_estimate += $vendor->pivot->time_estimate;
+
+                if ($vendor->pivot->scheduled_end_date) {
+                    $current_date = Carbon::parse($vendor->pivot->scheduled_end_date);
+            
+                    if (!$scheduled_end_date || $current_date->gt($scheduled_end_date)) {
+                        $scheduled_end_date = $current_date;
+                    }
+                }
+            }
+
+            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                        <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">' . (int)$workOrder->building_id . '</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                            <ID xsi:type="xsd:long">' . (int)$workOrder->portfolio_id . '</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">' . htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8') . '</location>
+                        <costEstimate xsi:type="xsd:double">' . (float) ($cost_etimate ?? 0) . '</costEstimate>
+                        <hourEstimate xsi:type="xsd:double">' . (float) ($time_estimate ?? 0) . '</hourEstimate>
+                        <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
+                    </workOrder>
+                </ser:updateWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
 
 
+            // Execute SOAP request
+            $response = $this->execute($xmlPayload);
 
-        // Initialize cURL
+            // Log and return response status
+            if ($response) {
+                Log::info('Vendor updating work order details has been successfully!', [
+                    'workOrderId' => $workorderId,
+                ]);
+                return true;
+            }
+
+            Log::error('Vendor updating work order failed!', [
+                'workOrderId' => $workorderId,
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error in updating work order: ' . $e->getMessage(), [
+                'workOrderId' => $workorderId,
+            ]);
+            
+            return false;
+        }
+    }
+
+    public function execute($xmlPayload)
+    {
+            // Initialize cURL
         $curl = curl_init();
 
         // Set cURL options
@@ -650,20 +680,22 @@ class PropertyWareService
             CURLOPT_VERBOSE => true,
         ]);
 
-        // Execute the cURL request
         $response = curl_exec($curl);
 
-        // Check for errors
+        Log::info('API Response:', [
+            'response' => $response,
+        ]);
+
         if (curl_errno($curl)) {
-            $error = curl_error($curl);
-            // Handle the error
-            return  'cURL Error: ' . $error;
+            Log::error('cURL error: ' . curl_error($curl));
+            return false;
         }
 
-        // Close cURL
         curl_close($curl);
 
+        return true;
     }
+
     public function iniate()
     {
             $options = array(

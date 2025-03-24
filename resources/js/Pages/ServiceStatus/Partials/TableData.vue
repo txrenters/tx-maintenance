@@ -31,21 +31,20 @@ const openDeleteDialog = (data) => {
         </TableCell>
         <TableCell class="hidden md:table-cell"> {{ status.description }} </TableCell>
         <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button aria-haspopup="true" size="icon" variant="ghost">
-                <MoreHorizontal class="h-4 w-4" />
-                <span class="sr-only">Toggle menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem @click="openEditDialog(status)">Edit</DropdownMenuItem>
-              <DropdownMenuItem @click="openDeleteDialog(status)"
-                >Delete</DropdownMenuItem
-              >
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div class="flex gap-3">
+            <Button
+              variant="link"
+              class="hover:text-primary p-0"
+              @click="openEditDialog(status)"
+              ><SquarePen
+            /></Button>
+            <Button
+              variant="link"
+              class="hover:text-red-500 p-0"
+              @click="openDeleteDialog(status)"
+              ><Trash2
+            /></Button>
+          </div>
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">

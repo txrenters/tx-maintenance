@@ -3,6 +3,9 @@ import { computed } from "vue";
 import { Head, Link, useForm } from "@inertiajs/vue3";
 import AuthenticationCard from "@/Components/AuthenticationCard.vue";
 import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
+import AuthLayout from "@/Layouts/AuthLayout.vue";
+
+defineOptions({ layout: AuthLayout });
 
 const props = defineProps({
   status: String,

@@ -42,7 +42,7 @@ class SyncWorkOrderDetails implements ShouldQueue
             'approved_date' => $this->parseDate($this->data['approvedDate'] ?? null),
             'authorized_to_enter' => $this->data['authorizedToEnter'] ?? null,
             'category' => $this->data['category'] ?? null,
-            'closing_comments' => $this->data['closingComments'] ?? null,
+            'closing_comments' => $this->data['closingComments'] ?? '',
             'completed_date' => $this->parseDate($this->data['completedDate'] ?? null),
             'cost_estimate' => $this->data['costEstimate'] ?? null,
             'created_date' => $this->parseDate($this->data['createdDate'] ?? null),

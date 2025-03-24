@@ -14,6 +14,8 @@ import ServiceSchedule from "./Partials/ServiceSchedule.vue";
 import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
 import VendorNotes from "./Partials/VendorNotes.vue";
+import VendorEdit from "./Partials/VendorEdit.vue";
+
 import {
   ClipboardList,
   MessagesSquare,
@@ -25,6 +27,7 @@ import {
   FileText,
   FileDown,
   NotebookPen,
+  Notebook,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -101,6 +104,12 @@ const tabButtons = [
   {
     name: "vendor_notes",
     tooltip: "Vendor Notes",
+    icon: Notebook,
+    requires: ["admin", "woc", "vendor"],
+  },
+  {
+    name: "vendor_edit",
+    tooltip: "Vendor Edit",
     icon: NotebookPen,
     requires: ["admin", "woc", "vendor"],
   },
@@ -180,6 +189,10 @@ const switchTab = (tabName) => {
 
   if (activeTab.value === "vendor_notes" && workOrderForm.id) {
     fetchVendorNotes(workOrderForm.id);
+  }
+
+  if (activeTab.value === "vendor_edit" && workOrderForm.id) {
+    fetchVendors(workOrderForm.id);
   }
 };
 
@@ -299,11 +312,23 @@ const fetchInvoices = async (workOrderId) => {
 const workOrderNotes = ref([]);
 const fetchVendorNotes = async (workOrderId) => {
   try {
-    console.log(workOrderId);
-
     isLoading.value = true;
     const response = await axios.get(route("api.vendor_notes.show", workOrderId));
+
     workOrderNotes.value = response.data.vendor_notes;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const workOrderVendorData = ref([]);
+const fetchVendors = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(route("api.vendor_notes.show", workOrderId));
+    workOrderVendorData.value = response.data.vendors;
   } catch (error) {
     console.error("Error fetching tasks:", error);
   } finally {
@@ -604,6 +629,14 @@ usePoll(5000, { only: ["service_status"] });
         :isLoading="isLoading"
         @fetch-notes="fetchVendorNotes(workOrderForm.id)"
         v-if="activeTab === 'vendor_notes'"
+      />
+
+      <VendorEdit
+        :workOrderVendorData="workOrderVendorData"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        @fetch-vendor="fetchVendors(workOrderForm.id)"
+        v-if="activeTab === 'vendor_edit'"
       />
     </DialogContent>
   </Dialog>

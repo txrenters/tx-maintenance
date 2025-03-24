@@ -42,6 +42,7 @@ const editForm = useForm({
   company: "",
   website: "",
   address: "",
+  password: "",
   role_id: "",
 });
 
@@ -143,6 +144,12 @@ const handleAlertDialog = (open, user) => {
   isDeleteDialogOpen.value = open;
   setDeleteForm(user);
 };
+
+const handleDialogOpenChange = () => {
+  setTimeout(() => {
+    document.body.style.pointerEvents = "";
+  }, 100);
+};
 </script>
 <template>
   <Head :title="title" />
@@ -187,7 +194,9 @@ const handleAlertDialog = (open, user) => {
           <Label for="name">Name </Label>
           <Input type="text" class="mt-2" v-model="form.name" />
           <Label class="mt-1 text-destructive text-xs">{{ form.errors.name }}</Label>
-          <p class="text-xs mt-1">Note: Password will be the same as the email.</p>
+          <p class="text-xs mt-1">
+            Note: The password will be set to match the email address.
+          </p>
         </div>
         <div class="flex gap-3">
           <div class="mb-3 w-full">
@@ -301,7 +310,14 @@ const handleAlertDialog = (open, user) => {
             }}</Label>
           </div>
         </div>
-
+        <div class="mb-3 w-full">
+          <Label for="code">Change Password</Label>
+          <Input type="text" class="mt-2" v-model="editForm.password" />
+          <Label class="mt-1 text-destructive text-xs">{{
+            editForm.errors.password
+          }}</Label>
+          <p class="text-xs mt-1">Note: If leave blank, password will not change.</p>
+        </div>
         <div class="mb-3">
           <Label for="roles" class="mb-2">Roles</Label>
           <Select class="mt-2" v-model="editForm.role_id">

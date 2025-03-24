@@ -94,7 +94,7 @@ const navs = computed(() => ({
   menu2: [
     {
       name: "Tasks",
-      url: "#",
+      url: route("tasks.index"),
       isActive: page.url.startsWith("/tasks"),
       icon: ClipboardList,
       requires: ["admin", "woc", "vendor"], // Only admin

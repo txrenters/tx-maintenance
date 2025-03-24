@@ -10,6 +10,7 @@ use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceStatusController;
+use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioPhoneNumberController;
@@ -62,6 +63,8 @@ Route::middleware([
 
     Route::get('/scheduled_service', [CalendarController::class, 'index'])->name('scheduled_service');
 
+    Route::resource('/tasks',ControllersTaskController::class);
+
     Route::get('/tasks/{workOrder}/work_order_task',[TaskController::class, 'tasks'])->name('api.work_order.tasks');
 
     Route::get('/attachments/{workOrder}',[AttachmentsController::class, 'show'])->name('api.attachments.show');
@@ -79,6 +82,8 @@ Route::middleware([
     Route::get('/vendor_notes/{workOrder}/show',[VendorNotesController::class, 'getNotes'])->name('api.vendor_notes.show');
     Route::post('/vendor_notes',[VendorNotesController::class, 'store'])->name('api.vendor_notes.store');
     Route::delete('/vendor_notes/{vendorNotes}/',[VendorNotesController::class, 'destroy'])->name('api.vendor_notes.destroy');
+
+    Route::post('/vendor_work_order_details',[VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
 
 });
 

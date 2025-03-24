@@ -4,8 +4,6 @@ const animate = require("tailwindcss-animate")
 module.exports = {
 	darkMode: ["class"],
 	safelist: ["dark"],
-	prefix: "",
-
 	content: [
 		"./vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php",
 		"./storage/framework/views/*.php",

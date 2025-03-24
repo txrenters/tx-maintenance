@@ -77,6 +77,9 @@ class WorkOrderController extends Controller
         $validatedData = $request->validated();
         
         try {
+
+            $validatedData['is_emergency'] = $request->is_emergency == 'Emergency';
+
             UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
     
             Log::info('Work Order Update Dispatched', ['work_order_id' => $workOrder->id]);

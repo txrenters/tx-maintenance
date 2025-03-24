@@ -5,7 +5,10 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Attachments;
 use App\Models\WorkOrder;
+use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class AttachmentsController extends Controller
@@ -14,7 +17,7 @@ class AttachmentsController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-    {        
+    {
         $validatedData = $request->validate([
             'title' => 'required',
             'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:2048',
@@ -23,18 +26,33 @@ class AttachmentsController extends Controller
         ]);
 
         $validatedData['user_id'] = auth()->id();
-        $validatedData['created_at'] = !isset($request->date) ? now() : $request->date;
+        $validatedData['created_at'] = $request->date ?? now();
 
-        if($request->hasFile('filename')){
+        if ($request->hasFile('filename')) {
             $file = $request->file('filename');
             $validatedData['filename'] = $file->store('attachments', 'public');
             $validatedData['filetype'] = $file->getMimeType();
         }
 
-        Attachments::create($validatedData);
+        $attachment = Attachments::create($validatedData);
 
-        return redirect()->back();
+        DB::beginTransaction();
+        try {
+            $propertyware = new PropertyWareService();
+            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $attachment);
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error('Failed to upload vendor attachments: ' . $th->getMessage(), [
+                'work_order_id' => $validatedData['work_order_id'],
+                'attachment_id' => $attachment->id ?? null,
+            ]);
+            return redirect()->back()->withErrors(['error' => 'Failed to upload vendor attachments.']);
+        }
+
+        return redirect()->back()->with('success', 'Attachment uploaded successfully.');
     }
+
 
     /**
      * Display the specified resource.

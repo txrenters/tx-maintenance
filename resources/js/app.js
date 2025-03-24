@@ -21,7 +21,7 @@ import Pagination from '@/Components/Pagination.vue';
 import PaginationResultRange from '@/Components/PaginationResultRange.vue';
 import SearchBar from '@/Components/SearchBar.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlusCircle, Loader2, MoreHorizontal, Delete } from "lucide-vue-next";
+import { PlusCircle, Loader2, MoreHorizontal, Delete,SquarePen,Trash2 } from "lucide-vue-next";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -142,12 +142,14 @@ createInertiaApp({
             .component("Badge", Badge)
             .component("Loader2", Loader2)
             .component("Delete", Delete)
+            .component("SquarePen", SquarePen)
+            .component("Trash2", Trash2)
+            .component("PlusCircle", PlusCircle)
+            .component("MoreHorizontal", MoreHorizontal)
             .component("Checkbox", Checkbox)
             .component("Textarea", Textarea)
             .component("Switch", Switch)
             .component("Toaster", Toaster)
-            .component("PlusCircle", PlusCircle)
-            .component("MoreHorizontal", MoreHorizontal)
             .component("Skeleton", Skeleton)
             .component("AlertDialog", AlertDialog)
             .component("AlertDialogAction", AlertDialogAction)

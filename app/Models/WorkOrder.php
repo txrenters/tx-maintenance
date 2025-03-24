@@ -58,7 +58,8 @@ class WorkOrder extends Model
 
     public function vendors(): BelongsToMany
     {
-        return $this->belongsToMany(Vendor::class, 'work_order_vendors');
+        return $this->belongsToMany(Vendor::class, 'work_order_vendors')
+                ->withPivot('cost_estimate', 'time_estimate', 'scheduled_end_date')->withTimestamps();
     }
 
     public function vendor_notes(): HasMany
@@ -106,8 +107,8 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderTask::class)
             ->orderByRaw("
                 CASE 
-                    WHEN status = 'pending' THEN 1
-                    WHEN status = 'processing' THEN 2
+                    WHEN status = 'processing' THEN 1
+                    WHEN status = 'pending' THEN 2
                     WHEN status = 'completed' THEN 3
                 END
             ")

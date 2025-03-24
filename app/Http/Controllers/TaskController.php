@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Http\Requests\StoreTaskRequest;
-use App\Http\Requests\UpdateTaskRequest;
 use App\Models\ServiceStatus;
+use App\Models\TaskDetail;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\TaskService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TaskController extends Controller
@@ -17,9 +18,14 @@ class TaskController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(WorkOrder $workOrder)
+    public function index(Request $request)
     {
-       
+        $tasks = WorkOrderTask::with(['assigned_user','task.taskTemplate'])->get();
+
+        return inertia('Task/Index', [
+            'title' => 'Work Order Task',
+            'tasks' => $tasks,
+        ]);
     }
 
     /**

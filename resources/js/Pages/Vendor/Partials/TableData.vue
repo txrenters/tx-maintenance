@@ -1,4 +1,5 @@
 <script setup>
+import { Phone } from "lucide-vue-next";
 const emit = defineEmits(["isDialogOpen", "statusChanged"]);
 
 defineProps({
@@ -52,20 +53,14 @@ const updateStatus = (checked, vendor) => {
           {{ vendor.address }}
         </TableCell>
         <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button aria-haspopup="true" size="icon" variant="ghost">
-                <MoreHorizontal class="h-4 w-4" />
-                <span class="sr-only">Toggle menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem @click="openEditDialog(vendor)"
-                >Assign a Twilio Number</DropdownMenuItem
-              >
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div class="flex gap-3">
+            <Button
+              variant="link"
+              class="hover:text-primary p-0"
+              @click="openEditDialog(vendor)"
+              ><Phone
+            /></Button>
+          </div>
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">

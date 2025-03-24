@@ -93,16 +93,20 @@ class UserController extends Controller
     {
         Gate::authorize('update_user', $user);
 
-        $request->validated();
+        $validated = $request->validated();
 
         $data = [
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'company' => $request->company,
-            'website' => $request->website,
-            'address' => $request->address,
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'company' => $validated['company'],
+            'website' => $validated['website'],
+            'address' => $validated['address'],
         ];
+
+        if (!empty($validated['password'])) {
+            $data['password'] = bcrypt($request->password);
+        }
 
         DB::transaction(function() use ($data, $user, $request) {
             $user->update($data);

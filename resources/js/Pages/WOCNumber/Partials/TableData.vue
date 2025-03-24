@@ -34,19 +34,20 @@ const openDeleteDialog = (data) => {
           {{ woc.twilio_phone_number }}
         </TableCell>
         <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button aria-haspopup="true" size="icon" variant="ghost">
-                <MoreHorizontal class="h-4 w-4" />
-                <span class="sr-only">Toggle menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem @click="openEditDialog(woc)">Edit</DropdownMenuItem>
-              <DropdownMenuItem @click="openDeleteDialog(woc)">Delete</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div class="flex gap-3">
+            <Button
+              variant="link"
+              class="hover:text-primary p-0"
+              @click="openEditDialog(woc)"
+              ><SquarePen
+            /></Button>
+            <Button
+              variant="link"
+              class="hover:text-red-500 p-0"
+              @click="openDeleteDialog(woc)"
+              ><Trash2
+            /></Button>
+          </div>
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">

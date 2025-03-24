@@ -55,14 +55,21 @@ const formatDate = (date) => {
 
   if (typeof date === "string") {
     if (date.includes("T")) {
-      // Handle ISO format (2025-03-06T17:41:20.000000Z)
+      // Handle ISO format (e.g., 2025-03-06T17:41:20.000000Z)
       parsedDate = DateTime.fromISO(date, { zone: "utc" });
-    } else {
-      // Handle non-ISO format (2025-03-06 23:10:06)
+    } else if (date.includes(":")) {
+      // Handle non-ISO format with time (e.g., 2025-03-06 23:10:06)
       parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", { zone: "utc" });
+    } else {
+      // Handle plain date format (e.g., 2025-03-24)
+      parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
     }
   } else if (date instanceof Date) {
+    // Handle JavaScript Date object
     parsedDate = DateTime.fromJSDate(date);
+  } else if (typeof date === "number") {
+    // Handle UNIX timestamp (e.g., 1672531200 or 1672531200000)
+    parsedDate = DateTime.fromMillis(date > 1e12 ? date : date * 1000);
   } else {
     return "Invalid Date";
   }
@@ -85,6 +92,32 @@ const updateEmergency = () => {
 const vendorChange = () => {
   emit("vendorChanged"); // Emit event to parent
 };
+
+const totalCostEstimate = computed(() => {
+  return props.workOrder?.vendors.reduce((total, vendor) => {
+    return total + parseFloat(vendor.pivot?.cost_estimate || 0);
+  }, 0);
+});
+
+const totalTimeEstimate = computed(() => {
+  return props.workOrder?.vendors.reduce((total, vendor) => {
+    return total + parseInt(vendor.pivot?.time_estimate || 0);
+  }, 0);
+});
+
+const latestScheduledEndDate = computed(() => {
+  return props.workOrder?.vendors.reduce((latestDate, vendor) => {
+    const vendorDate = vendor.pivot?.scheduled_end_date
+      ? new Date(vendor.pivot?.scheduled_end_date)
+      : null;
+
+    if (vendorDate && (!latestDate || vendorDate > latestDate)) {
+      return vendorDate;
+    }
+
+    return latestDate;
+  }, null);
+});
 </script>
 
 <template>
@@ -290,13 +323,13 @@ const vendorChange = () => {
       </div>
 
       <div>
-        <Label for="message">Estimated cost:</Label>
-        <Input type="number" class="mt-1" v-model="workOrder.cost_estimate" />
+        <Label for="message">Estimated cost: </Label>
+        <p>${{ totalCostEstimate }}</p>
       </div>
 
       <div>
         <Label for="message">Estimated Time (Hrs) :</Label>
-        <Input type="number" class="mt-1" v-model="workOrder.hour_estimate" />
+        <p>{{ totalTimeEstimate }}</p>
       </div>
     </div>
 
@@ -308,25 +341,16 @@ const vendorChange = () => {
         </div>
         <div>
           <Label for="message">Scheduled End Date:</Label>
-          <p>{{ formatDate(workOrder.updated_at) }}</p>
+          <p>{{ formatDate(latestScheduledEndDate) }}</p>
         </div>
-        <div>
-          <Label for="message">Zone:</Label>
-          <Input
-            class="mt-1"
-            v-model="workOrder.zone"
-            :disabled="$page.props.auth.user.roles.includes('vendor')"
-          />
-        </div>
-        <div>
-          <Label for="message">End Date:</Label>
-          <VueDatePicker
-            class="mt-1"
-            v-model="workOrder.end_date"
-            :format="format"
-            position="left"
-          />
-        </div>
+      </div>
+      <div class="grid gap-1.5 mt-5">
+        <Label for="message">Zone:</Label>
+        <Input
+          class="mt-1"
+          v-model="workOrder.zone"
+          :disabled="$page.props.auth.user.roles.includes('vendor')"
+        />
       </div>
 
       <div class="grid gap-1.5 mt-5">
@@ -355,7 +379,7 @@ const vendorChange = () => {
           :disabled="$page.props.auth.user.roles.includes('vendor')"
         />
       </div>
-      <div class="grid gap-1.5 mt-5">
+      <div class="grid gap-1.5 mt-5 pb-12">
         <Label>Description:</Label>
         <div class="border mt-2" v-if="workOrder.description">
           <p class="text-sm p-2 rounded">
@@ -365,13 +389,12 @@ const vendorChange = () => {
       </div>
     </div>
   </div>
-  <DialogFooter class="p-6 pt-0">
+  <DialogFooter class="p-6 pt-0" v-if="!$page.props.auth.user.roles.includes('vendor')">
     <Button
       type="submit"
       variant="destructive"
       :disabled="closeWorkOrderForm.processing"
       @click.prevent="handleCloseOrderSubmit"
-      v-if="!$page.props.auth.user.roles.includes('vendor')"
     >
       <Loader2 v-if="closeWorkOrderForm.processing" class="w-4 h-4 animate-spin" />
       Close Work Order

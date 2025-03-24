@@ -65,7 +65,7 @@ const checkDueTask = (tasks) => {
         </div>
 
         <!-- Work Orders List -->
-        <ScrollArea class="h-[600px] overflow-y-auto border-t pt-2 mb-5">
+        <ScrollArea class="h-[70vh] overflow-y-auto border-t pt-2 mb-5">
           <div
             @click="handleWorkOrder(work_order)"
             v-for="work_order in status.work_orders"
