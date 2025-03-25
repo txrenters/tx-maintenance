@@ -36,7 +36,7 @@ const searchTerm = ref("");
 
 const { contains } = useFilter({ sensitivity: "base" }); // this is use for vendors dropdown
 const filteredVendors = computed(() => {
-  const options = props.vendors.filter((i) => !workOrder.vendors.includes(i.name));
+  const options = props.vendors.filter((i) => !props.workOrder.vendors.includes(i.name));
   return searchTerm.value
     ? options.filter((option) => contains(option.name, searchTerm.value))
     : options;
@@ -143,8 +143,9 @@ const latestScheduledEndDate = computed(() => {
           Assign vendor</Button
         >
         <template v-if="workOrder.local_status === 'Updated'">
-          <p v-for="vendor in workOrder.vendors" :key="vendor.id">
-            {{ vendor.name }}
+          <p v-for="vendor in workOrder.vendors" :key="vendor">
+            <span v-if="vendor.id"> {{ vendor.name }}</span>
+            <span v-else> {{ vendor }}</span>
           </p>
           <br />
         </template>

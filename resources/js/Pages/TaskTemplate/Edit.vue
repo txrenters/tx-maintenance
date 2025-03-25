@@ -74,7 +74,6 @@ const submitForm = () => {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
-      form.reset();
       toast({
         title: "Success",
         description: "Task template has been updated successfully!",
@@ -293,6 +292,7 @@ onMounted(() => {
                 <Label>No</Label>
                 <Switch
                   v-model="task.is_mandatory"
+                  :checked="task.is_mandatory === 'Yes'"
                   @update:checked="$event = $event ? 'Yes' : 'No'"
                 />
                 <Label>Yes</Label>

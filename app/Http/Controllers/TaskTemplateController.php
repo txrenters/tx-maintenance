@@ -76,7 +76,7 @@ class TaskTemplateController extends Controller
                 'name' => $request->name,
                 'description' => $request->description,
                 'current_service_status_id' => $request->current_service_status_id,
-                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency' ? true : false,
+                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency',
                 'next_service_status_id' => $request->next_service_status_id,
                 'is_next_service_status_emergency' => $request->is_next_service_status_emergency == 'Emergency' ? true : false,
             ]);
@@ -92,7 +92,7 @@ class TaskTemplateController extends Controller
                     'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
                     'task_template_id' => $taskTemplate->id,
                 ];
-    
+     
                 if (!empty($task['name'])) { // Ensure task name exists before inserting
                     $createdTask = Task::create($taskDate);
                 
@@ -162,16 +162,18 @@ class TaskTemplateController extends Controller
     public function update(UpdateTaskTemplateRequest $request, TaskTemplate $taskTemplate)
     {
         $request->validated();
+
         DB::beginTransaction();
+
         try{
 
            $taskTemplate->update([
                 'name' => $request->name,
                 'description' => $request->description,
-                'current_service_status_id' => $request->current_service_status_id,
-                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency' ? true : false,
-                'next_service_status_id' => $request->next_service_status_id,
-                'is_next_service_status_emergency' => $request->is_next_service_status_emergency == 'Emergency' ? true : false,
+                'current_service_status_id' => (int)$request->current_service_status_id,
+                'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency',
+                'next_service_status_id' => (int)$request->next_service_status_id,
+                'is_next_service_status_emergency' => $request->is_next_service_status_emergency == 'Emergency',
             ]);
 
             Task::where('task_template_id', $taskTemplate->id)->delete();
@@ -179,12 +181,12 @@ class TaskTemplateController extends Controller
             foreach($request->tasks as $task){
                 $taskData = [
                     'name' => $task['name'],
-                    'is_optional' => $task['is_option'] == 'Yes' ? true : false,
-                    'is_mandatory'=> $task['is_mandatory'] == 'Yes' ? true : false,
+                    'is_optional' => $task['is_option'] == 'Yes',
+                    'is_mandatory'=> $task['is_mandatory'] == 'Yes',
                     'type' => $task['task_for'],
                     'due_date' => $task['due_date'],
                     'next_service_status_id' => $task['task_service_status_id'] ?? null,
-                    'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
+                    'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency',
                     'task_template_id' => $taskTemplate->id,
                 ];
     
@@ -222,8 +224,8 @@ class TaskTemplateController extends Controller
                         }
                     }
                 }
-                
             }
+
             Log::info('Task template updated successfully');
             DB::commit();
         }catch(\Exception $e){

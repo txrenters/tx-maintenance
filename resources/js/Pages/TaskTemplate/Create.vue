@@ -17,9 +17,9 @@ const form = useForm({
   name: "",
   description: "",
   current_service_status_id: "",
-  is_current_service_status_emergency: "",
+  is_current_service_status_emergency: "Non-emergency",
   next_service_status_id: "",
-  is_next_service_status_emergency: "",
+  is_next_service_status_emergency: "Non-emergency",
   tasks: [],
 });
 
@@ -29,10 +29,10 @@ const tasks = reactive([
     name: "",
     is_option: "No",
     is_mandatory: "Yes",
-    task_for: "",
-    due_date: "",
-    task_service_status_id: "",
-    is_task_service_status_emergency: "",
+    task_for: "Woc",
+    due_date: "same day",
+    task_service_status_id: "18",
+    is_task_service_status_emergency: "Non-emergency",
     task_details: [
       {
         task_for: "Yes",
@@ -54,20 +54,20 @@ const addTask = () => {
     name: "",
     is_option: "No",
     is_mandatory: "Yes",
-    task_for: "",
-    due_date: "",
-    task_service_status_id: "",
-    is_task_service_status_emergency: "",
+    task_for: "Woc",
+    due_date: "same day",
+    task_service_status_id: "18",
+    is_task_service_status_emergency: "Non-emergency",
     task_details: [
       {
         task_for: "Yes",
         task_service_status_id: "",
-        is_task_service_status_emergency: "",
+        is_task_service_status_emergency: "Non-emergency",
       },
       {
         task_for: "No",
-        task_service_status_id: "",
-        is_task_service_status_emergency: "",
+        task_service_status_id: "18",
+        is_task_service_status_emergency: "Non-emergency",
       },
     ],
   };
@@ -253,7 +253,7 @@ const submitForm = () => {
                 <Switch
                   v-model="task.is_mandatory"
                   :checked="task.is_mandatory === 'Yes'"
-                  @update:checked="$event = $event ? 'Yes' : 'No'"
+                  @update:checked="(val) => (task.is_mandatory = val ? 'Yes' : 'No')"
                 />
                 <Label>Yes</Label>
               </div>

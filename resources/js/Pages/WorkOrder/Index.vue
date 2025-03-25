@@ -38,6 +38,7 @@ const props = defineProps({
   service_status: Object,
   vendors: Object,
   categories: Object,
+  users: Object,
   filter: Object,
 });
 
@@ -567,6 +568,7 @@ usePoll(5000, { only: ["service_status"] });
         :service_status="service_status"
         :isEmergency="workOrderForm.is_emergency"
         :workOrder="workOrderForm"
+        :users="users"
         :isLoading="isLoading"
         @update-task-status="fetchWorkOrderTask(workOrderForm.id)"
         v-if="activeTab === 'tasks'"

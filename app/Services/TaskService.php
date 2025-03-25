@@ -52,6 +52,7 @@ class TaskService
                 $assignedUserId = User::role('woc')->first();
                 if ($assignedUserId) {
                     $tasks[] = [
+                        'description' => $task->name,
                         'due_date' => $taskDueDate,
                         'work_order_id' => $workOrder->id,
                         'assigned_user_id' => $assignedUserId->id,
@@ -73,6 +74,7 @@ class TaskService
 
                     if ($assignedUserId) {
                         $tasks[] = [
+                            'description' => $task->name,
                             'due_date' => $taskDueDate,
                             'work_order_id' => $workOrder->id,
                             'assigned_user_id' => $assignedUserId->id,

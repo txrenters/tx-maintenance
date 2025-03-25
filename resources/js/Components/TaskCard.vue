@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, watchEffect } from "vue";
-import { router } from "@inertiajs/vue3";
+import { router, useForm } from "@inertiajs/vue3";
 import { Loader2, EllipsisVertical, Ellipsis } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -34,21 +34,18 @@ const formatDate = (date) => {
   return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
 };
 
-const option = ref("");
-
-const updateTaskStatus = async (taskId, status) => {
+const updateTaskStatus = async (taskId, status, option) => {
   router.post(
     route("api.work_order.task.change", taskId),
-    { status: status, option: option.value },
+    { status: status, option: option },
     {
       preserveState: true,
       preserveScroll: true,
       onSuccess: () => {
         toast({
           title: "Success",
-          description: "Task has been changed successfully!",
+          description: "Task completed successfully!",
         });
-
         emit("update-task-status"); // use this to notify parent component that I need the new task to be fetch
       },
       onError: () => {
@@ -62,24 +59,47 @@ const updateTaskStatus = async (taskId, status) => {
   );
 };
 
-props.tasks?.forEach((task) => {
-  if (!("option" in task)) {
-    task.option = "No"; // Set default value
-  }
+const openEditModal = ref(false);
+
+const editTaskForm = useForm({
+  id: "",
+  description: "",
+  due_date: "",
+  status: "",
 });
 
-// Watch for changes in task.option and emit updates dynamically
-watchEffect(() => {
-  props.workOrderTasks?.forEach((task) => {
-    watch(
-      () => task.option,
-      (newValue) => {
-        option.value = newValue;
-      },
-      { deep: true }
-    );
+const handleEditForm = (task) => {
+  if (task.status === "completed") {
+    return;
+  }
+  openEditModal.value = true;
+  editTaskForm.id = task.id;
+  editTaskForm.description = task.description;
+  editTaskForm.due_date = task.due_date;
+};
+
+const EditFormSubmit = () => {
+  editTaskForm.patch(route("tasks.update", editTaskForm.id), {
+    preserveState: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Task has been changed successfully!",
+      });
+      emit("update-task-status"); // use this to notify parent component that I need the new task to be fetch
+      openEditModal.value = false;
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again!",
+      });
+      openEditModal.value = false;
+    },
   });
-});
+};
 </script>
 
 <template>
@@ -88,15 +108,13 @@ watchEffect(() => {
     :class="
       task.status === 'completed'
         ? 'bg-secondary'
-        : task.status === 'pending'
-        ? 'bg-orange-300'
-        : 'bg-primary text-white'
+        : 'bg-yellow-500 cursor-pointer hover:bg-secondary'
     "
     v-for="task in tasks"
     :key="task.id"
   >
     <div class="flex justify-between">
-      <div class="flex flex-col gap-2 w-full">
+      <div class="flex flex-col gap-2 w-full" @click="handleEditForm(task)">
         <div class="flex text-xs items-center gap-1">
           <Badge
             :class="
@@ -117,42 +135,29 @@ watchEffect(() => {
             }}
           </p>
         </div>
-        <p class="text-sm">{{ task.task.name }}</p>
+        <p class="text-sm">{{ task.description }}</p>
       </div>
-      <div v-if="task.status !== 'completed'">
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button aria-haspopup="true" size="icon" variant="ghost">
-              <EllipsisVertical class="w-3 h-3" />
-              <span class="sr-only">Toggle menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Mark as</DropdownMenuLabel>
-            <DropdownMenuItem
-              class="cursor-pointer hover:bg-secondary"
-              @click="() => updateTaskStatus(task.id, 'pending')"
-            >
-              Pending
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              class="cursor-pointer hover:bg-secondary"
-              @click="() => updateTaskStatus(task.id, 'processing')"
-            >
-              Processing
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              class="cursor-pointer hover:bg-secondary"
-              @click="() => updateTaskStatus(task.id, 'completed')"
-            >
-              Complete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div v-if="task.status !== 'completed'" class="mr-2">
+        <Checkbox
+          class="bg-white"
+          @click="() => updateTaskStatus(task.id, 'completed', task.option)"
+        />
       </div>
     </div>
-    <div class="flex justify-between mt-2">
-      <div class="flex flex-col text-xs gap-1">
+    <div v-if="!task.task?.type">
+      <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
+        <p>Assigned:</p>
+        <p class="flex gap-1 items-center">
+          <Avatar class="w-5 h-5">
+            <AvatarImage :src="task.assigned_user?.profile_photo_url || 'default.jpg'" />
+            <AvatarFallback></AvatarFallback>
+          </Avatar>
+          {{ task.assigned_user.name }}
+        </p>
+      </div>
+    </div>
+    <div class="flex justify-between mt-2 items-end mr-2" v-else>
+      <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
         <p>Assigned: {{ task.task.type }}</p>
         <p class="flex gap-1 items-center">
           <Avatar class="w-5 h-5">
@@ -163,8 +168,6 @@ watchEffect(() => {
         </p>
       </div>
       <div class="flex flex-col text-xs gap-1 justify-end" v-if="task.task.is_optional">
-        <!-- {{ task.task.task_details.task_service_status }} -->
-
         <div class="flex justify-end">
           <p class="">
             Selected:
@@ -184,6 +187,52 @@ watchEffect(() => {
           </span>
         </p>
       </div>
+      <div v-else>
+        <div class="flex justify-end">
+          <p class="text-xs">
+            Done:
+            {{ task.task.next_service_status.name }}
+          </p>
+        </div>
+      </div>
     </div>
   </Card>
+
+  <Dialog v-model:open="openEditModal">
+    <DialogContent
+      class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+    >
+      <DialogHeader class="p-6 pb-0 text-left">
+        <DialogTitle> Edit Task </DialogTitle>
+        <DialogDescription>
+          Edit task details and then click save if done.</DialogDescription
+        >
+      </DialogHeader>
+      <Separator />
+      <div class="flex flex-col flex-nowrap overflow-x-auto scrollbar-hide px-6">
+        <div class="mb-3">
+          <Label>Due Date</Label>
+          <Input
+            type="date"
+            placeholder="Enter invoice amount"
+            v-model="editTaskForm.due_date"
+          />
+        </div>
+        <div class="mb-3">
+          <Label>Description</Label>
+          <Textarea class="mt-1" v-model="editTaskForm.description" />
+        </div>
+      </div>
+      <DialogFooter class="p-6 pt-0">
+        <Button
+          type="submit"
+          :disabled="editTaskForm.processing"
+          @click.prevent="EditFormSubmit"
+        >
+          <Loader2 v-if="editTaskForm.processing" class="w-4 h-4 animate-spin" />
+          Save Changes
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>

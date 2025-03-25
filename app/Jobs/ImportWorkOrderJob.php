@@ -34,7 +34,9 @@ class ImportWorkOrderJob implements ShouldQueue
             foreach ($workOrderChunk as $order) {
                 $data = (array)$order;
 
-                if($data['ID']){
+                $ID = $data['ID'] ?? null;
+
+                if($ID){
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
 
@@ -344,6 +346,8 @@ class ImportWorkOrderJob implements ShouldQueue
         }
         DB::table('work_order_documents')->where('work_order_id', $work_order)->delete();
         DB::table('work_order_documents')->insert($documentsData);
+        Log::info('Work Order Documents: ', ['data' => $documentsData]);
+
     }
 
     private function processTenants(array $data, int $work_order, string $now): void

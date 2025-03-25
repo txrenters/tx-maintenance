@@ -158,10 +158,10 @@ class PropertyWareService
                 </soapenv:Envelope>';
             
             // Execute SOAP request
-            $response = $this->execute($xmlPayload);
+            $res = $this->execute($xmlPayload);
 
             // Log and return response status
-            if ($response) {
+            if ($res) {
                 Log::info('Updating work order is successfully!', [
                     'workOrderId' => $work_order->work_order_no,
                 ]);
@@ -348,10 +348,10 @@ class PropertyWareService
                 </soapenv:Body>
                 </soapenv:Envelope>';
 
-            $response = $this->execute($xmlPayload);
+            $res = $this->execute($xmlPayload);
 
             // Log and return response status
-            if ($response) {
+            if ($res) {
                 Log::info('Work order service status has been changed successfully!', [
                     'workOrderId' => $workOrder->work_order_no,
                 ]);
@@ -368,34 +368,8 @@ class PropertyWareService
 
     }
 
-    public function changeWorkOrderVendors($workOrder, $vendors)
-    {
-
-        $now = now();
-
-        $vendorIDsXml = "";
-
-        DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
-
-        if($vendors){
-            $vendorIDsXml .= "<vendorIDs xsi:type=\"soapenc:Array\" xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\">\n";
-        
-            foreach($vendors as $vendor){
-                $vendorData = Vendor::select('id', 'propertyware_id')
-                    ->where('name', 'LIKE', "%{$vendor}%")
-                    ->first();
-            
-                DB::table('work_order_vendors')->insert([
-                    'work_order_id' => $workOrder->id,
-                    'vendor_id' => $vendorData->id,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">$vendorData->propertyware_id</vendorID>\n";
-            }
-            $vendorIDsXml .= "</vendorIDs>\n";
-        }
-
+    public function changeWorkOrderVendors($workOrder, $vendorIDsXml)
+    { 
         $workorderId = $workOrder->propertyware_id;
         $portfolioId = (int)$workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
@@ -421,16 +395,15 @@ class PropertyWareService
                     <location xsi:type="xsd:string">' . $location . '</location>
                     ' . $vendorIDsXml . '
                     </workOrder>
-                    </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
                 </soapenv:Envelope>';
 
             // Execute SOAP request
-            $response = $this->execute($xmlPayload);
+            $res = $this->execute($xmlPayload);
 
             // Log and return response status
-            if ($response) {
+            if ($res) {
                 Log::info('Work order vendor has been added successfully!', [
                     'workOrderId' => $workOrder->work_order_no,
                 ]);
@@ -555,10 +528,10 @@ class PropertyWareService
 
 
             // Execute SOAP request
-            $response = $this->execute($xmlPayload);
+            $res = $this->execute($xmlPayload);
 
             // Log and return response status
-            if ($response) {
+            if ($res) {
                 Log::info('Vendor attachment has been uploaded successfully!', [
                     'workOrderId' => $workOrderId,
                     'filename' => $filename,
@@ -635,10 +608,10 @@ class PropertyWareService
 
 
             // Execute SOAP request
-            $response = $this->execute($xmlPayload);
+            $res = $this->execute($xmlPayload);
 
             // Log and return response status
-            if ($response) {
+            if ($res) {
                 Log::info('Vendor updating work order details has been successfully!', [
                     'workOrderId' => $workorderId,
                 ]);
@@ -661,9 +634,8 @@ class PropertyWareService
 
     public function execute($xmlPayload)
     {
-            // Initialize cURL
         $curl = curl_init();
-
+        
         // Set cURL options
         curl_setopt_array($curl, [
             CURLOPT_URL => $this->url,
@@ -671,29 +643,73 @@ class PropertyWareService
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $xmlPayload,
             CURLOPT_HTTPHEADER => [
-                'Content-Type: text/xml',
-                'SOAPAction: ""', // Empty SOAPAction header
+                'Content-Type: text/xml; charset=utf-8',
+                'SOAPAction: ""',
+                'Connection: Keep-Alive',
+                'Keep-Alive: 300'
             ],
             CURLOPT_USERPWD => $this->username . ':' . $this->password,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_VERBOSE => true,
+            CURLOPT_TIMEOUT => 120, // 2 minute timeout
+            CURLOPT_CONNECTTIMEOUT => 30, // 30 second connection timeout
+            CURLOPT_SSL_VERIFYHOST => 2, // Enable SSL verification
+            CURLOPT_SSL_VERIFYPEER => true, // Enable SSL verification
+            CURLOPT_FAILONERROR => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
         ]);
-
+    
         $response = curl_exec($curl);
-
-        Log::info('API Response:', [
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        // Log the request and response
+        Log::debug('SOAP Request:', ['payload' => $xmlPayload]);
+        Log::debug('SOAP Response:', [
+            'http_code' => $httpCode,
             'response' => $response,
+            'curl_error' => curl_error($curl),
+            'curl_errno' => curl_errno($curl)
         ]);
-
+    
         if (curl_errno($curl)) {
             Log::error('cURL error: ' . curl_error($curl));
-            return false;
+            curl_close($curl);
+            return [
+                'success' => false,
+                'error' => 'CURL_ERROR',
+                'message' => curl_error($curl)
+            ];
         }
-
+    
         curl_close($curl);
-
-        return true;
+    
+        // Check for SOAP faults in the response
+        if (strpos($response, '<soapenv:Fault>') !== false) {
+            $faultString = $this->extractFaultString($response);
+            Log::error('SOAP Fault: ' . $faultString);
+            return [
+                'success' => false,
+                'error' => 'SOAP_FAULT',
+                'message' => $faultString
+            ];
+        }
+    
+        return [
+            'success' => true,
+            'response' => $response
+        ];
+    }
+    
+    protected function extractFaultString($xmlResponse)
+    {
+        try {
+            $xml = simplexml_load_string($xmlResponse);
+            if ($xml && isset($xml->children('soapenv', true)->Body->children('soapenv', true)->Fault->faultstring)) {
+                return (string)$xml->children('soapenv', true)->Body->children('soapenv', true)->Fault->faultstring;
+            }
+        } catch (Exception $e) {
+            Log::error('Failed to parse SOAP fault: ' . $e->getMessage());
+        }
+        return 'Unknown SOAP fault';
     }
 
     public function iniate()

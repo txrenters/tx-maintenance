@@ -7,6 +7,8 @@ use App\Jobs\SyncWorkOrderDetails;
 use App\Models\WorkOrder;
 use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
+use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
@@ -47,11 +49,14 @@ class WorkOrderController extends Controller
 
         $vendors = DB::table('vendors')->select('id','name')->orderBy('name')->get();
 
+        $users =  User::role(['woc','admin'])->get();
+
         return inertia('WorkOrder/Index',[
             'title' => 'Work Orders',
             'service_status' => $service_status,
             'vendors' => $vendors,
             'categories' => $categories,
+            'users' => $users,
             'filter' => $request->only(['search','per_page']),
         ]);
     }
@@ -77,8 +82,7 @@ class WorkOrderController extends Controller
         $validatedData = $request->validated();
         
         try {
-
-            $validatedData['is_emergency'] = $request->is_emergency == 'Emergency';
+            $workOrder->update($validatedData);
 
             UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
     
@@ -137,13 +141,40 @@ class WorkOrderController extends Controller
             'vendors' =>  'required|array'
         ]);
 
-        $this->propertyWareServices->changeWorkOrderVendors($workOrder, $request->vendors);
+        DB::beginTransaction();
+        try {
 
-        $workOrder->update([
-            'local_status' => 'Updated'
-        ]);
+            $vendorIDsXml = "";
+            $vendorIds = [];
 
-        return redirect()->back()->with('success', 'Work order vendors updated successfully.');
+            DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
+    
+            $vendorIDsXml = '<vendorIDs xsi:type="soapenc:Array" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">';
+
+            foreach ($request->vendors as $vendor) {
+                $vendorData = Vendor::whereLike('name', "%{$vendor}%")->first();
+                $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
+                $vendorIds[] = $vendorData->id;
+            }
+
+            $vendorIDsXml .= '</vendorIDs>';
+
+            $res = $this->propertyWareServices->changeWorkOrderVendors($workOrder, $vendorIDsXml);
+
+            $workOrder->vendors()->sync($vendorIds);
+
+            $workOrder->update([
+                'local_status' => 'Updated'
+            ]);
+
+            DB::commit();
+            return redirect()->back()->with('success', 'Work order vendors updated successfully.');
+
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Work order vendors failed.'.$th->getMessage());
+        }
+        
     }
 
     public function emergency_change(Request $request, WorkOrder $workOrder)

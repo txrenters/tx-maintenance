@@ -24,12 +24,9 @@ class UpdateWorkOrderRequest extends FormRequest
         return [
             'work_order_no' => 'required',
             'category' => 'nullable|string',
-            'cost_estimate' => 'nullable|numeric',
-            'hour_estimate' => 'nullable|numeric',
             'zone' => 'nullable|string',
             'management_plan' => 'nullable|string',
             'closing_comments' => 'nullable|string',
-            'is_emergency' => 'string',
             'additional_work_needed_reschedule' => 'nullable|string',
         ];
     }
