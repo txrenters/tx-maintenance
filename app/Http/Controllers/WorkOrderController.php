@@ -32,19 +32,27 @@ class WorkOrderController extends Controller
     {
         
         $service_status = ServiceStatus::with([
-            'work_order',
+            'work_order' ,
+            'work_orders' => function($query) {
+                $query->when(request('search'), function($q, $search) {
+                    $q->where('work_order_no', $search);
+                })
+                ->when(request('vendor'), function($q, $vendorId) {
+                    $q->whereHas('vendors', function($q) use ($vendorId) {
+                        $q->where('work_order_vendors.vendor_id', $vendorId);
+                    });
+                });
+            },
             'work_orders.service_status',
             'work_orders.vendors',
             'work_orders.requested_by',
             'work_orders.managed_by',
             'work_orders.tasks',
             ])  
-            ->filter(request(['search']))
             ->whereNot('name','Closed')
             ->whereNot('name','Not Change')
             ->get();
     
-
         $categories = DB::table('work_order_categories')->select('name','id')->orderBy('name')->get();
 
         $vendors = DB::table('vendors')->select('id','name')->orderBy('name')->get();
@@ -57,7 +65,7 @@ class WorkOrderController extends Controller
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search','per_page','vendor']),
         ]);
     }
 

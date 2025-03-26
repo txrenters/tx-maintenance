@@ -14,19 +14,12 @@ const props = defineProps({
   workOrder: Object,
 });
 
-const newMessage = ref("");
-const selectedVendor = ref("");
-const vendor_phone_number = ref("");
-const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
-
-const emit = defineEmits(["update-vendor-convo"]);
-
 const page = usePage();
 
-const woc = ref(props.workOrder.woc);
-const woc_phone_number = ref(
-  props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
-);
+const newMessage = ref("");
+const selectedTenant = ref("");
+const tenant_phone_number = ref(props.workOrder.requested.mobile_phone);
+const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
 const formatDate = (date) => {
   if (!date) return "------";
@@ -48,11 +41,17 @@ const formatDate = (date) => {
   return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
 };
 
-const loading = ref(false);
+watch(selectedTenant, (newTenant) => {
+  if (newTenant) {
+    const foundTenant = props.workOrderTenants.find((tenant) => tenant.id == newTenant);
+    tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
+  }
+});
 
+const loading = ref(false);
 const sendMessage = () => {
   loading.value = true;
-  if (!vendor_phone_number.value) {
+  if (!tenant_phone_number.value) {
     toast({
       variant: "destructive",
       title: "Uh oh! Something went wrong.",
@@ -79,10 +78,10 @@ const sendMessage = () => {
       route("work_order.vendor.conversation.send"),
       {
         text: newMessage.value,
-        sender_phone_number: woc_phone_number.value,
-        receiver_phone_number: vendor_phone_number.value,
+        sender_phone_number: vendor_phone_number.value,
+        receiver_phone_number: tenant_phone_number.value,
         work_order_id: props.workOrder.id,
-        conversation_type: "vendor",
+        conversation_type: "vendor_tenant",
       },
       {
         preserveState: true,
@@ -94,14 +93,13 @@ const sendMessage = () => {
           });
           props.vendorConversation.push({
             id: Date.now(), // Temporary ID
-            sender_number: woc_phone_number.value,
-            receiver_number: vendor_phone_number.value,
+            sender_number: vendor_phone_number.value,
+            receiver_number: tenant_phone_number.value,
             message: newMessage.value,
             created_at: new Date().toISOString(), // Current timestamp
           });
           newMessage.value = "";
-          scrollToBottom();
-          emit("update-vendor-convo");
+          scrollToBottom(); // Scroll to the bottom after sending a message
         },
         onError: () => {
           toast({
@@ -127,6 +125,11 @@ const scrollToBottom = () => {
   });
 };
 
+// Scroll to the bottom when the component mounts or when the conversation updates
+onMounted(() => {
+  scrollToBottom();
+});
+
 watch(
   () => props.vendorConversation,
   () => {
@@ -134,54 +137,50 @@ watch(
   },
   { deep: true }
 );
-watch(selectedVendor, (newVendor) => {
-  if (newVendor) {
-    const foundVendor = props.workOrder.vendors.find((vendor) => vendor.id == newVendor);
-    vendor_phone_number.value = foundVendor ? foundVendor.twilio_number : "";
-  }
-});
 
-// Scroll to the bottom when the component mounts or when the conversation updates
-onMounted(() => {
-  scrollToBottom();
-});
+const vendor_phone_number = page.props.auth.user.vendor.twilio_number;
 </script>
 
 <template>
   <div class="overflow-y-auto px-6 w-full min-h-[300px]">
-    <p class="font-semibold uppercase text-xs mb-3">Vendors Conversation</p>
+    <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
     <div
       class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
     >
       <div class="flex gap-2">
-        <Select v-model="selectedVendor">
+        <Select v-model="selectedTenant">
           <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select a vendor" />
+            <SelectValue placeholder="Select a tenant" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <template v-for="vendor in workOrder.vendors" :key="vendor.id">
-                <SelectItem :value="String(vendor.id)" :selected="vendor.twilio_number">
-                  {{ vendor.name }} -
-                  {{ vendor?.twilio_number }}
+              <template v-for="tenant in workOrderTenants" :key="tenant.id">
+                <SelectItem
+                  :value="String(tenant.id)"
+                  :selected="tenant.mobile_phone === workOrder.requested.mobile_phone"
+                >
+                  {{ tenant.first_name }} {{ tenant.last_name }} -
+                  {{ tenant?.mobile_phone }}
                 </SelectItem>
               </template>
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Input placeholder="Custom number" class="" v-model="vendor_phone_number" />
+        <Input placeholder="Custom number" class="" v-model="tenant_phone_number" />
       </div>
       <div class="flex flex-col text-left">
         <div class="flex gap-2 items-center">
           <Avatar class="w-5 h-5">
-            <AvatarImage :src="woc?.profile_photo_url || 'default.jpg'" />
+            <AvatarImage
+              :src="page.props.auth.user?.profile_photo_url || 'default.jpg'"
+            />
             <AvatarFallback>
-              {{ woc.name?.charAt(0) }}
+              {{ page.props.auth.user.vendor.name?.charAt(0) }}
             </AvatarFallback>
           </Avatar>
-          {{ woc.name }}
+          {{ page.props.auth.user.vendor.name }}
         </div>
-        {{ woc.woc_number.twilio_phone_number.phone_number }}
+        {{ page.props.auth.user.vendor.twilio_number }}
       </div>
     </div>
 
@@ -204,7 +203,14 @@ onMounted(() => {
               : 'bg-gray-200 text-gray-900 self-start'
           "
         >
-          <div class="flex flex-col gap-2">
+          <div
+            class="flex flex-col gap-2"
+            :class="{
+              'items-end': msg.sender_number === vendor_phone_number,
+              'items-start': msg.sender_number !== vendor_phone_number,
+            }"
+          >
+            <!-- Sender info -->
             <div
               class="flex gap-1 items-center"
               :class="
@@ -213,32 +219,26 @@ onMounted(() => {
                   : 'flex-row'
               "
             >
-              <p
-                class="text-xs"
-                :class="
-                  msg.sender_number === vendor_phone_number
-                    ? 'flex-row-reverse'
-                    : 'flex-row'
-                "
-              >
+              <p class="text-xs">
                 {{ msg.sender_number }}
               </p>
             </div>
 
-            <p
-              class="font-bold"
-              :class="
-                msg.sender_number === vendor_phone_number ? 'text-right' : 'text-left'
-              "
+            <!-- Message bubble -->
+            <div
+              class="p-1 rounded-lg"
+              :class="{
+                'bg-primary-500 text-white': msg.sender_number === vendor_phone_number,
+                'bg-gray-200': msg.sender_number !== vendor_phone_number,
+              }"
             >
-              {{ msg.message }}
-            </p>
-            <p
-              class="text-xs"
-              :class="
-                msg.sender_number === vendor_phone_number ? 'text-right' : 'text-left'
-              "
-            >
+              <p class="font-bold">
+                {{ msg.message }}
+              </p>
+            </div>
+
+            <!-- Timestamp -->
+            <p class="text-xs">
               {{ formatDate(msg.created_at) }}
             </p>
           </div>

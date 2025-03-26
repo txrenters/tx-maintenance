@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { router, useForm, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -7,6 +7,7 @@ import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
+import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
 import OwnerConversation from "./Partials/OwnerConversation.vue";
@@ -15,17 +16,14 @@ import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
 import VendorNotes from "./Partials/VendorNotes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
+import debounce from "lodash/debounce";
 
 import {
   ClipboardList,
-  MessagesSquare,
   ListChecks,
-  MessageSquareText,
-  MessageSquareShare,
   Calendar,
   Paperclip,
   FileText,
-  FileDown,
   NotebookPen,
   Notebook,
 } from "lucide-vue-next";
@@ -115,21 +113,33 @@ const tabButtons = [
     requires: ["admin", "woc", "vendor"],
   },
   {
+    name: "vendor_tenant_conversation",
+    tooltip: "Tenant Conversation",
+    icon: "T",
+    requires: ["vendor"],
+  },
+  {
+    name: "vendor_woc_conversation",
+    tooltip: "WOC Conversation",
+    icon: "W",
+    requires: ["vendor"],
+  },
+  {
     name: "vendor_conversation",
-    tooltip: "Vendor and Tenant Conversation",
-    icon: "VOT",
-    requires: ["admin", "woc", "vendor"],
+    tooltip: "Vendor Conversation",
+    icon: "V",
+    requires: ["admin", "woc"],
   },
   {
     name: "owner_conversation",
-    tooltip: "Owner and WOC Conversation",
-    icon: MessageSquareText,
+    tooltip: "Owner Conversation",
+    icon: "O",
     requires: ["admin", "woc", "owner"],
   },
   {
     name: "tenant_conversation",
-    tooltip: "Tenant and WOC Conversation",
-    icon: MessageSquareShare,
+    tooltip: "Tenant Conversation",
+    icon: "T",
     requires: ["admin", "woc", "tenant"],
   },
   {
@@ -162,6 +172,10 @@ const switchTab = (tabName) => {
 
   if (activeTab.value === "details" && workOrderForm.id) {
     handleWorkOrder(workOrderForm.id); // Fetch latest data when switching to "Details"
+  }
+
+  if (activeTab.value === "vendor_tenant_conversation" && workOrderForm.id) {
+    fetchVendorTenantConversation(workOrderForm.id);
   }
 
   if (activeTab.value === "vendor_conversation" && workOrderForm.id) {
@@ -235,8 +249,26 @@ const fetchTenantConversation = async (workOrderId) => {
   }
 };
 
-const vendorConversation = ref([]);
+const vendorTenantConversation = ref([]);
 const workOrderVendors = ref([]);
+
+const fetchVendorTenantConversation = async (workOrderId) => {
+  try {
+    isLoading.value = true;
+    const response = await axios.get(
+      route("work_order.vendor_tenant_conversation", workOrderId)
+    );
+
+    vendorTenantConversation.value = response.data.vendor_tenant_conversation;
+    workOrderTenants.value = response.data.tenants;
+  } catch (error) {
+    console.error("Error fetching tasks:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const vendorConversation = ref([]);
 
 const fetchVendorConversation = async (workOrderId) => {
   try {
@@ -246,7 +278,6 @@ const fetchVendorConversation = async (workOrderId) => {
     );
 
     vendorConversation.value = response.data.vendor_conversation;
-    workOrderTenants.value = response.data.tenants;
     workOrderVendors.value = response.data.vendors;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -502,13 +533,57 @@ const handleWorkOrder = async (orderId) => {
   }
   isLoading.value = false;
 };
+
+const filter_vendor = ref(props.filter.vendor ?? "");
+
+watch(
+  filter_vendor,
+  debounce(function (value) {
+    const newQuery = { vendor: value }; //maintain url params
+    router.visit(url.value, {
+      method: "get",
+      data: newQuery,
+      preserveState: true,
+      replace: true,
+      preserveScroll: true,
+    });
+  }, 500)
+);
+
+const resetFilters = () => {
+  router.visit(url.value, {
+    method: "get",
+    replace: true,
+    data: {}, // Clear all query parameters
+    preserveScroll: true,
+  });
+};
 usePoll(5000, { only: ["service_status"] });
 </script>
 <template>
   <Head :title="title" />
 
-  <div class="flex">
-    <SearchBar :url="url" v-model="search" />
+  <div class="flex gap-3 flex-col sm:flex-row items-center">
+    <SearchBar :url="url" v-model="search" class="w-full" />
+    <div class="flex gap-2 items-center w-full">
+      <Select
+        :modelValue="String(filter_vendor)"
+        @update:modelValue="(value) => (filter_vendor = value)"
+        v-if="!$page.props.auth.user.roles.includes('vendor')"
+      >
+        <SelectTrigger class="w-full sm:w-[250px]">
+          <SelectValue placeholder="Select a vendor" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <template v-for="vendor in vendors" :key="vendor.id">
+              <SelectItem :value="String(vendor.id)"> {{ vendor.name }} </SelectItem>
+            </template>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <Button @click="resetFilters" v-if="filter_vendor || search">X</Button>
+    </div>
   </div>
   <!-- Scrollable Service Status Area -->
   <ScrollArea class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]">
@@ -574,10 +649,19 @@ usePoll(5000, { only: ["service_status"] });
         v-if="activeTab === 'tasks'"
       />
 
+      <VendorTenantConversation
+        :vendorConversation="vendorTenantConversation"
+        :workOrderTenants="workOrderTenants"
+        :workOrder="workOrderForm"
+        @update-vendor-tenant-convo="fetchVendorTenantConversation(workOrderForm.id)"
+        :isLoading="isLoading"
+        v-if="activeTab === 'vendor_tenant_conversation'"
+      />
+
       <VendorConversation
         :vendorConversation="vendorConversation"
-        :workOrderTenants="workOrderTenants"
         :workOrderVendors="workOrderVendors"
+        @update-vendor-convo="fetchVendorConversation(workOrderForm.id)"
         :workOrder="workOrderForm"
         :isLoading="isLoading"
         v-if="activeTab === 'vendor_conversation'"

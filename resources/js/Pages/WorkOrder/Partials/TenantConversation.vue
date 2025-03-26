@@ -18,6 +18,11 @@ const selectedTenant = ref("");
 const tenant_phone_number = ref(props.workOrder.requested.mobile_phone);
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
+const woc = ref(props.workOrder.woc);
+const woc_phone_number = ref(
+  props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
+);
+
 const formatDate = (date) => {
   if (!date) return "------";
 
@@ -38,6 +43,7 @@ const formatDate = (date) => {
   return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
 };
 
+const loading = ref(false);
 watch(selectedTenant, (newTenant) => {
   if (newTenant) {
     const foundTenant = props.workOrderTenants.find((tenant) => tenant.id == newTenant);
@@ -46,14 +52,14 @@ watch(selectedTenant, (newTenant) => {
 });
 
 const sendMessage = () => {
-  isLoading.value = true;
+  loading.value = true;
   if (!tenant_phone_number.value) {
     toast({
       variant: "destructive",
       title: "Uh oh! Something went wrong.",
       description: "There was a problem with your request. Please select a receiver!",
     });
-    isLoading.value = false;
+    loading.value = false;
 
     return;
   }
@@ -64,7 +70,7 @@ const sendMessage = () => {
       title: "Uh oh! Something went wrong.",
       description: "There was a problem with your request. Please type a message!",
     });
-    isLoading.value = false;
+    loading.value = false;
 
     return;
   }
@@ -105,7 +111,7 @@ const sendMessage = () => {
           });
         },
         onFinish: () => {
-          isLoading.value = false;
+          loading.value = false;
           scrollToBottom(); // Scroll to the bottom after sending a message
         },
       }
@@ -132,10 +138,6 @@ watch(
     scrollToBottom();
   },
   { deep: true }
-);
-
-const woc_phone_number = ref(
-  props.workOrder.woc.woc_number.twilio_phone_number.phone_number
 );
 </script>
 
@@ -167,20 +169,21 @@ const woc_phone_number = ref(
         </Select>
         <Input placeholder="Custom number" class="" v-model="tenant_phone_number" />
       </div>
-      <div class="flex gap-2 items-center">
+      <div class="flex flex-col text-left">
         <div class="flex gap-2 items-center">
           <Avatar class="w-5 h-5">
-            <AvatarImage :src="workOrder?.woc?.profile_photo_url || 'default.jpg'" />
+            <AvatarImage :src="woc?.profile_photo_url || 'default.jpg'" />
             <AvatarFallback>
-              {{ workOrder?.woc.name }}
+              {{ woc.name?.charAt(0) }}
             </AvatarFallback>
           </Avatar>
-          {{ workOrder?.woc.name }}
+          {{ woc.name }}
         </div>
+        {{ woc.woc_number.twilio_phone_number.phone_number }}
       </div>
     </div>
     <div class="border p-3 min-h-[300px] bg-secondary">
-      <div class="flex justify-center" v-if="isLoading">
+      <div class="flex justify-center" v-if="isLoading || loading">
         <Loader2 class="w-12 h-12 animate-spin text-primary" />
       </div>
       <div
@@ -239,8 +242,8 @@ const woc_phone_number = ref(
         class="flex-1"
         @keyup.enter="sendMessage"
       />
-      <Button @click.prevent="sendMessage" :disabled="isLoading" size="icon">
-        <Send v-if="!isLoading" />
+      <Button @click.prevent="sendMessage" :disabled="isLoading || loading" size="icon">
+        <Send v-if="!isLoading || loading" />
         <Loader2 v-else class="w-4 h-4 animate-spin" />
       </Button>
     </div>

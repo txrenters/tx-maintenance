@@ -100,104 +100,122 @@ const EditFormSubmit = () => {
     },
   });
 };
+
+const checkDueTask = (task) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  let bgColor = "green"; // Default color if all tasks are upcoming
+
+  if (task.due_date === today) {
+    bgColor = "blue";
+  } else if (task.due_date < today) {
+    bgColor = "red";
+  }
+
+  if (task.status === "completed") {
+    bgColor = "completed";
+  }
+
+  return bgColor;
+};
 </script>
 
 <template>
-  <Card
-    class="w-full p-2 mb-2"
-    :class="
-      task.status === 'completed'
-        ? 'bg-secondary'
-        : 'bg-yellow-500 cursor-pointer hover:bg-secondary'
-    "
-    v-for="task in tasks"
-    :key="task.id"
-  >
-    <div class="flex justify-between">
-      <div class="flex flex-col gap-2 w-full" @click="handleEditForm(task)">
-        <div class="flex text-xs items-center gap-1">
-          <Badge
-            :class="
-              task.status === 'pending'
-                ? 'bg-red-500'
-                : task.status === 'completed'
-                ? 'bg-primary'
-                : 'bg-white text-black'
-            "
-          >
-            {{ task.status }}
-          </Badge>
-          <p>
-            {{
-              task.status === "completed"
-                ? formatDate(task.updated_at)
-                : formatDate(task.due_date) ?? "No due date"
-            }}
+  <div v-for="task in tasks" :key="task.id" class="hover:bg-opacity-50">
+    <Card
+      class="w-full p-2 mb-2 hover:shadow-lg transition-all"
+      :class="{
+        'bg-secondary': checkDueTask(task) === 'completed',
+        'bg-red-500 text-white': checkDueTask(task) === 'red',
+        'bg-primary text-white': checkDueTask(task) === 'blue',
+        'bg-green-500 text-white': checkDueTask(task) === 'green',
+      }"
+    >
+      <div class="flex justify-between">
+        <div class="flex flex-col gap-2 w-full" @click="handleEditForm(task)">
+          <div class="flex text-xs items-center gap-1">
+            <Badge
+              :class="
+                task.status === 'pending' ? 'bg-secondary text-black' : 'bg-green-500'
+              "
+            >
+              {{ task.status }}
+            </Badge>
+            <p>
+              {{
+                task.status === "completed"
+                  ? formatDate(task.updated_at)
+                  : formatDate(task.due_date) ?? "No due date"
+              }}
+            </p>
+          </div>
+          <p class="text-sm">{{ task.description }}</p>
+        </div>
+        <div v-if="task.status !== 'completed'" class="mr-2">
+          <Checkbox
+            class="bg-white"
+            @click="() => updateTaskStatus(task.id, 'completed', task.option)"
+          />
+        </div>
+      </div>
+      <div v-if="!task.task?.type">
+        <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
+          <p>Assigned:</p>
+          <p class="flex gap-1 items-center">
+            <Avatar class="w-5 h-5">
+              <AvatarImage
+                :src="task.assigned_user?.profile_photo_url || 'default.jpg'"
+              />
+              <AvatarFallback></AvatarFallback>
+            </Avatar>
+            {{ task.assigned_user.name }}
           </p>
         </div>
-        <p class="text-sm">{{ task.description }}</p>
       </div>
-      <div v-if="task.status !== 'completed'" class="mr-2">
-        <Checkbox
-          class="bg-white"
-          @click="() => updateTaskStatus(task.id, 'completed', task.option)"
-        />
-      </div>
-    </div>
-    <div v-if="!task.task?.type">
-      <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
-        <p>Assigned:</p>
-        <p class="flex gap-1 items-center">
-          <Avatar class="w-5 h-5">
-            <AvatarImage :src="task.assigned_user?.profile_photo_url || 'default.jpg'" />
-            <AvatarFallback></AvatarFallback>
-          </Avatar>
-          {{ task.assigned_user.name }}
-        </p>
-      </div>
-    </div>
-    <div class="flex justify-between mt-2 items-end mr-2" v-else>
-      <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
-        <p>Assigned: {{ task.task.type }}</p>
-        <p class="flex gap-1 items-center">
-          <Avatar class="w-5 h-5">
-            <AvatarImage :src="task.assigned_user?.profile_photo_url || 'default.jpg'" />
-            <AvatarFallback></AvatarFallback>
-          </Avatar>
-          {{ task.assigned_user.name }}
-        </p>
-      </div>
-      <div class="flex flex-col text-xs gap-1 justify-end" v-if="task.task.is_optional">
-        <div class="flex justify-end">
-          <p class="">
-            Selected:
-            <span v-if="task.status === 'completed'">{{ task.option ?? "No" }}</span>
+      <div class="flex justify-between mt-2 items-end mr-2" v-else>
+        <div class="flex flex-col text-xs gap-1" @click="handleEditForm(task)">
+          <p>Assigned: {{ task.task.type }}</p>
+          <p class="flex gap-1 items-center">
+            <Avatar class="w-5 h-5">
+              <AvatarImage
+                :src="task.assigned_user?.profile_photo_url || 'default.jpg'"
+              />
+              <AvatarFallback></AvatarFallback>
+            </Avatar>
+            {{ task.assigned_user.name }}
           </p>
-          <select v-model="task.option" v-if="task.status !== 'completed'">
-            <option selected value="Yes">Yes</option>
-            <option value="No">No</option>
-          </select>
         </div>
-        <p v-if="task.option">
-          Done:
-          <span v-for="detail in task.task.task_details" :key="detail.id">
-            <span v-if="detail.task_for === task.option">{{
-              detail.task_service_status.name
-            }}</span>
-          </span>
-        </p>
-      </div>
-      <div v-else>
-        <div class="flex justify-end">
-          <p class="text-xs">
+        <div class="flex flex-col text-xs gap-1 justify-end" v-if="task.task.is_optional">
+          <div class="flex justify-end">
+            <p class="">
+              Selected:
+              <span v-if="task.status === 'completed'">{{ task.option ?? "No" }}</span>
+            </p>
+            <select v-model="task.option" v-if="task.status !== 'completed'">
+              <option selected value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <p v-if="task.option">
             Done:
-            {{ task.task.next_service_status.name }}
+            <span v-for="detail in task.task.task_details" :key="detail.id">
+              <span v-if="detail.task_for === task.option">{{
+                detail.task_service_status.name
+              }}</span>
+            </span>
           </p>
         </div>
+        <div v-else>
+          <div class="flex justify-end">
+            <p class="text-xs">
+              Done:
+              {{ task.task.next_service_status.name }}
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
-  </Card>
-
+    </Card>
+  </div>
   <Dialog v-model:open="openEditModal">
     <DialogContent
       class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

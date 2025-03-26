@@ -15,11 +15,11 @@ Route::get('/user', function (Request $request) {
 Route::post('/work_orders/{task}/task/change',[TaskController::class, 'update'])->name('api.work_order.task.change');
 Route::post('/work_orders/{workOrder}/service_status/change',[TaskController::class, 'service_status_change'])->name('api.work_order.service_status_change');
 
+Route::get('/work_orders/{workOrder}/conversation/vendor_tenant',[ConversationController::class, 'get_vendor_tenant_conversation'])->name('work_order.vendor_tenant_conversation');
 Route::get('/work_orders/{workOrder}/conversation/vendors',[ConversationController::class, 'get_vendor_conversation'])->name('work_order.vendor_conversation');
-Route::post('/work_orders/convesation/send',[ConversationController::class, 'vendor_conversation'])->name('work_order.vendor.conversation.send');
-
 Route::get('/work_orders/{workOrder}/conversation/tenants',[ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
 Route::get('/work_orders/{workOrder}/conversation/owners',[ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
+Route::post('/work_orders/convesation/send',[ConversationController::class, 'SendMessage'])->name('work_order.vendor.conversation.send');
 
 Route::get('/service_schedule/{workOrder}/vendor',[ServiceScheduleController::class, 'get_schedules'])->name('work_order.service_schedules');
 Route::post('/service_schedule/submit',[ServiceScheduleController::class, 'store'])->name('work_order.service_schedule.create');

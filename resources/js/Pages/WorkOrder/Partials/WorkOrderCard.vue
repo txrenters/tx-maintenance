@@ -40,12 +40,31 @@ const countCompletedTask = (tasks) => {
   return completedTasks.length;
 };
 
+// const checkDueTask = (tasks) => {
+//   const today = new Date().toISOString().split("T")[0];
+
+//   const dueTasks = tasks.filter((task) => task.due_date >= today);
+//   // Return the count of completed tasks
+//   return dueTasks.length > 0;
+// };
+
 const checkDueTask = (tasks) => {
   const today = new Date().toISOString().split("T")[0];
 
-  const dueTasks = tasks.filter((task) => task.due_date >= today);
-  // Return the count of completed tasks
-  return dueTasks.length > 0;
+  let bgColor = "green"; // Default color if all tasks are upcoming
+
+  const pendingTasks = tasks.filter((task) => task.status === "pending");
+
+  // Check for past due tasks first (highest priority)
+  if (pendingTasks.some((task) => task.due_date < today)) {
+    bgColor = "red";
+  }
+  // Check for tasks due today (next priority)
+  else if (pendingTasks.some((task) => task.due_date === today)) {
+    bgColor = "blue";
+  }
+
+  return bgColor;
 };
 </script>
 
@@ -70,11 +89,11 @@ const checkDueTask = (tasks) => {
             @click="handleWorkOrder(work_order)"
             v-for="work_order in status.work_orders"
             :key="work_order.id"
-            class="mb-2 rounded-lg p-4 text-white cursor-pointer shadow-md"
+            class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"
             :class="{
-              'bg-destructive': work_order.is_emergency === 1,
-              'bg-primary': work_order.is_emergency === null,
-              'bg-green-500': work_order.is_emergency === 0,
+              'bg-destructive': checkDueTask(work_order.tasks) === 'red',
+              'bg-primary': checkDueTask(work_order.tasks) === 'blue',
+              'bg-green-500': checkDueTask(work_order.tasks) === 'green',
             }"
           >
             <!-- Work Order Number & Date -->
@@ -90,15 +109,9 @@ const checkDueTask = (tasks) => {
             <!-- Requested Info -->
             <div class="flex justify-between items-center mt-4">
               <div class="flex gap-1 items-center">
-                <Badge
-                  variant="destructive"
-                  class="uppercase"
-                  v-if="checkDueTask(work_order.tasks)"
-                  >Due</Badge
-                >
                 <p class="text-xs" v-if="work_order.tasks.length > 0">
                   {{ countCompletedTask(work_order.tasks) }}/{{ work_order.tasks.length }}
-                  Tasks
+                  tasks
                 </p>
               </div>
               <div

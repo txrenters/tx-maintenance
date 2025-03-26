@@ -53,13 +53,13 @@ class WorkOrder extends Model
 
     public function vendor(): HasOne
     {
-        return $this->hasOne(Vendor::class);
+        return $this->hasOne(Vendor::class, 'work_order_vendors');
     }
 
     public function vendors(): BelongsToMany
     {
         return $this->belongsToMany(Vendor::class, 'work_order_vendors')
-                ->withPivot('cost_estimate', 'time_estimate', 'scheduled_end_date')->withTimestamps();
+                ->withPivot('cost_estimate', 'time_estimate', 'scheduled_end_date','vendor_id')->withTimestamps();
     }
 
     public function vendor_notes(): HasMany
@@ -67,7 +67,7 @@ class WorkOrder extends Model
         return $this->hasMany(VendorNotes::class, 'work_order_id');
     }
 
-   public function tenant_conversation(): HasMany
+    public function tenant_conversation(): HasMany
     {
         return $this->hasMany(Conversation::class)->where('conversation_type','tenant');
     }
@@ -78,6 +78,11 @@ class WorkOrder extends Model
     }
 
     public function vendor_conversation(): HasMany
+    {
+        return $this->hasMany(Conversation::class)->where('conversation_type','vendor');
+    }
+
+    public function vendor_tenant_conversation(): HasMany
     {
         return $this->hasMany(Conversation::class)->where('conversation_type','vendor_tenant');
     }
@@ -120,12 +125,13 @@ class WorkOrder extends Model
     {
         if(!empty($filters['search'])){
             $search = $filters['search'];
-
             $query
             ->whereAny([
                 'work_order_no',
                 'location',
                 ], 'LIKE', "%{$search}%");
         }
+
+        
     }
 }

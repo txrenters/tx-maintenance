@@ -10,12 +10,28 @@ const props = defineProps({
   tasks: Object,
 });
 
-const pendingTasks = computed(() => {
-  return props.tasks.filter((task) => task.status === "pending");
+const tasksDueToday = computed(() => {
+  const today = new Date().toISOString().split("T")[0];
+
+  return props.tasks.filter(
+    (task) => (task.status !== "completed") & (task.due_date === today)
+  );
 });
 
-const processingTasks = computed(() => {
-  return props.tasks.filter((task) => task.status === "processing");
+const taskPastDue = computed(() => {
+  const today = new Date().toISOString().split("T")[0];
+
+  return props.tasks.filter(
+    (task) => (task.status !== "completed") & (task.due_date < today)
+  );
+});
+
+const taskNotDue = computed(() => {
+  const today = new Date().toISOString().split("T")[0];
+
+  return props.tasks.filter(
+    (task) => task.status !== "completed" && task.due_date > today
+  );
 });
 
 const completedTasks = computed(() => {
@@ -25,20 +41,25 @@ const completedTasks = computed(() => {
 
 <template>
   <Head :title="title" />
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="flex-1">
-      <h2 class="text-xl font-bold mb-2">Pending Tasks ({{ pendingTasks.length }})</h2>
+      <h2 class="text-xl font-bold mb-2">Task Past Due ({{ taskPastDue.length }})</h2>
       <ScrollArea class="h-auto md:h-[85vh] border-t pt-2 mb-5">
-        <TaskCard :tasks="pendingTasks" />
+        <TaskCard :tasks="taskPastDue" />
         <ScrollBar orientation="vertical" />
       </ScrollArea>
     </div>
     <div class="flex-1">
-      <h2 class="text-xl font-bold mb-2">
-        Processing Tasks ({{ processingTasks.length }})
-      </h2>
+      <h2 class="text-xl font-bold mb-2">Tasks Due Today ({{ tasksDueToday.length }})</h2>
       <ScrollArea class="h-auto md:h-[85vh] border-t pt-2 mb-5">
-        <TaskCard :tasks="processingTasks" />
+        <TaskCard :tasks="tasksDueToday" />
+        <ScrollBar orientation="vertical" />
+      </ScrollArea>
+    </div>
+    <div class="flex-1">
+      <h2 class="text-xl font-bold mb-2">Tasks Pending ({{ taskNotDue.length }})</h2>
+      <ScrollArea class="h-auto md:h-[85vh] border-t pt-2 mb-5">
+        <TaskCard :tasks="taskNotDue" />
         <ScrollBar orientation="vertical" />
       </ScrollArea>
     </div>

@@ -135,7 +135,8 @@ class PropertyWareService
                             </portfolio>
                             <location xsi:type="xsd:string">' . htmlspecialchars($work_order->location, ENT_XML1, 'UTF-8') . '</location>
                             <category xsi:type="xsd:string">' . htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8') . '</category>
-                          
+                            <description xsi:type="xsd:string">' . htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8') . '</description>
+
                             <closingComments xsi:type="xsd:string">' . htmlspecialchars($data['closing_comments'] ?? '', ENT_XML1, 'UTF-8') . '</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -516,7 +517,7 @@ class PropertyWareService
                         <filename xsi:type="xsd:string">'.$filename.'</filename>
                         <privateFile xsi:type="xsd:boolean">false</privateFile>
                         <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
-                        <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
+                        <publishToTenantPortal xsi:type="xsd:boolean">false</publishToTenantPortal>
                     </document>
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">' . $workorderId . '</ID>

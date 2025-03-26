@@ -11,9 +11,16 @@ use Illuminate\Support\Facades\Log;
 
 class ConversationController extends Controller
 {
+    public function get_vendor_tenant_conversation(WorkOrder $workOrder)
+    {
+        $workOrder->load(['tenants','vendor_tenant_conversation','vendors']);
+    
+        return response()->json($workOrder, 200);
+    }
+
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants','vendor_conversation','vendors']);
+        $workOrder->load(['vendor_conversation','vendors']);
     
         return response()->json($workOrder, 200);
     }
@@ -32,7 +39,7 @@ class ConversationController extends Controller
         return response()->json($workOrder, 200);
     }
 
-    public function vendor_conversation(Request $request)
+    public function SendMessage(Request $request)
     {                
         $validatedData = $request->validate([
             'text' => 'required|string',
@@ -42,14 +49,24 @@ class ConversationController extends Controller
             'conversation_type' => 'required',
         ]);
 
+        // Format phone numbers ensuring proper + prefix
+        $senderNumber = str_starts_with($validatedData['sender_phone_number'], '+') 
+            ? $validatedData['sender_phone_number']
+            : '+'.$validatedData['sender_phone_number'];
+
+        $receiverNumber = str_starts_with($validatedData['receiver_phone_number'], '+') 
+            ? $validatedData['receiver_phone_number']
+            : '+'.$validatedData['receiver_phone_number'];
+
         DB::beginTransaction();
 
         try {
+
             // Save the message to the database
             $conversation = Conversation::create([
                 'message' => $validatedData['text'],
-                'sender_number' => $validatedData['sender_phone_number'],
-                'receiver_number' => $validatedData['receiver_phone_number'],
+                'sender_number' => $senderNumber,
+                'receiver_number' => $receiverNumber ,
                 'work_order_id' => $validatedData['work_order_id'],
                 'conversation_type' => $validatedData['conversation_type'],
             ]);
@@ -57,8 +74,8 @@ class ConversationController extends Controller
             // Send the message via Twilio
             $twilio = new TwilioService();
             $twilioResult = $twilio->sendMessage(
-                "+".$validatedData['receiver_phone_number'],
-                $validatedData['sender_phone_number'],
+                $receiverNumber ,
+                $senderNumber,
                 $validatedData['text']
             );
     

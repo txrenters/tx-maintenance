@@ -41,7 +41,16 @@ const canAccess = (requiredRoles) => {
           size="icon"
           @click="handleSwitchTab(button.name)"
         >
-          <span v-if="button.icon === 'VOT'" class="text-xs">{{ button.icon }}</span>
+          <span
+            v-if="
+              button.icon === 'V' ||
+              button.icon === 'O' ||
+              button.icon === 'T' ||
+              button.icon === 'W'
+            "
+            class="text-xs"
+            >{{ button.icon }}</span
+          >
 
           <!-- If the icon exists and is not 'vot', render the icon -->
           <component :is="button.icon" class="w-4 h-4" v-else-if="button.icon" />

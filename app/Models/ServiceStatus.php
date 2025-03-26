@@ -30,8 +30,14 @@ class ServiceStatus extends Model
     {
         $query->when($filters['search'] ?? null, function ($query, $search) {
             $query->whereHas('work_order', function($q) use ($search){
-                    $q->where('work_order_no', $search);
+                    $q->whereAny(['work_order_no','location'], 'LIKE', "%{$search}%");
                 });
+        });
+
+        $query->when($filters['vendor'] ?? null, function ($query, $search) {
+            $query->whereHas('work_orders.vendors', function($q) use ($search){
+                $q->where('vendors.id', $search); // Explicitly use vendors.id
+            });
         });
     }
     

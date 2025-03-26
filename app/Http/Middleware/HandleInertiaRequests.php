@@ -35,12 +35,29 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        return array_merge(parent::share($request), [
-            'auth.user' => fn () => $request->user()
-                ? $request->user()->only('id', 'name', 'email', 'phone', 'company', 'address', 'website', 'profile_photo_url') + [
-                    'roles' => $request->user()->roles->pluck('name'),
-                ]
-                : null,
+
+        $sharedData = parent::share($request);
+    
+        $userData = null;
+
+
+       if ($request->user()) {
+            $userData = $request->user()->only('id', 'name', 'email', 'phone', 'company', 'address', 'website', 'profile_photo_url') + [
+                'roles' => $request->user()->roles->pluck('name'),
+            ];
+            
+            // Add vendor-specific data if user has vendor role
+            if ($request->user()->hasRole('vendor')) {
+                $userData['vendor'] = $request->user()->vendor ?? null;
+            }
+
+            if ($request->user()->hasRole('woc')) {
+                $userData['woc'] = $request->user()->wocNumber->twilioPhoneNumber ?? null;
+            }
+        }
+        
+        return array_merge($sharedData, [
+            'auth.user' => $userData,
         ]);
     }
 }

@@ -382,11 +382,12 @@ const latestScheduledEndDate = computed(() => {
       </div>
       <div class="grid gap-1.5 mt-5 pb-12">
         <Label>Description:</Label>
-        <div class="border mt-2" v-if="workOrder.description">
-          <p class="text-sm p-2 rounded">
-            {{ workOrder.description }}
-          </p>
-        </div>
+        <Textarea
+          placeholder="Type your message here."
+          v-model="workOrder.description"
+          rows="1"
+          :disabled="$page.props.auth.user.roles.includes('vendor')"
+        />
       </div>
     </div>
   </div>
