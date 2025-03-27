@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, watchEffect } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import { Loader2, EllipsisVertical, Ellipsis } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -17,21 +17,33 @@ const formatDate = (date) => {
 
   let parsedDate;
 
-  if (typeof date === "string") {
-    if (date.includes("T")) {
-      // Handle ISO format (2025-03-06T17:41:20.000000Z)
-      parsedDate = DateTime.fromISO(date, { zone: "utc" });
+  try {
+    if (typeof date === "string") {
+      if (date.includes("T")) {
+        // Handle ISO format (2025-03-06T17:41:20.000000Z)
+        parsedDate = DateTime.fromISO(date, { zone: "utc" });
+      } else if (date.includes("-")) {
+        // Handle date string (2025-03-06 or 2025-03-06 23:10:06)
+        parsedDate = DateTime.fromFormat(date.split(" ")[0], "yyyy-MM-dd", {
+          zone: "utc",
+        });
+      } else {
+        return "Invalid Date Format";
+      }
+    } else if (date instanceof Date) {
+      parsedDate = DateTime.fromJSDate(date);
     } else {
-      // Handle non-ISO format (2025-03-06 23:10:06)
-      parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+      return "Invalid Date";
     }
-  } else if (date instanceof Date) {
-    parsedDate = DateTime.fromJSDate(date);
-  } else {
+
+    if (!parsedDate.isValid) return "Invalid Date";
+
+    // Format as "Sat, March 29, 2025"
+    return parsedDate.toFormat("EEE, MMMM d, yyyy");
+  } catch (error) {
+    console.error("Date formatting error:", error);
     return "Invalid Date";
   }
-
-  return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
 };
 
 const updateTaskStatus = async (taskId, status, option) => {
@@ -70,13 +82,22 @@ const editTaskForm = useForm({
 
 const handleEditForm = (task) => {
   if (task.status === "completed") {
+    // if complete dont edit task
     return;
   }
+
+  if (page.props.auth.user.roles.includes("vendor")) {
+    // vendor can't edit task
+    return;
+  }
+
   openEditModal.value = true;
   editTaskForm.id = task.id;
   editTaskForm.description = task.description;
   editTaskForm.due_date = task.due_date;
 };
+
+const page = usePage();
 
 const EditFormSubmit = () => {
   editTaskForm.patch(route("tasks.update", editTaskForm.id), {
@@ -123,7 +144,7 @@ const checkDueTask = (task) => {
 <template>
   <div v-for="task in tasks" :key="task.id" class="hover:bg-opacity-50">
     <Card
-      class="w-full p-2 mb-2 hover:shadow-lg transition-all"
+      class="w-full p-2 mb-2 cursor-pointer hover:shadow-lg transition-all"
       :class="{
         'bg-secondary': checkDueTask(task) === 'completed',
         'bg-red-500 text-white': checkDueTask(task) === 'red',
@@ -131,17 +152,21 @@ const checkDueTask = (task) => {
         'bg-green-500 text-white': checkDueTask(task) === 'green',
       }"
     >
+      <p v-if="task.work_order_no">#{{ task.work_order_no }}</p>
+      <Separator class="mb-2" v-if="task.work_order_no" />
+
       <div class="flex justify-between">
         <div class="flex flex-col gap-2 w-full" @click="handleEditForm(task)">
           <div class="flex text-xs items-center gap-1">
-            <Badge
+            <!-- <Badge
               :class="
                 task.status === 'pending' ? 'bg-secondary text-black' : 'bg-green-500'
               "
             >
               {{ task.status }}
-            </Badge>
-            <p>
+            </Badge> -->
+            <p class="text-xs">
+              📅 Due
               {{
                 task.status === "completed"
                   ? formatDate(task.updated_at)
@@ -151,7 +176,12 @@ const checkDueTask = (task) => {
           </div>
           <p class="text-sm">{{ task.description }}</p>
         </div>
-        <div v-if="task.status !== 'completed'" class="mr-2">
+        <div
+          v-if="
+            task.status !== 'completed' && (task.task.is_optional ? task.option : true)
+          "
+          class="mr-2"
+        >
           <Checkbox
             class="bg-white"
             @click="() => updateTaskStatus(task.id, 'completed', task.option)"
@@ -191,7 +221,11 @@ const checkDueTask = (task) => {
               Selected:
               <span v-if="task.status === 'completed'">{{ task.option ?? "No" }}</span>
             </p>
-            <select v-model="task.option" v-if="task.status !== 'completed'">
+            <select
+              v-model="task.option"
+              v-if="task.status !== 'completed'"
+              class="text-black"
+            >
               <option selected value="Yes">Yes</option>
               <option value="No">No</option>
             </select>

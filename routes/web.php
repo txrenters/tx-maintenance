@@ -4,6 +4,7 @@ use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
@@ -14,11 +15,14 @@ use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioPhoneNumberController;
+use App\Http\Controllers\TwilioWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
+use App\Http\Controllers\WorkOrderNotesController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Twilio\Rest\Client;
 
@@ -79,15 +83,20 @@ Route::middleware([
     Route::post('/invoices',[InvoiceController::class, 'store'])->name('api.invoices.store');
     Route::post('/invoices/{invoice}',[InvoiceController::class, 'update'])->name('api.invoices.update');
 
-    Route::get('/vendor_notes/{workOrder}/show',[VendorNotesController::class, 'getNotes'])->name('api.vendor_notes.show');
-    Route::post('/vendor_notes',[VendorNotesController::class, 'store'])->name('api.vendor_notes.store');
-    Route::delete('/vendor_notes/{vendorNotes}/',[VendorNotesController::class, 'destroy'])->name('api.vendor_notes.destroy');
+    Route::get('/notes/{workOrder}/show',[WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
+    Route::post('/notes',[WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');
+    Route::delete('/notes/{note}/',[WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
     Route::post('/vendor_work_order_details',[VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
-
 });
 
+Route::get('/conversations/{workOrder}',[ConversationController::class, 'show'])->name('conversation.show');
 
-// Route::prefix('admin/', function(){
-//     Route::
-// });
+Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:60,1'); // 60 requests per minute
+
+Route::get('admin', function(){
+    $client = new \SoapClient('https://api.propertyware.com/pw/services/PWServices?wsdl');
+        dd($client->__getFunctions());
+});

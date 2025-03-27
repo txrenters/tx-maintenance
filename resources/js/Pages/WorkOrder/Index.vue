@@ -8,13 +8,15 @@ import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
+import VendorWocConversation from "./Partials/VendorWocConversation.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
 import OwnerConversation from "./Partials/OwnerConversation.vue";
+import Conversation from "./Partials/Conversation.vue";
 import ServiceSchedule from "./Partials/ServiceSchedule.vue";
 import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
-import VendorNotes from "./Partials/VendorNotes.vue";
+import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
 import debounce from "lodash/debounce";
 
@@ -26,6 +28,7 @@ import {
   FileText,
   NotebookPen,
   Notebook,
+  MessagesSquare,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -101,8 +104,8 @@ const tabButtons = [
     requires: ["admin", "woc", "vendor"],
   },
   {
-    name: "vendor_notes",
-    tooltip: "Vendor Notes",
+    name: "notes",
+    tooltip: "Notes",
     icon: Notebook,
     requires: ["admin", "woc", "vendor"],
   },
@@ -112,6 +115,7 @@ const tabButtons = [
     icon: NotebookPen,
     requires: ["admin", "woc", "vendor"],
   },
+
   {
     name: "vendor_tenant_conversation",
     tooltip: "Tenant Conversation",
@@ -160,6 +164,12 @@ const tabButtons = [
     icon: FileText,
     requires: ["admin", "woc", "vendor"],
   },
+  {
+    name: "conversation",
+    tooltip: "Conversation",
+    icon: MessagesSquare,
+    requires: ["admin"],
+  },
 ];
 
 const switchTab = (tabName) => {
@@ -178,6 +188,10 @@ const switchTab = (tabName) => {
     fetchVendorTenantConversation(workOrderForm.id);
   }
 
+  if (activeTab.value === "vendor_woc_conversation" && workOrderForm.id) {
+    fetchVendorConversation(workOrderForm.id);
+  }
+
   if (activeTab.value === "vendor_conversation" && workOrderForm.id) {
     fetchVendorConversation(workOrderForm.id);
   }
@@ -187,6 +201,13 @@ const switchTab = (tabName) => {
   }
 
   if (activeTab.value === "owner_conversation" && workOrderForm.id) {
+    fetchOwnerConversation(workOrderForm.id);
+  }
+
+  if (activeTab.value === "conversation" && workOrderForm.id) {
+    fetchVendorTenantConversation(workOrderForm.id);
+    fetchVendorConversation(workOrderForm.id);
+    fetchTenantConversation(workOrderForm.id);
     fetchOwnerConversation(workOrderForm.id);
   }
 
@@ -202,8 +223,8 @@ const switchTab = (tabName) => {
     fetchInvoices(workOrderForm.id);
   }
 
-  if (activeTab.value === "vendor_notes" && workOrderForm.id) {
-    fetchVendorNotes(workOrderForm.id);
+  if (activeTab.value === "notes" && workOrderForm.id) {
+    fetchNotes(workOrderForm.id);
   }
 
   if (activeTab.value === "vendor_edit" && workOrderForm.id) {
@@ -242,6 +263,8 @@ const fetchTenantConversation = async (workOrderId) => {
 
     tenantConversation.value = response.data.tenant_conversation;
     workOrderTenants.value = response.data.tenants;
+
+    console.log(response.data);
   } catch (error) {
     console.error("Error fetching tasks:", error);
   } finally {
@@ -342,12 +365,12 @@ const fetchInvoices = async (workOrderId) => {
   }
 };
 const workOrderNotes = ref([]);
-const fetchVendorNotes = async (workOrderId) => {
+const fetchNotes = async (workOrderId) => {
   try {
     isLoading.value = true;
-    const response = await axios.get(route("api.vendor_notes.show", workOrderId));
+    const response = await axios.get(route("api.work_order_notes.show", workOrderId));
 
-    workOrderNotes.value = response.data.vendor_notes;
+    workOrderNotes.value = response.data.notes;
   } catch (error) {
     console.error("Error fetching tasks:", error);
   } finally {
@@ -359,7 +382,7 @@ const workOrderVendorData = ref([]);
 const fetchVendors = async (workOrderId) => {
   try {
     isLoading.value = true;
-    const response = await axios.get(route("api.vendor_notes.show", workOrderId));
+    const response = await axios.get(route("api.work_order_notes.show", workOrderId));
     workOrderVendorData.value = response.data.vendors;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -487,7 +510,7 @@ const handleWorkOrder = async (orderId) => {
     workOrderForm.managed_by = order.managed_by;
     workOrderForm.requested = order.requested_by;
     workOrderForm.vendors =
-      order.service_status.name === "New"
+      order.local_status === "Created"
         ? Object.values(order.vendors).map((vendor) => vendor.name)
         : order.vendors;
     workOrderForm.management_plan = order.management_plan;
@@ -649,6 +672,17 @@ usePoll(5000, { only: ["service_status"] });
         v-if="activeTab === 'tasks'"
       />
 
+      <Conversation
+        :workOrder="workOrderForm"
+        :vendorConversation="vendorConversation"
+        :ownerConversation="ownerConversation"
+        :tenantConversation="tenantConversation"
+        :vendorTenantConversation="vendorTenantConversation"
+        :vendorWocConversation="vendorConversation"
+        :isLoading="isLoading"
+        v-if="activeTab === 'conversation'"
+      />
+
       <VendorTenantConversation
         :vendorConversation="vendorTenantConversation"
         :workOrderTenants="workOrderTenants"
@@ -656,6 +690,15 @@ usePoll(5000, { only: ["service_status"] });
         @update-vendor-tenant-convo="fetchVendorTenantConversation(workOrderForm.id)"
         :isLoading="isLoading"
         v-if="activeTab === 'vendor_tenant_conversation'"
+      />
+
+      <VendorWocConversation
+        :wocConversation="vendorConversation"
+        :workOrderVendors="workOrderVendors"
+        @update-vendor-convo="fetchVendorConversation(workOrderForm.id)"
+        :workOrder="workOrderForm"
+        :isLoading="isLoading"
+        v-if="activeTab === 'vendor_woc_conversation'"
       />
 
       <VendorConversation
@@ -709,12 +752,12 @@ usePoll(5000, { only: ["service_status"] });
         v-if="activeTab === 'invoices'"
       />
 
-      <VendorNotes
+      <Notes
         :workOrderNotes="workOrderNotes"
         :workOrder="workOrderForm"
         :isLoading="isLoading"
-        @fetch-notes="fetchVendorNotes(workOrderForm.id)"
-        v-if="activeTab === 'vendor_notes'"
+        @fetch-notes="fetchNotes(workOrderForm.id)"
+        v-if="activeTab === 'notes'"
       />
 
       <VendorEdit

@@ -107,6 +107,11 @@ class WorkOrder extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(WorkOrderNotes::class);
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(WorkOrderTask::class)

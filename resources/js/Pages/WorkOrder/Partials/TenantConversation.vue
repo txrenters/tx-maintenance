@@ -2,9 +2,9 @@
 import { ref, watch, onMounted, nextTick } from "vue";
 import { router } from "@inertiajs/vue3";
 import { Loader2, Send } from "lucide-vue-next";
-import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
 const { toast } = useToast();
+import MessageCard from "@/Components/MessageCard.vue";
 
 const props = defineProps({
   tenantConversation: Array,
@@ -15,33 +15,13 @@ const props = defineProps({
 
 const newMessage = ref("");
 const selectedTenant = ref("");
-const tenant_phone_number = ref(props.workOrder.requested.mobile_phone);
+const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
 const woc = ref(props.workOrder.woc);
 const woc_phone_number = ref(
   props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
 );
-
-const formatDate = (date) => {
-  if (!date) return "------";
-
-  let parsedDate;
-
-  if (typeof date === "string") {
-    if (date.includes("T")) {
-      parsedDate = DateTime.fromISO(date, { zone: "utc" });
-    } else {
-      parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
-    }
-  } else if (date instanceof Date) {
-    parsedDate = DateTime.fromJSDate(date);
-  } else {
-    return "Invalid Date";
-  }
-
-  return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy") : "Invalid Date";
-};
 
 const loading = ref(false);
 watch(selectedTenant, (newTenant) => {
@@ -139,11 +119,13 @@ watch(
   },
   { deep: true }
 );
+
+console.log(props.workOrderTenants);
 </script>
 
 <template>
   <div class="overflow-y-auto px-6 w-full min-h-[300px]">
-    <p class="font-semibold uppercase text-xs mb-3">Tenant and WOC Conversation</p>
+    <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
 
     <div
       class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
@@ -158,7 +140,7 @@ watch(
               <template v-for="tenant in workOrderTenants" :key="tenant.id">
                 <SelectItem
                   :value="String(tenant.id)"
-                  :selected="tenant.mobile_phone === workOrder.requested.mobile_phone"
+                  :selected="tenant.mobile_phone === workOrder.requested?.mobile_phone"
                 >
                   {{ tenant.first_name }} {{ tenant.last_name }} -
                   {{ tenant?.mobile_phone }}
@@ -191,47 +173,7 @@ watch(
         v-else
         ref="chatContainer"
       >
-        <div
-          v-for="msg in tenantConversation"
-          :key="msg.id"
-          class="p-2 rounded-lg text-sm w-fit max-w-[75%]"
-          :class="
-            msg.sender_number === woc_phone_number
-              ? 'bg-blue-500 text-white self-end'
-              : 'bg-gray-200 text-gray-900 self-start'
-          "
-        >
-          <div class="flex flex-col gap-2">
-            <div
-              class="flex gap-1 items-center"
-              :class="
-                msg.sender_number === woc_phone_number ? 'flex-row-reverse' : 'flex-row'
-              "
-            >
-              <p
-                class="text-xs"
-                :class="
-                  msg.sender_number === woc_phone_number ? 'flex-row-reverse' : 'flex-row'
-                "
-              >
-                {{ msg.sender_number }}
-              </p>
-            </div>
-
-            <p
-              class="font-bold"
-              :class="msg.sender_number === woc_phone_number ? 'text-right' : 'text-left'"
-            >
-              {{ msg.message }}
-            </p>
-            <p
-              class="text-xs"
-              :class="msg.sender_number === woc_phone_number ? 'text-right' : 'text-left'"
-            >
-              {{ formatDate(msg.created_at) }}
-            </p>
-          </div>
-        </div>
+        <MessageCard :messages="tenantConversation" :sender="woc_phone_number" />
       </div>
     </div>
 

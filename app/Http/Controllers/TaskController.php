@@ -15,14 +15,28 @@ class TaskController extends Controller
      */
     public function index(Request $request)
     {
-        $tasks = WorkOrderTask::with(['assigned_user','task.taskTemplate','task.nextServiceStatus'])->get();
+        $workOrders = WorkOrder::with([
+            'tasks.task.taskDetails.taskServiceStatus',
+            'tasks.task.nextServiceStatus',
+            'tasks.assigned_user'
+        ])->whereHas('tasks', function ($query) {
+            $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
+        })->get();
+
+        $tasks = $workOrders->flatMap(function ($workOrder) {
+            return $workOrder->tasks->map(function ($task) use ($workOrder) {
+                $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
+                return $task;
+            });
+        });
+        
 
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
             'tasks' => $tasks,
         ]);
     }
-    /**
+    /** 
      * Store a newly created resource in storage.
      */
     public function store(Request $request)

@@ -94,19 +94,19 @@ const vendorChange = () => {
 };
 
 const totalCostEstimate = computed(() => {
-  return props.workOrder?.vendors.reduce((total, vendor) => {
+  return props.workOrder?.vendors?.reduce((total, vendor) => {
     return total + parseFloat(vendor.pivot?.cost_estimate || 0);
   }, 0);
 });
 
 const totalTimeEstimate = computed(() => {
-  return props.workOrder?.vendors.reduce((total, vendor) => {
+  return (props.workOrder?.vendors || []).reduce((total, vendor) => {
     return total + parseInt(vendor.pivot?.time_estimate || 0);
   }, 0);
 });
 
 const latestScheduledEndDate = computed(() => {
-  return props.workOrder?.vendors.reduce((latestDate, vendor) => {
+  return (props.workOrder?.vendors || []).reduce((latestDate, vendor) => {
     const vendorDate = vendor.pivot?.scheduled_end_date
       ? new Date(vendor.pivot?.scheduled_end_date)
       : null;

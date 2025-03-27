@@ -42,7 +42,9 @@ const formatDate = (date) => {
     return "Invalid Date";
   }
 
-  return parsedDate.isValid ? parsedDate.toFormat("MM/dd/yyyy hh:mm a") : "Invalid Date";
+  return parsedDate.isValid
+    ? parsedDate.toFormat("EEE, MMMM d, yyyy hh:mm a")
+    : "Invalid Date";
 };
 
 const updateScheduleStatus = async (service_schedule_id, status) => {
@@ -128,14 +130,14 @@ const handleMeetingSubmit = () => {
     </div>
     <div class="mb-10" v-else>
       <Card
-        class="w-full p-4 mb-2 bg-primary/80 text-white"
+        class="w-full p-4 mb-2 bg-primary/95 text-white"
         v-for="schedule in vendorServiceSchedules"
         :key="schedule.id"
       >
         <div class="flex justify-between">
           <div class="flex flex-col w-full">
             <div class="flex text-xs items-center gap-1">
-              <p>{{ formatDate(schedule.scheduled_date) }}</p>
+              <p>📅 Due {{ formatDate(schedule.scheduled_date) }}</p>
             </div>
             <p class="text-sm mt-2 font-semibold">{{ schedule.title }}</p>
             <p class="text-xs">{{ schedule.description }}</p>

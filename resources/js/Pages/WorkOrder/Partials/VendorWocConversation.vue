@@ -6,33 +6,33 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
 
 const props = defineProps({
-  vendorConversation: Array,
+  wocConversation: Array,
   workOrderTenants: Array,
   workOrderVendors: Array,
   isLoading: Boolean,
   workOrder: Object,
 });
 
+const newMessage = ref("");
+const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
+
+const emit = defineEmits(["update-vendor-convo"]);
+
 const page = usePage();
 const { toast } = useToast();
 
-const newMessage = ref("");
-const selectedTenant = ref("");
-const tenant_phone_number = ref(props.workOrder.requested.mobile_phone);
-const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
+const woc = ref(props.workOrder.woc);
+const woc_phone_number = ref(
+  props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
+);
+
 const vendor_phone_number = ref(page.props.auth.user.vendor.twilio_number);
 
-watch(selectedTenant, (newTenant) => {
-  if (newTenant) {
-    const foundTenant = props.workOrderTenants.find((tenant) => tenant.id == newTenant);
-    tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
-  }
-});
-
 const loading = ref(false);
+
 const sendMessage = () => {
   loading.value = true;
-  if (!tenant_phone_number.value) {
+  if (!vendor_phone_number.value) {
     toast({
       variant: "destructive",
       title: "Uh oh! Something went wrong.",
@@ -60,9 +60,9 @@ const sendMessage = () => {
       {
         text: newMessage.value,
         sender_phone_number: vendor_phone_number.value,
-        receiver_phone_number: tenant_phone_number.value,
+        receiver_phone_number: woc_phone_number.value,
         work_order_id: props.workOrder.id,
-        conversation_type: "vendor_tenant",
+        conversation_type: "vendor",
       },
       {
         preserveState: true,
@@ -72,15 +72,16 @@ const sendMessage = () => {
             title: "Success",
             description: "Message has been sent successfully!",
           });
-          props.vendorConversation.push({
+          props.wocConversation.push({
             id: Date.now(), // Temporary ID
             sender_number: vendor_phone_number.value,
-            receiver_number: tenant_phone_number.value,
+            receiver_number: woc_phone_number.value,
             message: newMessage.value,
             created_at: new Date().toISOString(), // Current timestamp
           });
           newMessage.value = "";
-          scrollToBottom(); // Scroll to the bottom after sending a message
+          scrollToBottom();
+          emit("update-vendor-convo");
         },
         onError: () => {
           toast({
@@ -106,60 +107,54 @@ const scrollToBottom = () => {
   });
 };
 
-// Scroll to the bottom when the component mounts or when the conversation updates
-onMounted(() => {
-  scrollToBottom();
-});
-
 watch(
-  () => props.vendorConversation,
+  () => props.wocConversation,
   () => {
     scrollToBottom();
   },
   { deep: true }
 );
+
+onMounted(() => {
+  scrollToBottom();
+});
 </script>
 
 <template>
   <div class="overflow-y-auto px-6 w-full min-h-[300px]">
-    <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
+    <p class="font-semibold uppercase text-xs mb-3">WOC Conversation</p>
     <div
       class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
     >
       <div class="flex gap-2">
-        <Select v-model="selectedTenant">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select a tenant" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <template v-for="tenant in workOrderTenants" :key="tenant.id">
-                <SelectItem
-                  :value="String(tenant.id)"
-                  :selected="tenant.mobile_phone === workOrder.requested.mobile_phone"
-                >
-                  {{ tenant.first_name }} {{ tenant.last_name }} -
-                  {{ tenant?.mobile_phone }}
-                </SelectItem>
-              </template>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Input placeholder="Custom number" class="" v-model="tenant_phone_number" />
-      </div>
-      <div class="flex flex-col text-left">
-        <div class="flex gap-2 items-center">
-          <Avatar class="w-5 h-5">
-            <AvatarImage
-              :src="page.props.auth.user?.profile_photo_url || 'default.jpg'"
-            />
-            <AvatarFallback>
-              {{ page.props.auth.user.vendor.name?.charAt(0) }}
-            </AvatarFallback>
-          </Avatar>
-          {{ page.props.auth.user.vendor.name }}
+        <div class="flex flex-col text-left">
+          <div class="flex gap-2 items-center">
+            <Avatar class="w-5 h-5">
+              <AvatarImage :src="woc?.profile_photo_url || 'default.jpg'" />
+              <AvatarFallback>
+                {{ woc.name?.charAt(0) }}
+              </AvatarFallback>
+            </Avatar>
+            {{ woc.name }}
+          </div>
+          {{ woc.woc_number.twilio_phone_number.phone_number }}
         </div>
-        {{ page.props.auth.user.vendor.twilio_number }}
+      </div>
+      <div class="flex gap-2">
+        <div class="flex flex-col text-left">
+          <div class="flex gap-2 items-center">
+            <Avatar class="w-5 h-5">
+              <AvatarImage
+                :src="page.props.auth.user?.profile_photo_url || 'default.jpg'"
+              />
+              <AvatarFallback>
+                {{ page.props.auth.user.name?.charAt(0) }}
+              </AvatarFallback>
+            </Avatar>
+            {{ page.props.auth.user.name }}
+          </div>
+          {{ page.props.auth.user.vendor.twilio_number }}
+        </div>
       </div>
     </div>
 
@@ -172,7 +167,7 @@ watch(
         v-else
         ref="chatContainer"
       >
-        <MessageCard :messages="vendorConversation" :sender="vendor_phone_number" />
+        <MessageCard :messages="wocConversation" :sender="vendor_phone_number" />
       </div>
     </div>
 

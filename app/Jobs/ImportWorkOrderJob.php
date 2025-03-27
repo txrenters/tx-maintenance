@@ -293,6 +293,7 @@ class ImportWorkOrderJob implements ShouldQueue
     {
         // Process custom fields, notes, documents, etc.
         $this->processNotes($data, $work_order, $now);
+        $this->processVendors($data, $work_order, $now);
         $this->processDocuments($data, $work_order, $now);
         $this->processTenants($data, $work_order, $now);
         $this->processOwners($data, $work_order, $now);
@@ -321,6 +322,30 @@ class ImportWorkOrderJob implements ShouldQueue
         DB::table('work_order_notes')->insert($notesData);
     }
 
+    private function processVendors(array $data, int $work_order, string $now): void
+    {
+        $vendorsData = [];
+        if (!empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
+            foreach ($data['vendorIDs'] as $vendor) {
+                $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
+                $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
+
+                if(!$vendorExist){ //don't insert if exists
+                    $vendorsData[] = [
+                        'work_order_id' => $work_order,
+                        'vendor_id' => $vendorId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+               
+            }
+        }
+        if($vendorsData){
+            DB::table('work_order_vendors')->insert($vendorsData);
+        }
+    }
+
     private function processDocuments(array $data, int $work_order, string $now): void
     {
         $documentsData = [];
@@ -346,7 +371,7 @@ class ImportWorkOrderJob implements ShouldQueue
         }
         DB::table('work_order_documents')->where('work_order_id', $work_order)->delete();
         DB::table('work_order_documents')->insert($documentsData);
-        Log::info('Work Order Documents: ', ['data' => $documentsData]);
+        // Log::info('Work Order Documents: ', ['data' => $documentsData]);
 
     }
 
@@ -355,6 +380,7 @@ class ImportWorkOrderJob implements ShouldQueue
         if (!empty($data['lease']) && is_array($data['lease'])) {
             
             DB::table('work_order_tenants')->where('work_order_id', $work_order)->delete();
+            $work_order_tenant_data = [];
 
             foreach ($data['lease']['tenants'] as $tenant) {
                 $tenantEmail = $tenant['email'] ?? $tenant['ID'] . '@texasrenter.com';
@@ -422,12 +448,17 @@ class ImportWorkOrderJob implements ShouldQueue
 
                 $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
 
-                DB::table('work_order_tenants')->insert([
+                $work_order_tenant_data[] = [
                     'work_order_id' => $work_order,
                     'tenant_id' => $tenantId,
                     'created_at' => $now,
                     'updated_at' => $now,
-                ]);
+                ];
+            }
+
+            if (!empty($work_order_owner_data)) {
+                DB::table('work_order_tenants')->insert($work_order_tenant_data);
+                Log::info('Work order tenants save!');
             }
         }
     }
@@ -500,6 +531,8 @@ class ImportWorkOrderJob implements ShouldQueue
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
+                
             }
 
             if (!empty($work_order_owner_data)) {

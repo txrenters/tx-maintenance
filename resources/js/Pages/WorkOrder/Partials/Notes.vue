@@ -3,6 +3,7 @@ import { ref, watch, onMounted, computed } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
 import { Loader2, Camera, File, FileText, Plus, X } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { DateTime } from "luxon";
 
 const { toast } = useToast();
 
@@ -17,13 +18,13 @@ const emit = defineEmits(["fetch-notes"]);
 const openNoteModal = ref(false);
 
 const notesForm = useForm({
-  name: "",
-  description: "",
+  subject: "",
+  body: "",
   work_order_id: props.workOrder.id,
 });
 
 const handleFormSubmit = () => {
-  if (!notesForm.name || !notesForm.description) {
+  if (!notesForm.subject || !notesForm.body) {
     toast({
       variant: "destructive",
       title: "Uh oh! Something went wrong.",
@@ -31,13 +32,13 @@ const handleFormSubmit = () => {
     });
     return;
   }
-  notesForm.post(route("api.vendor_notes.store"), {
+  notesForm.post(route("api.work_order_notes.store"), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Vendor Notes has been created successfully!",
+        description: "Notes has been created successfully!",
       });
       openNoteModal.value = false;
       notesForm.reset();
@@ -60,13 +61,13 @@ const deleteNoteForm = useForm({
 const deleteNote = (note_id) => {
   props.isLoading = true;
   deleteNoteForm.id = note_id;
-  deleteNoteForm.delete(route("api.vendor_notes.destroy", deleteNoteForm.id), {
+  deleteNoteForm.delete(route("api.work_order_notes.destroy", deleteNoteForm.id), {
     preserveState: true,
     preserveScroll: true,
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Vendor Notes has been deleted successfully!",
+        description: "Notes has been deleted successfully!",
       });
       deleteNoteForm.reset();
       handleFetchNotes();
@@ -82,6 +83,26 @@ const deleteNote = (note_id) => {
     },
   });
 };
+
+const formatDate = (date) => {
+  if (!date) return "------";
+
+  let parsedDate;
+
+  if (typeof date === "string") {
+    if (date.includes("T")) {
+      parsedDate = DateTime.fromISO(date, { zone: "utc" });
+    } else {
+      parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+    }
+  } else if (date instanceof Date) {
+    parsedDate = DateTime.fromJSDate(date);
+  } else {
+    return "Invalid Date";
+  }
+
+  return parsedDate.isValid ? parsedDate.toFormat("EEE, MMMM d, yyyy") : "Invalid Date";
+};
 const handleFetchNotes = () => {
   emit("fetch-notes");
 };
@@ -91,22 +112,29 @@ const handleFetchNotes = () => {
   <div class="overflow-y-auto px-6 w-full min-h-[300px] mb-10">
     <div class="flex justify-between gap-2 items-center mb-3">
       <div>
-        <p class="font-semibold uppercase text-xs mb-3">Vendor Notes</p>
+        <p class="font-semibold uppercase text-xs">Notes</p>
       </div>
-      <div class="flex gap-2" v-if="$page.props.auth.user.roles.includes('vendor')">
+      <div class="flex gap-2">
         <Button :disabled="isLoading" size="icon" @click="openNoteModal = true">
           <Plus v-if="!isLoading" class="" />
           <Loader2 v-else class="w-4 h-4 animate-spin" />
         </Button>
       </div>
     </div>
-    <div class="mb-3">
+    <div class="mb-14">
       <div v-if="workOrderNotes">
-        <Card class="p-2 mb-2" v-for="note in workOrderNotes" :key="note.id">
+        <div
+          class="p-2 mb-2 border bg-secondary"
+          v-for="note in workOrderNotes"
+          :key="note.id"
+        >
           <div class="flex justify-between">
-            <p class="font-bold">{{ note.name }}</p>
+            <p class="font-bold">{{ note.subject }}</p>
             <button
-              v-if="$page.props.auth.user.roles.includes('vendor')"
+              v-if="
+                note.user_id === $page.props.auth.user.id ||
+                !$page.props.auth.user.roles.includes('vendor')
+              "
               @click.stop="deleteNote(note.id)"
               class="bg-red-500 text-white rounded-full p-1 w-5 h-5"
             >
@@ -114,12 +142,13 @@ const handleFetchNotes = () => {
             </button>
           </div>
 
-          <p>{{ note.description }}</p>
-          <p>Vendor: {{ note.vendor.name }}</p>
-        </Card>
+          <p>{{ note.body }}</p>
+          <p class="text-xs">Date: {{ formatDate(note.date) }}</p>
+          <p class="text-xs" v-if="note.user?.name">Created by: {{ note.user?.name }}</p>
+        </div>
       </div>
 
-      <div v-else>No vendors notes found!</div>
+      <div v-else>No notes found!</div>
     </div>
   </div>
   <Dialog v-model:open="openNoteModal">
@@ -139,12 +168,12 @@ const handleFetchNotes = () => {
           <Input
             type="text"
             placeholder="Enter file description"
-            v-model="notesForm.name"
+            v-model="notesForm.subject"
           />
         </div>
         <div class="mb-3">
           <Label>Description</Label>
-          <Textarea v-model="notesForm.description"></Textarea>
+          <Textarea v-model="notesForm.body"></Textarea>
         </div>
       </div>
       <DialogFooter class="p-6 pt-0">

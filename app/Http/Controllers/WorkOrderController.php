@@ -16,7 +16,9 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class WorkOrderController extends Controller
 {
@@ -216,7 +218,8 @@ class WorkOrderController extends Controller
         if($openWorder){
             $workOrder->update([
                 'service_status_id' => $service_status,
-                'completed_date' => null
+                'local_status' => 'Created',
+                'completed_date' => null,
             ]);
         }
 
@@ -224,10 +227,12 @@ class WorkOrderController extends Controller
     }
 
     public function close(WorkOrder $workOrder)
-    {
+    {        
         $service_status = ServiceStatus::where('name', 'Closed')->value('id');
 
-        $closeWorder =  $this->propertyWareServices->closeWorkOrder($workOrder);
+        $conversation_url = route('conversation.show',$workOrder->id);
+        
+        $closeWorder =  $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
 
         if($closeWorder){
             $workOrder->update([

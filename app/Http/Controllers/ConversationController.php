@@ -8,9 +8,20 @@ use App\Services\TwilioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 class ConversationController extends Controller
 {
+    public function show(WorkOrder $workOrder)
+    {
+        $convo = $workOrder->load(['vendor_tenant_conversation','tenant_conversation','owner_conversation','vendor_conversation','vendors']);
+    
+        return inertia('Conversation/Index', [
+            'title' => 'Work Order Conversation',
+            'conversations' => $convo
+        ]);
+    }
+
     public function get_vendor_tenant_conversation(WorkOrder $workOrder)
     {
         $workOrder->load(['tenants','vendor_tenant_conversation','vendors']);
@@ -50,13 +61,8 @@ class ConversationController extends Controller
         ]);
 
         // Format phone numbers ensuring proper + prefix
-        $senderNumber = str_starts_with($validatedData['sender_phone_number'], '+') 
-            ? $validatedData['sender_phone_number']
-            : '+'.$validatedData['sender_phone_number'];
-
-        $receiverNumber = str_starts_with($validatedData['receiver_phone_number'], '+') 
-            ? $validatedData['receiver_phone_number']
-            : '+'.$validatedData['receiver_phone_number'];
+        $senderNumber = $this->formatNumber($validatedData['sender_phone_number']);
+        $receiverNumber =  $this->formatNumber($validatedData['receiver_phone_number']);
 
         DB::beginTransaction();
 
@@ -95,4 +101,16 @@ class ConversationController extends Controller
             return redirect()->back()->with('error', 'Failed to send the message. Please try again.');
         }
     }
+
+    protected function formatNumber(string $number): string
+    {
+        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
+
+        if (empty($cleanedNumber)) {
+            throw new InvalidArgumentException('The provided phone number is invalid.');
+        }
+    
+        return '+' . $cleanedNumber;
+    }
+
 }
