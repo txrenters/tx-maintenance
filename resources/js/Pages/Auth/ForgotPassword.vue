@@ -22,9 +22,44 @@ const submit = () => {
 };
 </script>
 <template>
-  <Head title="Reset Password"></Head>
+  <Head title="Reset Password" />
+  <Card>
+    <CardHeader class="text-center">
+      <CardTitle class="text-xl"> Forgot Password? </CardTitle>
+      <CardDescription class="flex-wrap">
+        No problem. Just let us know your email address and we will email you a password
+        reset link that will allow you to choose a new one.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      <form @submit.prevent="submit">
+        <div class="grid gap-6">
+          <div class="grid gap-2">
+            <div v-if="status" class="font-medium text-xs text-green-600">
+              {{ status }}
+            </div>
+            <div class="grid gap-2">
+              <Label html-for="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                v-model="form.email"
+                required
+              />
+              <Label class="text-xs text-destructive">{{ form.errors.email }}</Label>
+            </div>
+            <Button type="submit" :disabled="form.processing" class="w-full">
+              <Loader2 v-if="form.processing" class="w-4 h-4 animate-spin" /> Email
+              Password Reset Link
+            </Button>
+          </div>
+        </div>
+      </form>
+    </CardContent>
+  </Card>
 
-  <div>
+  <!-- <div>
     <div class="mx-auto grid w-[350px] gap-3">
       <div class="grid gap-2 text-center">
         <h1 class="text-2xl font-bold">Forgot Password?</h1>
@@ -59,5 +94,5 @@ const submit = () => {
         </div>
       </form>
     </div>
-  </div>
+  </div> -->
 </template>

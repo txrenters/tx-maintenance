@@ -24,16 +24,13 @@ const submit = () => {
 };
 </script>
 <template>
-  <Head title="Reset Password"></Head>
-
-  <div>
-    <div class="mx-auto grid w-[350px] gap-6">
-      <div class="grid gap-2 text-center">
-        <h1 class="text-3xl font-bold">Login</h1>
-        <p class="text-balance text-muted-foreground">
-          Enter your email below to login to your account
-        </p>
-      </div>
+  <Head title="Reset Password" />
+  <Card>
+    <CardHeader class="text-center">
+      <CardTitle class="text-xl"> Login </CardTitle>
+      <CardDescription> Enter your email below to login to your account </CardDescription>
+    </CardHeader>
+    <CardContent>
       <form @submit.prevent="submit">
         <div class="grid gap-4">
           <div class="grid gap-2">
@@ -88,6 +85,6 @@ const submit = () => {
           </div>
         </div>
       </form>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>

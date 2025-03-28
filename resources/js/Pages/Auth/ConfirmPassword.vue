@@ -29,16 +29,15 @@ const submit = () => {
 </script>
 <template>
   <Head title="Confirm Password"></Head>
-
-  <div>
-    <div class="mx-auto grid w-[350px] gap-6">
-      <div class="grid gap-2 text-center">
-        <h1 class="text-3xl font-bold">Confirm Password</h1>
-        <p class="text-balance text-muted-foreground">
-          This is a secure area of the application. Please confirm your password before
-          continuing.
-        </p>
-      </div>
+  <Card>
+    <CardHeader class="text-center">
+      <CardTitle class="text-xl"> Confirm Password </CardTitle>
+      <CardDescription>
+        This is a secure area of the application. Please confirm your password before
+        continuing.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
       <form @submit.prevent="submit">
         <div class="grid gap-4">
           <Label for="password">Password</Label>
@@ -59,6 +58,6 @@ const submit = () => {
           Login</Button
         >
       </form>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>

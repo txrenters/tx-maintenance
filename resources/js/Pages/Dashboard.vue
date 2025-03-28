@@ -124,12 +124,8 @@ usePoll(3000);
           :data="workOrderChart"
           index="name"
           :categories="['Created', 'Completed']"
-          :showLegend="true"
-          :roundedCorners="5"
-          :showGridLine="true"
-          :showYAxis="true"
-          :showXAxis="true"
           :colors="['#2563EB', '#13B982']"
+          :filterOpacity="1"
         />
       </CardContent>
     </Card>

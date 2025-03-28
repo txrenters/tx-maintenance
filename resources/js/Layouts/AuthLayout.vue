@@ -3,25 +3,22 @@ import AuthenticationCardLogo from "@/Components/AuthenticationCardLogo.vue";
 </script>
 
 <template>
-  <div class="w-full lg:grid lg:min-h-screen lg:grid-cols-2">
-    <!-- Left Side (Form) -->
+  <div class="relative flex min-h-svh flex-col bg-background">
     <div
-      class="relative flex flex-col items-center justify-center py-32 w-full max-w-sm mx-auto"
+      class="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10"
     >
-      <!-- Logo Positioned Above -->
-      <AuthenticationCardLogo class="flex justify-center mb-6" />
+      <Link href="/"> <img src="logo-ct.png" width="200" /></Link>
 
-      <!-- Form Slot (Does Not Move Down) -->
-      <slot />
-    </div>
+      <div class="flex flex-col gap-6 w-full max-w-md mx-auto">
+        <slot />
 
-    <!-- Right Side (Image) -->
-    <div class="hidden bg-muted lg:block">
-      <img
-        src="/login.jpg"
-        alt="Login Image"
-        class="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-      />
+        <div
+          class="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary"
+        >
+          By clicking continue, you agree to our
+          <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+        </div>
+      </div>
     </div>
   </div>
 </template>
