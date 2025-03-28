@@ -5,9 +5,6 @@ defineProps({
   data: Object,
 });
 
-const openEditDialog = (user) => {
-  emit("isDialogOpen", true, user);
-};
 const updateStatus = (work_order) => {
   emit("statusChanged", work_order); // Emit event to parent
 };
@@ -58,6 +55,9 @@ const updateStatus = (work_order) => {
                   class="cursor-pointer"
                   >Re-Open</DropdownMenuItem
                 >
+                <DropdownMenuItem class="cursor-pointer">
+                  <Link :href="route('work_orders.report', work_order.id)"> Report </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </TableCell>

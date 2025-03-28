@@ -1,9 +1,7 @@
 <script setup>
-import { ref, watchEffect, watch } from "vue";
+import { ref } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
 import { Plus } from "lucide-vue-next";
-import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
-import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import TaskCard from "@/Components/TaskCard.vue";
 

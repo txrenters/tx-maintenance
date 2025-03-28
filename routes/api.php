@@ -5,6 +5,8 @@ use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\TwilioWebhookController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -24,3 +26,9 @@ Route::post('/work_orders/convesation/send',[ConversationController::class, 'Sen
 Route::get('/service_schedule/{workOrder}/vendor',[ServiceScheduleController::class, 'get_schedules'])->name('work_order.service_schedules');
 Route::post('/service_schedule/submit',[ServiceScheduleController::class, 'store'])->name('work_order.service_schedule.create');
 Route::post('/service_schedule/{serviceSchedule}/complete',[ServiceScheduleController::class, 'update_status'])->name('service_schedule.status.completed');
+
+
+
+Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:60,1'); // 60 requests per minute

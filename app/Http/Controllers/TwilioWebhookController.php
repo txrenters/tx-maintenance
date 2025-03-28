@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use Illuminate\Http\Request;
 use App\Services\MediaService;
+use Exception;
+use Illuminate\Support\Facades\Http;
 use Twilio\Security\RequestValidator;
 use Illuminate\Support\Facades\Log;
 
@@ -12,23 +14,48 @@ class TwilioWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        try {
-            $this->validateTwilioRequest($request);
-            $data = $request->all();
+        $data = $request->all();
 
-              // Only process inbound messages
-            if (($data['Direction'] ?? 'inbound') !== 'inbound') {
-                return response('', 200);
+        $this->forwardToPlusThis($data);
+        
+        // Validate and sanitize input
+        $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
+        $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
+        $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
+
+        $isMms = $data['NumMedia'] > 0;
+
+        $type = $this->getMessageType($from, $to);
+        $workOrderId = $this->getWorkOrderId($from, $to);
+        $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
+
+        if (!$checkMessageDuplicate && $workOrderId && $type) {
+            try {
+
+                $this->validateTwilioRequest($request);
+
+                $conversation = Conversation::create([
+                    'message' => $body,
+                    'is_mms' => $isMms,
+                    'conversation_type' => $type,
+                    'receiver_number' => $to,
+                    'sender_number' => $from,
+                    'work_order_id' => $workOrderId,
+                ]);
+
+                if ($isMms) {
+                    $this->processMediaAttachments($conversation, $data);
+                }
+
+                return response()->noContent(); // HTTP 204
+
+            } catch (Exception $e) {
+                Log::error('Failed to create conversation: ' . $e->getMessage());
+                return response('Error processing request', 500);
             }
 
-            if (isset($data['SmsStatus'])) {
-                $this->handleMessage($data);
-            }
-
-            return response()->noContent(); // HTTP 204
-
-        } catch (\Exception $e) {
-            Log::error('Twilio webhook error: ' . $e->getMessage());
+        } else {
+            Log::info('Message not valid for insertion (duplicate or missing data).');
             return response('Error processing request', 500);
         }
     }
@@ -39,22 +66,41 @@ class TwilioWebhookController extends Controller
         $from = $this->formatNumber($data['From']);
         $to = $this->formatNumber($data['To']);
 
-      
+        $type = $this->getMessageType($from, $to);
+        $workOrderId = $this->getWorkOrderId($from, $to);
+        $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $data['Body']);
 
-        if ($workOrderId = $this->getWorkOrderId($from, $to)) {
+        if (!$checkMessageDuplicate && $workOrderId && $type) {
             $conversation = Conversation::create([
                 'message' => $data['Body'],
                 'is_mms' => $isMms,
-                'conversation_type' => $this->getMessageType($from, $to),
-                'receiver_number' => $from,
-                'sender_number' => $to,
+                'conversation_type' => $type,
+                'receiver_number' => $to,
+                'sender_number' => $from,
                 'work_order_id' => $workOrderId,
-                'status' => $data['SmsStatus']
             ]);
 
             if ($isMms) {
                 $this->processMediaAttachments($conversation, $data);
             }
+        }
+    }
+
+    protected function forwardToPlusThis(array $data)
+    {
+        try {
+            $forwardUrl = 'https://e.plusthis.com/webhooks/Twilio/sms/19802';
+
+            // Send POST request with data to the other URL
+            $response = Http::post($forwardUrl, $data);
+
+            if ($response->successful()) {
+                Log::info('Successfully forwarded data to PlusThis URL.');
+            } else {
+                Log::error('Failed to forward data to PlusThis. Response: ' . $response->body());
+            }
+        } catch (\Exception $e) {
+            Log::error('Error forwarding data to PlusThis: ' . $e->getMessage());
         }
     }
 
@@ -75,16 +121,35 @@ class TwilioWebhookController extends Controller
         }
     }
 
+    protected function checkMessageDuplicate(string $from, string $to, string $msg): bool
+    {
+        $convo =  Conversation::where('receiver_number', $to)
+            ->where('sender_number', $from)
+            ->latest()
+            ->first(); 
+        
+        // If no conversation is found, return false
+        if (!$convo) {
+            return false;
+            Log::info('Message not duplicate');
+        }
+
+        // Compare trimmed messages
+        Log::info('Checking message:', ['message duplicate' => trim($convo->message) == trim($msg), 'data' => $convo->message .' - '.$msg]);
+
+        return trim($convo->message) == trim($msg);
+    }
+
     protected function getMessageType(string $from, string $to): string
     {
         $conversation = Conversation::where('receiver_number', $to)
             ->where('sender_number', $from)
             ->first();
 
-        return $conversation->type ?? 'default_type'; // Provide a fallback
+        return $conversation->conversation_type; // Provide a fallback
     }
 
-    protected function getWorkOrderId(string $from, string $to): ?int
+    protected function getWorkOrderId(string $from, string $to)
     {
         $conversation = Conversation::where('receiver_number', $to)
             ->where('sender_number', $from)
@@ -100,6 +165,10 @@ class TwilioWebhookController extends Controller
 
     protected function validateTwilioRequest(Request $request): void
     {
+        if (app()->environment('local')) {
+            return; // Skip validation for local environment
+        }
+
         $validator = new RequestValidator(env('TWILIO_AUTH_TOKEN'));
         
         if (!$validator->validate(

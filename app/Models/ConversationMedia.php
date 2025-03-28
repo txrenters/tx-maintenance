@@ -11,6 +11,10 @@ class ConversationMedia extends Model
 
     protected $guarded = [];
 
+      protected $appends = [
+        'public_url',
+    ];
+
     public function message(): BelongsTo
     {
         return $this->belongsTo(Conversation::class, 'message_id');
@@ -18,6 +22,6 @@ class ConversationMedia extends Model
 
     public function getPublicUrlAttribute(): string
     {
-        return asset('storage/'.$this->local_path);
+        return asset('storage/'. $this->local_path);
     }
 }

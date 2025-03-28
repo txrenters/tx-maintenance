@@ -330,7 +330,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
                 $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
 
-                if(!$vendorExist){ //don't insert if exists
+                if(!$vendorExist && $vendorId){ //don't insert if exists
                     $vendorsData[] = [
                         'work_order_id' => $work_order,
                         'vendor_id' => $vendorId,
@@ -456,9 +456,9 @@ class ImportWorkOrderJob implements ShouldQueue
                 ];
             }
 
-            if (!empty($work_order_owner_data)) {
+            if (!empty($work_order_tenant_data)) {
                 DB::table('work_order_tenants')->insert($work_order_tenant_data);
-                Log::info('Work order tenants save!');
+                // Log::info('Work order tenants save!');
             }
         }
     }
@@ -537,6 +537,8 @@ class ImportWorkOrderJob implements ShouldQueue
 
             if (!empty($work_order_owner_data)) {
                 DB::table('work_order_owners')->insert($work_order_owner_data);
+                // Log::info('Work order owners save!');
+
             }
         }
     }

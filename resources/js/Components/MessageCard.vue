@@ -58,6 +58,14 @@ const formatDate = (date) => {
       >
         {{ msg.message }}
       </p>
+      <div v-if="msg.is_mms">
+        <img
+          v-for="media in msg.media"
+          :key="media.key"
+          :src="media.public_url"
+          width="350"
+        />
+      </div>
       <p
         class="text-xs"
         :class="msg.sender_number === sender ? 'text-right' : 'text-left'"

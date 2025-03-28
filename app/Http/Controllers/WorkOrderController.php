@@ -83,6 +83,32 @@ class WorkOrderController extends Controller
 
         return response()->json($workOrder, 200);
     }
+
+    public function report(WorkOrder $workOrder){
+        $workOrder->load([
+            'service_status',
+            'vendors',
+            'requested_by',
+            'managed_by',
+            'woc.wocNumber.twilioPhoneNumber',
+            'tasks',
+            'notes',
+            'invoices',
+            'attachments',
+            'service_schedules',
+            'tenant_conversation',
+            'owner_conversation',
+            'vendor_conversation',
+            'vendor_tenant_conversation',
+        ])->first();
+            
+
+        return inertia('WorkOrder/Report',[
+            'title' => 'Report Summary',
+            'work_order' => $workOrder
+        ]);
+
+    }
     
     /**
      * Update the specified resource in storage.

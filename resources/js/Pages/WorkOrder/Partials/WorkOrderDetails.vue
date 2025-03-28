@@ -273,7 +273,6 @@ const latestScheduledEndDate = computed(() => {
 
       <div>
         <Label for="message">Location:</Label>
-
         <p>{{ workOrder.location }}</p>
       </div>
 

@@ -1,5 +1,6 @@
 <script setup>
 import { DateTime } from "luxon";
+import MessageCard2 from "@/Components/MessageCard2.vue";
 
 const props = defineProps({
   title: String,
@@ -40,55 +41,22 @@ const formatDate = (date) => {
     </h1>
     <div class="mb-4 p-2 border">
       <p class="mb-2 font-bold">WOC and Vendor</p>
-      <div
-        class="bg-secondary p-2 mb-2 text-xs"
-        v-for="conversation in [...conversations.vendor_conversation].reverse()"
-        :key="conversation.id"
-      >
-        <p><strong>From:</strong> {{ conversation.sender_number }}</p>
-        <p><strong>To:</strong> {{ conversation.receiver_number }}</p>
-        <p><strong>Message:</strong> {{ conversation.message }}</p>
-        <small>{{ formatDate(conversation.created_at) }}</small>
-      </div>
+
+      <MessageCard2 :messages="conversations.vendor_conversation" />
     </div>
     <div class="mb-4 p-2 border">
       <p class="mb-2 font-bold">WOC and Owner</p>
-      <div
-        class="bg-secondary p-2 mb-2 text-xs"
-        v-for="conversation in [...conversations.owner_conversation].reverse()"
-        :key="conversation.id"
-      >
-        <p><strong>From:</strong> {{ conversation.sender_number }}</p>
-        <p><strong>To:</strong> {{ conversation.receiver_number }}</p>
-        <p><strong>Message:</strong> {{ conversation.message }}</p>
-        <small>{{ formatDate(conversation.created_at) }}</small>
-      </div>
+
+      <MessageCard2 :messages="conversations.owner_conversation" />
     </div>
     <div class="mb-4 p-2 border">
       <p class="mb-2 font-bold">WOC and Tenant</p>
-      <div
-        class="bg-secondary p-2 mb-2 text-xs"
-        v-for="conversation in [...conversations.tenant_conversation].reverse()"
-        :key="conversation.id"
-      >
-        <p><strong>From:</strong> {{ conversation.sender_number }}</p>
-        <p><strong>To:</strong> {{ conversation.receiver_number }}</p>
-        <p><strong>Message:</strong> {{ conversation.message }}</p>
-        <small>{{ formatDate(conversation.created_at) }}</small>
-      </div>
+
+      <MessageCard2 :messages="conversations.tenant_conversation" />
     </div>
     <div class="mb-14 p-2 border">
       <p class="mb-2 font-bold">Vendor and Tenant</p>
-      <div
-        class="bg-secondary p-2 mb-2 text-xs"
-        v-for="conversation in [...conversations.vendor_tenant_conversation].reverse()"
-        :key="conversation.id"
-      >
-        <p><strong>From:</strong> {{ conversation.sender_number }}</p>
-        <p><strong>To:</strong> {{ conversation.receiver_number }}</p>
-        <p><strong>Message:</strong> {{ conversation.message }}</p>
-        <small>{{ formatDate(conversation.created_at) }}</small>
-      </div>
+      <MessageCard2 :messages="conversations.vendor_tenant_conversation" />
     </div>
   </div>
 </template>

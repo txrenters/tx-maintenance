@@ -14,7 +14,7 @@ class ConversationController extends Controller
 {
     public function show(WorkOrder $workOrder)
     {
-        $convo = $workOrder->load(['vendor_tenant_conversation','tenant_conversation','owner_conversation','vendor_conversation','vendors']);
+        $convo = $workOrder->load(['vendor_tenant_conversation.media','tenant_conversation.media','owner_conversation.media','vendor_conversation.media','vendors']);
     
         return inertia('Conversation/Index', [
             'title' => 'Work Order Conversation',
@@ -24,28 +24,28 @@ class ConversationController extends Controller
 
     public function get_vendor_tenant_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants','vendor_tenant_conversation','vendors']);
+        $workOrder->load(['tenants','vendor_tenant_conversation.media','vendors']);
     
         return response()->json($workOrder, 200);
     }
 
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['vendor_conversation','vendors']);
+        $workOrder->load(['vendor_conversation.media','vendors']);
     
         return response()->json($workOrder, 200);
     }
 
     public function get_tenant_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants','tenant_conversation']);
+        $workOrder->load(['tenants','tenant_conversation.media']);
     
         return response()->json($workOrder, 200);
     }
 
     public function get_owner_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['owners','owner_conversation']);
+        $workOrder->load(['owners','owner_conversation.media']);
     
         return response()->json($workOrder, 200);
     }

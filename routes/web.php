@@ -57,6 +57,7 @@ Route::middleware([
 
     Route::resource('/work_orders', WorkOrderController::class);
     Route::get('/work_orders/closed/done', [WorkOrderController::class, 'closed_work_orders'])->name('work_orders.closed_work_orders');
+    Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
     Route::put('/work_orders/{workOrder}/close', [WorkOrderController::class, 'close'])->name('work_orders.close');
     Route::put('/work_orders/{workOrder}/open', [WorkOrderController::class, 'open'])->name('work_orders.open');
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
@@ -92,9 +93,6 @@ Route::middleware([
 
 Route::get('/conversations/{workOrder}',[ConversationController::class, 'show'])->name('conversation.show');
 
-Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
-    ->withoutMiddleware([VerifyCsrfToken::class])
-    ->middleware('throttle:60,1'); // 60 requests per minute
 
 Route::get('admin', function(){
     $client = new \SoapClient('https://api.propertyware.com/pw/services/PWServices?wsdl');
