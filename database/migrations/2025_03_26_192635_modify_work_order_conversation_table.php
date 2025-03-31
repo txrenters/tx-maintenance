@@ -11,13 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Step 1: Drop the column separately
+        Schema::table('work_order_conversations', function (Blueprint $table) {
+            $table->dropColumn('conversation_type');
+        });
+
+        // Step 2: Recreate the column with ENUM
         Schema::table('work_order_conversations', function (Blueprint $table) {
             $table->enum('conversation_type', [
-                'tenant',
+                'tenant', 
                 'owner', 
                 'vendor',
                 'vendor_tenant'
-            ])->nullable()->change();
+            ])->nullable();
         });
     }
 
@@ -26,6 +32,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Step 1: Drop the column first
+        Schema::table('work_order_conversations', function (Blueprint $table) {
+            $table->dropColumn('conversation_type');
+        });
+
+        // Step 2: Recreate with the previous ENUM values
         Schema::table('work_order_conversations', function (Blueprint $table) {
             $table->enum('conversation_type', [
                 'tenant',
