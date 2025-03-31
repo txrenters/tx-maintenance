@@ -1,8 +1,8 @@
 <script setup>
-import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { AlertDialogAction } from 'radix-vue';
-import { computed } from 'vue';
+import { buttonVariants } from "@/Components/ui/button";
+import { cn } from "@/lib/utils";
+import { AlertDialogAction } from "radix-vue";
+import { computed } from "vue";
 
 const props = defineProps({
   asChild: { type: Boolean, required: false },
@@ -18,10 +18,7 @@ const delegatedProps = computed(() => {
 </script>
 
 <template>
-  <AlertDialogAction
-    v-bind="delegatedProps"
-    :class="cn(buttonVariants(), props.class)"
-  >
+  <AlertDialogAction v-bind="delegatedProps" :class="cn(buttonVariants(), props.class)">
     <slot />
   </AlertDialogAction>
 </template>
