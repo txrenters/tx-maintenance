@@ -44,6 +44,13 @@ const pendingInvoices = computed(() => {
   return props.invoices.filter((task) => task.status === "pending");
 });
 
+function getCompletionPercentage(completed, total) {
+  if (!Array.isArray(completed) || !Array.isArray(total) || total.length === 0) {
+    return "0.00";
+  }
+  return ((completed.length / total.length) * 100).toFixed(2);
+}
+
 usePoll(3000);
 </script>
 
@@ -58,9 +65,8 @@ usePoll(3000);
       <CardContent>
         <div class="text-2xl font-bold">+{{ workOrders.length }}</div>
         <p class="text-xs text-muted-foreground">
-          {{ ((completedWorkOrders.length / workOrders.length) * 100).toFixed(2) }}% ({{
-            completedWorkOrders.length
-          }}) completed
+          {{ getCompletionPercentage(completedWorkOrders.length, workOrders.length) }}%
+          ({{ completedWorkOrders.length }}) completed
         </p>
       </CardContent>
     </Card>
@@ -72,7 +78,7 @@ usePoll(3000);
       <CardContent>
         <div class="text-2xl font-bold">+{{ tasks.length }}</div>
         <p class="text-xs text-muted-foreground">
-          {{ ((completedTasks.length / tasks.length) * 100).toFixed(2) }}% ({{
+          {{ getCompletionPercentage(completedTasks.length, tasks.length) }}% ({{
             completedTasks.length
           }}) completed
         </p>

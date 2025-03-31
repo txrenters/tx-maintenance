@@ -31,7 +31,7 @@ const submit = () => {
   <Head title="Login" />
   <Card>
     <CardHeader class="text-center">
-      <CardTitle class="text-xl"> Welcome back </CardTitle>
+      <CardTitle class="text-xl"> Welcome back!</CardTitle>
       <CardDescription> Login with your email account </CardDescription>
     </CardHeader>
     <CardContent>
