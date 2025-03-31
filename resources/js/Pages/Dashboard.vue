@@ -65,8 +65,9 @@ usePoll(3000);
       <CardContent>
         <div class="text-2xl font-bold">+{{ workOrders.length }}</div>
         <p class="text-xs text-muted-foreground">
-          {{ getCompletionPercentage(completedWorkOrders.length, workOrders.length) }}%
-          ({{ completedWorkOrders.length }}) completed
+          {{ getCompletionPercentage(completedWorkOrders, workOrders) }}% ({{
+            completedWorkOrders.length
+          }}) completed
         </p>
       </CardContent>
     </Card>
@@ -78,7 +79,7 @@ usePoll(3000);
       <CardContent>
         <div class="text-2xl font-bold">+{{ tasks.length }}</div>
         <p class="text-xs text-muted-foreground">
-          {{ getCompletionPercentage(completedTasks.length, tasks.length) }}% ({{
+          {{ getCompletionPercentage(completedTasks, tasks) }}% ({{
             completedTasks.length
           }}) completed
         </p>

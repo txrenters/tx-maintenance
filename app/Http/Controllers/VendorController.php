@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\TwilioPhoneNumber;
+use App\Models\User;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 class VendorController extends Controller
 {
@@ -30,9 +33,8 @@ class VendorController extends Controller
                     'name' => $vendor->name,
                     'email' => $vendor->user->email,
                     'phone' => $vendor->user->phone,
-                    'name_on_check' => $vendor->name_on_check,
+                    'contact_name' => $vendor->contact_name,
                     'company' => $vendor->company,
-                    'vendor_type' => $vendor->vendor_type,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
                     'status' => $vendor->is_active ? true : false,
@@ -47,16 +49,66 @@ class VendorController extends Controller
             'filter' => $request->only(['search','per_page']),
         ]);
     }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required',
+            'email' => 'required',
+            'phone' => '',
+            'company' => '',
+            'website' => '',
+            'address' => '',           
+        ]);
+
+        $data['email_verified_at'] = now();
+        $data['password'] = bcrypt($request->email);
+
+        DB::transaction(function() use ($data, $request) {
+            $user = User::create($data);
+
+            $user->assignRole('vendor');
+
+            $vendorsData = [
+                'propertyware_id' => $user->id,
+                'name' => $user->name,
+                'contact_name' => $request->contact_name,
+                'email' => $user->email,
+                'twilio_number' => $request->twilio_number,
+                'user_id' => $user->id,
+                'is_active' => true,
+            ];
+
+            Vendor::create($vendorsData);
+        
+        });
+
+        return redirect()->route('vendors.index');
+      
+    }
+
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Vendor $vendor)
     {
-        $request->validate([
-            'twilio_number' => 'required'
+        $vendorData = $request->validate([
+            'twilio_number' => 'required',
+            'name' => 'required',
+            'contact_name' => 'required',
+            'email' => 'required',
         ]);
 
-        $vendor->update(['twilio_number' => $request->twilio_number]);
+        $userData = $request->validate([
+            'name' => 'required',
+            'email' => 'required',
+            'phone' => '',
+            'company' => '',
+            'address' => '',           
+        ]);
+
+        User::find($vendor->user_id)->update($userData );
+        $vendor->update($vendorData);
 
         return redirect()->back();
     }

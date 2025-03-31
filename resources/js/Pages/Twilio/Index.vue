@@ -32,29 +32,6 @@ const form = useForm({
   role_id: "",
 });
 
-const handleCreateSubmit = () => {
-  form.post(route("users.store_"), {
-    preserveState: true,
-    preserveScroll: true,
-    onSuccess: () => {
-      form.reset();
-      toast({
-        title: "Success",
-        description: "User has been created successfully!",
-      });
-      isCreateDialogOpen.value = false;
-    },
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem with your request. Please try again!",
-      });
-    },
-    only: ["users"],
-  });
-};
-
 const loader = ref(false);
 
 const handleImportTwilioNumbers = () => {

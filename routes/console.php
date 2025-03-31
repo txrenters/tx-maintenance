@@ -8,6 +8,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule::command('import:vendors')->everyFiveMinutes()->withoutOverlapping();
-// Schedule::command('import:owners')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('import:vendors')->dailyAt('00:00')->withoutOverlapping();
+Schedule::command('import:owners')->dailyAt('00:30')->withoutOverlapping();
 Schedule::command('import:work-orders')->everyFiveMinutes()->withoutOverlapping();

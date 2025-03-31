@@ -48,6 +48,7 @@ Route::middleware([
 
     Route::resource('/vendors', VendorController::class);
     Route::put('/vendors/change_status/{vendor}', [VendorController::class, 'update_status'])->name('vendors.change_status');
+    Route::middleware(['throttle:5,1'])->get('/vendors_import', [VendorController::class, 'import'])->name('vendors.import');
 
     Route::resource('/owners', OwnerController::class);
 

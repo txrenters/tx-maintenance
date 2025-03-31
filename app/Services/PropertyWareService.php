@@ -34,9 +34,34 @@ class PropertyWareService
         try {
             $client = $this->iniate();
 
+            $allVendors = [];
+            $pageNumber = 1;
+            $hasMorePages = true; // Assume there are more pages initially
+
             $response = $client->getVendors();
+    
+            while ($hasMorePages) {
+                // Call the API with pagination
+                $params = [
+                    'pageNumber' => $pageNumber,
+                    'orderByNewestFirst' => 1,
+                ];
+                $response = $client->getOwners($params);
         
-            return $response;
+                if (!empty($response)) {
+                    $vendors = json_decode(json_encode($response), true);
+                    $allVendors = array_merge($allVendors, $vendors);
+                }
+        
+                // Check if we received less than the expected page size (e.g., 10), meaning no more pages
+                if (count($vendors) < 10) {
+                    $hasMorePages = false;
+                } else {
+                    $pageNumber++; // Increment to fetch the next page
+                }
+            }
+
+            return $allVendors;
             
         } catch (Exception $e) {
             Log::error('SOAP request failed: ' . $e->getMessage());
@@ -661,6 +686,7 @@ class PropertyWareService
 
     public function execute($xmlPayload)
     {
+
         $curl = curl_init();
         
         // Set cURL options
@@ -741,25 +767,32 @@ class PropertyWareService
 
     public function iniate()
     {
-            $options = array(
-                'cache_wsdl' => \WSDL_CACHE_NONE, // Use global scope
-                'trace' => 1,
-                'login' => $this->username,
-                'password' =>$this->password,
-                'connection_timeout' => 240,
-                'exceptions' => true, 
-                'stream_context' => stream_context_create(array(
-                    'ssl' => array(
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                        'allow_self_signed' => true
-                    )
-                ))
-            );
+        ini_set('max_execution_time', 300);
 
-            $client = new \SoapClient($this->url, $options);
+        $options = [
+            'cache_wsdl' => WSDL_CACHE_NONE,
+            'trace' => 1,
+            'login' => $this->username,
+            'password' => $this->password,
+            'connection_timeout' => 600, // Increase timeout to 10 minutes
+            'exceptions' => true,
+            'stream_context' => stream_context_create([
+                'http' => [
+                    'user_agent' => 'PHPSoapClient',
+                    'timeout' => 600, // Increase HTTP timeout
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true,
+                ],
+            ]),
+        ];
+        
 
-            return $client;
+        $client = new \SoapClient($this->url, $options);
+
+        return $client;
     }
 }
 

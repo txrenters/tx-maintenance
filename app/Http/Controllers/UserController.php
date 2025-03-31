@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -79,7 +80,19 @@ class UserController extends Controller
             $role = Role::find($request->role_id);
             if ($role) {
                 $user->assignRole($role);
-            }        
+            }
+
+            if($user->hasRole('vendor')){
+                $vendorsData = [
+                    'propertyware_id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'twilio_number' => '',
+                    'user_id' => $user->id,
+                ];
+
+                Vendor::create($vendorsData);
+            }
         
         });
 
@@ -110,13 +123,23 @@ class UserController extends Controller
 
         DB::transaction(function() use ($data, $user, $request) {
             $user->update($data);
+
             $role = Role::find($request->role_id);
             if ($role) {
                 $user->syncRoles($role);
             }      
+
+            if($user->hasRole('vendor')){
+                $vendorsData = [
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                ];
+
+                Vendor::where('user_id', $user->id)->update($vendorsData);
+            }
         });
 
-    
+
         return redirect()->route('users.index');
     }
 

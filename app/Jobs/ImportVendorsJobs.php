@@ -50,8 +50,11 @@ class ImportVendorsJobs implements ShouldQueue
                     $vendorEmail = empty($data['email']) ? ($vendorId . '@renters.com') : $data['email'];
         
                     $existingVendor = DB::table('vendors')->where('propertyware_id', $vendorId)->exists();
-        
-                    if (!$existingVendor && $vendorId) {
+                    Log::info('Vendor found: ', ['data' => $data]);
+
+                    if (!$existingVendor && !empty($vendorId)) {
+                        Log::info('Vendor found.');
+
                         $address = trim(implode(' ', array_filter([
                             $data['address'] ?? null,
                             $data['address2'] ?? null,
@@ -64,7 +67,7 @@ class ImportVendorsJobs implements ShouldQueue
                         // Create or update the user
                         $usersData = [
                             'email' => $vendorEmail,
-                            'name'  => $user['name'] ?? 'Unknown', // Default if missing
+                            'name'  => $data['name'] ?? 'Unknown', // Default if missing
                             'phone' => $data['phone'] ?? null,
                             'company' => $data['companyName'] ?? null,
                             'address' => $address,

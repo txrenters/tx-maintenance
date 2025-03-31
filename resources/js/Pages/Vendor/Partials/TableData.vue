@@ -1,5 +1,5 @@
 <script setup>
-import { Phone } from "lucide-vue-next";
+import { Phone, SquarePen } from "lucide-vue-next";
 const emit = defineEmits(["isDialogOpen", "statusChanged"]);
 
 defineProps({
@@ -18,10 +18,11 @@ const updateStatus = (checked, vendor) => {
     <TableHeader>
       <TableRow>
         <TableHead>Name</TableHead>
-        <TableHead class="hidden md:table-cell">Type</TableHead>
-        <TableHead class="hidden md:table-cell"> Twilio Number </TableHead>
-        <TableHead class="hidden md:table-cell"> Status </TableHead>
-        <TableHead class="hidden md:table-cell"> Address </TableHead>
+        <TableHead class="hidden md:table-cell">Contact Name</TableHead>
+        <TableHead class="hidden md:table-cell">Phone Number </TableHead>
+        <TableHead class="hidden md:table-cell">Twilio Number </TableHead>
+        <TableHead class="hidden md:table-cell">Status </TableHead>
+        <TableHead class="hidden md:table-cell">Address </TableHead>
         <TableHead>
           <span class="sr-only">Actions</span>
         </TableHead>
@@ -31,14 +32,14 @@ const updateStatus = (checked, vendor) => {
       <TableRow v-for="vendor in data" :key="vendor.id">
         <TableCell class="font-medium">
           {{ vendor.name }}
-          <p class="text-xs font-normal">{{ vendor.email }}</p>
-          <p class="text-xs font-normal">{{ vendor.phone }}</p>
-          <Badge variant="outline" class="mt-2 md:hidden">
-            {{ vendor.vendor_type }}
-          </Badge>
+          <p class="text-xs font-normal table-cell md:hidden">{{ vendor.email }}</p>
+          <p class="text-xs font-normal table-cell md:hidden">{{ vendor.phone }}</p>
         </TableCell>
         <TableCell class="hidden md:table-cell">
-          <Badge variant="outline"> {{ vendor.vendor_type }} </Badge>
+          {{ vendor.contact_name }}
+        </TableCell>
+        <TableCell class="hidden md:table-cell">
+          {{ vendor.phone }}
         </TableCell>
         <TableCell class="hidden md:table-cell">
           {{ vendor.twilio_number }}
@@ -58,7 +59,7 @@ const updateStatus = (checked, vendor) => {
               variant="link"
               class="hover:text-primary p-0"
               @click="openEditDialog(vendor)"
-              ><Phone
+              ><SquarePen
             /></Button>
           </div>
         </TableCell>

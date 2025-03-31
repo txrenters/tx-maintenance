@@ -311,12 +311,12 @@ const handleDialogOpenChange = () => {
           </div>
         </div>
         <div class="mb-3 w-full">
-          <Label for="code">Change Password</Label>
+          <Label for="code">Type New Password</Label>
           <Input type="text" class="mt-2" v-model="editForm.password" />
           <Label class="mt-1 text-destructive text-xs">{{
             editForm.errors.password
           }}</Label>
-          <p class="text-xs mt-1">Note: If leave blank, password will not change.</p>
+          <p class="text-xs mt-1">Leave blank if no changes.</p>
         </div>
         <div class="mb-3">
           <Label for="roles" class="mb-2">Roles</Label>
