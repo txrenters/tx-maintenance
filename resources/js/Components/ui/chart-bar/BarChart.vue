@@ -1,19 +1,10 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import {
-  ChartCrosshair,
-  ChartLegend,
-  defaultColors,
-} from '@/components/ui/chart';
-import { Axis, GroupedBar, StackedBar } from '@unovis/ts';
-import {
-  VisAxis,
-  VisGroupedBar,
-  VisStackedBar,
-  VisXYContainer,
-} from '@unovis/vue';
-import { useMounted } from '@vueuse/core';
-import { computed, ref } from 'vue';
+import { cn } from "@/lib/utils";
+import { ChartCrosshair, ChartLegend, defaultColors } from "@/Components/ui/chart";
+import { Axis, GroupedBar, StackedBar } from "@unovis/ts";
+import { VisAxis, VisGroupedBar, VisStackedBar, VisXYContainer } from "@unovis/vue";
+import { useMounted } from "@vueuse/core";
+import { computed, ref } from "vue";
 
 const props = defineProps({
   data: { type: Array, required: true },
@@ -34,43 +25,39 @@ const props = defineProps({
   showLegend: { type: Boolean, required: false, default: true },
   showGridLine: { type: Boolean, required: false, default: true },
   customTooltip: { type: null, required: false },
-  type: { type: String, required: false, default: 'grouped' },
+  type: { type: String, required: false, default: "grouped" },
   roundedCorners: { type: Number, required: false, default: 0 },
 });
-const emits = defineEmits(['legendItemClick']);
+const emits = defineEmits(["legendItemClick"]);
 
 const index = computed(() => props.index);
 const colors = computed(() =>
-  props.colors?.length ? props.colors : defaultColors(props.categories.length),
+  props.colors?.length ? props.colors : defaultColors(props.categories.length)
 );
 const legendItems = ref(
   props.categories.map((category, i) => ({
     name: category,
     color: colors.value[i],
     inactive: false,
-  })),
+  }))
 );
 
 const isMounted = useMounted();
 
 function handleLegendItemClick(d, i) {
-  emits('legendItemClick', d, i);
+  emits("legendItemClick", d, i);
 }
 
 const VisBarComponent = computed(() =>
-  props.type === 'grouped' ? VisGroupedBar : VisStackedBar,
+  props.type === "grouped" ? VisGroupedBar : VisStackedBar
 );
 const selectorsBar = computed(() =>
-  props.type === 'grouped'
-    ? GroupedBar.selectors.bar
-    : StackedBar.selectors.bar,
+  props.type === "grouped" ? GroupedBar.selectors.bar : StackedBar.selectors.bar
 );
 </script>
 
 <template>
-  <div
-    :class="cn('w-full h-[400px] flex flex-col items-end', $attrs.class ?? '')"
-  >
+  <div :class="cn('w-full h-[400px] flex flex-col items-end', $attrs.class ?? '')">
     <ChartLegend
       v-if="showLegend"
       v-model:items="legendItems"

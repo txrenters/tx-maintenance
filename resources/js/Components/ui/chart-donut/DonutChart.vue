@@ -1,13 +1,10 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import {
-  ChartSingleTooltip,
-  defaultColors,
-} from '@/components/ui/chart';
-import { Donut } from '@unovis/ts';
-import { VisDonut, VisSingleContainer } from '@unovis/vue';
-import { useMounted } from '@vueuse/core';
-import { computed, ref } from 'vue';
+import { cn } from "@/lib/utils";
+import { ChartSingleTooltip, defaultColors } from "@/Components/ui/chart";
+import { Donut } from "@unovis/ts";
+import { VisDonut, VisSingleContainer } from "@unovis/vue";
+import { useMounted } from "@vueuse/core";
+import { computed, ref } from "vue";
 
 const props = defineProps({
   data: { type: Array, required: true },
@@ -22,7 +19,7 @@ const props = defineProps({
   showTooltip: { type: Boolean, required: false, default: true },
   filterOpacity: { type: Number, required: false, default: 0.2 },
   category: { type: String, required: true },
-  type: { type: String, required: false, default: 'donut' },
+  type: { type: String, required: false, default: "donut" },
   sortFunction: { type: Function, required: false, default: () => undefined },
   valueFormatter: { type: Function, required: false },
   customTooltip: { type: null, required: false },
@@ -37,22 +34,20 @@ const activeSegmentKey = ref();
 const colors = computed(() =>
   props.colors?.length
     ? props.colors
-    : defaultColors(
-        props.data.filter((d) => d[props.category]).filter(Boolean).length,
-      ),
+    : defaultColors(props.data.filter((d) => d[props.category]).filter(Boolean).length)
 );
 const legendItems = computed(() =>
   props.data.map((item, i) => ({
     name: item[props.index],
     color: colors.value[i],
     inactive: false,
-  })),
+  }))
 );
 
 const totalValue = computed(() =>
   props.data.reduce((prev, curr) => {
     return prev + curr[props.category];
-  }, 0),
+  }, 0)
 );
 </script>
 
@@ -86,9 +81,7 @@ const totalValue = computed(() =>
                 elements.forEach((el) => (el.style.opacity = '1'));
               } else {
                 activeSegmentKey = d?.data?.[index];
-                elements.forEach(
-                  (el) => (el.style.opacity = `${filterOpacity}`),
-                );
+                elements.forEach((el) => (el.style.opacity = `${filterOpacity}`));
                 elements[i].style.opacity = '1';
               }
             },

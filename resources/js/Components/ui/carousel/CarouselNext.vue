@@ -1,8 +1,8 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-vue-next';
-import { useCarousel } from './useCarousel';
+import { cn } from "@/lib/utils";
+import { Button } from "@/Components/ui/button";
+import { ArrowRight } from "lucide-vue-next";
+import { useCarousel } from "./useCarousel";
 
 const props = defineProps({
   class: { type: null, required: false },
@@ -20,7 +20,7 @@ const { orientation, canScrollNext, scrollNext } = useCarousel();
         orientation === 'horizontal'
           ? '-right-12 top-1/2 -translate-y-1/2'
           : '-bottom-12 left-1/2 -translate-x-1/2 rotate-90',
-        props.class,
+        props.class
       )
     "
     variant="outline"

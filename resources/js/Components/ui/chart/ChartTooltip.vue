@@ -1,10 +1,5 @@
 <script setup>
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
 
 defineProps({
   title: { type: String, required: false },
