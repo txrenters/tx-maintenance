@@ -1,16 +1,16 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { SIDEBAR_WIDTH_MOBILE, useSidebar } from './utils';
+import { cn } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/Components/ui/sheet";
+import { SIDEBAR_WIDTH_MOBILE, useSidebar } from "./utils";
 
 defineOptions({
   inheritAttrs: false,
 });
 
 const props = defineProps({
-  side: { type: String, required: false, default: 'left' },
-  variant: { type: String, required: false, default: 'sidebar' },
-  collapsible: { type: String, required: false, default: 'offcanvas' },
+  side: { type: String, required: false, default: "left" },
+  variant: { type: String, required: false, default: "sidebar" },
+  collapsible: { type: String, required: false, default: "offcanvas" },
   class: { type: null, required: false },
 });
 
@@ -23,7 +23,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
     :class="
       cn(
         'flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground',
-        props.class,
+        props.class
       )
     "
     v-bind="$attrs"
@@ -69,7 +69,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
             ? 'group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]'
-            : 'group-data-[collapsible=icon]:w-[--sidebar-width-icon]',
+            : 'group-data-[collapsible=icon]:w-[--sidebar-width-icon]'
         )
       "
     />
@@ -84,7 +84,7 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]'
             : 'group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l',
-          props.class,
+          props.class
         )
       "
       v-bind="$attrs"

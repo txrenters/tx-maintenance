@@ -1,8 +1,8 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import { toggleVariants } from '@/components/ui/toggle';
-import { ToggleGroupItem, useForwardProps } from 'reka-ui';
-import { computed, inject } from 'vue';
+import { cn } from "@/lib/utils";
+import { toggleVariants } from "@/Components/ui/toggle";
+import { ToggleGroupItem, useForwardProps } from "reka-ui";
+import { computed, inject } from "vue";
 
 const props = defineProps({
   value: { type: [String, Number, Object, null], required: true },
@@ -14,7 +14,7 @@ const props = defineProps({
   size: { type: null, required: false },
 });
 
-const context = inject('toggleGroup');
+const context = inject("toggleGroup");
 
 const delegatedProps = computed(() => {
   const { class: _, variant, size, ...delegated } = props;
@@ -33,7 +33,7 @@ const forwardedProps = useForwardProps(delegatedProps);
           variant: context?.variant || variant,
           size: context?.size || size,
         }),
-        props.class,
+        props.class
       )
     "
   >
