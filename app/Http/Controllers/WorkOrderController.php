@@ -57,7 +57,7 @@ class WorkOrderController extends Controller
     
         $categories = DB::table('work_order_categories')->select('name','id')->orderBy('name')->get();
 
-        $vendors = DB::table('vendors')->select('id','name')->orderBy('name')->get();
+        $vendors = DB::table('vendors')->select('id','name')->where('is_active', true)->orderBy('name')->get();
 
         $users =  User::role(['woc','admin'])->get();
 
@@ -171,13 +171,14 @@ class WorkOrderController extends Controller
         ]);
     }
 
-    public function vendor_change(Request $request,WorkOrder $workOrder)
-    {        
+    public function vendor_change(Request $request, WorkOrder $workOrder)
+    {   
         $request->validate([
             'vendors' =>  'required|array'
         ]);
 
         DB::beginTransaction();
+
         try {
 
             $vendorIDsXml = "";
@@ -195,7 +196,7 @@ class WorkOrderController extends Controller
 
             $vendorIDsXml .= '</vendorIDs>';
 
-            $res = $this->propertyWareServices->changeWorkOrderVendors($workOrder, $vendorIDsXml);
+            $this->propertyWareServices->changeWorkOrderVendors($workOrder, $vendorIDsXml);
 
             $workOrder->vendors()->sync($vendorIds);
 
@@ -204,6 +205,7 @@ class WorkOrderController extends Controller
             ]);
 
             DB::commit();
+            
             return redirect()->back()->with('success', 'Work order vendors updated successfully.');
 
         } catch (\Throwable $th) {

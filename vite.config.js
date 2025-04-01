@@ -23,4 +23,7 @@ export default defineConfig({
             "@": path.resolve(__dirname, "resources/js"), // Define the @ alias
         },
     },
+    build: {
+        chunkSizeWarningLimit: 1000, // Increases the limit to 1000 kB
+    }
 });

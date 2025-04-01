@@ -26,57 +26,18 @@ class PropertyWareService
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
             Log::error('PropertyWare API: Missing PropertyWare API credentials.');
             throw new RuntimeException('Missing PropertyWare API credentials.');
+           
+
         }
     }
-
-    public function getVendors()
-    {
-        try {
-            $client = $this->iniate();
-
-            $allVendors = [];
-            $pageNumber = 1;
-            $hasMorePages = true; // Assume there are more pages initially
-
-            $response = $client->getVendors();
-    
-            while ($hasMorePages) {
-                // Call the API with pagination
-                $params = [
-                    'pageNumber' => $pageNumber,
-                    'orderByNewestFirst' => 1,
-                ];
-                $response = $client->getOwners($params);
-        
-                if (!empty($response)) {
-                    $vendors = json_decode(json_encode($response), true);
-                    $allVendors = array_merge($allVendors, $vendors);
-                }
-        
-                // Check if we received less than the expected page size (e.g., 10), meaning no more pages
-                if (count($vendors) < 10) {
-                    $hasMorePages = false;
-                } else {
-                    $pageNumber++; // Increment to fetch the next page
-                }
-            }
-
-            return $allVendors;
-            
-        } catch (Exception $e) {
-            Log::error('SOAP request failed: ' . $e->getMessage());
-            return 'Error: ' . $e->getMessage();
-        }
-    }
-
     public function getWorkOrders()
     {
         try {
 
-            $client = $this->iniate();
+            $client = $this->initiate();
             $allWorkOrders = [];
         
-            for ($pageNumber = 1; $pageNumber <= 15; $pageNumber++) { 
+            for ($pageNumber = 1; $pageNumber <= 25; $pageNumber++) { 
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
@@ -101,7 +62,7 @@ class PropertyWareService
     public function getOwners()
     {
         try {
-            $client = $this->iniate();
+            $client = $this->initiate();
             $allOwners = [];
             $pageNumber = 1;
             $hasMorePages = true; // Assume there are more pages initially
@@ -702,8 +663,8 @@ class PropertyWareService
                 'Keep-Alive: 300'
             ],
             CURLOPT_USERPWD => $this->username . ':' . $this->password,
-            CURLOPT_TIMEOUT => 120, // 2 minute timeout
-            CURLOPT_CONNECTTIMEOUT => 30, // 30 second connection timeout
+            CURLOPT_TIMEOUT => 5000, // 2 minute timeout
+            CURLOPT_CONNECTTIMEOUT => 120, // 30 second connection timeout
             CURLOPT_SSL_VERIFYHOST => 2, // Enable SSL verification
             CURLOPT_SSL_VERIFYPEER => true, // Enable SSL verification
             CURLOPT_FAILONERROR => true,
@@ -715,10 +676,9 @@ class PropertyWareService
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         
         // Log the request and response
-        Log::debug('SOAP Request:', ['payload' => $xmlPayload]);
+        // Log::debug('SOAP Request:', ['payload' => $xmlPayload]);
         Log::debug('SOAP Response:', [
             'http_code' => $httpCode,
-            'response' => $response,
             'curl_error' => curl_error($curl),
             'curl_errno' => curl_errno($curl)
         ]);
@@ -765,22 +725,17 @@ class PropertyWareService
         return 'Unknown SOAP fault';
     }
 
-    public function iniate()
+    public function initiate()
     {
-        ini_set('max_execution_time', 300);
 
         $options = [
             'cache_wsdl' => WSDL_CACHE_NONE,
             'trace' => 1,
             'login' => $this->username,
             'password' => $this->password,
-            'connection_timeout' => 600, // Increase timeout to 10 minutes
+            'connection_timeout' => 5000, 
             'exceptions' => true,
             'stream_context' => stream_context_create([
-                'http' => [
-                    'user_agent' => 'PHPSoapClient',
-                    'timeout' => 600, // Increase HTTP timeout
-                ],
                 'ssl' => [
                     'verify_peer' => false,
                     'verify_peer_name' => false,

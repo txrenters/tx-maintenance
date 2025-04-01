@@ -82,6 +82,10 @@ class ServiceStatusSeeder extends Seeder
                 'name' => 'Closed', 
                 'description' => 'The service request is closed.'
             ],
+            [
+                'name' => 'Not Changed', 
+                'description' => 'The service request is not changed.'
+            ],
         ];
 
         ServiceStatus::insert($statuses);

@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
 
 class VendorController extends Controller
 {
@@ -23,7 +22,8 @@ class VendorController extends Controller
 
         $vendors = Vendor::query()
             ->with(['user'])
-            ->filter(request(['search']))
+            ->filter(request(['search','status']))
+            ->orderBy('is_active','DESC')
             ->orderBy('name','ASC')
             ->paginate($perPage)
             ->withQueryString()
@@ -33,7 +33,8 @@ class VendorController extends Controller
                     'name' => $vendor->name,
                     'email' => $vendor->user->email,
                     'phone' => $vendor->user->phone,
-                    'contact_name' => $vendor->contact_name,
+                    'vendor_type' => $vendor->vendor_type,
+                    'contact_name' => $vendor->name_on_check,
                     'company' => $vendor->company,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
@@ -46,7 +47,7 @@ class VendorController extends Controller
             'title' => 'Vendors',
             'twilio_numbers' => $twilio_numbers,
             'vendors' => $vendors,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search','per_page','status']),
         ]);
     }
 
@@ -93,9 +94,9 @@ class VendorController extends Controller
     public function update(Request $request, Vendor $vendor)
     {
         $vendorData = $request->validate([
-            'twilio_number' => 'required',
+            'twilio_number' => '',
             'name' => 'required',
-            'contact_name' => 'required',
+            'contact_name' => '',
             'email' => 'required',
         ]);
 

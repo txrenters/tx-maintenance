@@ -8,14 +8,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
-class TaskTemplateSeeder extends Seeder
+class TaskSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        $json  = File::get(public_path('task_templates.json'));
+        $json  = File::get(public_path('tasks.json'));
 
         $data = json_decode($json , true);
 
@@ -24,28 +24,27 @@ class TaskTemplateSeeder extends Seeder
             return;
         }
 
-        $templateData = [];
+        $taskData = [];
         $now = now();
 
         foreach($data as $template){
-            $templateData[] = [
+            $taskData[] = [
                 'id' => $template['id'],
                 'name' => $template['name'],
-                'is_available' => $template['is_available'],
-                'is_default' => $template['is_default'],
-                'current_service_status_id' => $template['current_service_status_id'],
-                'is_current_service_status_emergency' => $template['is_current_service_status_emergency'],
+                'is_mandatory' => $template['is_mandatory'],
+                'due_date' => $template['due_date'],
+                'is_optional' => $template['is_optional'],
+                'is_emergency' => $template['is_emergency'],
+                'type' => $template['type'],
                 'next_service_status_id' => $template['next_service_status_id'],
-                'is_next_service_status_emergency' => $template['is_next_service_status_emergency'],
-                'description' => $template['description'],
+                'task_template_id' => $template['task_template_id'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
         }
 
-        if($templateData){
-            DB::table('task_templates')->insert($templateData);
+        if($taskData){
+            DB::table('tasks')->insert($taskData);
         }
-
     }
 }

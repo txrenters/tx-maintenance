@@ -43,6 +43,7 @@ import {
   Circle,
   Files,
   ClipboardList,
+  Wrench,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -117,7 +118,7 @@ const navs = computed(() => ({
       name: "Vendors",
       url: route("vendors.index"),
       isActive: page.url.startsWith("/vendors"),
-      icon: ContactRound,
+      icon: Wrench,
       requires: ["admin", "woc"], // Only admin
     },
     {

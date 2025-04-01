@@ -108,7 +108,7 @@ class User extends Authenticatable
     }
 
     public function wocNumbers(): HasMany
-    {
+    { 
         return $this->hasMany(WOCNumbers::class);
     }
 
@@ -128,5 +128,24 @@ class User extends Authenticatable
                 'website',
                 ], 'LIKE', "%{$search}%");
         }
+    }
+
+    public function getPhoneAttribute($value)
+    {
+        $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
+        if (strlen($cleaned) == 10) { // If it's a US number without country code
+            $cleaned = '+1' . $cleaned;
+        }
+        return $this->attributes['phone'] = $cleaned;
+    }
+
+    public function setPhoneAttribute($value)
+    {
+        $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
+        if (strlen($cleaned) == 10) { // If it's a US number without country code
+            $cleaned = '+1' . $cleaned;
+        }
+        return $this->attributes['phone'] = $cleaned;
+
     }
 }

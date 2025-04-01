@@ -45,5 +45,14 @@ class Vendor extends Model
                 'vendor_type',
                 ], 'LIKE', "%{$search}%");
         }
+
+        if(!empty($filter['status'])){
+            $status = $filter['status'];
+             
+            if( $status != 'All') {
+                $query->where(
+                    'is_active',  $status == 'Active' ? true : false);
+            }
+        }
     }
 }
