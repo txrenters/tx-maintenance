@@ -68,4 +68,4 @@ jobs:
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B7D36F7FBCA7472ABE71423D4890DBB0 }}
 
       - name: Run Migrations
-        run: php artisan migrate:fresh --seed --force
+        run: php artisan migrate --force
