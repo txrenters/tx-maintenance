@@ -76,11 +76,10 @@ class TaskController extends Controller
 
         $service_status = ServiceStatus::find($next_service_id);
 
-        if($service_status->name != 'Not Change' && $service_status->name != 'Closed') {
+        if($service_status->name != 'Not Changed' && $service_status->name != 'Closed') {
             $propertyWare = new PropertyWareService();
             $propertyWare->changeServiceStatusPropertyWare($currentTask->work_order, $service_status);
 
-            
             $work_order->update([   // modify work order emergency base on task
                 'is_emergency' => $is_emergency
             ]);

@@ -98,4 +98,4 @@ Route::get('/conversations/{workOrder}',[ConversationController::class, 'show'])
 Route::get('admin', function(){
     $client = new \SoapClient('https://api.propertyware.com/pw/services/PWServices?wsdl');
         dd($client->__getFunctions());
-});
+});  
