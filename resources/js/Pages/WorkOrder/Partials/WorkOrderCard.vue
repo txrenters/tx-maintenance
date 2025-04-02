@@ -111,7 +111,34 @@ const checkDueTask = (tasks) => {
                         <p class="text-sm text-gray-100 mb-2">
                             {{ work_order.location }}
                         </p>
-
+                        <div
+                            v-if="work_order.requested_by"
+                            class="flex justify-start items-center gap-1 mb-1"
+                        >
+                            <Avatar class="w-4 h-4">
+                                <AvatarImage
+                                    :src="
+                                        work_order?.requested_by?.user
+                                            ?.profile_photo_url || 'default.jpg'
+                                    "
+                                />
+                                <AvatarFallback>
+                                    {{
+                                        work_order.requested_by?.first_name?.charAt(
+                                            0
+                                        )
+                                    }}{{
+                                        work_order.requested_by?.last_name?.charAt(
+                                            0
+                                        )
+                                    }}
+                                </AvatarFallback>
+                            </Avatar>
+                            <p class="text-sm text-gray-100">
+                                {{ work_order.requested_by?.first_name }}
+                                {{ work_order.requested_by?.last_name }}
+                            </p>
+                        </div>
                         <p
                             class="text-xs text-gray-100"
                             v-for="vendor in work_order.vendors"
@@ -137,34 +164,16 @@ const checkDueTask = (tasks) => {
                                     tasks
                                 </p>
                             </div>
-                            <div
-                                v-if="work_order.requested_by"
-                                class="flex justify-end items-center gap-2"
-                            >
-                                <p class="text-sm text-gray-100">
-                                    {{ work_order.requested_by?.first_name }}
-                                    {{ work_order.requested_by?.last_name }}
-                                </p>
-                                <Avatar class="w-5 h-5">
-                                    <AvatarImage
-                                        :src="
-                                            work_order?.requested_by?.user
-                                                ?.profile_photo_url ||
-                                            'default.jpg'
-                                        "
-                                    />
-                                    <AvatarFallback>
-                                        {{
-                                            work_order.requested_by?.first_name?.charAt(
-                                                0
-                                            )
-                                        }}{{
-                                            work_order.requested_by?.last_name?.charAt(
-                                                0
-                                            )
-                                        }}
-                                    </AvatarFallback>
-                                </Avatar>
+                            <div>
+                                <span
+                                    class="text-xs px-2 rounded"
+                                    :class="
+                                        work_order.priority === 'High'
+                                            ? 'bg-destructive'
+                                            : 'bg-secondary text-black'
+                                    "
+                                    >Priority: {{ work_order.priority }}</span
+                                >
                             </div>
                         </div>
                     </div>

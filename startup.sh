@@ -42,19 +42,12 @@ php /home/site/wwwroot/artisan config:cache
 # Clear and cache views
 php /home/site/wwwroot/artisan view:cache
 
-php /home/site/wwwroot/artisan storage:link
-
-# Install node modules
-npm install
-
-# Build assets using Laravel Mix
-npm run build
-
 # uncomment next line if you dont have S3 or Blob storage
-#php /home/site/wwwroot/artisan storage:link
+php /home/site/wwwroot/artisan storage:link
 
 # Turn off maintenance mode
 php /home/site/wwwroot/artisan up
 
+nohup php /home/site/wwwroot/artisan schedule:work
 # run worker
 nohup php /home/site/wwwroot/artisan queue:listen --timeout=480 --tries=6 &

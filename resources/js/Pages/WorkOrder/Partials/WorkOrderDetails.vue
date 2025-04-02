@@ -150,25 +150,37 @@ const handleVendorSubmit = () => {
 };
 
 const totalCostEstimate = computed(() => {
-    return props.workOrder?.vendors?.reduce((total, vendor) => {
+    const vendors = Array.isArray(props.workOrder?.vendors)
+        ? props.workOrder.vendors
+        : [];
+    return vendors.reduce((total, vendor) => {
         return total + parseFloat(vendor.pivot?.cost_estimate || 0);
     }, 0);
 });
 
 const totalTimeEstimate = computed(() => {
-    return (props.workOrder?.vendors || []).reduce((total, vendor) => {
+    const vendors = Array.isArray(props.workOrder?.vendors)
+        ? props.workOrder.vendors
+        : [];
+    return vendors.reduce((total, vendor) => {
         return total + parseInt(vendor.pivot?.time_estimate || 0);
     }, 0);
 });
 
 const latestScheduledEndDate = computed(() => {
-    return (props.workOrder?.vendors || []).reduce((latestDate, vendor) => {
+    const vendors = Array.isArray(props.workOrder?.vendors)
+        ? props.workOrder.vendors
+        : [];
+
+    return vendors.reduce((latestDate, vendor) => {
         const vendorDate = vendor.pivot?.scheduled_end_date
-            ? new Date(vendor.pivot?.scheduled_end_date)
+            ? new Date(vendor.pivot.scheduled_end_date)
             : null;
 
-        if (vendorDate && (!latestDate || vendorDate > latestDate)) {
-            return vendorDate;
+        if (vendorDate instanceof Date && !isNaN(vendorDate)) {
+            return !latestDate || vendorDate > latestDate
+                ? vendorDate
+                : latestDate;
         }
 
         return latestDate;

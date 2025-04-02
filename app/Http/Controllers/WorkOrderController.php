@@ -54,7 +54,7 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             ])  
             ->whereNot('name','Closed')
-            ->whereNot('name','Not Change')
+            ->whereNot('name','Not Changed')
             ->get();
     
         $categories = DB::table('work_order_categories')->select('name','id')->orderBy('name')->get();
