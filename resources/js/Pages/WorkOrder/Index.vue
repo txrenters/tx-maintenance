@@ -19,6 +19,7 @@ import Invoices from "./Partials/Invoices.vue";
 import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
 import debounce from "lodash/debounce";
+import { Download } from "lucide-vue-next";
 
 import {
     ClipboardList,
@@ -534,6 +535,15 @@ watch(
     }, 500)
 );
 
+const importWorkOrders = () => {
+    router.visit(route("work_orders.export"), {
+        method: "get",
+        replace: true,
+        data: {}, // Clear all query parameters
+        preserveScroll: true,
+    });
+};
+
 const resetFilters = () => {
     router.visit(url.value, {
         method: "get",
@@ -572,6 +582,13 @@ usePoll(5000, { only: ["service_status"] });
                 >X</Button
             >
         </div>
+
+        <a
+            class="bg-primary px-3 py-2 text-white hover:bg-primary/80"
+            title="Download work orders"
+            :href="route('work_orders.export')"
+            ><Download class="w-4 h-4"
+        /></a>
     </div>
     <!-- Scrollable Service Status Area -->
     <ScrollArea
