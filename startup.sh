@@ -1,21 +1,9 @@
 # name this file as "startup.sh" and call it from "startup command" as "/home/startup.sh"
 # check out my YouTube video "https://youtu.be/-PGhVFsOnGA"
-
-# Install Node.js
-echo "Installing Node.js..."
-curl -sL https://deb.nodesource.com/setup_18.x | bash -  # Adjust version if needed
-apt-get install -y nodejs
-
-echo "Installing Node modules..."
-npm ci
-
-echo "Installing Node modules..."
-npm run build
-
 cp /home/default /etc/nginx/sites-enabled/default
 
 cp /home/php.ini /usr/local/etc/php/conf.d/php.ini
-cp /home/site/wwwroot/nginx.conf /etc/nginx/nginx.conf
+
 
 # install support for webp file conversion
 apt-get update --allow-releaseinfo-change && apt-get install -y libfreetype6-dev \
@@ -26,7 +14,7 @@ apt-get update --allow-releaseinfo-change && apt-get install -y libfreetype6-dev
 docker-php-ext-install gd
 
 # install support for queue
-apt-get install -y supervisor
+apt-get install -y supervisor 
 
 cp /home/laravel-worker.conf /etc/supervisor/conf.d/laravel-worker.conf
 
@@ -54,17 +42,19 @@ php /home/site/wwwroot/artisan config:cache
 # Clear and cache views
 php /home/site/wwwroot/artisan view:cache
 
+php /home/site/wwwroot/artisan storage:link
+
+# Install node modules
+npm install
+
 # Build assets using Laravel Mix
-# npm run production --silent
+npm run build
 
 # uncomment next line if you dont have S3 or Blob storage
-php /home/site/wwwroot/artisan storage:link
+#php /home/site/wwwroot/artisan storage:link
 
 # Turn off maintenance mode
 php /home/site/wwwroot/artisan up
 
-# run scheduler
-nohup php /home/site/wwwroot/artisan schedule:run
-
 # run worker
-nohup php /home/site/wwwroot/artisan queue:listen --timeout=720 --tries=6 &
+nohup php /home/site/wwwroot/artisan queue:listen --timeout=480 --tries=6 &

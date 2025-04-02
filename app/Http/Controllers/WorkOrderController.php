@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Jobs\SyncWorkOrderDetails;
 use App\Models\WorkOrder;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class WorkOrderController extends Controller
 {
@@ -270,6 +272,11 @@ class WorkOrderController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    public function export() 
+    {
+        return Excel::download(new WorkOrdersExport, 'work_orders_'.date('d-m-y').'.xlsx');
     }
 }
 

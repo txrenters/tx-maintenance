@@ -64,6 +64,8 @@ Route::middleware([
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
     Route::put('/work_orders/{workOrder}/vendors', [WorkOrderController::class, 'vendor_change'])->name('work_orders.vendor.change');
 
+    Route::get('/work_orders/export', [WorkOrderController::class, 'export'])->name('work_orders.export');
+
     
     Route::resource('/task_templates', TaskTemplateController::class);
 
