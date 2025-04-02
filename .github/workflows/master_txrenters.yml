@@ -67,6 +67,17 @@ jobs:
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B7D36F7FBCA7472ABE71423D4890DBB0 }}
 
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "22" # specify your Node.js version here
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Build assets for production
+        run: npm run build
+
       - name: Run Migrations
         run: php artisan migrate --force
 
