@@ -33,17 +33,6 @@ jobs:
         if: steps.check_files.outputs.files_exists == 'true'
         run: composer validate --no-check-publish && composer install --optimize-autoloader --no-dev --prefer-dist --no-progress
 
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "22"
-
-      - name: Install NPM Dependencies
-        run: npm install
-
-      - name: Build NPM Dependencies
-        run: npm run build
-
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
 
@@ -76,4 +65,4 @@ jobs:
           app-name: "txrenters"
           slot-name: "Production"
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B7D36F7FBCA7472ABE71423D4890DBB0 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
