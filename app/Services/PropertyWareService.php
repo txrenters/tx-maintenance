@@ -24,10 +24,8 @@ class PropertyWareService
         $this->password = config('services.propertyware.password');
 
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
-            Log::error('PropertyWare API: Missing PropertyWare API credentials.');
-            throw new RuntimeException('Missing PropertyWare API credentials.');
-           
-
+            Log::error('PropertyWare API: Missing credentials. Skipping API connection.');
+            return; // Avoid crashing during deployment
         }
     }
     public function getWorkOrders()
