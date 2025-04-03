@@ -148,7 +148,7 @@ class WorkOrderController extends Controller
         $work_orders = WorkOrder::with([
                 'service_status','requested_by'
             ])
-            ->wherehas('service_status',function($q) {
+            ->whereHas('service_status',function($q) {
                 $q->where('name', 'Closed');
             })
             ->filter(request(['search']))
@@ -276,7 +276,7 @@ class WorkOrderController extends Controller
 
     public function export() 
     {
-        return Excel::download(new WorkOrdersExport, 'work_orders_'.date('d-m-y').'.xlsx');
+        return Excel::download(new WorkOrdersExport, 'work_orders_'.date('d-m-Y-h-i').'.xlsx');
     }
 }
 

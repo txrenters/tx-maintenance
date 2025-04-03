@@ -64,7 +64,7 @@ class WorkOrder extends Model
 
     public function vendor_notes(): HasMany
     {
-        return $this->hasMany(VendorNotes::class, 'work_order_id');
+        return $this->hasMany(WorkOrderNotes::class, 'work_order_id');
     }
 
     public function tenant_conversation(): HasMany
@@ -136,6 +136,15 @@ class WorkOrder extends Model
                 'location',
                 ], 'LIKE', "%{$search}%");
         }
+
+        $query->when(request('search'), function($q, $search) {
+            $q->where('work_order_no', $search);
+        })
+        ->when(request('vendor'), function($q, $vendorId) {
+            $q->whereHas('vendors', function($q) use ($vendorId) {
+                $q->where('work_order_vendors.vendor_id', $vendorId);
+            });
+        });
 
         
     }
