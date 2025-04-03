@@ -32,42 +32,36 @@ class OwnerSeeder extends Seeder
 
         $existingOwner = DB::table('owners')->pluck('propertyware_id')->toArray(); // Fetch existing propertyware_ids once
 
-
         while (($owner = fgetcsv($file)) !== false) {
 
-            // Assuming the CSV columns match:
-            // 0 -> id, 1 -> workOrderId, 2 -> clientData, 3 -> _id, 4 -> address, 5 -> address2, 
-            // 6 -> altPhone, 7 -> city, 8 -> companyName, 9 -> contactId, 10 -> country, 
-            // 11 -> customFields, 12 -> email, 13 -> firstName, 14 -> homePhone, 
-            // 15 -> lastName, 16 -> mobile, 17 -> name, 18 -> nameOnCheck, 19 -> notes, 
-            // 20 -> percentageOwnership, 21 -> phone, 22 -> state, 23 -> taxID, 
-            // 24 -> workTelephone, 25 -> zip, 26 -> created_at, 27 -> updated_at
-            
-            $owner_propertyware_id = $owner[3]; // _id (Propertyware ID)
-
-            if (empty($owner_propertyware_id)) {  // 3rd column is propertyware_id (_id)
-                continue;  // Skip if propertyware_id is empty
+            // Check if propertyware_id is present
+            $owner_propertyware_id = $owner[3] ?? null; // _id (Propertyware ID)
+            if (empty($owner_propertyware_id)) {
+                continue; // Skip if propertyware_id is empty
             }
 
+            // Skip if this propertyware_id already exists
             if (in_array($owner_propertyware_id, $existingOwner)) {
-                continue; // skip if exists in existing tenants
+                continue;
             }
 
+            // Set email
             $ownerEmail = $owner[12] ?? $owner_propertyware_id . "@texasrenter.com";  // email
 
             // Constructing the address
             $address = trim(implode(' ', array_filter([
-                $owner[4] ?? null,  // address
-                $owner[5] ?? null,  // address2
-                $owner[7] ?? null,  // city
-                $owner[22] ?? null, // state
-                $owner[10] ?? null, // country
-                $owner[25] ?? null, // zip
+                $owner[4] ?? '',  // address
+                $owner[5] ?? '',  // address2
+                $owner[7] ?? '',  // city
+                $owner[22] ?? '', // state
+                $owner[10] ?? '', // country
+                $owner[25] ?? '', // zip
             ])));
 
+            // User data for creating or updating
             $usersData = [
                 'email' => $ownerEmail,
-                'name' => $owner[13] . ' ' . $owner[15],  // firstName + lastName
+                'name' => ($owner[13] ?? '') . ' ' . ($owner[15] ?? ''),  // firstName + lastName
                 'phone' => $owner[14] ?? null,  // homePhone
                 'company' => $owner[8] ?? null, // companyName
                 'address' => $address,
@@ -86,7 +80,7 @@ class OwnerSeeder extends Seeder
                 'pager' => $owner[17] ?? null,
                 'home_phone' => $owner[14] ?? null,
                 'work_phone' => $owner[24] ?? null,
-                'mobile_phone' => $owner[16] ?? null,
+                'mobile_phone' => $owner[16] ?? null, // Fix mobile phone field if needed
                 'address' => $owner[4] ?? null,
                 'address2' => $owner[5] ?? null,
                 'city' => $owner[7] ?? null,
