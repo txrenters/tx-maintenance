@@ -21,16 +21,13 @@ jobs:
           php-version: "8.3"
           extensions: mbstring, bcmath, pdo, pdo_mysql, curl, gd, xml, zip, soap
 
-      - name: Check SOAP Extension
-        run: php -m | grep -i soap
-
       - name: Install Composer Dependencies
         run: composer install --no-dev --optimize-autoloader --prefer-dist --no-progress
 
       - name: Install Node.js and npm
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "18"
 
       - name: Install npm dependencies
         run: npm ci
@@ -65,6 +62,9 @@ jobs:
       name: "Production"
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     steps:
+      - name: Wait before deploying to Azure
+        run: sleep 60 # Wait for 60 seconds to avoid SCM conflicts
+
       - name: Download Artifact from Build Job
         uses: actions/download-artifact@v4
         with:
