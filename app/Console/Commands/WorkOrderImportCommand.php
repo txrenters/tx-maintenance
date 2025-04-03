@@ -76,6 +76,7 @@ class WorkOrderImportCommand extends Command
     private function processTenantAndUser(array $data): ?int
     {
         $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
+        
         if (!$tenant_propertyware_id) {
             return null;
         }

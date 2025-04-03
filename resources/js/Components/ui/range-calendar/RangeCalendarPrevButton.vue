@@ -1,9 +1,12 @@
 <script setup>
 import { cn } from '@/lib/utils';
-import { CalendarHeadCell, useForwardProps } from 'reka-ui';
+import { buttonVariants } from '@/components/ui/button';
+import { ChevronLeft } from 'lucide-vue-next';
+import { RangeCalendarPrev, useForwardProps } from 'reka-ui';
 import { computed } from 'vue';
 
 const props = defineProps({
+  prevPage: { type: Function, required: false },
   asChild: { type: Boolean, required: false },
   as: { type: null, required: false },
   class: { type: null, required: false },
@@ -19,15 +22,18 @@ const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
-  <CalendarHeadCell
+  <RangeCalendarPrev
     :class="
       cn(
-        'w-9 rounded-md text-[0.8rem] font-normal text-muted-foreground',
+        buttonVariants({ variant: 'outline' }),
+        'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100',
         props.class,
       )
     "
     v-bind="forwardedProps"
   >
-    <slot />
-  </CalendarHeadCell>
+    <slot>
+      <ChevronLeft class="h-4 w-4" />
+    </slot>
+  </RangeCalendarPrev>
 </template>

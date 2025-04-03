@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
             return $user->hasRole('admin') ? true : null;
         });
 
-        if (env('APP_ENV') !== 'local') {
+        if(App::environment('production')){
             URL::forceScheme('https');
         }
     }

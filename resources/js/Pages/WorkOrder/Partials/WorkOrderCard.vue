@@ -166,7 +166,7 @@ const checkDueTask = (tasks) => {
                             </div>
                             <div>
                                 <span
-                                    class="text-xs px-2 rounded"
+                                    class="text-[10px] px-1 uppercase rounded border"
                                     :class="
                                         work_order.priority === 'High'
                                             ? 'bg-destructive'

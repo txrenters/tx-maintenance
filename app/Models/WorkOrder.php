@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\WorkOrderScope;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -140,10 +141,18 @@ class WorkOrder extends Model
         $query->when(request('search'), function($q, $search) {
             $q->where('work_order_no', $search);
         })
+
         ->when(request('vendor'), function($q, $vendorId) {
-            $q->whereHas('vendors', function($q) use ($vendorId) {
-                $q->where('work_order_vendors.vendor_id', $vendorId);
+            $q->whereHas('vendors', function($query) use ($vendorId) {
+                $query->where('vendor_id', $vendorId);
             });
+
+        })->when(request(['start_date','end_date']), function($q, $date) {
+
+            $start_date = Carbon::parse($date['start_date'])->startOfDay();
+            $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+            $q->whereBetween('created_date', [$start_date, $end_date]);
         });
 
         

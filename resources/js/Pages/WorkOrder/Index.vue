@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { router, useForm, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -19,7 +19,6 @@ import Invoices from "./Partials/Invoices.vue";
 import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
 import debounce from "lodash/debounce";
-import { Download } from "lucide-vue-next";
 
 import {
     ClipboardList,
@@ -30,10 +29,25 @@ import {
     NotebookPen,
     Notebook,
     MessagesSquare,
+    CalendarIcon,
+    Download,
+    RefreshCw,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
+
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/Components/ui/popover";
+import { RangeCalendar } from "@/Components/ui/range-calendar";
+import {
+    CalendarDate,
+    DateFormatter,
+    getLocalTimeZone,
+} from "@internationalized/date";
 
 const props = defineProps({
     title: String,
@@ -45,7 +59,10 @@ const props = defineProps({
 });
 
 const url = ref(route("work_orders.index"));
-const search = ref(props.filter.search);
+const search = ref(props.filter.search ?? "");
+const filter_vendor = ref(props.filter.vendor ?? "");
+
+const filterDate = ref(false);
 
 const openWorkOrder = ref(false);
 
@@ -519,7 +536,41 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = false;
 };
 
-const filter_vendor = ref(props.filter.vendor ?? "");
+const df = new DateFormatter("en-US", {
+    dateStyle: "medium",
+});
+
+const today = new CalendarDate(
+    new Date().getFullYear(),
+    new Date().getMonth() + 1, // JS months are 0-based, CalendarDate uses 1-based
+    new Date().getDate()
+);
+
+const defaultStart = today.add({ days: -14 });
+const defaultEnd = today;
+
+// Reactive date range
+const date_range = ref({
+    start: defaultStart,
+    end: defaultEnd,
+});
+
+const filteredParams = computed(() => {
+    const params = {};
+
+    if (filter_vendor.value) params.vendor = filter_vendor.value;
+    if (search.value) params.search = search.value;
+
+    if (date_range.value.start.toString() !== defaultStart.toString()) {
+        params.start_date = date_range.value.start.toString();
+    }
+
+    if (date_range.value.end.toString() !== defaultEnd.toString()) {
+        params.end_date = date_range.value.end.toString();
+    }
+
+    return params;
+});
 
 watch(
     filter_vendor,
@@ -535,14 +586,22 @@ watch(
     }, 500)
 );
 
-const importWorkOrders = () => {
-    router.visit(route("work_orders.export"), {
+const fetchFilteredData = debounce(() => {
+    const newQuery = {
+        start_date: date_range.value.start.toString(), // Convert to string format
+        end_date: date_range.value.end.toString(),
+    };
+
+    router.visit(url.value, {
         method: "get",
+        data: newQuery,
+        preserveState: true,
         replace: true,
-        data: {}, // Clear all query parameters
         preserveScroll: true,
     });
-};
+}, 500); // Debounce for 500ms
+
+watch(date_range, fetchFilteredData, { deep: true });
 
 const resetFilters = () => {
     router.visit(url.value, {
@@ -578,17 +637,81 @@ usePoll(5000, { only: ["service_status"] });
                     </SelectGroup>
                 </SelectContent>
             </Select>
-            <Button @click="resetFilters" v-if="filter_vendor || search"
-                >X</Button
-            >
         </div>
 
-        <a
-            class="bg-primary px-3 py-2 text-white hover:bg-primary/80"
-            title="Download work orders"
-            :href="route('work_orders.export')"
-            ><Download class="w-4 h-4"
-        /></a>
+        <div class="flex gap-2 w-full justify-end">
+            <Popover>
+                <PopoverTrigger as-child>
+                    <Button
+                        variant="outline"
+                        :class="[
+                            'w-full justify-start text-left font-normal sm:w-[280px]',
+                            !date_range.start ? 'text-muted-foreground' : '',
+                        ]"
+                    >
+                        <CalendarIcon class="mr-2 h-4 w-4" />
+                        <template v-if="date_range.start">
+                            <template v-if="date_range.end">
+                                {{
+                                    df.format(
+                                        date_range.start.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                                -
+                                {{
+                                    df.format(
+                                        date_range.end.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                            </template>
+                            <template v-else>
+                                {{
+                                    df.format(
+                                        date_range.start.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                            </template>
+                        </template>
+                        <template v-else> Pick a date </template>
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent class="w-auto p-0">
+                    <RangeCalendar
+                        v-model="date_range"
+                        initial-focus
+                        :number-of-months="2"
+                        @update:start-value="
+                            (startDate) => (date_range.start = startDate)
+                        "
+                        @update:end-value="
+                            (endDate) => (date_range.end = endDate)
+                        "
+                    />
+                </PopoverContent>
+            </Popover>
+            <a
+                :href="route('work_orders.export', filteredParams)"
+                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+                title="Download work orders"
+            >
+                <Download class="w-4 h-4" />
+            </a>
+
+            <Button
+                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+                size="icon"
+                title="Refresh"
+                @click="resetFilters"
+                v-if="filter_vendor || search || date_range"
+                ><RefreshCw class="w-4 h-4" />
+            </Button>
+        </div>
     </div>
     <!-- Scrollable Service Status Area -->
     <ScrollArea
@@ -763,6 +886,26 @@ usePoll(5000, { only: ["service_status"] });
                 @fetch-vendor="fetchVendors(workOrderForm.id)"
                 v-if="activeTab === 'vendor_edit'"
             />
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="filterDate">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Filter Work Order by Date</DialogTitle>
+                <DialogDescription>
+                    Select date range to filter work order.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="my-2">fsd</div>
+
+            <DialogFooter>
+                <Button type="submit">
+                    <!-- <Loader2 class="w-4 h-4 animate-spin" /> -->
+                    Filter
+                </Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

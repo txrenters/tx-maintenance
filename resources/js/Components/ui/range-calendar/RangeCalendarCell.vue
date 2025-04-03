@@ -1,9 +1,10 @@
 <script setup>
 import { cn } from '@/lib/utils';
-import { CalendarHeadCell, useForwardProps } from 'reka-ui';
+import { RangeCalendarCell, useForwardProps } from 'reka-ui';
 import { computed } from 'vue';
 
 const props = defineProps({
+  date: { type: null, required: true },
   asChild: { type: Boolean, required: false },
   as: { type: null, required: false },
   class: { type: null, required: false },
@@ -19,15 +20,15 @@ const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
-  <CalendarHeadCell
+  <RangeCalendarCell
     :class="
       cn(
-        'w-9 rounded-md text-[0.8rem] font-normal text-muted-foreground',
+        'relative h-9 w-9 p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([data-selected])]:bg-accent first:[&:has([data-selected])]:rounded-l-md last:[&:has([data-selected])]:rounded-r-md [&:has([data-selected][data-outside-view])]:bg-accent/50 [&:has([data-selected][data-selection-end])]:rounded-r-md [&:has([data-selected][data-selection-start])]:rounded-l-md',
         props.class,
       )
     "
     v-bind="forwardedProps"
   >
     <slot />
-  </CalendarHeadCell>
+  </RangeCalendarCell>
 </template>

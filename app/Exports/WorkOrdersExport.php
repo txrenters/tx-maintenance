@@ -23,7 +23,7 @@ class WorkOrdersExport implements FromCollection, WithHeadings, ShouldAutoSize
                 ->whereNot('name','Not Changed');
             })
             ->orderBy('created_date','DESC')
-            ->filter(request(['search']))
+            ->filter(request(['search','vendor','start_date','end_date']))
             ->get()
             ->map(function ($work_order) {
                 return [

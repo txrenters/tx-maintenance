@@ -15,11 +15,8 @@ use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class WorkOrderController extends Controller
@@ -45,6 +42,12 @@ class WorkOrderController extends Controller
                     $q->whereHas('vendors', function($q) use ($vendorId) {
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
+                })
+                ->when(request(['start_date','end_date']), function($q, $date) {
+                    $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                    $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                    $q->whereBetween('created_date', [$start_date, $end_date]);
                 });
             },
             'work_orders.service_status',
@@ -278,7 +281,7 @@ class WorkOrderController extends Controller
 
     public function export() 
     {
-        return Excel::download(new WorkOrdersExport, 'work_orders_'.date('d-m-Y-h-i').'.xlsx');
+        return Excel::download(new WorkOrdersExport, 'Work_Orders_Export'.date('d-m-Y-h-i').'.xlsx');
     }
 }
 
