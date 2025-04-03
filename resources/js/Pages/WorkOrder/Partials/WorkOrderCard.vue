@@ -170,7 +170,7 @@ const checkDueTask = (tasks) => {
                                     :class="
                                         work_order.priority === 'High'
                                             ? 'bg-destructive'
-                                            : 'bg-secondary text-black'
+                                            : 'bg-primary'
                                     "
                                     >Priority: {{ work_order.priority }}</span
                                 >

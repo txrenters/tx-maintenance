@@ -734,6 +734,10 @@ class PropertyWareService
             'connection_timeout' => 5000, 
             'exceptions' => true,
             'stream_context' => stream_context_create([
+                // 'http' => [
+                //     'timeout' => 600, // Increase timeout
+                //     'header' => "Accept-Encoding: gzip, deflate" // Use compressed responses
+                // ],
                 'ssl' => [
                     'verify_peer' => false,
                     'verify_peer_name' => false,
