@@ -166,6 +166,56 @@ class PropertyWareService
         }
     }
 
+    public function updateServiceStatus(object $workOrder, object $service_status)
+    {
+        try {
+            $workorderId = $workOrder->propertyware_id;
+            // $portfolioId = (int)$workOrder->portfolio_id;
+            // $buildigId = $workOrder->building_id;
+            // $location = $workOrder->location;
+
+            $xmlPayload = '
+                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:ser="http://service.web.propertyware.realpage.com"
+                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <ID xsi:type="xsd:long">' . $workorderId . '</ID>
+                        <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                            xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                            <customFields xsi:type="ns2:CustomField">
+                                <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                                <value xsi:type="xsd:string">'.$service_status->name.'</value>
+                                </customFields>
+                        </customFields>
+                        </workOrder>
+                        </ser:updateWorkOrder>
+                        </soapenv:Body>
+                    </soapenv:Envelope>
+                ';
+
+            $response = $this->execute($xmlPayload);
+
+            // Log and return response status
+            if ($response) {
+                Log::info('Updating service status has been successfully!', [
+                    'workOrderId' => $workOrder->work_order_no,
+                ]);
+            }
+            
+            return true;
+
+        } catch (\Exception $exception) {
+            return false;
+            Log::error('Updating service status failed: '.$exception);
+        }
+
+    }
+
     public function closeWorkOrder(object $workOrder, $url)
     {
         try {
@@ -185,15 +235,8 @@ class PropertyWareService
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">' . $workorderId . '</ID>
-                        <building xsi:type="urn:Building">
-                        <ID xsi:type="xsd:long">' . $buildigId . '</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                        <ID xsi:type="xsd:long">' . $portfolioId . '</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">' . $location . '</location>
                         <status xsi:type="xsd:string">Close</status>
-                        <completedDate xsi:type="xsd:string">Open</completedDate>
+                        <completedDate xsi:type="xsd:string">'.now().'</completedDate>
                         <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                             xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                             <customFields xsi:type="ns2:CustomField">

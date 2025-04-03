@@ -248,6 +248,7 @@ class WorkOrderController extends Controller
         if($openWorder){
             $workOrder->update([
                 'service_status_id' => $service_status,
+                'status' => 'Open',
                 'local_status' => 'Created',
                 'completed_date' => null,
             ]);
@@ -266,6 +267,7 @@ class WorkOrderController extends Controller
 
         if($closeWorder){
             $workOrder->update([
+                'status' => 'Closed',
                 'service_status_id' => $service_status,
                 'completed_date' => now()->toDateString()
             ]);

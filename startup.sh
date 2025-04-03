@@ -50,4 +50,4 @@ php /home/site/wwwroot/artisan up
 
 nohup php /home/site/wwwroot/artisan schedule:work
 # run worker
-nohup php /home/site/wwwroot/artisan queue:listen --timeout=480 --tries=6 &
+nohup php /home/site/wwwroot/artisan queue:listen --timeout=720 --tries=9 &

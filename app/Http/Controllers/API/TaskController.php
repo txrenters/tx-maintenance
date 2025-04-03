@@ -23,7 +23,9 @@ class TaskController extends Controller
 
     public function service_status_change(Request $request, WorkOrder $workOrder)
     {
-        if($request->service_status_id == 1){
+        $service_status = ServiceStatus::find($request->service_status_id);
+
+        if($service_status->id == 1){
             $workOrder->update([
                 'is_emergency' => null,
                 'service_status_id' => 1,
@@ -37,6 +39,11 @@ class TaskController extends Controller
             TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
             WorkOrderTask::where('work_order_id',$workOrder->id)->where('status', '!=', 'completed')->delete();
         }
+
+        $propertyWare = new PropertyWareService();
+
+        $propertyWare->updateServiceStatus($workOrder, $service_status);
+
         return redirect()->back();
     }
 
@@ -86,6 +93,12 @@ class TaskController extends Controller
 
             WorkOrderTask::where('work_order_id',$work_order->id)->where('status', '!=', 'completed')->delete();
             TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
+
+            
+            $propertyWare = new PropertyWareService();
+
+            $propertyWare->updateServiceStatus($work_order, $service_status);
+
         }
 
         Log::info('Task updated successfully: ', [ 'task_id' => $task->id]);
