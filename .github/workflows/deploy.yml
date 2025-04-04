@@ -60,10 +60,11 @@ jobs:
           cache: "npm"
 
         # Install dependencies
-      - name: Install npm dependencies
+      - name: Install and build
         run: |
           npm ci --prefer-offline --no-audit --no-progress
-          npm install vite --no-audit --no-progress  # Explicitly install Vite
+          export PATH="./node_modules/.bin:$PATH"
+          npm run build
 
       # Build assets
       - name: Build frontend assets
