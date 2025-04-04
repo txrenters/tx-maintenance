@@ -108,6 +108,12 @@ class VendorSeeder extends Seeder
                     continue; // Skip if vendor already exists
                 }
 
+                $email = $row[16] ?? null;
+
+                if($email == 'NULL' || $email == 'null' || $email == '') {
+                    continue; 
+                }
+
                 $vendorEmail = $row[16] ?? $vendor_propertyware_id.'@texasrenter.com';  // email
 
                 $address = trim(implode(' ', array_filter([

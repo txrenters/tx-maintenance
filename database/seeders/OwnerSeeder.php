@@ -51,8 +51,16 @@ class OwnerSeeder extends Seeder
                     continue; // Skip empty or duplicate propertyware_id
                 }
 
+                $email = $owner[12] ?? null;
+
+                if ($email == '' || $email == 'NULL') {
+                    // Create a fallback unique email using propertyware ID
+                    $ownerEmail = $owner_propertyware_id . '@texasrenter.com';
+                }else{
+                    $ownerEmail = $owner[12] ?? $owner_propertyware_id.'@texasrenter.com';
+                }
+
                 // Prepare user data
-                $ownerEmail = $owner[12] ?? $owner_propertyware_id.'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
                     $owner[4] ?? null,
                     $owner[5] ?? null,

@@ -41,23 +41,26 @@ class TenantSeeder extends Seeder
 
             // Fetch existing propertyware IDs
             $existingTenants = DB::table('tenants')->pluck('propertyware_id')->toArray();
+            $chunkedPropertywareIds = [];
 
             while (($tenant = fgetcsv($handle)) !== false) {
-                if (empty($tenant[3]) || in_array($tenant[3], $existingTenants)) {
-                    continue; // Skip empty or duplicate propertyware_id
+
+                $tenant_propertyware_id = $tenant[3] ?? null;
+
+                if (empty( $tenant_propertyware_id) || in_array( $tenant_propertyware_id, $existingTenants) || in_array( $tenant_propertyware_id, $chunkedPropertywareIds)) {  // 3rd column is propertyware_id (_id)
+                    continue;  // Skip if propertyware_id is empty
                 }
 
-                if (in_array($tenant[3], $chunks)) {
-                    continue; // Skip empty or duplicate propertyware_id
+                $email = trim(strtolower($tenant[17] ?? ''));
+
+                if ($email == '' || $email == 'NULL') {
+                    // Create a fallback unique email using propertyware ID
+                    $tenantEmail = $tenant_propertyware_id . '@texasrenter.com';
+                }else{
+                    $tenantEmail = $tenant[17] ?? $tenant_propertyware_id.'@texasrenter.com';
+
                 }
 
-                if ($tenant[24] == 'NULL') {
-                    continue; // Skip empty or duplicate propertyware_id
-                }
-
-                // Prepare user data
-                $tenant_propertyware_id = $tenant[3];
-                $tenantEmail = $tenant[17] ?? $tenant_propertyware_id.'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
                     $tenant[6] ?? null,
                     $tenant[7] ?? null,
@@ -82,7 +85,7 @@ class TenantSeeder extends Seeder
                     'password' => bcrypt($tenantEmail),
                 ];
 
-                $userId = $this->createOrUpdateUser($usersData, 'tenant');
+                $userId = $this->createOrUpdateUser($usersData);
 
                 // Prepare tenant data for bulk insertion
                 $chunks[] = [
@@ -120,9 +123,12 @@ class TenantSeeder extends Seeder
                     $now,
                 ];
 
+                $chunkedPropertywareIds[] = $tenant_propertyware_id;
                 if (count($chunks) == $chunkSize) {
                     $stmt->execute(array_merge(...$chunks));
                     $chunks = [];
+                    $chunkedPropertywareIds = [];
+
                 }
             }
 
@@ -137,11 +143,11 @@ class TenantSeeder extends Seeder
         }
     }
 
-    private function createOrUpdateUser(array $data, string $role): int
+    private function createOrUpdateUser(array $data): int
     {
         static $existingUsers = null;
 
-        if ($existingUsers === null) {
+        if ($existingUsers == null) {
             $existingUsers = User::pluck('id', 'email')->mapWithKeys(function ($id, $email) {
                 return [strtolower($email) => $id];
             })->toArray();
@@ -154,13 +160,13 @@ class TenantSeeder extends Seeder
 
             // You can optionally ensure the role is assigned (in case it was missed before)
             $user = User::find($userId);
-            if (! $user->hasRole($role)) {
-                $user->assignRole($role);
+            if (! $user->hasRole('tenant')) {
+                $user->assignRole('tenant');
             }
 
         } else {
             $user = User::create($data);
-            $user->assignRole($role); // 🎯 Here’s the role being used
+            $user->assignRole('tenant'); // 🎯 Here’s the role being used
             $userId = $user->id;
 
             // 🔁 Update the cache
