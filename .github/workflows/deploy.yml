@@ -1,4 +1,4 @@
-name: Build and Deploy Laravel to Azure
+name: Build and Deploy Laravel + Vite to Azure
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Cache PHP dependencies
+      # 🔧 Cache Composer dependencies
       - name: Cache Composer
         id: cache-composer
         uses: actions/cache@v4
@@ -25,8 +25,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-composer-
 
-      # Cache Node modules (improved version)
-      - name: Cache npm dependencies
+      # 🔧 Cache NPM dependencies
+      - name: Cache npm
         id: cache-npm
         uses: actions/cache@v4
         with:
@@ -37,7 +37,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      # PHP Setup
+      # ⚙️ PHP Setup
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -45,46 +45,49 @@ jobs:
           extensions: mbstring, bcmath, pdo_mysql, curl, gd, xml, zip
           coverage: none
 
-      # Install Composer dependencies
-      - name: Install Composer dependencies
-        if: steps.cache-composer.outputs.cache-hit != 'true'
+      # 📦 Composer Install
+      - name: Install PHP dependencies
         run: |
-          composer install --no-dev --optimize-autoloader --no-progress
+          composer install --no-dev --optimize-autoloader
           composer dump-autoload --optimize
 
-      # Node.js Setup
-      - name: Setup Node.js
+      # 🧱 Node Setup
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
 
-        # Install dependencies
-      - name: Install and build
+      # 📥 Install and Build Frontend (Vite)
+      - name: Install and Build Frontend
         run: |
-          npm ci --prefer-offline --no-audit --no-progress
-          export PATH="./node_modules/.bin:$PATH"
+          npm ci --prefer-offline --no-audit
           npm run build
 
-      # Build assets
-      - name: Build frontend assets
-        run: npm run build --if-present
+      # ✅ Confirm Vite Build Output Exists
+      - name: Check Vite build output
+        run: |
+          if [ ! -d "public/build" ]; then
+            echo "❌ Vite build failed or output missing (public/build)";
+            exit 1;
+          fi
 
-      # Laravel optimization
-      - name: Optimize application
+      # ⚡ Laravel Optimization
+      - name: Laravel Optimize
         run: |
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
 
-      # Create deployment package
-      - name: Create deployment package
+      # 📦 Create deployment package
+      - name: Package for Azure Deployment
         run: |
           zip -r release.zip . \
-            -x '.git/*' '.env*' 'node_modules/*' \
-            'storage/framework/cache/*' 'storage/logs/*' \
-            'tests/*' '*.editorconfig' '*.gitignore'
+            -x ".git/*" "node_modules/*" "tests/*" \
+            ".env*" "storage/framework/cache/*" \
+            "*.gitignore" "*.editorconfig"
 
+      # 📤 Upload package as artifact
       - uses: actions/upload-artifact@v4
         with:
           name: app
@@ -98,8 +101,10 @@ jobs:
         with:
           name: app
 
-      - uses: azure/webapps-deploy@v3
+      # 🚀 Deploy to Azure Web App
+      - name: Azure Deploy
+        uses: azure/webapps-deploy@v3
         with:
-          app-name: "your-app-name"
-          package: release.zip
+          app-name: "your-app-name" # 🔁 Replace this
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+          package: release.zip
