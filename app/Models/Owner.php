@@ -71,24 +71,24 @@ class Owner extends Model
 
 
     // Mutator - Format when saving
-    public function setPhoneAttribute($value)
-    {
-        $this->attributes['phone'] = preg_replace('/[^0-9]/', '', $value ?? '');
+    // public function setPhoneAttribute($value)
+    // {
+    //     $this->attributes['phone'] = preg_replace('/[^0-9]/', '', $value ?? '');
 
-        $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
-        if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
-        }
-        return $this->attributes['phone'] = $cleaned;
-    }
-    public function setMobileAttribute($value)
-    {
+    //     $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
+    //     if (strlen($cleaned) == 10) { // If it's a US number without country code
+    //         $cleaned = '+1' . $cleaned;
+    //     }
+    //     return $this->attributes['phone'] = $cleaned;
+    // }
+    // public function setMobileAttribute($value)
+    // {
 
-        $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
-        if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
-        }
-        return $this->attributes['mobile'] = $cleaned;
+    //     $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
+    //     if (strlen($cleaned) == 10) { // If it's a US number without country code
+    //         $cleaned = '+1' . $cleaned;
+    //     }
+    //     return $this->attributes['mobile'] = $cleaned;
 
-    }
+    // }
 }

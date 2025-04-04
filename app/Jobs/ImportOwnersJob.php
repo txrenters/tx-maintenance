@@ -66,7 +66,7 @@ class ImportOwnersJob implements ShouldQueue
                             'company' => $data['companyName'] ?? null,
                             'address' => $address,
                             'website' => $data['website'] ?? null,
-                            'password' => bcrypt($data['email']), // Default password as email
+                            'password' => bcrypt($data['email']), // Default password as email  
                         ];
         
                         $user = User::updateOrCreate(['email' => $ownerEmail], $usersData);

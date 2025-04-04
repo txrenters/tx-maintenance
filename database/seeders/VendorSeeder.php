@@ -3,110 +3,220 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\LazyCollection;
+use PDOStatement;
 
 class VendorSeeder extends Seeder
 {
     public function run(): void
     {
-        $now = now();
+        $now = now()->format('Y-m-d H:i:s');
 
-        $json  = File::get(public_path('vendor_types.json'));
+        // Disable query logging and events for performance
+        DB::disableQueryLog();
+        DB::connection()->unsetEventDispatcher();
+        User::flushEventListeners();
 
-        $data = json_decode($json , true);
+        // Seed Vendor Types
+        $this->seedVendorTypes($now);
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('Invalid JSON format.');
+        // Seed Vendors
+        $this->seedVendors($now);
+    }
+
+    private function seedVendorTypes($now): void
+    {
+        $csvPath = public_path('vendor_types.csv');
+    
+        if (!File::exists($csvPath)) {
+            Log::error('CSV file not found: ' . $csvPath);
             return;
         }
-
-        $vendorTypes = [];
-
-        foreach($data as $types){
-            $vendorTypes[] = [
-                'name' => $types['title'],
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        if($vendorTypes){
-            DB::table('vendor_types')->insert($vendorTypes);
-        }
-
-
-        $json  = File::get(public_path('vendors.json'));
-
-        $data = json_decode($json , true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('Invalid JSON format.');
-            return;
-        }
-
-        foreach($data as $vendor){
-
-            $vendorId = $vendor['_id'] ?? null;
-            $vendorEmail = empty($vendor['email']) ? ($vendorId . '@txrenters.com') : $vendor['email'];
-
-            $existingVendor = DB::table('vendors')->where('propertyware_id', $vendorId)->exists();
-
-            if (!$existingVendor && !empty($vendorId)) {
-
-                $address = trim(implode(' ', array_filter([
-                    $vendor['address'] ?? null,
-                    $vendor['address2'] ?? null,
-                    $vendor['city'] ?? null,
-                    $vendor['state'] ?? null,
-                    $vendor['country'] ?? null,
-                    $vendor['zip'] ?? null,
-                ])));
-
-                // Create or update the user
-                $usersData = [
-                    'email' => $vendorEmail,
-                    'name' => $vendor['name'] ?? $vendor['nameOnCheck'],
-                    'phone' => $vendor['phone'] ?? null,
-                    'company' => $vendor['companyName'] ?? null,
-                    'address' => $address,
-                    'website' => $vendor['website'] ?? null,
-                    'password' => bcrypt($vendorEmail), // Default password as email
+    
+        $handle = fopen($csvPath, 'r');
+        fgets($handle); // Skip the header row
+    
+        $chunkSize = 500;
+        $chunks = [];
+    
+        try {
+            $pdo = DB::connection()->getPdo();
+            $stmt = $this->prepareChunkedStatementVendorTypes($chunkSize);
+    
+            while (($row = fgetcsv($handle)) !== false) {
+                // Fix: Push values as an indexed array
+                $chunks[] = [
+                    $row[1] ?? null,
+                    $now,
+                    $now,
                 ];
-
-                $user = User::updateOrCreate(
-                    ['email' => $vendorEmail],
-                    $usersData
-                );
-
-                // 🚨 Add check before accessing $user->id
-                if (!$user) {
-                    throw new \Exception("User creation failed for email: $vendorEmail");
+    
+                // Execute query when chunk reaches batch size
+                if (count($chunks) == $chunkSize) {  
+                    $stmt->execute(array_merge(...$chunks));
+                    $chunks = [];
                 }
-
-                $user->assignRole('vendor'); // Assign 'vendor' role
-
-                $vendorsData = [
-                    'propertyware_id' => $vendorId,
-                    'name' => $vendor['name'] ?? $vendor['nameOnCheck'],
-                    'email' => $vendorEmail,
-                    'name_on_check' => $vendor['nameOnCheck'] ?? null,
-                    'vendor_type' => DB::table('vendor_types')->where('id', $vendor['vendorTypeId'] ?? '')->value('name'),
-                    'twilio_number' => '',
-                    'is_active' => false,
-                    'user_id' => $user->id, // Make sure $user is not null
-                    'created_at' =>  $now,
-                    'updated_at' =>  $now,
-                ];
-
-                DB::table('vendors')->updateOrInsert(
-                    ['propertyware_id' => $vendorId],
-                    $vendorsData
-                );
             }
+    
+            // Execute remaining records
+            if (!empty($chunks)) {
+                $remainingRows = count($chunks);
+                $stmt = $this->prepareChunkedStatementVendorTypes($remainingRows);
+                $stmt->execute(array_merge(...$chunks));
+            }
+        } finally {
+            fclose($handle);
         }
     }
+    
+    private function seedVendors($now): void
+    {
+        $csvPath = public_path('vendors.csv');
+
+        if (!File::exists($csvPath)) {
+            Log::error('CSV file not found: ' . $csvPath);
+            return;
+        }
+
+        $handle = fopen($csvPath, 'r');
+
+        fgets($handle); // Skip the header row
+        $chunkSize = 500;
+        $chunks = [];
+
+        try {
+            $pdo = DB::connection()->getPdo();
+
+            $stmt = $this->prepareChunkedStatementVendors($chunkSize);
+
+            $chunkedPropertywareIds = [];
+
+            while (($row = fgetcsv($handle)) !== false) {
+
+                  // Preload existing vendor property IDs and vendor types
+                $existingVendors = DB::table('vendors')->pluck('propertyware_id')->all();
+                $vendorTypes = DB::table('vendor_types')->pluck('name', 'id')->all();
+
+                $vendor_propertyware_id = $row[5] ?? null;; 
+                
+                if (empty($vendor_propertyware_id) || $vendor_propertyware_id == 'NULL' || in_array($vendor_propertyware_id, $existingVendors) || in_array($vendor_propertyware_id, $chunkedPropertywareIds)) {
+                    continue; // Skip if vendor already exists
+                }          
+
+                $vendorEmail = $row[16] ?? $vendor_propertyware_id . "@texasrenter.com";  // email
+
+                $address = trim(implode(' ', array_filter([
+                    $row[18] ?? null,  // address
+                    $row[19] ?? null,  // city
+                    $row[20] ?? null, // comments (not part of address)
+                    $row[21] ?? null, // zip
+                ])));
+
+                $address = preg_replace('/[^\x20-\x7E]/u', '', $address);
+                $address = str_replace("\xC2\xA0", ' ', $address); // Replace non-breaking spaces
+
+                $phone =  $row[21] ?? null;;
+                $phone = preg_replace('/[^\x20-\x7E]/u', '',$phone);
+                $phone = str_replace("\xC2\xA0", ' ', $phone); // Replace non-breaking spaces
+
+                $usersData = [
+                    'email' => $vendorEmail,
+                    'name' => $row[14],
+                    'phone' => $phone,  // homePhone
+                    'company' => $row[15] ?? null, // company
+                    'address' => $address,
+                    'password' => bcrypt($vendorEmail),
+                ];
+
+                // Creating or updating user in bulk
+                $user_id = $this->createOrUpdateUser($usersData, 'vendor');
+
+
+                $chunks[] = [
+                    $vendor_propertyware_id,
+                    $row[14] ?? $row[7],
+                    $vendorEmail,
+                    $row[7] ?? null,
+                    $vendorTypes[$row[3]] ?? null,
+                    $row[9] ?? 1,
+                    $user_id,
+                    $now,
+                    $now,
+                ];
+                
+                $chunkedPropertywareIds[] = $vendor_propertyware_id;
+                
+                 // Execute query when chunk reaches batch size
+                 if (count($chunks) == $chunkSize) {  
+                    $stmt->execute(array_merge(...$chunks));
+                    $chunks = [];
+                    $chunkedPropertywareIds = [];
+
+                }
+            }
+            if (!empty($chunks)) {
+                $remainingRows = count($chunks);
+                $stmt = $this->prepareChunkedStatementVendors($remainingRows);
+                $stmt->execute(array_merge(...$chunks));
+            }
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    private function createOrUpdateUser(array $data, string $role): int
+    {
+        static $existingUsers = null; // Cache user list in memory during execution
+    
+        if ($existingUsers == null) {
+            $existingUsers = User::pluck('id', 'email')->toArray(); // Fetch once
+        }
+    
+        // Check if the user already exists
+        if (isset($existingUsers[$data['email']])) {
+            $userId = $existingUsers[$data['email']];
+        } else {
+            // Insert and get the ID of the newly created user
+            $userId = DB::table('users')->insertGetId($data);
+            
+            // Update the local cache with the new user ID
+            $existingUsers[$data['email']] = $userId;
+    
+            // Assign the role to the new user
+            $user = User::find($userId);
+            $user->assignRole($role); // Assign the role only to new users
+        }
+    
+        return $userId; // Return the user ID
+    }
+    
+
+
+    private function prepareChunkedStatementVendors($chunkSize): PDOStatement
+    {
+        $rowPlaceholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $placeholders = implode(',', array_fill(0, $chunkSize, $rowPlaceholders));
+
+        return DB::connection()->getPdo()->prepare("
+        INSERT INTO vendors (propertyware_id, name, email, name_on_check, vendor_type, is_active, user_id, created_at, updated_at)
+        VALUES " . $placeholders);
+    }
+
+    private function prepareChunkedStatementVendorTypes($chunkSize): PDOStatement
+    {
+        $rowPlaceholders = '(?, ?, ?)';
+        $placeholders = implode(',', array_fill(0, $chunkSize, $rowPlaceholders));
+
+        $query = DB::connection()->getPdo()->prepare("
+        INSERT INTO vendor_types (name, created_at, updated_at) 
+        VALUES " . $placeholders);
+
+        return $query;
+
+    }
+
 }

@@ -139,6 +139,37 @@ const checkDueTask = (tasks) => {
                                 {{ work_order.requested_by?.last_name }}
                             </p>
                         </div>
+                        <div
+                            v-else
+                            class="flex justify-start items-center gap-1 mb-1"
+                        >
+                            <Avatar
+                                class="w-4 h-4"
+                                v-if="work_order?.manage_by?.user"
+                            >
+                                <AvatarImage
+                                    :src="
+                                        work_order?.manage_by?.user
+                                            ?.profile_photo_url || 'default.jpg'
+                                    "
+                                />
+                                <AvatarFallback>
+                                    {{
+                                        work_order.manage_by?.first_name?.charAt(
+                                            0
+                                        )
+                                    }}{{
+                                        work_order.manage_by?.last_name?.charAt(
+                                            0
+                                        )
+                                    }}
+                                </AvatarFallback>
+                            </Avatar>
+                            <p class="text-sm text-gray-100">
+                                {{ work_order.manage_by?.first_name }}
+                                {{ work_order.manage_by?.last_name }}
+                            </p>
+                        </div>
                         <p
                             class="text-xs text-gray-100"
                             v-for="vendor in work_order.vendors"
@@ -152,7 +183,7 @@ const checkDueTask = (tasks) => {
                         </p>
 
                         <!-- Requested Info -->
-                        <div class="flex justify-between items-center mt-2">
+                        <div class="flex justify-between items-center mt-1">
                             <div class="flex gap-1 items-center">
                                 <p
                                     class="text-xs"

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\UpgradeToHttpsUnderNgrok;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,8 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            UpgradeToHttpsUnderNgrok::class,
             
+            UpgradeToHttpsUnderNgrok::class,
+            ForceHttps::class,
         ]);
 
         //
