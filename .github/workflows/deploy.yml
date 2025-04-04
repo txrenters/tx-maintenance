@@ -59,9 +59,11 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      # Install npm dependencies
+        # Install dependencies
       - name: Install npm dependencies
-        run: npm ci --prefer-offline --no-audit --no-progress
+        run: |
+          npm ci --prefer-offline --no-audit --no-progress
+          npm install vite --no-audit --no-progress  # Explicitly install Vite
 
       # Build assets
       - name: Build frontend assets
