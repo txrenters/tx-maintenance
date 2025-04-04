@@ -53,12 +53,11 @@ class TenantSeeder extends Seeder
 
                 $email = trim(strtolower($tenant[17] ?? ''));
 
-                if ($email == '' || $email == 'NULL') {
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     // Create a fallback unique email using propertyware ID
                     $tenantEmail = $tenant_propertyware_id . '@texasrenter.com';
                 }else{
-                    $tenantEmail = $tenant[17] ?? $tenant_propertyware_id.'@texasrenter.com';
-
+                    $tenantEmail =  $email;
                 }
 
                 $address = trim(implode(' ', array_filter([
