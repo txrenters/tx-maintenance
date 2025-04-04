@@ -110,11 +110,12 @@ class VendorSeeder extends Seeder
 
                 $email = $row[16] ?? null;
 
-                if($email == 'NULL' || $email == 'null' || $email == '') {
-                    continue; 
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    // Create a fallback unique email using propertyware ID
+                    $vendorEmail = $vendor_propertyware_id.'@texasrenter.com';
+                } else {
+                    $vendorEmail = $email;
                 }
-
-                $vendorEmail = $row[16] ?? $vendor_propertyware_id.'@texasrenter.com';  // email
 
                 $address = trim(implode(' ', array_filter([
                     $row[18] ?? null,  // address

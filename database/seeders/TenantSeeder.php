@@ -47,17 +47,17 @@ class TenantSeeder extends Seeder
 
                 $tenant_propertyware_id = $tenant[3] ?? null;
 
-                if (empty( $tenant_propertyware_id) || in_array( $tenant_propertyware_id, $existingTenants) || in_array( $tenant_propertyware_id, $chunkedPropertywareIds)) {  // 3rd column is propertyware_id (_id)
+                if (empty($tenant_propertyware_id) || in_array($tenant_propertyware_id, $existingTenants) || in_array($tenant_propertyware_id, $chunkedPropertywareIds)) {  // 3rd column is propertyware_id (_id)
                     continue;  // Skip if propertyware_id is empty
                 }
 
                 $email = trim(strtolower($tenant[17] ?? ''));
 
-                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     // Create a fallback unique email using propertyware ID
-                    $tenantEmail = $tenant_propertyware_id . '@texasrenter.com';
-                }else{
-                    $tenantEmail =  $email;
+                    $tenantEmail = $tenant_propertyware_id.'@texasrenter.com';
+                } else {
+                    $tenantEmail = $email;
                 }
 
                 $address = trim(implode(' ', array_filter([

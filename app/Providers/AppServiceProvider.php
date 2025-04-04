@@ -22,28 +22,29 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
-    {
-        Gate::before(function ($user, $ability) {
-            return $user->hasRole('admin') ? true : null;
-        });
 
-        LogViewer::auth(function ($request) {
-            // Null-safe check + role verification
-            return $request->user()?->hasRole('admin') ?? false;
-        });
+     public function boot(Request $request): void
+     {
+         Gate::before(function ($user, $ability) {
+             return $user->hasRole('admin') ? true : null;
+         });
+     
+         LogViewer::auth(function ($request) {
+             return $request->user()?->hasRole('admin') ?? false;
+         });
+     
+         if (App::environment('production')) {
+             $request->setTrustedProxies(
+                 ['*'],
+                 Request::HEADER_X_FORWARDED_FOR |
+                 Request::HEADER_X_FORWARDED_HOST |
+                 Request::HEADER_X_FORWARDED_PORT |
+                 Request::HEADER_X_FORWARDED_PROTO
+             );
+     
+             URL::forceScheme('https');
+         }
+     }
+     
 
-        if (App::environment('production')) {
-
-            Request::setTrustedProxies(
-                ['*'], // Wildcard trusts all proxies
-                Request::HEADER_X_FORWARDED_FOR |
-                Request::HEADER_X_FORWARDED_HOST |
-                Request::HEADER_X_FORWARDED_PORT |
-                Request::HEADER_X_FORWARDED_PROTO
-            );
-            
-            URL::forceScheme('https');
-        }
-    }
 }

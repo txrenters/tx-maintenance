@@ -56,8 +56,8 @@ class OwnerSeeder extends Seeder
 
                 if ($email == '' || $email == 'NULL') {
                     // Create a fallback unique email using propertyware ID
-                    $ownerEmail = $owner_propertyware_id . '@texasrenter.com';
-                }else{
+                    $ownerEmail = $owner_propertyware_id.'@texasrenter.com';
+                } else {
                     $ownerEmail = $owner[12] ?? $owner_propertyware_id.'@texasrenter.com';
                 }
 
