@@ -1,100 +1,102 @@
-name: Build and deploy Laravel app to Azure Web App - txrenters
+name: Build and Deploy Laravel to Azure
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   workflow_dispatch:
 
 env:
-  COMPOSER_PROCESS_TIMEOUT: 300
   NODE_ENV: production
+  COMPOSER_NO_INTERACTION: 1
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     steps:
       - uses: actions/checkout@v4
 
-      # Cache optimization
+      # Cache PHP dependencies
       - name: Cache Composer
-        uses: actions/cache@v3
+        id: cache-composer
+        uses: actions/cache@v4
         with:
           path: vendor
           key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
 
-      - name: Cache Node modules
-        uses: actions/cache@v3
+      # Cache Node modules (improved version)
+      - name: Cache npm dependencies
+        id: cache-npm
+        uses: actions/cache@v4
         with:
-          path: node_modules
+          path: |
+            ~/.npm
+            node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
+      # PHP Setup
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: mbstring, bcmath, pdo, pdo_mysql, curl, gd, xml, zip, soap
+          extensions: mbstring, bcmath, pdo_mysql, curl, gd, xml, zip
           coverage: none
 
-      - name: Install Composer Dependencies
+      # Install Composer dependencies
+      - name: Install Composer dependencies
         if: steps.cache-composer.outputs.cache-hit != 'true'
         run: |
-          composer install --no-dev --optimize-autoloader --prefer-dist --no-progress --no-interaction
+          composer install --no-dev --optimize-autoloader --no-progress
           composer dump-autoload --optimize
 
+      # Node.js Setup
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
 
+      # Install npm dependencies
       - name: Install npm dependencies
         run: npm ci --prefer-offline --no-audit --no-progress
 
+      # Build assets
       - name: Build frontend assets
         run: npm run build --if-present
 
-      - name: Optimize Laravel Application
+      # Laravel optimization
+      - name: Optimize application
         run: |
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
 
-      - name: Zip the Application for Deployment
+      # Create deployment package
+      - name: Create deployment package
         run: |
-          zip -r release.zip ./* -x '*.git*' '*.env*' '*.idea*' 'tests/*' 'node_modules/*'
+          zip -r release.zip . \
+            -x '.git/*' '.env*' 'node_modules/*' \
+            'storage/framework/cache/*' 'storage/logs/*' \
+            'tests/*' '*.editorconfig' '*.gitignore'
 
-      - name: Upload Artifact for Deployment
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: php-app
+          name: app
           path: release.zip
 
   deploy:
-    runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: "Production"
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Download Artifact from Build Job
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: php-app
+          name: app
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
+      - uses: azure/webapps-deploy@v3
         with:
-          app-name: "txrenters"
-          # Removed slot-name parameter completely since you're deploying to production
+          app-name: "your-app-name"
           package: release.zip
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}

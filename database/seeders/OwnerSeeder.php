@@ -44,6 +44,7 @@ class OwnerSeeder extends Seeder
             // Fetch existing propertyware IDs
             $existingOwners = DB::table('owners')->pluck('propertyware_id')->toArray();
             $chunkedPropertywareIds = [];
+
             while (($owner = fgetcsv($handle)) !== false) {
                 $owner_propertyware_id = $owner[3];
 
@@ -116,6 +117,8 @@ class OwnerSeeder extends Seeder
                     $now,                   // created_at (current timestamp)
                     $now,                   // updated_at (current timestamp)
                 ];
+
+                $chunkedPropertywareIds[] = $owner_propertyware_id;
 
                 if (count($chunks) == $chunkSize) {
                     $stmt->execute(array_merge(...$chunks));
