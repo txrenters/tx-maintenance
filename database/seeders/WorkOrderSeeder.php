@@ -171,17 +171,13 @@ class WorkOrderSeeder extends Seeder
             $work_order_data['additional_work_needed_reschedule'] = $data['additionalWorkNeededReschedule'] ?? '';
             $work_order_data['management_plan'] = $data['managementPlan'] ?? '';
 
-            DB::table('work_orders')->updateOrInsert(
-                ['propertyware_id' => $work_order_propertyware_id],
-                $work_order_data
-            );
+            DB::table('work_orders')->insert($work_order_data);
 
             $workOrderId = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
 
             $this->processTenants($data['id'], $workOrderId, $now);
             $this->processOwners($data['id'], $workOrderId, $now);
 
-            DB::table('work_orders')->insert($work_order_data);
 
             DB::commit();
         } catch (\Throwable $th) {

@@ -40,6 +40,7 @@ jobs:
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
+          php artisan optimize
 
       - name: Set Permissions for Storage and Cache
         run: |
@@ -67,7 +68,7 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     steps:
       - name: Wait before deploying to Azure
-        run: sleep 20 # Wait for 60 seconds to avoid SCM conflicts
+        run: sleep 40 # Wait for 40 seconds to avoid SCM conflicts
 
       - name: Download Artifact from Build Job
         uses: actions/download-artifact@v4
