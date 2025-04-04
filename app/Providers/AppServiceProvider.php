@@ -34,15 +34,8 @@ class AppServiceProvider extends ServiceProvider
          });
      
          if (App::environment('production')) {
-             $request->setTrustedProxies(
-                 ['*'],
-                 Request::HEADER_X_FORWARDED_FOR |
-                 Request::HEADER_X_FORWARDED_HOST |
-                 Request::HEADER_X_FORWARDED_PORT |
-                 Request::HEADER_X_FORWARDED_PROTO
-             );
-     
-             URL::forceScheme('https');
+            URL::forceScheme('https');
+            URL::forceRootUrl(config('app.url'));
          }
      }
      
