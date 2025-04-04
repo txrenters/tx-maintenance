@@ -59,7 +59,7 @@ class WorkOrderSeeder extends Seeder
                 $propertyware_id = $order['_id'];
                 $checkWorkOrder = DB::table('work_orders')->where('propertyware_id', $propertyware_id)->exists();
 
-                if (! $checkWorkOrder) {
+                if (!$checkWorkOrder) {
 
                     $tenantId = $this->getTenantId($order['requestedBy']);
 
@@ -191,44 +191,6 @@ class WorkOrderSeeder extends Seeder
         }
     }
 
-    // private function processOwners($workOrderJsonId, $workOrderId, $now)
-    // {
-    //     $json  = File::get(public_path('owners.json'));
-
-    //     $owners = json_decode($json , true);
-
-    //     if (json_last_error() !== JSON_ERROR_NONE) {
-    //         Log::error('Invalid JSON format for owners.json.');
-    //         return;
-    //     }
-
-    //     // Filter tenants based on workorderid
-    //     $filteredTenants = array_filter($owners, function($owner) use ($workOrderJsonId) {
-    //         return isset($owner['workOrderId']) && $owner['workOrderId'] == $workOrderJsonId;
-    //     });
-
-    //     $work_order_owner_data = [];
-
-    //     foreach($filteredTenants as $owner){
-    //         $ownerId = DB::table('owners')->where('propertyware_id', $owner['_id'])->value('id');
-
-    //         if ($ownerId == null) {
-    //             Log::warning("Owner not found for Propertyware ID: {$owner['_id']}");
-    //             continue; // Skip this tenant if not found
-    //         }
-
-    //         $work_order_owner_data[] = [
-    //             'work_order_id' => $workOrderId,
-    //             'owner_id' => $ownerId,
-    //             'created_at' => $now,
-    //             'updated_at' => $now,
-    //         ];
-    //     }
-
-    //     DB::table('work_order_owners')->insert($work_order_owner_data);
-
-    // }
-
     private function processOwners($workOrderJsonId, $workOrderId, $now)
     {
         $csvPath = public_path('owners.csv');
@@ -278,44 +240,6 @@ class WorkOrderSeeder extends Seeder
 
         DB::table('work_order_owners')->insert($work_order_owner_data);
     }
-
-    // private function processTenants($workOrderJsonId, $workOrderId, $now)
-    // {
-    //     $json  = File::get(public_path('tenants.json'));
-
-    //     $tenants = json_decode($json , true);
-
-    //     if (json_last_error() !== JSON_ERROR_NONE) {
-    //         Log::error('Invalid JSON format for tenants.');
-    //         return;
-    //     }
-
-    //     // Filter tenants based on workorderid
-    //     $filteredTenants = array_filter($tenants, function($tenant) use ($workOrderJsonId) {
-    //         return isset($tenant['workOrderId']) && $tenant['workOrderId'] == $workOrderJsonId;
-    //     });
-
-    //     $work_order_tenant_data = [];
-
-    //     foreach($filteredTenants as $tenant){
-    //         $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['_id'])->value('id');
-
-    //         if ($tenantId == null) {
-    //             Log::warning("Tenant not found for Propertyware ID: {$tenant['_id']}");
-    //             continue; // Skip this tenant if not found
-    //         }
-
-    //         $work_order_tenant_data[] = [
-    //             'work_order_id' => $workOrderId,
-    //             'tenant_id' => $tenantId,
-    //             'created_at' => $now,
-    //             'updated_at' => $now,
-    //         ];
-    //     }
-
-    //     DB::table('work_order_tenants')->insert($work_order_tenant_data);
-
-    // }
 
     private function processTenants($workOrderJsonId, $workOrderId, $now)
     {

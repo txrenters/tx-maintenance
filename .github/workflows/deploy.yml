@@ -51,8 +51,7 @@ jobs:
         run: |
           zip -r release.zip . \
             -x ".git/*" "node_modules/*" "tests/*" \
-            ".env*" "storage/framework/cache/*" \
-            "*.gitignore" "*.editorconfig"
+            ".env*" \ "*.gitignore" "*.editorconfig"
 
       - name: Upload Artifact for Deployment
         uses: actions/upload-artifact@v4
@@ -68,7 +67,7 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     steps:
       - name: Wait before deploying to Azure
-        run: sleep 60 # Wait for 60 seconds to avoid SCM conflicts
+        run: sleep 20 # Wait for 60 seconds to avoid SCM conflicts
 
       - name: Download Artifact from Build Job
         uses: actions/download-artifact@v4
