@@ -16,7 +16,6 @@ class Owner extends Model
 
     protected $guarded = [];
 
-   
     protected $casts = [
         'phone' => 'string',
         'mobile' => 'string',
@@ -31,21 +30,20 @@ class Owner extends Model
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_owners');
     }
-    
 
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
-                'email',
-                'phone',
-                'mobile',
-                'company', 
-                'name_on_check',
+                ->whereAny([
+                    'name',
+                    'email',
+                    'phone',
+                    'mobile',
+                    'company',
+                    'name_on_check',
                 ], 'LIKE', "%{$search}%");
         }
     }
@@ -55,20 +53,21 @@ class Owner extends Model
     {
         $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
         if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
+            $cleaned = '+1'.$cleaned;
         }
+
         return $this->attributes['phone'] = $cleaned;
     }
 
     public function getMobileAttribute($value)
     {
-        $cleaned = preg_replace('/\D+/', '', $value?? ''); // Remove non-numeric characters
+        $cleaned = preg_replace('/\D+/', '', $value ?? ''); // Remove non-numeric characters
         if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
+            $cleaned = '+1'.$cleaned;
         }
+
         return $this->attributes['mobile'] = $cleaned;
     }
-
 
     // Mutator - Format when saving
     // public function setPhoneAttribute($value)

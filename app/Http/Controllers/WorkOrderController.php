@@ -4,12 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
-use App\Jobs\SyncWorkOrderDetails;
-use App\Models\WorkOrder;
 use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
@@ -23,56 +22,58 @@ class WorkOrderController extends Controller
 {
     protected $propertyWareServices;
 
-    public function __construct(PropertyWareService $propertyWareServices){
+    public function __construct(PropertyWareService $propertyWareServices)
+    {
         $this->propertyWareServices = $propertyWareServices;
     }
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        
+
         $service_status = ServiceStatus::with([
-            'work_order' ,
-            'work_orders' => function($query) {
-                $query->when(request('search'), function($q, $search) {
+            'work_order',
+            'work_orders' => function ($query) {
+                $query->when(request('search'), function ($q, $search) {
                     $q->where('work_order_no', $search);
                 })
-                ->when(request('vendor'), function($q, $vendorId) {
-                    $q->whereHas('vendors', function($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
-                ->when(request(['start_date','end_date']), function($q, $date) {
-                    $start_date = Carbon::parse($date['start_date'])->startOfDay();
-                    $end_date = Carbon::parse($date['end_date'])->endOfDay();
+                    ->when(request('vendor'), function ($q, $vendorId) {
+                        $q->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    ->when(request(['start_date', 'end_date']), function ($q, $date) {
+                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
 
-                    $q->whereBetween('created_date', [$start_date, $end_date]);
-                });
+                        $q->whereBetween('created_date', [$start_date, $end_date]);
+                    });
             },
             'work_orders.service_status',
             'work_orders.vendors',
             'work_orders.requested_by',
             'work_orders.managed_by',
             'work_orders.tasks',
-            ])  
-            ->whereNot('name','Closed')
-            ->whereNot('name','Not Changed')
+        ])
+            ->whereNot('name', 'Closed')
+            ->whereNot('name', 'Not Changed')
             ->get();
-    
-        $categories = DB::table('work_order_categories')->select('name','id')->orderBy('name')->get();
 
-        $vendors = DB::table('vendors')->select('id','name')->where('is_active', true)->orderBy('name')->get();
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
-        $users =  User::role(['woc','admin'])->get();
+        $vendors = DB::table('vendors')->select('id', 'name')->where('is_active', true)->orderBy('name')->get();
 
-        return inertia('WorkOrder/Index',[
+        $users = User::role(['woc', 'admin'])->get();
+
+        return inertia('WorkOrder/Index', [
             'title' => 'Work Orders',
             'service_status' => $service_status,
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
-            'filter' => $request->only(['search','per_page','vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor']),
         ]);
     }
 
@@ -89,7 +90,8 @@ class WorkOrderController extends Controller
         return response()->json($workOrder, 200);
     }
 
-    public function report(WorkOrder $workOrder){
+    public function report(WorkOrder $workOrder)
+    {
         $workOrder->load([
             'service_status',
             'vendors',
@@ -106,35 +108,36 @@ class WorkOrderController extends Controller
             'vendor_conversation',
             'vendor_tenant_conversation',
         ])->first();
-            
 
-        return inertia('WorkOrder/Report',[
+        return inertia('WorkOrder/Report', [
             'title' => 'Report Summary',
-            'work_order' => $workOrder
+            'work_order' => $workOrder,
         ]);
 
     }
-    
+
     /**
      * Update the specified resource in storage.
      */
     public function update(UpdateWorkOrderRequest $request, WorkOrder $workOrder)
     {
         $validatedData = $request->validated();
-        
+
         try {
             $workOrder->update($validatedData);
 
             UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
-    
+
             Log::info('Work Order Update Dispatched', ['work_order_id' => $workOrder->id]);
+
             return redirect()->back()->with('success', 'Work order update has been queued.');
 
         } catch (\Throwable $th) {
-            Log::error('Work Order update failed: ' . $th->getMessage(), [
+            Log::error('Work Order update failed: '.$th->getMessage(), [
                 'work_order_id' => $workOrder->id,
                 'exception' => $th->getTraceAsString(),
             ]);
+
             return redirect()->back()->with('error', 'Failed to queue work order update.');
         }
 
@@ -149,13 +152,13 @@ class WorkOrderController extends Controller
          : 10;
 
         $work_orders = WorkOrder::with([
-                'service_status','requested_by'
-            ])
-            ->whereHas('service_status',function($q) {
+            'service_status', 'requested_by',
+        ])
+            ->whereHas('service_status', function ($q) {
                 $q->where('name', 'Closed');
             })
             ->filter(request(['search']))
-            ->orderBy('completed_date','DESC')
+            ->orderBy('completed_date', 'DESC')
             ->paginate($perPage)
             ->withQueryString()
             ->through(function ($work_order) {
@@ -169,28 +172,28 @@ class WorkOrderController extends Controller
                 ];
             });
 
-        return inertia('WorkOrder/Close',[
+        return inertia('WorkOrder/Close', [
             'title' => 'Closed Work Orders',
             'work_orders' => $work_orders,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search', 'per_page']),
         ]);
     }
 
     public function vendor_change(Request $request, WorkOrder $workOrder)
-    {   
+    {
         $request->validate([
-            'vendors' =>  'required|array'
+            'vendors' => 'required|array',
         ]);
 
         DB::beginTransaction();
 
         try {
 
-            $vendorIDsXml = "";
+            $vendorIDsXml = '';
             $vendorIds = [];
 
             DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
-    
+
             $vendorIDsXml = '<vendorIDs xsi:type="soapenc:Array" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">';
 
             foreach ($request->vendors as $vendor) {
@@ -206,22 +209,23 @@ class WorkOrderController extends Controller
             $workOrder->vendors()->sync($vendorIds);
 
             $workOrder->update([
-                'local_status' => 'Updated'
+                'local_status' => 'Updated',
             ]);
 
             DB::commit();
-            
+
             return redirect()->back()->with('success', 'Work order vendors updated successfully.');
 
         } catch (\Throwable $th) {
             DB::rollBack();
+
             return redirect()->back()->with('error', 'Work order vendors failed.'.$th->getMessage());
         }
-        
+
     }
 
     public function emergency_change(Request $request, WorkOrder $workOrder)
-    {   
+    {
         $request->validate([
             'is_emergency' => 'nullable|string',
         ]);
@@ -232,7 +236,7 @@ class WorkOrderController extends Controller
 
         $serviceStatusId = 1; // actual ID for 'New'
 
-        WorkOrderTask::where('work_order_id',$workOrder->id)->delete();
+        WorkOrderTask::where('work_order_id', $workOrder->id)->delete();
 
         TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $serviceStatusId);
 
@@ -243,12 +247,12 @@ class WorkOrderController extends Controller
      * Remove the specified resource from storage.
      */
     public function open(WorkOrder $workOrder)
-    {        
+    {
         $service_status = ServiceStatus::where('name', 'New')->value('id');
 
-        $openWorder =  $this->propertyWareServices->reOpenWorkOrder($workOrder);
+        $openWorder = $this->propertyWareServices->reOpenWorkOrder($workOrder);
 
-        if($openWorder){
+        if ($openWorder) {
             $workOrder->update([
                 'service_status_id' => $service_status,
                 'status' => 'Open',
@@ -261,28 +265,26 @@ class WorkOrderController extends Controller
     }
 
     public function close(WorkOrder $workOrder)
-    {        
+    {
         $service_status = ServiceStatus::where('name', 'Closed')->value('id');
 
-        $conversation_url = route('conversation.show',$workOrder->id);
-        
-        $closeWorder =  $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
+        $conversation_url = route('conversation.show', $workOrder->id);
 
-        if($closeWorder){
+        $closeWorder = $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
+
+        if ($closeWorder) {
             $workOrder->update([
                 'status' => 'Closed',
                 'service_status_id' => $service_status,
-                'completed_date' => now()->toDateString()
+                'completed_date' => now()->toDateString(),
             ]);
         }
 
         return redirect()->back();
     }
 
-    public function export() 
+    public function export()
     {
         return Excel::download(new WorkOrdersExport, 'Work_Orders_Export'.date('d-m-Y-h-i').'.xlsx');
     }
 }
-
-

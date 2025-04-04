@@ -31,24 +31,27 @@ class VendorSeeder_copy extends Seeder
     {
         $csvPath = public_path('vendor_types.csv');
 
-        if (!File::exists($csvPath)) {
-            Log::error('CSV file not found: ' . $csvPath);
+        if (! File::exists($csvPath)) {
+            Log::error('CSV file not found: '.$csvPath);
+
             return;
         }
 
         $vendorTypes = LazyCollection::make(function () use ($csvPath, $now) {
             $file = fopen($csvPath, 'r');
             $header = fgetcsv($file);
-            
-            if (!$header) {
+
+            if (! $header) {
                 Log::error('Invalid CSV format in vendor_types.csv.');
                 fclose($file);
+
                 return;
             }
 
             while (($row = fgetcsv($file)) !== false) {
                 if (count($row) !== count($header)) {
-                    Log::warning('Skipping malformed row in vendor_types.csv: ' . json_encode($row));
+                    Log::warning('Skipping malformed row in vendor_types.csv: '.json_encode($row));
+
                     continue;
                 }
 
@@ -72,8 +75,9 @@ class VendorSeeder_copy extends Seeder
     {
         $csvPath = public_path('vendors.csv');
 
-        if (!File::exists($csvPath)) {
-            Log::error('CSV file not found: ' . $csvPath);
+        if (! File::exists($csvPath)) {
+            Log::error('CSV file not found: '.$csvPath);
+
             return;
         }
 
@@ -85,21 +89,23 @@ class VendorSeeder_copy extends Seeder
         LazyCollection::make(function () use ($csvPath, $now, $existingVendors, $vendorTypes) {
             $file = fopen($csvPath, 'r');
             $header = fgetcsv($file);
-            
-            if (!$header) {
+
+            if (! $header) {
                 Log::error('Invalid CSV format in vendors.csv.');
                 fclose($file);
+
                 return;
             }
 
             while (($row = fgetcsv($file)) !== false) {
                 if (count($row) !== count($header)) {
-                    Log::warning('Skipping malformed row in vendors.csv: ' . json_encode($row));
+                    Log::warning('Skipping malformed row in vendors.csv: '.json_encode($row));
+
                     continue;
                 }
 
                 $vendor = array_combine($header, $row);
-                $vendorId = !empty($vendor['_id']) ? trim($vendor['_id']) : null;
+                $vendorId = ! empty($vendor['_id']) ? trim($vendor['_id']) : null;
 
                 if (empty($vendorId) || in_array($vendorId, $existingVendors) || $vendorId == 'NULL') {
                     continue;
@@ -109,24 +115,24 @@ class VendorSeeder_copy extends Seeder
             }
             fclose($file);
         })
-        ->chunk(500)
-        ->each(function ($chunk) {
-            // Bulk insert vendors
-            DB::table('vendors')->insert($chunk->pluck('vendor')->toArray());
-            
-            // Bulk create users
-            User::insert($chunk->pluck('user')->toArray());
-            
-            // Assign roles (if needed)
-            $this->assignRolesInBulk($chunk->pluck('user.email')->toArray(), 'vendor');
-        });
+            ->chunk(500)
+            ->each(function ($chunk) {
+                // Bulk insert vendors
+                DB::table('vendors')->insert($chunk->pluck('vendor')->toArray());
+
+                // Bulk create users
+                User::insert($chunk->pluck('user')->toArray());
+
+                // Assign roles (if needed)
+                $this->assignRolesInBulk($chunk->pluck('user.email')->toArray(), 'vendor');
+            });
     }
 
     private function prepareVendorData(array $vendor, array $vendorTypes, $now): array
     {
         $vendorId = trim($vendor['_id']);
-        $vendorEmail = $vendor['email'] ?? ($vendorId . '@txrenters.com');
-        
+        $vendorEmail = $vendor['email'] ?? ($vendorId.'@txrenters.com');
+
         $address = trim(implode(' ', array_filter([
             $vendor['address'] ?? null,
             $vendor['city'] ?? null,
@@ -160,7 +166,7 @@ class VendorSeeder_copy extends Seeder
                 'password' => bcrypt($vendorEmail),
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]
+            ],
         ];
     }
 

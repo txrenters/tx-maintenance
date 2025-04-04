@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
@@ -30,7 +29,6 @@ class UserSeeder extends Seeder
         $admin->assignRole('admin');
         $admin->givePermissionTo(Permission::get());
 
-
         $woc = User::create([
             'name' => 'Work Order Coordinator',
             'email' => 'woc@texasrenter.com',
@@ -44,7 +42,7 @@ class UserSeeder extends Seeder
         ]);
 
         $woc->assignRole('woc');
-        $admin->givePermissionTo(['view','create','edit']);
+        $admin->givePermissionTo(['view', 'create', 'edit']);
 
     }
 }

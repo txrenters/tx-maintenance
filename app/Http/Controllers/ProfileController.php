@@ -10,7 +10,7 @@ class ProfileController extends Controller
     {
         return inertia('Profile/Account', [
             'title' => 'User Profile',
-            'user' => $request->user()
+            'user' => $request->user(),
         ]);
     }
 }

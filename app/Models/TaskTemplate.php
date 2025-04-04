@@ -23,22 +23,22 @@ class TaskTemplate extends Model
 
     public function currentServiceStatus(): BelongsTo
     {
-        return $this->belongsTo(ServiceStatus::class,'current_service_status_id');
+        return $this->belongsTo(ServiceStatus::class, 'current_service_status_id');
     }
 
     public function nextServiceStatus(): BelongsTo
     {
-        return $this->belongsTo(ServiceStatus::class,'next_service_status_id');
+        return $this->belongsTo(ServiceStatus::class, 'next_service_status_id');
     }
 
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
+                ->whereAny([
+                    'name',
                 ], 'LIKE', "%{$search}%");
         }
     }

@@ -11,8 +11,8 @@ class ServiceScheduleController extends Controller
 {
     public function get_schedules(WorkOrder $workOrder)
     {
-        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'tenants','vendors']);
-    
+        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'tenants', 'vendors']);
+
         return response()->json($workOrder, 200);
     }
 
@@ -34,25 +34,26 @@ class ServiceScheduleController extends Controller
         try {
             ServiceSchedule::create([
                 'title' => $validatedData['title'],
-                'scheduled_date' => $validatedData['date'] . ' ' . $validatedData['time'],
+                'scheduled_date' => $validatedData['date'].' '.$validatedData['time'],
                 'description' => $validatedData['description'] ?? null,
                 'work_order_id' => $validatedData['work_order_id'],
                 'vendor_id' => $validatedData['vendor_id'],
                 'tenant_id' => $validatedData['tenant_id'],
             ]);
-    
+
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Failed to set service schedule. Please try again.');
         }
     }
+
     /**
      * Update the specified resource in storage.
      */
     public function update_status(Request $request, ServiceSchedule $serviceSchedule)
     {
         $validatedData = $request->validate([
-            'status' => 'required'
+            'status' => 'required',
         ]);
 
         $serviceSchedule->update($validatedData);

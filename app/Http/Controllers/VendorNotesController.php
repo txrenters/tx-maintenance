@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\VendorNotes;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
@@ -24,7 +23,7 @@ class VendorNotesController extends Controller
         $user = User::with('vendor')->find(auth()->id());
         $vendorId = $user->vendor->id;
 
-        $propertywareServices = new PropertyWareService();
+        $propertywareServices = new PropertyWareService;
 
         DB::beginTransaction();
         try {
@@ -39,14 +38,14 @@ class VendorNotesController extends Controller
 
             $note = $propertywareServices->updateWorkOrderDetails($workOrder);
 
-            if($note){
+            if ($note) {
                 DB::commit();
                 Log::info('Work order updated successfully!');
             }
-            
+
         } catch (\Exception $th) {
             DB::rollBack();
-            Log::error('Vendor notes failed: '. $th->getMessage());
+            Log::error('Vendor notes failed: '.$th->getMessage());
         }
 
         return redirect()->back();

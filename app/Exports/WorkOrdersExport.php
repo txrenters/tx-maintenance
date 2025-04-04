@@ -8,22 +8,22 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
-class WorkOrdersExport implements FromCollection, WithHeadings, ShouldAutoSize
+class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
 {
     /**
-    * @return \Illuminate\Support\Collection
-    */
+     * @return \Illuminate\Support\Collection
+     */
     public function collection()
     {
         return WorkOrder::with([
-                'service_status','requested_by','vendors','managed_by'
-            ])
-            ->whereHas('service_status',function($q) {
-                $q->whereNot('name','Closed')
-                ->whereNot('name','Not Changed');
+            'service_status', 'requested_by', 'vendors', 'managed_by',
+        ])
+            ->whereHas('service_status', function ($q) {
+                $q->whereNot('name', 'Closed')
+                    ->whereNot('name', 'Not Changed');
             })
-            ->orderBy('created_date','DESC')
-            ->filter(request(['search','vendor','start_date','end_date']))
+            ->orderBy('created_date', 'DESC')
+            ->filter(request(['search', 'vendor', 'start_date', 'end_date']))
             ->get()
             ->map(function ($work_order) {
                 return [
@@ -46,7 +46,7 @@ class WorkOrdersExport implements FromCollection, WithHeadings, ShouldAutoSize
                     'additional_work_needed_reschedule' => trim($work_order->additional_work_needed_reschedule),
                     'management_plan' => $work_order->management_plan,
                     'closing_comments' => $work_order->closing_comments,
-                    'vendors' => implode(', ', $work_order->vendors->pluck('name')->map(fn($name) => trim($name))->toArray()),
+                    'vendors' => implode(', ', $work_order->vendors->pluck('name')->map(fn ($name) => trim($name))->toArray()),
                 ];
             });
     }

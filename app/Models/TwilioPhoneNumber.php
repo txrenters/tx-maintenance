@@ -18,13 +18,13 @@ class TwilioPhoneNumber extends Model
 
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
-                'phone_number',
+                ->whereAny([
+                    'name',
+                    'phone_number',
                 ], 'LIKE', "%{$search}%");
         }
     }

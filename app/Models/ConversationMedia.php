@@ -11,7 +11,7 @@ class ConversationMedia extends Model
 
     protected $guarded = [];
 
-      protected $appends = [
+    protected $appends = [
         'public_url',
     ];
 
@@ -22,6 +22,6 @@ class ConversationMedia extends Model
 
     public function getPublicUrlAttribute(): string
     {
-        return asset('storage/'. $this->local_path);
+        return asset('storage/'.$this->local_path);
     }
 }

@@ -44,6 +44,7 @@ class StoreTaskTemplateRequest extends FormRequest
             'tasks.*.task_details.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,Yes',
         ];
     }
+
     public function messages()
     {
         return [
@@ -61,5 +62,4 @@ class StoreTaskTemplateRequest extends FormRequest
             'tasks.*.task_details.*.is_task_service_status_emergency.required_if' => 'The task details emergency field is required if option is Yes',
         ];
     }
-
 }

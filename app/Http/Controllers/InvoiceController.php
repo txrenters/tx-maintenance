@@ -15,7 +15,7 @@ class InvoiceController extends Controller
         : 10;
 
         $invoices = Invoice::query()
-            ->with(['work_order','vendor'])
+            ->with(['work_order', 'vendor'])
             ->filter(request(['search']))
             ->latest()
             ->paginate($perPage)
@@ -33,10 +33,11 @@ class InvoiceController extends Controller
                     'created_at' => $invoice->created_at->format('F d, Y'),
                 ];
             });
-        return inertia('Invoice/Index',[
+
+        return inertia('Invoice/Index', [
             'title' => 'Invoices',
             'invoices' => $invoices,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search', 'per_page']),
 
         ]);
     }

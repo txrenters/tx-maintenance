@@ -44,6 +44,7 @@ class UpdateTaskTemplateRequest extends FormRequest
             'tasks.*.task_details.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,Yes',
         ];
     }
+
     public function messages()
     {
         return [

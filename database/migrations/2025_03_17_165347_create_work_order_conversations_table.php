@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -16,7 +15,7 @@ return new class extends Migration
         Schema::create('work_order_conversations', function (Blueprint $table) {
             $table->id();
             $table->string('message');
-            $table->enum('conversation_type', ['tenant','owner','vendor_tenant'])->nullable(); // 'tenant', 'vendor_tenant', 'owners', etc.
+            $table->enum('conversation_type', ['tenant', 'owner', 'vendor_tenant'])->nullable(); // 'tenant', 'vendor_tenant', 'owners', etc.
             $table->string('sender_number');
             $table->string('receiver_number');
             $table->foreignIdFor(WorkOrder::class)->constrained()->cascadeOnDelete();

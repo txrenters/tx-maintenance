@@ -4,7 +4,6 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,7 +11,6 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -21,10 +19,11 @@ class User extends Authenticatable
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory;
+
     use HasProfilePhoto;
+    use HasRoles;
     use Notifiable;
     use TwoFactorAuthenticatable;
-    use HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -108,24 +107,23 @@ class User extends Authenticatable
     }
 
     public function wocNumbers(): HasMany
-    { 
+    {
         return $this->hasMany(WOCNumbers::class);
     }
 
-
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
-                'email',
-                'phone',
-                'address',
-                'company',
-                'website',
+                ->whereAny([
+                    'name',
+                    'email',
+                    'phone',
+                    'address',
+                    'company',
+                    'website',
                 ], 'LIKE', "%{$search}%");
         }
     }
@@ -134,8 +132,9 @@ class User extends Authenticatable
     {
         $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
         if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
+            $cleaned = '+1'.$cleaned;
         }
+
         return $this->attributes['phone'] = $cleaned;
     }
 
@@ -143,8 +142,9 @@ class User extends Authenticatable
     {
         $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
         if (strlen($cleaned) == 10) { // If it's a US number without country code
-            $cleaned = '+1' . $cleaned;
+            $cleaned = '+1'.$cleaned;
         }
+
         return $this->attributes['phone'] = $cleaned;
 
     }

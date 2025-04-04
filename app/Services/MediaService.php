@@ -1,11 +1,12 @@
-<?php 
+<?php
+
 namespace App\Services;
 
 use App\Models\ConversationMedia;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
 
 class MediaService
 {
@@ -13,8 +14,8 @@ class MediaService
     {
         try {
             $response = Http::timeout(30)->get($url);
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 throw new \Exception("Failed to download media (HTTP {$response->status()})");
             }
 
@@ -29,18 +30,19 @@ class MediaService
                 'original_url' => $url,
                 'local_path' => $path,
                 'content_type' => $contentType,
-                'file_name' => $fileName
+                'file_name' => $fileName,
             ]);
 
         } catch (\Exception $e) {
             Log::error("Media download failed: {$e->getMessage()}");
+
             return null;
         }
     }
 
     private function getExtension(string $contentType): string
     {
-        return match($contentType) {
+        return match ($contentType) {
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/gif' => 'gif',
@@ -50,4 +52,3 @@ class MediaService
         };
     }
 }
-?>

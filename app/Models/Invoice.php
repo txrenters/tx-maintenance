@@ -30,20 +30,19 @@ class Invoice extends Model
 
     public function getInvoiceUrlAttribute()
     {
-        return asset('storage/' . $this->filename);
+        return asset('storage/'.$this->filename);
     }
-
 
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'filename',
-                'status',
-                'amount',
+                ->whereAny([
+                    'filename',
+                    'status',
+                    'amount',
                 ], 'LIKE', "%{$search}%");
         }
     }

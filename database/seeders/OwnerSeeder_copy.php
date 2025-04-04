@@ -16,10 +16,11 @@ class OwnerSeeder_copy extends Seeder
     public function run(): void
     {
         // Read CSV file
-        $csvFile = public_path('owners.csv'); 
-        
-        if (!File::exists($csvFile)) {
+        $csvFile = public_path('owners.csv');
+
+        if (! File::exists($csvFile)) {
             Log::error('CSV file not found.');
+
             return;
         }
 
@@ -29,7 +30,7 @@ class OwnerSeeder_copy extends Seeder
         fgetcsv($file);
 
         // Fetch existing propertyware_ids once to reduce DB queries
-        $existingOwners = DB::table('owners')->pluck('propertyware_id')->toArray(); 
+        $existingOwners = DB::table('owners')->pluck('propertyware_id')->toArray();
 
         $ownersToInsert = [];
 
@@ -41,7 +42,7 @@ class OwnerSeeder_copy extends Seeder
             }
 
             // Set email
-            $ownerEmail = $owner[12] ?? $owner_propertyware_id . "@texasrenter.com";  
+            $ownerEmail = $owner[12] ?? $owner_propertyware_id.'@texasrenter.com';
 
             // Construct address
             $address = trim(implode(' ', array_filter([
@@ -56,7 +57,7 @@ class OwnerSeeder_copy extends Seeder
             // User data for creating/updating
             $usersData = [
                 'email' => $ownerEmail,
-                'name' => trim(($owner[13] ?? '') . ' ' . ($owner[15] ?? '')),  // firstName + lastName
+                'name' => trim(($owner[13] ?? '').' '.($owner[15] ?? '')),  // firstName + lastName
                 'phone' => $owner[14] ?? null,  // homePhone
                 'company' => $owner[8] ?? null, // companyName
                 'address' => $address,
@@ -83,7 +84,7 @@ class OwnerSeeder_copy extends Seeder
                 'country' => $owner[10] ?? null,
                 'zip' => $owner[25] ?? null,
                 'company' => $owner[8] ?? null,
-                'is_property_restricted' => false, 
+                'is_property_restricted' => false,
                 'status' => $owner[23] ?? null,
                 'org_id' => $owner[9] ?? null,
                 'user_id' => $user->id,
@@ -97,7 +98,7 @@ class OwnerSeeder_copy extends Seeder
         }
 
         // Insert remaining owners
-        if (!empty($ownersToInsert)) {
+        if (! empty($ownersToInsert)) {
             DB::table('owners')->insert($ownersToInsert);
         }
 
@@ -109,6 +110,7 @@ class OwnerSeeder_copy extends Seeder
         // Check if user exists, if not create new one
         $user = User::updateOrCreate(['email' => $data['email']], $data);
         $user->assignRole($role);
+
         return $user;
     }
 }

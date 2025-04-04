@@ -26,22 +26,21 @@ class RolesAndPermissionsSeeder extends Seeder
         // update cache to know about the newly created permissions (required if using WithoutModelEvents in seeders)
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-
         // create roles and assign created permissions
 
         Role::create(['name' => 'admin'])
             ->givePermissionTo(Permission::all());
 
         Role::create(['name' => 'vendor'])
-            ->givePermissionTo(['view','create','edit']);
-        
+            ->givePermissionTo(['view', 'create', 'edit']);
+
         Role::create(['name' => 'tenant'])
-            ->givePermissionTo(['view','create','edit']);
-        
+            ->givePermissionTo(['view', 'create', 'edit']);
+
         Role::create(['name' => 'owner'])
-            ->givePermissionTo(['view','create','edit']);
+            ->givePermissionTo(['view', 'create', 'edit']);
 
         Role::create(['name' => 'woc'])
-            ->givePermissionTo(['view','create','edit']);
+            ->givePermissionTo(['view', 'create', 'edit']);
     }
 }

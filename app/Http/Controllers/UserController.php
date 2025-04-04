@@ -51,15 +51,16 @@ class UserController extends Controller
             'title' => 'Users',
             'users' => $users,
             'roles' => $roles,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search', 'per_page']),
         ]);
     }
+
     /**
      * Store a newly created resource in storage.
      */
     public function store(StoreUserRequest $request)
     {
-        Gate::authorize('create_user', User::class);    
+        Gate::authorize('create_user', User::class);
 
         $request->validated();
 
@@ -74,7 +75,7 @@ class UserController extends Controller
             'password' => bcrypt($request->email),
         ];
 
-        DB::transaction(function() use ($data, $request) {
+        DB::transaction(function () use ($data, $request) {
             $user = User::create($data);
 
             $role = Role::find($request->role_id);
@@ -82,7 +83,7 @@ class UserController extends Controller
                 $user->assignRole($role);
             }
 
-            if($user->hasRole('vendor')){
+            if ($user->hasRole('vendor')) {
                 $vendorsData = [
                     'propertyware_id' => $user->id,
                     'name' => $user->name,
@@ -93,7 +94,7 @@ class UserController extends Controller
 
                 Vendor::create($vendorsData);
             }
-        
+
         });
 
         return redirect()->route('users.index');
@@ -117,19 +118,19 @@ class UserController extends Controller
             'address' => $validated['address'],
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $data['password'] = bcrypt($request->password);
         }
 
-        DB::transaction(function() use ($data, $user, $request) {
+        DB::transaction(function () use ($data, $user, $request) {
             $user->update($data);
 
             $role = Role::find($request->role_id);
             if ($role) {
                 $user->syncRoles($role);
-            }      
+            }
 
-            if($user->hasRole('vendor')){
+            if ($user->hasRole('vendor')) {
                 $vendorsData = [
                     'name' => $data['name'],
                     'email' => $data['email'],
@@ -138,7 +139,6 @@ class UserController extends Controller
                 Vendor::where('user_id', $user->id)->update($vendorsData);
             }
         });
-
 
         return redirect()->route('users.index');
     }

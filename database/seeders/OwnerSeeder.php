@@ -16,17 +16,18 @@ class OwnerSeeder extends Seeder
     public function run(): void
     {
         $now = now()->format('Y-m-d H:i:s');
-        
+
         // Disable query logging and events for performance
         DB::disableQueryLog();
         DB::connection()->unsetEventDispatcher();
         User::flushEventListeners();
-        
-        // Read CSV file
-        $csvFile = public_path('owners.csv'); 
 
-        if (!File::exists($csvFile)) {
-            Log::error('CSV file not found: ' . $csvFile);
+        // Read CSV file
+        $csvFile = public_path('owners.csv');
+
+        if (! File::exists($csvFile)) {
+            Log::error('CSV file not found: '.$csvFile);
+
             return;
         }
 
@@ -51,13 +52,13 @@ class OwnerSeeder extends Seeder
                 }
 
                 // Prepare user data
-                $ownerEmail = $owner[12] ?? $owner_propertyware_id . "@texasrenter.com";
-                $address = trim(implode(' ', array_filter([ 
-                    $owner[4] ?? null, 
-                    $owner[5] ?? null, 
-                    $owner[7] ?? null, 
-                    $owner[22] ?? null, 
-                    $owner[10] ?? null, 
+                $ownerEmail = $owner[12] ?? $owner_propertyware_id.'@texasrenter.com';
+                $address = trim(implode(' ', array_filter([
+                    $owner[4] ?? null,
+                    $owner[5] ?? null,
+                    $owner[7] ?? null,
+                    $owner[22] ?? null,
+                    $owner[10] ?? null,
                     $owner[25] ?? null,
                 ])));
 
@@ -70,7 +71,7 @@ class OwnerSeeder extends Seeder
 
                 $usersData = [
                     'email' => $ownerEmail,
-                    'name' => trim(($owner[13] ?? '') . ' ' . ($owner[15] ?? '')),
+                    'name' => trim(($owner[13] ?? '').' '.($owner[15] ?? '')),
                     'phone' => $phone,
                     'company' => $owner[8] ?? null,
                     'address' => $address,
@@ -83,7 +84,7 @@ class OwnerSeeder extends Seeder
                 $chunks[] = [
                     $owner_propertyware_id, // propertyware_id
                     $owner[17] ?? null,
-                    $owner[18] ?? null,                   
+                    $owner[18] ?? null,
                     $owner[13] ?? null,     // first_name
                     $owner[15] ?? null,     // last_name
                     $ownerEmail,            // email
@@ -107,7 +108,6 @@ class OwnerSeeder extends Seeder
                     $now,                   // created_at (current timestamp)
                     $now,                   // updated_at (current timestamp)
                 ];
-                
 
                 if (count($chunks) == $chunkSize) {
                     $stmt->execute(array_merge(...$chunks));
@@ -118,7 +118,7 @@ class OwnerSeeder extends Seeder
             }
 
             // Insert remaining rows
-            if (!empty($chunks)) {
+            if (! empty($chunks)) {
                 $remainingRows = count($chunks);
                 $stmt = $this->prepareChunkedStatementOwners($remainingRows);
                 $stmt->execute(array_merge(...$chunks));
@@ -145,7 +145,7 @@ class OwnerSeeder extends Seeder
 
             // You can optionally ensure the role is assigned (in case it was missed before)
             $user = User::find($userId);
-            if (!$user->hasRole($role)) {
+            if (! $user->hasRole($role)) {
                 $user->assignRole($role);
             }
 
@@ -161,7 +161,6 @@ class OwnerSeeder extends Seeder
         return $userId;
     }
 
-
     private function prepareChunkedStatementOwners($chunkSize)
     {
         // Prepare row placeholders with 22 placeholders for each row
@@ -171,15 +170,14 @@ class OwnerSeeder extends Seeder
         $placeholders = implode(',', array_fill(0, $chunkSize, $rowPlaceholders));
 
         // Prepare the query for bulk insert with 22 columns
-        $query = DB::connection()->getPdo()->prepare("
+        $query = DB::connection()->getPdo()->prepare('
             INSERT INTO owners (
                 propertyware_id,name, name_on_check, first_name, last_name, email, fax, pager, home_phone, work_phone, 
                 mobile_phone, address, address2, city, state, country, zip, company, 
                 is_property_restricted, status, org_id,tax_id, user_id, created_at, updated_at
-            ) VALUES " . $placeholders
+            ) VALUES '.$placeholders
         );
 
         return $query;
     }
-
 }

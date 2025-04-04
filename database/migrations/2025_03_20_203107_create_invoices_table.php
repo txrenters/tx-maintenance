@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('filetype');
             $table->decimal('amount');
             $table->text('remarks')->nullable();
-            $table->enum('status', ['pending','approved', 'decline'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'decline'])->default('pending');
             $table->foreignIdFor(WorkOrder::class)->constrained()->cascadeOnDelete();
             $table->foreignIdFor(Vendor::class)->constrained()->cascadeOnDelete();
             $table->timestamps();

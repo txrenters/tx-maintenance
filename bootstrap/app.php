@@ -6,7 +6,6 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
-
 ini_set('memory_limit', '256M');
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -20,7 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            
+
             UpgradeToHttpsUnderNgrok::class,
             ForceHttps::class,
         ]);

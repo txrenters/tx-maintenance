@@ -16,10 +16,10 @@ class InvoiceController extends Controller
     public function index(WorkOrder $workOrder)
     {
         $workOrder->load(['invoices.vendor']);
-    
+
         return response()->json($workOrder, 200);
     }
-    
+
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -33,7 +33,7 @@ class InvoiceController extends Controller
         $validatedData['vendor_id'] = $user->vendor->id;
         // $validatedData['vendor_id'] = 6; // test only
 
-        if($request->hasFile('filename')){
+        if ($request->hasFile('filename')) {
             $file = $request->file('filename');
             $validatedData['filename'] = $file->store('invoices', 'public');
             $validatedData['filetype'] = $file->getMimeType();
@@ -43,13 +43,14 @@ class InvoiceController extends Controller
 
         return redirect()->back();
     }
+
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Invoice $invoice)
     {
         $invoice->update([
-            'status' => $request->status
+            'status' => $request->status,
         ]);
 
         return redirect()->back();

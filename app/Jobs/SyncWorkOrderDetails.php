@@ -4,18 +4,19 @@ namespace App\Jobs;
 
 use App\Models\WorkOrder;
 use Carbon\Carbon;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Bus\Queueable;
 
 class SyncWorkOrderDetails implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public array $data;
+
     public int $work_order_id;
 
     /**
@@ -79,8 +80,9 @@ class SyncWorkOrderDetails implements ShouldQueue
         // Find the work order
         $workOrder = WorkOrder::find($this->work_order_id);
 
-        if (!$workOrder) {
+        if (! $workOrder) {
             Log::error('Work Order not found', ['work_order_id' => $this->work_order_id]);
+
             return;
         }
 

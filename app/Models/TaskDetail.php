@@ -17,6 +17,6 @@ class TaskDetail extends Model
 
     public function taskServiceStatus()
     {
-        return $this->belongsTo(ServiceStatus::class,'task_service_status_id');
+        return $this->belongsTo(ServiceStatus::class, 'task_service_status_id');
     }
 }

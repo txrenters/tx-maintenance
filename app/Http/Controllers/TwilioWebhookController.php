@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
-use Illuminate\Http\Request;
 use App\Services\MediaService;
 use Exception;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Twilio\Security\RequestValidator;
 use Illuminate\Support\Facades\Log;
+use Twilio\Security\RequestValidator;
 
 class TwilioWebhookController extends Controller
 {
@@ -17,7 +17,7 @@ class TwilioWebhookController extends Controller
         $data = $request->all();
 
         $this->forwardToPlusThis($data);
-        
+
         // Validate and sanitize input
         $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
         $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
@@ -29,7 +29,7 @@ class TwilioWebhookController extends Controller
         $workOrderId = $this->getWorkOrderId($from, $to);
         $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
 
-        if (!$checkMessageDuplicate && $workOrderId && $type) {
+        if (! $checkMessageDuplicate && $workOrderId && $type) {
             try {
 
                 $this->validateTwilioRequest($request);
@@ -50,12 +50,14 @@ class TwilioWebhookController extends Controller
                 return response()->noContent(); // HTTP 204
 
             } catch (Exception $e) {
-                Log::error('Failed to create conversation: ' . $e->getMessage());
+                Log::error('Failed to create conversation: '.$e->getMessage());
+
                 return response('Error processing request', 500);
             }
 
         } else {
             Log::info('Message not valid for insertion (duplicate or missing data).');
+
             return response('Error processing request', 500);
         }
     }
@@ -70,7 +72,7 @@ class TwilioWebhookController extends Controller
         $workOrderId = $this->getWorkOrderId($from, $to);
         $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $data['Body']);
 
-        if (!$checkMessageDuplicate && $workOrderId && $type) {
+        if (! $checkMessageDuplicate && $workOrderId && $type) {
             $conversation = Conversation::create([
                 'message' => $data['Body'],
                 'is_mms' => $isMms,
@@ -97,10 +99,10 @@ class TwilioWebhookController extends Controller
             if ($response->successful()) {
                 Log::info('Successfully forwarded data to PlusThis URL.');
             } else {
-                Log::error('Failed to forward data to PlusThis. Response: ' . $response->body());
+                Log::error('Failed to forward data to PlusThis. Response: '.$response->body());
             }
         } catch (\Exception $e) {
-            Log::error('Error forwarding data to PlusThis: ' . $e->getMessage());
+            Log::error('Error forwarding data to PlusThis: '.$e->getMessage());
         }
     }
 
@@ -117,25 +119,25 @@ class TwilioWebhookController extends Controller
                 );
             }
         } catch (\Exception $e) {
-            Log::error('Media attachment failed: ' . $e->getMessage());
+            Log::error('Media attachment failed: '.$e->getMessage());
         }
     }
 
     protected function checkMessageDuplicate(string $from, string $to, string $msg): bool
     {
-        $convo =  Conversation::where('receiver_number', $to)
+        $convo = Conversation::where('receiver_number', $to)
             ->where('sender_number', $from)
             ->latest()
-            ->first(); 
-        
+            ->first();
+
         // If no conversation is found, return false
-        if (!$convo) {
+        if (! $convo) {
             return false;
             Log::info('Message not duplicate');
         }
 
         // Compare trimmed messages
-        Log::info('Checking message:', ['message duplicate' => trim($convo->message) == trim($msg), 'data' => $convo->message .' - '.$msg]);
+        Log::info('Checking message:', ['message duplicate' => trim($convo->message) == trim($msg), 'data' => $convo->message.' - '.$msg]);
 
         return trim($convo->message) == trim($msg);
     }
@@ -160,7 +162,7 @@ class TwilioWebhookController extends Controller
 
     protected function formatNumber(string $number): string
     {
-        return '+' . preg_replace('/[^0-9]/', '', $number);
+        return '+'.preg_replace('/[^0-9]/', '', $number);
     }
 
     protected function validateTwilioRequest(Request $request): void
@@ -170,8 +172,8 @@ class TwilioWebhookController extends Controller
         }
 
         $validator = new RequestValidator(env('TWILIO_AUTH_TOKEN'));
-        
-        if (!$validator->validate(
+
+        if (! $validator->validate(
             $request->header('X-Twilio-Signature', ''),
             $request->fullUrl(),
             $request->toArray()

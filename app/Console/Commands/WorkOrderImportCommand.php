@@ -2,13 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\ImportWorkOrderJob;
 use App\Models\Owner;
-use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\User;
-use App\Models\Vendor;
-use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -52,11 +48,11 @@ class WorkOrderImportCommand extends Command
 
         foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
             foreach ($workOrderChunk as $order) {
-                $data = (array)$order;
+                $data = (array) $order;
 
                 $ID = $data['ID'] ?? null;
 
-                if($ID){
+                if ($ID) {
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
 
@@ -66,7 +62,7 @@ class WorkOrderImportCommand extends Command
                     // Process work order and related data
                     $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
                 }
-                
+
             }
         }
 
@@ -76,12 +72,12 @@ class WorkOrderImportCommand extends Command
     private function processTenantAndUser(array $data): ?int
     {
         $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
-        
-        if (!$tenant_propertyware_id) {
+
+        if (! $tenant_propertyware_id) {
             return null;
         }
 
-        $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id . "@texasrenter.com";
+        $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id.'@texasrenter.com';
         $address = trim(implode(' ', array_filter([
             $data['requestedByContact']['address'] ?? null,
             $data['requestedByContact']['address2'] ?? null,
@@ -93,7 +89,7 @@ class WorkOrderImportCommand extends Command
 
         $usersData = [
             'email' => $tenantEmail,
-            'name' => $data['requestedByContact']['firstName'] . ' ' . $data['requestedByContact']['lastName'],
+            'name' => $data['requestedByContact']['firstName'].' '.$data['requestedByContact']['lastName'],
             'phone' => $data['requestedByContact']['homePhone'] ?? null,
             'company' => $data['requestedByContact']['company'] ?? null,
             'address' => $address,
@@ -110,7 +106,7 @@ class WorkOrderImportCommand extends Command
             'last_name' => $data['requestedByContact']['lastName'] ?? null,
             'suffix' => $data['requestedByContact']['suffix'] ?? null,
             'birth_date' => $data['requestedByContact']['birthDate'] ?? null,
-            'gender' => $data['requestedByContact']['gender'] == 1 ? 'Male' : "Female",
+            'gender' => $data['requestedByContact']['gender'] == 1 ? 'Male' : 'Female',
             'email' => $tenantEmail,
             'fax' => $data['requestedByContact']['fax'] ?? null,
             'pager' => $data['requestedByContact']['pager'] ?? null,
@@ -147,11 +143,11 @@ class WorkOrderImportCommand extends Command
     private function processOwnerAndUser(array $data): ?int
     {
         $owner_propertyware_id = $data['owner']['ID'] ?? null;
-        if (!$owner_propertyware_id) {
+        if (! $owner_propertyware_id) {
             return null;
         }
 
-        $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id . '@texasrenter.com';
+        $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id.'@texasrenter.com';
         $address = trim(implode(' ', array_filter([
             $data['owner']['address'] ?? null,
             $data['owner']['address2'] ?? null,
@@ -163,7 +159,7 @@ class WorkOrderImportCommand extends Command
 
         $usersData = [
             'email' => $ownerEmail,
-            'name' => $data['owner']['firstName'] . ' ' . $data['owner']['lastName'],
+            'name' => $data['owner']['firstName'].' '.$data['owner']['lastName'],
             'phone' => $data['owner']['homePhone'] ?? null,
             'company' => $data['owner']['company'] ?? null,
             'address' => $address,
@@ -208,6 +204,7 @@ class WorkOrderImportCommand extends Command
     {
         $user = User::updateOrCreate(['email' => $data['email']], $data);
         $user->assignRole($role);
+
         return $user;
     }
 
@@ -218,29 +215,28 @@ class WorkOrderImportCommand extends Command
             $work_order_propertyware_id = $data['ID'] ?? null;
             $woc = User::role('woc')->first();
 
-           
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
                 'work_order_no' => $data['number'] ?? null,
                 'approval_comments' => $data['approvalComments'] ?? null,
-                'is_approved' => !empty($data['approved']) ? $data['approved'] : false,
+                'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
                 'approved_by' => $data['approvedBy'] ?? null,
-                'approved_date' => !empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
+                'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,
                 'closing_comments' => $data['closingComments'] ?? '',
-                'completed_date' => !empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
+                'completed_date' => ! empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
                 'cost_estimate' => $data['costEstimate'] ?? null,
-                'created_date' => !empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,
-                'date_to_enter' => !empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
+                'created_date' => ! empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,
+                'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
                 'description' => $data['description'] ?? null,
                 'hour_estimate' => $data['hourEstimate'] ?? null,
                 'location' => $data['location'] ?? null,
-                'priority' => !empty($data['priority']) ? $data['priority'] : false,
+                'priority' => ! empty($data['priority']) ? $data['priority'] : false,
                 'priority_as_int' => $data['priorityAsInt'] ?? null,
                 'required_materials' => $data['requiredMaterials'] ?? null,
-                'scheduled_end_date' => !empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
+                'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
                 'service_request_building' => $data['serviceRequestBuilding'] ?? null,
                 'service_request_company_name' => $data['serviceRequestCompanyName'] ?? null,
                 'service_request_contact_email' => $data['serviceRequestContactEmail'] ?? null,
@@ -250,7 +246,7 @@ class WorkOrderImportCommand extends Command
                 'service_request_unit' => $data['serviceRequestUnit'] ?? null,
                 'source' => $data['source'] ?? null,
                 'specific_location' => $data['specificLocation'] ?? null,
-                'start_date' => !empty($data['startDate']) ? Carbon::parse($data['startDate'])->toDateString() : null,
+                'start_date' => ! empty($data['startDate']) ? Carbon::parse($data['startDate'])->toDateString() : null,
                 'status' => $data['status'] ?? null,
                 'total_cost' => $data['totalCost'] ?? null,
                 'total_hour_work' => $data['totalHourWork'] ?? null,
@@ -258,36 +254,34 @@ class WorkOrderImportCommand extends Command
                 'building_id' => $data['building']['ID'] ?? null,
                 'lease_id' => $data['lease']['ID'] ?? null,
                 'portfolio_id' => $data['portfolio']['ID'] ?? null,
-                'unit_id' => !empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
+                'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
                 'owner_id' => $owner,
-                'tenant_id' => !empty($tenant) ? (int) $tenant : null,
+                'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
                 'user_id' => $woc?->id,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
 
             $customFieldData = [];
-            if(!empty($data['customFields']) && is_array($data['customFields'])){
+            if (! empty($data['customFields']) && is_array($data['customFields'])) {
                 foreach ($data['customFields'] as $customField) {
                     if ($customField['fieldName'] == 'Service Status') {
 
-                        $service_status_id =  DB::table('service_status')
-                            ->whereLike('name','%' . ($customField['value'] ?? '') . '%')
+                        $service_status_id = DB::table('service_status')
+                            ->whereLike('name', '%'.($customField['value'] ?? '').'%')
                             ->value('id');
 
                         $work_order_data['service_status_id'] = $service_status_id ?? 1;
 
-                    } else if ($customField['fieldName'] == 'Zone') {
+                    } elseif ($customField['fieldName'] == 'Zone') {
                         $work_order_data['zone'] = $customField['value'] ?? '';
-                    } else if ($customField['fieldName'] == 'Additional work needed- Reschedule') {
+                    } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
                         $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
-                    } else if ($customField['fieldName'] == 'Management Plan') {
+                    } elseif ($customField['fieldName'] == 'Management Plan') {
                         $work_order_data['management_plan'] = $customField['value'] ?? '';
                     }
                 }
             }
-
-          
 
             DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],
@@ -295,7 +289,6 @@ class WorkOrderImportCommand extends Command
             );
 
             $work_order = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
-
 
             DB::table('work_order_custom_fields')->where('work_order_id', $work_order)->delete();
             DB::table('work_order_custom_fields')->insert($customFieldData);
@@ -305,7 +298,7 @@ class WorkOrderImportCommand extends Command
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Work order processing failed for work order ID: ' . ($work_order_propertyware_id ?? 'unknown') . ' - ' . $th->getMessage());
+            Log::error('Work order processing failed for work order ID: '.($work_order_propertyware_id ?? 'unknown').' - '.$th->getMessage());
             throw $th;
         }
     }
@@ -323,7 +316,7 @@ class WorkOrderImportCommand extends Command
     private function processNotes(array $data, int $work_order, string $now): void
     {
         $notesData = [];
-        if (!empty($data['notes']) && is_array($data['notes'])) {
+        if (! empty($data['notes']) && is_array($data['notes'])) {
             foreach ($data['notes'] as $note) {
                 $notesData[] = [
                     'propertyware_id' => $note['ID'] ?? null,
@@ -346,12 +339,12 @@ class WorkOrderImportCommand extends Command
     private function processVendors(array $data, int $work_order, string $now): void
     {
         $vendorsData = [];
-        if (!empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
+        if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
             foreach ($data['vendorIDs'] as $vendor) {
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
                 $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
 
-                if(!$vendorExist && $vendorId){ //don't insert if exists
+                if (! $vendorExist && $vendorId) { // don't insert if exists
                     $vendorsData[] = [
                         'work_order_id' => $work_order,
                         'vendor_id' => $vendorId,
@@ -359,10 +352,10 @@ class WorkOrderImportCommand extends Command
                         'updated_at' => $now,
                     ];
                 }
-               
+
             }
         }
-        if($vendorsData){
+        if ($vendorsData) {
             DB::table('work_order_vendors')->insert($vendorsData);
         }
     }
@@ -370,7 +363,7 @@ class WorkOrderImportCommand extends Command
     private function processDocuments(array $data, int $work_order, string $now): void
     {
         $documentsData = [];
-        if (!empty($data['documents']) && is_array($data['documents'])) {
+        if (! empty($data['documents']) && is_array($data['documents'])) {
             foreach ($data['documents'] as $document) {
                 $documentsData[] = [
                     'propertyware_id' => $document['ID'] ?? null,
@@ -398,13 +391,13 @@ class WorkOrderImportCommand extends Command
 
     private function processTenants(array $data, int $work_order, string $now): void
     {
-        if (!empty($data['lease']) && is_array($data['lease'])) {
-            
+        if (! empty($data['lease']) && is_array($data['lease'])) {
+
             DB::table('work_order_tenants')->where('work_order_id', $work_order)->delete();
             $work_order_tenant_data = [];
 
             foreach ($data['lease']['tenants'] as $tenant) {
-                $tenantEmail = $tenant['email'] ?? $tenant['ID'] . '@texasrenter.com';
+                $tenantEmail = $tenant['email'] ?? $tenant['ID'].'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
                     $tenant['address'] ?? null,
                     $tenant['address2'] ?? null,
@@ -416,7 +409,7 @@ class WorkOrderImportCommand extends Command
 
                 $usersData = [
                     'email' => $tenantEmail,
-                    'name' => ($tenant['firstName'] ?? '') . ' ' . ($tenant['lastName'] ?? ''),
+                    'name' => ($tenant['firstName'] ?? '').' '.($tenant['lastName'] ?? ''),
                     'phone' => $tenant['homePhone'] ?? null,
                     'company' => $tenant['company'] ?? null,
                     'address' => $address,
@@ -432,8 +425,8 @@ class WorkOrderImportCommand extends Command
                     'middle_name' => $tenant['middleName'] ?? null,
                     'last_name' => $tenant['lastName'] ?? null,
                     'suffix' => $tenant['suffix'] ?? null,
-                    'birth_date' => !empty($tenant['birthDate']) ? Carbon::parse($tenant['birthDate'])->toDateString() : null,
-                    'gender' => $tenant['gender'] == 1 ? 'Male' : "Female",
+                    'birth_date' => ! empty($tenant['birthDate']) ? Carbon::parse($tenant['birthDate'])->toDateString() : null,
+                    'gender' => $tenant['gender'] == 1 ? 'Male' : 'Female',
                     'email' => $tenantEmail,
                     'fax' => $tenant['fax'] ?? null,
                     'pager' => $tenant['pager'] ?? null,
@@ -477,7 +470,7 @@ class WorkOrderImportCommand extends Command
                 ];
             }
 
-            if (!empty($work_order_tenant_data)) {
+            if (! empty($work_order_tenant_data)) {
                 DB::table('work_order_tenants')->insert($work_order_tenant_data);
                 // Log::info('Work order tenants save!');
             }
@@ -486,12 +479,12 @@ class WorkOrderImportCommand extends Command
 
     private function processOwners(array $data, int $work_order, string $now): void
     {
-        if (!empty($data['portfolio']) && is_array($data['portfolio']['owners'])) {
+        if (! empty($data['portfolio']) && is_array($data['portfolio']['owners'])) {
             DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
             $work_order_owner_data = [];
 
             foreach ($data['portfolio']['owners'] as $owner) {
-                $ownerEmail = $owner['email'] ?? $owner['ID'] . '@texasrenter.com';
+                $ownerEmail = $owner['email'] ?? $owner['ID'].'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
                     $owner['address'] ?? null,
                     $owner['address2'] ?? null,
@@ -553,10 +546,9 @@ class WorkOrderImportCommand extends Command
                     'updated_at' => $now,
                 ];
 
-                
             }
 
-            if (!empty($work_order_owner_data)) {
+            if (! empty($work_order_owner_data)) {
                 DB::table('work_order_owners')->insert($work_order_owner_data);
                 // Log::info('Work order owners save!');
 

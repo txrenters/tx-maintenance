@@ -14,44 +14,44 @@ class ConversationController extends Controller
 {
     public function show(WorkOrder $workOrder)
     {
-        $convo = $workOrder->load(['vendor_tenant_conversation.media','tenant_conversation.media','owner_conversation.media','vendor_conversation.media','vendors']);
-    
+        $convo = $workOrder->load(['vendor_tenant_conversation.media', 'tenant_conversation.media', 'owner_conversation.media', 'vendor_conversation.media', 'vendors']);
+
         return inertia('Conversation/Index', [
             'title' => 'Work Order Conversation',
-            'conversations' => $convo
+            'conversations' => $convo,
         ]);
     }
 
     public function get_vendor_tenant_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants','vendor_tenant_conversation.media','vendors']);
-    
+        $workOrder->load(['tenants', 'vendor_tenant_conversation.media', 'vendors']);
+
         return response()->json($workOrder, 200);
     }
 
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['vendor_conversation.media','vendors']);
-    
+        $workOrder->load(['vendor_conversation.media', 'vendors']);
+
         return response()->json($workOrder, 200);
     }
 
     public function get_tenant_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants','tenant_conversation.media']);
-    
+        $workOrder->load(['tenants', 'tenant_conversation.media']);
+
         return response()->json($workOrder, 200);
     }
 
     public function get_owner_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['owners','owner_conversation.media']);
-    
+        $workOrder->load(['owners', 'owner_conversation.media']);
+
         return response()->json($workOrder, 200);
     }
 
     public function SendMessage(Request $request)
-    {                
+    {
         $validatedData = $request->validate([
             'text' => 'required|string',
             'sender_phone_number' => 'required',
@@ -62,7 +62,7 @@ class ConversationController extends Controller
 
         // Format phone numbers ensuring proper + prefix
         $senderNumber = $this->formatNumber($validatedData['sender_phone_number']);
-        $receiverNumber =  $this->formatNumber($validatedData['receiver_phone_number']);
+        $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
 
         DB::beginTransaction();
 
@@ -72,31 +72,31 @@ class ConversationController extends Controller
             $conversation = Conversation::create([
                 'message' => $validatedData['text'],
                 'sender_number' => $senderNumber,
-                'receiver_number' => $receiverNumber ,
+                'receiver_number' => $receiverNumber,
                 'work_order_id' => $validatedData['work_order_id'],
                 'conversation_type' => $validatedData['conversation_type'],
             ]);
-    
+
             // Send the message via Twilio
-            $twilio = new TwilioService();
+            $twilio = new TwilioService;
             $twilioResult = $twilio->sendMessage(
-                $receiverNumber ,
+                $receiverNumber,
                 $senderNumber,
                 $validatedData['text']
             );
-    
+
             // Commit the transaction if both operations succeed
             DB::commit();
-    
+
             // Return a success response
             return redirect()->back()->with('success', 'Message sent successfully!');
         } catch (\Exception $e) {
             // Roll back the transaction in case of an error
             DB::rollBack();
-    
+
             // Log the error
-            Log::error('Failed to send message: ' . $e->getMessage());
-    
+            Log::error('Failed to send message: '.$e->getMessage());
+
             // Return an error response
             return redirect()->back()->with('error', 'Failed to send the message. Please try again.');
         }
@@ -109,8 +109,7 @@ class ConversationController extends Controller
         if (empty($cleanedNumber)) {
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
-    
-        return '+' . $cleanedNumber;
-    }
 
+        return '+'.$cleanedNumber;
+    }
 }

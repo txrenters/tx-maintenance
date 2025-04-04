@@ -10,6 +10,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+
 class ImportOwnersJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -42,13 +43,13 @@ class ImportOwnersJob implements ShouldQueue
                 $now = now(); // Get the current timestamp once to optimize performance
 
                 foreach ($ownerChunk as $owner) {
-                    $data = (array)$owner;
+                    $data = (array) $owner;
 
-                    $existingOwner = DB::table('owners')->where('propertyware_id', $data['ID']?? null)->exists();
+                    $existingOwner = DB::table('owners')->where('propertyware_id', $data['ID'] ?? null)->exists();
 
-                    if (!$existingOwner) {
+                    if (! $existingOwner) {
 
-                        $ownerEmail =  $data['email'] ?? $data['ID'].'@texasrenters.com';
+                        $ownerEmail = $data['email'] ?? $data['ID'].'@texasrenters.com';
 
                         $address = trim(implode(' ', array_filter([
                             $data['address'] ?? null,
@@ -57,8 +58,8 @@ class ImportOwnersJob implements ShouldQueue
                             $data['state'] ?? null,
                             $data['country'] ?? null,
                             $data['zip'] ?? null,
-                        ])));                   
-        
+                        ])));
+
                         $usersData = [
                             'email' => $ownerEmail,
                             'name' => $data['name'] ?? null,
@@ -66,9 +67,9 @@ class ImportOwnersJob implements ShouldQueue
                             'company' => $data['companyName'] ?? null,
                             'address' => $address,
                             'website' => $data['website'] ?? null,
-                            'password' => bcrypt($data['email']), // Default password as email  
+                            'password' => bcrypt($data['email']), // Default password as email
                         ];
-        
+
                         $user = User::updateOrCreate(['email' => $ownerEmail], $usersData);
                         $user->assignRole('owner'); // Assign 'owner' role
 
@@ -103,7 +104,7 @@ class ImportOwnersJob implements ShouldQueue
 
                         DB::table('owners')->updateOrInsert([
                             ['propertyware_id' => $data['ID']],
-                            $ownerData 
+                            $ownerData,
                         ]);
                     }
                 }
@@ -112,7 +113,7 @@ class ImportOwnersJob implements ShouldQueue
             Log::info('Owners imported successfully.');
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Importing vendors failed: ' . $th->getMessage());
+            Log::error('Importing vendors failed: '.$th->getMessage());
         }
     }
 }

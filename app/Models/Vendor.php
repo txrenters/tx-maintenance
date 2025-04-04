@@ -35,23 +35,23 @@ class Vendor extends Model
 
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
-                'name_on_check',
-                'vendor_type',
+                ->whereAny([
+                    'name',
+                    'name_on_check',
+                    'vendor_type',
                 ], 'LIKE', "%{$search}%");
         }
 
-        if(!empty($filter['status'])){
+        if (! empty($filter['status'])) {
             $status = $filter['status'];
-             
-            if( $status != 'All') {
+
+            if ($status != 'All') {
                 $query->where(
-                    'is_active',  $status == 'Active' ? true : false);
+                    'is_active', $status == 'Active' ? true : false);
             }
         }
     }

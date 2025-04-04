@@ -19,10 +19,10 @@ return new class extends Migration
             $table->string('title');
             $table->longText('description')->nullable();
             $table->dateTime('scheduled_date')->nullable();
-            $table->enum('status',['scheduled', 'cancelled', 'completed'])->default('scheduled');
+            $table->enum('status', ['scheduled', 'cancelled', 'completed'])->default('scheduled');
             $table->foreignIdFor(WorkOrder::class)->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Vendor::class,'vendor_id')->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Tenants::class,'tenant_id')->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(Vendor::class, 'vendor_id')->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(Tenants::class, 'tenant_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
         });
     }

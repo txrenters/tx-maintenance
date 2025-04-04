@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Models\User;
-use App\Models\WOCNumbers;
 use Illuminate\Auth\Access\Response;
 
 class WOCNumbersPolicy
@@ -23,9 +22,9 @@ class WOCNumbersPolicy
      */
     public function create_woc_user(User $user): Response
     {
-       return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view WOC Numbers.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+             ? Response::allow()
+             : Response::deny('You do not have permission to view WOC Numbers.');
     }
 
     /**
@@ -43,7 +42,7 @@ class WOCNumbersPolicy
      */
     public function delete_woc_user(User $user): Response
     {
-        return $user->hasRole('admin') || $user->hasRole('woc') 
+        return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()
             : Response::deny('You do not have permission to view WOC Numbers.');
     }

@@ -15,7 +15,7 @@ class WOCNumbers extends Model
 
     protected $guarded = [];
 
-    public function twilioPhoneNumber() : BelongsTo
+    public function twilioPhoneNumber(): BelongsTo
     {
         return $this->belongsTo(TwilioPhoneNumber::class);
     }
@@ -30,8 +30,8 @@ class WOCNumbers extends Model
         $query->when($filters['search'] ?? null, function ($query, $search) {
             $query->where(function ($query) use ($search) {
                 $query->whereHas('user', function ($query) use ($search) {
-                        $query->where('name', 'like', '%'.$search.'%');
-                    })
+                    $query->where('name', 'like', '%'.$search.'%');
+                })
                     ->orWherehas('twilioPhoneNumber', function ($query) use ($search) {
                         $query->where('phone_number', 'like', '%'.$search.'%');
                     });

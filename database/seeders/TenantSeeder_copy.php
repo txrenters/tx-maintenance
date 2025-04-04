@@ -18,8 +18,9 @@ class TenantSeeder_copy extends Seeder
         // Read CSV file
         $csvFile = public_path('tenants.csv');
 
-        if (!File::exists($csvFile)) {
+        if (! File::exists($csvFile)) {
             Log::error('CSV file not found.');
+
             return;
         }
 
@@ -40,7 +41,7 @@ class TenantSeeder_copy extends Seeder
 
             // Constructing tenant data
             $tenant_propertyware_id = $tenant[3];  // _id
-            $tenantEmail = $tenant[17] ?? $tenant_propertyware_id . "@texasrenter.com";  // email
+            $tenantEmail = $tenant[17] ?? $tenant_propertyware_id.'@texasrenter.com';  // email
 
             $address = trim(implode(' ', array_filter([
                 $tenant[6] ?? null,  // address
@@ -52,7 +53,7 @@ class TenantSeeder_copy extends Seeder
 
             $usersData = [
                 'email' => $tenantEmail,
-                'name' => $tenant[20] . ' ' . $tenant[22],  // firstName + lastName
+                'name' => $tenant[20].' '.$tenant[22],  // firstName + lastName
                 'phone' => $tenant[21] ?? null,  // homePhone
                 'company' => $tenant[11] ?? null, // company
                 'address' => $address,
@@ -68,7 +69,7 @@ class TenantSeeder_copy extends Seeder
                 'middle_name' => $tenant[23] ?? null, // middleName
                 'last_name' => $tenant[22] ?? null,
                 'suffix' => $tenant[33] ?? null, // suffix
-                'birth_date' => !empty($tenant[8]) ? ($tenant[8] != 'NULL' ? $tenant[8] : null) : null, // birthDate
+                'birth_date' => ! empty($tenant[8]) ? ($tenant[8] != 'NULL' ? $tenant[8] : null) : null, // birthDate
                 'gender' => $tenant[18] == 2 ? 'Female' : 'Male', // gender (assuming 2 is Female)
                 'email' => $tenantEmail,
                 'fax' => $tenant[19] ?? null,
@@ -108,7 +109,7 @@ class TenantSeeder_copy extends Seeder
         }
 
         // Insert remaining tenants
-        if (!empty($tenantsToInsert)) {
+        if (! empty($tenantsToInsert)) {
             DB::table('tenants')->insert($tenantsToInsert);
         }
 
@@ -120,6 +121,7 @@ class TenantSeeder_copy extends Seeder
         // Check if user exists, if not create new one
         $user = User::updateOrCreate(['email' => $data['email']], $data);
         $user->assignRole($role);
+
         return $user;
     }
 }

@@ -3,12 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 class WorkOrderSeeder extends Seeder
 {
@@ -20,17 +19,19 @@ class WorkOrderSeeder extends Seeder
         $now = now()->format('Y-m-d H:i:s');
 
         $csvPath = public_path('work_orders.csv');
-        
-        if (!file_exists($csvPath)) {
-            Log::error('CSV file not found: ' . $csvPath);
+
+        if (! file_exists($csvPath)) {
+            Log::error('CSV file not found: '.$csvPath);
+
             return;
         }
 
         $file = fopen($csvPath, 'r');
         $header = fgetcsv($file);
-        
-        if (!$header) {
+
+        if (! $header) {
             Log::error('Invalid CSV format in work_orders.csv.');
+
             return;
         }
 
@@ -43,22 +44,22 @@ class WorkOrderSeeder extends Seeder
         foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
             foreach ($workOrderChunk as $order) {
 
+                if ($order['createdDate'] == 'NULL' || $order['createdDate'] == null) {
+                    Log::warning('Work order createdDate is null for Propertyware ID: '.$order['_id']);
 
-                if($order['createdDate'] == 'NULL' || $order['createdDate'] == null) {
-                    Log::warning('Work order createdDate is null for Propertyware ID: ' . $order['_id']);
                     continue; // Skip this work order if createdDate is null
                 }
 
                 $createdDate = Carbon::parse($order['createdDate']);
-                
+
                 if ($createdDate->lt(Carbon::create(2024, 11, 1))) {
                     continue; // Skip work orders created before November 2024
                 }
 
                 $propertyware_id = $order['_id'];
                 $checkWorkOrder = DB::table('work_orders')->where('propertyware_id', $propertyware_id)->exists();
-                
-                if (!$checkWorkOrder) {
+
+                if (! $checkWorkOrder) {
 
                     $tenantId = $this->getTenantId($order['requestedBy']);
 
@@ -94,7 +95,7 @@ class WorkOrderSeeder extends Seeder
         return $ownerId;
     }
 
-    private function processWorkOrder(array $data,$tenantId,$ownerId, string $now): void
+    private function processWorkOrder(array $data, $tenantId, $ownerId, string $now): void
     {
         DB::beginTransaction();
         try {
@@ -106,30 +107,30 @@ class WorkOrderSeeder extends Seeder
                 'propertyware_id' => $work_order_propertyware_id,
                 'work_order_no' => $data['number'] ?? null,
                 'approval_comments' => $data['approvalComments'] ?? null,
-                'is_approved' => !empty($data['approved']) ? $data['approved'] : false,
+                'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
                 'approved_by' => $data['approvedBy'] ?? null,
-                'approved_date' => !empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
+                'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,
                 'closing_comments' => $data['closingComments'] ?? '',
-                'completed_date' => !empty($data['completedDate']) && strtolower($data['completedDate']) != 'null' 
-                ? Carbon::parse($data['completedDate']) 
+                'completed_date' => ! empty($data['completedDate']) && strtolower($data['completedDate']) != 'null'
+                ? Carbon::parse($data['completedDate'])
                 : null,
                 'cost_estimate' => $data['costEstimate'] ?? null,
-                'created_date' => !empty($data['createdDate']) && strtolower($data['createdDate']) != 'null' 
-                ? Carbon::parse($data['createdDate']) 
+                'created_date' => ! empty($data['createdDate']) && strtolower($data['createdDate']) != 'null'
+                ? Carbon::parse($data['createdDate'])
                 : null,
-                'date_to_enter' => !empty($data['dateToEnter']) && strtolower($data['dateToEnter']) != 'null' 
-                ? Carbon::parse($data['dateToEnter']) 
+                'date_to_enter' => ! empty($data['dateToEnter']) && strtolower($data['dateToEnter']) != 'null'
+                ? Carbon::parse($data['dateToEnter'])
                 : null,
                 'description' => $data['description'] ?? null,
                 'hour_estimate' => $data['hourEstimate'] ?? null,
                 'location' => $data['location'] ?? null,
-                'priority' => !empty($data['priority']) ? $data['priority'] : null,
+                'priority' => ! empty($data['priority']) ? $data['priority'] : null,
                 'priority_as_int' => $data['priorityAsInt'] ?? null,
                 'required_materials' => $data['requiredMaterials'] ?? null,
-                'scheduled_end_date' => !empty($data['scheduledEndDate']) && strtolower($data['scheduledEndDate']) != 'null' 
-                ? Carbon::parse($data['scheduledEndDate']) 
+                'scheduled_end_date' => ! empty($data['scheduledEndDate']) && strtolower($data['scheduledEndDate']) != 'null'
+                ? Carbon::parse($data['scheduledEndDate'])
                 : null,
                 'service_request_building' => $data['serviceRequestBuilding'] ?? null,
                 'service_request_company_name' => $data['serviceRequestCompanyName'] ?? null,
@@ -139,11 +140,11 @@ class WorkOrderSeeder extends Seeder
                 'service_request_contact_phone_type' => $data['serviceRequestContactPhoneType'] ?? null,
                 'service_request_unit' => $data['serviceRequestUnit'] ?? null,
                 'source' => $data['source'] ?? null,
-                'specific_location' => !empty($data['specificLocation']) 
-                ? mb_convert_encoding($data['specificLocation'], 'UTF-8', ['UTF-8', 'ISO-8859-1', 'Windows-1252']) 
-                : null,            
-                'start_date' =>  !empty($data['startDate']) && strtolower($data['startDate']) != 'null' 
-                ? Carbon::parse($data['startDate']) 
+                'specific_location' => ! empty($data['specificLocation'])
+                ? mb_convert_encoding($data['specificLocation'], 'UTF-8', ['UTF-8', 'ISO-8859-1', 'Windows-1252'])
+                : null,
+                'start_date' => ! empty($data['startDate']) && strtolower($data['startDate']) != 'null'
+                ? Carbon::parse($data['startDate'])
                 : null,
                 'status' => $data['status'] ?? null,
                 'total_cost' => $data['totalCost'] ?? null,
@@ -152,16 +153,16 @@ class WorkOrderSeeder extends Seeder
                 'building_id' => $data['buildingID'] == 'NULL' ? '1' : $data['buildingID'] ?? null,
                 'lease_id' => $data['leaseId'] == 'NULL' ? '1' : $data['leaseId'] ?? null,
                 'portfolio_id' => $data['portfolioID'] ?? null,
-                'unit_id' => !empty($data['unitIDs']) ? $data['unitIDs'] : null,
+                'unit_id' => ! empty($data['unitIDs']) ? $data['unitIDs'] : null,
                 'owner_id' => $ownerId,
-                'tenant_id' => !empty($tenantId) ? (int) $tenantId : null,
+                'tenant_id' => ! empty($tenantId) ? (int) $tenantId : null,
                 'user_id' => $woc?->id,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
 
-            $service_status_id =  DB::table('service_status')
-                ->whereLike('name','%' . ($data['serviceStatus'] ?? '') . '%')
+            $service_status_id = DB::table('service_status')
+                ->whereLike('name', '%'.($data['serviceStatus'] ?? '').'%')
                 ->value('id');
 
             $work_order_data['service_status_id'] = $service_status_id ?? 1;
@@ -169,7 +170,6 @@ class WorkOrderSeeder extends Seeder
             $work_order_data['zone'] = $data['zone'] ?? '';
             $work_order_data['additional_work_needed_reschedule'] = $data['additionalWorkNeededReschedule'] ?? '';
             $work_order_data['management_plan'] = $data['managementPlan'] ?? '';
-
 
             DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],
@@ -186,7 +186,7 @@ class WorkOrderSeeder extends Seeder
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Work order processing failed for work order ID: ' . ($data['_id'] ?? 'unknown') . ' - ' . $th->getMessage());
+            Log::error('Work order processing failed for work order ID: '.($data['_id'] ?? 'unknown').' - '.$th->getMessage());
             throw $th;
         }
     }
@@ -230,50 +230,54 @@ class WorkOrderSeeder extends Seeder
     // }
 
     private function processOwners($workOrderJsonId, $workOrderId, $now)
-{
-    $csvPath = public_path('owners.csv');
+    {
+        $csvPath = public_path('owners.csv');
 
-    if (!file_exists($csvPath)) {
-        Log::error('CSV file not found: ' . $csvPath);
-        return;
-    }
+        if (! file_exists($csvPath)) {
+            Log::error('CSV file not found: '.$csvPath);
 
-    $file = fopen($csvPath, 'r');
-    $header = fgetcsv($file);
-    if (!$header) {
-        Log::error('Invalid CSV format in owners.csv.');
-        return;
-    }
-
-    $owners = [];
-    while ($row = fgetcsv($file)) {
-        $owners[] = array_combine($header, $row);
-    }
-    fclose($file);
-
-    $work_order_owner_data = [];
-
-    foreach ($owners as $owner) {
-        if ($owner['workOrderId'] != $workOrderJsonId) continue;
-
-        $ownerId = DB::table('owners')->where('propertyware_id', $owner['_id'])->value('id');
-
-        if (!$ownerId) {
-            Log::warning("Owner not found for Propertyware ID: {$owner['_id']}");
-            continue;
+            return;
         }
 
-        $work_order_owner_data[] = [
-            'work_order_id' => $workOrderId,
-            'owner_id' => $ownerId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ];
+        $file = fopen($csvPath, 'r');
+        $header = fgetcsv($file);
+        if (! $header) {
+            Log::error('Invalid CSV format in owners.csv.');
+
+            return;
+        }
+
+        $owners = [];
+        while ($row = fgetcsv($file)) {
+            $owners[] = array_combine($header, $row);
+        }
+        fclose($file);
+
+        $work_order_owner_data = [];
+
+        foreach ($owners as $owner) {
+            if ($owner['workOrderId'] != $workOrderJsonId) {
+                continue;
+            }
+
+            $ownerId = DB::table('owners')->where('propertyware_id', $owner['_id'])->value('id');
+
+            if (! $ownerId) {
+                Log::warning("Owner not found for Propertyware ID: {$owner['_id']}");
+
+                continue;
+            }
+
+            $work_order_owner_data[] = [
+                'work_order_id' => $workOrderId,
+                'owner_id' => $ownerId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        DB::table('work_order_owners')->insert($work_order_owner_data);
     }
-
-    DB::table('work_order_owners')->insert($work_order_owner_data);
-}
-
 
     // private function processTenants($workOrderJsonId, $workOrderId, $now)
     // {
@@ -317,37 +321,42 @@ class WorkOrderSeeder extends Seeder
     {
         $csvPath = public_path('tenants.csv');
 
-        if (!file_exists($csvPath)) {
-            Log::error('CSV file not found: ' . $csvPath);
+        if (! file_exists($csvPath)) {
+            Log::error('CSV file not found: '.$csvPath);
+
             return;
         }
 
         $file = fopen($csvPath, 'r');
         $header = fgetcsv($file);
-        if (!$header) {
+        if (! $header) {
             Log::error('Invalid CSV format in tenants.csv.');
+
             return;
         }
 
         $tenants = [];
         while ($row = fgetcsv($file)) {
             if (count($row) !== count($header)) {
-                Log::warning('Skipping invalid row: ' . json_encode($row));
+                Log::warning('Skipping invalid row: '.json_encode($row));
+
                 continue;
             }
             $tenants[] = array_combine($header, $row);
         }
 
-
         $work_order_tenant_data = [];
 
         foreach ($tenants as $tenant) {
-            if ($tenant['workOrderId'] != $workOrderJsonId) continue;
+            if ($tenant['workOrderId'] != $workOrderJsonId) {
+                continue;
+            }
 
             $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['_id'])->value('id');
 
-            if (!$tenantId) {
+            if (! $tenantId) {
                 Log::warning("Tenant not found for Propertyware ID: {$tenant['_id']}");
+
                 continue;
             }
 
@@ -361,5 +370,4 @@ class WorkOrderSeeder extends Seeder
 
         DB::table('work_order_tenants')->insert($work_order_tenant_data);
     }
-
 }

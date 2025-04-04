@@ -19,10 +19,10 @@ return new class extends Migration
         // Step 2: Recreate the column with ENUM
         Schema::table('work_order_conversations', function (Blueprint $table) {
             $table->enum('conversation_type', [
-                'tenant', 
-                'owner', 
+                'tenant',
+                'owner',
                 'vendor',
-                'vendor_tenant'
+                'vendor_tenant',
             ])->nullable();
         });
     }
@@ -41,8 +41,8 @@ return new class extends Migration
         Schema::table('work_order_conversations', function (Blueprint $table) {
             $table->enum('conversation_type', [
                 'tenant',
-                'owner', 
-                'vendor_tenant'
+                'owner',
+                'vendor_tenant',
             ])->nullable();
         });
     }

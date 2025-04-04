@@ -12,7 +12,7 @@ class TwilioService
     public function __construct()
     {
         $this->client = new Client(
-            env('TWILIO_SID'), 
+            env('TWILIO_SID'),
             env('TWILIO_AUTH_TOKEN')
         );
     }

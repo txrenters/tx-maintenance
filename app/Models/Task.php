@@ -24,7 +24,7 @@ class Task extends Model
 
     public function nextServiceStatus(): BelongsTo
     {
-        return $this->belongsTo(ServiceStatus::class,'next_service_status_id');
+        return $this->belongsTo(ServiceStatus::class, 'next_service_status_id');
     }
 
     public function taskDetails(): HasMany
@@ -42,17 +42,15 @@ class Task extends Model
         return $this->hasOne(TaskDetail::class, 'task_id')->where('task_for', 'No');
     }
 
-
     public function scopeFilter($query, array $filter): void
     {
-        if(!empty($filter['search'])){
+        if (! empty($filter['search'])) {
             $search = $filter['search'];
 
             $query
-            ->whereAny([
-                'name',
+                ->whereAny([
+                    'name',
                 ], 'LIKE', "%{$search}%");
         }
     }
-
 }

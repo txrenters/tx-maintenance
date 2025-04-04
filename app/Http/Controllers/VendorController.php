@@ -22,9 +22,9 @@ class VendorController extends Controller
 
         $vendors = Vendor::query()
             ->with(['user'])
-            ->filter(request(['search','status']))
-            ->orderBy('is_active','DESC')
-            ->orderBy('name','ASC')
+            ->filter(request(['search', 'status']))
+            ->orderBy('is_active', 'DESC')
+            ->orderBy('name', 'ASC')
             ->paginate($perPage)
             ->withQueryString()
             ->through(function ($vendor) {
@@ -42,12 +42,13 @@ class VendorController extends Controller
                 ];
             });
 
-        $twilio_numbers = TwilioPhoneNumber::select('id','name','phone_number')->get();
+        $twilio_numbers = TwilioPhoneNumber::select('id', 'name', 'phone_number')->get();
+
         return inertia('Vendor/Index', [
             'title' => 'Vendors',
             'twilio_numbers' => $twilio_numbers,
             'vendors' => $vendors,
-            'filter' => $request->only(['search','per_page','status']),
+            'filter' => $request->only(['search', 'per_page', 'status']),
         ]);
     }
 
@@ -59,13 +60,13 @@ class VendorController extends Controller
             'phone' => '',
             'company' => '',
             'website' => '',
-            'address' => '',           
+            'address' => '',
         ]);
 
         $data['email_verified_at'] = now();
         $data['password'] = bcrypt($request->email);
 
-        DB::transaction(function() use ($data, $request) {
+        DB::transaction(function () use ($data, $request) {
             $user = User::create($data);
 
             $user->assignRole('vendor');
@@ -81,11 +82,11 @@ class VendorController extends Controller
             ];
 
             Vendor::create($vendorsData);
-        
+
         });
 
         return redirect()->route('vendors.index');
-      
+
     }
 
     /**
@@ -105,10 +106,10 @@ class VendorController extends Controller
             'email' => 'required',
             'phone' => '',
             'company' => '',
-            'address' => '',           
+            'address' => '',
         ]);
 
-        User::find($vendor->user_id)->update($userData );
+        User::find($vendor->user_id)->update($userData);
         $vendor->update($vendorData);
 
         return redirect()->back();
@@ -117,7 +118,7 @@ class VendorController extends Controller
     public function update_status(Request $request, Vendor $vendor)
     {
         $request->validate([
-            'status' => 'required'
+            'status' => 'required',
         ]);
 
         $vendor->update(['is_active' => $request->status ? true : false]);

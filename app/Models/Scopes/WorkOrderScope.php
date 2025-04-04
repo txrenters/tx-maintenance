@@ -14,13 +14,13 @@ class WorkOrderScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $user = User::with(['vendor','tenant'])->find(auth()->id());
+        $user = User::with(['vendor', 'tenant'])->find(auth()->id());
 
-        if (!$user) {
+        if (! $user) {
             return;
         }
-    
-        if($user->hasRole('woc')){
+
+        if ($user->hasRole('woc')) {
             $builder->where('user_id', $user->id);
         }
 
@@ -35,7 +35,7 @@ class WorkOrderScope implements Scope
                 });
             });
         }
-        if($user->hasRole('tenant') && $user->tenant){
+        if ($user->hasRole('tenant') && $user->tenant) {
             $builder->where('tenant_id', $user->tenant->id);
         }
     }

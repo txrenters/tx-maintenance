@@ -24,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('work_order_vendors', function (Blueprint $table) {
-            $table->dropColumn(['cost_estimate','time_estimate','scheduled_end_date']);
+            $table->dropColumn(['cost_estimate', 'time_estimate', 'scheduled_end_date']);
         });
     }
 };

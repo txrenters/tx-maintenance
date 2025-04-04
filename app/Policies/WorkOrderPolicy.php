@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\WorkOrder;
-use Illuminate\Auth\Access\Response;
 
 class WorkOrderPolicy
 {

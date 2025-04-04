@@ -19,9 +19,9 @@ class WorkOrderTask extends Model
 
     protected $dates = ['deleted_at']; // Optional but recommended
 
-    public function assigned_user():BelongsTo
+    public function assigned_user(): BelongsTo
     {
-        return $this->belongsTo(User::class,'assigned_user_id');
+        return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
     public function work_order(): BelongsTo

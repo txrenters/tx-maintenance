@@ -15,16 +15,13 @@ use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioPhoneNumberController;
-use App\Http\Controllers\TwilioWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
-use Twilio\Rest\Client;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -39,7 +36,7 @@ Route::middleware([
     Route::get('/user/settings', ProfileController::class)->name('profile.settings');
 
     Route::resource('/users', UserController::class);
-    Route::post('/users/store', [UserController::class,'store'])->name('users.store_');
+    Route::post('/users/store', [UserController::class, 'store'])->name('users.store_');
 
     Route::resource('/twilio_numbers', TwilioPhoneNumberController::class);
     Route::get('/twilio_numbers/import/numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
@@ -66,38 +63,36 @@ Route::middleware([
 
     Route::get('/work_orders/export/all', [WorkOrderController::class, 'export'])->name('work_orders.export');
 
-    
     Route::resource('/task_templates', TaskTemplateController::class);
 
     Route::get('/scheduled_service', [CalendarController::class, 'index'])->name('scheduled_service');
 
-    Route::resource('/tasks',ControllersTaskController::class);
+    Route::resource('/tasks', ControllersTaskController::class);
 
-    Route::get('/tasks/{workOrder}/work_order_task',[TaskController::class, 'tasks'])->name('api.work_order.tasks');
+    Route::get('/tasks/{workOrder}/work_order_task', [TaskController::class, 'tasks'])->name('api.work_order.tasks');
 
-    Route::get('/attachments/{workOrder}',[AttachmentsController::class, 'show'])->name('api.attachments.show');
+    Route::get('/attachments/{workOrder}', [AttachmentsController::class, 'show'])->name('api.attachments.show');
 
-    Route::get('/invoices/{workOrder}',[InvoiceController::class, 'index'])->name('api.invoices.index');
+    Route::get('/invoices/{workOrder}', [InvoiceController::class, 'index'])->name('api.invoices.index');
 
-    Route::post('/attachments',[AttachmentsController::class, 'store'])->name('api.attachments.store');
-    Route::delete('/attachments/{attachment}',[AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
+    Route::post('/attachments', [AttachmentsController::class, 'store'])->name('api.attachments.store');
+    Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
 
-    Route::get('/work_order/invoices',[ControllersInvoiceController::class,'index'])->name('invoices.index');
+    Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
 
-    Route::post('/invoices',[InvoiceController::class, 'store'])->name('api.invoices.store');
-    Route::post('/invoices/{invoice}',[InvoiceController::class, 'update'])->name('api.invoices.update');
+    Route::post('/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
+    Route::post('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');
 
-    Route::get('/notes/{workOrder}/show',[WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
-    Route::post('/notes',[WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');
-    Route::delete('/notes/{note}/',[WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
+    Route::get('/notes/{workOrder}/show', [WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
+    Route::post('/notes', [WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');
+    Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
-    Route::post('/vendor_work_order_details',[VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
+    Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
 });
 
-Route::get('/conversations/{workOrder}',[ConversationController::class, 'show'])->name('conversation.show');
+Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
-
-Route::get('admin', function(){
+Route::get('admin', function () {
     $client = new \SoapClient('https://api.propertyware.com/pw/services/PWServices?wsdl');
-        dd($client->__getFunctions());
-});  
+    dd($client->__getFunctions());
+});

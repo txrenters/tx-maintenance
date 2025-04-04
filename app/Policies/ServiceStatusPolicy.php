@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Models\ServiceStatus;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
@@ -17,6 +16,7 @@ class ServiceStatusPolicy
             ? Response::allow()
             : Response::deny('You do not have permission to view service statuses.');
     }
+
     /**
      * Determine whether the user can create models.
      */

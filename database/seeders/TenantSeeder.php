@@ -23,8 +23,9 @@ class TenantSeeder extends Seeder
         // Read CSV file
         $csvFile = public_path('tenants.csv');
 
-        if (!File::exists($csvFile)) {
-            Log::error('CSV file not found: ' . $csvFile);
+        if (! File::exists($csvFile)) {
+            Log::error('CSV file not found: '.$csvFile);
+
             return;
         }
 
@@ -46,36 +47,35 @@ class TenantSeeder extends Seeder
                     continue; // Skip empty or duplicate propertyware_id
                 }
 
-                if(in_array($tenant[3], $chunks)){
+                if (in_array($tenant[3], $chunks)) {
                     continue; // Skip empty or duplicate propertyware_id
                 }
 
-                if($tenant[24] == 'NULL'){
+                if ($tenant[24] == 'NULL') {
                     continue; // Skip empty or duplicate propertyware_id
                 }
-
 
                 // Prepare user data
                 $tenant_propertyware_id = $tenant[3];
-                $tenantEmail = $tenant[17] ?? $tenant_propertyware_id . "@texasrenter.com";
+                $tenantEmail = $tenant[17] ?? $tenant_propertyware_id.'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
-                    $tenant[6] ?? null, 
-                    $tenant[7] ?? null, 
-                    $tenant[8] ?? null, 
-                    $tenant[9] ?? null, 
+                    $tenant[6] ?? null,
+                    $tenant[7] ?? null,
+                    $tenant[8] ?? null,
+                    $tenant[9] ?? null,
                     $tenant[37] ?? null,
                 ])));
 
                 $address = preg_replace('/[^\x20-\x7E]/u', '', $address);
                 $address = str_replace("\xC2\xA0", ' ', $address); // Replace non-breaking spaces
 
-                $phone =  $tenant[22];
-                $phone = preg_replace('/[^\x20-\x7E]/u', '',$phone);
+                $phone = $tenant[22];
+                $phone = preg_replace('/[^\x20-\x7E]/u', '', $phone);
                 $phone = str_replace("\xC2\xA0", ' ', $phone); // Replace non-breaking spaces
 
                 $usersData = [
                     'email' => $tenantEmail,
-                    'name' => trim(($tenant[20] ?? '') . ' ' . ($tenant[24] ?? '')),
+                    'name' => trim(($tenant[20] ?? '').' '.($tenant[24] ?? '')),
                     'phone' => $tenant[22] ?? null,
                     'company' => $tenant[11] ?? null,
                     'address' => $address,
@@ -91,7 +91,7 @@ class TenantSeeder extends Seeder
                     $tenant[25] ?? null, // middle_name
                     $tenant[24] ?? null, // last_name
                     $tenant[34] ?? null, // suffix
-                    !empty($tenant[8]) && $tenant[8] !== 'NULL' ? $tenant[8] : null, // birth_date
+                    ! empty($tenant[8]) && $tenant[8] !== 'NULL' ? $tenant[8] : null, // birth_date
                     $tenant[21] == 2 ? 'Female' : 'Male', // gender
                     $tenantEmail, // email
                     $tenant[19] ?? null, // fax
@@ -127,7 +127,7 @@ class TenantSeeder extends Seeder
             }
 
             // Insert remaining rows
-            if (!empty($chunks)) {
+            if (! empty($chunks)) {
                 $remainingRows = count($chunks);
                 $stmt = $this->prepareChunkedStatementTenants($remainingRows);
                 $stmt->execute(array_merge(...$chunks));
@@ -154,7 +154,7 @@ class TenantSeeder extends Seeder
 
             // You can optionally ensure the role is assigned (in case it was missed before)
             $user = User::find($userId);
-            if (!$user->hasRole($role)) {
+            if (! $user->hasRole($role)) {
                 $user->assignRole($role);
             }
 
@@ -170,20 +170,18 @@ class TenantSeeder extends Seeder
         return $userId;
     }
 
-
-
     private function prepareChunkedStatementTenants($chunkSize)
     {
         $rowPlaceholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         $placeholders = implode(',', array_fill(0, $chunkSize, $rowPlaceholders));
 
-        $query = DB::connection()->getPdo()->prepare("
+        $query = DB::connection()->getPdo()->prepare('
             INSERT INTO tenants (
                 propertyware_id, first_name, middle_name, last_name, suffix, birth_date, gender,
                 email, fax, pager, home_phone, work_phone, mobile_phone, address, address2, city, state, country,
                 zip, web_address, job_title, company, ssn, search_tag, salutation, name_on_check,
                 is_name_on_lease, is_dirty, comments, user_id, created_at, updated_at
-            ) VALUES " . $placeholders
+            ) VALUES '.$placeholders
         );
 
         return $query;

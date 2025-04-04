@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('title');
             $table->text('filename')->nullable();
             $table->string('filetype')->nullable();
-            $table->enum('type',['attachment','before', 'after'])->default('attachment');
+            $table->enum('type', ['attachment', 'before', 'after'])->default('attachment');
             $table->foreignIdFor(WorkOrder::class)->constrained()->cascadeOnDelete();
             $table->foreignIdFor(User::class)->constrained()->cascadeOnDelete();
             $table->timestamps();

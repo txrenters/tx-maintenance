@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\ServiceStatus;
-use App\Http\Requests\StoreServiceStatusRequest;
-use App\Http\Requests\UpdateServiceStatusRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -23,7 +21,7 @@ class ServiceStatusController extends Controller
 
         $service_status = ServiceStatus::query()
             ->filter(request(['search']))
-            ->orderBy('name','ASC')
+            ->orderBy('name', 'ASC')
             ->paginate($perPage)
             ->withQueryString()
             ->through(function ($service_status) {
@@ -37,7 +35,7 @@ class ServiceStatusController extends Controller
         return inertia('ServiceStatus/Index', [
             'title' => 'Service Status',
             'service_status' => $service_status,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search', 'per_page']),
         ]);
     }
 

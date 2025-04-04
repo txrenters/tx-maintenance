@@ -38,21 +38,21 @@ class AttachmentsController extends Controller
 
         DB::beginTransaction();
         try {
-            $propertyware = new PropertyWareService();
+            $propertyware = new PropertyWareService;
             $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $attachment);
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Failed to upload vendor attachments: ' . $th->getMessage(), [
+            Log::error('Failed to upload vendor attachments: '.$th->getMessage(), [
                 'work_order_id' => $validatedData['work_order_id'],
                 'attachment_id' => $attachment->id ?? null,
             ]);
+
             return redirect()->back()->withErrors(['error' => 'Failed to upload vendor attachments.']);
         }
 
         return redirect()->back()->with('success', 'Attachment uploaded successfully.');
     }
-
 
     /**
      * Display the specified resource.
@@ -60,7 +60,7 @@ class AttachmentsController extends Controller
     public function show(WorkOrder $workOrder)
     {
         $workOrder->load(['attachments']);
-    
+
         return response()->json($workOrder, 200);
     }
 

@@ -14,17 +14,17 @@ class CalendarScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $user = User::with(['vendor','tenant'])->find(auth()->id());
+        $user = User::with(['vendor', 'tenant'])->find(auth()->id());
 
-        if (!$user) {
+        if (! $user) {
             return;
         }
-        
-        if($user->hasRole('vendor') && $user->vendor){
+
+        if ($user->hasRole('vendor') && $user->vendor) {
             $builder->where('vendor_id', $user->vendor->id);
         }
 
-        if($user->hasRole('tenant') && $user->tenant){
+        if ($user->hasRole('tenant') && $user->tenant) {
             $builder->where('tenant_id', $user->tenant->id);
         }
     }

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\PropertyWareService;
@@ -17,8 +16,8 @@ class WorkOrderNotesController extends Controller
      */
     public function getNotes(WorkOrder $workOrder)
     {
-        $workOrder->load(['notes','notes.user']);
-    
+        $workOrder->load(['notes', 'notes.user']);
+
         return response()->json($workOrder, 200);
     }
 
@@ -34,21 +33,21 @@ class WorkOrderNotesController extends Controller
         ]);
 
         $validatedData['user_id'] = auth()->id();
-        $propertywareServices = new PropertyWareService();
+        $propertywareServices = new PropertyWareService;
 
         DB::beginTransaction();
         try {
             $created = WorkOrderNotes::create($validatedData);
             $note = $propertywareServices->addVendorNotes($created);
-            if($note){
+            if ($note) {
                 DB::commit();
                 Log::info('Notes created successfully!');
             }
-            
+
         } catch (\Exception $th) {
-            //throw $th;
+            // throw $th;
             DB::rollBack();
-            Log::error('Notes failed: '. $th->getMessage());
+            Log::error('Notes failed: '.$th->getMessage());
         }
 
         return redirect()->back();

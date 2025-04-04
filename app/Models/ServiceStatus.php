@@ -16,12 +16,12 @@ class ServiceStatus extends Model
 
     protected $guarded = [];
 
-    public function work_orders() : HasMany
+    public function work_orders(): HasMany
     {
         return $this->hasMany(WorkOrder::class)->latest('created_date');
     }
 
-    public function work_order() : HasOne
+    public function work_order(): HasOne
     {
         return $this->hasOne(WorkOrder::class);
     }
@@ -29,16 +29,15 @@ class ServiceStatus extends Model
     public function scopeFilter($query, array $filters)
     {
         $query->when($filters['search'] ?? null, function ($query, $search) {
-            $query->whereHas('work_order', function($q) use ($search){
-                    $q->whereAny(['work_order_no','location'], 'LIKE', "%{$search}%");
-                });
+            $query->whereHas('work_order', function ($q) use ($search) {
+                $q->whereAny(['work_order_no', 'location'], 'LIKE', "%{$search}%");
+            });
         });
 
         $query->when($filters['vendor'] ?? null, function ($query, $search) {
-            $query->whereHas('work_orders.vendors', function($q) use ($search){
+            $query->whereHas('work_orders.vendors', function ($q) use ($search) {
                 $q->where('vendors.id', $search); // Explicitly use vendors.id
             });
         });
     }
-    
 }

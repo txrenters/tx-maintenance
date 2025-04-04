@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\ServiceStatus;
 use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Models\WorkOrder;
-use App\Models\WorkOrderTask;
 use Illuminate\Support\Facades\DB;
 
 class TaskService
@@ -15,7 +13,7 @@ class TaskService
     {
 
         $workOrder->update(['service_status_id' => $serviceStatus_Id]);
-        
+
         $now = now();
 
         // Fetch the task template based on emergency status and service status ID
@@ -41,7 +39,7 @@ class TaskService
             // Calculate due date based on task's due_date field
             if ($task->due_date !== 'same day') {
                 preg_match('/\d+/', $task->due_date, $matches);
-                if (!empty($matches)) {
+                if (! empty($matches)) {
                     $days = (int) $matches[0];
                     $taskDueDate = $taskDueDate->addDays($days);
                 }
@@ -63,7 +61,7 @@ class TaskService
                 }
             }
             // Assign task to vendors
-            elseif (!empty($vendors)) {
+            elseif (! empty($vendors)) {
                 foreach ($vendors as $vendor) {
                     $assignedUserId = User::with('vendor')
                         ->whereHas('vendor', function ($q) use ($vendor) {
@@ -88,7 +86,7 @@ class TaskService
         }
 
         // Insert tasks into the database
-        if (!empty($tasks)) {
+        if (! empty($tasks)) {
             DB::table('work_order_tasks')->insert($tasks);
         }
     }

@@ -4,9 +4,6 @@ use App\Models\Owner;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\User;
-use App\Models\Vendor;
-use App\Models\WorkOrderRequest;
-use App\Models\WorkOrderServiceRequest;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -31,7 +28,7 @@ return new class extends Migration
             $table->string('category')->nullable();
             $table->string('closing_comments')->nullable();
             $table->date('completed_date')->nullable();
-            $table->decimal('cost_estimate',10,2)->nullable();
+            $table->decimal('cost_estimate', 10, 2)->nullable();
             $table->timestamp('created_date')->nullable();
             $table->date('date_to_enter')->nullable();
             $table->text('description')->nullable();
@@ -52,14 +49,14 @@ return new class extends Migration
             $table->string('specific_location')->nullable();
             $table->timestamp('start_date')->nullable();
             $table->string('status')->nullable();
-            $table->decimal('total_cost',10,2)->nullable();
-            $table->decimal('total_hour_work',10,2)->nullable();
+            $table->decimal('total_cost', 10, 2)->nullable();
+            $table->decimal('total_hour_work', 10, 2)->nullable();
             $table->string('type')->nullable();
 
             $table->bigInteger('building_id')->nullable();
             $table->bigInteger('lease_id')->nullable();
             $table->bigInteger('portfolio_id')->nullable();
-            
+
             $table->text('remarks')->nullable();
             $table->text('notes')->nullable();
             $table->longText('unit_id')->nullable();
@@ -72,10 +69,10 @@ return new class extends Migration
             $table->string('local_status')->default('Created');
             $table->boolean('is_emergency')->default(false);
             $table->boolean('is_single_vendor')->default(true);
-            $table->foreignIdFor(ServiceStatus::class,'service_status_id')->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Owner::class,'owner_id')->nullable()->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Tenants::class,'tenant_id')->nullable()->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(User::class,'user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(ServiceStatus::class, 'service_status_id')->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(Owner::class, 'owner_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(Tenants::class, 'tenant_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(User::class, 'user_id')->nullable()->constrained()->cascadeOnDelete();
             $table->timestamps();
         });
     }

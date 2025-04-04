@@ -14,13 +14,13 @@ class AttachmentScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $user = User::with(['vendor','tenant'])->find(auth()->id());
+        $user = User::with(['vendor', 'tenant'])->find(auth()->id());
 
-        if (!$user) {
+        if (! $user) {
             return;
         }
-        
-        if($user->hasRole('vendor')){
+
+        if ($user->hasRole('vendor')) {
             $builder->where('user_id', $user->id);
         }
     }

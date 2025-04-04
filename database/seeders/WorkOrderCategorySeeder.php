@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -105,7 +104,7 @@ class WorkOrderCategorySeeder extends Seeder
             ['name' => 'Window'],
             ['name' => 'Window Leak'],
             ['name' => 'Window Repair'],
-            ['name' => 'Window Seals']
+            ['name' => 'Window Seals'],
         ];
 
         DB::table('work_order_categories')->insert($categories);

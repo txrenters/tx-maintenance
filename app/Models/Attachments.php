@@ -30,6 +30,6 @@ class Attachments extends Model
 
     public function getAttachmentUrlAttribute()
     {
-        return asset('storage/' . $this->filename);
+        return asset('storage/'.$this->filename);
     }
 }

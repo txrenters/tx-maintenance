@@ -14,7 +14,6 @@ class Conversation extends Model
     protected $table = 'work_order_conversations';
 
     protected $guarded = [];
-    
 
     public function work_order(): BelongsTo
     {
@@ -23,6 +22,6 @@ class Conversation extends Model
 
     public function media(): HasMany
     {
-        return $this->hasMany(ConversationMedia::class,'message_id');
+        return $this->hasMany(ConversationMedia::class, 'message_id');
     }
 }

@@ -15,8 +15,8 @@ return new class extends Migration
     {
         Schema::create('work_order_vendors', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(WorkOrder::class,'work_order_id')->constrained()->cascadeOnDelete();
-            $table->foreignIdFor(Vendor::class,'vendor_id')->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(WorkOrder::class, 'work_order_id')->constrained()->cascadeOnDelete();
+            $table->foreignIdFor(Vendor::class, 'vendor_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
         });
     }

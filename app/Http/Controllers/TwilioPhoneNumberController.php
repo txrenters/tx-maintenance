@@ -19,30 +19,30 @@ class TwilioPhoneNumberController extends Controller
          ? ($request->per_page == 'All' ? TwilioPhoneNumber::count() : $request->per_page)
          : 10;
         $twilio_numbers = TwilioPhoneNumber::query()
-                    ->filter(request(['search']))
-                    ->orderBy('name')
-                    ->latest()
-                    ->paginate($perPage)
-                    ->withQueryString()
-                    ->through(function ($twilio) {
-                        return [
-                            'id' => $twilio->id,
-                            'name' => $twilio->name,
-                            'account_sid' => $twilio->account_sid,
-                            'sid' => $twilio->sid,
-                            'phone_number' => $twilio->phone_number,
-                            'sms_application_sid' => $twilio->sms_application_sid,
-                            'capabilities' => json_decode($twilio->capabilities),
-                            'twilio_status' => $twilio->twilio_status,
-                        ];
-                    });
+            ->filter(request(['search']))
+            ->orderBy('name')
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function ($twilio) {
+                return [
+                    'id' => $twilio->id,
+                    'name' => $twilio->name,
+                    'account_sid' => $twilio->account_sid,
+                    'sid' => $twilio->sid,
+                    'phone_number' => $twilio->phone_number,
+                    'sms_application_sid' => $twilio->sms_application_sid,
+                    'capabilities' => json_decode($twilio->capabilities),
+                    'twilio_status' => $twilio->twilio_status,
+                ];
+            });
         $twilios = TwilioPhoneNumber::orderBy('name')->get();
 
         return inertia('Twilio/Index', [
             'title' => 'Twilio Numbers',
             'twilio_numbers' => $twilio_numbers,
             'twilios' => $twilios,
-            'filter' => $request->only(['search','per_page']),
+            'filter' => $request->only(['search', 'per_page']),
         ]);
     }
 }

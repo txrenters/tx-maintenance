@@ -35,9 +35,9 @@ return [
         ],
     ],
     'propertyware' => [
-            'url' => env('PROPERTYWARE_URL'),
-            'username' => env('PROPERTYWARE_USERNAME'),
-            'password' => env('PROPERTYWARE_PASSWORD'),
-    ]
+        'url' => env('PROPERTYWARE_URL'),
+        'username' => env('PROPERTYWARE_USERNAME'),
+        'password' => env('PROPERTYWARE_PASSWORD'),
+    ],
 
 ];

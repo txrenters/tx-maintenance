@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Models\Scopes\CalendarScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 
 #[ScopedBy([CalendarScope::class])]
 class ServiceSchedule extends Model

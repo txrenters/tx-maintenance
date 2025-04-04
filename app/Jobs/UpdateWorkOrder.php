@@ -17,7 +17,9 @@ class UpdateWorkOrder implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $workOrderId;
+
     public $data;
+
     /**
      * Create a new job instance.
      */
@@ -41,7 +43,7 @@ class UpdateWorkOrder implements ShouldQueue
             Log::info('Work Order Updated', ['work_order_id' => $this->workOrderId]);
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Work Order update failed: ' . $th->getMessage(), [
+            Log::error('Work Order update failed: '.$th->getMessage(), [
                 'work_order_id' => $this->workOrderId,
                 'exception' => $th->getTraceAsString(),
             ]);

@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -15,19 +14,20 @@ class TaskTemplateSeeder extends Seeder
      */
     public function run(): void
     {
-        $json  = File::get(public_path('task_templates.json'));
+        $json = File::get(public_path('task_templates.json'));
 
-        $data = json_decode($json , true);
+        $data = json_decode($json, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             Log::error('Invalid JSON format.');
+
             return;
         }
 
         $templateData = [];
         $now = now();
 
-        foreach($data as $template){
+        foreach ($data as $template) {
             $templateData[] = [
                 'id' => $template['id'],
                 'name' => $template['name'],
@@ -43,7 +43,7 @@ class TaskTemplateSeeder extends Seeder
             ];
         }
 
-        if($templateData){
+        if ($templateData) {
             DB::table('task_templates')->insert($templateData);
         }
 

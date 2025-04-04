@@ -18,9 +18,9 @@ return new class extends Migration
             $table->string('name');
             $table->boolean('is_available')->default(true);
             $table->boolean('is_default')->default(false);
-            $table->foreignIdFor(ServiceStatus::class,'current_service_status_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignIdFor(ServiceStatus::class, 'current_service_status_id')->nullable()->constrained()->nullOnDelete();
             $table->boolean('is_current_service_status_emergency')->default(false);
-            $table->foreignIdFor(ServiceStatus::class,'next_service_status_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignIdFor(ServiceStatus::class, 'next_service_status_id')->nullable()->constrained()->nullOnDelete();
             $table->boolean('is_next_service_status_emergency')->default(false);
             $table->string('description')->nullable();
             $table->timestamps();
