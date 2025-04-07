@@ -35,6 +35,7 @@ class WorkOrderController extends Controller
 
         $service_status = ServiceStatus::with([
             'work_order',
+            'work_order.owners',
             'work_orders' => function ($query) {
                 $query->when(request('search'), function ($q, $search) {
                     $q->where('work_order_no', $search);
@@ -56,6 +57,7 @@ class WorkOrderController extends Controller
             'work_orders.requested_by',
             'work_orders.managed_by',
             'work_orders.tasks',
+            'work_orders.owners',
         ])
             ->whereNot('name', 'Closed')
             ->whereNot('name', 'Not Changed')
@@ -85,6 +87,7 @@ class WorkOrderController extends Controller
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
+            'owners'
         ])->first();
 
         return response()->json($workOrder, 200);

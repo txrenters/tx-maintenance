@@ -1,5 +1,5 @@
 <script setup>
-import { Wrench } from "lucide-vue-next";
+import { Wrench, User } from "lucide-vue-next";
 import { DateTime } from "luxon";
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -113,27 +113,9 @@ const checkDueTask = (tasks) => {
                         </p>
                         <div
                             v-if="work_order.requested_by"
-                            class="flex justify-start items-center gap-1 mb-1"
+                            class="flex justify-start gap-1 items-center mb-1"
                         >
-                            <Avatar class="w-4 h-4">
-                                <AvatarImage
-                                    :src="
-                                        work_order?.requested_by?.user
-                                            ?.profile_photo_url || 'default.jpg'
-                                    "
-                                />
-                                <AvatarFallback>
-                                    {{
-                                        work_order.requested_by?.first_name?.charAt(
-                                            0
-                                        )
-                                    }}{{
-                                        work_order.requested_by?.last_name?.charAt(
-                                            0
-                                        )
-                                    }}
-                                </AvatarFallback>
-                            </Avatar>
+                            <User class="w-4 h-4" />
                             <p class="text-sm text-gray-100">
                                 {{ work_order.requested_by?.first_name }}
                                 {{ work_order.requested_by?.last_name }}
@@ -141,33 +123,12 @@ const checkDueTask = (tasks) => {
                         </div>
                         <div
                             v-else
-                            class="flex justify-start items-center gap-1 mb-1"
+                            class="flex justify-start items-center mb-1"
                         >
-                            <Avatar
-                                class="w-4 h-4"
-                                v-if="work_order?.manage_by?.user"
-                            >
-                                <AvatarImage
-                                    :src="
-                                        work_order?.manage_by?.user
-                                            ?.profile_photo_url || 'default.jpg'
-                                    "
-                                />
-                                <AvatarFallback>
-                                    {{
-                                        work_order.manage_by?.first_name?.charAt(
-                                            0
-                                        )
-                                    }}{{
-                                        work_order.manage_by?.last_name?.charAt(
-                                            0
-                                        )
-                                    }}
-                                </AvatarFallback>
-                            </Avatar>
+                            <User class="w-4 h-4" />
                             <p class="text-sm text-gray-100">
-                                {{ work_order.manage_by?.first_name }}
-                                {{ work_order.manage_by?.last_name }}
+                                {{ work_order.owners[0].first_name }}
+                                {{ work_order.owners[0].last_name }}
                             </p>
                         </div>
                         <p

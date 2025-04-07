@@ -98,6 +98,7 @@ const workOrderForm = useForm({
     vendors: Array,
     managed_by: "",
     requested: "",
+    owners: Array,
     local_status: "",
     vendor_notes: "",
     woc: "",
@@ -468,6 +469,7 @@ const handleCloseOrderSubmit = () => {
         only: ["service_status"],
     });
 };
+console.log("Fetching work order:", props.service_status);
 
 const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
@@ -490,6 +492,8 @@ const handleWorkOrder = async (orderId) => {
             order.local_status === "Created"
                 ? Object.values(order.vendors).map((vendor) => vendor.name)
                 : order.vendors;
+
+        workOrderForm.owners = order.owners;
         workOrderForm.management_plan = order.management_plan;
         workOrderForm.priority = order.priority;
         workOrderForm.status = order.status;

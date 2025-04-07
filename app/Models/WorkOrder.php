@@ -46,7 +46,10 @@ class WorkOrder extends Model
     {
         return $this->belongsToMany(Owner::class, 'work_order_owners');
     }
-
+    public function owner(): HasOne
+    {
+        return $this->hasOne(Owner::class, 'work_order_owners');
+    }
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenants::class, 'work_order_tenants', 'work_order_id', 'tenant_id');

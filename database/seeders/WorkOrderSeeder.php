@@ -6,7 +6,6 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 class WorkOrderSeeder extends Seeder
@@ -59,7 +58,7 @@ class WorkOrderSeeder extends Seeder
                 $propertyware_id = $order['_id'];
                 $checkWorkOrder = DB::table('work_orders')->where('propertyware_id', $propertyware_id)->exists();
 
-                if (!$checkWorkOrder) {
+                if (! $checkWorkOrder) {
 
                     $tenantId = $this->getTenantId($order['requestedBy']);
 
@@ -177,7 +176,6 @@ class WorkOrderSeeder extends Seeder
 
             $this->processTenants($data['id'], $workOrderId, $now);
             $this->processOwners($data['id'], $workOrderId, $now);
-
 
             DB::commit();
         } catch (\Throwable $th) {

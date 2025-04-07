@@ -40,7 +40,7 @@ class TenantSeeder extends Seeder
             $stmt = $this->prepareChunkedStatementTenants($chunkSize);
 
             // Fetch existing propertyware IDs
-            $existingTenants = DB::table('tenants')->pluck('propertyware_id')->map(fn($id) => trim((string)$id))->toArray();
+            $existingTenants = DB::table('tenants')->pluck('propertyware_id')->map(fn ($id) => trim((string) $id))->toArray();
 
             $chunkedPropertywareIds = [];
 

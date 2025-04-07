@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Gate;
@@ -22,22 +23,22 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-
-     public function boot(Request $request): void
-     {
-         Gate::before(function ($user, $ability) {
+    public function boot(Request $request): void
+    {
+        Gate::before(function ($user, $ability) {
             return $user->hasRole('admin') ? true : null;
-         });
-     
-         LogViewer::auth(function ($request) {
+        });
+
+        LogViewer::auth(function ($request) {
             return $request->user()?->hasRole('admin') ?? false;
-         });
-     
-         if (App::environment('production')) {
+        });
+
+        Model::shouldBeStrict(!App::environment('production'));
+
+        if (App::environment('production')) {
             URL::forceScheme('https');
             URL::forceRootUrl(config('app.url'));
-         }
-     }
-     
 
+        }
+    }
 }

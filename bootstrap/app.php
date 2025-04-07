@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\UpgradeToHttpsUnderNgrok;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,7 +25,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->trustProxies(at: '*');
 
- 
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
