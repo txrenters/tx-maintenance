@@ -40,4 +40,13 @@ return [
         'password' => env('PROPERTYWARE_PASSWORD'),
     ],
 
+    'asana' => [
+        'token' => env('ASANA_ACCESS_TOKEN'),
+        'workspace_id' => env('ASANA_WORKSPACE_ID'),
+        'user_gid' => env('ASANA_USER_GID'), // Ensure this is in your .env
+        'base_url' => 'https://app.asana.com/api/1.0/',
+        'projects' => explode(',', env('ASANA_PROJECT_IDS')),
+        'webhook_url' => env('ASANA_WEBHOOK_URL'),
+    ],
+
 ];
