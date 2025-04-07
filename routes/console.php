@@ -11,6 +11,6 @@ Artisan::command('inspire', function () {
 Schedule::command('import:work-orders')->everyFiveMinutes()->withoutOverlapping();
 
 Schedule::command('asana:set-dues')
-    ->everyTwoMinutes()
+    ->everyMinute()
     ->appendOutputTo(storage_path('logs/asana-set-due-dates.log'))
     ->withoutOverlapping();
