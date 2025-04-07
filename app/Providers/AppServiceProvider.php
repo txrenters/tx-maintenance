@@ -26,16 +26,16 @@ class AppServiceProvider extends ServiceProvider
      public function boot(Request $request): void
      {
          Gate::before(function ($user, $ability) {
-             return $user->hasRole('admin') ? true : null;
+            return $user->hasRole('admin') ? true : null;
          });
      
          LogViewer::auth(function ($request) {
-             return $request->user()?->hasRole('admin') ?? false;
+            return $request->user()?->hasRole('admin') ?? false;
          });
      
          if (App::environment('production')) {
             URL::forceScheme('https');
-            // URL::forceRootUrl(config('app.url'));
+            URL::forceRootUrl(config('app.url'));
          }
      }
      
