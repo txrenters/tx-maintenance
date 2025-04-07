@@ -23,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             UpgradeToHttpsUnderNgrok::class,
             ForceHttps::class,
         ]);
-
+ 
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
