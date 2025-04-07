@@ -40,12 +40,13 @@ class TenantSeeder extends Seeder
             $stmt = $this->prepareChunkedStatementTenants($chunkSize);
 
             // Fetch existing propertyware IDs
-            $existingTenants = DB::table('tenants')->pluck('propertyware_id')->toArray();
+            $existingTenants = DB::table('tenants')->pluck('propertyware_id')->map(fn($id) => trim((string)$id))->toArray();
+
             $chunkedPropertywareIds = [];
 
             while (($tenant = fgetcsv($handle)) !== false) {
 
-                $tenant_propertyware_id = $tenant[3] ?? null;
+                $tenant_propertyware_id = trim((string) ($tenant[3] ?? ''));
 
                 if (empty($tenant_propertyware_id) || in_array($tenant_propertyware_id, $existingTenants) || in_array($tenant_propertyware_id, $chunkedPropertywareIds)) {  // 3rd column is propertyware_id (_id)
                     continue;  // Skip if propertyware_id is empty
