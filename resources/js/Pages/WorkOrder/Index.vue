@@ -943,7 +943,8 @@ usePoll(5000, { only: ["service_status"] });
             <DialogHeader>
                 <DialogTitle>Import Work Order</DialogTitle>
                 <DialogDescription>
-                    Enter work order number and click import to save its data.
+                    Enter work order number, add comma(,) and click import to
+                    save the data.
                 </DialogDescription>
             </DialogHeader>
 
@@ -960,11 +961,20 @@ usePoll(5000, { only: ["service_status"] });
 
                     <TagsInputInput
                         placeholder="Enter work order no and add a comma(,)"
-                    /> </TagsInput
-                >ss
-                <small class="text-desctruction">{{
+                    />
+                </TagsInput>
+                <span class="text-xs text-desctruction">{{
                     importWorkOrderForm.errors.work_order_no
-                }}</small>
+                }}</span>
+
+                <div class="text-xs text-muted-foreground mt-2">
+                    <p>
+                        Note: This action may take a while.
+                        <span v-if="importWorkOrderForm.processing">
+                            Please don't close...
+                        </span>
+                    </p>
+                </div>
             </div>
 
             <DialogFooter>
@@ -977,7 +987,12 @@ usePoll(5000, { only: ["service_status"] });
                         v-if="importWorkOrderForm.processing"
                         class="w-4 h-4 animate-spin"
                     />
-                    Import
+                    <div>
+                        <span v-if="importWorkOrderForm.processing">
+                            Importing...
+                        </span>
+                        <span v-else>Import</span>
+                    </div>
                 </Button>
             </DialogFooter>
         </DialogContent>

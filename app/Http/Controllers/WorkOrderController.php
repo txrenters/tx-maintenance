@@ -296,19 +296,27 @@ class WorkOrderController extends Controller
 
 
         $propertyWare = new PropertyWareService();
-        $workOrders = '';
-
+        $propertyWare = new PropertyWareService();
+        $workOrders = ''; // Initialize as an array to store multiple work orders
+        
         foreach ($request->work_order_no as $work_order_no) {
-
-            $work_order_no = (int)$work_order_no;
-
+        
+            // Check if the work order already exists in the database
+            $workOrderExists = WorkOrder::where('work_order_no', $work_order_no)->exists();
+        
+            if ($workOrderExists) {
+                continue; // Skip if the work order already exists
+            }
+            $work_order_no = (int) $work_order_no;
             $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
         }
 
-        $importWorkOrder = new WorkOrderService();
+        if ($workOrders) {
+            $importWorkOrder = new WorkOrderService();
+            $importWorkOrder->handle($workOrders);
 
-        $importWorkOrder->handle($workOrders);
-        
+        }
+                
         return redirect()->back()->with('success', 'Work orders updated successfully.');
     }
 

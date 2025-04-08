@@ -25,7 +25,7 @@ class WorkOrderService
                 $ID = $data['ID'] ?? null;
 
                 $workOrderExist = DB::table('work_orders')->where('propertyware_id', $ID)->exists();
-                
+
                 if ($workOrderExist) {
                     Log::info('Work order already exists, skipping.', ['ID' => $ID]);
                     continue;
@@ -52,11 +52,21 @@ class WorkOrderService
     {
         $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
 
+        $tenantExist = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->exists();
+
+        if ($tenantExist) {
+            Log::info('Tenant already exists, skipping.', ['ID' => $tenant_propertyware_id]);
+
+            return DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
+        }
+
         if (! $tenant_propertyware_id) {
             return null;
         }
 
         $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id.'@texasrenter.com';
+
+
         $address = trim(implode(' ', array_filter([
             $data['requestedByContact']['address'] ?? null,
             $data['requestedByContact']['address2'] ?? null,
@@ -124,6 +134,14 @@ class WorkOrderService
         $owner_propertyware_id = $data['owner']['ID'] ?? null;
         if (! $owner_propertyware_id) {
             return null;
+        }
+
+        $tenantExist = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->exists();
+
+        if ($tenantExist) {
+            Log::info('Owner already exists, skipping.', ['ID' => $owner_propertyware_id]);
+            
+            return DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
         }
 
         $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id.'@texasrenter.com';
