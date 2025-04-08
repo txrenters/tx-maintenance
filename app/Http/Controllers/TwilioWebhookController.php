@@ -97,7 +97,7 @@ class TwilioWebhookController extends Controller
             $response = Http::post($forwardUrl, $data);
 
             if ($response->successful()) {
-                Log::info('Successfully forwarded data to PlusThis URL.');
+                Log::info('Message Forwarded successfully to PlusThis.');
             } else {
                 Log::error('Failed to forward data to PlusThis. Response: '.$response->body());
             }
@@ -148,7 +148,7 @@ class TwilioWebhookController extends Controller
             ->where('sender_number', $from)
             ->first();
 
-        return $conversation->conversation_type; // Provide a fallback
+        return $conversation->conversation_type ?? null; // Provide a fallback
     }
 
     protected function getWorkOrderId(string $from, string $to)

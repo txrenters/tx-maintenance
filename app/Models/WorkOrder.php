@@ -150,8 +150,8 @@ class WorkOrder extends Model
                     $query->where('vendor_id', $vendorId);
                 });
 
-            })->when(request(['start_date', 'end_date']), function ($q, $date) {
-
+            })->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $date = request()->only(['start_date', 'end_date']);
                 $start_date = Carbon::parse($date['start_date'])->startOfDay();
                 $end_date = Carbon::parse($date['end_date'])->endOfDay();
 

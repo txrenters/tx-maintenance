@@ -32,7 +32,15 @@ import {
     CalendarIcon,
     Download,
     RefreshCw,
+    ScanSearch,
 } from "lucide-vue-next";
+import {
+    TagsInput,
+    TagsInputInput,
+    TagsInputItem,
+    TagsInputItemDelete,
+    TagsInputItemText,
+} from "@/Components/ui/tags-input";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -540,6 +548,37 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = false;
 };
 
+const openImportWorkOrder = ref(false);
+const workOrderValue = ref([]);
+const importWorkOrderForm = useForm({
+    work_order_no: Array,
+});
+
+const handleImportWorkOrder = () => {
+    importWorkOrderForm.work_order_no = workOrderValue.value;
+    importWorkOrderForm.post(route("work_orders.import"), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Work order has been imported successfully!",
+            });
+            openImportWorkOrder.value = false;
+            workOrderValue.value = []; // Clear the input after successful import
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem with your request. Please try again!",
+            });
+        },
+        only: ["service_status"],
+    });
+};
+
 const df = new DateFormatter("en-US", {
     dateStyle: "medium",
 });
@@ -587,7 +626,7 @@ watch(
             replace: true,
             preserveScroll: true,
         });
-    }, 500)
+    }, 2000)
 );
 
 const fetchFilteredData = debounce(() => {
@@ -603,7 +642,7 @@ const fetchFilteredData = debounce(() => {
         replace: true,
         preserveScroll: true,
     });
-}, 500); // Debounce for 500ms
+}, 2000);
 
 watch(date_range, fetchFilteredData, { deep: true });
 
@@ -649,7 +688,7 @@ usePoll(5000, { only: ["service_status"] });
                     <Button
                         variant="outline"
                         :class="[
-                            'w-full justify-start text-left font-normal sm:w-[280px]',
+                            'w-full justify-start text-left text-xs font-normal sm:w-[220px]',
                             !date_range.start ? 'text-muted-foreground' : '',
                         ]"
                     >
@@ -706,7 +745,13 @@ usePoll(5000, { only: ["service_status"] });
             >
                 <Download class="w-4 h-4" />
             </a>
-
+            <Button
+                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+                size="icon"
+                title="Refresh"
+                @click="openImportWorkOrder = true"
+                ><ScanSearch class="w-4 h-4" />
+            </Button>
             <Button
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
@@ -893,21 +938,46 @@ usePoll(5000, { only: ["service_status"] });
         </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="filterDate">
+    <Dialog v-model:open="openImportWorkOrder">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Filter Work Order by Date</DialogTitle>
+                <DialogTitle>Import Work Order</DialogTitle>
                 <DialogDescription>
-                    Select date range to filter work order.
+                    Enter work order number and click import to save its data.
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="my-2">fsd</div>
+            <div class="my-2">
+                <TagsInput v-model="workOrderValue">
+                    <TagsInputItem
+                        v-for="item in workOrderValue"
+                        :key="item"
+                        :value="item"
+                    >
+                        <TagsInputItemText />
+                        <TagsInputItemDelete />
+                    </TagsInputItem>
+
+                    <TagsInputInput
+                        placeholder="Enter work order no and add a comma(,)"
+                    /> </TagsInput
+                >ss
+                <small class="text-desctruction">{{
+                    importWorkOrderForm.errors.work_order_no
+                }}</small>
+            </div>
 
             <DialogFooter>
-                <Button type="submit">
-                    <!-- <Loader2 class="w-4 h-4 animate-spin" /> -->
-                    Filter
+                <Button
+                    type="submit"
+                    :disabled="importWorkOrderForm.processing"
+                    @click.prevent="handleImportWorkOrder"
+                >
+                    <Loader2
+                        v-if="importWorkOrderForm.processing"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    Import
                 </Button>
             </DialogFooter>
         </DialogContent>

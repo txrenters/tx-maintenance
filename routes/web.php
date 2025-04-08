@@ -21,6 +21,7 @@ use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
+use App\Services\PropertyWareService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -60,6 +61,7 @@ Route::middleware([
     Route::put('/work_orders/{workOrder}/open', [WorkOrderController::class, 'open'])->name('work_orders.open');
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
     Route::put('/work_orders/{workOrder}/vendors', [WorkOrderController::class, 'vendor_change'])->name('work_orders.vendor.change');
+    Route::post('/work_orders/import', [WorkOrderController::class, 'import'])->name('work_orders.import');
 
     Route::get('/work_orders/export/all', [WorkOrderController::class, 'export'])->name('work_orders.export');
 
@@ -91,3 +93,14 @@ Route::middleware([
 });
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
+
+
+Route::get('/vendorssss', function() {
+   
+    $propertyware = new PropertyWareService();
+
+    $vendors = $propertyware->getVendors();
+
+    dd($vendors);
+
+});

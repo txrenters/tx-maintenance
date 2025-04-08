@@ -98,6 +98,80 @@ class PropertyWareService
 
     }
 
+    public function getVendors()
+    {
+        set_time_limit(300); // <-- Add this line
+        ini_set('memory_limit', '1024M'); // <-- Add this line
+        try {
+            $options = [
+                'cache_wsdl' => WSDL_CACHE_NONE,
+                'trace' => 1,
+                'login' => $this->username,
+                'password' => $this->password,
+                'connection_timeout' => 300,
+                'exceptions' => true,
+                'stream_context' => stream_context_create([
+                    'http' => [
+                        'timeout' => 300, // Increase timeout
+                        'header' => "Accept-Encoding: gzip, deflate" // Use compressed responses
+                    ],
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true,
+                    ],
+                ]),
+            ];
+    
+            $client = new \SoapClient($this->url, $options);
+    
+
+            $response = $client->getVendors();
+            $allVendors = [];
+
+            if (! empty($response)) {
+                $vendor = json_decode(json_encode($response), true);
+                $allVendors = array_merge($allVendors, $vendor);
+            }
+
+            return $allVendors;
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
+    public function getWorkOrderByNumber($workorderNo)
+    {
+        try {
+            $client = $this->initiate();
+            $params = [
+                'orderByNewestFirst' => 1,
+                'workOrderNumber' => $workorderNo,
+                'pageNumber' => 1,
+            ];
+
+            $response = $client->getWorkOrders($params);
+
+            $allWorkOrders = [];
+
+            if (! empty($response)) {
+                $allWorkOrders = json_decode(json_encode($response), true);
+            }
+
+            return $allWorkOrders;
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
     public function updateWorkOrder(array $data, $work_order)
     {
         try {
