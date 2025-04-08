@@ -16,7 +16,7 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
     public function collection()
     {
         return WorkOrder::with([
-            'service_status', 'requested_by', 'vendors', 'managed_by',
+            'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
         ])
             ->whereHas('service_status', function ($q) {
                 $q->whereNot('name', 'Closed')
@@ -26,13 +26,17 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
             ->filter(request(['search', 'vendor', 'start_date', 'end_date']))
             ->get()
             ->map(function ($work_order) {
+
+                $requestedBy = $work_order->requested_by;
+                $owner = $work_order->owners->first();
+
                 return [
                     'work_order_no' => $work_order->work_order_no,
                     'location' => $work_order->location,
                     'created_date' => $work_order->created_date ? Carbon::parse($work_order->created_date)->format('F d, Y') : null,
                     'description' => trim($work_order->description),
                     'service_status' => trim($work_order->service_status?->name),
-                    'requested_by' => $work_order->requested_by?->first_name.' '.$work_order->requested_by?->last_name,
+                    'requested_by' => $requestedBy ? "{$requestedBy->first_name} {$requestedBy->last_name}" : ($owner ? "{$owner->first_name} {$owner->last_name}" : null),
                     'managed_by' => $work_order->managed_by?->first_name.' '.$work_order->managed_by?->last_name,
                     'hour_estimate' => $work_order->hour_estimate,
                     'priority' => $work_order->priority,
