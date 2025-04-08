@@ -22,6 +22,5 @@ class DatabaseSeeder extends Seeder
         $this->call(VendorSeeder::class);
         $this->call(TenantSeeder::class);
         $this->call(OwnerSeeder::class);
-        $this->call(WorkOrderSeeder::class);
     }
 }

@@ -101,7 +101,7 @@ class WorkOrderController extends Controller
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
-            'tasks',
+            'tasks.assigned_user',
             'notes',
             'invoices',
             'attachments',
