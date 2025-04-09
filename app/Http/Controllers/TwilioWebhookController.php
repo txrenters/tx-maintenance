@@ -148,7 +148,7 @@ class TwilioWebhookController extends Controller
             ->where('sender_number', $from)
             ->first();
 
-        return $conversation->conversation_type ?? null; // Provide a fallback
+        return $conversation->conversation_type ?? ''; // Provide a fallback
     }
 
     protected function getWorkOrderId(string $from, string $to)

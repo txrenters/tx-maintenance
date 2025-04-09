@@ -71,14 +71,14 @@ class UpdateTaskDueDate extends Command
                         $subtaskId = $subtask['gid'];
                         $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
-                        Log::info('"Set Dues" subtask:'.json_encode([
+                        Log::info('"Set Dues" subtask:', [
                             'subtask_id' => $subtaskId,
                             'due_date' => $subtask['due_on'],
-                        ]));
+                        ]);
 
                         // ✅ Update "Set Dues" subtask if due date is different
                         if ($subtask['due_on'] != $nextMonday) {
-                            Log::info('Updating "Set Dues" subtask:',[
+                            Log::info('Updating "Set Dues" subtask:', [
                                 'subtask_id' => $subtaskId,
                                 'new_due_date' => $nextMonday,
                             ]);

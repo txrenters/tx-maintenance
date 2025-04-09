@@ -94,7 +94,7 @@ class ServiceStatusSeeder extends Seeder
                 'description' => 'for vendor.',
             ],
             [
-                'name' => 'Waiting Tenants Decisions - Non Real Property Item',
+                'name' => 'Waiting Tenants Decision - Non Real Property Item',
                 'description' => 'for tenants.',
             ],
         ];
