@@ -94,6 +94,12 @@ Route::middleware([
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
+Route::fallback(function () {
+    return inertia('Error', ['status' => 404])
+        ->toResponse(request())
+        ->setStatusCode(404);
+});
+
 Route::get('/vendorssss', function () {
 
     $propertyware = new PropertyWareService;
