@@ -13,6 +13,8 @@ import {
     TagsInputItemDelete,
     TagsInputItemText,
 } from "@/Components/ui/tags-input";
+import Input from "@/Components/ui/input/Input.vue";
+import axios from "axios";
 
 const { toast } = useToast();
 
@@ -160,33 +162,42 @@ watch(
     }, 500)
 );
 
-const vendorValue = ref([]);
 const openImportVendor = ref(false);
 const importVendorForm = useForm({
-    vendors_name: Array,
+    vendors_name: "",
 });
 const handleImportVendor = () => {
-    importVendorForm.vendors_name = vendorValue.value;
-    importVendorForm.post(route("vendors.import"), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            toast({
-                title: "Success",
-                description: "Vendors imported successfully!",
-            });
-            importVendorForm.reset();
-            openImportVendor.value = false;
-        },
-        onError: () => {
+    importVendorForm.processing = true;
+    axios
+        .post(route("vendors.import"), {
+            vendors_name: importVendorForm.vendors_name,
+        })
+        .then((response) => {
+            if (response.data.success) {
+                toast({
+                    title: "Success",
+                    description: response.data.message,
+                });
+                importVendorForm.reset();
+                openImportVendor.value = false;
+                importVendorForm.processing = false;
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description: response.data.message,
+                });
+                importVendorForm.processing = false;
+            }
+        })
+        .catch((error) => {
             toast({
                 variant: "destructive",
                 title: "Uh oh! Something went wrong.",
-                description:
-                    "There was a problem with your request. Please try again!",
+                description: error.response.data.message,
             });
-        },
-    });
+            importVendorForm.processing = false;
+        });
 };
 </script>
 <template>
@@ -481,29 +492,18 @@ const handleImportVendor = () => {
             <DialogHeader>
                 <DialogTitle>Import Vendors</DialogTitle>
                 <DialogDescription>
-                    Enter vendors name, add comma(,) and click import to save
-                    the data.
+                    Enter vendors name and click import to save the data.
                 </DialogDescription>
             </DialogHeader>
 
             <div class="my-2">
-                <TagsInput
-                    v-model="vendorValue"
-                    :add-tags-on="['enter', 'space']"
-                >
-                    <TagsInputItem
-                        v-for="item in vendorValue"
-                        :key="item"
-                        :value="item"
-                    >
-                        <TagsInputItemText />
-                        <TagsInputItemDelete />
-                    </TagsInputItem>
-
-                    <TagsInputInput
-                        placeholder="Enter vendor name and add a comma(,)"
-                    />
-                </TagsInput>
+                <Label for="name">Vendor Name</Label>
+                <Input
+                    type="text"
+                    class="mt-2"
+                    v-model="importVendorForm.vendors_name"
+                    placeholder="Enter vendor name"
+                />
                 <span class="text-xs text-destructive">{{
                     importVendorForm.errors.vendors_name
                 }}</span>

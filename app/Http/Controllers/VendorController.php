@@ -137,20 +137,14 @@ class VendorController extends Controller
     public function import(Request $request)
     {
         $request->validate([
-            'vendors_name' => 'required|array',
+            'vendors_name' => 'required|string',
         ]);
 
-       foreach($request->vendors_name as $vendorName){
-            $vendorName = trim(rtrim($vendorName, ','));
+        $vendorName = trim($request->vendors_name);
 
-            $vendorName = $this->addCommaBeforeLLC($vendorName);
+        $vendorExists = Vendor::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($vendorName)])->exists();
 
-            $vendorExists = Vendor::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($vendorName)])->exists();
-
-            if ($vendorExists) {
-                continue; // Skip if vendor already exists
-            }
-
+        if (!$vendorExists) {
             $propertyWare = new PropertyWareService();
 
             $vendors = $propertyWare->getVendorsByName($vendorName);
@@ -158,30 +152,25 @@ class VendorController extends Controller
             if($vendors){
                 $vendorService = new VendorService();
                 $vendorService->handle($vendors);
+
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Vendors imported successfully.',
+                ], 200);
+            }else{
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No vendors found.',
+                ], 422);
             }
 
-       }
-
-
-        return redirect()->back()->with('success', 'Vendors imported successfully.');
-    }
-
-    function addCommaBeforeLLC($vendorName) {
-        // Trim whitespace from both ends
-        $vendorName = trim($vendorName);
-        
-        // Remove spaces before existing commas
-        $vendorName = preg_replace('/\s*,/', ',', $vendorName);
-        
-        // Case-insensitive check for LLC variants at the end
-        if (preg_match('/\b(llc|l\.l\.c\.?)\s*$/i', $vendorName) && 
-            !preg_match('/,\s*(llc|l\.l\.c\.?)\s*$/i', $vendorName)) {
-            // Add comma before the suffix
-            $vendorName = preg_replace('/\s*\b(llc|l\.l\.c\.?)\s*$/i', ', $1', $vendorName);
+          
         }
-        
-        return $vendorName;
+
+        return response()->json([
+            'status' => false,
+            'message' => 'Vendor already exists.',
+        ], 422);
     }
-    
     
 }

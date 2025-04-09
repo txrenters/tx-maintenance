@@ -131,7 +131,7 @@ class PropertyWareService
 
             $allVendors = [];
 
-            if (! empty($response)) {
+            if (!empty($response)) {
                 $allVendors = json_decode(json_encode($response), true);
             }
 
