@@ -110,6 +110,6 @@ class ConversationController extends Controller
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
 
-        return '+'.$cleanedNumber;
+        return '+1'.$cleanedNumber;
     }
 }

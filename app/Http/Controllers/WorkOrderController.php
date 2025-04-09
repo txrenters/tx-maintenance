@@ -331,6 +331,6 @@ class WorkOrderController extends Controller
 
     public function export()
     {
-        return Excel::download(new WorkOrdersExport, 'Work_Orders_Export'.date('d-m-Y-h-i').'.xlsx');
+        return Excel::download(new WorkOrdersExport, 'Work_Orders_Export_'.date('d-m-Y-h-i').'.xlsx');
     }
 }

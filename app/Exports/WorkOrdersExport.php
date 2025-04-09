@@ -16,12 +16,13 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
     public function collection()
     {
         return WorkOrder::with([
-            'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
-        ])
+                'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
+            ])
             ->whereHas('service_status', function ($q) {
                 $q->whereNot('name', 'Closed')
                     ->whereNot('name', 'Not Changed');
             })
+            ->where('status', 'Open')
             ->orderBy('created_date', 'DESC')
             ->filter(request(['search', 'vendor', 'start_date', 'end_date']))
             ->get()
@@ -34,8 +35,8 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
                     'work_order_no' => $work_order->work_order_no,
                     'location' => $work_order->location,
                     'created_date' => $work_order->created_date ? Carbon::parse($work_order->created_date)->format('F d, Y') : null,
-                    'description' => trim($work_order->description),
                     'service_status' => trim($work_order->service_status?->name),
+                    'description' => trim($work_order->description),
                     'requested_by' => $requestedBy ? "{$requestedBy->first_name} {$requestedBy->last_name}" : ($owner ? "{$owner->first_name} {$owner->last_name}" : null),
                     'managed_by' => $work_order->managed_by?->first_name.' '.$work_order->managed_by?->last_name,
                     'hour_estimate' => $work_order->hour_estimate,
@@ -61,8 +62,8 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
             'Work Order',
             'Location',
             'Date Created',
-            'Description',
             'Service Status',
+            'Description',
             'Requested By',
             'Managed By',
             'Hour Estimate',

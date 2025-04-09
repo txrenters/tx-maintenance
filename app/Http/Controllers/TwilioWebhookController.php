@@ -65,8 +65,11 @@ class TwilioWebhookController extends Controller
     protected function handleMessage(array $data): void
     {
         $isMms = $data['NumMedia'] > 0;
-        $from = $this->formatNumber($data['From']);
-        $to = $this->formatNumber($data['To']);
+        // $from = $this->formatNumber($data['From']);
+        // $to = $this->formatNumber($data['To']);
+
+        $from = $data['From'];
+        $to = $data['To'];
 
         $type = $this->getMessageType($from, $to);
         $workOrderId = $this->getWorkOrderId($from, $to);
@@ -162,7 +165,7 @@ class TwilioWebhookController extends Controller
 
     protected function formatNumber(string $number): string
     {
-        return '+'.preg_replace('/[^0-9]/', '', $number);
+        return '+1'.preg_replace('/[^0-9]/', '', $number);
     }
 
     protected function validateTwilioRequest(Request $request): void
