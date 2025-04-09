@@ -59,6 +59,7 @@ const setEditForm = (vendor) => {
     editForm.name_on_check = vendor.name_on_check;
     editForm.twilio_number = vendor.twilio_number;
     editForm.email = vendor.email;
+    editForm.vendor_type = vendor.vendor_type;
     editForm.phone = vendor.phone;
     editForm.address = vendor.address;
 };

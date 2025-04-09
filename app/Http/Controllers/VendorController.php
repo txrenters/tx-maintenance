@@ -46,7 +46,7 @@ class VendorController extends Controller
             });
 
         $twilio_numbers = TwilioPhoneNumber::select('id', 'name', 'phone_number')->get();
-        $vendorTypes = VendorTypes::select('id', 'name')->get();
+        $vendorTypes = VendorTypes::select('id', 'name')->orderBy('name','ASC')->get();
 
         return inertia('Vendor/Index', [
             'title' => 'Vendors',
@@ -103,6 +103,7 @@ class VendorController extends Controller
         $vendorData = $request->validate([
             'twilio_number' => '',
             'name' => 'required',
+            'vendor_type' => '',
             'name_on_check' => '',
             'email' => 'required',
         ]);
@@ -110,7 +111,6 @@ class VendorController extends Controller
         $userData = $request->validate([
             'name' => 'required',
             'email' => 'required',
-            'vendor_type' => '',
             'phone' => '',
             'company' => '',
             'address' => '',
