@@ -15,21 +15,28 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request)
     {
-        $workOrders = WorkOrder::all();
-        $tasks = WorkOrderTask::all();
+        $year = $request->input('year', Carbon::now()->year);
+
+        $workOrders = WorkOrder::whereYear('created_at', $year)->get();
+        $tasks = WorkOrderTask::whereYear('created_at', $year)->get();
         $invoices = Invoice::all();
 
-        $serviceStatus = ServiceStatus::withCount('work_orders') // Count the related work orders
-            ->whereNot('name', 'Closed') // Exclude the "Closed" status
-            ->get()
-            ->map(function ($status) {
-                return [
-                    'name' => $status->name, // Status name
-                    'total' => $status->work_orders_count, // Total number of work orders
-                ];
-            });
+        $serviceStatus = ServiceStatus::withCount([
+            'work_orders as work_orders_count' => function ($query) use ($year) {
+                $query->whereYear('created_date', $year)
+                      ->where('status', 'Open');
+            }
+        ])
+        ->having('work_orders_count', '>', 0) // only get statuses with matching work orders
+        ->where('name', '!=', 'Closed') // exclude closed statuses
+        ->where('name', '!=', 'Not Changed') 
+        ->get()
+        ->map(fn($status) => [
+            'name' => $status->name,
+            'total' => $status->work_orders_count,
+        ]);
+        
 
-        $year = $request->input('year', Carbon::now()->year);
 
         // Generate an array of all months (Jan to Dec)
         $months = collect([
@@ -69,6 +76,7 @@ class DashboardController extends Controller
             'vendors' => $vendors,
             'serviceStatus' => $serviceStatus,
             'workOrderChart' => $workOrderChart,
+            'filter' => $request->only(['year']),
         ]);
     }
 }

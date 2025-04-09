@@ -1,7 +1,7 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { usePoll } from "@inertiajs/vue3";
+import { usePoll, router } from "@inertiajs/vue3";
 import {
     ArrowUpRight,
     DollarSign,
@@ -14,6 +14,7 @@ defineOptions({ layout: AppLayout });
 
 import { DonutChart } from "@/Components/ui/chart-donut";
 import BarChart from "@/chart/BarChart.vue";
+import { string } from "zod";
 
 const props = defineProps({
     title: String,
@@ -23,6 +24,7 @@ const props = defineProps({
     serviceStatus: Object,
     vendors: Object,
     workOrderChart: Object,
+    filter: Object,
 });
 
 const activeVendors = computed(() => {
@@ -62,11 +64,48 @@ function getCompletionPercentage(completed, total) {
     return ((completed.length / total.length) * 100).toFixed(2);
 }
 
-usePoll(3000);
+const currentYear = new Date().getFullYear();
+const years = Array.from(
+    { length: currentYear - 2023 },
+    (_, i) => currentYear - i
+);
+
+const selectedYear = ref(props.filter.year ?? currentYear);
+
+watch(selectedYear, (newYear) => {
+    router.visit(route("dashboard", { year: newYear }), {
+        preserveState: true,
+        preserveScroll: true,
+    });
+});
+const show = ref(true);
+const startTimer = () => {
+    setTimeout(() => {
+        show.value = false;
+    }, 4000); // 4 seconds
+};
+
+usePoll(5000);
 </script>
 
 <template>
     <Head :title="title" />
+    <div
+        class="flex justify-start flex-col gap-3 sm:justify-between sm:flex-row items-center my-2"
+    >
+        <transition name="fade-slide" appear @after-enter="startTimer">
+            <div
+                class="bg-gradient-to-r from-blue-500 to-green-500 text-white rounded shadow p-4 sm:p-6 md:p-8 w-full"
+            >
+                <h2 class="text-xl sm:text-2xl md:text-3xl font-bold">
+                    Welcome back, {{ $page.props.auth.user.name }}! 👋
+                </h2>
+                <p class="text-sm sm:text-base mt-2">
+                    We’re glad to see you again. Let’s get some work done today!
+                </p>
+            </div>
+        </transition>
+    </div>
     <div class="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
             <CardHeader
@@ -138,7 +177,7 @@ usePoll(3000);
     </div>
     <div class="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
         <Card class="xl:col-span-2">
-            <CardHeader class="flex flex-row items-center">
+            <CardHeader class="flex flex-row items-center justify-between">
                 <div class="grid gap-2">
                     <CardTitle>Work Orders by Month</CardTitle>
                     <CardDescription>
@@ -146,21 +185,33 @@ usePoll(3000);
                         updated in each month.
                     </CardDescription>
                 </div>
-                <Button as-child size="sm" class="ml-auto gap-1">
+                <!-- <Button as-child size="sm" class="ml-auto gap-1">
                     <Link :href="route('work_orders.index')">
                         View All
                         <ArrowUpRight class="h-4 w-4" />
                     </Link>
-                </Button>
+                </Button> -->
+                <Select
+                    :modelValue="String(selectedYear)"
+                    @update:modelValue="(value) => (selectedYear = value)"
+                >
+                    <SelectTrigger class="w-full sm:w-[100px]">
+                        <SelectValue placeholder="Select a year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                            <SelectItem
+                                v-for="year in years"
+                                :key="year"
+                                :value="year.toString()"
+                            >
+                                {{ year }}
+                            </SelectItem>
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
             </CardHeader>
             <CardContent>
-                <!-- <BarChart
-                    :data="workOrderChart"
-                    index="name"
-                    :categories="['Created', 'Completed']"
-                    :colors="['#2563EB', '#13B982']"
-                    :filterOpacity="1"
-                /> -->
                 <BarChart :data="workOrderChart" />
             </CardContent>
         </Card>
@@ -183,3 +234,23 @@ usePoll(3000);
         </Card>
     </div>
 </template>
+<style scoped>
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+    transition: all 0.7s ease;
+}
+.fade-slide-enter-from {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+.fade-slide-enter-to {
+    opacity: 1;
+    transform: translateY(0);
+}
+.fade-slide-leave-from {
+    opacity: 1;
+}
+.fade-slide-leave-to {
+    opacity: 0;
+}
+</style>
