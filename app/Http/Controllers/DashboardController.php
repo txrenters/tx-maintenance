@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\ServiceStatus;
 use App\Models\TwilioPhoneNumber;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Carbon\Carbon;
@@ -18,7 +19,6 @@ class DashboardController extends Controller
         $workOrders = WorkOrder::all();
         $tasks = WorkOrderTask::all();
         $invoices = Invoice::all();
-        $twilio = TwilioPhoneNumber::all();
 
         $serviceStatus = ServiceStatus::withCount('work_orders') // Count the related work orders
             ->whereNot('name', 'Closed') // Exclude the "Closed" status
@@ -60,12 +60,14 @@ class DashboardController extends Controller
             ];
         });
 
+        $vendors = Vendor::select('id','is_active')->get();
+
         return inertia('Dashboard', [
             'title' => 'Dashboard',
             'workOrders' => $workOrders,
             'tasks' => $tasks,
             'invoices' => $invoices,
-            'twilio' => $twilio,
+            'vendors' => $vendors,
             'serviceStatus' => $serviceStatus,
             'workOrderChart' => $workOrderChart,
         ]);

@@ -30,7 +30,7 @@ class Vendor extends Model
 
     public function vendor_notes(): HasMany
     {
-        return $this->hasMany(VendorNotes::class);
+        return $this->hasMany(WorkOrderNotes::class);
     }
 
     public function scopeFilter($query, array $filter): void
@@ -41,6 +41,7 @@ class Vendor extends Model
             $query
                 ->whereAny([
                     'name',
+                    'email',
                     'name_on_check',
                     'vendor_type',
                 ], 'LIKE', "%{$search}%");

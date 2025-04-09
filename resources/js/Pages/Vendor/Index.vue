@@ -4,8 +4,15 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import TableData from "./Partials/TableData.vue";
 import { useForm, router } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { CloudDownload, UserPlus } from "lucide-vue-next";
+import { ScanSearch } from "lucide-vue-next";
 import debounce from "lodash/debounce";
+import {
+    TagsInput,
+    TagsInputInput,
+    TagsInputItem,
+    TagsInputItemDelete,
+    TagsInputItemText,
+} from "@/Components/ui/tags-input";
 
 const { toast } = useToast();
 
@@ -15,6 +22,7 @@ const props = defineProps({
     title: String,
     vendors: Object,
     twilio_numbers: Object,
+    vendorTypes: Object,
     filter: Object,
 });
 
@@ -23,7 +31,7 @@ const search = ref(props.filter.search);
 
 const form = useForm({
     name: "",
-    contact_name: "",
+    name_on_check: "",
     twilio_number: "",
     email: "",
     phone: "",
@@ -37,8 +45,9 @@ const editForm = useForm({
     id: "",
     twilio_number: "",
     name: "",
-    contact_name: "",
+    name_on_check: "",
     twilio_number: "",
+    vendor_type: "",
     email: "",
     phone: "",
     address: "",
@@ -47,7 +56,7 @@ const editForm = useForm({
 const setEditForm = (vendor) => {
     editForm.id = String(vendor.id);
     editForm.name = vendor.name;
-    editForm.contact_name = vendor.contact_name;
+    editForm.name_on_check = vendor.name_on_check;
     editForm.twilio_number = vendor.twilio_number;
     editForm.email = vendor.email;
     editForm.phone = vendor.phone;
@@ -149,6 +158,35 @@ watch(
         });
     }, 500)
 );
+
+const vendorValue = ref([]);
+const openImportVendor = ref(false);
+const importVendorForm = useForm({
+    vendors_name: Array,
+});
+const handleImportVendor = () => {
+    importVendorForm.vendors_name = vendorValue.value;
+    importVendorForm.post(route("vendors.import"), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Vendors imported successfully!",
+            });
+            importVendorForm.reset();
+            openImportVendor.value = false;
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem with your request. Please try again!",
+            });
+        },
+    });
+};
 </script>
 <template>
     <Head :title="title" />
@@ -170,18 +208,13 @@ watch(
                 </SelectContent>
             </Select>
         </div>
-        <!-- <Button
-            size="sm"
-            :disabled="loader"
-            class="h-7 gap-1"
-            @click="isCreateDialogOpen = true"
-        >
-            <UserPlus v-if="!loader" class="h-3.5 w-3.5" />
-            <Loader2 v-else class="w-4 h-4 animate-spin" />
-            <span class="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Add {{ title }}
-            </span>
-        </Button> -->
+        <Button
+            class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+            size="icon"
+            title="Import Vendor"
+            @click="openImportVendor = true"
+            ><ScanSearch class="w-4 h-4" />
+        </Button>
     </div>
     <Card>
         <CardHeader>
@@ -230,10 +263,10 @@ watch(
                         <Input
                             type="text"
                             class=""
-                            v-model="form.contact_name"
+                            v-model="form.name_on_check"
                         />
                         <Label class="mt-1 text-destructive text-xs">{{
-                            form.errors.contact_name
+                            form.errors.name_on_check
                         }}</Label>
                     </div>
                     <div class="mb-3 w-full">
@@ -318,27 +351,27 @@ watch(
                 </DialogDescription>
             </DialogHeader>
             <form id="dialogForm" @submit.prevent="handleUpdate">
-                <div class="mb-3">
+                <div class="mb-3 flex flex-col gap-1">
                     <Label for="name">Name </Label>
                     <Input type="text" class="mt-2" v-model="editForm.name" />
                     <Label class="mt-1 text-destructive text-xs">{{
                         editForm.errors.name
                     }}</Label>
                 </div>
-                <div class="flex gap-3">
-                    <div class="mb-3 w-full">
-                        <Label for="code">Contact Name</Label>
+                <div class="flex gap-3 mb-3">
+                    <div class="mb-3 w-full flex flex-col gap-2">
+                        <Label for="code" class="mb-1">Contact Name</Label>
                         <Input
                             type="text"
                             class=""
-                            v-model="editForm.contact_name"
+                            v-model="editForm.name_on_check"
                         />
                         <Label class="mt-1 text-destructive text-xs">{{
-                            editForm.errors.contact_name
+                            editForm.errors.name_on_check
                         }}</Label>
                     </div>
-                    <div class="mb-3 w-full">
-                        <Label for="roles " class="mb-4">Assign Number</Label>
+                    <div class="mb-3 w-full flex flex-col gap-2">
+                        <Label for="roles " class="mb-1">Assign Number</Label>
                         <Select class="mt-2" v-model="editForm.twilio_number">
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a number" />
@@ -361,6 +394,30 @@ watch(
                             editForm.errors.twilio_number
                         }}</Label>
                     </div>
+                </div>
+
+                <div class="mb-3 w-full flex flex-col">
+                    <Label for="roles " class="mb-4">Vendor Type</Label>
+                    <Select class="mt-2" v-model="editForm.vendor_type">
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a vendor types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectLabel>Types</SelectLabel>
+                                <SelectItem
+                                    v-for="vendor in vendorTypes"
+                                    :value="String(vendor.name)"
+                                    :key="String(vendor.id)"
+                                >
+                                    {{ vendor.name }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    <Label class="mt-1 text-destructive text-xs">{{
+                        editForm.errors.twilio_number
+                    }}</Label>
                 </div>
 
                 <div class="flex gap-3">
@@ -418,52 +475,68 @@ watch(
         </DialogContent>
     </Dialog>
 
-    <!-- <Dialog v-model:open="isDialogOpen">
-    <DialogContent class="sm:max-w-[525px]">
-      <DialogHeader>
-        <DialogTitle>WOC Twillio Number </DialogTitle>
-        <DialogDescription>
-          Assign number here. Click assign when you're done.
-        </DialogDescription>
-      </DialogHeader>
-      <form id="dialogForm" @submit="handleAssignTwilioSubmit($event, onSubmit)">
-        <div class="mb-3 flex flex-col gap-4">
-          <Label for="roles">Assign Number</Label>
-          <Select class="mt-2" v-model="editForm.twilio_number">
-            <SelectTrigger>
-              <SelectValue placeholder="Select a number" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Numbers</SelectLabel>
-                <SelectItem
-                  v-for="twilio in twilio_numbers"
-                  :value="String(twilio.phone_number)"
-                  :key="String(twilio.id)"
+    <Dialog v-model:open="openImportVendor">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Import Vendors</DialogTitle>
+                <DialogDescription>
+                    Enter vendors name, add comma(,) and click import to save
+                    the data.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="my-2">
+                <TagsInput
+                    v-model="vendorValue"
+                    :add-tags-on="['enter', 'space']"
                 >
-                  {{ twilio.name }} - {{ twilio.phone_number }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Label class="mt-1 text-destructive text-xs">{{
-            editForm.errors.twilio_number
-          }}</Label>
-        </div>
-      </form>
-      <DialogFooter class="flex gap-2">
-        <Button type="button" variant="outline" @click="isDialogOpen = false">
-          Cancel</Button
-        >
-        <Button
-          type="submit"
-          :disabled="editForm.processing"
-          @click.prevent="handleAssignTwilioSubmit"
-        >
-          <Loader2 v-if="editForm.processing" class="w-4 h-4 animate-spin" />
-          Assign</Button
-        >
-      </DialogFooter>
-    </DialogContent>
-  </Dialog> -->
+                    <TagsInputItem
+                        v-for="item in vendorValue"
+                        :key="item"
+                        :value="item"
+                    >
+                        <TagsInputItemText />
+                        <TagsInputItemDelete />
+                    </TagsInputItem>
+
+                    <TagsInputInput
+                        placeholder="Enter vendor name and add a comma(,)"
+                    />
+                </TagsInput>
+                <span class="text-xs text-destructive">{{
+                    importVendorForm.errors.vendors_name
+                }}</span>
+
+                <div class="text-xs text-muted-foreground mt-2">
+                    <p>
+                        Note: Please ensure the name closely matches the one in
+                        PW. This process may take some time depending on the
+                        number of vendors.
+                        <span v-if="importVendorForm.processing">
+                            Please don't close...
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button
+                    type="submit"
+                    :disabled="importVendorForm.processing"
+                    @click.prevent="handleImportVendor"
+                >
+                    <Loader2
+                        v-if="importVendorForm.processing"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    <div>
+                        <span v-if="importVendorForm.processing">
+                            Importing...
+                        </span>
+                        <span v-else>Import</span>
+                    </div>
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

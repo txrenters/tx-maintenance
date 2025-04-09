@@ -85,6 +85,18 @@ class ServiceStatusSeeder extends Seeder
                 'name' => 'Not Changed',
                 'description' => 'The service request is not changed.',
             ],
+            [
+                'name' => 'Waiting on Photos From Tenant',
+                'description' => 'for tenants.',
+            ],
+            [
+                'name' => 'Waiting on Approved Vendor',
+                'description' => 'for vendor.',
+            ],
+            [
+                'name' => 'Waiting Tenants Decisions - Non Real Property Item',
+                'description' => 'for tenants.',
+            ],
         ];
 
         ServiceStatus::insert($statuses);

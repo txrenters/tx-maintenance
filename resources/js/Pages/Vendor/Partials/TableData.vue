@@ -47,7 +47,7 @@ const updateStatus = (checked, vendor) => {
                     </span>
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
-                    {{ vendor.contact_name }}
+                    {{ vendor.name_on_check }}
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     <Badge v-if="vendor.vendor_type">{{

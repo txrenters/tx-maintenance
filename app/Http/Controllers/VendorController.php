@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\TwilioPhoneNumber;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Models\VendorTypes;
+use App\Services\PropertyWareService;
+use App\Services\VendorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -34,7 +37,7 @@ class VendorController extends Controller
                     'email' => $vendor->user->email,
                     'phone' => $vendor->user->phone,
                     'vendor_type' => $vendor->vendor_type,
-                    'contact_name' => $vendor->name_on_check,
+                    'name_on_check' => $vendor->name_on_check,
                     'company' => $vendor->company,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
@@ -43,11 +46,13 @@ class VendorController extends Controller
             });
 
         $twilio_numbers = TwilioPhoneNumber::select('id', 'name', 'phone_number')->get();
+        $vendorTypes = VendorTypes::select('id', 'name')->get();
 
         return inertia('Vendor/Index', [
             'title' => 'Vendors',
             'twilio_numbers' => $twilio_numbers,
             'vendors' => $vendors,
+            'vendorTypes' => $vendorTypes,
             'filter' => $request->only(['search', 'per_page', 'status']),
         ]);
     }
@@ -67,6 +72,7 @@ class VendorController extends Controller
         $data['password'] = bcrypt($request->email);
 
         DB::transaction(function () use ($data, $request) {
+            
             $user = User::create($data);
 
             $user->assignRole('vendor');
@@ -97,13 +103,14 @@ class VendorController extends Controller
         $vendorData = $request->validate([
             'twilio_number' => '',
             'name' => 'required',
-            'contact_name' => '',
+            'name_on_check' => '',
             'email' => 'required',
         ]);
 
         $userData = $request->validate([
             'name' => 'required',
             'email' => 'required',
+            'vendor_type' => '',
             'phone' => '',
             'company' => '',
             'address' => '',
@@ -126,4 +133,55 @@ class VendorController extends Controller
         return redirect()->back();
 
     }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'vendors_name' => 'required|array',
+        ]);
+
+       foreach($request->vendors_name as $vendorName){
+            $vendorName = trim(rtrim($vendorName, ','));
+
+            $vendorName = $this->addCommaBeforeLLC($vendorName);
+
+            $vendorExists = Vendor::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($vendorName)])->exists();
+
+            if ($vendorExists) {
+                continue; // Skip if vendor already exists
+            }
+
+            $propertyWare = new PropertyWareService();
+
+            $vendors = $propertyWare->getVendorsByName($vendorName);
+
+            if($vendors){
+                $vendorService = new VendorService();
+                $vendorService->handle($vendors);
+            }
+
+       }
+
+
+        return redirect()->back()->with('success', 'Vendors imported successfully.');
+    }
+
+    function addCommaBeforeLLC($vendorName) {
+        // Trim whitespace from both ends
+        $vendorName = trim($vendorName);
+        
+        // Remove spaces before existing commas
+        $vendorName = preg_replace('/\s*,/', ',', $vendorName);
+        
+        // Case-insensitive check for LLC variants at the end
+        if (preg_match('/\b(llc|l\.l\.c\.?)\s*$/i', $vendorName) && 
+            !preg_match('/,\s*(llc|l\.l\.c\.?)\s*$/i', $vendorName)) {
+            // Add comma before the suffix
+            $vendorName = preg_replace('/\s*\b(llc|l\.l\.c\.?)\s*$/i', ', $1', $vendorName);
+        }
+        
+        return $vendorName;
+    }
+    
+    
 }

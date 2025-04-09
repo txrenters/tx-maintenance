@@ -22,6 +22,7 @@ import {
     TagsInputItemText,
 } from "@/Components/ui/tags-input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
+import axios from "axios";
 const { toast } = useToast();
 
 const props = defineProps({
@@ -32,7 +33,7 @@ const props = defineProps({
     closeWorkOrderForm: Object,
 });
 
-const emit = defineEmits(["save", "close", "update-workOrder"]);
+const emit = defineEmits(["save", "close", "delete", "update-workOrder"]);
 
 const open = ref(false);
 
@@ -186,6 +187,30 @@ const latestScheduledEndDate = computed(() => {
         return latestDate;
     }, null);
 });
+
+const handleDeleteSubmit = () => {
+    loading.value = true;
+
+    axios
+        .delete(route("work_orders.destroy", props.workOrder.id))
+        .then((response) => {
+            toast({
+                title: "Success",
+                description: response.data.message,
+            });
+            emit("delete"); // Emit event to parent
+            loading.value = false;
+        })
+        .catch((error) => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem with your request. Please try again!",
+            });
+            loading.value = false;
+        });
+};
 </script>
 
 <template>
@@ -479,11 +504,23 @@ const latestScheduledEndDate = computed(() => {
     </div>
     <DialogFooter
         class="p-6 pt-0"
-        v-if="!$page.props.auth.user.roles.includes('vendor')"
+        v-if="
+            $page.props.auth.user.roles.includes('admin') ||
+            $page.props.auth.user.roles.includes('woc')
+        "
     >
         <Button
             type="submit"
             variant="destructive"
+            :disabled="loading"
+            @click.prevent="handleDeleteSubmit"
+        >
+            <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+            Delete
+        </Button>
+        <Button
+            type="submit"
+            class="bg-green-400 hover:bg-green-500 text-white"
             :disabled="closeWorkOrderForm.processing"
             @click.prevent="handleCloseOrderSubmit"
         >
@@ -491,7 +528,7 @@ const latestScheduledEndDate = computed(() => {
                 v-if="closeWorkOrderForm.processing"
                 class="w-4 h-4 animate-spin"
             />
-            Close Work Order
+            Completed
         </Button>
         <Button
             type="submit"

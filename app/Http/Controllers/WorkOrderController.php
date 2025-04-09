@@ -288,6 +288,15 @@ class WorkOrderController extends Controller
         return redirect()->back();
     }
 
+    public function destroy(WorkOrder $workOrder)
+    {
+        $workOrder->delete();
+
+        return response()->json([
+            'message' => 'Work order deleted successfully.',
+        ], 200);
+    }
+
     public function import(Request $request)
     {
         $request->validate([

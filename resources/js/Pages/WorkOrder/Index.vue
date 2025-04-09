@@ -566,6 +566,7 @@ const handleImportWorkOrder = () => {
             });
             openImportWorkOrder.value = false;
             workOrderValue.value = []; // Clear the input after successful import
+            importWorkOrderForm.reset(); // Reset the form
         },
         onError: () => {
             toast({
@@ -748,7 +749,7 @@ usePoll(5000, { only: ["service_status"] });
             <Button
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
-                title="Refresh"
+                title="Import Work Order"
                 @click="openImportWorkOrder = true"
                 ><ScanSearch class="w-4 h-4" />
             </Button>
@@ -823,6 +824,7 @@ usePoll(5000, { only: ["service_status"] });
                 :isLoading="isLoading"
                 @save="handleUpdateSubmit"
                 @close="handleCloseOrderSubmit"
+                @delete="openWorkOrder = false"
                 @update-workOrder="handleWorkOrder(workOrderForm.id)"
                 v-if="activeTab === 'details'"
             />
@@ -963,13 +965,14 @@ usePoll(5000, { only: ["service_status"] });
                         placeholder="Enter work order no and add a comma(,)"
                     />
                 </TagsInput>
-                <span class="text-xs text-desctruction">{{
+                <span class="text-xs text-destructive">{{
                     importWorkOrderForm.errors.work_order_no
                 }}</span>
 
                 <div class="text-xs text-muted-foreground mt-2">
                     <p>
-                        Note: This action may take a while.
+                        This process may take some time depending on the number
+                        of work orders.
                         <span v-if="importWorkOrderForm.processing">
                             Please don't close...
                         </span>

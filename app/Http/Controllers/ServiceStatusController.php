@@ -48,7 +48,7 @@ class ServiceStatusController extends Controller
 
         $request->validate([
             'name' => 'required',
-            'description' => 'nullable',
+            'description' => 'required',
         ]);
 
         ServiceStatus::create($request->all());
@@ -66,7 +66,7 @@ class ServiceStatusController extends Controller
 
         $request->validate([
             'name' => 'required',
-            'description' => 'nullable',
+            'description' => 'required',
         ]);
 
         $serviceStatus->update($request->all());

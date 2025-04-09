@@ -44,6 +44,7 @@ import {
     Files,
     ClipboardList,
     Wrench,
+    Truck,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -68,7 +69,7 @@ const navs = computed(() => ({
         {
             title: "Work Orders",
             url: "#",
-            icon: ListTodo,
+            icon: Wrench,
             isActive: page.url.startsWith("/work_orders"),
             items: [
                 {
@@ -118,7 +119,7 @@ const navs = computed(() => ({
             name: "Vendors",
             url: route("vendors.index"),
             isActive: page.url.startsWith("/vendors"),
-            icon: Wrench,
+            icon: Truck,
             requires: ["admin", "woc"],
         },
         {

@@ -4,11 +4,10 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { usePoll } from "@inertiajs/vue3";
 import {
     ArrowUpRight,
-    CreditCard,
     DollarSign,
     ListChecks,
-    Briefcase,
-    Phone,
+    Truck,
+    Wrench,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -21,9 +20,17 @@ const props = defineProps({
     workOrders: Object,
     tasks: Object,
     invoices: Object,
-    twilio: Object,
     serviceStatus: Object,
+    vendors: Object,
     workOrderChart: Object,
+});
+
+const activeVendors = computed(() => {
+    return props.vendors.filter((vendor) => vendor.is_active === 1);
+});
+
+const inactiveVendors = computed(() => {
+    return props.vendors.filter((vendor) => vendor.is_active === 0);
 });
 
 const completedWorkOrders = computed(() => {
@@ -66,7 +73,7 @@ usePoll(3000);
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
                 <CardTitle class="text-sm font-medium"> Work Orders </CardTitle>
-                <Briefcase class="h-4 w-4 text-muted-foreground" />
+                <Wrench class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div class="text-2xl font-bold">+{{ workOrders.length }}</div>
@@ -101,7 +108,7 @@ usePoll(3000);
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
                 <CardTitle class="text-sm font-medium"> Invoices </CardTitle>
-                <CreditCard class="h-4 w-4 text-muted-foreground" />
+                <DollarSign class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div class="text-2xl font-bold">
@@ -116,13 +123,15 @@ usePoll(3000);
             <CardHeader
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
-                <CardTitle class="text-sm font-medium"> Twilio </CardTitle>
-                <Phone class="h-4 w-4 text-muted-foreground" />
+                <CardTitle class="text-sm font-medium"> Vendors </CardTitle>
+                <Truck class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div class="text-2xl font-bold">+{{ twilio.length }}</div>
+                <div class="text-2xl font-bold">
+                    +{{ activeVendors.length }}
+                </div>
                 <p class="text-xs text-muted-foreground">
-                    {{ twilio.length }} twilio number used
+                    {{ inactiveVendors.length }} inactive vendors
                 </p>
             </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 <script setup>
-import { Wrench, User } from "lucide-vue-next";
+import { Truck, User, UserRoundPen } from "lucide-vue-next";
 import { DateTime } from "luxon";
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -115,7 +115,7 @@ const checkDueTask = (tasks) => {
                             v-if="work_order.requested_by"
                             class="flex justify-start gap-1 items-center mb-1"
                         >
-                            <User class="w-4 h-4" />
+                            <UserRoundPen class="w-4 h-4" />
                             <p class="text-sm text-gray-100">
                                 {{ work_order.requested_by?.first_name }}
                                 {{ work_order.requested_by?.last_name }}
@@ -125,7 +125,7 @@ const checkDueTask = (tasks) => {
                             v-else
                             class="flex justify-start items-center mb-1"
                         >
-                            <User class="w-4 h-4" />
+                            <UserRoundPen class="w-4 h-4" />
                             <p class="text-sm text-gray-100">
                                 {{ work_order.owners[0].first_name }}
                                 {{ work_order.owners[0].last_name }}
@@ -137,9 +137,7 @@ const checkDueTask = (tasks) => {
                             :key="vendor.id"
                         >
                             <span class="flex gap-1 items-center uppercase">
-                                <Wrench class="w-4 h-4" />{{
-                                    vendor.name
-                                }}</span
+                                <Truck class="w-4 h-4" />{{ vendor.name }}</span
                             >
                         </p>
 
