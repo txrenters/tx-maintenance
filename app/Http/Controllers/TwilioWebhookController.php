@@ -25,11 +25,16 @@ class TwilioWebhookController extends Controller
 
         $isMms = $data['NumMedia'] > 0;
 
-        $type = $this->getMessageType($from, $to);
-        $workOrderId = $this->getWorkOrderId($from, $to);
-        $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
+        $message = $this->getMessage($from, $to);
 
-        if (! $checkMessageDuplicate && $workOrderId && $type) {
+        $type = $message->conversation_type ?? ''; // Provide a fallback
+        $workOrderId = $message->work_order_id ?? null; // Provide a fallback 
+
+        // $type = $this->getMessageType($from, $to);
+        // $workOrderId = $this->getWorkOrderId($from, $to);
+        // $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
+
+        if ($workOrderId && $type) {
             try {
 
                 $this->validateTwilioRequest($request);
@@ -57,37 +62,7 @@ class TwilioWebhookController extends Controller
 
         } else {
             Log::info('Message not valid for insertion (duplicate or missing data).');
-
             return response('Error processing request', 500);
-        }
-    }
-
-    protected function handleMessage(array $data): void
-    {
-        $isMms = $data['NumMedia'] > 0;
-        // $from = $this->formatNumber($data['From']);
-        // $to = $this->formatNumber($data['To']);
-
-        $from = $data['From'];
-        $to = $data['To'];
-
-        $type = $this->getMessageType($from, $to);
-        $workOrderId = $this->getWorkOrderId($from, $to);
-        $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $data['Body']);
-
-        if (! $checkMessageDuplicate && $workOrderId && $type) {
-            $conversation = Conversation::create([
-                'message' => $data['Body'],
-                'is_mms' => $isMms,
-                'conversation_type' => $type,
-                'receiver_number' => $to,
-                'sender_number' => $from,
-                'work_order_id' => $workOrderId,
-            ]);
-
-            if ($isMms) {
-                $this->processMediaAttachments($conversation, $data);
-            }
         }
     }
 
@@ -126,10 +101,11 @@ class TwilioWebhookController extends Controller
         }
     }
 
+
     protected function checkMessageDuplicate(string $from, string $to, string $msg): bool
     {
-        $convo = Conversation::where('receiver_number', $to)
-            ->where('sender_number', $from)
+        $convo = Conversation::where('receiver_number', $from)
+            ->where('sender_number', $to)
             ->latest()
             ->first();
 
@@ -145,10 +121,20 @@ class TwilioWebhookController extends Controller
         return trim($convo->message) == trim($msg);
     }
 
+    protected function getMessage(string $from, string $to): object
+    {
+        $conversation = Conversation::where('receiver_number', $from)
+            ->where('sender_number', $to)
+            ->first();
+
+        return $conversation;
+    }
+
+
     protected function getMessageType(string $from, string $to): string
     {
-        $conversation = Conversation::where('receiver_number', $to)
-            ->where('sender_number', $from)
+        $conversation = Conversation::where('receiver_number', $from)
+            ->where('sender_number', $to)
             ->first();
 
         return $conversation->conversation_type ?? ''; // Provide a fallback
@@ -156,8 +142,8 @@ class TwilioWebhookController extends Controller
 
     protected function getWorkOrderId(string $from, string $to)
     {
-        $conversation = Conversation::where('receiver_number', $to)
-            ->where('sender_number', $from)
+        $conversation = Conversation::where('receiver_number', $from)
+            ->where('sender_number', $to)
             ->first();
 
         return $conversation->work_order_id ?? null;
