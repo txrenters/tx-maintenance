@@ -36,8 +36,8 @@ class TaskController extends Controller
             WorkOrderTask::where('work_order_id', $workOrder->id)->delete();
 
         } else {
-            TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
             WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', '!=', 'completed')->delete();
+            TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
         }
 
         $propertyWare = new PropertyWareService;
