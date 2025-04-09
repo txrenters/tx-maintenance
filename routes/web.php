@@ -94,10 +94,9 @@ Route::middleware([
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
+Route::get('/vendorssss', function () {
 
-Route::get('/vendorssss', function() {
-   
-    $propertyware = new PropertyWareService();
+    $propertyware = new PropertyWareService;
 
     $vendors = $propertyware->getVendors();
 

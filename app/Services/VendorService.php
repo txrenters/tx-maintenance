@@ -7,7 +7,7 @@ use App\Models\Vendor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class VendorService 
+class VendorService
 {
     public function handle($data)
     {
@@ -45,7 +45,7 @@ class VendorService
             ];
 
             $user = $this->createOrUpdateUser($usersData, 'vendor');
-            
+
             $vendorsData = [
                 'propertyware_id' => $user->id,
                 'name' => $data['name'],
@@ -62,7 +62,7 @@ class VendorService
             return $vendor;
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating vendor: ' . $e->getMessage());
+            Log::error('Error creating vendor: '.$e->getMessage());
         }
     }
 

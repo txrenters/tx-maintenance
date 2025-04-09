@@ -126,12 +126,12 @@ class PropertyWareService
     {
         try {
             $client = $this->initiate();
-            
+
             $response = $client->getVendorByName($vendorName);
 
             $allVendors = [];
 
-            if (!empty($response)) {
+            if (! empty($response)) {
                 $allVendors = json_decode(json_encode($response), true);
             }
 

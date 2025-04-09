@@ -46,7 +46,7 @@ class VendorController extends Controller
             });
 
         $twilio_numbers = TwilioPhoneNumber::select('id', 'name', 'phone_number')->get();
-        $vendorTypes = VendorTypes::select('id', 'name')->orderBy('name','ASC')->get();
+        $vendorTypes = VendorTypes::select('id', 'name')->orderBy('name', 'ASC')->get();
 
         return inertia('Vendor/Index', [
             'title' => 'Vendors',
@@ -72,7 +72,7 @@ class VendorController extends Controller
         $data['password'] = bcrypt($request->email);
 
         DB::transaction(function () use ($data, $request) {
-            
+
             $user = User::create($data);
 
             $user->assignRole('vendor');
@@ -144,27 +144,25 @@ class VendorController extends Controller
 
         $vendorExists = Vendor::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($vendorName)])->exists();
 
-        if (!$vendorExists) {
-            $propertyWare = new PropertyWareService();
+        if (! $vendorExists) {
+            $propertyWare = new PropertyWareService;
 
             $vendors = $propertyWare->getVendorsByName($vendorName);
 
-            if($vendors){
-                $vendorService = new VendorService();
+            if ($vendors) {
+                $vendorService = new VendorService;
                 $vendorService->handle($vendors);
 
                 return response()->json([
                     'status' => true,
                     'message' => 'Vendors imported successfully.',
                 ], 200);
-            }else{
+            } else {
                 return response()->json([
                     'status' => false,
                     'message' => 'No vendors found.',
                 ], 422);
             }
-
-          
         }
 
         return response()->json([
@@ -172,5 +170,4 @@ class VendorController extends Controller
             'message' => 'Vendor already exists.',
         ], 422);
     }
-    
 }

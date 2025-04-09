@@ -96,7 +96,7 @@ class UpdateTaskDueDate extends Command
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated "Set Dues" subtask:',['subtask_id' => $subtaskId]);
+                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_id' => $subtaskId]);
                             }
                         }
                     }

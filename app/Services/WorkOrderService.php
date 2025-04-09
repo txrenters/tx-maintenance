@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class WorkOrderService 
+class WorkOrderService
 {
     public function handle(array $workOrder): void
     {
@@ -28,6 +28,7 @@ class WorkOrderService
 
                 if ($workOrderExist) {
                     Log::info('Work order already exists, skipping.', ['ID' => $ID]);
+
                     continue;
                 }
 
@@ -65,7 +66,6 @@ class WorkOrderService
         }
 
         $tenantEmail = $data['requestedByContact']['email'] ?? $tenant_propertyware_id.'@texasrenter.com';
-
 
         $address = trim(implode(' ', array_filter([
             $data['requestedByContact']['address'] ?? null,
@@ -140,7 +140,7 @@ class WorkOrderService
 
         if ($tenantExist) {
             Log::info('Owner already exists, skipping.', ['ID' => $owner_propertyware_id]);
-            
+
             return DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
         }
 

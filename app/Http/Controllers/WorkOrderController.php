@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\WorkOrderService;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Jobs\UpdateWorkOrder;
@@ -13,6 +12,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
+use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -303,16 +303,15 @@ class WorkOrderController extends Controller
             'work_order_no' => 'required|array',
         ]);
 
-
-        $propertyWare = new PropertyWareService();
-        $propertyWare = new PropertyWareService();
+        $propertyWare = new PropertyWareService;
+        $propertyWare = new PropertyWareService;
         $workOrders = ''; // Initialize as an array to store multiple work orders
-        
+
         foreach ($request->work_order_no as $work_order_no) {
-        
+
             // Check if the work order already exists in the database
             $workOrderExists = WorkOrder::where('work_order_no', $work_order_no)->exists();
-        
+
             if ($workOrderExists) {
                 continue; // Skip if the work order already exists
             }
@@ -321,11 +320,11 @@ class WorkOrderController extends Controller
         }
 
         if ($workOrders) {
-            $importWorkOrder = new WorkOrderService();
+            $importWorkOrder = new WorkOrderService;
             $importWorkOrder->handle($workOrders);
 
         }
-                
+
         return redirect()->back()->with('success', 'Work orders updated successfully.');
     }
 

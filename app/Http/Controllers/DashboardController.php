@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\ServiceStatus;
-use App\Models\TwilioPhoneNumber;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
@@ -60,7 +59,7 @@ class DashboardController extends Controller
             ];
         });
 
-        $vendors = Vendor::select('id','is_active')->get();
+        $vendors = Vendor::select('id', 'is_active')->get();
 
         return inertia('Dashboard', [
             'title' => 'Dashboard',
