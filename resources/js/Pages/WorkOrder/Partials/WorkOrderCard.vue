@@ -137,7 +137,7 @@ const checkDueTask = (tasks) => {
                             :key="vendor.id"
                         >
                             <span
-                                class="flex gap-1 justify-start items-center uppercase"
+                                class="flex gap-1 text-left items-center uppercase"
                             >
                                 <Truck class="w-4 h-4" />{{ vendor.name }}</span
                             >

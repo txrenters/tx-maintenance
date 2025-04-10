@@ -16,7 +16,7 @@ class TwilioWebhookController extends Controller
     {
         $data = $request->all();
 
-        // $this->forwardToPlusThis($data);
+        $this->forwardToPlusThis($data);
 
         // Validate and sanitize input
         $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];

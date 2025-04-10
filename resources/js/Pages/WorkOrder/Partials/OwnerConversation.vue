@@ -136,35 +136,41 @@ watch(
         <div
             class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
         >
-            <div class="flex gap-2">
-                <Select v-model="selectedOwner">
-                    <SelectTrigger class="w-full">
-                        <SelectValue placeholder="Select an owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <template
-                                v-for="owner in workOrderOwners"
-                                :key="owner.id"
-                            >
-                                <SelectItem
-                                    :value="String(owner.id)"
-                                    :selected="owner.phone"
+            <div>
+                <div class="flex gap-2">
+                    <Select v-model="selectedOwner">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select an owner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <template
+                                    v-for="owner in workOrderOwners"
+                                    :key="owner.id"
                                 >
-                                    {{ owner.first_name }}
-                                    {{ owner.last_name }} -
-                                    {{ owner?.phone }}
-                                </SelectItem>
-                            </template>
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
-                <Input
-                    placeholder="Custom number"
-                    class=""
-                    v-model="owner_phone_number"
-                />
+                                    <SelectItem
+                                        :value="String(owner.id)"
+                                        :selected="owner.phone"
+                                    >
+                                        {{ owner.first_name }}
+                                        {{ owner.last_name }} -
+                                        {{ owner?.phone }}
+                                    </SelectItem>
+                                </template>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    <Input
+                        placeholder="Custom number"
+                        class=""
+                        v-model="owner_phone_number"
+                    />
+                </div>
+                <p class="text-xs text-gray-500">
+                    Please include the country code (e.g. +1)
+                </p>
             </div>
+
             <div class="flex flex-col text-left">
                 <div class="flex gap-2 items-center">
                     <Avatar class="w-5 h-5">

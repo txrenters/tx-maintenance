@@ -230,6 +230,7 @@ const checkDueTask = (task) => {
                     <button
                         type="button"
                         v-if="
+                            task.status === 'completed' &&
                             task.task.next_service_status.name === 'Not Changed'
                         "
                         class="hover:text-red-500"

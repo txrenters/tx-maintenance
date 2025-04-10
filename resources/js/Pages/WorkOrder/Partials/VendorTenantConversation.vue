@@ -6,11 +6,11 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
 
 const props = defineProps({
-  vendorConversation: Array,
-  workOrderTenants: Array,
-  workOrderVendors: Array,
-  isLoading: Boolean,
-  workOrder: Object,
+    vendorConversation: Array,
+    workOrderTenants: Array,
+    workOrderVendors: Array,
+    isLoading: Boolean,
+    workOrder: Object,
 });
 
 const page = usePage();
@@ -23,180 +23,211 @@ const chatContainer = ref(null); // Reference to the chat container for auto-scr
 const vendor_phone_number = ref(page.props.auth.user.vendor.twilio_number);
 
 watch(selectedTenant, (newTenant) => {
-  if (newTenant) {
-    const foundTenant = props.workOrderTenants.find((tenant) => tenant.id == newTenant);
-    tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
-  }
+    if (newTenant) {
+        const foundTenant = props.workOrderTenants.find(
+            (tenant) => tenant.id == newTenant
+        );
+        tenant_phone_number.value = foundTenant ? foundTenant.mobile_phone : "";
+    }
 });
 
 const loading = ref(false);
 const sendMessage = () => {
-  loading.value = true;
-  if (!tenant_phone_number.value) {
-    toast({
-      variant: "destructive",
-      title: "Uh oh! Something went wrong.",
-      description: "There was a problem with your request. Please select a receiver!",
-    });
-    loading.value = false;
-
-    return;
-  }
-
-  if (!newMessage.value) {
-    toast({
-      variant: "destructive",
-      title: "Uh oh! Something went wrong.",
-      description: "There was a problem with your request. Please type a message!",
-    });
-    loading.value = false;
-
-    return;
-  }
-
-  if (newMessage.value.trim() !== "") {
-    router.post(
-      route("work_order.vendor.conversation.send"),
-      {
-        text: newMessage.value,
-        sender_phone_number: vendor_phone_number.value,
-        receiver_phone_number: tenant_phone_number.value,
-        work_order_id: props.workOrder.id,
-        conversation_type: "vendor_tenant",
-      },
-      {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-          toast({
-            title: "Success",
-            description: "Message has been sent successfully!",
-          });
-          props.vendorConversation.push({
-            id: Date.now(), // Temporary ID
-            sender_number: vendor_phone_number.value,
-            receiver_number: tenant_phone_number.value,
-            message: newMessage.value,
-            created_at: new Date().toISOString(), // Current timestamp
-          });
-          newMessage.value = "";
-          scrollToBottom(); // Scroll to the bottom after sending a message
-        },
-        onError: () => {
-          toast({
+    loading.value = true;
+    if (!tenant_phone_number.value) {
+        toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
-            description: "There was a problem with your request. Please try again!",
-          });
-        },
-        onFinish: () => {
-          loading.value = false;
-          scrollToBottom(); // Scroll to the bottom after sending a message
-        },
-      }
-    );
-  }
+            description:
+                "There was a problem with your request. Please select a receiver!",
+        });
+        loading.value = false;
+
+        return;
+    }
+
+    if (!newMessage.value) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+                "There was a problem with your request. Please type a message!",
+        });
+        loading.value = false;
+
+        return;
+    }
+
+    if (newMessage.value.trim() !== "") {
+        router.post(
+            route("work_order.vendor.conversation.send"),
+            {
+                text: newMessage.value,
+                sender_phone_number: vendor_phone_number.value,
+                receiver_phone_number: tenant_phone_number.value,
+                work_order_id: props.workOrder.id,
+                conversation_type: "vendor_tenant",
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast({
+                        title: "Success",
+                        description: "Message has been sent successfully!",
+                    });
+                    props.vendorConversation.push({
+                        id: Date.now(), // Temporary ID
+                        sender_number: vendor_phone_number.value,
+                        receiver_number: tenant_phone_number.value,
+                        message: newMessage.value,
+                        created_at: new Date().toISOString(), // Current timestamp
+                    });
+                    newMessage.value = "";
+                    scrollToBottom(); // Scroll to the bottom after sending a message
+                },
+                onError: () => {
+                    toast({
+                        variant: "destructive",
+                        title: "Uh oh! Something went wrong.",
+                        description:
+                            "There was a problem with your request. Please try again!",
+                    });
+                },
+                onFinish: () => {
+                    loading.value = false;
+                    scrollToBottom(); // Scroll to the bottom after sending a message
+                },
+            }
+        );
+    }
 };
 
 const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-    }
-  });
+    nextTick(() => {
+        if (chatContainer.value) {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        }
+    });
 };
 
 // Scroll to the bottom when the component mounts or when the conversation updates
 onMounted(() => {
-  scrollToBottom();
+    scrollToBottom();
 });
 
 watch(
-  () => props.vendorConversation,
-  () => {
-    scrollToBottom();
-  },
-  { deep: true }
+    () => props.vendorConversation,
+    () => {
+        scrollToBottom();
+    },
+    { deep: true }
 );
 </script>
 
 <template>
-  <div class="overflow-y-auto px-6 w-full min-h-[300px]">
-    <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
-    <div
-      class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
-    >
-      <div class="flex gap-2">
-        <Select v-model="selectedTenant">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select a tenant" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <template v-for="tenant in workOrderTenants" :key="tenant.id">
-                <SelectItem
-                  :value="String(tenant.id)"
-                  :selected="tenant.mobile_phone === workOrder.requested.mobile_phone"
-                >
-                  {{ tenant.first_name }} {{ tenant.last_name }} -
-                  {{ tenant?.mobile_phone }}
-                </SelectItem>
-              </template>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Input placeholder="Custom number" class="" v-model="tenant_phone_number" />
-      </div>
-      <div class="flex flex-col text-left">
-        <div class="flex gap-2 items-center">
-          <Avatar class="w-5 h-5">
-            <AvatarImage
-              :src="page.props.auth.user?.profile_photo_url || 'default.jpg'"
-            />
-            <AvatarFallback>
-              {{ page.props.auth.user.vendor.name?.charAt(0) }}
-            </AvatarFallback>
-          </Avatar>
-          {{ page.props.auth.user.vendor.name }}
+    <div class="overflow-y-auto px-6 w-full min-h-[300px]">
+        <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
+        <div
+            class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
+        >
+            <div>
+                <div class="flex gap-2">
+                    <Select v-model="selectedTenant">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select a tenant" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <template
+                                    v-for="tenant in workOrderTenants"
+                                    :key="tenant.id"
+                                >
+                                    <SelectItem
+                                        :value="String(tenant.id)"
+                                        :selected="
+                                            tenant.mobile_phone ===
+                                            workOrder.requested.mobile_phone
+                                        "
+                                    >
+                                        {{ tenant.first_name }}
+                                        {{ tenant.last_name }} -
+                                        {{ tenant?.mobile_phone }}
+                                    </SelectItem>
+                                </template>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    <Input
+                        placeholder="Custom number"
+                        class=""
+                        v-model="tenant_phone_number"
+                    />
+                </div>
+                <p class="text-xs text-gray-500">
+                    Please include the country code (e.g. +1)
+                </p>
+            </div>
+            <div class="flex flex-col text-left">
+                <div class="flex gap-2 items-center">
+                    <Avatar class="w-5 h-5">
+                        <AvatarImage
+                            :src="
+                                page.props.auth.user?.profile_photo_url ||
+                                'default.jpg'
+                            "
+                        />
+                        <AvatarFallback>
+                            {{ page.props.auth.user.vendor.name?.charAt(0) }}
+                        </AvatarFallback>
+                    </Avatar>
+                    {{ page.props.auth.user.vendor.name }}
+                </div>
+                {{ page.props.auth.user.vendor.twilio_number }}
+            </div>
         </div>
-        {{ page.props.auth.user.vendor.twilio_number }}
-      </div>
-    </div>
 
-    <div class="border p-3 min-h-[300px] bg-secondary">
-      <div class="flex justify-center" v-if="loading || isLoading">
-        <Loader2 class="w-12 h-12 animate-spin text-primary" />
-      </div>
-      <div
-        class="h-80 overflow-y-auto space-y-2 flex flex-col"
-        v-else
-        ref="chatContainer"
-      >
-        <MessageCard :messages="vendorConversation" :sender="vendor_phone_number" />
-      </div>
-    </div>
+        <div class="border p-3 min-h-[300px] bg-secondary">
+            <div class="flex justify-center" v-if="loading || isLoading">
+                <Loader2 class="w-12 h-12 animate-spin text-primary" />
+            </div>
+            <div
+                class="h-80 overflow-y-auto space-y-2 flex flex-col"
+                v-else
+                ref="chatContainer"
+            >
+                <MessageCard
+                    :messages="vendorConversation"
+                    :sender="vendor_phone_number"
+                />
+            </div>
+        </div>
 
-    <div class="flex items-center gap-2 mt-4 mb-6">
-      <Input
-        v-model="newMessage"
-        placeholder="Type a message..."
-        class="flex-1"
-        @keyup.enter="sendMessage"
-      />
-      <Button @click.prevent="sendMessage" :disabled="loading || isLoading" size="icon">
-        <Send v-if="!isLoading || isLoading" />
-        <Loader2 v-else class="w-4 h-4 animate-spin" />
-      </Button>
+        <div class="flex items-center gap-2 mt-4 mb-6">
+            <Input
+                v-model="newMessage"
+                placeholder="Type a message..."
+                class="flex-1"
+                @keyup.enter="sendMessage"
+            />
+            <Button
+                @click.prevent="sendMessage"
+                :disabled="loading || isLoading"
+                size="icon"
+            >
+                <Send v-if="!isLoading || isLoading" />
+                <Loader2 v-else class="w-4 h-4 animate-spin" />
+            </Button>
+        </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
 ::-webkit-scrollbar {
-  width: 5px;
+    width: 5px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 5px;
+    background: #ccc;
+    border-radius: 5px;
 }
 </style>

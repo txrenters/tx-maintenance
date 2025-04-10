@@ -16,6 +16,11 @@ const formatDate = (date) => {
     if (typeof date === "string") {
         if (date.includes("T")) {
             parsedDate = DateTime.fromISO(date, { zone: "utc" });
+        } else if (date.includes(" ")) {
+            // Handling the format 'yyyy-MM-dd HH:mm:ss'
+            parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", {
+                zone: "utc",
+            });
         } else {
             parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", {
                 zone: "utc",
