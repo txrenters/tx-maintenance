@@ -250,7 +250,7 @@ class PropertyWareService
         try {
             $workorderId = $workOrder->propertyware_id;
             $portfolioId = (int) $workOrder->portfolio_id;
-            $buildigId = $workOrder->building_id;
+            $buildingId = $workOrder->building_id;
             $location = $workOrder->location;
 
             $xmlPayload = '
@@ -265,7 +265,7 @@ class PropertyWareService
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
                         <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
                         </building>
                         <portfolio xsi:type="urn:Portfolio">
                             <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
@@ -307,7 +307,7 @@ class PropertyWareService
         try {
             $workorderId = $workOrder->propertyware_id;
             $portfolioId = (int) $workOrder->portfolio_id;
-            $buildigId = $workOrder->building_id;
+            $buildingId = $workOrder->building_id;
             $location = $workOrder->location;
 
             $xmlPayload = '
@@ -322,14 +322,14 @@ class PropertyWareService
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
                          <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
                         </building>
                         <portfolio xsi:type="urn:Portfolio">
                             <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
                         <location xsi:type="xsd:string">'.$location.'</location>
                         <status xsi:type="xsd:string">Close</status>
-                        <completedDate xsi:type="xsd:string">'.now().'</completedDate>
+                        <completedDate xsi:type="xsd:string">'.now()->toAtomString().'</completedDate>
                         <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                             xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                             <customFields xsi:type="ns2:CustomField">
@@ -365,7 +365,7 @@ class PropertyWareService
                         <description xsi:type="xsd:string">Document description</description>
                         <fileData xsi:type="xsd:string"></fileData>
                         <fileType xsi:type="xsd:string">url</fileType>
-                        <filename xsi:type="xsd:string">'.$url.'.html</filename>
+                        <filename xsi:type="xsd:string">'.$url.'</filename>
                         <privateFile xsi:type="xsd:boolean">false</privateFile>
                         <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
                         <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
@@ -373,7 +373,7 @@ class PropertyWareService
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
                          <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
                         </building>
                         <portfolio xsi:type="urn:Portfolio">
                             <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
@@ -394,8 +394,10 @@ class PropertyWareService
             return true;
 
         } catch (\Exception $exception) {
-            return false;
             Log::error('Closing work order failed: '.$exception);
+
+            return false;
+
         }
 
     }
@@ -405,7 +407,7 @@ class PropertyWareService
         try {
             $workorderId = $workOrder->propertyware_id;
             $portfolioId = (int) $workOrder->portfolio_id;
-            $buildigId = $workOrder->building_id;
+            $buildingId = $workOrder->building_id;
             $location = $workOrder->location;
 
             $xmlPayload = '
@@ -420,20 +422,13 @@ class PropertyWareService
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                     <ID xsi:type="xsd:long">'.$workorderId.'</ID>
                     <building xsi:type="urn:Building">
-                    <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                    <ID xsi:type="xsd:long">'.$buildingId.'</ID>
                     </building>
                     <portfolio xsi:type="urn:Portfolio">
                     <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                     </portfolio>
                     <location xsi:type="xsd:string">'.$location.'</location>
                     <status xsi:type="xsd:string">Open</status>
-                    <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                        xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                        <customFields xsi:type="ns2:CustomField">
-                            <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                            <value xsi:type="xsd:string">Open</value>
-                            </customFields>
-                    </customFields>
                     </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
