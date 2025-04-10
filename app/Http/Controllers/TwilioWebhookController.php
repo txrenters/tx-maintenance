@@ -16,19 +16,24 @@ class TwilioWebhookController extends Controller
     {
         $data = $request->all();
 
-        $this->forwardToPlusThis($data);
+        // $this->forwardToPlusThis($data);
 
         // Validate and sanitize input
         $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
         $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
         $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
 
-        $isMms = $data['NumMedia'] > 0;
+        $isMms = isset($data['NumMedia']) && $data['NumMedia'] > 0;
 
         $message = $this->getMessage($from, $to);
 
+        if (! $message) {
+            Log::info('Message not found in the database.');
+            return response('Error processing request', 500);
+        }
+        
         $type = $message->conversation_type ?? ''; // Provide a fallback
-        $workOrderId = $message->work_order_id ?? null; // Provide a fallback
+        $workOrderId = $message->work_order_id ?? ''; // Provide a fallback
 
         // $type = $this->getMessageType($from, $to);
         // $workOrderId = $this->getWorkOrderId($from, $to);
@@ -121,14 +126,18 @@ class TwilioWebhookController extends Controller
         return trim($convo->message) == trim($msg);
     }
 
-    protected function getMessage(string $from, string $to): object
+    protected function getMessage(string $from, string $to)
     {
-        $conversation = Conversation::where('receiver_number', $from)
-            ->where('sender_number', $to)
-            ->first();
-
-        return $conversation;
+        return Conversation::where(function ($query) use ($from, $to) {
+            $query->where('receiver_number', $from)
+                ->where('sender_number', $to);
+        })->orWhere(function ($query) use ($to, $from) {
+            $query->where('receiver_number', $to)
+                ->where('sender_number', $from);
+        })->latest()->first(); // fetch the latest conversation
+        
     }
+
 
     protected function getMessageType(string $from, string $to): string
     {

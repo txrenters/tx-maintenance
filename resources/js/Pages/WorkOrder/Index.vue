@@ -195,7 +195,7 @@ const tabButtons = [
         name: "conversation",
         tooltip: "Conversation",
         icon: MessagesSquare,
-        requires: ["admin"],
+        requires: ["admin", "woc"],
     },
 ];
 
