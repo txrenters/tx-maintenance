@@ -950,7 +950,7 @@ usePoll(5000, { only: ["service_status"] });
                 <Input
                     v-model="importWorkOrderForm.work_order_no"
                     type="number"
-                    placeholder="Enter work order no and"
+                    placeholder="Enter work order no"
                     class="mt-2"
                     :class="{
                         'border-destructive':

@@ -61,7 +61,7 @@ class ConversationController extends Controller
         ]);
 
         // Format phone numbers ensuring proper + prefix
-        $senderNumber = $this->formatNumber($validatedData['sender_phone_number']);
+        $senderNumber = $validatedData['sender_phone_number'];
         $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
 
         DB::beginTransaction();
@@ -69,7 +69,7 @@ class ConversationController extends Controller
         try {
 
             // Save the message to the database
-            $conversation = Conversation::create([
+           Conversation::create([
                 'message' => $validatedData['text'],
                 'sender_number' => $senderNumber,
                 'receiver_number' => $receiverNumber,
@@ -79,7 +79,7 @@ class ConversationController extends Controller
 
             // Send the message via Twilio
             $twilio = new TwilioService;
-            $twilioResult = $twilio->sendMessage(
+            $twilio->sendMessage(
                 $receiverNumber,
                 $senderNumber,
                 $validatedData['text']
