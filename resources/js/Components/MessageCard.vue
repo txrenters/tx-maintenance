@@ -120,7 +120,7 @@ const removeMessage = (id) => {
                     msg.sender_number === sender ? 'text-right' : 'text-left'
                 "
             >
-                {{ formatDate(msg.created_at) }}
+                {{ msg.created_at }}
             </p>
         </div>
     </div>

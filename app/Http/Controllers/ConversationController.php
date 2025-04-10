@@ -12,7 +12,7 @@ use InvalidArgumentException;
 
 class ConversationController extends Controller
 {
-    public function show(WorkOrder $workOrder)
+    public function show(WorkOrder $workOrder) 
     {
         $convo = $workOrder->load(['vendor_tenant_conversation.media', 'tenant_conversation.media', 'owner_conversation.media', 'vendor_conversation.media', 'vendors']);
 
