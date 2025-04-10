@@ -16,8 +16,8 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
     public function collection()
     {
         return WorkOrder::with([
-                'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
-            ])
+            'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
+        ])
             ->whereHas('service_status', function ($q) {
                 $q->whereNot('name', 'Closed')
                     ->whereNot('name', 'Not Changed');

@@ -249,10 +249,10 @@ class PropertyWareService
     {
         try {
             $workorderId = $workOrder->propertyware_id;
-            $portfolioId = (int)$workOrder->portfolio_id;
+            $portfolioId = (int) $workOrder->portfolio_id;
             $buildigId = $workOrder->building_id;
             $location = $workOrder->location;
- 
+
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"

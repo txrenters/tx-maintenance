@@ -28,7 +28,7 @@ class TwilioWebhookController extends Controller
         $message = $this->getMessage($from, $to);
 
         $type = $message->conversation_type ?? ''; // Provide a fallback
-        $workOrderId = $message->work_order_id ?? null; // Provide a fallback 
+        $workOrderId = $message->work_order_id ?? null; // Provide a fallback
 
         // $type = $this->getMessageType($from, $to);
         // $workOrderId = $this->getWorkOrderId($from, $to);
@@ -62,6 +62,7 @@ class TwilioWebhookController extends Controller
 
         } else {
             Log::info('Message not valid for insertion (duplicate or missing data).');
+
             return response('Error processing request', 500);
         }
     }
@@ -101,7 +102,6 @@ class TwilioWebhookController extends Controller
         }
     }
 
-
     protected function checkMessageDuplicate(string $from, string $to, string $msg): bool
     {
         $convo = Conversation::where('receiver_number', $from)
@@ -129,7 +129,6 @@ class TwilioWebhookController extends Controller
 
         return $conversation;
     }
-
 
     protected function getMessageType(string $from, string $to): string
     {

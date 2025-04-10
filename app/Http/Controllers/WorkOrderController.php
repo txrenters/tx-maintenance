@@ -41,19 +41,19 @@ class WorkOrderController extends Controller
                 $query->when(request('search'), function ($q, $search) {
                     $q->where('work_order_no', $search);
                 })
-                ->when(request('vendor'), function ($q, $vendorId) {
-                    $q->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
-                ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-                    $date = request()->only(['start_date', 'end_date']);
-                    $start_date = Carbon::parse($date['start_date'])->startOfDay();
-                    $end_date = Carbon::parse($date['end_date'])->endOfDay();
+                    ->when(request('vendor'), function ($q, $vendorId) {
+                        $q->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                        $date = request()->only(['start_date', 'end_date']);
+                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
 
-                    $q->whereBetween('created_date', [$start_date, $end_date]);
-                })
-                ->where('status', 'Open');
+                        $q->whereBetween('created_date', [$start_date, $end_date]);
+                    })
+                    ->where('status', 'Open');
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -313,7 +313,7 @@ class WorkOrderController extends Controller
         if (! $workOrderExists) {
             $work_order_no = (int) $work_order_no;
             $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
-    
+
             $importWorkOrder = new WorkOrderService;
             $importWorkOrder->handle($workOrders);
         }

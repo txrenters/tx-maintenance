@@ -24,19 +24,17 @@ class DashboardController extends Controller
         $serviceStatus = ServiceStatus::withCount([
             'work_orders as work_orders_count' => function ($query) use ($year) {
                 $query->whereYear('created_date', $year)
-                      ->where('status', 'Open');
-            }
+                    ->where('status', 'Open');
+            },
         ])
-        ->having('work_orders_count', '>', 0) // only get statuses with matching work orders
-        ->where('name', '!=', 'Closed') // exclude closed statuses
-        ->where('name', '!=', 'Not Changed') 
-        ->get()
-        ->map(fn($status) => [
-            'name' => $status->name,
-            'total' => $status->work_orders_count,
-        ]);
-        
-
+            ->having('work_orders_count', '>', 0) // only get statuses with matching work orders
+            ->where('name', '!=', 'Closed') // exclude closed statuses
+            ->where('name', '!=', 'Not Changed')
+            ->get()
+            ->map(fn ($status) => [
+                'name' => $status->name,
+                'total' => $status->work_orders_count,
+            ]);
 
         // Generate an array of all months (Jan to Dec)
         $months = collect([
