@@ -16,7 +16,7 @@ class WorkOrderService
 
         $work_orders = collect($data)->toArray();
         $now = now()->format('Y-m-d H:i:s');
-        Log::info('Work Orders import is running.', ['work_orders' => $work_orders]);
+        Log::info('Work Orders import is running.');
 
         foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
             foreach ($workOrderChunk as $order) {

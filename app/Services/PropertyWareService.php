@@ -249,10 +249,10 @@ class PropertyWareService
     {
         try {
             $workorderId = $workOrder->propertyware_id;
-            // $portfolioId = (int)$workOrder->portfolio_id;
-            // $buildigId = $workOrder->building_id;
-            // $location = $workOrder->location;
-
+            $portfolioId = (int)$workOrder->portfolio_id;
+            $buildigId = $workOrder->building_id;
+            $location = $workOrder->location;
+ 
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -264,6 +264,13 @@ class PropertyWareService
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                        <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
                         <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                             xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                             <customFields xsi:type="ns2:CustomField">
@@ -314,6 +321,13 @@ class PropertyWareService
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                         <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
                         <status xsi:type="xsd:string">Close</status>
                         <completedDate xsi:type="xsd:string">'.now().'</completedDate>
                         <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
@@ -358,6 +372,13 @@ class PropertyWareService
                     </document>
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                         <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                         <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
                         <!-- Include other work order properties here -->
                     </workOrder>
                     </ser:attachDocumentToWorkOrder>

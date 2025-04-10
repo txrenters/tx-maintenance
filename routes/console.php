@@ -9,8 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('import:work-orders')->everyFiveMinutes();
-
-Schedule::command('asana:set-dues')
-    ->everyTwoMinutes()
-    ->appendOutputTo(storage_path('logs/asana-set-due-dates.log'))
-    ->withoutOverlapping();
+Schedule::command('asana:set-dues')->everyTwoMinutes();

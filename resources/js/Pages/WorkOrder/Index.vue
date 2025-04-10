@@ -549,13 +549,11 @@ const handleWorkOrder = async (orderId) => {
 };
 
 const openImportWorkOrder = ref(false);
-const workOrderValue = ref([]);
 const importWorkOrderForm = useForm({
-    work_order_no: Array,
+    work_order_no: "",
 });
 
 const handleImportWorkOrder = () => {
-    importWorkOrderForm.work_order_no = workOrderValue.value;
     importWorkOrderForm.post(route("work_orders.import"), {
         preserveState: true,
         preserveScroll: true,
@@ -565,7 +563,6 @@ const handleImportWorkOrder = () => {
                 description: "Work order has been imported successfully!",
             });
             openImportWorkOrder.value = false;
-            workOrderValue.value = []; // Clear the input after successful import
             importWorkOrderForm.reset(); // Reset the form
         },
         onError: () => {
@@ -945,34 +942,29 @@ usePoll(5000, { only: ["service_status"] });
             <DialogHeader>
                 <DialogTitle>Import Work Order</DialogTitle>
                 <DialogDescription>
-                    Enter work order number, add comma(,) and click import to
-                    save the data.
+                    Enter work order number and click import to save the data.
                 </DialogDescription>
             </DialogHeader>
 
             <div class="my-2">
-                <TagsInput v-model="workOrderValue">
-                    <TagsInputItem
-                        v-for="item in workOrderValue"
-                        :key="item"
-                        :value="item"
-                    >
-                        <TagsInputItemText />
-                        <TagsInputItemDelete />
-                    </TagsInputItem>
-
-                    <TagsInputInput
-                        placeholder="Enter work order no and add a comma(,)"
-                    />
-                </TagsInput>
+                <Input
+                    v-model="importWorkOrderForm.work_order_no"
+                    type="number"
+                    placeholder="Enter work order no and"
+                    class="mt-2"
+                    :class="{
+                        'border-destructive':
+                            importWorkOrderForm.errors.work_order_no,
+                    }"
+                />
                 <span class="text-xs text-destructive">{{
                     importWorkOrderForm.errors.work_order_no
                 }}</span>
 
                 <div class="text-xs text-muted-foreground mt-2">
                     <p>
-                        This process may take some time depending on the number
-                        of work orders.
+                        This process may take some time depending on the work
+                        orders.
                         <span v-if="importWorkOrderForm.processing">
                             Please don't close...
                         </span>

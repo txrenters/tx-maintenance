@@ -41,7 +41,6 @@ class TaskController extends Controller
         }
 
         $propertyWare = new PropertyWareService;
-
         $propertyWare->updateServiceStatus($workOrder, $service_status);
 
         return redirect()->back();
