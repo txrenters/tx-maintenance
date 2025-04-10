@@ -136,7 +136,9 @@ const checkDueTask = (tasks) => {
                             v-for="vendor in work_order.vendors"
                             :key="vendor.id"
                         >
-                            <span class="flex gap-1 items-center uppercase">
+                            <span
+                                class="flex gap-1 justify-start items-center uppercase"
+                            >
                                 <Truck class="w-4 h-4" />{{ vendor.name }}</span
                             >
                         </p>

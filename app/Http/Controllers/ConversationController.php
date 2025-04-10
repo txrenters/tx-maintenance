@@ -112,4 +112,11 @@ class ConversationController extends Controller
 
         return '+1'.$cleanedNumber;
     }
+
+    public function delete(Conversation $conversation)
+    {
+        $conversation->delete();
+
+        return redirect()->back()->with('success', 'Message deleted successfully!');
+    }   
 }

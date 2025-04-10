@@ -771,6 +771,9 @@ usePoll(5000, { only: ["service_status"] });
         <ScrollBar orientation="horizontal" />
     </ScrollArea>
 
+    <div class="">
+        <span class="text-gray-600">Drag the scrollbar to scroll →</span>
+    </div>
     <Dialog v-model:open="openWorkOrder">
         <DialogContent
             class="sm:max-w-[800px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

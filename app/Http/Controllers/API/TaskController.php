@@ -103,4 +103,13 @@ class TaskController extends Controller
 
         return redirect()->back();
     }
+
+    public function undo(Request $request, WorkOrderTask $task)
+    {
+        $task->update([
+            'status' => $request->status,
+        ]);
+        Log::info('Task is undoned successfully: ', ['task_id' => $task->id]);
+        return redirect()->back();
+    }
 }
