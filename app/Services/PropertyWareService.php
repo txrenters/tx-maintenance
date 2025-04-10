@@ -305,12 +305,70 @@ class PropertyWareService
     public function closeWorkOrder(object $workOrder, $url)
     {
         try {
-            $workorderId = $workOrder->propertyware_id;
-            $portfolioId = (int) $workOrder->portfolio_id;
-            $buildingId = $workOrder->building_id;
-            $location = $workOrder->location;
+            $this->buildCloseWorkOrderPayload($workOrder);
 
-            $xmlPayload = '
+            $this->buildAttachDocumentPayload($workOrder, $url);
+
+            return true;
+
+        } catch (\Exception $exception) {
+            Log::error('Closing work order failed: '.$exception);
+
+            return false;
+        }
+
+    }
+
+    private function buildAttachDocumentPayload($workOrder, $url)
+    {
+        $workorderId = $workOrder->propertyware_id;
+        $portfolioId = (int) $workOrder->portfolio_id;
+        $buildingId = $workOrder->building_id;
+        $location = $workOrder->location;
+
+        $xmlPayload2 = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+            xmlns:ser="http://service.web.propertyware.realpage.com"
+            xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+            <soapenv:Header/>
+            <soapenv:Body>
+                <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
+                    <ID xsi:type="xsd:long">0</ID>
+                    <description xsi:type="xsd:string">Please go to this link to view conversation: '.$url.'</description>
+                    <fileData xsi:type="xsd:string">'.$url.'</fileData>
+                    <fileType xsi:type="xsd:string">url</fileType>
+                    <filename xsi:type="xsd:string">'.$url.'</filename>
+                    <privateFile xsi:type="xsd:boolean">false</privateFile>
+                    <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
+                    <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
+                </document>
+                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                    <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                </workOrder>
+                </ser:attachDocumentToWorkOrder>
+            </soapenv:Body>
+            </soapenv:Envelope>';
+
+        $response = $this->execute($xmlPayload2);
+
+        Log::info('Work order conversation sent successfully!', [
+            'workOrderId' => $workOrder->work_order_no,
+        ]);
+
+        return $response;
+
+    }
+
+    private function buildCloseWorkOrderPayload($workOrder)
+    {
+        $workorderId = $workOrder->propertyware_id;
+        $portfolioId = (int) $workOrder->portfolio_id;
+        $buildingId = $workOrder->building_id;
+        $location = $workOrder->location;
+
+        $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                     xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -319,87 +377,30 @@ class PropertyWareService
                     <soapenv:Header/>
                     <soapenv:Body>
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                         <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">'.$location.'</location>
-                        <status xsi:type="xsd:string">Close</status>
-                        <completedDate xsi:type="xsd:string">'.now()->toAtomString().'</completedDate>
-                        <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                            xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                            <customFields xsi:type="ns2:CustomField">
-                                <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                                <value xsi:type="xsd:string">Close</value>
-                                </customFields>
-                        </customFields>
+                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                            <building xsi:type="urn:Building">
+                                <ID xsi:type="xsd:long">'.$buildingId.'</ID>
+                            </building>
+                            <portfolio xsi:type="urn:Portfolio">
+                                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                            </portfolio>
+                            <location xsi:type="xsd:string">'.$location.'</location>
+                            <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
-                        </ser:updateWorkOrder>
-                        </soapenv:Body>
+                    </ser:updateWorkOrder>
+                    </soapenv:Body>
                     </soapenv:Envelope>
                 ';
 
-            $response = $this->execute($xmlPayload);
+        $response = $this->execute($xmlPayload);
 
-            // Log and return response status
-            if ($response) {
-                Log::info('Work order service status has been closed successfully!', [
-                    'workOrderId' => $workOrder->work_order_no,
-                ]);
-            }
-
-            $xmlPayload2 = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                    <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
-                        <ID xsi:type="xsd:long">0</ID>
-                        <description xsi:type="xsd:string">Document description</description>
-                        <fileData xsi:type="xsd:string"></fileData>
-                        <fileType xsi:type="xsd:string">url</fileType>
-                        <filename xsi:type="xsd:string">'.$url.'</filename>
-                        <privateFile xsi:type="xsd:boolean">false</privateFile>
-                        <publishToOwnerPortal xsi:type="xsd:boolean">true</publishToOwnerPortal>
-                        <publishToTenantPortal xsi:type="xsd:boolean">true</publishToTenantPortal>
-                    </document>
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                         <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">'.$location.'</location>
-                        <!-- Include other work order properties here -->
-                    </workOrder>
-                    </ser:attachDocumentToWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
-
-            $response = $this->execute($xmlPayload2);
-
-            Log::info('Work order conversation sent successfully!', [
+        // Log and return response status
+        if ($response) {
+            Log::info('Work order service status has been closed successfully!', [
                 'workOrderId' => $workOrder->work_order_no,
             ]);
-
-            return true;
-
-        } catch (\Exception $exception) {
-            Log::error('Closing work order failed: '.$exception);
-
-            return false;
-
         }
-
     }
 
     public function reOpenWorkOrder(object $workOrder)
