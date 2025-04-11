@@ -58,6 +58,7 @@ class TwilioWebhookController extends Controller
                 if ($isMms) {
                     $this->processMediaAttachments($conversation, $data);
                 }
+                Log::info('Message inserted successfully into the database.', ['data' => $conversation]);
 
                 return response()->noContent(); // HTTP 204
 

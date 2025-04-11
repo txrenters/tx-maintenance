@@ -64,17 +64,14 @@ const totalTimeEstimate = computed(() => {
 </script>
 <template>
     <Head :title="title" />
-    <div class="flex justify-end">
-        <Button>Download</Button>
-    </div>
     <Card>
         <CardHeader
             class="text-center flex flex-col justify-center sm:flex-row sm:justify-between gap-4"
         >
-            <div class="flex justify-center h-20">
+            <!-- <div class="flex justify-center h-20">
                 <img src="/logo-ct.png" />
-            </div>
-            <div class="flex flex-col justify-end gap-2 text-right">
+            </div> -->
+            <div class="flex flex-col justify-end text-left">
                 <CardTitle class="uppercase">{{ title }}</CardTitle>
                 <CardTitle class="uppercase text-2xl"
                     >Work Order No: #{{ work_order.work_order_no }}</CardTitle

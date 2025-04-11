@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\TaskService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
@@ -18,12 +19,51 @@ class TaskController extends Controller
             'tasks.task.taskDetails.taskServiceStatus',
             'tasks.task.nextServiceStatus',
             'tasks.assigned_user',
-        ])->whereHas('tasks', function ($query) {
-            $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
-        })->get();
+        ])
+            ->when($request->search, function ($query) use ($request) {
+                $query->where('work_order_no', 'like', '%'.$request->search.'%');
+            })
+            ->whereHas('tasks', function ($query) {
+                $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
+            })->get();
 
-        $tasks = $workOrders->flatMap(function ($workOrder) {
-            return $workOrder->tasks->map(function ($task) use ($workOrder) {
+        $now = now();
+
+        $dueTodayTasks = $workOrders->flatMap(function ($workOrder) {
+            return $workOrder->tasks->filter(function ($task) {
+                return $task->status == 'pending' && Carbon::parse($task->due_date)->isToday();
+            })->map(function ($task) use ($workOrder) {
+                $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
+
+                return $task;
+            });
+        });
+
+        $upcomingTasks = $workOrders->flatMap(function ($workOrder) use ($now) {
+            return $workOrder->tasks->filter(function ($task) use ($now) {
+                return $task->status == 'pending' && Carbon::parse($task->due_date)->isAfter($now);
+            })->map(function ($task) use ($workOrder) {
+                $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
+
+                return $task;
+            });
+        });
+
+        $pastDueTasks = $workOrders->flatMap(function ($workOrder) use ($now) {
+            return $workOrder->tasks->filter(function ($task) use ($now) {
+                return $task->status == 'pending' && Carbon::parse($task->due_date)->toDateString() < $now->toDateString();
+
+            })->map(function ($task) use ($workOrder) {
+                $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
+
+                return $task;
+            });
+        });
+
+        $completeTasks = $workOrders->flatMap(function ($workOrder) {
+            return $workOrder->tasks->filter(function ($task) {
+                return $task->status == 'completed';
+            })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
 
                 return $task;
@@ -32,7 +72,10 @@ class TaskController extends Controller
 
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
-            'tasks' => $tasks,
+            'dueTodayTasks' => $dueTodayTasks,
+            'upcomingTasks' => $upcomingTasks,
+            'pastDueTasks' => $pastDueTasks,
+            'completedTasks' => $completeTasks,
         ]);
     }
 

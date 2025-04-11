@@ -123,9 +123,8 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderTask::class)
             ->orderByRaw("
                 CASE 
-                    WHEN status = 'processing' THEN 1
-                    WHEN status = 'pending' THEN 2
-                    WHEN status = 'completed' THEN 3
+                    WHEN status = 'pending' THEN 1
+                    WHEN status = 'completed' THEN 2
                 END
             ")
             ->orderBy('created_at', 'desc');
