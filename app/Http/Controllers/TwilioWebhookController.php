@@ -41,9 +41,10 @@ class TwilioWebhookController extends Controller
         // $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
 
         if ($workOrderId && $type) {
+
             try {
 
-                $this->validateTwilioRequest($request);
+                // $this->validateTwilioRequest($request); remove this line if you want to skip validation
 
                 $conversation = Conversation::create([
                     'message' => $body,

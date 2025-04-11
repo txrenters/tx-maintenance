@@ -48,6 +48,6 @@ php /home/site/wwwroot/artisan storage:link
 # Turn off maintenance mode
 php /home/site/wwwroot/artisan up
 
-nohup php /home/site/wwwroot/artisan schedule:work
+nohup php /home/site/wwwroot/artisan schedule:work &
 # run worker
 nohup php /home/site/wwwroot/artisan queue:listen --timeout=720 --tries=9 &
