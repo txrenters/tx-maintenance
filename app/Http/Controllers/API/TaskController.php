@@ -110,6 +110,7 @@ class TaskController extends Controller
             'status' => $request->status,
         ]);
         Log::info('Task is undoned successfully: ', ['task_id' => $task->id]);
+
         return redirect()->back();
     }
 }

@@ -12,7 +12,7 @@ use InvalidArgumentException;
 
 class ConversationController extends Controller
 {
-    public function show(WorkOrder $workOrder) 
+    public function show(WorkOrder $workOrder)
     {
         $convo = $workOrder->load(['vendor_tenant_conversation.media', 'tenant_conversation.media', 'owner_conversation.media', 'vendor_conversation.media', 'vendors']);
 
@@ -69,7 +69,7 @@ class ConversationController extends Controller
         try {
 
             // Save the message to the database
-           Conversation::create([
+            Conversation::create([
                 'message' => $validatedData['text'],
                 'sender_number' => $senderNumber,
                 'receiver_number' => $receiverNumber,
@@ -118,5 +118,5 @@ class ConversationController extends Controller
         $conversation->delete();
 
         return redirect()->back()->with('success', 'Message deleted successfully!');
-    }   
+    }
 }

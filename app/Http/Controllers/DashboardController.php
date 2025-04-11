@@ -17,7 +17,7 @@ class DashboardController extends Controller
     {
         $year = $request->input('year', Carbon::now()->year);
 
-        $workOrders = WorkOrder::whereYear('created_at', $year)->get();
+        $workOrders = WorkOrder::whereYear('created_date', $year)->get();
         $tasks = WorkOrderTask::whereYear('created_at', $year)->get();
         $invoices = Invoice::all();
 

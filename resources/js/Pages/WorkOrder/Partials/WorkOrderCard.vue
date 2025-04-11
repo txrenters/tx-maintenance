@@ -1,5 +1,5 @@
 <script setup>
-import { Truck, User, UserRoundPen } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen } from "lucide-vue-next";
 import { DateTime } from "luxon";
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -108,8 +108,13 @@ const checkDueTask = (tasks) => {
                             </p>
                         </div>
                         <!-- Location -->
-                        <p class="text-sm text-gray-100 mb-2">
+                        <p class="text-sm text-gray-100">
                             {{ work_order.location }}
+                        </p>
+                        <p
+                            class="text-sm text-gray-100 mb-2 flex items-center gap-1 justify-center"
+                        >
+                            <Tag class="w-4 h-4" />{{ work_order.category }}
                         </p>
                         <div
                             v-if="work_order.requested_by"

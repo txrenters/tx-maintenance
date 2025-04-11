@@ -29,9 +29,10 @@ class TwilioWebhookController extends Controller
 
         if (! $message) {
             Log::info('Message not found in the database.');
+
             return response('Error processing request', 500);
         }
-        
+
         $type = $message->conversation_type ?? ''; // Provide a fallback
         $workOrderId = $message->work_order_id ?? ''; // Provide a fallback
 
@@ -135,9 +136,8 @@ class TwilioWebhookController extends Controller
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
         })->latest()->first(); // fetch the latest conversation
-        
-    }
 
+    }
 
     protected function getMessageType(string $from, string $to): string
     {
