@@ -227,8 +227,8 @@ const handleDeleteSubmit = () => {
                     title="Assign vendor"
                     :disabled="loading"
                     v-if="
-                        workOrder.local_status !== 'Updated' &&
-                        $page.props.auth.user.roles.includes('admin') &&
+                        (workOrder.local_status === 'Created' &&
+                            $page.props.auth.user.roles.includes('admin')) ||
                         $page.props.auth.user.roles.includes('woc')
                     "
                     @click.prevent="handleVendorSubmit"
