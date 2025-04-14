@@ -17,20 +17,19 @@ class AsanaWebhookController extends Controller
                 'X-Hook-Secret' => $request->header('X-Hook-Secret'),
             ]);
         }
-    
-        // Otherwise process real events
-        $events = $request->json('events', []);
-    
-        if ($events) {
-            Log::info('Received webhook events', ['events' => $events]);
-    
+
+        $event = $request->all();
+
+        if($event){
+            // Log the event for debugging purposes
+            Log::info('Asana Webhook Event:', $event);
+
             Artisan::call('asana:set-dues');
-    
-            return response()->json(['message' => 'Webhook processed'], 200);
+
+        } else {
+            Log::error('No event data received from Asana webhook.');
         }
     
-        Log::warning('No events found in the webhook request');
-        return response()->json(['message' => 'No events found'], 400);
     }
     
 }
