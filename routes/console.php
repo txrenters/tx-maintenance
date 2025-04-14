@@ -8,5 +8,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('asana:set-dues')->everyThreeMinutes()->runInBackground()->withoutOverlapping();;
-Schedule::command('import:work-orders')->everyFiveMinutes()->runInBackground()->withoutOverlapping();;
+Schedule::command('asana:set-dues')->everyThreeMinutes()->runInBackground()->withoutOverlapping();
+Schedule::command('import:work-orders')->everyFiveMinutes()->runInBackground()->withoutOverlapping();
