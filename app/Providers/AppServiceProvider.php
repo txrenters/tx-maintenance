@@ -33,12 +33,14 @@ class AppServiceProvider extends ServiceProvider
             return $request->user()?->hasRole('admin') ?? false;
         });
 
-        // Model::shouldBeStrict(! App::environment('production'));
 
         if (App::environment('production')) {
             URL::forceScheme('https');
             URL::forceRootUrl(config('app.url'));
-
         }
+
+        // Model::shouldBeStrict(! App::environment('production'));
+        Model::automaticallyEagerLoadRelationships();
+
     }
 }

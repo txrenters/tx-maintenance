@@ -66,7 +66,7 @@ const updateStatus = (work_order) => {
                                     v-if="
                                         $page.props.auth.user.roles.includes(
                                             'admin'
-                                        ) &&
+                                        ) ||
                                         $page.props.auth.user.roles.includes(
                                             'woc'
                                         )
