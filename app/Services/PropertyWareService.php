@@ -195,24 +195,28 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.(int) $work_order->portfolio_id.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($work_order->location, ENT_XML1, 'UTF-8').'</location>
-                            <category xsi:type="xsd:string">'.htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8').'</category>
-                            <description xsi:type="xsd:string">'.htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8').'</description>
+                            <location xsi:type="xsd:string">'.$work_order->location.'</location>
+                            <category xsi:type="xsd:string">'.$data['category'] ?? ''.'</category>
+                            <description xsi:type="xsd:string">'.$data['description'] ?? ''.'</description>
 
-                            <closingComments xsi:type="xsd:string">'.htmlspecialchars($data['closing_comments'] ?? '', ENT_XML1, 'UTF-8').'</closingComments>
+                            <closingComments xsi:type="xsd:string">'.$data['closing_comments'] ?? ''.'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($data['management_plan'] ?? '', ENT_XML1, 'UTF-8').'</value>
+                                    <value xsi:type="xsd:string">'.$data['management_plan'] ?? ''.'</value>
                                 </customFields>
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($data['additional_work_needed_reschedule'] ?? '', ENT_XML1, 'UTF-8').'</value>
+                                    <value xsi:type="xsd:string">'.$data['additional_work_needed_reschedule'] ?? ''.'</value>
                                 </customFields>
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Zone</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($data['zone'] ?? '', ENT_XML1, 'UTF-8').'</value>
+                                    <value xsi:type="xsd:string">'.$data['zone'] ?? ''.'</value>
+                                </customFields>
+                                   <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">closing comment</fieldName>
+                                    <value xsi:type="xsd:string">'.$data['closing_comments'] ?? ''.'</value>
                                 </customFields>
                             </customFields>
                         </workOrder>
@@ -276,7 +280,23 @@ class PropertyWareService
                             <customFields xsi:type="ns2:CustomField">
                                 <fieldName xsi:type="xsd:string">Service Status</fieldName>
                                 <value xsi:type="xsd:string">'.$service_status->name.'</value>
-                                </customFields>
+                            </customFields>
+                             <customFields xsi:type="urn:CustomField">
+                                <fieldName xsi:type="xsd:string">Management Plan</fieldName>
+                                <value xsi:type="xsd:string">'.$workOrder->management_plan ?? ''.'</value>
+                            </customFields>
+                            <customFields xsi:type="urn:CustomField">
+                                <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
+                                <value xsi:type="xsd:string">'.$workOrder->additional_work_needed_reschedule ?? ''.'</value>
+                            </customFields>
+                            <customFields xsi:type="urn:CustomField">
+                                <fieldName xsi:type="xsd:string">Zone</fieldName>
+                                <value xsi:type="xsd:string">'.$workOrder->zone ?? ''.'</value>
+                            </customFields>
+                                <customFields xsi:type="urn:CustomField">
+                                <fieldName xsi:type="xsd:string">closing comment</fieldName>
+                                <value xsi:type="xsd:string">'.$workOrder->closing_comments ?? ''.'</value>
+                            </customFields>
                         </customFields>
                         </workOrder>
                         </ser:updateWorkOrder>

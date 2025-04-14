@@ -314,8 +314,8 @@ const handleDeleteSubmit = () => {
             </div>
             <div
                 v-if="
-                    workOrder.is_emergency === null &&
-                    $page.props.auth.user.roles.includes('admin') &&
+                    (workOrder.is_emergency === null &&
+                        $page.props.auth.user.roles.includes('admin')) ||
                     $page.props.auth.user.roles.includes('woc')
                 "
             >
