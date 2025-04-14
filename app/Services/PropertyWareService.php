@@ -173,10 +173,10 @@ class PropertyWareService
 
     }
 
-    public function updateWorkOrder(array $data, $work_order)
+    public function updateWorkOrder($workOrder)
     {
         try {
-            Log::info('Work Order ID:', ['propertyware_id' => $work_order->propertyware_id]);
+            Log::info('Work Order ID:', ['propertyware_id' => $workOrder->propertyware_id]);
 
             $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -188,35 +188,35 @@ class PropertyWareService
                 <soapenv:Body>
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                         <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.(int) $work_order->propertyware_id.'</ID>
+                            <ID xsi:type="xsd:long">'.(int) $workOrder->propertyware_id.'</ID>
                             <building xsi:type="urn:Building">
-                                <ID xsi:type="xsd:long">'.(int) $work_order->building_id.'</ID>
+                                <ID xsi:type="xsd:long">'.(int) $workOrder->building_id.'</ID>
                             </building>
                             <portfolio xsi:type="urn:Portfolio">
-                                <ID xsi:type="xsd:long">'.(int) $work_order->portfolio_id.'</ID>
+                                <ID xsi:type="xsd:long">'.(int) $workOrder->portfolio_id.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.$work_order->location.'</location>
-                            <category xsi:type="xsd:string">'.$data['category'] ?? ''.'</category>
-                            <description xsi:type="xsd:string">'.$data['description'] ?? ''.'</description>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
 
-                            <closingComments xsi:type="xsd:string">'.$data['closing_comments'] ?? ''.'</closingComments>
+                            <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                                    <value xsi:type="xsd:string">'.$data['management_plan'] ?? ''.'</value>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                                    <value xsi:type="xsd:string">'.$data['additional_work_needed_reschedule'] ?? ''.'</value>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Zone</fieldName>
-                                    <value xsi:type="xsd:string">'.$data['zone'] ?? ''.'</value>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
-                                   <customFields xsi:type="urn:CustomField">
+                                <customFields xsi:type="ns2:CustomField">
                                     <fieldName xsi:type="xsd:string">closing comment</fieldName>
-                                    <value xsi:type="xsd:string">'.$data['closing_comments'] ?? ''.'</value>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
                             </customFields>
                         </workOrder>
@@ -230,14 +230,14 @@ class PropertyWareService
             // Log and return response status
             if ($res) {
                 Log::info('Updating work order is successfully!', [
-                    'workOrderId' => $work_order->work_order_no,
+                    'workOrderId' => $workOrder->work_order_no,
                 ]);
 
                 return true;
             }
 
             Log::error('Updating work order failed!', [
-                'workOrderId' => $work_order->work_order_no,
+                'workOrderId' => $workOrder->work_order_no,
             ]);
 
             return false;
@@ -275,30 +275,35 @@ class PropertyWareService
                             <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
                         <location xsi:type="xsd:string">'.$location.'</location>
-                        <description xsi:type="xsd:string">'.$workOrder->description ?? ''.'</description>
-                        <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                            xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                            <customFields xsi:type="ns2:CustomField">
-                                <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                                <value xsi:type="xsd:string">'.$service_status->name.'</value>
-                            </customFields>
-                             <customFields xsi:type="urn:CustomField">
-                                <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                                <value xsi:type="xsd:string">'.$workOrder->management_plan ?? ''.'</value>
-                            </customFields>
-                            <customFields xsi:type="urn:CustomField">
-                                <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                                <value xsi:type="xsd:string">'.$workOrder->additional_work_needed_reschedule ?? ''.'</value>
-                            </customFields>
-                            <customFields xsi:type="urn:CustomField">
-                                <fieldName xsi:type="xsd:string">Zone</fieldName>
-                                <value xsi:type="xsd:string">'.$workOrder->zone ?? ''.'</value>
-                            </customFields>
+
+                         <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+
+                            <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
+                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
+                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                                 <customFields xsi:type="urn:CustomField">
-                                <fieldName xsi:type="xsd:string">closing comment</fieldName>
-                                <value xsi:type="xsd:string">'.$workOrder->closing_comments ?? ''.'</value>
+                                    <fieldName xsi:type="xsd:string">Management Plan</fieldName>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
+                                </customFields>
+                                <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
+                                </customFields>
+                                <customFields xsi:type="urn:CustomField">
+                                    <fieldName xsi:type="xsd:string">Zone</fieldName>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
+                                </customFields>
+                                 <customFields xsi:type="ns2:CustomField">
+                                    <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                                    <value xsi:type="xsd:string">'.$service_status->name.'</value>
+                                </customFields>
+                                <customFields xsi:type="ns2:CustomField">
+                                    <fieldName xsi:type="xsd:string">closing comment</fieldName>
+                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
+                                </customFields>
                             </customFields>
-                        </customFields>
                         </workOrder>
                         </ser:updateWorkOrder>
                         </soapenv:Body>

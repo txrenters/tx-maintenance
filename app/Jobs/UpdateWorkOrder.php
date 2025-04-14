@@ -37,7 +37,7 @@ class UpdateWorkOrder implements ShouldQueue
         DB::beginTransaction();
         try {
             $workOrder = WorkOrder::findOrFail($this->workOrderId);
-            $propertyware->updateWorkOrder($this->data, $workOrder);
+            $propertyware->updateWorkOrder($workOrder);
 
             DB::commit();
             Log::info('Work Order Updated', ['work_order_id' => $this->workOrderId]);
