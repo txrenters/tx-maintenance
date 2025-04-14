@@ -146,7 +146,10 @@ const totalTimeEstimate = computed(() => {
                     <p>{{ work_order.decription }}</p>
                 </div>
             </div>
-            <div class="p-4 border mb-4">
+            <div
+                class="p-4 border mb-4"
+                v-if="!$page.props.auth.user.roles.includes('tenant')"
+            >
                 <p>Task Details</p>
                 <div
                     class="mt-4"
@@ -213,7 +216,10 @@ const totalTimeEstimate = computed(() => {
                 </p>
             </div>
 
-            <div class="p-4 border mb-4">
+            <div
+                class="p-4 border mb-4"
+                v-if="!$page.props.auth.user.roles.includes('tenant')"
+            >
                 <p>Invoices</p>
                 <div class="mb-3">
                     <FilesInvoice :files="work_order.invoices" />
@@ -228,7 +234,10 @@ const totalTimeEstimate = computed(() => {
 
             <div class="p-4 border mb-4">
                 <p class="mb-4">Conversations</p>
-                <div class="mb-4 p-2 border">
+                <div
+                    class="mb-4 p-2 border"
+                    v-if="!$page.props.auth.user.roles.includes('tenant')"
+                >
                     <p class="mb-2 font-bold">WOC and Vendor</p>
                     <MessageCard2 :messages="work_order.vendor_conversation" />
                     <p
@@ -239,7 +248,10 @@ const totalTimeEstimate = computed(() => {
                         order.
                     </p>
                 </div>
-                <div class="mb-4 p-2 border">
+                <div
+                    class="mb-4 p-2 border"
+                    v-if="!$page.props.auth.user.roles.includes('tenant')"
+                >
                     <p class="mb-2 font-bold">WOC and Owner</p>
                     <MessageCard2 :messages="work_order.owner_conversation" />
                     <p

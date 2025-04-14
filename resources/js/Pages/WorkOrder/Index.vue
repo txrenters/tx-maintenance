@@ -34,13 +34,6 @@ import {
     RefreshCw,
     ScanSearch,
 } from "lucide-vue-next";
-import {
-    TagsInput,
-    TagsInputInput,
-    TagsInputItem,
-    TagsInputItemDelete,
-    TagsInputItemText,
-} from "@/Components/ui/tags-input";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -69,8 +62,6 @@ const props = defineProps({
 const url = ref(route("work_orders.index"));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
-
-const filterDate = ref(false);
 
 const openWorkOrder = ref(false);
 
@@ -122,7 +113,7 @@ const tabButtons = [
         name: "details",
         tooltip: "Details",
         icon: ClipboardList,
-        requires: ["admin", "woc", "vendor"],
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
     },
     {
         name: "tasks",
@@ -134,7 +125,7 @@ const tabButtons = [
         name: "notes",
         tooltip: "Notes",
         icon: Notebook,
-        requires: ["admin", "woc", "vendor"],
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
     },
     {
         name: "vendor_edit",
@@ -183,7 +174,7 @@ const tabButtons = [
         name: "attachments",
         tooltip: "Attachments",
         icon: Paperclip,
-        requires: ["admin", "woc", "vendor"],
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
     },
     {
         name: "invoices",
@@ -772,8 +763,9 @@ usePoll(5000, { only: ["service_status"] });
     </ScrollArea>
 
     <div class="">
-        <span class="text-gray-600">Drag the scrollbar to scroll →</span>
+        <span class="text-gray-600">Drag/swipe the scrollbar →</span>
     </div>
+
     <Dialog v-model:open="openWorkOrder">
         <DialogContent
             class="sm:max-w-[800px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

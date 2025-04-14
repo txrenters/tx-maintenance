@@ -24,7 +24,7 @@ usePoll(10000);
     <div>
         <SearchBar :url="url" v-model="search" class="w-full" />
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="flex-1">
             <h2 class="text-xl font-bold mb-2 p-2 border">
                 Past Due ({{ pastDueTasks.length }})
@@ -53,7 +53,7 @@ usePoll(10000);
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
         </div>
-        <div class="flex-1">
+        <!-- <div class="flex-1">
             <h2 class="text-xl font-bold mb-2 p-2 border">
                 Completed ({{ completedTasks.length }})
             </h2>
@@ -61,6 +61,6 @@ usePoll(10000);
                 <TaskCard :tasks="completedTasks" />
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
-        </div>
+        </div> -->
     </div>
 </template>

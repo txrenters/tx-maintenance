@@ -39,9 +39,18 @@ const completedWorkOrders = computed(() => {
     return props.workOrders.filter((order) => order.status === "Closed");
 });
 
+const pendingWorkOrders = computed(() => {
+    return props.workOrders.filter((order) => order.status === "Open" && order.service_status_id === 1);
+});
+
+const processWorkOrders = computed(() => {
+    return props.workOrders.filter((order) => order.status === "Open" && order.service_status_id !== 1);
+});
+
 const completedTasks = computed(() => {
     return props.tasks.filter((task) => task.status === "completed");
 });
+
 
 const invoiceTotalApproved = computed(() => {
     return props.invoices
@@ -111,22 +120,71 @@ usePoll(5000);
             <CardHeader
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
-                <CardTitle class="text-sm font-medium"> Work Orders </CardTitle>
+                <CardTitle class="text-sm font-medium">Total Work Orders </CardTitle>
                 <Wrench class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div class="text-2xl font-bold">+{{ workOrders.length }}</div>
+            </CardContent>
+        </Card>
+        <Card v-if="$page.props.auth.user.roles.includes('tenant') || $page.props.auth.user.roles.includes('owner')">
+            <CardHeader
+                class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
+                <CardTitle class="text-sm font-medium"> Completed </CardTitle>
+                <Wrench class="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div class="text-2xl font-bold">+{{ completedWorkOrders.length }}</div>
                 <p class="text-xs text-muted-foreground">
                     {{
                         getCompletionPercentage(
                             completedWorkOrders,
                             workOrders
                         )
-                    }}% ({{ completedWorkOrders.length }}) completed
+                    }}% completed
                 </p>
             </CardContent>
         </Card>
-        <Card>
+        <Card v-if="$page.props.auth.user.roles.includes('tenant') || $page.props.auth.user.roles.includes('owner')">
+            <CardHeader
+                class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
+                <CardTitle class="text-sm font-medium">Pending </CardTitle>
+                <Wrench class="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div class="text-2xl font-bold">+{{ pendingWorkOrders.length }}</div>
+                <p class="text-xs text-muted-foreground">
+                    {{
+                        getCompletionPercentage(
+                            pendingWorkOrders,
+                            workOrders
+                        )
+                    }}% incomplete
+                </p>
+            </CardContent>
+        </Card>
+        <Card v-if="$page.props.auth.user.roles.includes('tenant') || $page.props.auth.user.roles.includes('owner')">
+            <CardHeader
+                class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
+                <CardTitle class="text-sm font-medium">In Progress </CardTitle>
+                <Wrench class="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div class="text-2xl font-bold">+{{ processWorkOrders.length }}</div>
+                <p class="text-xs text-muted-foreground">
+                    {{
+                        getCompletionPercentage(
+                            processWorkOrders,
+                            workOrders
+                        )
+                    }}% in progress
+                </p>
+            </CardContent>
+        </Card>
+        <Card v-if="!$page.props.auth.user.roles.includes('tenant') && !$page.props.auth.user.roles.includes('owner')">
             <CardHeader
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
@@ -142,7 +200,7 @@ usePoll(5000);
                 </p>
             </CardContent>
         </Card>
-        <Card>
+        <Card v-if="!$page.props.auth.user.roles.includes('tenant') && !$page.props.auth.user.roles.includes('owner')">
             <CardHeader
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >
@@ -157,8 +215,8 @@ usePoll(5000);
                     {{ pendingInvoices.length }} pending invoices
                 </p>
             </CardContent>
-        </Card>
-        <Card>
+        </Card v-if="!$page.props.auth.user.roles.includes('tenant') && !$page.props.auth.user.roles.includes('owner')">
+        <Card v-if="!$page.props.auth.user.roles.includes('tenant') && !$page.props.auth.user.roles.includes('owner')">
             <CardHeader
                 class="flex flex-row items-center justify-between space-y-0 pb-2"
             >

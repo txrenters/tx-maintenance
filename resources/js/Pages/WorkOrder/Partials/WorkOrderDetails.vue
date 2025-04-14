@@ -228,7 +228,8 @@ const handleDeleteSubmit = () => {
                     :disabled="loading"
                     v-if="
                         workOrder.local_status !== 'Updated' &&
-                        !$page.props.auth.user.roles.includes('vendor')
+                        $page.props.auth.user.roles.includes('admin') &&
+                        $page.props.auth.user.roles.includes('woc')
                     "
                     @click.prevent="handleVendorSubmit"
                 >
@@ -311,7 +312,13 @@ const handleDeleteSubmit = () => {
                     </ComboboxAnchor>
                 </Combobox>
             </div>
-            <div v-if="workOrder.is_emergency === null">
+            <div
+                v-if="
+                    workOrder.is_emergency === null &&
+                    $page.props.auth.user.roles.includes('admin') &&
+                    $page.props.auth.user.roles.includes('woc')
+                "
+            >
                 <Label for="message">Emergency:</Label>
                 <Select
                     v-model="workOrder.is_emergency"
