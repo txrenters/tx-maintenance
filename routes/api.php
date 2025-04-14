@@ -1,6 +1,5 @@
 <?php
 
-use App\Console\Commands\RegisterAsanaWebhook;
 use App\Http\Controllers\API\AsanaWebhookController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
