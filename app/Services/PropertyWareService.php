@@ -275,6 +275,7 @@ class PropertyWareService
                             <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
                         <location xsi:type="xsd:string">'.$location.'</location>
+                        <description xsi:type="xsd:string">'.$workOrder->description ?? ''.'</description>
                         <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                             xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                             <customFields xsi:type="ns2:CustomField">
