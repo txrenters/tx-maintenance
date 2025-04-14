@@ -1,5 +1,7 @@
 <?php
 
+use App\Console\Commands\RegisterAsanaWebhook;
+use App\Http\Controllers\API\AsanaWebhookController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\ConversationController;
@@ -30,3 +32,5 @@ Route::post('/service_schedule/{serviceSchedule}/complete', [ServiceScheduleCont
 Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute
+
+Route::post('/asana/webhook', [AsanaWebhookController::class, 'handleWebhook']);
