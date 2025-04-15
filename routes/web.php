@@ -100,12 +100,22 @@ Route::fallback(function () {
         ->setStatusCode(404);
 });
 
-Route::get('/vendorssss', function () {
+Route::get('/functionssss', function () {
 
     $propertyware = new PropertyWareService;
 
-    $vendors = $propertyware->getVendors();
+    $client = new \SoapClient(env('PROPERTYWARE_URL'), [
+        'login' => env('PROPERTYWARE_USERNAME'),
+        'password' => env('PROPERTYWARE_PASSWORD'),
+        'trace' => true,
+        'exceptions' => true,
+    ]);
 
-    dd($vendors);
+    // dd($client->__getFunctions());
+
+    return $client->getDocumentDTO([
+        'documentId' => $documentId
+    ]);
+
 
 });

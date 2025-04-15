@@ -411,7 +411,9 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.$location.'</location>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
                     </ser:updateWorkOrder>
@@ -435,7 +437,6 @@ class PropertyWareService
             $workorderId = $workOrder->propertyware_id;
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
-            $location = $workOrder->location;
 
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -452,9 +453,11 @@ class PropertyWareService
                     <ID xsi:type="xsd:long">'.$buildingId.'</ID>
                     </building>
                     <portfolio xsi:type="urn:Portfolio">
-                    <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                        <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                     </portfolio>
-                    <location xsi:type="xsd:string">'.$location.'</location>
+                    <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                    <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                    <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                     <status xsi:type="xsd:string">Open</status>
                     </workOrder>
                     </ser:updateWorkOrder>
@@ -816,28 +819,31 @@ class PropertyWareService
 
         $curl = curl_init();
 
-        // Set cURL options
         curl_setopt_array($curl, [
             CURLOPT_URL => $this->url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $xmlPayload,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: text/xml; charset=utf-8',
-                'SOAPAction: ""',
-                'Connection: Keep-Alive',
-                'Keep-Alive: 300',
-            ],
+            // CURLOPT_HTTPHEADER => [
+            //     'Content-Type: text/xml; charset=utf-8',
+            //     'SOAPAction: ""',
+            //     'Connection: Keep-Alive',
+            //     'Keep-Alive: 300',
+            // ],
             CURLOPT_USERPWD => $this->username.':'.$this->password,
-            CURLOPT_TIMEOUT => 5000, // 2 minute timeout
-            CURLOPT_CONNECTTIMEOUT => 120, // 30 second connection timeout
-            CURLOPT_SSL_VERIFYHOST => 2, // Enable SSL verification
-            CURLOPT_SSL_VERIFYPEER => true, // Enable SSL verification
-            CURLOPT_FAILONERROR => true,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_CONNECTTIMEOUT => 120,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2, // 👈 Force TLS 1.2
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
-        ]);
+            CURLOPT_VERBOSE => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_RETURNTRANSFER => true,
 
+        ]);
+        
         $response = curl_exec($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 
