@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Models\Owner;
 use App\Models\User;
 use Illuminate\Support\Facades\Response;
 
@@ -57,5 +56,4 @@ class OwnerPolicy
             ? Response::allow()
             : Response::deny('You do not have permission to view owner page.');
     }
-
 }

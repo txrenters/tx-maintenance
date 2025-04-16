@@ -516,6 +516,9 @@ class PropertyWareService
                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                 </portfolio>
                 <location xsi:type="xsd:string">'.$location.'</location>
+                <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                 <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                     xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                     <customFields xsi:type="ns2:CustomField">
@@ -565,15 +568,19 @@ class PropertyWareService
                     <soapenv:Body>
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                     <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                    <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                    <building xsi:type="urn:Building">
-                    <ID xsi:type="xsd:long">'.$buildigId.'</ID>
-                    </building>
-                    <portfolio xsi:type="urn:Portfolio">
-                    <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                    </portfolio>
-                    <location xsi:type="xsd:string">'.$location.'</location>
-                    '.$vendorIDsXml.'
+                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                        <building xsi:type="urn:Building">
+                        <ID xsi:type="xsd:long">'.$buildigId.'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                        <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
+                        <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                        <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                        <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                        <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
+                        '.$vendorIDsXml.'
                     </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
@@ -841,7 +848,7 @@ class PropertyWareService
             CURLOPT_RETURNTRANSFER => true,
 
         ]);
-        
+
         $response = curl_exec($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 

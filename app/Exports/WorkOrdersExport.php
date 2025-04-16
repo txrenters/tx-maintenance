@@ -14,7 +14,7 @@ class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
      * @return \Illuminate\Support\Collection
      */
     public function collection()
-    {        
+    {
         return WorkOrder::with([
             'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',
         ])

@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Owner;
-use App\Models\Tenants;
 use App\Models\User;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
@@ -199,7 +198,7 @@ class WorkOrderImportCommand extends Command
     {
         $user = User::where('email', $data['email'])->first();
 
-        if(! $user){
+        if (! $user) {
             $user = User::create($data);
             $user->assignRole($role);
         }
@@ -286,7 +285,7 @@ class WorkOrderImportCommand extends Command
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
-            
+
             $workOrderId = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
 
             DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
@@ -361,8 +360,8 @@ class WorkOrderImportCommand extends Command
     {
         try {
             $documentsData = [];
-            
-            if (!empty($data['documents']) && is_array($data['documents'])) {
+
+            if (! empty($data['documents']) && is_array($data['documents'])) {
                 foreach ($data['documents'] as $index => $document) {
                     // Validate required document fields
                     if (empty($document['fileData'])) {
@@ -389,31 +388,29 @@ class WorkOrderImportCommand extends Command
                         'updated_at' => $now,
                     ];
 
-
                     $fileDocumentExist = DB::table('work_order_documents')
                         ->where('propertyware_id', $document['ID'])
                         ->whereIn('file_name', $this->sanitizeFileName($document['fileName'] ?? 'document_'.time().'_'.$index))
                         ->exists();
 
-                    if (!$fileDocumentExist) { // don't insert if exists
+                    if (! $fileDocumentExist) { // don't insert if exists
                         DB::table('work_order_documents')->insert($documentsData);
                         $this->storeDocumentsOnDisk($documentsData);
                     }
                 }
 
-               
             }
 
         } catch (\Exception $e) {
             Log::error('Failed to process documents', [
                 'work_order' => $work_order,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
 
-     /**
+    /**
      * Process file data (handle base64 or binary)
      */
     private function processFileData(string $fileData): string
@@ -422,6 +419,7 @@ class WorkOrderImportCommand extends Command
         if (base64_encode(base64_decode($fileData, true)) === $fileData) {
             return base64_decode($fileData);
         }
+
         return $fileData;
     }
 
@@ -431,6 +429,7 @@ class WorkOrderImportCommand extends Command
     private function detectFileType(string $filename): ?string
     {
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
+
         return $extension ?: null;
     }
 
@@ -441,10 +440,10 @@ class WorkOrderImportCommand extends Command
     {
         // Remove illegal file system characters
         $filename = preg_replace('/[^a-zA-Z0-9\-\._]/', '', $filename);
-        
+
         // Remove multiple dots
         $filename = preg_replace('/\.+/', '.', $filename);
-        
+
         return $filename;
     }
 
@@ -454,7 +453,7 @@ class WorkOrderImportCommand extends Command
     private function storeDocumentsOnDisk(array $documents): void
     {
         foreach ($documents as $document) {
-            if (!empty($document['file_data']) && !empty($document['file_name'])) {
+            if (! empty($document['file_data']) && ! empty($document['file_name'])) {
                 $path = 'attachments/'.$document['file_name'];
                 Storage::put($path, $document['file_data']);
             }

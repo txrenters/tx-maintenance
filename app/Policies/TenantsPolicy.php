@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Models\Tenants;
 use App\Models\User;
 use Illuminate\Support\Facades\Response;
 
@@ -13,9 +12,9 @@ class TenantsPolicy
      */
     public function view_tenants(User $user): bool
     {
-         return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view tenant page.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+           ? Response::allow()
+           : Response::deny('You do not have permission to view tenant page.');
     }
 
     /**
@@ -23,9 +22,9 @@ class TenantsPolicy
      */
     public function view_tenant(User $user): bool
     {
-         return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view tenant page.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+           ? Response::allow()
+           : Response::deny('You do not have permission to view tenant page.');
     }
 
     /**
@@ -33,9 +32,9 @@ class TenantsPolicy
      */
     public function create_tenant(User $user): bool
     {
-         return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view tenant page.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+           ? Response::allow()
+           : Response::deny('You do not have permission to view tenant page.');
     }
 
     /**
@@ -43,9 +42,9 @@ class TenantsPolicy
      */
     public function update_tenant(User $user): bool
     {
-         return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view tenant page.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+           ? Response::allow()
+           : Response::deny('You do not have permission to view tenant page.');
     }
 
     /**
@@ -53,8 +52,8 @@ class TenantsPolicy
      */
     public function delete_tenant(User $user): bool
     {
-         return $user->hasRole('admin') || $user->hasRole('woc')
-            ? Response::allow()
-            : Response::deny('You do not have permission to view tenant page.');
+        return $user->hasRole('admin') || $user->hasRole('woc')
+           ? Response::allow()
+           : Response::deny('You do not have permission to view tenant page.');
     }
 }

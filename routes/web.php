@@ -114,8 +114,7 @@ Route::get('/functionssss', function () {
     // dd($client->__getFunctions());
 
     return $client->getDocumentDTO([
-        'documentId' => $documentId
+        'documentId' => $documentId,
     ]);
-
 
 });

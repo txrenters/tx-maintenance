@@ -20,7 +20,7 @@ class AsanaWebhookController extends Controller
 
         $event = $request->all();
 
-        if($event){
+        if ($event) {
             // Log the event for debugging purposes
             Log::info('Asana Webhook Event:', $event);
 
@@ -29,7 +29,6 @@ class AsanaWebhookController extends Controller
         } else {
             Log::error('No event data received from Asana webhook.');
         }
-    
+
     }
-    
 }

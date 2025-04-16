@@ -188,7 +188,7 @@ class ImportWorkOrderJob implements ShouldQueue
     {
         $user = User::where('email', $data['email'])->first();
 
-        if(! $user){
+        if (! $user) {
             $user = User::create($data);
             $user->assignRole($role);
         }
@@ -357,8 +357,8 @@ class ImportWorkOrderJob implements ShouldQueue
             }
 
             $documentsData = [];
-            
-            if (!empty($data['documents']) && is_array($data['documents'])) {
+
+            if (! empty($data['documents']) && is_array($data['documents'])) {
                 foreach ($data['documents'] as $index => $document) {
                     // Validate required document fields
                     if (empty($document['fileData'])) {
@@ -385,13 +385,12 @@ class ImportWorkOrderJob implements ShouldQueue
                         'updated_at' => $now,
                     ];
 
-
                     $fileDocumentExist = DB::table('work_order_documents')
                         ->where('propertyware_id', $document['ID'])
                         ->whereIn('file_name', $this->sanitizeFileName($document['fileName'] ?? 'document_'.time().'_'.$index))
                         ->exists();
 
-                    if (!$fileDocumentExist) { // don't insert if exists
+                    if (! $fileDocumentExist) { // don't insert if exists
                         DB::table('work_order_documents')->insert($documentsData);
                         $this->storeDocumentsOnDisk($documentsData);
                     }
@@ -402,7 +401,7 @@ class ImportWorkOrderJob implements ShouldQueue
             Log::error('Failed to process documents', [
                 'work_order' => $work_order,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -416,6 +415,7 @@ class ImportWorkOrderJob implements ShouldQueue
         if (base64_encode(base64_decode($fileData, true)) === $fileData) {
             return base64_decode($fileData);
         }
+
         return $fileData;
     }
 
@@ -425,6 +425,7 @@ class ImportWorkOrderJob implements ShouldQueue
     private function detectFileType(string $filename): ?string
     {
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
+
         return $extension ?: null;
     }
 
@@ -435,10 +436,10 @@ class ImportWorkOrderJob implements ShouldQueue
     {
         // Remove illegal file system characters
         $filename = preg_replace('/[^a-zA-Z0-9\-\._]/', '', $filename);
-        
+
         // Remove multiple dots
         $filename = preg_replace('/\.+/', '.', $filename);
-        
+
         return $filename;
     }
 
@@ -448,7 +449,7 @@ class ImportWorkOrderJob implements ShouldQueue
     private function storeDocumentsOnDisk(array $documents): void
     {
         foreach ($documents as $document) {
-            if (!empty($document['file_data']) && !empty($document['file_name'])) {
+            if (! empty($document['file_data']) && ! empty($document['file_name'])) {
                 $path = 'attachments/'.basename($document['file_name']);
                 Storage::put($path, $document['file_data']);
             }
