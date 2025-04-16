@@ -82,20 +82,23 @@ class TaskController extends Controller
 
         $service_status = ServiceStatus::find($next_service_id);
 
-        if ($service_status->name != 'Not Changed' && $service_status->name != 'Closed') {
-            $propertyWare = new PropertyWareService;
-            $propertyWare->changeServiceStatusPropertyWare($currentTask->work_order, $service_status);
+        $pendingTaskCount  = WorkOrderTask::where('status', 'pending')->count();
+
+        $statusChanged = !in_array($service_status->name, ['Not Changed', 'Closed']);
+        $noPendingTasks = $pendingTaskCount == 0;
+        
+        if ($statusChanged && $noPendingTasks) {
 
             $work_order->update([   // modify work order emergency base on task
                 'is_emergency' => $is_emergency,
             ]);
 
-            WorkOrderTask::where('work_order_id', $work_order->id)->where('status', '!=', 'completed')->delete();
+            WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
             TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
 
             $propertyWare = new PropertyWareService;
 
-            $propertyWare->updateServiceStatus($work_order, $service_status);
+            $propertyWare->updateServiceStatus($currentTask->work_order, $service_status);
 
         }
 
