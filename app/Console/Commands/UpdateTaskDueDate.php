@@ -28,7 +28,7 @@ class UpdateTaskDueDate extends Command
      */
     public function handle()
     {
-        Log::info('Starting UpdateSetDuesTasks command...');
+        Log::info('Starting update for asana task command...');
 
         $token = config('services.asana.token'); // Get API token from config
         $projectIds = [env('ASANA_PROJECT_ID_L_ON_THE_MARKET'), env('ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET')]; // Replace with actual Asana project GIDs
@@ -60,7 +60,6 @@ class UpdateTaskDueDate extends Command
 
                 if ($subtaskResponse->failed()) {
                     Log::error('Failed to fetch subtasks'.json_encode(['task_id' => $taskId, 'response' => $subtaskResponse->body()]));
-
                     continue;
                 }
 
@@ -71,7 +70,7 @@ class UpdateTaskDueDate extends Command
                         $subtaskId = $subtask['gid'];
                         $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
-                        Log::info(' subtask:', [
+                        Log::info('Subtask:', [
                             'subtask_name' => $subtask['name'],
                             'due_date' => $subtask['due_on'],
                         ]);
@@ -95,7 +94,7 @@ class UpdateTaskDueDate extends Command
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated  subtask:', ['subtask_name' => $subtask['name']]);
+                                Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
 
@@ -105,8 +104,8 @@ class UpdateTaskDueDate extends Command
                         $subtaskId = $subtask['gid'];
                         $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
 
-                        Log::info('Updating subtask:', [
-                            'subtask_id' => $subtaskId,
+                        Log::info('Subtask:', [
+                            'subtask_name' => $subtask['name'],
                             'due_date' => $subtask['due_on'],
                         ]);
 
@@ -129,7 +128,7 @@ class UpdateTaskDueDate extends Command
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated subtask:', ['subtask_name' => $subtask['name']]);
+                                Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
                     }
@@ -137,6 +136,6 @@ class UpdateTaskDueDate extends Command
             }
         }
 
-        Log::info('UpdateSetDuesTasks command completed.');
+        Log::info('Update Asana Tasks command completed.');
     }
 }
