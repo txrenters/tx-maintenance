@@ -67,19 +67,18 @@ class UpdateTaskDueDate extends Command
                 $subtasks = $subtaskResponse->json()['data'] ?? [];
 
                 foreach ($subtasks as $subtask) {
-                    if ((preg_match('/\bset due\b/i', $subtask['name']) || preg_match('/\bset dues\b/i', $subtask['name'])) && ! $subtask['completed']) {
+                    if (! $subtask['completed']) {
                         $subtaskId = $subtask['gid'];
                         $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
                         Log::info('"Set Dues" subtask:', [
-                            'subtask_id' => $subtaskId,
+                            'subtask_name' => $subtask['name'],
                             'due_date' => $subtask['due_on'],
                         ]);
 
-                        // ✅ Update "Set Dues" subtask if due date is different
                         if ($subtask['due_on'] != $nextMonday) {
                             Log::info('Updating "Set Dues" subtask:', [
-                                'subtask_id' => $subtaskId,
+                                'subtask_name' => $subtask['name'],
                                 'new_due_date' => $nextMonday,
                             ]);
 
@@ -92,11 +91,45 @@ class UpdateTaskDueDate extends Command
 
                             if ($updateResponse->failed()) {
                                 Log::error('Failed to update "Set Dues" subtask'.json_encode([
-                                    'subtask_id' => $subtaskId,
+                                    'subtask_name' => $subtask['name'],
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_id' => $subtaskId]);
+                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_name' => $subtask['name']]);
+                            }
+                        }
+
+                    }
+
+                    if ((preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bRECOMMENDED\b/i', $subtask['name'])) && ! $subtask['completed']) {
+                        $subtaskId = $subtask['gid'];
+                        $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
+
+                        Log::info('"Set Dues" subtask:', [
+                            'subtask_id' => $subtaskId,
+                            'due_date' => $subtask['due_on'],
+                        ]);
+
+                        if ($subtask['due_on'] != $nextTuesday) {
+                            Log::info('Updating "Set Dues" subtask:', [
+                                'subtask_name' => $subtask['name'],
+                                'new_due_date' => $nextTuesday,
+                            ]);
+
+                            $updateResponse = Http::withToken($token)
+                                ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                                    'data' => [
+                                        'due_on' => $nextTuesday,
+                                    ],
+                                ]);
+
+                            if ($updateResponse->failed()) {
+                                Log::error('Failed to update "Set Dues" subtask'.json_encode([
+                                    'subtask_name' => $subtask['name'],
+                                    'response' => $updateResponse->body(),
+                                ]));
+                            } else {
+                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
                     }
