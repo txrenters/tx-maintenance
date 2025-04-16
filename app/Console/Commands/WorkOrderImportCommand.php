@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Owner;
 use App\Models\User;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;

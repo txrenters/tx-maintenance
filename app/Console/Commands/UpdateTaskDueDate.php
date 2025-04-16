@@ -21,7 +21,7 @@ class UpdateTaskDueDate extends Command
      *
      * @var string
      */
-    protected $description = 'Fetch and update "Set Dues" tasks in Asana';
+    protected $description = 'Fetch and update tasks in Asana';
 
     /**
      * Execute the console command.
@@ -67,17 +67,17 @@ class UpdateTaskDueDate extends Command
                 $subtasks = $subtaskResponse->json()['data'] ?? [];
 
                 foreach ($subtasks as $subtask) {
-                    if (! $subtask['completed']) {
+                    if ((preg_match('/\bFill out\b/i', $subtask['name']) || preg_match('/\bARE THERE\b/i', $subtask['name']) || preg_match('/\bHOW MANY\b/i', $subtask['name']) || preg_match('/\bCMA LINK\b/i', $subtask['name']) ) && ! $subtask['completed']) {
                         $subtaskId = $subtask['gid'];
                         $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
-                        Log::info('"Set Dues" subtask:', [
+                        Log::info(' subtask:', [
                             'subtask_name' => $subtask['name'],
                             'due_date' => $subtask['due_on'],
                         ]);
 
                         if ($subtask['due_on'] != $nextMonday) {
-                            Log::info('Updating "Set Dues" subtask:', [
+                            Log::info('Updating  subtask:', [
                                 'subtask_name' => $subtask['name'],
                                 'new_due_date' => $nextMonday,
                             ]);
@@ -90,28 +90,28 @@ class UpdateTaskDueDate extends Command
                                 ]);
 
                             if ($updateResponse->failed()) {
-                                Log::error('Failed to update "Set Dues" subtask'.json_encode([
+                                Log::error('Failed to update  subtask'.json_encode([
                                     'subtask_name' => $subtask['name'],
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_name' => $subtask['name']]);
+                                Log::info('Successfully updated  subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
 
                     }
 
-                    if ((preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bRECOMMENDED\b/i', $subtask['name'])) && ! $subtask['completed']) {
+                    if ((preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bRECOMMENDED\b/i', $subtask['name'])) && ! $subtask['completed']) {
                         $subtaskId = $subtask['gid'];
                         $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
 
-                        Log::info('"Set Dues" subtask:', [
+                        Log::info('Updating subtask:', [
                             'subtask_id' => $subtaskId,
                             'due_date' => $subtask['due_on'],
                         ]);
 
                         if ($subtask['due_on'] != $nextTuesday) {
-                            Log::info('Updating "Set Dues" subtask:', [
+                            Log::info('Updating subtask:', [
                                 'subtask_name' => $subtask['name'],
                                 'new_due_date' => $nextTuesday,
                             ]);
@@ -124,12 +124,12 @@ class UpdateTaskDueDate extends Command
                                 ]);
 
                             if ($updateResponse->failed()) {
-                                Log::error('Failed to update "Set Dues" subtask'.json_encode([
+                                Log::error('Failed to update  subtask'.json_encode([
                                     'subtask_name' => $subtask['name'],
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated "Set Dues" subtask:', ['subtask_name' => $subtask['name']]);
+                                Log::info('Successfully updated  subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
                     }
