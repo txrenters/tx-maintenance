@@ -116,7 +116,7 @@ import Multiselect from 'vue-multiselect'
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { Progress } from '@/Components/ui/progress';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'TX RentSync PropertyWare';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

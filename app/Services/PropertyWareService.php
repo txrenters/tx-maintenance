@@ -824,12 +824,10 @@ class PropertyWareService
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $xmlPayload,
-            // CURLOPT_HTTPHEADER => [
-            //     'Content-Type: text/xml; charset=utf-8',
-            //     'SOAPAction: ""',
-            //     'Connection: Keep-Alive',
-            //     'Keep-Alive: 300',
-            // ],
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: text/xml',
+                'SOAPAction: ""',
+            ],
             CURLOPT_USERPWD => $this->username.':'.$this->password,
             CURLOPT_TIMEOUT => 120,
             CURLOPT_CONNECTTIMEOUT => 120,
@@ -869,7 +867,7 @@ class PropertyWareService
         curl_close($curl);
 
         // Check for SOAP faults in the response
-        if (strpos($response, '<soapenv:Fault>') !== false) {
+        if (strpos($response, '<soapenv:Fault>') != false) {
             $faultString = $this->extractFaultString($response);
             Log::error('SOAP Fault: '.$faultString);
 

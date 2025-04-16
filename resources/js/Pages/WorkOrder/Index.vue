@@ -44,11 +44,7 @@ import {
     PopoverTrigger,
 } from "@/Components/ui/popover";
 import { RangeCalendar } from "@/Components/ui/range-calendar";
-import {
-    CalendarDate,
-    DateFormatter,
-    getLocalTimeZone,
-} from "@internationalized/date";
+import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 
 const props = defineProps({
     title: String,
@@ -572,36 +568,9 @@ const df = new DateFormatter("en-US", {
     dateStyle: "medium",
 });
 
-const today = new CalendarDate(
-    new Date().getFullYear(),
-    new Date().getMonth() + 1, // JS months are 0-based, CalendarDate uses 1-based
-    new Date().getDate()
-);
-
-const defaultStart = today.add({ days: -14 });
-const defaultEnd = today;
-
-// Reactive date range
 const date_range = ref({
-    start: defaultStart,
-    end: defaultEnd,
-});
-
-const filteredParams = computed(() => {
-    const params = {};
-
-    if (filter_vendor.value) params.vendor = filter_vendor.value;
-    if (search.value) params.search = search.value;
-
-    if (date_range.value.start.toString() !== defaultStart.toString()) {
-        params.start_date = date_range.value.start.toString();
-    }
-
-    if (date_range.value.end.toString() !== defaultEnd.toString()) {
-        params.end_date = date_range.value.end.toString();
-    }
-
-    return params;
+    start: "",
+    end: "",
 });
 
 watch(
@@ -643,7 +612,7 @@ const resetFilters = () => {
         preserveScroll: true,
     });
 };
-usePoll(5000, { only: ["service_status"] });
+usePoll(3000, { only: ["service_status"] });
 </script>
 <template>
     <Head :title="title" />
@@ -728,13 +697,24 @@ usePoll(5000, { only: ["service_status"] });
                 </PopoverContent>
             </Popover>
             <a
-                :href="route('work_orders.export', filteredParams)"
+                :href="
+                    route('work_orders.export', {
+                        vendor: filter_vendor,
+                        search: search,
+                        start_date: date_range.start.toString(),
+                        end_date: date_range.end.toString(),
+                    })
+                "
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 title="Download work orders"
             >
                 <Download class="w-4 h-4" />
             </a>
             <Button
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc')
+                "
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
                 title="Import Work Order"

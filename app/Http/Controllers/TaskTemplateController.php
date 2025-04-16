@@ -10,6 +10,7 @@ use App\Models\TaskDetail;
 use App\Models\TaskTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
 class TaskTemplateController extends Controller
@@ -19,7 +20,7 @@ class TaskTemplateController extends Controller
      */
     public function index(Request $request)
     {
-        // Gate::authorize('view_status', ServiceStatus::class);
+        Gate::authorize('view_task_template', TaskTemplate::class);
 
         $perPage = $request->per_page
         ? ($request->per_page == 'All' ? TaskTemplate::count() : $request->per_page)
@@ -53,6 +54,8 @@ class TaskTemplateController extends Controller
      */
     public function create()
     {
+        Gate::authorize('view_template', TaskTemplate::class);
+
         $statuses = ServiceStatus::all();
 
         return inertia('TaskTemplate/Create', [
@@ -66,6 +69,8 @@ class TaskTemplateController extends Controller
      */
     public function store(StoreTaskTemplateRequest $request)
     {
+        Gate::authorize('create_template', TaskTemplate::class);
+
         $request->validated();
 
         DB::beginTransaction();
@@ -128,6 +133,8 @@ class TaskTemplateController extends Controller
      */
     public function show(TaskTemplate $taskTemplate)
     {
+        Gate::authorize('view_template', TaskTemplate::class);
+
         $statuses = ServiceStatus::all();
 
         $taskTemplate = TaskTemplate::with(['currentServiceStatus', 'nextServiceStatus', 'tasks.taskDetails.taskServiceStatus', 'tasks.nextServiceStatus'])->find($taskTemplate->id);
@@ -145,6 +152,8 @@ class TaskTemplateController extends Controller
      */
     public function edit(TaskTemplate $taskTemplate)
     {
+        Gate::authorize('update_template', TaskTemplate::class);
+
         $statuses = ServiceStatus::all();
 
         $taskTemplate = TaskTemplate::with('tasks.taskDetails')->find($taskTemplate->id);
@@ -161,6 +170,8 @@ class TaskTemplateController extends Controller
      */
     public function update(UpdateTaskTemplateRequest $request, TaskTemplate $taskTemplate)
     {
+        Gate::authorize('update_template', TaskTemplate::class);
+
         $request->validated();
 
         DB::beginTransaction();
@@ -242,6 +253,8 @@ class TaskTemplateController extends Controller
      */
     public function destroy(TaskTemplate $taskTemplate)
     {
+        Gate::authorize('delete_template', TaskTemplate::class);
+
         $taskTemplate->delete();
 
         return redirect()->back();

@@ -4,62 +4,58 @@ namespace App\Policies;
 
 use App\Models\Owner;
 use App\Models\User;
+use Illuminate\Support\Facades\Response;
 
 class OwnerPolicy
 {
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny(User $user): bool
+    public function view_owners(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin') || $user->hasRole('woc')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view owner page.');
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, Owner $owner): bool
+    public function view_owner(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin') || $user->hasRole('woc')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view owner page.');
     }
 
     /**
      * Determine whether the user can create models.
      */
-    public function create(User $user): bool
+    public function create_owner(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin') || $user->hasRole('woc')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view owner page.');
     }
 
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Owner $owner): bool
+    public function update_owner(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin') || $user->hasRole('woc')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view owner page.');
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Owner $owner): bool
+    public function delete_owner(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin') || $user->hasRole('woc')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view owner page.');
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, Owner $owner): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, Owner $owner): bool
-    {
-        return false;
-    }
 }

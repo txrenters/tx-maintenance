@@ -4,62 +4,57 @@ namespace App\Policies;
 
 use App\Models\TaskTemplate;
 use App\Models\User;
+use Illuminate\Support\Facades\Response;
 
 class TaskTemplatePolicy
 {
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny(User $user): bool
+    public function view_task_template(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin')
+            ? Response::allow()
+            : Response::deny('You do not have permission to view Task Templates.');
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, TaskTemplate $taskTemplate): bool
+    public function view_template(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin')
+        ? Response::allow()
+        : Response::deny('You do not have permission to view Task Templates.');
     }
 
     /**
      * Determine whether the user can create models.
      */
-    public function create(User $user): bool
+    public function create_template(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin')
+        ? Response::allow()
+        : Response::deny('You do not have permission to create Task Templates.');
     }
 
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, TaskTemplate $taskTemplate): bool
+    public function update_template(User $user): bool
     {
-        return false;
+        return $user->hasRole('admin')
+        ? Response::allow()
+        : Response::deny('You do not have permission to update Task Templates.');
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, TaskTemplate $taskTemplate): bool
+    public function delete_template(User $user, TaskTemplate $taskTemplate): bool
     {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, TaskTemplate $taskTemplate): bool
-    {
-        return false;
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, TaskTemplate $taskTemplate): bool
-    {
-        return false;
+        return $user->hasRole('admin')
+        ? Response::allow()
+        : Response::deny('You do not have permission to delete Task Templates.');
     }
 }

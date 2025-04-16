@@ -132,24 +132,18 @@ class WorkOrder extends Model
 
     public function scopeFilter($query, array $filters)
     {
-        if (! empty($filters['search'])) {
-            $search = $filters['search'];
-            $query
-                ->whereAny([
+        $query
+            ->when($filters['search'] ?? '', function ($q, $search) {
+                $q->whereAny([
                     'work_order_no',
                     'location',
                 ], 'LIKE', "%{$search}%");
-        }
-
-        $query->when(request('search'), function ($q, $search) {
-            $q->where('work_order_no', $search);
-        })
-            ->when(request('vendor'), function ($q, $vendorId) {
+            })
+            ->when($filters['vendor'] ?? '', function ($q, $vendorId) {
                 $q->whereHas('vendors', function ($query) use ($vendorId) {
                     $query->where('vendor_id', $vendorId);
                 });
-
-            })->when(request()->filled(['start_date', 'end_date']), function ($q) {
+            })->when(request()->filled(['start_date', 'end_date']) ?? '', function ($q) {
                 $date = request()->only(['start_date', 'end_date']);
                 $start_date = Carbon::parse($date['start_date'])->startOfDay();
                 $end_date = Carbon::parse($date['end_date'])->endOfDay();

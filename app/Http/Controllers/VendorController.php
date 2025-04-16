@@ -10,6 +10,7 @@ use App\Services\PropertyWareService;
 use App\Services\VendorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class VendorController extends Controller
 {
@@ -18,17 +19,14 @@ class VendorController extends Controller
      */
     public function index(Request $request)
     {
-        // Gate::authorize('view_user', User::class);
-        $perPage = $request->per_page
-        ? ($request->per_page == 'All' ? Vendor::count() : $request->per_page)
-        : 10;
+        Gate::authorize('view_vendors', User::class);
 
         $vendors = Vendor::query()
             ->with(['user'])
             ->filter(request(['search', 'status']))
             ->orderBy('is_active', 'DESC')
             ->orderBy('name', 'ASC')
-            ->paginate($perPage)
+            ->paginate(20)
             ->withQueryString()
             ->through(function ($vendor) {
                 return [
@@ -59,6 +57,8 @@ class VendorController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('create_vendor', User::class);
+
         $data = $request->validate([
             'name' => 'required',
             'email' => 'required',
@@ -100,6 +100,8 @@ class VendorController extends Controller
      */
     public function update(Request $request, Vendor $vendor)
     {
+        Gate::authorize('update_vendor', User::class);
+
         $vendorData = $request->validate([
             'twilio_number' => '',
             'name' => 'required',
@@ -124,6 +126,8 @@ class VendorController extends Controller
 
     public function update_status(Request $request, Vendor $vendor)
     {
+        Gate::authorize('update_vendor', User::class);
+
         $request->validate([
             'status' => 'required',
         ]);
@@ -136,6 +140,8 @@ class VendorController extends Controller
 
     public function import(Request $request)
     {
+        Gate::authorize('create_vendor', User::class);
+
         $request->validate([
             'vendors_name' => 'required|string',
         ]);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenants;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class TenantsController extends Controller
 {
@@ -12,16 +13,13 @@ class TenantsController extends Controller
      */
     public function index(Request $request)
     {
-        // Gate::authorize('view_user', User::class);
-        $perPage = $request->per_page
-        ? ($request->per_page == 'All' ? Tenants::count() : $request->per_page)
-        : 10;
+        Gate::authorize('view_tenants', Tenants::class);
 
         $tenants = Tenants::query()
             ->with('user')
             ->filter(request(['search']))
             ->orderBy('first_name', 'ASC')
-            ->paginate($perPage)
+            ->paginate(20)
             ->withQueryString()
             ->through(function ($tenant) {
                 return [
