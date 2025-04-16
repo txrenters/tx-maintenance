@@ -67,7 +67,7 @@ class UpdateTaskDueDate extends Command
                 $subtasks = $subtaskResponse->json()['data'] ?? [];
 
                 foreach ($subtasks as $subtask) {
-                    if ((preg_match('/\bFill out\b/i', $subtask['name']) || preg_match('/\bARE THERE\b/i', $subtask['name']) || preg_match('/\bHOW MANY\b/i', $subtask['name']) || preg_match('/\bCMA LINK\b/i', $subtask['name']) ) && ! $subtask['completed']) {
+                    if ((preg_match('/\bFill out\b/i', $subtask['name']) || preg_match('/\bARE THERE\b/i', $subtask['name']) || preg_match('/\bHOW MANY\b/i', $subtask['name']) || preg_match('/\bCMA LINK\b/i', $subtask['name']) || preg_match('/\bSet Due Date\b/i', $subtask['name']) || preg_match('/\bSet Dues Date\b/i', $subtask['name']) ) && ! $subtask['completed']) {
                         $subtaskId = $subtask['gid'];
                         $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
@@ -129,7 +129,7 @@ class UpdateTaskDueDate extends Command
                                     'response' => $updateResponse->body(),
                                 ]));
                             } else {
-                                Log::info('Successfully updated  subtask:', ['subtask_name' => $subtask['name']]);
+                                Log::info('Successfully updated subtask:', ['subtask_name' => $subtask['name']]);
                             }
                         }
                     }
