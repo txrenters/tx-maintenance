@@ -75,36 +75,38 @@ class TaskController extends Controller
                 $is_emergency = $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency;
             }
 
+            WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
+
         } else {
             $next_service_id = $currentTask->task->next_service_status_id;
             $is_emergency = $currentTask->task->is_emergency;
         }
 
-        $service_status = ServiceStatus::find($next_service_id);
-
-        $pendingTaskCount  = WorkOrderTask::where('status', 'pending')->count();
-
-        $statusChanged = !in_array($service_status->name, ['Not Changed', 'Closed']);
-        $noPendingTasks = $pendingTaskCount == 0;
-        
-        if ($statusChanged && $noPendingTasks) {
-
-            $work_order->update([   // modify work order emergency base on task
-                'is_emergency' => $is_emergency,
-            ]);
-
-            WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
-            TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
-
-            $propertyWare = new PropertyWareService;
-
-            $propertyWare->updateServiceStatus($currentTask->work_order, $service_status);
-
-        }
+        $this->changeTaskStatus($work_order, $next_service_id, $is_emergency);
 
         Log::info('Task updated successfully: ', ['task_id' => $task->id]);
 
         return redirect()->back();
+    }
+
+    private function changeTaskStatus($work_order,$next_service_id, $is_emergency){
+        $service_status = ServiceStatus::find($next_service_id);
+
+        $statusChanged = !in_array($service_status->name, ['Not Changed', 'Closed']);
+
+        if($statusChanged){
+
+            $work_order->update([   // modify work order emergency base on task
+                'is_emergency' => $is_emergency,
+            ]);
+    
+            TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
+    
+            $propertyWare = new PropertyWareService;
+    
+            $propertyWare->updateServiceStatus($work_order, $service_status);
+        }
+      
     }
 
     public function undo(Request $request, WorkOrderTask $task)
