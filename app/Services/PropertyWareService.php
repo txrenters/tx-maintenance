@@ -671,9 +671,9 @@ class PropertyWareService
             }
             $workorderId = $workorder->propertyware_id;
 
-            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $attachments->filename);
+            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $attachments['filename']);
 
-            $absolutePath = public_path('storage/attachments/'.basename($attachments->filename));
+            $absolutePath = public_path('storage/attachments/'.basename($attachments['filename']));
 
             if (! file_exists($absolutePath)) {
                 throw new \Exception('Attachment file does not exist: '.$absolutePath);
@@ -682,8 +682,8 @@ class PropertyWareService
             $fileData = base64_encode($fileContents);
 
             // Sanitize and construct filename
-            $title = $attachments->title;
-            $filePath = $attachments->filename;
+            $title = $attachments['title'];
+            $filePath = $attachments['filename'];
 
             $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
             $sanitizedTitle = preg_replace('/[^a-zA-Z0-9-_]/', '_', $title);
@@ -699,7 +699,7 @@ class PropertyWareService
                     <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
                         <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
                             <ID xsi:type="xsd:long">0</ID>
-                            <description xsi:type="xsd:string">'.$attachments->title.'</description>
+                            <description xsi:type="xsd:string">'.$attachments['title'].'</description>
                             <fileData xsi:type="xsd:string">'.$fileData.'</fileData>
                             <filename xsi:type="xsd:string">'.$filename.'</filename>
                             <privateFile xsi:type="xsd:boolean">false</privateFile>

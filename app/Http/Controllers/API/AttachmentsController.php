@@ -16,6 +16,51 @@ class AttachmentsController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    public function multiple_store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'title' => 'required',
+            'type' => 'required',
+            'work_order_id' => 'required|exists:work_orders,id',
+            'files' => 'required|array',
+            'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx',
+            'files.*.name' => 'required|string',
+            'files.*.type' => 'required|string',
+        ]);
+
+        $user_id = auth()->id();
+
+        $savedFiles = [];
+
+        $propertyware = new PropertyWareService;
+
+        foreach ($validatedData['files'] as $fileData) {
+            $file = $fileData['file'];
+            $originalName = $fileData['name'];
+            $mimeType = $fileData['type'];
+    
+            $path = $file->store('attachments', 'public');
+
+            $files = [
+                'title' => $validatedData['title'],
+                'filename' => $path,
+                'filetype' => $mimeType,
+                'type' => $validatedData['type'],
+                'work_order_id' => $validatedData['work_order_id'],
+                'user_id' => $user_id,
+                'created_at' =>  $request->date ?? now(),
+            ];
+
+            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
+
+            $savedFiles[] = $files;
+        }
+
+        Attachments::insert($savedFiles);
+
+        return redirect()->back()->with('success', 'Attachment uploaded successfully.');
+    }
+
     public function store(Request $request)
     {
         $validatedData = $request->validate([

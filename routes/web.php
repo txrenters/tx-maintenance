@@ -78,6 +78,8 @@ Route::middleware([
     Route::get('/invoices/{workOrder}', [InvoiceController::class, 'index'])->name('api.invoices.index');
 
     Route::post('/attachments', [AttachmentsController::class, 'store'])->name('api.attachments.store');
+    Route::post('/attachments/multiple', [AttachmentsController::class, 'multiple_store'])->name('api.attachments.multiple_store');
+
     Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
 
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
