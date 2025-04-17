@@ -536,7 +536,7 @@ class WorkOrderImportCommand extends Command
                 $tenantExists = DB::table('tenants')->where('propertyware_id',$tenant['ID'])->exists();
 
                 if(!$tenantExists){
-                    DB::table('owners')->insert($tenantData);
+                    DB::table('tenants')->insert($tenantData);
                 }       
 
                 $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
@@ -550,7 +550,7 @@ class WorkOrderImportCommand extends Command
             }
 
             if (! empty($work_order_tenant_data)) {
-                DB::table('work_order_tenants')->insertOrIgnore($work_order_tenant_data);
+                DB::table('work_order_tenants')->insert($work_order_tenant_data);
             }
         }
     }
