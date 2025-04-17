@@ -68,6 +68,110 @@ class WorkOrderImportCommand extends Command
         Log::info('Work order imported successfully!');
     }
 
+    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
+    {
+        DB::beginTransaction();
+        try {
+            $work_order_propertyware_id = $data['ID'] ?? null;
+            $woc = User::role('woc')->first();
+
+            $work_order_data = [
+                'client_data' => $data['clientData'] ?? null,
+                'propertyware_id' => $work_order_propertyware_id,
+                'work_order_no' => $data['number'] ?? null,
+                'approval_comments' => $data['approvalComments'] ?? null,
+                'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
+                'approved_by' => $data['approvedBy'] ?? null,
+                'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
+                'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
+                'category' => $data['category'] ?? null,
+                'closing_comments' => $data['closingComments'] ?? '',
+                'completed_date' => ! empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
+                'cost_estimate' => $data['costEstimate'] ?? null,
+                'created_date' => ! empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,
+                'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
+                'description' => $data['description'] ?? null,
+                'hour_estimate' => $data['hourEstimate'] ?? null,
+                'location' => $data['location'] ?? null,
+                'priority' => ! empty($data['priority']) ? $data['priority'] : false,
+                'priority_as_int' => $data['priorityAsInt'] ?? null,
+                'required_materials' => $data['requiredMaterials'] ?? null,
+                'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
+                'service_request_building' => $data['serviceRequestBuilding'] ?? null,
+                'service_request_company_name' => $data['serviceRequestCompanyName'] ?? null,
+                'service_request_contact_email' => $data['serviceRequestContactEmail'] ?? null,
+                'service_request_contact_name' => $data['serviceRequestContactName'] ?? null,
+                'service_request_contact_phone' => $data['serviceRequestContactPhone'] ?? null,
+                'service_request_contact_phone_type' => $data['serviceRequestContactPhoneType'] ?? null,
+                'service_request_unit' => $data['serviceRequestUnit'] ?? null,
+                'source' => $data['source'] ?? null,
+                'specific_location' => $data['specificLocation'] ?? null,
+                'start_date' => ! empty($data['startDate']) ? Carbon::parse($data['startDate'])->toDateString() : null,
+                'status' => $data['status'] ?? null,
+                'total_cost' => $data['totalCost'] ?? null,
+                'total_hour_work' => $data['totalHourWork'] ?? null,
+                'type' => $data['type'] ?? null,
+                'building_id' => $data['building']['ID'] ?? null,
+                'lease_id' => $data['lease']['ID'] ?? null,
+                'portfolio_id' => $data['portfolio']['ID'] ?? null,
+                'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
+                'owner_id' => $owner,
+                'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
+                'user_id' => $woc?->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            $customFieldData = [];
+            if (! empty($data['customFields']) && is_array($data['customFields'])) {
+                foreach ($data['customFields'] as $customField) {
+                    if ($customField['fieldName'] == 'Service Status') {
+
+                        $service_status_id = DB::table('service_status')
+                            ->whereLike('name', '%'.($customField['value'] ?? '').'%')
+                            ->value('id');
+
+                        $work_order_data['service_status_id'] = $service_status_id ?? 1;
+
+                    } elseif ($customField['fieldName'] == 'Zone') {
+                        $work_order_data['zone'] = $customField['value'] ?? '';
+                    } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
+                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
+                    } elseif ($customField['fieldName'] == 'Management Plan') {
+                        $work_order_data['management_plan'] = $customField['value'] ?? '';
+                    }
+                }
+            }
+
+            DB::table('work_orders')->updateOrInsert(
+                ['propertyware_id' => $work_order_propertyware_id],
+                $work_order_data
+            );
+
+            $workOrderId = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
+
+            DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
+            DB::table('work_order_custom_fields')->insert($customFieldData);
+
+            $this->processRelatedData($data, $workOrderId, $now);
+
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error('Work order processing failed for work order no: '.($data['number'] ?? 'unknown').' - '.$th->getMessage());
+        }
+    }
+
+    private function processRelatedData(array $data, int $work_order, string $now): void
+    {
+        // Process custom fields, notes, documents, etc.
+        $this->processNotes($data, $work_order, $now);
+        $this->processVendors($data, $work_order, $now);
+        // $this->processDocuments($data, $work_order, $now);
+        $this->processTenants($data, $work_order, $now);
+        $this->processOwners($data, $work_order, $now);
+    }
+
     private function processTenantAndUser(array $data): ?int
     {
         $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
@@ -213,109 +317,7 @@ class WorkOrderImportCommand extends Command
         return $user;
     }
 
-    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
-    {
-        DB::beginTransaction();
-        try {
-            $work_order_propertyware_id = $data['ID'] ?? null;
-            $woc = User::role('woc')->first();
-
-            $work_order_data = [
-                'client_data' => $data['clientData'] ?? null,
-                'propertyware_id' => $work_order_propertyware_id,
-                'work_order_no' => $data['number'] ?? null,
-                'approval_comments' => $data['approvalComments'] ?? null,
-                'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
-                'approved_by' => $data['approvedBy'] ?? null,
-                'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
-                'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
-                'category' => $data['category'] ?? null,
-                'closing_comments' => $data['closingComments'] ?? '',
-                'completed_date' => ! empty($data['completedDate']) ? Carbon::parse($data['completedDate'])->toDateString() : null,
-                'cost_estimate' => $data['costEstimate'] ?? null,
-                'created_date' => ! empty($data['createdDate']) ? Carbon::parse($data['createdDate']) : null,
-                'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
-                'description' => $data['description'] ?? null,
-                'hour_estimate' => $data['hourEstimate'] ?? null,
-                'location' => $data['location'] ?? null,
-                'priority' => ! empty($data['priority']) ? $data['priority'] : false,
-                'priority_as_int' => $data['priorityAsInt'] ?? null,
-                'required_materials' => $data['requiredMaterials'] ?? null,
-                'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
-                'service_request_building' => $data['serviceRequestBuilding'] ?? null,
-                'service_request_company_name' => $data['serviceRequestCompanyName'] ?? null,
-                'service_request_contact_email' => $data['serviceRequestContactEmail'] ?? null,
-                'service_request_contact_name' => $data['serviceRequestContactName'] ?? null,
-                'service_request_contact_phone' => $data['serviceRequestContactPhone'] ?? null,
-                'service_request_contact_phone_type' => $data['serviceRequestContactPhoneType'] ?? null,
-                'service_request_unit' => $data['serviceRequestUnit'] ?? null,
-                'source' => $data['source'] ?? null,
-                'specific_location' => $data['specificLocation'] ?? null,
-                'start_date' => ! empty($data['startDate']) ? Carbon::parse($data['startDate'])->toDateString() : null,
-                'status' => $data['status'] ?? null,
-                'total_cost' => $data['totalCost'] ?? null,
-                'total_hour_work' => $data['totalHourWork'] ?? null,
-                'type' => $data['type'] ?? null,
-                'building_id' => $data['building']['ID'] ?? null,
-                'lease_id' => $data['lease']['ID'] ?? null,
-                'portfolio_id' => $data['portfolio']['ID'] ?? null,
-                'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
-                'owner_id' => $owner,
-                'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
-                'user_id' => $woc?->id,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-
-            $customFieldData = [];
-            if (! empty($data['customFields']) && is_array($data['customFields'])) {
-                foreach ($data['customFields'] as $customField) {
-                    if ($customField['fieldName'] == 'Service Status') {
-
-                        $service_status_id = DB::table('service_status')
-                            ->whereLike('name', '%'.($customField['value'] ?? '').'%')
-                            ->value('id');
-
-                        $work_order_data['service_status_id'] = $service_status_id ?? 1;
-
-                    } elseif ($customField['fieldName'] == 'Zone') {
-                        $work_order_data['zone'] = $customField['value'] ?? '';
-                    } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
-                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
-                    } elseif ($customField['fieldName'] == 'Management Plan') {
-                        $work_order_data['management_plan'] = $customField['value'] ?? '';
-                    }
-                }
-            }
-
-            DB::table('work_orders')->updateOrInsert(
-                ['propertyware_id' => $work_order_propertyware_id],
-                $work_order_data
-            );
-
-            $workOrderId = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
-
-            DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
-            DB::table('work_order_custom_fields')->insert($customFieldData);
-
-            $this->processRelatedData($data, $workOrderId, $now);
-
-            DB::commit();
-        } catch (\Throwable $th) {
-            DB::rollBack();
-            Log::error('Work order processing failed for work order ID: '.($work_order_propertyware_id ?? 'unknown').' - '.$th->getMessage());
-        }
-    }
-
-    private function processRelatedData(array $data, int $work_order, string $now): void
-    {
-        // Process custom fields, notes, documents, etc.
-        $this->processNotes($data, $work_order, $now);
-        $this->processVendors($data, $work_order, $now);
-        // $this->processDocuments($data, $work_order, $now);
-        $this->processTenants($data, $work_order, $now);
-        $this->processOwners($data, $work_order, $now);
-    }
+    
 
     private function processNotes(array $data, int $work_order, string $now): void
     {
@@ -628,7 +630,7 @@ class WorkOrderImportCommand extends Command
             }
 
             if (! empty($work_order_owner_data)) {
-                DB::table('work_order_owners')->updateOrInsert($work_order_owner_data);
+                DB::table('work_order_owners')->insert($work_order_owner_data);
             }
         }
     }
