@@ -66,23 +66,23 @@ class WOCNumbersController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateWOCNumbersRequest $request, WOCNumbers $wOCNumbers)
+    public function update(UpdateWOCNumbersRequest $request, WOCNumbers $woc_number)
     {
         Gate::authorize('update_woc_user', WOCNumbers::class);
 
-        $wOCNumbers->update($request->validated());
+        $woc_number->update($request->validated());
 
-        return redirect()->route('woc_numbers.index');
+        return redirect()->back();
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(WOCNumbers $wOCNumbers)
+    public function destroy(WOCNumbers $woc_number)
     {
         Gate::authorize('delete_woc_user', WOCNumbers::class);
 
-        $wOCNumbers->delete();
+        $woc_number->delete();
 
         return redirect()->route('woc_numbers.index');
     }
