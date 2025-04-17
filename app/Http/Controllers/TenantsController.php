@@ -39,4 +39,11 @@ class TenantsController extends Controller
             'filter' => $request->only(['search', 'per_page']),
         ]);
     }
+
+    public function destroy(Tenants $tenant)
+    {
+        $tenant->delete();
+
+        return redirect()->back();
+    }
 }

@@ -131,7 +131,11 @@ class WorkOrderImportCommand extends Command
             'user_id' => $user->id,
         ];
 
-        DB::table('tenants')->insertOrIgnore($tenantData);
+        $tenantExists = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->exists();
+
+        if(!$tenantExists){
+            DB::table('tenants')->insert($tenantData);
+        }
 
         return DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
     }
@@ -188,7 +192,11 @@ class WorkOrderImportCommand extends Command
             'user_id' => $user->id,
         ];
 
-        DB::table('owners')->insertOrIgnore($ownerData);
+        $ownerExists = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->exists();
+
+        if(!$ownerExists){
+            DB::table('owners')->insert($ownerData);
+        }
 
         return DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
     }
@@ -525,7 +533,11 @@ class WorkOrderImportCommand extends Command
                     'updated_at' => $now,
                 ];
 
-                DB::table('tenants')->insertOrIgnore($tenantData);
+                $tenantExists = DB::table('tenants')->where('propertyware_id',$tenant['ID'])->exists();
+
+                if(!$tenantExists){
+                    DB::table('owners')->insert($tenantData);
+                }       
 
                 $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
 
@@ -598,7 +610,11 @@ class WorkOrderImportCommand extends Command
                     'updated_at' => $now,
                 ];
 
-                DB::table('owners')->insertOrIgnore($ownerData);
+                $ownerExists = DB::table('owners')->where('propertyware_id', $owner['ID'])->exists();
+
+                if(!$ownerExists){
+                    DB::table('owners')->insert($ownerData);
+                }        
 
                 $ownerId = DB::table('owners')->where('user_id', $user->id)->value('id');
 
@@ -612,7 +628,7 @@ class WorkOrderImportCommand extends Command
             }
 
             if (! empty($work_order_owner_data)) {
-                DB::table('work_order_owners')->insertOrIgnore($work_order_owner_data);
+                DB::table('work_order_owners')->updateOrInsert($work_order_owner_data);
             }
         }
     }

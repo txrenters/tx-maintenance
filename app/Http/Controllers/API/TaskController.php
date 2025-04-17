@@ -70,12 +70,14 @@ class TaskController extends Controller
             if ($request->option == 'Yes') {
                 $next_service_id = $currentTask->task->taskDetailYesOption?->task_service_status_id;
                 $is_emergency = $currentTask->task->taskDetailYesOption?->is_task_service_status_emergency;
+
+                WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
+
             } else {
                 $next_service_id = $currentTask->task->taskDetailNoOption?->task_service_status_id;
                 $is_emergency = $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency;
             }
 
-            WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
 
         } else {
             $next_service_id = $currentTask->task->next_service_status_id;
