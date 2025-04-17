@@ -413,6 +413,8 @@ const fetchVendors = async (workOrderId) => {
             route("api.work_order_notes.show", workOrderId)
         );
         workOrderVendorData.value = response.data.vendors;
+
+        console.log(workOrderId);
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {

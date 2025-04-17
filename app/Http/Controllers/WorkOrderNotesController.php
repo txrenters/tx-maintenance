@@ -16,7 +16,7 @@ class WorkOrderNotesController extends Controller
      */
     public function getNotes(WorkOrder $workOrder)
     {
-        $workOrder->load(['notes', 'notes.user']);
+        $workOrder->load(['notes', 'notes.user', 'vendors']);
 
         return response()->json($workOrder, 200);
     }
