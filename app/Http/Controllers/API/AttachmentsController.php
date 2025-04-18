@@ -16,6 +16,48 @@ class AttachmentsController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+    public function store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'title' => 'required',
+            'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:2048',
+            'type' => 'required',
+            'work_order_id' => 'required|exists:work_orders,id',
+        ]);
+
+        $validatedData['user_id'] = auth()->id();
+        $validatedData['created_at'] = $request->date ?? now();
+        $validatedData['is_publish_to_owner_portal'] = $request->owner_portal == 'Yes';
+        $validatedData['is_publish_to_tenant_portal'] = $request->tenant_portal == 'Yes';
+
+        if ($request->hasFile('filename')) {
+            $file = $request->file('filename');
+            $validatedData['filename'] = $file->store('attachments', 'public');
+            $validatedData['filetype'] = $file->getMimeType();
+        }
+ 
+        $attachment = Attachments::create($validatedData);
+
+        DB::beginTransaction();
+        try {
+            $propertyware = new PropertyWareService;
+            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $attachment);
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error('Failed to upload vendor attachments: '.$th->getMessage(), [
+                'work_order_id' => $validatedData['work_order_id'],
+                'attachment_id' => $attachment->id ?? null,
+            ]);
+
+            return redirect()->back()->withErrors(['error' => 'Failed to upload vendor attachments.']);
+        }
+
+        return redirect()->back()->with('success', 'Attachment uploaded successfully.');
+    }
+
+     
     public function multiple_store(Request $request)
     {
         $validatedData = $request->validate([
@@ -26,6 +68,8 @@ class AttachmentsController extends Controller
             'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx',
             'files.*.name' => 'required|string',
             'files.*.type' => 'required|string',
+            'tenant_portal' => 'required',
+            'owner_portal' => 'required',
         ]);
 
         $user_id = auth()->id();
@@ -47,10 +91,13 @@ class AttachmentsController extends Controller
                 'filetype' => $mimeType,
                 'type' => $validatedData['type'],
                 'work_order_id' => $validatedData['work_order_id'],
+                'is_publish_to_owner_portal' => $validatedData['owner_portal'] == 'Yes',
+                'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes',
                 'user_id' => $user_id,
                 'created_at' =>  $request->date ?? now(),
+                
             ];
-
+            
             $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
 
             $savedFiles[] = $files;
@@ -61,44 +108,7 @@ class AttachmentsController extends Controller
         return redirect()->back()->with('success', 'Attachment uploaded successfully.');
     }
 
-    public function store(Request $request)
-    {
-        $validatedData = $request->validate([
-            'title' => 'required',
-            'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:2048',
-            'type' => 'required',
-            'work_order_id' => 'required|exists:work_orders,id',
-        ]);
-
-        $validatedData['user_id'] = auth()->id();
-        $validatedData['created_at'] = $request->date ?? now();
-
-        if ($request->hasFile('filename')) {
-            $file = $request->file('filename');
-            $validatedData['filename'] = $file->store('attachments', 'public');
-            $validatedData['filetype'] = $file->getMimeType();
-        }
-
-        $attachment = Attachments::create($validatedData);
-
-        DB::beginTransaction();
-        try {
-            $propertyware = new PropertyWareService;
-            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $attachment);
-            DB::commit();
-        } catch (\Throwable $th) {
-            DB::rollBack();
-            Log::error('Failed to upload vendor attachments: '.$th->getMessage(), [
-                'work_order_id' => $validatedData['work_order_id'],
-                'attachment_id' => $attachment->id ?? null,
-            ]);
-
-            return redirect()->back()->withErrors(['error' => 'Failed to upload vendor attachments.']);
-        }
-
-        return redirect()->back()->with('success', 'Attachment uploaded successfully.');
-    }
-
+   
     /**
      * Display the specified resource.
      */

@@ -20,6 +20,8 @@ const croppedImageForm = useForm({
     type: "",
     filename: "",
     date: "",
+    owner_portal: "No",
+    tenant_portal: "No",
     work_order_id: props.workOrder_id,
 });
 
@@ -177,7 +179,41 @@ const handleFormSubmit = () => {
                             </div>
                         </RadioGroup>
                     </div>
-                    <div class="mb-12">
+                    <div class="mb-3">
+                        <Label>Publish to Tenant Portal</Label>
+                        <RadioGroup
+                            default-value="comfortable"
+                            class="flex gap-5 mt-2"
+                            v-model="croppedImageForm.tenant_portal"
+                        >
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r2" value="Yes" />
+                                <Label for="r2">Yes</Label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r3" value="No" />
+                                <Label for="r3">No</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                    <div class="mb-3">
+                        <Label>Publish to Owner Portal</Label>
+                        <RadioGroup
+                            default-value="comfortable"
+                            class="flex gap-5 mt-2"
+                            v-model="croppedImageForm.owner_portal"
+                        >
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r2" value="Yes" />
+                                <Label for="r2">Yes</Label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r3" value="No" />
+                                <Label for="r3">No</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                    <div class="mb-12 pb-12">
                         <Label>Select Date</Label>
                         <Input
                             type="date"
@@ -196,26 +232,38 @@ const handleFormSubmit = () => {
                 </div>
             </div>
             <DialogFooter class="p-6 pt-0">
-                <Button @click="closeModal" variant="destructive"
-                    >Cancel</Button
-                >
-                <Button @click="clear" v-show="!photoPreview">Clear</Button>
-                <Button @click="reset" v-show="!photoPreview">Reset</Button>
-                <Button @click="cropImage" v-show="!photoPreview">
-                    Crop
-                </Button>
-                <Button
-                    v-show="photoPreview"
-                    @click.prevent="handleFormSubmit"
-                    type="submit"
-                    :disabled="croppedImageForm.processing"
-                >
-                    <Loader2
-                        v-if="croppedImageForm.processing"
-                        class="w-4 h-4 animate-spin"
-                    />
-                    Save
-                </Button>
+                <div class="flex gap-2 justify-end">
+                    <Button class="" @click="closeModal" variant="destructive"
+                        >Cancel</Button
+                    >
+                    <Button
+                        @click="clear"
+                        v-show="!photoPreview"
+                        variant="secondary"
+                        >Clear</Button
+                    >
+                    <Button
+                        @click="reset"
+                        v-show="!photoPreview"
+                        variant="secondary"
+                        >Reset</Button
+                    >
+                    <Button @click="cropImage" v-show="!photoPreview">
+                        Crop
+                    </Button>
+                    <Button
+                        v-show="photoPreview"
+                        @click.prevent="handleFormSubmit"
+                        type="submit"
+                        :disabled="croppedImageForm.processing"
+                    >
+                        <Loader2
+                            v-if="croppedImageForm.processing"
+                            class="w-4 h-4 animate-spin"
+                        />
+                        Save
+                    </Button>
+                </div>
             </DialogFooter>
         </DialogContent>
     </Dialog>
