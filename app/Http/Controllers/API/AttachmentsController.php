@@ -21,7 +21,7 @@ class AttachmentsController extends Controller
     {
         $validatedData = $request->validate([
             'title' => 'required',
-            'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:2048',
+            'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:102400',
             'type' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
         ]);
@@ -65,7 +65,7 @@ class AttachmentsController extends Controller
             'type' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
             'files' => 'required|array',
-            'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx',
+            'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:102400',
             'files.*.name' => 'required|string',
             'files.*.type' => 'required|string',
             'tenant_portal' => 'required',
