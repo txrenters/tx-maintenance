@@ -81,7 +81,7 @@ const removeMessage = (id) => {
                             : 'flex-row'
                     "
                 >
-                    {{ msg.sender_number }}
+                    From: {{ msg.sender_number }}
                 </p>
                 <Link
                     as="button"
@@ -114,14 +114,12 @@ const removeMessage = (id) => {
                     width="350"
                 />
             </div>
-            <p
-                class="text-xs"
-                :class="
-                    msg.sender_number === sender ? 'text-right' : 'text-left'
-                "
-            >
-                {{ msg.created_at }}
-            </p>
+            <div class="flex gap-20 items-center justify-between">
+                <p class="text-xs">
+                    {{ msg.created_at }}
+                </p>
+                <p class="text-xs">To: {{ msg.receiver_number }}</p>
+            </div>
         </div>
     </div>
 </template>

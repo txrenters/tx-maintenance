@@ -4,21 +4,25 @@ import { computed } from "vue";
 const props = defineProps({ status: Number });
 
 const title = computed(() => {
-    return {
-        503: "503: Service Unavailable",
-        500: "500: Server Error",
-        404: "404: Page Not Found",
-        403: "403: Forbidden",
-    }[props.status];
+    return (
+        {
+            503: "503: Service Unavailable",
+            500: "500: Server Error",
+            404: "404: Page Not Found",
+            403: "403: Forbidden",
+        }[props.status] || "Error"
+    );
 });
 
 const description = computed(() => {
-    return {
-        503: "Sorry, we are doing some maintenance. Please check back soon.",
-        500: "Whoops, something went wrong on our servers.",
-        404: "Sorry, the page you are looking for could not be found.",
-        403: "Sorry, you are forbidden from accessing this page.",
-    }[props.status];
+    return (
+        {
+            503: "Sorry, we are doing some maintenance. Please check back soon.",
+            500: "Whoops, something went wrong on our servers.",
+            404: "Sorry, the page you are looking for could not be found.",
+            403: "Sorry, you are forbidden from accessing this page.",
+        }[props.status] || "An unexpected error has occurred."
+    );
 });
 </script>
 
@@ -44,7 +48,12 @@ const description = computed(() => {
                 <div
                     class="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary"
                 >
-                    <Button as-child variant="link" size="sm">
+                    <Button
+                        as-child
+                        variant="link"
+                        size="sm"
+                        aria-label="Go back to home page"
+                    >
                         <Link href="/login"> Go back Home </Link>
                     </Button>
                 </div>
