@@ -17,7 +17,7 @@ const emit = defineEmits(["update:show", "fetch-attachments", "imageEmpty"]);
 
 const croppedImageForm = useForm({
     title: "",
-    type: "",
+    type: "before",
     filename: "",
     date: "",
     owner_portal: "No",
@@ -71,8 +71,7 @@ const handleFormSubmit = () => {
     if (
         !croppedImageForm.title ||
         !croppedImageForm.type ||
-        !croppedImageForm.filename ||
-        !croppedImageForm.date
+        !croppedImageForm.filename
     ) {
         toast({
             variant: "destructive",
@@ -164,15 +163,6 @@ const handleFormSubmit = () => {
                         >
                             {{ croppedImageForm.progress.percentage }}%
                         </Progress>
-                    </div>
-                    <div class="mb-2">
-                        <Label>Select Date</Label>
-                        <Input
-                            type="date"
-                            placeholder="Enter file description"
-                            v-model="croppedImageForm.date"
-                            class="w-full"
-                        />
                     </div>
                     <div class="mb-3">
                         <Label>Choose Option</Label>
