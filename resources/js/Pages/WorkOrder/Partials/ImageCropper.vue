@@ -144,18 +144,34 @@ const handleFormSubmit = () => {
                     <div class="mb-3">
                         <Label>Cropped Image</Label>
                         <img
+                            width="100"
                             class="block bg-cover bg-no-repeat bg-center mt-2"
                             :src="photoPreview"
                         />
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-2">
                         <Label>Title</Label>
                         <Input
                             type="text"
-                            class="mt-2"
                             placeholder="Enter file description"
                             v-model="croppedImageForm.title"
+                        />
+                        <Progress
+                            v-if="croppedImageForm.progress"
+                            :value="croppedImageForm.progress.percentage"
+                            :model-value="croppedImageForm.progress.percentage"
+                        >
+                            {{ croppedImageForm.progress.percentage }}%
+                        </Progress>
+                    </div>
+                    <div class="mb-2">
+                        <Label>Select Date</Label>
+                        <Input
+                            type="date"
+                            placeholder="Enter file description"
+                            v-model="croppedImageForm.date"
+                            class="w-full"
                         />
                     </div>
                     <div class="mb-3">
@@ -196,7 +212,7 @@ const handleFormSubmit = () => {
                             </div>
                         </RadioGroup>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-12 pb-12">
                         <Label>Publish to Owner Portal</Label>
                         <RadioGroup
                             default-value="comfortable"
@@ -213,22 +229,6 @@ const handleFormSubmit = () => {
                             </div>
                         </RadioGroup>
                     </div>
-                    <div class="mb-12 pb-12">
-                        <Label>Select Date</Label>
-                        <Input
-                            type="date"
-                            placeholder="Enter file description"
-                            v-model="croppedImageForm.date"
-                            class="w-full mt-2"
-                        />
-                    </div>
-                    <Progress
-                        v-if="croppedImageForm.progress"
-                        :value="croppedImageForm.progress.percentage"
-                        :model-value="croppedImageForm.progress.percentage"
-                    >
-                        {{ croppedImageForm.progress.percentage }}%
-                    </Progress>
                 </div>
             </div>
             <DialogFooter class="p-6 pt-0">

@@ -303,6 +303,34 @@ function handleFiles(event) {
                         accept=".jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .xls, .xlsx"
                         @change="handleFiles"
                     />
+                    <Progress
+                        v-if="attachmentForm.progress"
+                        :value="attachmentForm.progress.percentage"
+                        :model-value="attachmentForm.progress.percentage"
+                    >
+                        {{ attachmentForm.progress.percentage }}%
+                    </Progress>
+                </div>
+                <div class="mb-3">
+                    <Label>Choose Option</Label>
+                    <RadioGroup
+                        default-value="comfortable"
+                        class="flex gap-5 mt-2"
+                        v-model="attachmentForm.type"
+                    >
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r2" value="before" />
+                            <Label for="r2">Before</Label>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r3" value="after" />
+                            <Label for="r3">After</Label>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r3" value="attachment" />
+                            <Label for="r3">Attachment</Label>
+                        </div>
+                    </RadioGroup>
                 </div>
                 <div class="mb-3">
                     <Label>Publish to Tenant Portal</Label>
@@ -338,37 +366,31 @@ function handleFiles(event) {
                         </div>
                     </RadioGroup>
                 </div>
+                <div class="mb-3">
+                    <Label for="">Previews</Label>
+                    <div class="flex gap-2 flex-wrap mb-6">
+                        <div
+                            v-for="(file, index) in previewFiles"
+                            :key="index"
+                            class="flex gap-2 border"
+                        >
+                            <!-- Image Preview -->
+                            <img
+                                v-if="file.type.startsWith('image/')"
+                                :src="file.url"
+                                class="w-32"
+                            />
 
-                <Progress
-                    v-if="attachmentForm.progress"
-                    :value="attachmentForm.progress.percentage"
-                    :model-value="attachmentForm.progress.percentage"
-                >
-                    {{ attachmentForm.progress.percentage }}%
-                </Progress>
-
-                <div class="flex gap-2 mt-2 flex-wrap mb-6">
-                    <div
-                        v-for="(file, index) in previewFiles"
-                        :key="index"
-                        class="flex gap-2 border"
-                    >
-                        <!-- Image Preview -->
-                        <img
-                            v-if="file.type.startsWith('image/')"
-                            :src="file.url"
-                            class="w-32"
-                        />
-
-                        <!-- PDF Preview -->
-                        <!-- <iframe
+                            <!-- PDF Preview -->
+                            <!-- <iframe
                             v-else-if="file.type === 'application/pdf'"
                             :src="file.url"
                             class="w-32"
                         ></iframe> -->
 
-                        <!-- DOC, DOCX, XLS, XLSX and other file types -->
-                        <div v-else class="text-5xl p-2">📄</div>
+                            <!-- DOC, DOCX, XLS, XLSX and other file types -->
+                            <div v-else class="text-5xl p-2">📄</div>
+                        </div>
                     </div>
                 </div>
             </div>

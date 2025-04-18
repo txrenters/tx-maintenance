@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Spatie\LaravelImageOptimizer\Facades\ImageOptimizer;
 
 class AttachmentsController extends Controller
 {
@@ -21,7 +22,7 @@ class AttachmentsController extends Controller
     {
         $validatedData = $request->validate([
             'title' => 'required',
-            'filename' => 'required|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:102400',
+            'filename' => 'required',
             'type' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
         ]);
@@ -33,8 +34,25 @@ class AttachmentsController extends Controller
 
         if ($request->hasFile('filename')) {
             $file = $request->file('filename');
+        
+            // Store the file
             $validatedData['filename'] = $file->store('attachments', 'public');
             $validatedData['filetype'] = $file->getMimeType();
+        
+            // Get the full path to the stored file
+            $filePath = storage_path('app/public/' . $validatedData['filename']);
+        
+            // Log original file size (in KB)
+            Log::info('Original file size: ' . round(filesize($filePath) / 1024, 2) . ' KB');
+        
+            // Check if image and optimize
+            if (preg_match('/image/', $validatedData['filetype'])) {
+                // Optimize and overwrite
+                ImageOptimizer::optimize($filePath);
+        
+                // Log optimized file size
+                Log::info('Optimized file size: ' . round(filesize($filePath) / 1024, 2) . ' KB');
+            }
         }
  
         $attachment = Attachments::create($validatedData);
@@ -65,7 +83,7 @@ class AttachmentsController extends Controller
             'type' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
             'files' => 'required|array',
-            'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:102400',
+            'files.*.file' => 'required',
             'files.*.name' => 'required|string',
             'files.*.type' => 'required|string',
             'tenant_portal' => 'required',
@@ -82,24 +100,35 @@ class AttachmentsController extends Controller
             $file = $fileData['file'];
             $originalName = $fileData['name'];
             $mimeType = $fileData['type'];
-    
+        
+            // Store file
             $path = $file->store('attachments', 'public');
-
+            $filePath = storage_path('app/public/' . $path);
+        
+            // Log original size
+            Log::info("File: $originalName | Original size: " . round(filesize($filePath) / 1024, 2) . ' KB');
+        
+            // If it's an image, optimize and log new size
+            if (preg_match('/image/', $mimeType)) {
+                ImageOptimizer::optimize($filePath);
+        
+                Log::info("File: $originalName | Optimized size: " . round(filesize($filePath) / 1024, 2) . ' KB');
+            }
+        
             $files = [
                 'title' => $validatedData['title'],
                 'filename' => $path,
                 'filetype' => $mimeType,
                 'type' => $validatedData['type'],
                 'work_order_id' => $validatedData['work_order_id'],
-                'is_publish_to_owner_portal' => $validatedData['owner_portal'] == 'Yes',
-                'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes',
+                'is_publish_to_owner_portal' => $validatedData['owner_portal'] === 'Yes',
+                'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] === 'Yes',
                 'user_id' => $user_id,
-                'created_at' =>  $request->date ?? now(),
-                
+                'created_at' => $request->date ?? now(),
             ];
-            
+        
             $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
-
+        
             $savedFiles[] = $files;
         }
 
