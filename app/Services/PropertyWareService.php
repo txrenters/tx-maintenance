@@ -198,7 +198,9 @@ class PropertyWareService
                             <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-
+                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -279,6 +281,9 @@ class PropertyWareService
                          <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
 
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
@@ -414,6 +419,10 @@ class PropertyWareService
                             <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                            
+                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                             <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
                     </ser:updateWorkOrder>
@@ -459,6 +468,9 @@ class PropertyWareService
                     <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                     <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                     <status xsi:type="xsd:string">Open</status>
+                    <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                    <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                    <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                     </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
@@ -519,6 +531,10 @@ class PropertyWareService
                 <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                 <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                 <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
+                
+                <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                 <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                     xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                     <customFields xsi:type="ns2:CustomField">
@@ -579,6 +595,9 @@ class PropertyWareService
                         <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                        <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                        <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                        <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                         '.$vendorIDsXml.'
                     </workOrder>
@@ -790,6 +809,13 @@ class PropertyWareService
                         <costEstimate xsi:type="xsd:double">'.(float) ($cost_etimate ?? 0).'</costEstimate>
                         <hourEstimate xsi:type="xsd:double">'.(float) ($time_estimate ?? 0).'</hourEstimate>
                         <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
+                        
+                       <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                        <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                        <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                        <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                        <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                        <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>
