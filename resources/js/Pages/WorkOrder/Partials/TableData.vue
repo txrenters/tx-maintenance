@@ -1,4 +1,5 @@
 <script setup>
+import { Check } from "lucide-vue-next";
 const emit = defineEmits(["isDialogOpen", "statusChanged"]);
 
 defineProps({
@@ -21,22 +22,23 @@ const updateStatus = (work_order) => {
                 <TableHead class="hidden md:table-cell">
                     Completed Date
                 </TableHead>
-                <TableHead class="hidden md:table-cell"> Status </TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
             <TableRow v-for="work_order in data" :key="work_order.id">
                 <TableCell class="font-medium">
-                    {{ work_order.work_order_no }}
+                    #{{ work_order.work_order_no }}
                     <p class="text-xs font-normal md:hidden">
                         {{ work_order.location }}
                     </p>
                     <p class="text-xs font-normal md:hidden">
                         {{ work_order.requested_by }}
                     </p>
-                    <Badge variant="outline" class="mt-2 md:hidden">
-                        {{ work_order.status }}
-                    </Badge>
+                    <p class="flex text-xs mt-1 md:hidden">
+                        <Check class="w-4 h-4 text-green-600" />{{
+                            work_order.completed_at
+                        }}
+                    </p>
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     {{ work_order.location }}
@@ -47,7 +49,7 @@ const updateStatus = (work_order) => {
                 <TableCell class="hidden md:table-cell">
                     {{ work_order.completed_at }}
                 </TableCell>
-                <TableCell class="hidden md:table-cell">
+                <TableCell>
                     <TableCell>
                         <DropdownMenu>
                             <DropdownMenuTrigger as-child>

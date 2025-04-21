@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class UpdateTaskDueDate extends Command
 {
@@ -50,86 +51,194 @@ class UpdateTaskDueDate extends Command
 
             $tasks = $response->json()['data'] ?? [];
 
-            foreach ($tasks as $task) {
-                $taskId = $task['gid'];
+            // foreach ($tasks as $task) {
+            //     $taskId = $task['gid'];
 
-                // ✅ Step 2: Fetch subtasks for each task
-                $subtaskResponse = Http::withToken($token)->get("https://app.asana.com/api/1.0/tasks/{$taskId}/subtasks", [
-                    'opt_fields' => 'gid,name,due_on,completed',
-                ]);
+            //     // ✅ Step 2: Fetch subtasks for each task
+            //     $subtaskResponse = Http::withToken($token)->get("https://app.asana.com/api/1.0/tasks/{$taskId}/subtasks", [
+            //         'opt_fields' => 'gid,name,due_on,completed',
+            //     ]);
 
-                if ($subtaskResponse->failed()) {
-                    Log::error('Failed to fetch subtasks'.json_encode(['task_id' => $taskId, 'response' => $subtaskResponse->body()]));
+            //     if ($subtaskResponse->failed()) {
+            //         Log::error('Failed to fetch subtasks'.json_encode(['task_id' => $taskId, 'response' => $subtaskResponse->body()]));
+            //         continue;
+            //     }
+
+            //     $subtasks = $subtaskResponse->json()['data'] ?? [];
+
+            //     foreach ($subtasks as $subtask) {
+
+            //         if($subtask['completed'] && !empty($subtask['due_on'])){
+            //             continue;
+            //         }
+
+            //         if ((preg_match('/\bFill out\b/i', $subtask['name']) || preg_match('/\bARE THERE\b/i', $subtask['name']) || preg_match('/\bHOW MANY\b/i', $subtask['name']) || preg_match('/\bCMA LINK\b/i', $subtask['name']) || preg_match('/\bSet Due Date\b/i', $subtask['name']) || preg_match('/\bSet Dues Date\b/i', $subtask['name']))) {
+            //             $subtaskId = $subtask['gid'];
+            //             $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
+
+            //             Log::info('Subtask:', [
+            //                 'subtask_name' => $subtask['name'],
+            //                 'due_date' => $subtask['due_on'],
+            //             ]);
+
+            //             if ($subtask['due_on'] > $nextMonday) {
+            //                 Log::info('Updating  subtask:', [
+            //                     'subtask_name' => $subtask['name'],
+            //                     'new_due_date' => $nextMonday,
+            //                 ]);
+
+            //                 $updateResponse = Http::withToken($token)
+            //                     ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+            //                         'data' => [
+            //                             'due_on' => $nextMonday,
+            //                         ],
+            //                     ]);
+
+            //                 if ($updateResponse->failed()) {
+            //                     Log::error('Failed to update  subtask'.json_encode([
+            //                         'subtask_name' => $subtask['name'],
+            //                         'response' => $updateResponse->body(),
+            //                     ]));
+            //                 } else {
+            //                     Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
+            //                 }
+            //             }
+
+            //         }
+
+            //         if ((preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bRECOMMENDED\b/i', $subtask['name']))) {
+            //             $subtaskId = $subtask['gid'];
+            //             $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
+
+            //             Log::info('Subtask:', [
+            //                 'subtask_name' => $subtask['name'],
+            //                 'due_date' => $subtask['due_on'],
+            //             ]);
+
+            //             if ($subtask['due_on'] > $nextTuesday) {
+            //                 Log::info('Updating subtask:', [
+            //                     'subtask_name' => $subtask['name'],
+            //                     'new_due_date' => $nextTuesday,
+            //                 ]);
+
+            //                 $updateResponse = Http::withToken($token)
+            //                     ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+            //                         'data' => [
+            //                             'due_on' => $nextTuesday,
+            //                         ],
+            //                     ]);
+
+            //                 if ($updateResponse->failed()) {
+            //                     Log::error('Failed to update  subtask'.json_encode([
+            //                         'subtask_name' => $subtask['name'],
+            //                         'response' => $updateResponse->body(),
+            //                     ]));
+            //                 } else {
+            //                     Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
+
+            foreach ($tasks as $subtask) {
+
+                if ($subtask['completed']) {
                     continue;
                 }
+            
+                $subtaskId = $subtask['gid'];
+                $subtaskName = $subtask['name'];
+            
+                $mondayKeywords = ['Fill out', 'ARE THERE', 'HOW MANY', 'CMA LINK', 'Set Due Date', 'Set Dues Date'];
+                $tuesdayKeywords = ['Update owner on listing', 'RECOMMENDED'];
 
-                $subtasks = $subtaskResponse->json()['data'] ?? [];
+                if ((preg_match('/\bSet Due Date\b/i', $subtask['name']) || preg_match('/\bSet Dues Date\b/i', $subtask['name']))) {
+                    $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
 
-                foreach ($subtasks as $subtask) {
-                    if ((preg_match('/\bFill out\b/i', $subtask['name']) || preg_match('/\bARE THERE\b/i', $subtask['name']) || preg_match('/\bHOW MANY\b/i', $subtask['name']) || preg_match('/\bCMA LINK\b/i', $subtask['name']) || preg_match('/\bSet Due Date\b/i', $subtask['name']) || preg_match('/\bSet Dues Date\b/i', $subtask['name']) ) && ! $subtask['completed']) {
-                        $subtaskId = $subtask['gid'];
-                        $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
+                    Log::info('Subtask:', [
+                        'subtask_name' => $subtaskName,
+                        'due_date' => $subtask['due_on'],
+                    ]);
 
-                        Log::info('Subtask:', [
-                            'subtask_name' => $subtask['name'],
-                            'due_date' => $subtask['due_on'],
+                    if ($subtask['due_on'] > $nextMonday) {
+                        Log::info('Updating subtask:', [
+                            'subtask_name' => $subtaskName,
+                            'new_due_date' => $nextMonday,
                         ]);
-
-                        if ($subtask['due_on'] != $nextMonday) {
-                            Log::info('Updating  subtask:', [
-                                'subtask_name' => $subtask['name'],
-                                'new_due_date' => $nextMonday,
+            
+                        $updateResponse = Http::withToken($token)
+                            ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                                'data' => ['due_on' => $nextMonday],
                             ]);
-
-                            $updateResponse = Http::withToken($token)
-                                ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
-                                    'data' => [
-                                        'due_on' => $nextMonday,
-                                    ],
-                                ]);
-
-                            if ($updateResponse->failed()) {
-                                Log::error('Failed to update  subtask'.json_encode([
-                                    'subtask_name' => $subtask['name'],
-                                    'response' => $updateResponse->body(),
-                                ]));
-                            } else {
-                                Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
-                            }
+            
+                        if ($updateResponse->failed()) {
+                            Log::error('Failed to update subtask', [
+                                'subtask_name' => $subtaskName,
+                                'response' => $updateResponse->body(),
+                            ]);
+                        } else {
+                            Log::info('Successfully updated the subtask:', ['subtask_name' => $subtaskName]);
                         }
-
                     }
-
-                    if ((preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bUpdate owner on listing\b/i', $subtask['name']) || preg_match('/\bRECOMMENDED\b/i', $subtask['name'])) && ! $subtask['completed']) {
-                        $subtaskId = $subtask['gid'];
-                        $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
-
-                        Log::info('Subtask:', [
-                            'subtask_name' => $subtask['name'],
-                            'due_date' => $subtask['due_on'],
+                }
+            
+                if (Str::contains(strtoupper($subtaskName), $mondayKeywords)) {
+                    $nextMonday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
+            
+                    Log::info('Subtask:', [
+                        'subtask_name' => $subtaskName,
+                        'due_date' => $subtask['due_on'],
+                    ]);
+            
+                    if (empty($subtask['due_on'])) {
+                        Log::info('Updating subtask:', [
+                            'subtask_name' => $subtaskName,
+                            'new_due_date' => $nextMonday,
                         ]);
-
-                        if ($subtask['due_on'] != $nextTuesday) {
-                            Log::info('Updating subtask:', [
-                                'subtask_name' => $subtask['name'],
-                                'new_due_date' => $nextTuesday,
+            
+                        $updateResponse = Http::withToken($token)
+                            ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                                'data' => ['due_on' => $nextMonday],
                             ]);
-
-                            $updateResponse = Http::withToken($token)
-                                ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
-                                    'data' => [
-                                        'due_on' => $nextTuesday,
-                                    ],
-                                ]);
-
-                            if ($updateResponse->failed()) {
-                                Log::error('Failed to update  subtask'.json_encode([
-                                    'subtask_name' => $subtask['name'],
-                                    'response' => $updateResponse->body(),
-                                ]));
-                            } else {
-                                Log::info('Successfully updated the subtask:', ['subtask_name' => $subtask['name']]);
-                            }
+            
+                        if ($updateResponse->failed()) {
+                            Log::error('Failed to update subtask', [
+                                'subtask_name' => $subtaskName,
+                                'response' => $updateResponse->body(),
+                            ]);
+                        } else {
+                            Log::info('Successfully updated the subtask:', ['subtask_name' => $subtaskName]);
+                        }
+                    }
+                }
+            
+                if (Str::contains(strtoupper($subtaskName), $tuesdayKeywords)) {
+                    $nextTuesday = Carbon::now()->next(Carbon::TUESDAY)->toDateString();
+            
+                    Log::info('Subtask:', [
+                        'subtask_name' => $subtaskName,
+                        'due_date' => $subtask['due_on'],
+                    ]);
+            
+                    if (empty($subtask['due_on'])) {
+                        Log::info('Updating subtask:', [
+                            'subtask_name' => $subtaskName,
+                            'new_due_date' => $nextTuesday,
+                        ]);
+            
+                        $updateResponse = Http::withToken($token)
+                            ->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                                'data' => ['due_on' => $nextTuesday],
+                            ]);
+            
+                        if ($updateResponse->failed()) {
+                            Log::error('Failed to update subtask', [
+                                'subtask_name' => $subtaskName,
+                                'response' => $updateResponse->body(),
+                            ]);
+                        } else {
+                            Log::info('Successfully updated the subtask:', ['subtask_name' => $subtaskName]);
                         }
                     }
                 }
