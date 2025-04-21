@@ -24,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('attachments', function (Blueprint $table) {
-            $table->dropColumn(['is_private','is_publish_to_owner_portal','is_publish_to_tenant_portal']);
+            $table->dropColumn(['is_private', 'is_publish_to_owner_portal', 'is_publish_to_tenant_portal']);
         });
     }
 };

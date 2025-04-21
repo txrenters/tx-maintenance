@@ -78,7 +78,6 @@ class TaskController extends Controller
                 $is_emergency = $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency;
             }
 
-
         } else {
             $next_service_id = $currentTask->task->next_service_status_id;
             $is_emergency = $currentTask->task->is_emergency;

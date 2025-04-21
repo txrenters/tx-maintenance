@@ -218,7 +218,7 @@ class WorkOrderService
                 'work_order_no' => $data['number'] ?? null,
                 'approval_comments' => $data['approvalComments'] ?? null,
                 'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
-                'approved_by' =>  ! empty($data['approvedBy']['firstName']) ? $data['approvedBy']['firstName'] .' '.$data['approvedBy']['lastName'] : null,
+                'approved_by' => ! empty($data['approvedBy']['firstName']) ? $data['approvedBy']['firstName'].' '.$data['approvedBy']['lastName'] : null,
                 'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,
