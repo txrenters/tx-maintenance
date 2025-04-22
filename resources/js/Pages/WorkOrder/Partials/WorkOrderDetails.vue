@@ -510,40 +510,43 @@ const handleDeleteSubmit = () => {
         </div>
     </div>
     <DialogFooter
-        class="p-6 pt-0"
         v-if="
             $page.props.auth.user.roles.includes('admin') ||
             $page.props.auth.user.roles.includes('woc')
         "
     >
-        <Button
-            type="submit"
-            variant="destructive"
-            :disabled="loading"
-            @click.prevent="handleDeleteSubmit"
-        >
-            <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
-            Delete
-        </Button>
-        <Button
-            type="submit"
-            class="bg-green-400 hover:bg-green-500 text-white"
-            :disabled="closeWorkOrderForm.processing"
-            @click.prevent="handleCloseOrderSubmit"
-        >
-            <Loader2
-                v-if="closeWorkOrderForm.processing"
-                class="w-4 h-4 animate-spin"
-            />
-            Completed
-        </Button>
-        <Button
-            type="submit"
-            :disabled="workOrder.processing"
-            @click.prevent="handleUpdateSubmit"
-        >
-            <Loader2 v-if="workOrder.processing" class="w-4 h-4 animate-spin" />
-            Save changes
-        </Button>
+        <div class="p-6 pt-0 flex flex-wrap gap-1 justify-end">
+            <Button
+                type="submit"
+                variant="destructive"
+                :disabled="loading"
+                @click.prevent="handleDeleteSubmit"
+            >
+                <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+                Delete
+            </Button>
+            <Button
+                type="submit"
+                :disabled="closeWorkOrderForm.processing"
+                @click.prevent="handleCloseOrderSubmit"
+            >
+                <Loader2
+                    v-if="closeWorkOrderForm.processing"
+                    class="w-4 h-4 animate-spin"
+                />
+                Completed
+            </Button>
+            <Button
+                type="submit"
+                :disabled="workOrder.processing"
+                @click.prevent="handleUpdateSubmit"
+            >
+                <Loader2
+                    v-if="workOrder.processing"
+                    class="w-4 h-4 animate-spin"
+                />
+                Save
+            </Button>
+        </div>
     </DialogFooter>
 </template>
