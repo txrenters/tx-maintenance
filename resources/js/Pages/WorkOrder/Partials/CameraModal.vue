@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
+import { Camera, SwitchCamera, CameraOff, Play } from "lucide-vue-next";
 const props = defineProps({
     show: Boolean,
 });
@@ -27,15 +28,8 @@ const startCamera = async (facingMode = "environment") => {
         video.value.srcObject = stream;
         console.log("Camera started with mode:", facingMode);
     } catch (error) {
-        console.error("Camera error:", error.name, error.message);
-        // Optional fallback to front camera if back is not available
-        if (
-            facingMode === "environment" &&
-            error.name === "OverconstrainedError"
-        ) {
-            console.log("Back camera not available, switching to front.");
-            startCamera("user");
-        }
+        console.log("Back camera not available, switching to front.");
+        startCamera("user");
     }
 };
 
@@ -90,6 +84,17 @@ const closeModal = () => {
     emit("update:show", false);
     stopCamera();
 };
+
+// Start camera when modal is shown, and stop when hidden
+watch(
+    () => props.show,
+    (newVal) => {
+        showCamera.value = newVal;
+        if (!newVal) {
+            stopCamera();
+        }
+    }
+);
 </script>
 
 <template>
@@ -116,12 +121,27 @@ const closeModal = () => {
             </div>
             <DialogFooter class="p-6 pt-0">
                 <div class="flex gap-1 justify-end flex-wrap">
-                    <Button @click="closeModal" variant="destructive"
-                        >Cancel</Button
-                    >
-                    <Button @click="startCamera">Start</Button>
-                    <Button @click="toggleCamera">Switch</Button>
-                    <Button @click="snapshot">Capture</Button>
+                    <Button
+                        @click="closeModal"
+                        variant="icon"
+                        class="bg-destructive"
+                        ><CameraOff
+                    /></Button>
+                    <Button
+                        @click="startCamera"
+                        variant="icon"
+                        class="bg-secondary"
+                        ><Play
+                    /></Button>
+                    <Button
+                        @click="toggleCamera"
+                        variant="icon"
+                        class="bg-secondary"
+                        ><SwitchCamera
+                    /></Button>
+                    <Button @click="snapshot" variant="icon" class="bg-primary"
+                        ><Camera
+                    /></Button>
                 </div>
             </DialogFooter>
         </DialogContent>
