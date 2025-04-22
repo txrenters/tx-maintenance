@@ -15,28 +15,70 @@ const toggleCamera = () => {
     stopCamera();
     currentFacingMode.value =
         currentFacingMode.value === "user" ? "environment" : "user";
-    startCamera(currentFacingMode.value);
+    startCamera();
     console.log(currentFacingMode.value);
 };
 
-const startCamera = async (facingMode = "environment") => {
+// const startCamera = async (facingMode = "environment") => {
+//     try {
+//         const stream = await navigator.mediaDevices.getUserMedia({
+//             video: { facingMode: { ideal: facingMode } },
+//         });
+//         video.value.srcObject = stream;
+//         console.log("Camera started with mode:", facingMode);
+//     } catch (error) {
+//         console.error("Camera error:", error.name, error.message);
+//         // Optional fallback to front camera if back is not available
+//         if (
+//             facingMode === "environment" &&
+//             error.name === "OverconstrainedError"
+//         ) {
+//             console.log("Back camera not available, switching to front.");
+//             startCamera("user");
+//         }
+//     }
+// };
+
+const startCamera = async () => {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: facingMode } },
-        });
-        video.value.srcObject = stream;
-        console.log("Camera started with mode:", facingMode);
-    } catch (error) {
-        console.error("Camera error:", error.name, error.message);
-        // Optional fallback to front camera if back is not available
-        if (
-            facingMode === "environment" &&
-            error.name === "OverconstrainedError"
-        ) {
-            console.log("Back camera not available, switching to front.");
-            startCamera("user");
+        // 👇 Request camera once to unlock labels
+        await navigator.mediaDevices.getUserMedia({ video: true });
+
+        const deviceId = await getBackCameraDeviceId();
+
+        if (!deviceId) {
+            console.error("❌ No video input device found.");
+            return;
         }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } },
+        });
+
+        video.value.srcObject = stream;
+        console.log("✅ Camera started with deviceId:", deviceId);
+    } catch (error) {
+        console.error("🚨 Camera error:", error.name, error.message);
     }
+};
+
+const getBackCameraDeviceId = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+
+    // Some devices won't reveal anything without permission
+    const videoDevices = devices.filter(
+        (device) => device.kind === "videoinput"
+    );
+
+    console.log("🎥 Video devices found:", videoDevices);
+
+    const backCam = videoDevices.find(
+        (device) =>
+            device.label.toLowerCase().includes("back") ||
+            device.label.toLowerCase().includes("rear")
+    );
+
+    return backCam ? backCam.deviceId : videoDevices[0]?.deviceId;
 };
 
 const stopCamera = () => {
