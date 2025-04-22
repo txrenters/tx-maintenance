@@ -19,7 +19,7 @@ const toggleCamera = () => {
     console.log(currentFacingMode.value);
 };
 
-const startCamera = async (facingMode = "user") => {
+const startCamera = async (facingMode = "environment") => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode },
