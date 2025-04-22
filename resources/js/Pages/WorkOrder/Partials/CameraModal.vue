@@ -39,7 +39,7 @@ const toggleCamera = () => {
 //     }
 // };
 
-const startCamera = async () => {
+const startCamera = async (facingMode = "environment") => {
     try {
         // 👇 Request camera once to unlock labels
         await navigator.mediaDevices.getUserMedia({ video: true });
@@ -52,7 +52,7 @@ const startCamera = async () => {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
+            video: { facingMode: facingMode },
         });
 
         video.value.srcObject = stream;
