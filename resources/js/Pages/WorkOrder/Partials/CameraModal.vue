@@ -94,9 +94,7 @@ watch(
     () => props.show,
     (newVal) => {
         showCamera.value = newVal;
-        if (newVal) {
-            startCamera();
-        } else {
+        if (!newVal) {
             stopCamera();
         }
     }
@@ -126,10 +124,11 @@ watch(
                 </div>
             </div>
             <DialogFooter class="p-6 pt-0">
-                <div class="flex gap-1 justify-end">
+                <div class="flex gap-1 justify-end flex-wrap">
                     <Button @click="closeModal" variant="destructive"
                         >Cancel</Button
                     >
+                    <Button @click="startCamera">Start</Button>
                     <Button @click="toggleCamera">Switch</Button>
                     <Button @click="snapshot">Capture</Button>
                 </div>
