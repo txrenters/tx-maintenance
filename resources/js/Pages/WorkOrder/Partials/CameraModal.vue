@@ -15,12 +15,13 @@ const snapshotUrl = ref("");
 const toggleCamera = () => {
     stopCamera();
     currentFacingMode.value =
-        currentFacingMode.value === "environment" ? "environment" : "user";
+        currentFacingMode.value === "user" ? "environment" : "user";
     startCamera(currentFacingMode.value);
     console.log(currentFacingMode.value);
 };
 
-const startCamera = async (facingMode = "environment") => {
+const openCameraBtn = ref(true);
+const startCamera = async (facingMode = currentFacingMode.value) => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { exact: facingMode } },
@@ -29,8 +30,9 @@ const startCamera = async (facingMode = "environment") => {
         console.log("Camera started with mode:", facingMode);
     } catch (error) {
         console.log("Back camera not available, switching to front.");
-        startCamera("user");
+        startCamera(facingMode);
     }
+    openCameraBtn.value = false;
 };
 
 const stopCamera = () => {
@@ -81,6 +83,7 @@ function dataURLToBlob(dataUrl) {
 
 const closeModal = () => {
     showCamera.value = false;
+    openCameraBtn.value = true;
     emit("update:show", false);
     stopCamera();
 };
@@ -122,24 +125,31 @@ watch(
             <DialogFooter class="p-6 pt-0">
                 <div class="flex gap-1 justify-end flex-wrap">
                     <Button
+                        v-if="!openCameraBtn"
                         @click="closeModal"
                         variant="icon"
                         class="bg-destructive"
                         ><CameraOff
                     /></Button>
                     <Button
+                        v-if="openCameraBtn"
                         @click="startCamera"
                         variant="icon"
                         class="bg-secondary"
                         ><Play
                     /></Button>
                     <Button
+                        v-if="!openCameraBtn"
                         @click="toggleCamera"
                         variant="icon"
                         class="bg-secondary"
                         ><SwitchCamera
                     /></Button>
-                    <Button @click="snapshot" variant="icon" class="bg-primary"
+                    <Button
+                        v-if="!openCameraBtn"
+                        @click="snapshot"
+                        variant="icon"
+                        class="bg-primary"
                         ><Camera
                     /></Button>
                 </div>
