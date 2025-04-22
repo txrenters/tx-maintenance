@@ -22,17 +22,19 @@ const toggleCamera = () => {
 const startCamera = async (facingMode = "environment") => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode },
+            video: { facingMode: { exact: facingMode } },
         });
         video.value.srcObject = stream;
-        console.log("Camera started with mode:", facingMode); // Debug
+        console.log("Camera started with mode:", facingMode);
     } catch (error) {
-        if (error.name === "NotAllowedError") {
-            console.error("Permission denied for camera.");
-        } else if (error.name === "NotFoundError") {
-            console.error("No camera device found.");
-        } else {
-            console.error("Unexpected error:", error);
+        console.error("Camera error:", error.name, error.message);
+        // Optional fallback to front camera if back is not available
+        if (
+            facingMode === "environment" &&
+            error.name === "OverconstrainedError"
+        ) {
+            console.log("Back camera not available, switching to front.");
+            startCamera("user");
         }
     }
 };

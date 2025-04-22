@@ -168,33 +168,25 @@ const importVendorForm = useForm({
 });
 const handleImportVendor = () => {
     importVendorForm.processing = true;
+
     axios
         .post(route("vendors.import"), {
             vendors_name: importVendorForm.vendors_name,
         })
         .then((response) => {
-            if (response.data.success) {
-                toast({
-                    title: "Success",
-                    description: response.data.message,
-                });
-                importVendorForm.reset();
-                openImportVendor.value = false;
-                importVendorForm.processing = false;
-            } else {
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description: response.data.message,
-                });
-                importVendorForm.processing = false;
-            }
+            toast({
+                title: "Success",
+                description: "Vendor imported successfully!",
+            });
+            importVendorForm.reset();
+            openImportVendor.value = false;
+            importVendorForm.processing = false;
         })
         .catch((error) => {
             toast({
                 variant: "destructive",
                 title: "Uh oh! Something went wrong.",
-                description: error.response.data.message,
+                description: "Please try again in a few minutes",
             });
             importVendorForm.processing = false;
         });
