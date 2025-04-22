@@ -52,7 +52,7 @@ const startCamera = async () => {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } },
+            video: { deviceId: deviceId },
         });
 
         video.value.srcObject = stream;
