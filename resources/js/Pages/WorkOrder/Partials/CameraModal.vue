@@ -15,13 +15,13 @@ const snapshotUrl = ref("");
 const toggleCamera = () => {
     stopCamera();
     currentFacingMode.value =
-        currentFacingMode.value === "user" ? "user" : "environment";
+        currentFacingMode.value === "user" ? "environment" : "user";
     startCamera(currentFacingMode.value);
     console.log(currentFacingMode.value);
 };
 
 const openCameraBtn = ref(true);
-const startCamera = async (facingMode = "environment") => {
+const startCamera = async (facingMode = "user") => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { exact: facingMode } },
@@ -30,7 +30,7 @@ const startCamera = async (facingMode = "environment") => {
         console.log("Camera started with mode:", facingMode);
     } catch (error) {
         console.log("Back camera not available, switching to front.");
-        startCamera("user");
+        startCamera("environment");
     }
     openCameraBtn.value = false;
 };
