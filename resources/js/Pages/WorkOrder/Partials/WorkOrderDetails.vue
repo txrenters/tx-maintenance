@@ -44,6 +44,8 @@ const filteredVendors = computed(() => {
     const options = props.vendors.filter(
         (i) => !props.workOrder.vendors.includes(i.name)
     );
+
+    console.log(options);
     return searchTerm.value
         ? options.filter((option) => contains(option.name, searchTerm.value))
         : options;
@@ -284,7 +286,7 @@ const handleDeleteSubmit = () => {
                             <ComboboxEmpty />
                             <ComboboxGroup>
                                 <ComboboxItem
-                                    v-for="vendor in vendors"
+                                    v-for="vendor in filteredVendors"
                                     :key="vendor.id"
                                     :value="vendor.name"
                                     @select.prevent="
