@@ -7,7 +7,7 @@ const props = defineProps({
 const emit = defineEmits(["update:show", "capturedImage"]);
 
 const showCamera = ref(props.show);
-const currentFacingMode = ref("environment");
+const currentFacingMode = ref("user");
 
 const video = ref(null);
 const snapshotUrl = ref("");
@@ -15,13 +15,13 @@ const snapshotUrl = ref("");
 const toggleCamera = () => {
     stopCamera();
     currentFacingMode.value =
-        currentFacingMode.value === "user" ? "environment" : "user";
+        currentFacingMode.value === "user" ? "user" : "environment";
     startCamera(currentFacingMode.value);
     console.log(currentFacingMode.value);
 };
 
 const openCameraBtn = ref(true);
-const startCamera = async (facingMode = currentFacingMode.value) => {
+const startCamera = async (facingMode = "environment") => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { exact: facingMode } },
@@ -30,7 +30,7 @@ const startCamera = async (facingMode = currentFacingMode.value) => {
         console.log("Camera started with mode:", facingMode);
     } catch (error) {
         console.log("Back camera not available, switching to front.");
-        startCamera(facingMode);
+        startCamera("user");
     }
     openCameraBtn.value = false;
 };
@@ -42,6 +42,7 @@ const stopCamera = () => {
         tracks.forEach((track) => track.stop());
         video.value.srcObject = null;
     }
+    openCameraBtn.value = true;
 };
 const snapshot = () => {
     if (video.value.srcObject) {
