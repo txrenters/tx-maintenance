@@ -30,7 +30,7 @@ class UserPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update_user(User $user, User $model): Response
+    public function update_user(User $user): Response
     {
         return $user->hasRole('admin') && $user->hasPermissionTo('edit')
             ? Response::allow()
@@ -40,7 +40,7 @@ class UserPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete_user(User $user, User $model): Response
+    public function delete_user(User $user): Response
     {
         return $user->hasRole('admin') && $user->hasPermissionTo('delete')
         ? Response::allow()
