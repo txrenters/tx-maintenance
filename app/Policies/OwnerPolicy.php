@@ -3,14 +3,14 @@
 namespace App\Policies;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Response;
+use Illuminate\Auth\Access\Response;
 
 class OwnerPolicy
 {
     /**
      * Determine whether the user can view any models.
      */
-    public function view_owners(User $user): bool
+    public function view_owners(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()
@@ -20,7 +20,7 @@ class OwnerPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view_owner(User $user): bool
+    public function view_owner(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()
@@ -30,7 +30,7 @@ class OwnerPolicy
     /**
      * Determine whether the user can create models.
      */
-    public function create_owner(User $user): bool
+    public function create_owner(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()
@@ -40,7 +40,7 @@ class OwnerPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update_owner(User $user): bool
+    public function update_owner(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()
@@ -50,7 +50,7 @@ class OwnerPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete_owner(User $user): bool
+    public function delete_owner(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
             ? Response::allow()

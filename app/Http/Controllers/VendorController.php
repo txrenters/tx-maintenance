@@ -19,7 +19,7 @@ class VendorController extends Controller
      */
     public function index(Request $request)
     {
-        Gate::authorize('view_vendors', User::class);
+        Gate::authorize('view_vendors', Vendor::class);
 
         $vendors = Vendor::query()
             ->with(['user'])
@@ -36,7 +36,6 @@ class VendorController extends Controller
                     'phone' => $vendor->user->phone,
                     'vendor_type' => $vendor->vendor_type,
                     'name_on_check' => $vendor->name_on_check,
-                    'company' => $vendor->company,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
                     'status' => $vendor->is_active ? true : false,
@@ -57,7 +56,7 @@ class VendorController extends Controller
 
     public function store(Request $request)
     {
-        Gate::authorize('create_vendor', User::class);
+        Gate::authorize('create_vendor', Vendor::class);
 
         $data = $request->validate([
             'name' => 'required',
@@ -100,7 +99,7 @@ class VendorController extends Controller
      */
     public function update(Request $request, Vendor $vendor)
     {
-        Gate::authorize('update_vendor', User::class);
+        Gate::authorize('update_vendor', Vendor::class);
 
         $vendorData = $request->validate([
             'twilio_number' => '',
@@ -126,7 +125,7 @@ class VendorController extends Controller
 
     public function update_status(Request $request, Vendor $vendor)
     {
-        Gate::authorize('update_vendor', User::class);
+        Gate::authorize('update_vendor', Vendor::class);
 
         $request->validate([
             'status' => 'required',
@@ -140,7 +139,7 @@ class VendorController extends Controller
 
     public function import(Request $request)
     {
-        Gate::authorize('create_vendor', User::class);
+        Gate::authorize('create_vendor', Vendor::class);
 
         $request->validate([
             'vendors_name' => 'required|string',

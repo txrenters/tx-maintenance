@@ -3,14 +3,14 @@
 namespace App\Policies;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Response;
+use Illuminate\Auth\Access\Response;
 
 class TenantsPolicy
 {
     /**
      * Determine whether the user can view any models.
      */
-    public function view_tenants(User $user): bool
+    public function view_tenants(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
            ? Response::allow()
@@ -20,7 +20,7 @@ class TenantsPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view_tenant(User $user): bool
+    public function view_tenant(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
            ? Response::allow()
@@ -30,7 +30,7 @@ class TenantsPolicy
     /**
      * Determine whether the user can create models.
      */
-    public function create_tenant(User $user): bool
+    public function create_tenant(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
            ? Response::allow()
@@ -40,7 +40,7 @@ class TenantsPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update_tenant(User $user): bool
+    public function update_tenant(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
            ? Response::allow()
@@ -50,7 +50,7 @@ class TenantsPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete_tenant(User $user): bool
+    public function delete_tenant(User $user): Response
     {
         return $user->hasRole('admin') || $user->hasRole('woc')
            ? Response::allow()
