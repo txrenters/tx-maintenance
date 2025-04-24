@@ -859,6 +859,7 @@ class PropertyWareService
             CURLOPT_POSTFIELDS => $xmlPayload,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: text/xml',
+                'Content-Length: ' . strlen($xmlPayload),
                 'SOAPAction: ""',
             ],
             CURLOPT_USERPWD => $this->username.':'.$this->password,
@@ -952,10 +953,6 @@ class PropertyWareService
             'connection_timeout' => 5000,
             'exceptions' => true,
             'stream_context' => stream_context_create([
-                // 'http' => [
-                //     'timeout' => 600, // Increase timeout
-                //     'header' => "Accept-Encoding: gzip, deflate" // Use compressed responses
-                // ],
                 'ssl' => [
                     'verify_peer' => false,
                     'verify_peer_name' => false,
@@ -964,7 +961,7 @@ class PropertyWareService
             ]),
         ];
 
-        $client = new \SoapClient($this->url, $options);
+        $client = new \SoapClient($this->url.'?wsdl', $options);
 
         return $client;
     }
