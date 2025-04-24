@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
 import { Icon } from "@iconify/vue";
@@ -192,6 +192,24 @@ const canAccess = (requiredRoles) => {
 };
 
 const mode = useColorMode({ disableTransition: false });
+
+const showChatbot = ref(true);
+
+onMounted(() => {
+    if (showChatbot.value) {
+        const script = document.createElement("script");
+        script.src = "https://app.relevanceai.com/embed/chat-bubble.js";
+        script.setAttribute(
+            "data-relevanceai-share-id",
+            "bcbe5a/4e86ee120de5-498d-a5f8-c4ff0eca63a7/1a1a3e95-4012-498a-8cc5-5a4fd8bc8f3d"
+        );
+        script.setAttribute(
+            "data-share-styles",
+            "starting_message_prompts=Hi%2C+how+can+I+help+you%3F&hide_tool_steps=true&hide_file_uploads=true&hide_conversation_list=false&bubble_style=agent&primary_color=%23685FFF&bubble_icon=pd%2Fmore-horiz&input_placeholder_text=Type+property+issues...&hide_logo=true"
+        );
+        document.body.appendChild(script);
+    }
+});
 </script>
 
 <template>

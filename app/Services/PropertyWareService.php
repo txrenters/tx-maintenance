@@ -232,14 +232,14 @@ class PropertyWareService
             // Log and return response status
             if ($res) {
                 Log::info('Updating work order is successfully!', [
-                    'workOrderId' => $workOrder->work_order_no,
+                    'Work order no' => $workOrder->work_order_no,
                 ]);
 
                 return true;
             }
 
             Log::error('Updating work order failed!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
             return false;
@@ -320,7 +320,7 @@ class PropertyWareService
             // Log and return response status
             if ($response) {
                 Log::info('Updating service status has been successfully!', [
-                    'workOrderId' => $workOrder->work_order_no,
+                    'Work order no' => $workOrder->work_order_no,
                 ]);
             }
 
@@ -385,7 +385,7 @@ class PropertyWareService
         $response = $this->execute($xmlPayload2);
 
         Log::info('Work order conversation sent successfully!', [
-            'workOrderId' => $workOrder->work_order_no,
+            'Work order no' => $workOrder->work_order_no,
         ]);
 
         return $response;
@@ -435,7 +435,7 @@ class PropertyWareService
         // Log and return response status
         if ($response) {
             Log::info('Work order service status has been closed successfully!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
             ]);
         }
     }
@@ -482,14 +482,14 @@ class PropertyWareService
             // Log and return response status
             if ($response) {
                 Log::info('Work order service status has been reopen successfully!', [
-                    'workOrderId' => $workOrder->work_order_no,
+                    'Work order no' => $workOrder->work_order_no,
                 ]);
 
                 return true;
             }
 
             Log::error('Work order service status has been reopen failed!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
 
             ]);
 
@@ -552,14 +552,14 @@ class PropertyWareService
         // Log and return response status
         if ($res) {
             Log::info('Work order service status has been changed successfully!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
             return true;
         }
 
         Log::error('Work order service status changed failed!', [
-            'workOrderId' => $workOrder->work_order_no,
+            'Work order no' => $workOrder->work_order_no,
 
         ]);
 
@@ -611,14 +611,14 @@ class PropertyWareService
         // Log and return response status
         if ($res) {
             Log::info('Work order vendor has been added successfully!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
             return true;
         }
 
         Log::error('Work order vendor added failed!', [
-            'workOrderId' => $workOrder->work_order_no,
+            'Work order no' => $workOrder->work_order_no,
         ]);
 
         return false;
@@ -662,14 +662,14 @@ class PropertyWareService
         // Log and return response status
         if ($response) {
             Log::info('Vendor notes has been added successfully!', [
-                'workOrderId' => $workOrder->work_order_no,
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
             return true;
         }
 
         Log::error('Vendor attachment upload failed!', [
-            'workOrderId' => $workOrder->work_order_no,
+            'Work order no' => $workOrder->work_order_no,
         ]);
 
         return false;
@@ -739,7 +739,7 @@ class PropertyWareService
             // Log and return response status
             if ($res) {
                 Log::info('Vendor attachment has been uploaded successfully!', [
-                    'workOrderId' => $workOrderId,
+                    'Work order no' => $workorder->work_order_no,
                     'filename' => $filename,
                 ]);
 
@@ -747,14 +747,14 @@ class PropertyWareService
             }
 
             Log::error('Vendor attachment upload failed!', [
-                'workOrderId' => $workOrderId,
+                'Work order no' => $workorder->work_order_no,
                 'filename' => $filename,
             ]);
 
             return false;
         } catch (\Exception $e) {
             Log::error('Error in uploadVendorAttachment: '.$e->getMessage(), [
-                'workOrderId' => $workOrderId,
+                'Work order no' => $workorder->work_order_no,
                 'filename' => $attachments->filename ?? 'N/A',
             ]);
 
@@ -827,14 +827,14 @@ class PropertyWareService
             // Log and return response status
             if ($res) {
                 Log::info('Vendor updating work order details has been successfully!', [
-                    'workOrderId' => $workorderId,
+                    'Work order no' => $workOrder->work_order_no,
                 ]);
 
                 return true;
             }
 
             Log::error('Vendor updating work order failed!', [
-                'workOrderId' => $workorderId,
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
             return false;
