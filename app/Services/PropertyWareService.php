@@ -904,8 +904,6 @@ class PropertyWareService
                 'message' => $errorMsg,
             ];
         }
-        
-
 
         // Check for SOAP faults in the response
         if (strpos($response, '<soapenv:Fault>') != false) {
