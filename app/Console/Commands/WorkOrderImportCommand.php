@@ -616,7 +616,7 @@ class WorkOrderImportCommand extends Command
                     DB::table('owners')->insert($ownerData);
                 }
 
-                $ownerId = DB::table('owners')->where('user_id', $user->id)->value('id');
+                $ownerId = DB::table('owners')->where('propertyware_id', $owner['ID'])->value('id');
 
                 $work_order_owner_data[] = [
                     'work_order_id' => $work_order,
