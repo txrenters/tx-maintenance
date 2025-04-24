@@ -869,7 +869,7 @@ class PropertyWareService
             CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2, // 👈 Force TLS 1.2
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
-            CURLOPT_VERBOSE => true,
+            CURLOPT_VERBOSE => app()->environment('local') ? false : true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
 
         ]);
