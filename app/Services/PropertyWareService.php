@@ -871,7 +871,6 @@ class PropertyWareService
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_VERBOSE => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_RETURNTRANSFER => true,
 
         ]);
 
@@ -887,22 +886,33 @@ class PropertyWareService
         ]);
 
         if (curl_errno($curl)) {
-            Log::error('cURL error: '.curl_error($curl));
+            $errorNo = curl_errno($curl);
+            $errorMsg = curl_error($curl);
+        
+            Log::error('cURL Error Details:', [
+                'errno' => $errorNo,
+                'error' => $errorMsg,
+                'http_code' => $httpCode,
+                'full_url' => $this->url,
+            ]);
+        
             curl_close($curl);
-
+        
             return [
                 'success' => false,
                 'error' => 'CURL_ERROR',
-                'message' => curl_error($curl),
+                'message' => $errorMsg,
             ];
         }
+        
 
-        curl_close($curl);
 
         // Check for SOAP faults in the response
         if (strpos($response, '<soapenv:Fault>') != false) {
             $faultString = $this->extractFaultString($response);
             Log::error('SOAP Fault: '.$faultString);
+
+            curl_close($curl);
 
             return [
                 'success' => false,
@@ -910,6 +920,8 @@ class PropertyWareService
                 'message' => $faultString,
             ];
         }
+
+        curl_close($curl);
 
         return [
             'success' => true,

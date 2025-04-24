@@ -98,7 +98,7 @@ class AttachmentsController extends Controller
             ];
 
             $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
-            sleep(2); // Wait 2 second between uploads
+            sleep(4); // Wait 2 second between uploads
 
             $savedFiles[] = $files;
         }
