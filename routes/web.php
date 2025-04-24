@@ -49,8 +49,10 @@ Route::middleware([
     Route::post('/vendors_import', [VendorController::class, 'import'])->name('vendors.import');
 
     Route::resource('/owners', OwnerController::class);
+    Route::post('/owners/bulkdelete', [OwnerController::class, 'bulkdelete'])->name('owners.bulkdelete');
 
     Route::resource('/tenants', TenantsController::class);
+    Route::post('/tenants/bulkdelete', [TenantsController::class, 'bulkdelete'])->name('tenants.bulkdelete');
 
     Route::resource('/service_status', ServiceStatusController::class);
 

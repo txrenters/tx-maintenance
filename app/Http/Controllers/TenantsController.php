@@ -46,4 +46,11 @@ class TenantsController extends Controller
 
         return redirect()->back();
     }
+
+    public function bulkdelete(Request $request)
+    {
+        Tenants::whereIn('id', $request->tenantsId)->delete();
+        return redirect()->back();
+
+    }
 }
