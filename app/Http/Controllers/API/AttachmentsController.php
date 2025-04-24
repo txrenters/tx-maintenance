@@ -33,25 +33,9 @@ class AttachmentsController extends Controller
 
         if ($request->hasFile('filename')) {
             $file = $request->file('filename');
-
             // Store the file
             $validatedData['filename'] = $file->store('attachments', 'public');
             $validatedData['filetype'] = $file->getMimeType();
-
-            // Get the full path to the stored file
-            $filePath = storage_path('app/public/'.$validatedData['filename']);
-
-            // Log original file size (in KB)
-            Log::info('Original file size: '.round(filesize($filePath) / 1024, 2).' KB');
-
-            // Check if image and optimize
-            if (preg_match('/image/', $validatedData['filetype'])) {
-                // Optimize and overwrite
-                ImageOptimizer::optimize($filePath);
-
-                // Log optimized file size
-                Log::info('Optimized file size: '.round(filesize($filePath) / 1024, 2).' KB');
-            }
         }
 
         $attachment = Attachments::create($validatedData);
@@ -96,22 +80,10 @@ class AttachmentsController extends Controller
 
         foreach ($validatedData['files'] as $fileData) {
             $file = $fileData['file'];
-            $originalName = $fileData['name'];
             $mimeType = $fileData['type'];
 
             // Store file
             $path = $file->store('attachments', 'public');
-            $filePath = storage_path('app/public/'.$path);
-
-            // Log original size
-            Log::info("File: $originalName | Original size: ".round(filesize($filePath) / 1024, 2).' KB');
-
-            // If it's an image, optimize and log new size
-            if (preg_match('/image/', $mimeType)) {
-                ImageOptimizer::optimize($filePath);
-
-                Log::info("File: $originalName | Optimized size: ".round(filesize($filePath) / 1024, 2).' KB');
-            }
 
             $files = [
                 'title' => $validatedData['title'],
