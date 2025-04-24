@@ -205,7 +205,7 @@ onMounted(() => {
         );
         script.setAttribute(
             "data-share-styles",
-            "starting_message_prompts=There%27s+a+water+leak+in+my+unit.%7CThe+toilet+is+clogged.%7CThe+AC+isn%27t+working+properly.&hide_tool_steps=false&hide_file_uploads=true&hide_conversation_list=false&bubble_style=agent&primary_color=%23685FFF&bubble_icon=notebook%2Fdeploy&input_placeholder_text=Type+property+issues...&hide_logo=true"
+            "starting_message_prompts=There%27s+a+water+leak+in+my+unit.%7CThe+toilet+is+clogged.%7CThe+AC+isn%27t+working+properly.&hide_tool_steps=false&hide_file_uploads=true&hide_conversation_list=false&bubble_style=agent&primary_color=%232b2b50&bubble_icon=notebook%2Fdeploy&input_placeholder_text=Type+property+issues...&hide_logo=true"
         );
         document.body.appendChild(script);
     }
