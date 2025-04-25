@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch, computed } from "vue";
-import { router, useForm, usePoll } from "@inertiajs/vue3";
+import { ref, watch, onMounted, computed } from "vue";
+import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
@@ -615,6 +615,11 @@ const resetFilters = () => {
     });
 };
 usePoll(3000, { only: ["service_status"] });
+
+onMounted(() => {
+    search.value = route().params.search ?? "";
+    filter_vendor.value = route().params.filter_vendor ?? "";
+});
 </script>
 <template>
     <Head :title="title" />

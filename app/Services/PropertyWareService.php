@@ -200,9 +200,9 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
+                            <approvalComments  xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComments >
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
+                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[4]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Management Plan</fieldName>
@@ -216,7 +216,7 @@ class PropertyWareService
                                     <fieldName xsi:type="xsd:string">Zone</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
-                                <customFields xsi:type="ns2:CustomField">
+                                <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">closing comment</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
