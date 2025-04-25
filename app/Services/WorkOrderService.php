@@ -24,14 +24,6 @@ class WorkOrderService
 
                 $ID = $data['ID'] ?? null;
 
-                $workOrderExist = DB::table('work_orders')->where('propertyware_id', $ID)->exists();
-
-                if ($workOrderExist) {
-                    Log::info('Work order already exists, skipping.', ['ID' => $ID]);
-
-                    continue;
-                }
-
                 if ($ID) {
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
