@@ -241,10 +241,14 @@ class WorkOrderController extends Controller
         $workOrder->update(['is_emergency' => $isEmergency]);
 
         $serviceStatusId = 1; // actual ID for 'New'
+        $service_status = ServiceStatus::find($serviceStatusId);
 
         WorkOrderTask::where('work_order_id', $workOrder->id)->delete();
 
         TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $serviceStatusId);
+
+        $propertyWare = new PropertyWareService;
+        $propertyWare->updateServiceStatus($workOrder, $service_status);
 
         return redirect()->back()->with('success', 'Work order emergency status updated successfully.');
     }

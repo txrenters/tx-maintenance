@@ -176,8 +176,8 @@ class PropertyWareService
     public function updateWorkOrder($workOrder)
     {
         try {
-            Log::info('Work Order ID:', ['propertyware_id' => $workOrder->propertyware_id]);
-
+            Log::info('Work Order ID:', ['work_order_no' => $workOrder->work_order_no]);
+    
             $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -199,8 +199,7 @@ class PropertyWareService
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                            <approvalComments  xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComments >
+                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[4]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -208,15 +207,15 @@ class PropertyWareService
                                     <fieldName xsi:type="xsd:string">Management Plan</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
-                                <customFields xsi:type="urn:CustomField">
+                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
-                                <customFields xsi:type="urn:CustomField">
+                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">Zone</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
-                                <customFields xsi:type="urn:CustomField">
+                                 <customFields xsi:type="urn:CustomField">
                                     <fieldName xsi:type="xsd:string">closing comment</fieldName>
                                     <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
                                 </customFields>
@@ -225,32 +224,34 @@ class PropertyWareService
                     </ser:updateWorkOrder>
                 </soapenv:Body>
                 </soapenv:Envelope>';
-
+    
             // Execute SOAP request
             $res = $this->execute($xmlPayload);
-
-            // Log and return response status
-            if ($res) {
-                Log::info('Updating work order is successfully!', [
-                    'Work order no' => $workOrder->work_order_no,
-                ]);
-
+    
+            // Log the request payload and response for debugging
+            Log::debug('SOAP Request Payload:', ['payload' => $xmlPayload]);
+            Log::debug('SOAP Response:', ['response' => $res]);
+    
+            // Handle response success and failure
+            if ($res && isset($res['success']) && $res['success'] === true) {
+                Log::info('Work order update successful!', ['Work order no' => $workOrder->work_order_no]);
                 return true;
             }
-
-            Log::error('Updating work order failed!', [
+    
+            // Log failure if response is unsuccessful
+            Log::error('Work order update failed!', [
                 'Work order no' => $workOrder->work_order_no,
+                'response' => $res
             ]);
-
+    
             return false;
-
+    
         } catch (Exception $e) {
-            Log::error('Updating work order failed: '.$e->getMessage());
-
+            Log::error('Work order update failed: '.$e->getMessage());
             return 'Error: '.$e->getMessage();
         }
     }
-
+    
     public function updateServiceStatus(object $workOrder, object $service_status)
     {
         try {
@@ -282,9 +283,7 @@ class PropertyWareService
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
-
+                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -859,12 +858,11 @@ class PropertyWareService
             CURLOPT_POSTFIELDS => $xmlPayload,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: text/xml',
-                'Content-Length: ' . strlen($xmlPayload),
                 'SOAPAction: ""',
             ],
             CURLOPT_USERPWD => $this->username.':'.$this->password,
-            CURLOPT_TIMEOUT => 120,
-            CURLOPT_CONNECTTIMEOUT => 120,
+            CURLOPT_TIMEOUT => 300,
+            CURLOPT_CONNECTTIMEOUT => 300,
             CURLOPT_SSL_VERIFYHOST => false,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2, // 👈 Force TLS 1.2
@@ -872,7 +870,6 @@ class PropertyWareService
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_VERBOSE => app()->environment('local') ? false : true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-
         ]);
 
         $response = curl_exec($curl);
@@ -930,16 +927,7 @@ class PropertyWareService
 
     protected function extractFaultString($xmlResponse)
     {
-        try {
-            $xml = simplexml_load_string($xmlResponse);
-            if ($xml && isset($xml->children('soapenv', true)->Body->children('soapenv', true)->Fault->faultstring)) {
-                return (string) $xml->children('soapenv', true)->Body->children('soapenv', true)->Fault->faultstring;
-            }
-        } catch (Exception $e) {
-            Log::error('Failed to parse SOAP fault: '.$e->getMessage());
-        }
-
-        return 'Unknown SOAP fault';
+        return $xmlResponse;
     }
 
     public function initiate()
