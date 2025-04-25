@@ -304,7 +304,7 @@ class WorkOrderService
     {
         // Process custom fields, notes, documents, etc.
         $this->processNotes($data, $work_order, $now);
-        // $this->processVendors($data, $work_order, $now);
+        $this->processVendors($data, $work_order, $now);
         // $this->processDocuments($data, $work_order, $now);
         $this->processTenants($data, $work_order, $now);
         $this->processOwners($data, $work_order, $now);

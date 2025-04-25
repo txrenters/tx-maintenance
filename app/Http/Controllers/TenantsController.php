@@ -19,7 +19,7 @@ class TenantsController extends Controller
             ->with('user')
             ->filter(request(['search']))
             ->orderBy('first_name', 'ASC')
-            ->paginate(20)
+            ->paginate(100)
             ->withQueryString()
             ->through(function ($tenant) {
                 return [

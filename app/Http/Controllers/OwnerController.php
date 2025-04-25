@@ -19,7 +19,7 @@ class OwnerController extends Controller
             ->with('user')
             ->filter(request(['search']))
             ->orderBy('name', 'ASC')
-            ->paginate(20)
+            ->paginate(100)
             ->withQueryString()
             ->through(function ($owner) {
                 return [
