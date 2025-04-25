@@ -418,10 +418,8 @@ class PropertyWareService
                             <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                            
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                            <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
+                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                             <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
                     </ser:updateWorkOrder>
@@ -455,22 +453,21 @@ class PropertyWareService
                     <soapenv:Header/>
                     <soapenv:Body>
                     <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                    <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                    <building xsi:type="urn:Building">
-                    <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                    </building>
-                    <portfolio xsi:type="urn:Portfolio">
-                        <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                    </portfolio>
-                    <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
-                    <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                    <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                    <status xsi:type="xsd:string">Open</status>
-                    <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                    <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                    <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
-                    </workOrder>
+                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                            <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
+                            </building>
+                            <portfolio xsi:type="urn:Portfolio">
+                                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                            </portfolio>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                            <status xsi:type="xsd:string">Open</status>
+                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                        </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
                     </soapenv:Envelope>
@@ -532,8 +529,7 @@ class PropertyWareService
                 <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                 
                 <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
+                <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                 <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                     xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                     <customFields xsi:type="ns2:CustomField">
@@ -595,7 +591,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
+                        <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                         <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                         '.$vendorIDsXml.'
@@ -813,8 +809,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        <approved xsi:type="xsd:boolean">'.$workOrder->is_approved == 1 ? true : false.'</approved>
-                        <approved xsi:type="xsd:string">'.$workOrder->approval_comments.'</approved>
+                        <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>
