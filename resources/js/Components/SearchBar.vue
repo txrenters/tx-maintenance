@@ -30,8 +30,6 @@ watch(
 
         router.visit(`${props.url}?${query.toString()}`, {
             method: "get",
-            preserveState: true,
-            preserveScroll: true,
         });
     }, 500)
 );

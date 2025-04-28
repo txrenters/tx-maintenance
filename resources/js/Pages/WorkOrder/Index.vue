@@ -582,8 +582,6 @@ watch(
         router.visit(url.value, {
             method: "get",
             data: newQuery,
-            preserveState: true,
-            preserveScroll: true,
         });
     }, 1000)
 );
@@ -606,10 +604,10 @@ watch(date_range, fetchFilteredData, { deep: true });
 
 usePoll(3000, { only: ["service_status"] });
 
-onMounted(() => {
-    search.value = route().params.search ?? "";
-    filter_vendor.value = route().params.filter_vendor ?? "";
-});
+// onMounted(() => {
+//     search.value = route().params.search ?? "";
+//     filter_vendor.value = route().params.filter_vendor ?? "";
+// });
 </script>
 <template>
     <Head :title="title" />
@@ -722,7 +720,6 @@ onMounted(() => {
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
                 title="Refresh"
-                preserve-state
                 :href="url"
                 v-if="filter_vendor || search || date_range"
                 ><RefreshCw class="w-4 h-4" />
