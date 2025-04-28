@@ -203,6 +203,10 @@ class ImportWorkOrderJob implements ShouldQueue
             $work_order_propertyware_id = $data['ID'] ?? null;
             $woc = User::role('woc')->first();
 
+            DB::table('work_order_categories')->firstOrCreate(
+                ['name' => $data['category']]
+            );
+            
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
