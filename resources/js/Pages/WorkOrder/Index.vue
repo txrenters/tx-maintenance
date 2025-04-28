@@ -583,10 +583,9 @@ watch(
             method: "get",
             data: newQuery,
             preserveState: true,
-            replace: true,
             preserveScroll: true,
         });
-    }, 2000)
+    }, 1000)
 );
 
 const fetchFilteredData = debounce(() => {
@@ -599,21 +598,12 @@ const fetchFilteredData = debounce(() => {
         method: "get",
         data: newQuery,
         preserveState: true,
-        replace: true,
         preserveScroll: true,
     });
 }, 2000);
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-const resetFilters = () => {
-    router.visit(url.value, {
-        method: "get",
-        replace: true,
-        data: {}, // Clear all query parameters
-        preserveScroll: true,
-    });
-};
 usePoll(3000, { only: ["service_status"] });
 
 onMounted(() => {
@@ -728,14 +718,15 @@ onMounted(() => {
                 @click="openImportWorkOrder = true"
                 ><ScanSearch class="w-4 h-4" />
             </Button>
-            <Button
+            <Link
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
                 title="Refresh"
-                @click="resetFilters"
+                preserve-state
+                :href="url"
                 v-if="filter_vendor || search || date_range"
                 ><RefreshCw class="w-4 h-4" />
-            </Button>
+            </Link>
         </div>
     </div>
     <!-- Scrollable Service Status Area -->

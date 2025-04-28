@@ -200,6 +200,7 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[4]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -284,6 +285,7 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
                                 xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -420,6 +422,7 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                             <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
                     </ser:updateWorkOrder>
@@ -467,6 +470,7 @@ class PropertyWareService
                             <status xsi:type="xsd:string">Open</status>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                         </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
@@ -527,9 +531,9 @@ class PropertyWareService
                 <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                 <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                 <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                
                 <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                 <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                 <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                     xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
                     <customFields xsi:type="ns2:CustomField">
@@ -592,6 +596,7 @@ class PropertyWareService
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                         <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                        <approvedDate>'.!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null.'</approvedDate>
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                         '.$vendorIDsXml.'
                     </workOrder>
@@ -804,11 +809,12 @@ class PropertyWareService
                         <hourEstimate xsi:type="xsd:double">'.(float) ($time_estimate ?? 0).'</hourEstimate>
                         <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
                         
-                       <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                        <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                         <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                        <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>
