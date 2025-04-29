@@ -422,7 +422,7 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                             <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
-                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : null) . '</approvedDate>
+                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : '') . '</approvedDate>
                             <status xsi:type="xsd:string">Closed</status>
                         </workOrder>
                     </ser:updateWorkOrder>

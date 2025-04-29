@@ -288,6 +288,10 @@ class WorkOrderController extends Controller
                 'service_status_id' => $service_status,
                 'completed_date' => now()->toDateString(),
             ]);
+
+            $workOrder->tasks()->each(function ($task) {
+                $task->delete();
+            });
         }
 
         return redirect()->back();
