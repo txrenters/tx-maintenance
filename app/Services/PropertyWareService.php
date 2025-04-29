@@ -413,6 +413,12 @@ class PropertyWareService
         $buildingId = $workOrder->building_id;
         $location = $workOrder->location;
 
+        $approvedDateXml = '';
+        if (!empty($workOrder->approved_date)) {
+            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+            $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+        }
+
         $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -431,6 +437,11 @@ class PropertyWareService
                                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                                     </portfolio>
                                     <location xsi:type="xsd:string">'.$location.'</location>
+                                    <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                                    <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                                    <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                                    <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
+                                    '.$approvedDateXml.'
                                     <status xsi:type="xsd:string">Closed</status>
                                 </workOrder>
                             </ser:updateWorkOrder>
