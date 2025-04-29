@@ -28,7 +28,7 @@ class UpdateWorkOrderRequest extends FormRequest
             'management_plan' => 'nullable|string',
             'closing_comments' => 'nullable|string',
             'additional_work_needed_reschedule' => 'nullable|string',
-            'description' => 'string',
+            'description' => 'nullable|string',
         ];
     }
 }

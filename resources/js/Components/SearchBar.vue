@@ -1,38 +1,45 @@
 <script setup>
-import { watch } from "vue";
+import { ref, watch } from "vue";
 import { router } from "@inertiajs/vue3";
 import debounce from "lodash/debounce";
 import { Search } from "lucide-vue-next";
 
 const props = defineProps({
     url: String,
+    modelValue: String, // for v-model
 });
 
-const model = defineModel({
-    type: String,
-});
+const emit = defineEmits(["update:modelValue"]);
 
+// Local reactive copy of modelValue
+const model = ref(props.modelValue);
+
+// Keep local model in sync with parent
 watch(
-    model,
-    debounce(function (value) {
-        // const newQuery = { ...route().params, search: value }; //maintain url params
-        const query = new URLSearchParams(window.location.search);
-
-        query.set("search", value || ""); // set search param (empty if no value)
-
-        // router.visit(props.url, {
-        //     method: "get",
-        //     data: newQuery,
-        //     preserveState: true,
-        //     replace: true,
-        //     preserveScroll: true,
-        // });
-
-        router.visit(`${props.url}?${query.toString()}`, {
-            method: "get",
-        });
-    }, 500)
+    () => props.modelValue,
+    (newVal) => {
+        model.value = newVal;
+    }
 );
+
+// Debounced search trigger
+const search = debounce((value) => {
+    const query = new URLSearchParams(window.location.search);
+    query.set("search", value || "");
+
+    router.visit(`${props.url}?${query.toString()}`, {
+        method: "get",
+        preserveState: true,
+        replace: true,
+        preserveScroll: true,
+    });
+}, 500);
+
+// Watch for input changes
+watch(model, (value) => {
+    emit("update:modelValue", value);
+    search(value);
+});
 </script>
 
 <template>
