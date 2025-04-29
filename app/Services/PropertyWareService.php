@@ -195,7 +195,7 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.(int) $workOrder->portfolio_id.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <location xsi:type="xsd:string">'.$workOrder->location.'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -280,7 +280,7 @@ class PropertyWareService
                         </portfolio>
                         <location xsi:type="xsd:string">'.$location.'</location>
 
-                         <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                         <location xsi:type="xsd:string">'.$workOrder->location.'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -407,26 +407,21 @@ class PropertyWareService
                     xmlns:ser="http://service.web.propertyware.realpage.com"
                     xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
                     <soapenv:Header/>
-                    <soapenv:Body>
-                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                            <building xsi:type="urn:Building">
-                                <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                            </building>
-                            <portfolio xsi:type="urn:Portfolio">
-                                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                            </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
-                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
-                            <approvedDate>' . (!empty($workOrder->approved_date) ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : '') . '</approvedDate>
-                            <status xsi:type="xsd:string">Closed</status>
-                        </workOrder>
-                    </ser:updateWorkOrder>
-                    </soapenv:Body>
+                        <soapenv:Body>
+                            <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                                    <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                                    <building xsi:type="urn:Building">
+                                        <ID xsi:type="xsd:long">'.$buildingId.'</ID>
+                                    </building>
+                                    <portfolio xsi:type="urn:Portfolio">
+                                        <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                                    </portfolio>
+                                    <location xsi:type="xsd:string">'.$workOrder->location.'</location>
+                                    <status xsi:type="xsd:string">Closed</status>
+                                </workOrder>
+                            </ser:updateWorkOrder>
+                        </soapenv:Body>
                     </soapenv:Envelope>
                 ';
 
