@@ -71,7 +71,7 @@ function handlePaste(event) {
             class="absolute left-2.5 top-2.8 h-4 w-4 text-muted-foreground"
         />
         <Input
-            type="text"
+            type="search"
             placeholder="Search..."
             v-model="model"
             @keydown.enter.prevent

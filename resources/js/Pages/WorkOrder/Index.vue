@@ -602,12 +602,11 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-usePoll(3000, { only: ["service_status"] });
-
-// onMounted(() => {
-//     search.value = route().params.search ?? "";
-//     filter_vendor.value = route().params.filter_vendor ?? "";
-// });
+usePoll(3000, {
+    preserveScroll: true,
+    preserveState: true,
+    only: ["service_status"],
+});
 </script>
 <template>
     <Head :title="title" />
