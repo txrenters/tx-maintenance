@@ -196,19 +196,19 @@ const mode = useColorMode({ disableTransition: false });
 const showChatbot = ref(true);
 
 onMounted(() => {
-    if (showChatbot.value) {
-        const script = document.createElement("script");
-        script.src = "https://app.relevanceai.com/embed/chat-bubble.js";
-        script.setAttribute(
-            "data-relevanceai-share-id",
-            "bcbe5a/4e86ee120de5-498d-a5f8-c4ff0eca63a7/1a1a3e95-4012-498a-8cc5-5a4fd8bc8f3d"
-        );
-        script.setAttribute(
-            "data-share-styles",
-            "starting_message_prompts=There%27s+a+water+leak+in+my+unit.%7CThe+toilet+is+clogged.%7CThe+AC+isn%27t+working+properly.&hide_tool_steps=false&hide_file_uploads=true&hide_conversation_list=false&bubble_style=agent&primary_color=%232b2b50&bubble_icon=notebook%2Fdeploy&input_placeholder_text=Type+property+issues...&hide_logo=true"
-        );
-        document.body.appendChild(script);
-    }
+    // if (showChatbot.value) {
+    //     const script = document.createElement("script");
+    //     script.src = "https://app.relevanceai.com/embed/chat-bubble.js";
+    //     script.setAttribute(
+    //         "data-relevanceai-share-id",
+    //         "bcbe5a/4e86ee120de5-498d-a5f8-c4ff0eca63a7/1a1a3e95-4012-498a-8cc5-5a4fd8bc8f3d"
+    //     );
+    //     script.setAttribute(
+    //         "data-share-styles",
+    //         "starting_message_prompts=There%27s+a+water+leak+in+my+unit.%7CThe+toilet+is+clogged.%7CThe+AC+isn%27t+working+properly.&hide_tool_steps=false&hide_file_uploads=true&hide_conversation_list=false&bubble_style=agent&primary_color=%232b2b50&bubble_icon=notebook%2Fdeploy&input_placeholder_text=Type+property+issues...&hide_logo=true"
+    //     );
+    //     document.body.appendChild(script);
+    // }
 });
 </script>
 

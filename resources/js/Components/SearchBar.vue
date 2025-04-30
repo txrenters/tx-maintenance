@@ -56,9 +56,7 @@ watch(model, (value) => {
 
 // Optional paste handler (extra defensive)
 function handlePaste(event) {
-    const pasted = (event.clipboardData || window.clipboardData).getData(
-        "text"
-    );
+    const pasted = (event.clipboardData || window.Clipboard).getData("text");
     const sanitized = sanitizeInput(pasted);
     model.value = sanitized;
     event.preventDefault(); // prevent raw paste input
