@@ -42,30 +42,16 @@ function closeModal() {
     photoPreview.value = null;
 }
 
-function clear() {
-    if (!cropper) return;
-    cropper.clear();
-}
-
-function reset() {
-    if (!cropper) return;
-    cropper.reset();
-}
-
-function ready() {
-    console.log("Cropper is ready.");
-}
-
-async function cropImage() {
-    if (!cropper) return;
-    const base64 = cropper.getDataURL();
-    const blob = await cropper.getBlob();
-
-    if (blob) {
-        photoPreview.value = base64;
-        croppedImageForm.filename = blob;
+watch(
+    () => props.show,
+    (newVal) => {
+        showModal.value = newVal;
+        if (newVal && props.image) {
+            photoPreview.value = props.image;
+            croppedImageForm.filename = props.image;
+        }
     }
-}
+);
 
 const handleFormSubmit = () => {
     if (
@@ -124,26 +110,11 @@ const handleFormSubmit = () => {
             <div
                 class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-6"
             >
-                <VuePictureCropper
-                    v-show="!photoPreview"
-                    :boxStyle="{
-                        width: '100%',
-                        height: '100%',
-                        backgroundColor: '#f8f8f8',
-                        margin: 'auto',
-                    }"
-                    :img="image"
-                    :options="{
-                        viewMode: 1,
-                        dragMode: 'crop',
-                    }"
-                    @ready="ready"
-                />
                 <div v-show="photoPreview" class="w-full">
                     <div class="mb-3">
-                        <Label>Cropped Image</Label>
+                        <Label>Image Preview</Label>
                         <img
-                            width="100"
+                            width="120"
                             class="block bg-cover bg-no-repeat bg-center mt-2"
                             :src="photoPreview"
                         />
@@ -226,21 +197,6 @@ const handleFormSubmit = () => {
                     <Button class="" @click="closeModal" variant="destructive"
                         >Cancel</Button
                     >
-                    <Button
-                        @click="clear"
-                        v-show="!photoPreview"
-                        variant="secondary"
-                        >Clear</Button
-                    >
-                    <Button
-                        @click="reset"
-                        v-show="!photoPreview"
-                        variant="secondary"
-                        >Reset</Button
-                    >
-                    <Button @click="cropImage" v-show="!photoPreview">
-                        Crop
-                    </Button>
                     <Button
                         v-show="photoPreview"
                         @click.prevent="handleFormSubmit"
