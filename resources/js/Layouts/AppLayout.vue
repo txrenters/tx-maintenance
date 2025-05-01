@@ -45,6 +45,7 @@ import {
     ClipboardList,
     Wrench,
     Truck,
+    BotMessageSquare,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -472,7 +473,13 @@ onMounted(() => {
             >
                 <div class="flex justify-between w-full">
                     <BreadcrumbContainer :title="page.props.title" />
-                    <div class="mr-5">
+                    <div class="mr-5 flex gap-2">
+                        <Button
+                            variant="outline"
+                            @click="router.visit(route('maintenance.chatbot'))"
+                        >
+                            <BotMessageSquare />
+                        </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger as-child>
                                 <Button variant="outline">

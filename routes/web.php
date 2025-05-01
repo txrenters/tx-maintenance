@@ -94,6 +94,15 @@ Route::middleware([
     Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
+
+    Route::get('/maintenance/chatbot', function(){
+
+        return inertia('ChatBot/Index', [
+            'title' => 'Maintenance Chatbot',
+        ]);
+
+    })->name('maintenance.chatbot');
+
 });
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');

@@ -121,8 +121,9 @@ const handleEmergencySubmit = () => {
     );
 };
 
+const loadingVendor = ref(false);
 const handleVendorSubmit = () => {
-    loading.value = true;
+    loadingVendor.value = true;
     router.put(
         route("work_orders.vendor.change", props.workOrder.id),
         {
@@ -137,7 +138,7 @@ const handleVendorSubmit = () => {
                     description: "Vendor has been set successfully!",
                 });
                 emit("update-workOrder"); // Emit event to parent
-                loading.value = false;
+                loadingVendor.value = false;
             },
             onError: () => {
                 toast({
@@ -146,7 +147,7 @@ const handleVendorSubmit = () => {
                     description:
                         "There was a problem with your request. Please try again!",
                 });
-                loading.value = false;
+                loadingVendor.value = false;
             },
         }
     );
@@ -235,7 +236,10 @@ const handleDeleteSubmit = () => {
                     "
                     @click.prevent="handleVendorSubmit"
                 >
-                    <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+                    <Loader2
+                        v-if="loadingVendor"
+                        class="w-4 h-4 animate-spin"
+                    />
                     Assign vendor</Button
                 >
                 <template v-if="workOrder.local_status === 'Updated'">
@@ -542,12 +546,13 @@ const handleDeleteSubmit = () => {
                 type="submit"
                 :disabled="workOrder.processing"
                 @click.prevent="handleUpdateSubmit"
+                class="text-white bg-green-400"
             >
                 <Loader2
                     v-if="workOrder.processing"
                     class="w-4 h-4 animate-spin"
                 />
-                Save
+                Save Changes
             </Button>
         </div>
     </DialogFooter>
