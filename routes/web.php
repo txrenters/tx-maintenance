@@ -5,6 +5,7 @@ use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
@@ -64,8 +65,10 @@ Route::middleware([
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
     Route::put('/work_orders/{workOrder}/vendors', [WorkOrderController::class, 'vendor_change'])->name('work_orders.vendor.change');
     Route::post('/work_orders/import', [WorkOrderController::class, 'import'])->name('work_orders.import');
-
     Route::get('/work_orders/export/all', [WorkOrderController::class, 'export'])->name('work_orders.export');
+
+    Route::get('/work_orders/coordinators/all', [CoordinatorController::class, 'index'])->name('work_orders.coordinators');
+    Route::patch('/work_orders/coordinators/{workOrder}/change', [CoordinatorController::class, 'update'])->name('work_orders.coordinators.change');
 
     Route::resource('/task_templates', TaskTemplateController::class);
 

@@ -137,7 +137,7 @@ watch(
                         @click="startCamera"
                         variant="icon"
                         class="bg-secondary"
-                        ><Play
+                        ><Camera
                     /></Button>
                     <Button
                         v-if="!openCameraBtn"

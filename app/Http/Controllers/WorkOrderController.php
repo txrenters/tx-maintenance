@@ -297,6 +297,7 @@ class WorkOrderController extends Controller
         return redirect()->back();
     }
 
+
     public function destroy(WorkOrder $workOrder)
     {
         $workOrder->delete();
