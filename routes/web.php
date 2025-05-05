@@ -98,7 +98,7 @@ Route::middleware([
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
 
-    Route::get('/maintenance/chatbot', function(){
+    Route::get('/maintenance/chatbot', function () {
 
         return inertia('ChatBot/Index', [
             'title' => 'Maintenance Chatbot',

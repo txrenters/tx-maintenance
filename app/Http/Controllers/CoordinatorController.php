@@ -15,8 +15,11 @@ class CoordinatorController extends Controller
     public function index(Request $request)
     {
         $work_orders = WorkOrder::with([
-                'service_status', 'requested_by','woc'
-            ])
+            'service_status', 'requested_by', 'woc',
+        ])
+            ->whereHas('service_status', function ($query) {
+                $query->where('status', 'Open');
+            })
             ->filter(request(['search']))
             ->orderBy('created_date', 'DESC')
             ->paginate(50)
@@ -42,6 +45,7 @@ class CoordinatorController extends Controller
             'filter' => $request->only(['search', 'per_page']),
         ]);
     }
+
     /**
      * Update the specified resource in storage.
      */
@@ -49,7 +53,7 @@ class CoordinatorController extends Controller
     {
         $request->validate([
             'id' => 'required',
-            'coordinator_id' => 'required'
+            'coordinator_id' => 'required',
         ]);
 
         $workOrder->update(['user_id' => $request->coordinator_id]);

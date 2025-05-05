@@ -53,6 +53,7 @@ class OwnerController extends Controller
     public function bulkdelete(Request $request)
     {
         Owner::whereIn('id', $request->ownersId)->delete();
+
         return redirect()->back();
 
     }

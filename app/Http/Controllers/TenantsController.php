@@ -50,6 +50,7 @@ class TenantsController extends Controller
     public function bulkdelete(Request $request)
     {
         Tenants::whereIn('id', $request->tenantsId)->delete();
+
         return redirect()->back();
 
     }

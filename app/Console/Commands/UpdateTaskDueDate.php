@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class UpdateTaskDueDate extends Command
 {
@@ -106,7 +105,7 @@ class UpdateTaskDueDate extends Command
                                 Log::info('Successfully updated the subtask:', ['subtask_name' => $subtaskName]);
                             }
                         }
-                    }else{
+                    } else {
 
                         Log::info('Subtask:', [
                             'subtask_name' => $subtaskName,

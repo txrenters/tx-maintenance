@@ -297,7 +297,6 @@ class WorkOrderController extends Controller
         return redirect()->back();
     }
 
-
     public function destroy(WorkOrder $workOrder)
     {
         $workOrder->delete();
@@ -324,7 +323,6 @@ class WorkOrderController extends Controller
 
         $importWorkOrder = new WorkOrderService;
         $importWorkOrder->handle($workOrders);
-    
 
         return redirect()->back()->with('success', 'Work orders updated successfully.');
     }

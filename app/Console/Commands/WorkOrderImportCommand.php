@@ -78,7 +78,7 @@ class WorkOrderImportCommand extends Command
             DB::table('work_order_categories')->updateOrInsert(
                 ['name' => $data['category']],
                 ['updated_at' => now()]
-            );            
+            );
 
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,

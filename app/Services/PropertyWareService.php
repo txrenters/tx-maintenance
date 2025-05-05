@@ -177,13 +177,12 @@ class PropertyWareService
     {
         try {
             Log::info('Work Order ID:', ['work_order_no' => $workOrder->work_order_no]);
-    
-        $approvedDateXml = '';
-        if (!empty($workOrder->approved_date)) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-            $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
-        }
-        
+
+            $approvedDateXml = '';
+            if (! empty($workOrder->approved_date)) {
+                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+                $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+            }
 
             $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -232,34 +231,36 @@ class PropertyWareService
                     </ser:updateWorkOrder>
                 </soapenv:Body>
                 </soapenv:Envelope>';
-    
+
             // Execute SOAP request
             $res = $this->execute($xmlPayload);
-    
+
             // Log the request payload and response for debugging
             Log::debug('SOAP Request Payload:', ['payload' => $xmlPayload]);
             Log::debug('SOAP Response:', ['response' => $res]);
-    
+
             // Handle response success and failure
             if ($res && isset($res['success']) && $res['success'] === true) {
                 Log::info('Work order update successful!', ['Work order no' => $workOrder->work_order_no]);
+
                 return true;
             }
-    
+
             // Log failure if response is unsuccessful
             Log::error('Work order update failed!', [
                 'Work order no' => $workOrder->work_order_no,
-                'response' => $res
+                'response' => $res,
             ]);
-    
+
             return false;
-    
+
         } catch (Exception $e) {
             Log::error('Work order update failed: '.$e->getMessage());
+
             return 'Error: '.$e->getMessage();
         }
     }
-    
+
     public function updateServiceStatus(object $workOrder, object $service_status)
     {
         try {
@@ -269,11 +270,11 @@ class PropertyWareService
             $location = $workOrder->location;
 
             $approvedDateXml = '';
-            if (!empty($workOrder->approved_date)) {
+            if (! empty($workOrder->approved_date)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
             }
-        
+
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -414,10 +415,8 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-        if (!empty($workOrder->approved_date)) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-            $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
-        }
+        $formattedDate = $workOrder->approved_date ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : now()->format('Y-m-d\TH:i:s');
+        $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
 
         $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -467,7 +466,7 @@ class PropertyWareService
             $buildingId = $workOrder->building_id;
 
             $approvedDateXml = '';
-            if (!empty($workOrder->approved_date)) {
+            if (! empty($workOrder->approved_date)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
             }
@@ -537,7 +536,7 @@ class PropertyWareService
         $serviceStatus = $servicestatusData->name;
 
         $approvedDateXml = '';
-        if (!empty($workOrder->approved_date)) {
+        if (! empty($workOrder->approved_date)) {
             $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
             $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
         }
@@ -606,11 +605,11 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-        if (!empty($workOrder->approved_date)) {
+        if (! empty($workOrder->approved_date)) {
             $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
             $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
         }
-        
+
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -827,7 +826,7 @@ class PropertyWareService
             }
 
             $approvedDateXml = '';
-            if (!empty($workOrder->approved_date)) {
+            if (! empty($workOrder->approved_date)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
             }
@@ -858,7 +857,7 @@ class PropertyWareService
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                         <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
-                        '. $approvedDateXml.'
+                        '.$approvedDateXml.'
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>
@@ -930,16 +929,16 @@ class PropertyWareService
         if (curl_errno($curl)) {
             $errorNo = curl_errno($curl);
             $errorMsg = curl_error($curl);
-        
+
             Log::error('cURL Error Details:', [
                 'errno' => $errorNo,
                 'error' => $errorMsg,
                 'http_code' => $httpCode,
                 'full_url' => $this->url,
             ]);
-        
+
             curl_close($curl);
-        
+
             return [
                 'success' => false,
                 'error' => 'CURL_ERROR',
