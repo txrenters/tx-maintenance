@@ -181,13 +181,12 @@ class PropertyWareService
             $approvedDataXml = '';
             if ($workOrder->is_approved) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
+                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? null);
+                $approvedBy = htmlspecialchars($workOrder->approved_by ?? null);
             
-                $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
                 $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-                $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
+                $approvedDataXml .= '<approvalComment>' . $approvalComment . '</approvalComment>';
             }
 
             $xmlPayload = '
@@ -280,10 +279,9 @@ class PropertyWareService
                 $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
                 $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
             
-                $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
                 $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
                 $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-                $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
             }
 
             $xmlPayload = '
@@ -430,10 +428,9 @@ class PropertyWareService
                 $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
                 $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
             
-                $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
                 $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
                 $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-                $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
             }
 
 
@@ -490,10 +487,9 @@ class PropertyWareService
                 $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
                 $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
             
-                $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
                 $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
                 $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-                $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
             }
 
             $xmlPayload = '
@@ -565,10 +561,9 @@ class PropertyWareService
             $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
             $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
         
-            $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+            $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
             $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
             $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-            $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
         }
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -638,10 +633,9 @@ class PropertyWareService
             $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
             $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
         
-            $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+            $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
             $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
             $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-            $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
         }
         
 
@@ -865,7 +859,7 @@ class PropertyWareService
                 $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
                 $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
             
-                $approvedDataXml  = '<approvedDate xsi:type="xsd:dateTime">' . $formattedDate . '</approvedDate>';
+                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
                 $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
                 $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
                 $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';

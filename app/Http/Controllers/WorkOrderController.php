@@ -308,24 +308,25 @@ class WorkOrderController extends Controller
 
     public function import(Request $request)
     {
-        $request->validate([
-            'work_order_no' => 'required|integer',
-        ]);
 
-        $propertyWare = new PropertyWareService;
-        $workOrders = ''; // Initialize as an array to store multiple work orders
+        
 
-        $work_order_no = $request->work_order_no;
+        // $request->validate([
+        //     'work_order_no' => 'required|integer',
+        // ]);
 
-        $work_order_no = (int) $work_order_no;
-        $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
+        // $propertyWare = new PropertyWareService;
+        // $workOrders = ''; // Initialize as an array to store multiple work orders
 
-        dd($workOrders);
+        // $work_order_no = $request->work_order_no;
 
-        $importWorkOrder = new WorkOrderService;
-        $importWorkOrder->handle($workOrders);
+        // $work_order_no = (int) $work_order_no;
+        // $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
 
-        return redirect()->back()->with('success', 'Work orders updated successfully.');
+        // $importWorkOrder = new WorkOrderService;
+        // $importWorkOrder->handle($workOrders);
+
+        // return redirect()->back()->with('success', 'Work orders updated successfully.');
     }
 
     public function export()

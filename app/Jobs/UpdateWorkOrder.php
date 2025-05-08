@@ -34,9 +34,10 @@ class UpdateWorkOrder implements ShouldQueue
      */
     public function handle(PropertyWareService $propertyware): void
     {
+        $workOrder = WorkOrder::findOrFail($this->workOrderId);
+
         DB::beginTransaction();
         try {
-            $workOrder = WorkOrder::findOrFail($this->workOrderId);
             $propertyware->updateWorkOrder($workOrder);
             DB::commit();
         } catch (\Throwable $th) {
