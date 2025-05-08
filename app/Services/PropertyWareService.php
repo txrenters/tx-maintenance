@@ -179,7 +179,7 @@ class PropertyWareService
             Log::info('Work Order ID:', ['work_order_no' => $workOrder->work_order_no]);
 
             $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
+            if ($workOrder->is_approved) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
@@ -272,7 +272,7 @@ class PropertyWareService
             $location = $workOrder->location;
 
             $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
+            if ($workOrder->is_approved) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
@@ -419,8 +419,8 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+        if ($workOrder->is_approved) {
+            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
                 $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
@@ -475,7 +475,7 @@ class PropertyWareService
             $buildingId = $workOrder->building_id;
 
             $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
+            if ($workOrder->is_approved) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
@@ -547,8 +547,8 @@ class PropertyWareService
         $serviceStatus = $servicestatusData->name;
 
         $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+        if ($workOrder->is_approved) {
+            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
                 $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
@@ -618,8 +618,8 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+        if ($workOrder->is_approved) {
+            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
                 $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
@@ -841,7 +841,7 @@ class PropertyWareService
             }
 
             $approvedDateXml = '';
-            if (! empty($workOrder->is_approved)) {
+            if ($workOrder->is_approved) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
                 $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
                 $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
