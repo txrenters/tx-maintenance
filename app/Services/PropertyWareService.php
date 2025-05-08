@@ -179,9 +179,12 @@ class PropertyWareService
             Log::info('Work Order ID:', ['work_order_no' => $workOrder->work_order_no]);
 
             $approvedDateXml = '';
-            if (! empty($workOrder->approved_date)) {
+            if (! empty($workOrder->is_approved)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-                $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
             }
 
             $xmlPayload = '
@@ -205,7 +208,6 @@ class PropertyWareService
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                             '.$approvedDateXml.'
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[4]"
@@ -270,9 +272,12 @@ class PropertyWareService
             $location = $workOrder->location;
 
             $approvedDateXml = '';
-            if (! empty($workOrder->approved_date)) {
+            if (! empty($workOrder->is_approved)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-                $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
             }
 
             $xmlPayload = '
@@ -298,8 +303,6 @@ class PropertyWareService
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
-                            <approved xsi:type="xsd:boolean">'.$workOrder->approved_by.'</approved>
                             '.$approvedDateXml.'
                             <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                             <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
@@ -416,8 +419,14 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-        $formattedDate = $workOrder->approved_date ? Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s') : now()->format('Y-m-d\TH:i:s');
-        $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+            if (! empty($workOrder->is_approved)) {
+                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
+            }
+
 
         $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -440,7 +449,6 @@ class PropertyWareService
                                     <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                                     <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                                     <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                                    <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                                     '.$approvedDateXml.'
                                     <status xsi:type="xsd:string">Closed</status>
                                 </workOrder>
@@ -467,9 +475,12 @@ class PropertyWareService
             $buildingId = $workOrder->building_id;
 
             $approvedDateXml = '';
-            if (! empty($workOrder->approved_date)) {
+            if (! empty($workOrder->is_approved)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-                $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
             }
 
             $xmlPayload = '
@@ -494,7 +505,6 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Open</status>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                             '.$approvedDateXml.'
                         </workOrder>
                     </ser:updateWorkOrder>
@@ -537,10 +547,13 @@ class PropertyWareService
         $serviceStatus = $servicestatusData->name;
 
         $approvedDateXml = '';
-        if (! empty($workOrder->approved_date)) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-            $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
-        }
+            if (! empty($workOrder->is_approved)) {
+                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
+            }
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -564,7 +577,6 @@ class PropertyWareService
                 <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                 <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                 <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                 '.$approvedDateXml.'
                 <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
                     xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
@@ -606,10 +618,13 @@ class PropertyWareService
         $location = $workOrder->location;
 
         $approvedDateXml = '';
-        if (! empty($workOrder->approved_date)) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-            $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
-        }
+            if (! empty($workOrder->is_approved)) {
+                $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
+            }
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -633,7 +648,6 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                         '.$approvedDateXml.'
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                         '.$vendorIDsXml.'
@@ -827,9 +841,12 @@ class PropertyWareService
             }
 
             $approvedDateXml = '';
-            if (! empty($workOrder->approved_date)) {
+            if (! empty($workOrder->is_approved)) {
                 $formattedDate = Carbon::parse($workOrder->approved_date)->format('Y-m-d\TH:i:s');
-                $approvedDateXml = "<approvedDate>{$formattedDate}</approvedDate>";
+                $approvedDateXml = '<approvedDate xsi:type="xsd:dateTime">'.$formattedDate.'</approvedDate>';
+                $approvedDateXml .= '<approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>';
+                $approvedDateXml .= '<approvalComment xsi:type="xsd:string">'.$workOrder->approval_comments.'</approvalComment>';
+                $approvedDateXml .= '<approvedBy xsi:type="xsd:string">'.$workOrder->approved_by.'</approvedBy>';
             }
 
             $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -857,7 +874,6 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        <approved xsi:type="xsd:boolean">'.($workOrder->is_approved == 1 ? 'true' : 'false').'</approved>
                         '.$approvedDateXml.'
                     </workOrder>
                 </ser:updateWorkOrder>

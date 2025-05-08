@@ -37,13 +37,26 @@ class AttachmentsController extends Controller
             $validatedData['filetype'] = $file->getMimeType();
         }
 
-        $attachment = Attachments::create($validatedData);
 
         DB::beginTransaction();
         try {
             $propertyware = new PropertyWareService;
-            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $attachment);
+
+
+            $uploaded = $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $validatedData);
+
+            if($uploaded){
+                $attachment = Attachments::create($validatedData);
+                
+            } else {
+                Log::error('Failed to upload vendor attachments', [
+                    'work_order_id' => $validatedData['work_order_id'],
+                    'attachment_id' => $attachment->id ?? null,
+                ]);
+            }
+
             DB::commit();
+
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Failed to upload vendor attachments: '.$th->getMessage(), [
@@ -96,10 +109,12 @@ class AttachmentsController extends Controller
                 'created_at' => $request->date ?? now(),
             ];
 
-            $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
-            sleep(4); // Wait 2 second between uploads
+            $uploaded = $propertyware->uploadVendorAttachment($validatedData['work_order_id'], $files);
+            sleep(4); 
 
-            $savedFiles[] = $files;
+            if($uploaded){
+                $savedFiles[] = $files;
+            }
         }
 
         Attachments::insert($savedFiles);
