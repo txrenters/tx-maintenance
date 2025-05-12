@@ -308,9 +308,6 @@ class WorkOrderController extends Controller
 
     public function import(Request $request)
     {
-
-        
-
         // $request->validate([
         //     'work_order_no' => 'required|integer',
         // ]);

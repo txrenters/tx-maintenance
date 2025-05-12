@@ -43,10 +43,9 @@ class UpdateWorkOrder implements ShouldQueue
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work Order update failed: '.$th->getMessage(), [
-                'word_order_no' => $workOrder->word_order_no,
+                'word_order_no' => $workOrder->work_order_no,
                 'exception' => $th->getTraceAsString(),
             ]);
-            throw $th; // Re-throw the exception to mark the job as failed
         }
 
     }

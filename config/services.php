@@ -40,6 +40,7 @@ return [
         'password' => env('PROPERTYWARE_PASSWORD'),
         'client_id' => env('PROPERTYWARE_CLIENT_ID'),
         'client_secret_key' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+        'system_id' => env('PROPERTYWARE_SYSTEM_ID'),
     ],
 
     'asana' => [

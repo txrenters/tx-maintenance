@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Calculation\TextData\Format;
 
 class PropertyWareService
 {
@@ -14,6 +17,9 @@ class PropertyWareService
     protected $username;
 
     protected $password;
+    protected $client_id;
+    protected $secret_key;
+    protected $system_id;
 
     public function __construct()
     {
@@ -21,6 +27,9 @@ class PropertyWareService
         $this->url = config('services.propertyware.url');
         $this->username = config('services.propertyware.username');
         $this->password = config('services.propertyware.password');
+        $this->client_id = env('PROPERTYWARE_CLIENT_ID');
+        $this->secret_key =  env('PROPERTYWARE_CLIENT_SECRET_KEY');
+        $this->system_id = env('PROPERTYWARE_SYSTEM_ID');
 
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
             Log::error('PropertyWare API: Missing credentials. Skipping API connection.');
@@ -175,175 +184,119 @@ class PropertyWareService
 
     public function updateWorkOrder($workOrder)
     {
-        try {
-            Log::info('Work Order ID:', ['work_order_no' => $workOrder->work_order_no]);
+        $response = Http::withHeaders([
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            'Content-Type' => 'application/json',
+        ])->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
+            "authorizedToEnter" => strtoupper($workOrder->authorized_to_enter),
+            "buildingID" => $workOrder->building_id,
+            "category" => $workOrder->category,
+            "costEstimate" => $workOrder->cost_estimate,
+            "dateToEnter" => $workOrder->date_to_enter ? Carbon::parse($workOrder->date_to_enter)->format('Y-m-d') : '',
+            "description" => $workOrder->description,
+            "hourEstimate" => $workOrder->hour_estimate,
+            "priority" => strtoupper($workOrder->priority),
+            "requiredMaterials"  => $workOrder->required_materials,
+            "scheduledEndDate" =>  $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : '',
+            "source"  => $workOrder->source,
+            "specificLocation"  => $workOrder->specific_location,
+            "startDate" => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : '',
+            "type"  => $workOrder->type
+        ]);
+        
+        if ($response->status() == 200) {
+             Log::error('Success in updating work order', [
+                'work order' =>  $workOrder->work_order_no,
+                'error_details' => [
+                    'status_code' => $response->status(),
+                    'body' => $response->body(),
+                    'headers' => $response->headers(),
+                ]
+            ]);
+        }
 
-            $approvedDataXml = '';
-            if ($workOrder->is_approved) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? null);
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? null);
-            
-                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-                $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment>' . $approvalComment . '</approvalComment>';
-            }
+        $response = Http::withHeaders([
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            'Content-Type' => 'application/json',
+        ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+            "entityId" => $workOrder->propertyware_id,
+            "fieldSetDTOS" => [
+                [
+                    "name" => "Management Plan",
+                    "value" => $workOrder->management_plan
+                ],
+                [
+                    "name" => "Additional work needed- Reschedule",
+                    "value" => $workOrder->additional_work_needed_reschedule
+                ],
+                [
+                    "name" => "Zone",
+                    "value" => $workOrder->zone
+                ],
+                [
+                    "name" => "closing comment",
+                    "value" => $workOrder->closing_comments
+                ]
+            ]
+        ]);
 
-            $xmlPayload = '
-                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.(int) $workOrder->propertyware_id.'</ID>
-                            <building xsi:type="urn:Building">
-                                <ID xsi:type="xsd:long">'.(int) $workOrder->building_id.'</ID>
-                            </building>
-                            <portfolio xsi:type="urn:Portfolio">
-                                <ID xsi:type="xsd:long">'.(int) $workOrder->portfolio_id.'</ID>
-                            </portfolio>
-                            <location xsi:type="xsd:string">'.$workOrder->location.'</location>
-                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            '.$approvedDataXml.'
-                            <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[4]"
-                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                                <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                 <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                 <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Zone</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                 <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">closing comment</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                            </customFields>
-                        </workOrder>
-                    </ser:updateWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
+        
+        if ($response->status() == 200) {
+             Log::error('Success in updating work order custom fields', [
+                'work order' =>  $workOrder->work_order_no,
+                'error_details' => [
+                    'status_code' => $response->status(),
+                    'body' => $response->body(),
+                    'headers' => $response->headers(),
+                ]
+            ]);
 
-            // Execute SOAP request
-            $res = $this->execute($xmlPayload);
-
-            // Log the request payload and response for debugging
-            Log::debug('SOAP Request Payload:', ['payload' => $xmlPayload]);
-            Log::debug('SOAP Response:', ['response' => $res]);
-
-            // Handle response success and failure
-            if ($res && isset($res['success']) && $res['success'] === true) {
-                Log::info('Work order update successful!', ['Work order no' => $workOrder->work_order_no]);
-
-                return true;
-            }
-
-            // Log failure if response is unsuccessful
-            Log::error('Work order update failed!', [
-                'Work order no' => $workOrder->work_order_no,
-                'response' => $res,
+            return true;
+        } else {
+            Log::error('Error updating Work Order', [
+                'error' => 'Unable to update work order',
+                'error_details' => [
+                    'status_code' => $response->status(),
+                    'body' => $response->body(),
+                    'headers' => $response->headers(),
+                ]
             ]);
 
             return false;
-
-        } catch (Exception $e) {
-            Log::error('Work order update failed: '.$e->getMessage());
-
-            return 'Error: '.$e->getMessage();
         }
     }
 
     public function updateServiceStatus(object $workOrder, object $service_status)
     {
         try {
-            $workorderId = $workOrder->propertyware_id;
-            $portfolioId = (int) $workOrder->portfolio_id;
-            $buildingId = $workOrder->building_id;
-            $location = $workOrder->location;
+            $response = Http::withHeaders([
+                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+                'Content-Type' => 'application/json',
+            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+                "entityId" => $workOrder->propertyware_id,
+                "fieldSetDTOS" => [
+                    [
+                        "name" => "Service Status",
+                        "value" => $service_status->name
+                    ]
+                ]
+            ]);
 
-            $approvedDataXml = '';
-            if ($workOrder->is_approved) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-            
-                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-                $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-            }
-
-            $xmlPayload = '
-                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                    xmlns:ser="http://service.web.propertyware.realpage.com"
-                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                    <soapenv:Header/>
-                    <soapenv:Body>
-                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                        <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                            <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">'.$location.'</location>
-
-                         <location xsi:type="xsd:string">'.$workOrder->location.'</location>
-                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            '.$approvedDataXml.'
-                            <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[3]"
-                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                                <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                <customFields xsi:type="urn:CustomField">
-                                    <fieldName xsi:type="xsd:string">Zone</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                                 <customFields xsi:type="ns2:CustomField">
-                                    <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                                    <value xsi:type="xsd:string">'.$service_status->name.'</value>
-                                </customFields>
-                                <customFields xsi:type="ns2:CustomField">
-                                    <fieldName xsi:type="xsd:string">closing comment</fieldName>
-                                    <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
-                                </customFields>
-                            </customFields>
-                        </workOrder>
-                        </ser:updateWorkOrder>
-                        </soapenv:Body>
-                    </soapenv:Envelope>
-                ';
-
-            $response = $this->execute($xmlPayload);
-
-            // Log and return response status
-            if ($response) {
-                Log::info('Updating service status has been successfully!', [
-                    'Work order no' => $workOrder->work_order_no,
+        
+            if ($response->status() == 200) {
+                Log::error('Success in updating work order custom fields', [
+                    'work order' =>  $workOrder->work_order_no,
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                        'headers' => $response->headers(),
+                    ]
                 ]);
             }
 
@@ -376,9 +329,6 @@ class PropertyWareService
     private function buildAttachDocumentPayload($workOrder, $url)
     {
         $workorderId = $workOrder->propertyware_id;
-        $portfolioId = (int) $workOrder->portfolio_id;
-        $buildingId = $workOrder->building_id;
-        $location = $workOrder->location;
 
         $xmlPayload2 = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -417,60 +367,37 @@ class PropertyWareService
 
     private function buildCloseWorkOrderPayload($workOrder)
     {
-        $workorderId = $workOrder->propertyware_id;
-        $portfolioId = (int) $workOrder->portfolio_id;
-        $buildingId = $workOrder->building_id;
-        $location = $workOrder->location;
-
-        $approvedDataXml = '';
-            if ($workOrder->is_approved) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-            
-                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-                $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-            }
-
-
-
-        $xmlPayload = '
-                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                    xmlns:ser="http://service.web.propertyware.realpage.com"
-                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                    <soapenv:Header/>
-                        <soapenv:Body>
-                            <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                                    <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                                    <building xsi:type="urn:Building">
-                                        <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                                    </building>
-                                    <portfolio xsi:type="urn:Portfolio">
-                                        <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                                    </portfolio>
-                                    <location xsi:type="xsd:string">'.$location.'</location>
-                                    <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                                    <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                                    <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                                    '.$approvedDataXml.'
-                                    <status xsi:type="xsd:string">Closed</status>
-                                </workOrder>
-                            </ser:updateWorkOrder>
-                        </soapenv:Body>
-                    </soapenv:Envelope>
-                ';
-
-        $response = $this->execute($xmlPayload);
-
-        // Log and return response status
-        if ($response) {
-            Log::info('Work order service status has been closed successfully!', [
-                'Work order no' => $workOrder->work_order_no,
+        try {
+            $response = Http::withHeaders([
+                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+                'Content-Type' => 'application/json',
+            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/closeworkorder/'.$workOrder->propertyware_id, [
+                "category" => $workOrder->category,
+                "comments" => $workOrder->closing_comments,
+                "completedDate" => now()->format('Y-m-d'),
+                "startDate" => $workOrder->start_date ? Carbon::parse( $workOrder->start_date)->format('Y-m-d') : '',
             ]);
+
+        
+            if ($response->status() == 200) {
+                Log::error('Success in closing work order', [
+                    'work order' =>  $workOrder->work_order_no,
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                        'headers' => $response->headers(),
+                    ]
+                ]);
+            }
+            
+            return true;
+
+        } catch (\Exception $exception) {
+            Log::error('Closing work order failed: '.$exception);
+            Log::error('Closing work order: '.$workOrder->work_order_no);
+            return false;
         }
     }
 
@@ -549,67 +476,36 @@ class PropertyWareService
 
     public function changeServiceStatusPropertyWare($workOrder, $servicestatusData)
     {
-        $workorderId = $workOrder->propertyware_id;
-        $portfolioId = (int) $workOrder->portfolio_id;
-        $buildigId = $workOrder->building_id;
-        $location = $workOrder->location;
-        $serviceStatus = $servicestatusData->name;
 
-        $approvedDataXml = '';
-        if ($workOrder->is_approved) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-            $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-            $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-        
-            $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-            $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-            $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-        }
-        $xmlPayload = '
-                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                <building xsi:type="urn:Building">
-                <ID xsi:type="xsd:long">'.$buildigId.'</ID>
-                </building>
-                <portfolio xsi:type="urn:Portfolio">
-                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                </portfolio>
-                <location xsi:type="xsd:string">'.$location.'</location>
-                <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                '.$approvedDataXml.'
-                <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                    xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                    <customFields xsi:type="ns2:CustomField">
-                        <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                        <value xsi:type="xsd:string">'.$serviceStatus.'</value>
-                        </customFields>
-                </customFields>
-                </workOrder>
-                </ser:updateWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
-
-        $res = $this->execute($xmlPayload);
-
-        // Log and return response status
-        if ($res) {
-            Log::info('Work order service status has been changed successfully!', [
-                'Work order no' => $workOrder->work_order_no,
+        $response = Http::withHeaders([
+                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+                'Content-Type' => 'application/json',
+            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+                "entityId" => $workOrder->propertyware_id,
+                "fieldSetDTOS" => [
+                    [
+                        "name" => "Service Status",
+                        "value" => $servicestatusData->name
+                    ]
+                ]
             ]);
 
-            return true;
-        }
+        
+            if ($response->status() == 200) {
+                Log::error('Work order service status has been changed successfully', [
+                    'work order' =>  $workOrder->work_order_no,
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                        'headers' => $response->headers(),
+                    ]
+                ]);
+
+                return true;
+
+            }
 
         Log::error('Work order service status changed failed!', [
             'Work order no' => $workOrder->work_order_no,
@@ -690,7 +586,6 @@ class PropertyWareService
 
     public function addVendorNotes($notes)
     {
-
         $workOrder = WorkOrder::find($notes->work_order_id);
 
         $xmlPayload = '
@@ -928,7 +823,7 @@ class PropertyWareService
         $curl = curl_init();
 
         curl_setopt_array($curl, [
-            CURLOPT_URL => $this->url,
+            CURLOPT_URL => $this->url.'?wsdl',
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $xmlPayload,
@@ -1010,7 +905,6 @@ class PropertyWareService
     {
 
         $options = [
-            'cache_wsdl' => WSDL_CACHE_NONE,
             'trace' => 1,
             'login' => $this->username,
             'password' => $this->password,
