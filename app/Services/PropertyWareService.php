@@ -368,35 +368,58 @@ class PropertyWareService
     private function buildCloseWorkOrderPayload($workOrder)
     {
         try {
-            $response = Http::withHeaders([
-                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-                'Content-Type' => 'application/json',
-            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/closeworkorder/'.$workOrder->propertyware_id, [
-                "category" => $workOrder->category,
-                "comments" => $workOrder->closing_comments,
-                "completedDate" => now()->format('Y-m-d'),
-                "startDate" => $workOrder->start_date ? Carbon::parse( $workOrder->start_date)->format('Y-m-d') : '',
+            $workorderId = $workOrder->propertyware_id;
+            $portfolioId = (int) $workOrder->portfolio_id;
+            $buildingId = $workOrder->building_id;
+
+            $xmlPayload = '
+                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:ser="http://service.web.propertyware.realpage.com"
+                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                            <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
+                            </building>
+                            <portfolio xsi:type="urn:Portfolio">
+                                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
+                            </portfolio>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
+                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
+                            <status xsi:type="xsd:string">Closed</status>
+                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                        </workOrder>
+                    </ser:updateWorkOrder>
+                    </soapenv:Body>
+                    </soapenv:Envelope>
+                ';
+
+            $response = $this->execute($xmlPayload);
+
+            // Log and return response status
+            if ($response) {
+                Log::info('Work order has been closed successfully!', [
+                    'Work order no' => $workOrder->work_order_no,
+                ]);
+
+                return true;
+            }
+
+            Log::error('Failed in closing work order!', [
+                'Work order no' => $workOrder->work_order_no,
             ]);
 
-        
-            if ($response->status() == 200) {
-                Log::error('Success in closing work order', [
-                    'work order' =>  $workOrder->work_order_no,
-                    'error_details' => [
-                        'status_code' => $response->status(),
-                        'body' => $response->body(),
-                        'headers' => $response->headers(),
-                    ]
-                ]);
-            }
-            
-            return true;
+            return false;
 
         } catch (\Exception $exception) {
             Log::error('Closing work order failed: '.$exception);
-            Log::error('Closing work order: '.$workOrder->work_order_no);
+
             return false;
         }
     }
@@ -407,17 +430,6 @@ class PropertyWareService
             $workorderId = $workOrder->propertyware_id;
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
-
-            $approvedDataXml = '';
-            if ($workOrder->is_approved) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-            
-                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-                $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-            }
 
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -441,7 +453,6 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Open</status>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            '.$approvedDataXml.'
                         </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
