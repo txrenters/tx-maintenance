@@ -8,7 +8,6 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpSpreadsheet\Calculation\TextData\Format;
 
 class PropertyWareService
 {
@@ -534,18 +533,6 @@ class PropertyWareService
         $buildigId = $workOrder->building_id;
         $location = $workOrder->location;
 
-        $approvedDataXml = '';
-        if ($workOrder->is_approved) {
-            $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-            $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-            $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-        
-            $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-            $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-            $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-        }
-        
-
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -570,7 +557,6 @@ class PropertyWareService
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                         '.$approvedDataXml.'
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
-                        '.$vendorIDsXml.'
                     </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
