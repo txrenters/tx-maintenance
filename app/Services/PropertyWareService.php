@@ -206,13 +206,11 @@ class PropertyWareService
         ]);
         
         if ($response->status() == 200) {
-             Log::error('Success in updating work order', [
+             Log::info('Success in updating work order', [
                 'work order' =>  $workOrder->work_order_no,
-                'error_details' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->body(),
-                    'headers' => $response->headers(),
-                ]
+                'status_code' => $response->status(),
+                'headers' => $response->headers(),
+                
             ]);
         }
 
@@ -245,13 +243,10 @@ class PropertyWareService
 
         
         if ($response->status() == 200) {
-             Log::error('Success in updating work order custom fields', [
+             Log::info('Success in updating work order custom fields', [
                 'work order' =>  $workOrder->work_order_no,
-                'error_details' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->body(),
-                    'headers' => $response->headers(),
-                ]
+                'status_code' => $response->status(),
+                'headers' => $response->headers(),
             ]);
 
             return true;
@@ -287,15 +282,11 @@ class PropertyWareService
                 ]
             ]);
 
-        
             if ($response->status() == 200) {
-                Log::error('Success in updating work order custom fields', [
+                Log::info('Success in updating work order custom fields', [
                     'work order' =>  $workOrder->work_order_no,
-                    'error_details' => [
-                        'status_code' => $response->status(),
-                        'body' => $response->body(),
-                        'headers' => $response->headers(),
-                    ]
+                    'status_code' => $response->status(),
+                    'headers' => $response->headers(),
                 ]);
             }
 
@@ -504,22 +495,17 @@ class PropertyWareService
 
         
             if ($response->status() == 200) {
-                Log::error('Work order service status has been changed successfully', [
+                Log::info('Work order service status has been changed successfully', [
                     'work order' =>  $workOrder->work_order_no,
-                    'error_details' => [
-                        'status_code' => $response->status(),
-                        'body' => $response->body(),
-                        'headers' => $response->headers(),
-                    ]
+                    'status_code' => $response->status(),
+                    'headers' => $response->headers(),
+                    
                 ]);
-
                 return true;
-
             }
 
         Log::error('Work order service status changed failed!', [
             'Work order no' => $workOrder->work_order_no,
-
         ]);
 
         return false;
@@ -555,7 +541,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        '.$approvedDataXml.'
+                        '.$vendorIDsXml.'
                         <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                     </workOrder>
                     </ser:updateWorkOrder>
@@ -694,7 +680,7 @@ class PropertyWareService
 
             // Log and return response status
             if ($res) {
-                Log::info('Vendor attachment has been uploaded successfully!', [
+                Log::info('Work order attachment has been uploaded successfully!', [
                     'Work order no' => $workorder->work_order_no,
                     'filename' => $filename,
                 ]);
@@ -702,14 +688,14 @@ class PropertyWareService
                 return true;
             }
 
-            Log::error('Vendor attachment upload failed!', [
+            Log::error('Work order attachment upload failed!', [
                 'Work order no' => $workorder->work_order_no,
                 'filename' => $filename,
             ]);
 
             return false;
         } catch (\Exception $e) {
-            Log::error('Error in uploadVendorAttachment: '.$e->getMessage(), [
+            Log::error('Error in work order attachment: '.$e->getMessage(), [
                 'Work order no' => $workorder->work_order_no,
                 'filename' => $attachments->filename ?? 'N/A',
             ]);
@@ -745,18 +731,6 @@ class PropertyWareService
                 }
             }
 
-            $approvedDataXml = '';
-            if ($workOrder->is_approved) {
-                $formattedDate = Carbon::parse($workOrder->approved_date)->toIso8601String();
-                $approvalComment = htmlspecialchars($workOrder->approval_comments ?? '');
-                $approvedBy = htmlspecialchars($workOrder->approved_by ?? '');
-            
-                $approvedDataXml  = '<approvedDate>' . $formattedDate . '</approvedDate>';
-                $approvedDataXml .= '<approved xsi:type="xsd:boolean">' . ($workOrder->is_approved ? 'true' : 'false') . '</approved>';
-                $approvedDataXml .= '<approvalComment xsi:type="xsd:string">' . $approvalComment . '</approvalComment>';
-                $approvedDataXml .= '<approvedBy xsi:type="xsd:string">' . $approvedBy . '</approvedBy>';
-            }
-
             $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
                 xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -782,7 +756,6 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        '.$approvedDataXml.'
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>

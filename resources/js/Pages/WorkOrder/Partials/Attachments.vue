@@ -22,7 +22,7 @@ const props = defineProps({
     workOrder: Object,
 });
 
-const emit = defineEmits(["fetch-attachments"]);
+const emit = defineEmits(["fetch-attachments", "open-camera"]);
 
 const openCameraModal = ref(false);
 const openAttachmentModal = ref(false);
@@ -114,6 +114,7 @@ const handleDeleteImageSubmit = () => {
 
 const handleFetchAttachment = () => {
     emit("fetch-attachments");
+    openCameraModal.value = true;
 };
 
 const handleFormSubmit = () => {

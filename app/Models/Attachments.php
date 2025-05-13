@@ -6,6 +6,7 @@ use App\Models\Scopes\AttachmentScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 #[ScopedBy([AttachmentScope::class])]
 class Attachments extends Model

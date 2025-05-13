@@ -81,7 +81,7 @@ const navs = computed(() => ({
                 {
                     title: "Coordinators",
                     url: route("work_orders.coordinators"),
-                    isActive: page.component === "WorkOrder/Close",
+                    isActive: page.component === "WorkOrder/Coordinators",
                 },
                 {
                     title: "Completed",
