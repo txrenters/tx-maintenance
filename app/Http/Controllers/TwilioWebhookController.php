@@ -84,6 +84,16 @@ class TwilioWebhookController extends Controller
             $response = Http::post($forwardUrl, $data);
 
             if ($response->successful()) {
+                $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
+                $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
+                $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
+
+                Log::info('Text message information:', [
+                    'from' => $from,
+                    'to' => $to,
+                    'body' => $body
+                ]);
+
                 Log::info('Message Forwarded successfully to PlusThis.');
             } else {
                 Log::error('Failed to forward data to PlusThis. Response: '.$response->body());
