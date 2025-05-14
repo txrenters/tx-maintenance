@@ -56,6 +56,7 @@ import {
     Wrench,
     Truck,
     BotMessageSquare,
+    BadgeAlert,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -516,109 +517,123 @@ const closeBanner = () => {
             <SidebarRail />
         </Sidebar>
         <SidebarInset>
-            <Toaster />
-            <header
-                class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
-            >
-                <div class="flex justify-between w-full">
-                    <BreadcrumbContainer :title="page.props.title" />
-                    <div class="mr-5 flex gap-2">
-                        <Popover>
-                            <PopoverTrigger class="relative">
-                                <BellRing class="w-4 h-4" />
-                                <span
-                                    v-if="notifications.length > 0"
-                                    class="bg-destructive text-white px-1 rounded-full text-xs absolute top-1"
-                                    >{{ notifications.length }}</span
-                                >
-                            </PopoverTrigger>
-                            <PopoverContent
-                                class="w-full max-w-2xl min-w-[24rem] mx-auto max-h-96 overflow-y-auto"
-                            >
-                                <p
-                                    class="uppercase text-xs font-bold flex gap-1"
-                                >
-                                    <span v-if="notifications.length === 0"
-                                        >No New
-                                    </span>
-                                    Notifications
-                                </p>
-                                <template v-if="notifications.length > 0">
-                                    <div
-                                        class="flex items-start gap-4 mt-2 hover:bg-muted p-2 rounded-md"
-                                        v-for="notification in notifications"
-                                        :key="notification.id"
+            <div>
+                <!-- Banner section -->
+                <!-- <div
+                    v-if="showBanner"
+                    class="bg-blue-500 text-white p-2 flex justify-between items-center"
+                >
+                    <span class="text-sm"
+                        >Important Notice: We will be performing an update soon.
+                        Please be aware!</span
+                    >
+                </div> -->
+                <header
+                    class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
+                >
+                    <div class="flex justify-between w-full">
+                        <BreadcrumbContainer :title="page.props.title" />
+                        <div class="mr-5 flex gap-2">
+                            <Popover>
+                                <PopoverTrigger class="relative">
+                                    <BellRing class="w-4 h-4" />
+                                    <span
+                                        v-if="notifications.length > 0"
+                                        class="bg-destructive text-white px-1 rounded-full text-xs absolute top-1"
+                                        >{{ notifications.length }}</span
                                     >
-                                        <div class="flex-1">
-                                            <h4
-                                                class="font-semibold text-sm text-foreground"
-                                            >
-                                                {{ notification.title }}
-                                            </h4>
-                                            <p
-                                                class="text-foreground/80 text-sm mt-1"
-                                            >
-                                                {{ notification.message }}
-                                            </p>
-                                            <div
-                                                class="text-xs text-foreground/80 mt-2 flex justify-between"
-                                            >
-                                                <p>
-                                                    {{ notification.time }}
-                                                </p>
-                                                <button
-                                                    @click.prevent="
-                                                        markAsRead(
-                                                            notification.id
-                                                        )
-                                                    "
-                                                    class="text-primary hover:text-primary/80 text-xs p-0"
+                                </PopoverTrigger>
+                                <PopoverContent
+                                    class="w-full sm:min-w-[24rem] sm:max-w-2xl mx-auto max-h-[80vh] sm:max-h-96 overflow-y-auto"
+                                >
+                                    <p
+                                        class="uppercase text-xs font-bold flex gap-1"
+                                    >
+                                        <span v-if="notifications.length === 0"
+                                            >No New
+                                        </span>
+                                        Notifications
+                                    </p>
+                                    <template v-if="notifications.length > 0">
+                                        <div
+                                            class="flex items-start gap-4 mt-2 hover:bg-muted p-2 rounded-md"
+                                            v-for="notification in notifications"
+                                            :key="notification.id"
+                                        >
+                                            <div class="flex-1">
+                                                <h4
+                                                    class="font-semibold text-sm text-foreground"
                                                 >
-                                                    Mark as read
-                                                </button>
+                                                    {{ notification.title }}
+                                                </h4>
+                                                <p
+                                                    class="text-foreground/80 text-sm mt-1"
+                                                >
+                                                    {{ notification.message }}
+                                                </p>
+                                                <div
+                                                    class="text-xs text-foreground/80 mt-2 flex justify-between"
+                                                >
+                                                    <p>
+                                                        {{ notification.time }}
+                                                    </p>
+                                                    <button
+                                                        @click.prevent="
+                                                            markAsRead(
+                                                                notification.id
+                                                            )
+                                                        "
+                                                        class="text-primary hover:text-primary/80 text-xs p-0"
+                                                    >
+                                                        Mark as read
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </template>
-                            </PopoverContent>
-                        </Popover>
-                        <!-- <Button
+                                    </template>
+                                </PopoverContent>
+                            </Popover>
+                            <!-- <Button
                             variant="outline"
                             @click="router.visit(route('maintenance.chatbot'))"
                         >
                             <BotMessageSquare />
                         </Button> -->
-                        <DropdownMenu>
-                            <DropdownMenuTrigger as-child>
-                                <Button variant="icon">
-                                    <Icon
-                                        icon="radix-icons:moon"
-                                        class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
-                                    />
-                                    <Icon
-                                        icon="radix-icons:sun"
-                                        class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
-                                    />
-                                    <span class="sr-only">Toggle theme</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem @click="mode = 'light'">
-                                    Light
-                                </DropdownMenuItem>
-                                <DropdownMenuItem @click="mode = 'dark'">
-                                    Dark
-                                </DropdownMenuItem>
-                                <DropdownMenuItem @click="mode = 'auto'">
-                                    System
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger as-child>
+                                    <Button variant="icon">
+                                        <Icon
+                                            icon="radix-icons:moon"
+                                            class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+                                        />
+                                        <Icon
+                                            icon="radix-icons:sun"
+                                            class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+                                        />
+                                        <span class="sr-only"
+                                            >Toggle theme</span
+                                        >
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem @click="mode = 'light'">
+                                        Light
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem @click="mode = 'dark'">
+                                        Dark
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem @click="mode = 'auto'">
+                                        System
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
-                </div>
-            </header>
+                </header>
+            </div>
             <Separator />
             <div class="flex flex-1 flex-col gap-4 p-4 pt-4">
+                <Toaster />
                 <slot />
             </div>
         </SidebarInset>
