@@ -1,10 +1,19 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
 import { Icon } from "@iconify/vue";
 import { useColorMode } from "@vueuse/core";
+import axios from "axios";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
+const { toast } = useToast();
+
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/Components/ui/popover";
 import {
     Sidebar,
     SidebarContent,
@@ -26,6 +35,7 @@ import {
 } from "@/Components/ui/sidebar";
 
 import {
+    BellRing,
     BadgeCheck,
     ChevronRight,
     ChevronsUpDown,
@@ -37,7 +47,7 @@ import {
     Settings,
     CalendarDays,
     LayoutDashboard,
-    ListTodo,
+    XIcon,
     Users,
     UserRoundCheck,
     Circle,
@@ -196,6 +206,48 @@ const canAccess = (requiredRoles) => {
     // Return true if there are any matches, otherwise false
     return matchingRoles.length > 0;
 };
+
+const notifications = ref([]);
+let intervalId = null;
+
+const fetchNotifications = async () => {
+    try {
+        const response = await axios.get("/api/notifications");
+        notifications.value = response.data;
+    } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+    }
+};
+
+// Mark notification as read and remove it from local state
+const markAsRead = async (notificationId) => {
+    try {
+        // Send API request to mark as read (you might want to implement this in Laravel)
+        await axios.put(`/api/notifications/${notificationId}/mark-as-read`);
+
+        // Remove from local notifications array
+        notifications.value = notifications.value.filter(
+            (notification) => notification.id !== notificationId
+        );
+        toast({
+            title: "Success",
+            description: "Notification marked as read!",
+        });
+    } catch (error) {
+        console.error("Failed to mark notification as read:", error);
+    }
+};
+
+onMounted(() => {
+    fetchNotifications(); // initial load
+
+    // Set interval for every 5 minutes (300,000 ms)
+    intervalId = setInterval(fetchNotifications, 5000);
+});
+
+onUnmounted(() => {
+    if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
+});
 
 const mode = useColorMode({ disableTransition: false });
 </script>
@@ -464,15 +516,74 @@ const mode = useColorMode({ disableTransition: false });
                 <div class="flex justify-between w-full">
                     <BreadcrumbContainer :title="page.props.title" />
                     <div class="mr-5 flex gap-2">
-                        <Button
+                        <Popover>
+                            <PopoverTrigger class="relative">
+                                <BellRing class="w-4 h-4" />
+                                <span
+                                    v-if="notifications.length > 0"
+                                    class="bg-destructive text-white px-1 rounded-full text-xs absolute top-1"
+                                    >{{ notifications.length }}</span
+                                >
+                            </PopoverTrigger>
+                            <PopoverContent
+                                class="w-full max-w-2xl min-w-[24rem] mx-auto"
+                            >
+                                <p
+                                    class="uppercase text-xs font-bold flex gap-1"
+                                >
+                                    <span v-if="notifications.length === 0"
+                                        >No New
+                                    </span>
+                                    Notifications
+                                </p>
+                                <template v-if="notifications.length > 0">
+                                    <div
+                                        class="flex items-start gap-4 mt-2 hover:bg-muted p-2 rounded-md"
+                                        v-for="notification in notifications"
+                                        :key="notification.id"
+                                    >
+                                        <div class="flex-1">
+                                            <h4
+                                                class="font-semibold text-sm text-gray-900"
+                                            >
+                                                {{ notification.title }}
+                                            </h4>
+                                            <p
+                                                class="text-gray-700 text-sm mt-1"
+                                            >
+                                                {{ notification.message }}
+                                            </p>
+                                            <div
+                                                class="text-xs text-gray-500 mt-2 flex justify-between"
+                                            >
+                                                <p>
+                                                    {{ notification.time }}
+                                                </p>
+                                                <button
+                                                    @click.prevent="
+                                                        markAsRead(
+                                                            notification.id
+                                                        )
+                                                    "
+                                                    class="text-primary hover:text-primary/80 text-xs p-0"
+                                                >
+                                                    Mark as read
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </PopoverContent>
+                        </Popover>
+                        <!-- <Button
                             variant="outline"
                             @click="router.visit(route('maintenance.chatbot'))"
                         >
                             <BotMessageSquare />
-                        </Button>
+                        </Button> -->
                         <DropdownMenu>
                             <DropdownMenuTrigger as-child>
-                                <Button variant="outline">
+                                <Button variant="icon">
                                     <Icon
                                         icon="radix-icons:moon"
                                         class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"

@@ -75,6 +75,7 @@ class ConversationController extends Controller
                 'receiver_number' => $receiverNumber,
                 'work_order_id' => $validatedData['work_order_id'],
                 'conversation_type' => $validatedData['conversation_type'],
+                'is_read' => true,
             ]);
 
             // Send the message via Twilio

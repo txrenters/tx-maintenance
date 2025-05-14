@@ -37,7 +37,7 @@
         "luxon": "^3.5.0",
         "qalendar": "^3.9.0",
         "radix-vue": "^1.9.14",
-        "reka-ui": "^2.2.0",
+        "reka-ui": "^2.2.1",
         "script-runner": "^0.1.8",
         "tailwind-merge": "^3.0.2",
         "tailwindcss-animate": "^1.0.7",

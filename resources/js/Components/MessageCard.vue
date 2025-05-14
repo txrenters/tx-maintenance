@@ -13,27 +13,30 @@ const formatDate = (date) => {
 
     let parsedDate;
 
+    // Set timezone to America/Chicago (Dallas)
+    const timezone = "America/Chicago";
+
     if (typeof date === "string") {
         if (date.includes("T")) {
-            parsedDate = DateTime.fromISO(date, { zone: "utc" });
-        } else if (date.includes(" ")) {
-            // Handling the format 'yyyy-MM-dd HH:mm:ss'
-            parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", {
-                zone: "utc",
-            });
+            // Parse ISO string in UTC and convert to America/Chicago time
+            parsedDate = DateTime.fromISO(date, { zone: "utc" }).setZone(
+                timezone
+            );
         } else {
+            // Parse custom formatted date string in UTC and convert to America/Chicago time
             parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", {
                 zone: "utc",
-            });
+            }).setZone(timezone);
         }
     } else if (date instanceof Date) {
-        parsedDate = DateTime.fromJSDate(date);
+        // If it's a JavaScript Date object, convert to America/Chicago time
+        parsedDate = DateTime.fromJSDate(date).setZone(timezone);
     } else {
         return "Invalid Date";
     }
 
     return parsedDate.isValid
-        ? parsedDate.toFormat("EEE, MMMM d, yyyy hh:mm a")
+        ? parsedDate.toFormat("EEE, MMMM d, yyyy hh:mm a") // Format as desired
         : "Invalid Date";
 };
 
