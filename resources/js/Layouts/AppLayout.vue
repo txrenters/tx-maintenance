@@ -533,7 +533,7 @@ const closeBanner = () => {
                                 >
                             </PopoverTrigger>
                             <PopoverContent
-                                class="w-full max-w-2xl min-w-[24rem] mx-auto"
+                                class="w-full max-w-2xl min-w-[24rem] mx-auto max-h-96 overflow-y-auto"
                             >
                                 <p
                                     class="uppercase text-xs font-bold flex gap-1"
@@ -551,17 +551,17 @@ const closeBanner = () => {
                                     >
                                         <div class="flex-1">
                                             <h4
-                                                class="font-semibold text-sm text-gray-900"
+                                                class="font-semibold text-sm text-foreground"
                                             >
                                                 {{ notification.title }}
                                             </h4>
                                             <p
-                                                class="text-gray-700 text-sm mt-1"
+                                                class="text-foreground/80 text-sm mt-1"
                                             >
                                                 {{ notification.message }}
                                             </p>
                                             <div
-                                                class="text-xs text-gray-500 mt-2 flex justify-between"
+                                                class="text-xs text-foreground/80 mt-2 flex justify-between"
                                             >
                                                 <p>
                                                     {{ notification.time }}
