@@ -602,7 +602,7 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-usePoll(y, {
+usePoll(30000, {
     preserveScroll: true,
     preserveState: true,
     only: ["service_status"],

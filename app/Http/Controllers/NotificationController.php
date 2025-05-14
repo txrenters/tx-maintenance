@@ -11,6 +11,7 @@ class NotificationController extends Controller
         $convos = Conversation::with('work_order:id,work_order_no') // select only needed fields
             ->where('is_read', 0)
             ->orderBy('created_at', 'desc')
+            ->limit(10)
             ->get();
 
          $notifications = $convos->map(function ($item) {

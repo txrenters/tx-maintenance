@@ -250,6 +250,13 @@ onUnmounted(() => {
 });
 
 const mode = useColorMode({ disableTransition: false });
+
+const showBanner = ref(true);
+
+// Close the banner when the close button is clicked
+const closeBanner = () => {
+    showBanner.value = false;
+};
 </script>
 
 <template>
