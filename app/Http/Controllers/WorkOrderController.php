@@ -16,6 +16,7 @@ use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -308,22 +309,21 @@ class WorkOrderController extends Controller
 
     public function import(Request $request)
     {
-        // $request->validate([
-        //     'work_order_no' => 'required|integer',
-        // ]);
+        $request->validate([
+            'work_order_no' => 'required|integer',
+        ]);
+        $propertyWare = new PropertyWareService;
+        $workOrders = ''; // Initialize as an array to store multiple work orders
 
-        // $propertyWare = new PropertyWareService;
-        // $workOrders = ''; // Initialize as an array to store multiple work orders
+        $work_order_no = $request->work_order_no;
 
-        // $work_order_no = $request->work_order_no;
+        $work_order_no = (int) $work_order_no;
+        $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
 
-        // $work_order_no = (int) $work_order_no;
-        // $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
+        $importWorkOrder = new WorkOrderService;
+        $importWorkOrder->handle($workOrders);
 
-        // $importWorkOrder = new WorkOrderService;
-        // $importWorkOrder->handle($workOrders);
-
-        // return redirect()->back()->with('success', 'Work orders updated successfully.');
+        return redirect()->back()->with('success', 'Work orders updated successfully.');
     }
 
     public function export()

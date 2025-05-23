@@ -74,13 +74,6 @@ const sendMessage = () => {
                         title: "Success",
                         description: "Message has been sent successfully!",
                     });
-                    props.wocConversation.push({
-                        id: Date.now(), // Temporary ID
-                        sender_number: vendor_phone_number.value,
-                        receiver_number: woc_phone_number.value,
-                        message: newMessage.value,
-                        created_at: new Date().toISOString(), // Current timestamp
-                    });
                     newMessage.value = "";
                     scrollToBottom();
                     emit("update-vendor-convo");
@@ -189,19 +182,23 @@ onMounted(() => {
             </div>
         </div>
 
-        <div class="flex items-center gap-2 mt-4 mb-6">
-            <Input
+        <div class="relative w-full mt-4 mb-6">
+            <Textarea
                 v-model="newMessage"
-                placeholder="Type a message..."
-                class="flex-1"
-                @keyup.enter="sendMessage"
+                @keyup.enter.exact="sendMessage"
+                placeholder="Type your message..."
+                class="w-full resize-none rounded-2xl border py-3 pr-20 pl-4"
+                rows="1"
+                :disabled="loading"
             />
             <Button
-                @click.prevent="sendMessage"
-                :disabled="loading || isLoading"
                 size="icon"
+                variant="ghost"
+                @click.prevent="sendMessage"
+                :disabled="isLoading || loading"
+                class="absolute top-1/2 right-2 -translate-y-1/2"
             >
-                <Send v-if="!isLoading || isLoading" />
+                <Send v-if="!isLoading || loading" />
                 <Loader2 v-else class="w-4 h-4 animate-spin" />
             </Button>
         </div>

@@ -208,14 +208,15 @@ class WorkOrderService
                 ['name' => $data['category']],
                 ['updated_at' => now()]
             );
+            Log::info('Work order data: ', ['data' => $data]);
 
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
                 'work_order_no' => $data['number'] ?? null,
-                'approval_comments' => $data['approvalComments'] ?? null,
+                'approval_comments' => $data['approvalComment'] ?? null,
                 'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
-                'approved_by' => ! empty($data['approvedBy']['firstName']) ? $data['approvedBy']['firstName'].' '.$data['approvedBy']['lastName'] : null,
+                'approved_by' => ! empty($data['approved']) && $data['approved'] ? $data['approvedBy']['ID'] ?? '' : null,
                 'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,

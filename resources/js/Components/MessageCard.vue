@@ -2,6 +2,7 @@
 import { DateTime } from "luxon";
 import { X } from "lucide-vue-next";
 import { computed } from "vue";
+import { router } from "@inertiajs/vue3";
 
 const props = defineProps({
     messages: Object,
@@ -54,6 +55,16 @@ const removeMessage = (id) => {
     if (index !== -1) {
         messages.value.splice(index, 1);
     }
+    router.post(
+        route("workorder.message.delete", id),
+        {
+            _method: "delete",
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+        }
+    );
 };
 </script>
 <template>
@@ -86,19 +97,14 @@ const removeMessage = (id) => {
                 >
                     From: {{ msg.sender_number }}
                 </p>
-                <Link
-                    as="button"
+                <button
                     class="hover:text-red-500"
-                    :href="route('workorder.message.delete', msg.id)"
-                    method="post"
                     title="Delete"
                     @click.prevent="removeMessage(msg.id)"
-                    preserve-state
-                    preserve-scroll
                     v-if="!$page.props.auth.user.roles.includes('vendor')"
                 >
                     <X class="w-4 h-4" />
-                </Link>
+                </button>
             </div>
 
             <p

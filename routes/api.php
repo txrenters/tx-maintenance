@@ -23,7 +23,7 @@ Route::get('/work_orders/{workOrder}/conversation/vendors', [ConversationControl
 Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
 Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
 Route::post('/work_orders/convesation/send', [ConversationController::class, 'SendMessage'])->name('work_order.vendor.conversation.send');
-Route::post('/work_orders/convesation/{conversation}/delete', [ConversationController::class, 'delete'])->name('workorder.message.delete');
+Route::delete('/work_orders/convesation/{conversation}', [ConversationController::class, 'delete'])->name('workorder.message.delete');
 
 Route::get('/service_schedule/{workOrder}/vendor', [ServiceScheduleController::class, 'get_schedules'])->name('work_order.service_schedules');
 Route::post('/service_schedule/submit', [ServiceScheduleController::class, 'store'])->name('work_order.service_schedule.create');

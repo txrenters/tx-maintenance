@@ -521,32 +521,34 @@ const handleDeleteSubmit = () => {
             $page.props.auth.user.roles.includes('woc')
         "
     >
-        <div class="p-6 pt-0 flex flex-wrap gap-1 justify-end">
-            <Button
-                type="submit"
-                variant="destructive"
-                :disabled="loading"
-                @click.prevent="handleDeleteSubmit"
-            >
-                <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
-                Delete
-            </Button>
-            <Button
-                type="submit"
-                :disabled="closeWorkOrderForm.processing"
-                @click.prevent="handleCloseOrderSubmit"
-            >
-                <Loader2
-                    v-if="closeWorkOrderForm.processing"
-                    class="w-4 h-4 animate-spin"
-                />
-                Completed
-            </Button>
+        <div class="flex gap-2 justify-between w-full p-6">
+            <div class="flex gap-2">
+                <Button
+                    type="submit"
+                    variant="destructive"
+                    :disabled="loading"
+                    @click.prevent="handleDeleteSubmit"
+                >
+                    <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+                    Delete
+                </Button>
+                <Button
+                    type="submit"
+                    :disabled="closeWorkOrderForm.processing"
+                    @click.prevent="handleCloseOrderSubmit"
+                >
+                    <Loader2
+                        v-if="closeWorkOrderForm.processing"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    Completed
+                </Button>
+            </div>
             <Button
                 type="submit"
                 :disabled="workOrder.processing"
                 @click.prevent="handleUpdateSubmit"
-                class="text-white bg-green-400"
+                class="text-white bg-green-400 flex justify-end"
             >
                 <Loader2
                     v-if="workOrder.processing"

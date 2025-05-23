@@ -850,6 +850,7 @@ usePoll(30000, {
                 :ownerConversation="ownerConversation"
                 :workOrderOwners="workOrderOwners"
                 :workOrder="workOrderForm"
+                @update-owner-convo="fetchOwnerConversation(workOrderForm.id)"
                 :isLoading="isLoading"
                 v-if="activeTab === 'owner_conversation'"
             />
@@ -858,6 +859,7 @@ usePoll(30000, {
                 :tenantConversation="tenantConversation"
                 :workOrderTenants="workOrderTenants"
                 :workOrder="workOrderForm"
+                @update-tenant-convo="fetchTenantConversation(workOrderForm.id)"
                 :isLoading="isLoading"
                 v-if="activeTab === 'tenant_conversation'"
             />

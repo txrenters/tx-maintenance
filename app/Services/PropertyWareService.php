@@ -20,6 +20,8 @@ class PropertyWareService
     protected $secret_key;
     protected $system_id;
 
+    protected $headers;
+
     public function __construct()
     {
         // Load configuration from config/services.php
@@ -30,9 +32,16 @@ class PropertyWareService
         $this->secret_key =  env('PROPERTYWARE_CLIENT_SECRET_KEY');
         $this->system_id = env('PROPERTYWARE_SYSTEM_ID');
 
+        $this->headers = [
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            'Content-Type' => 'application/json',
+        ];
+
+
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
             Log::error('PropertyWare API: Missing credentials. Skipping API connection.');
-
             return; // Avoid crashing during deployment
         }
     }
@@ -171,7 +180,7 @@ class PropertyWareService
                 $allWorkOrders = json_decode(json_encode($response), true);
             }
 
-            return $allWorkOrders;
+            return $allWorkOrders;            
 
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
@@ -183,12 +192,7 @@ class PropertyWareService
 
     public function updateWorkOrder($workOrder)
     {
-        $response = Http::withHeaders([
-            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json',
-        ])->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
+        $response = Http::withHeaders($this->headers)->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
             "authorizedToEnter" => strtoupper($workOrder->authorized_to_enter),
             "buildingID" => $workOrder->building_id,
             "category" => $workOrder->category,
@@ -214,12 +218,7 @@ class PropertyWareService
             ]);
         }
 
-        $response = Http::withHeaders([
-            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json',
-        ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+        $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
             "entityId" => $workOrder->propertyware_id,
             "fieldSetDTOS" => [
                 [
@@ -240,13 +239,11 @@ class PropertyWareService
                 ]
             ]
         ]);
-
         
         if ($response->status() == 200) {
              Log::info('Success in updating work order custom fields', [
                 'work order' =>  $workOrder->work_order_no,
                 'status_code' => $response->status(),
-                'headers' => $response->headers(),
             ]);
 
             return true;
@@ -256,7 +253,6 @@ class PropertyWareService
                 'error_details' => [
                     'status_code' => $response->status(),
                     'body' => $response->body(),
-                    'headers' => $response->headers(),
                 ]
             ]);
 
@@ -267,12 +263,7 @@ class PropertyWareService
     public function updateServiceStatus(object $workOrder, object $service_status)
     {
         try {
-            $response = Http::withHeaders([
-                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-                'Content-Type' => 'application/json',
-            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+            $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
                 "entityId" => $workOrder->propertyware_id,
                 "fieldSetDTOS" => [
                     [
@@ -384,6 +375,14 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Closed</status>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                                <customFields xsi:type="ns2:CustomField">
+                                    <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                                    <value xsi:type="xsd:string">Closed</value>
+                                    </customFields>
+                            </customFields>
+
                         </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
@@ -443,6 +442,14 @@ class PropertyWareService
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Open</status>
                             <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
+                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+                                <customFields xsi:type="ns2:CustomField">
+                                    <fieldName xsi:type="xsd:string">Service Status</fieldName>
+                                    <value xsi:type="xsd:string">New</value>
+                                    </customFields>
+                            </customFields>
+
                         </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
@@ -478,12 +485,7 @@ class PropertyWareService
     public function changeServiceStatusPropertyWare($workOrder, $servicestatusData)
     {
 
-        $response = Http::withHeaders([
-                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-                'Content-Type' => 'application/json',
-            ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+        $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
                 "entityId" => $workOrder->propertyware_id,
                 "fieldSetDTOS" => [
                     [
@@ -751,8 +753,6 @@ class PropertyWareService
                         <costEstimate xsi:type="xsd:double">'.(float) ($cost_etimate ?? 0).'</costEstimate>
                         <hourEstimate xsi:type="xsd:double">'.(float) ($time_estimate ?? 0).'</hourEstimate>
                         <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
-                        
-                        <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>

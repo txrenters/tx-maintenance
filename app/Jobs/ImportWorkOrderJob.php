@@ -214,7 +214,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 'work_order_no' => $data['number'] ?? null,
                 'approval_comments' => $data['approvalComments'] ?? null,
                 'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
-                'approved_by' => $data['approvedBy'] ?? null,
+                'approved_by' => ! empty($data['approved']) && $data['approved'] ? $data['approvedBy']['ID'] ?? '' : null,
                 'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
                 'authorized_to_enter' => $data['authorizedToEnter'] ?? null,
                 'category' => $data['category'] ?? null,
@@ -275,6 +275,8 @@ class ImportWorkOrderJob implements ShouldQueue
                     }
                 }
             }
+
+            Log::info('Work order data: ',['data' => $work_order_data]);
 
             DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],
