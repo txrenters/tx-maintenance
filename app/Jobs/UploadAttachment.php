@@ -42,7 +42,7 @@ class UploadAttachment implements ShouldQueue
         $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
       
         if($uploaded){
-            Log::info('Work order attachmentshas been uploaded', [
+            Log::info('Work order attachment has been uploaded', [
                 'work order no' => $this->data->work_order->work_order_no,
                 'filename' => $this->data->filename,
             ]);

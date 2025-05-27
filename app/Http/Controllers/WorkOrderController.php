@@ -135,7 +135,7 @@ class WorkOrderController extends Controller
 
             UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
 
-            Log::info('Work Order Update Dispatched', ['work_order_id' => $workOrder->id]);
+            Log::info('Work Order Update Dispatched', ['work_order_no' => $workOrder->work_order_no]);
 
             return redirect()->back()->with('success', 'Work order update has been queued.');
 

@@ -218,7 +218,7 @@ class PropertyWareService
             ]);
         }
 
-        $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+        $res = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
             "entityId" => $workOrder->propertyware_id,
             "fieldSetDTOS" => [
                 [
@@ -240,10 +240,10 @@ class PropertyWareService
             ]
         ]);
         
-        if ($response->status() == 200) {
-             Log::info('Success in updating work order custom fields', [
+        if ($res->status() == 200) {
+             Log::info('Success in updating work order', [
                 'work order' =>  $workOrder->work_order_no,
-                'status_code' => $response->status(),
+                'status_code' => $res->status(),
             ]);
 
             return true;
@@ -274,7 +274,7 @@ class PropertyWareService
             ]);
 
             if ($response->status() == 200) {
-                Log::info('Success in updating work order custom fields', [
+                Log::info('Success in updating work order service status', [
                     'work order' =>  $workOrder->work_order_no,
                     'status_code' => $response->status(),
                     'headers' => $response->headers(),
