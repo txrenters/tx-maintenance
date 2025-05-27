@@ -223,19 +223,19 @@ class PropertyWareService
             "fieldSetDTOS" => [
                 [
                     "name" => "Management Plan",
-                    "value" => $workOrder->management_plan
+                    "value" => $workOrder?->management_plan ?? 'none'
                 ],
                 [
                     "name" => "Additional work needed- Reschedule",
-                    "value" => $workOrder->additional_work_needed_reschedule
+                    "value" => $workOrder?->additional_work_needed_reschedule ?? 'none'
                 ],
                 [
                     "name" => "Zone",
-                    "value" => $workOrder->zone
+                    "value" => $workOrder?->zone
                 ],
                 [
                     "name" => "closing comment",
-                    "value" => $workOrder->closing_comments
+                    "value" => $workOrder?->closing_comments
                 ]
             ]
         ]);
