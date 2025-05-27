@@ -242,6 +242,8 @@ class PropertyWareService
             ],
         ]);
 
+        $this->approveWorkOrder($workOrder);
+
         if ($res->status() == 200) {
             Log::info('Success in updating work order', [
                 'work order' => $workOrder->work_order_no,
@@ -392,6 +394,8 @@ class PropertyWareService
                 ';
 
             $response = $this->execute($xmlPayload);
+
+            $this->approveWorkOrder($workOrder);
 
             // Log and return response status
             if ($response) {
@@ -554,6 +558,8 @@ class PropertyWareService
 
         // Execute SOAP request
         $res = $this->execute($xmlPayload);
+
+        $this->approveWorkOrder($workOrder);
 
         // Log and return response status
         if ($res) {
@@ -766,6 +772,8 @@ class PropertyWareService
             // Execute SOAP request
             $res = $this->execute($xmlPayload);
 
+            $this->approveWorkOrder($workOrder);
+
             // Log and return response status
             if ($res) {
                 Log::info('Vendor updating work order details has been successfully!', [
@@ -787,6 +795,27 @@ class PropertyWareService
 
             return false;
         }
+    }
+
+    public function approveWorkOrder($workOrder): void
+    {
+        $client = $this->initiate();
+
+        if ($workOrder->is_approved) {
+
+            $work_order_no = $workOrder->work_order_no;
+            $approved = $workOrder->is_approved;
+            $approvedDate = $workOrder->approved_date;
+            $approvalComment = $workOrder->approval_comments;
+
+            $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
+
+            Log::info('Work order approval has been added updated!', [
+                'Work order no' => $work_order_no,
+            ]);
+
+        }
+
     }
 
     public function execute($xmlPayload)
