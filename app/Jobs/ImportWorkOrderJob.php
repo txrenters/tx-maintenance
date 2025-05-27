@@ -276,7 +276,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 }
             }
 
-            Log::info('Work order data: ',['data' => $work_order_data]);
+            Log::info('Work order data: ', ['data' => $work_order_data]);
 
             DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],

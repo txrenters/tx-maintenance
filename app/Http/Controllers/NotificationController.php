@@ -13,15 +13,15 @@ class NotificationController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-         $notifications = $convos->map(function ($item) {
+        $notifications = $convos->map(function ($item) {
             return [
                 'id' => $item->id,
-                'title' => '#'.$item->work_order->work_order_no.' - New Text Message' ,
+                'title' => '#'.$item->work_order->work_order_no.' - New Text Message',
                 'message' => $item->message,
                 'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
             ];
         });
-        
+
         return response()->json($notifications);
 
     }
@@ -29,9 +29,9 @@ class NotificationController extends Controller
     public function markAsRead(Conversation $message)
     {
         $message->update([
-            'is_read' => true
+            'is_read' => true,
         ]);
-        
+
         return response()->json(['message' => 'Notification marked as read']);
 
     }

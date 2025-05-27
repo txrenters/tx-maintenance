@@ -27,12 +27,12 @@ class AttachmentsController extends Controller
         $validatedData['is_publish_to_owner_portal'] = $request->owner_portal == 'Yes';
         $validatedData['is_publish_to_tenant_portal'] = $request->tenant_portal == 'Yes';
 
-         if ($request->hasFile('filename')) {
+        if ($request->hasFile('filename')) {
             $file = $request->file('filename');
             $validatedData['filename'] = $file->store('attachments', 'public');
             $validatedData['filetype'] = $file->getMimeType();
         }
-        
+
         $attachment = Attachments::create($validatedData);
 
         UploadAttachment::dispatch($attachment);

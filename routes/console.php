@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('import:work-orders')
-    ->everyFiveMinutes() 
+    ->everyFiveMinutes()
     ->timezone('America/Chicago')
     ->weekdays()
     ->withoutOverlapping()

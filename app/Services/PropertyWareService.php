@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Exception;
@@ -16,8 +15,11 @@ class PropertyWareService
     protected $username;
 
     protected $password;
+
     protected $client_id;
+
     protected $secret_key;
+
     protected $system_id;
 
     protected $headers;
@@ -29,7 +31,7 @@ class PropertyWareService
         $this->username = config('services.propertyware.username');
         $this->password = config('services.propertyware.password');
         $this->client_id = env('PROPERTYWARE_CLIENT_ID');
-        $this->secret_key =  env('PROPERTYWARE_CLIENT_SECRET_KEY');
+        $this->secret_key = env('PROPERTYWARE_CLIENT_SECRET_KEY');
         $this->system_id = env('PROPERTYWARE_SYSTEM_ID');
 
         $this->headers = [
@@ -39,9 +41,9 @@ class PropertyWareService
             'Content-Type' => 'application/json',
         ];
 
-
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
             Log::error('PropertyWare API: Missing credentials. Skipping API connection.');
+
             return; // Avoid crashing during deployment
         }
     }
@@ -180,7 +182,7 @@ class PropertyWareService
                 $allWorkOrders = json_decode(json_encode($response), true);
             }
 
-            return $allWorkOrders;            
+            return $allWorkOrders;
 
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
@@ -193,56 +195,56 @@ class PropertyWareService
     public function updateWorkOrder($workOrder)
     {
         $response = Http::withHeaders($this->headers)->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
-            "authorizedToEnter" => strtoupper($workOrder->authorized_to_enter),
-            "buildingID" => $workOrder->building_id,
-            "category" => $workOrder->category,
-            "costEstimate" => $workOrder->cost_estimate,
-            "dateToEnter" => $workOrder->date_to_enter ? Carbon::parse($workOrder->date_to_enter)->format('Y-m-d') : '',
-            "description" => $workOrder->description,
-            "hourEstimate" => $workOrder->hour_estimate,
-            "priority" => strtoupper($workOrder->priority),
-            "requiredMaterials"  => $workOrder->required_materials,
-            "scheduledEndDate" =>  $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : '',
-            "source"  => $workOrder->source,
-            "specificLocation"  => $workOrder->specific_location,
-            "startDate" => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : '',
-            "type"  => $workOrder->type
+            'authorizedToEnter' => strtoupper($workOrder->authorized_to_enter),
+            'buildingID' => $workOrder->building_id,
+            'category' => $workOrder->category,
+            'costEstimate' => $workOrder->cost_estimate,
+            'dateToEnter' => $workOrder->date_to_enter ? Carbon::parse($workOrder->date_to_enter)->format('Y-m-d') : '',
+            'description' => $workOrder->description,
+            'hourEstimate' => $workOrder->hour_estimate,
+            'priority' => strtoupper($workOrder->priority),
+            'requiredMaterials' => $workOrder->required_materials,
+            'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : '',
+            'source' => $workOrder->source,
+            'specificLocation' => $workOrder->specific_location,
+            'startDate' => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : '',
+            'type' => $workOrder->type,
         ]);
-        
+
         if ($response->status() == 200) {
-             Log::info('Success in updating work order', [
-                'work order' =>  $workOrder->work_order_no,
+            Log::info('Success in updating work order', [
+                'work order' => $workOrder->work_order_no,
                 'status_code' => $response->status(),
                 'headers' => $response->headers(),
-                
+
             ]);
         }
 
         $res = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
-            "entityId" => $workOrder->propertyware_id,
-            "fieldSetDTOS" => [
+            'entityId' => $workOrder->propertyware_id,
+            'fieldSetDTOS' => [
                 [
-                    "name" => "Management Plan",
-                    "value" => $workOrder?->management_plan ?? 'none'
+                    'name' => 'Management Plan',
+                    'value' => $workOrder?->management_plan ?? '',
                 ],
                 [
-                    "name" => "Additional work needed- Reschedule",
-                    "value" => $workOrder?->additional_work_needed_reschedule ?? 'none'
+                    'name' => 'Additional work needed- Reschedule',
+                    'value' => $workOrder?->additional_work_needed_reschedule ?? '',
                 ],
                 [
-                    "name" => "Zone",
-                    "value" => $workOrder?->zone
+                    'name' => 'Zone',
+                    'value' => $workOrder?->zone,
                 ],
                 [
-                    "name" => "closing comment",
-                    "value" => $workOrder?->closing_comments
-                ]
-            ]
+                    'name' => 'closing comment',
+                    'value' => $workOrder?->closing_comments,
+                ],
+            ],
         ]);
-        
+
         if ($res->status() == 200) {
-             Log::info('Success in updating work order', [
-                'work order' =>  $workOrder->work_order_no,
+            Log::info('Success in updating work order', [
+                'work order' => $workOrder->work_order_no,
                 'status_code' => $res->status(),
             ]);
 
@@ -253,7 +255,7 @@ class PropertyWareService
                 'error_details' => [
                     'status_code' => $response->status(),
                     'body' => $response->body(),
-                ]
+                ],
             ]);
 
             return false;
@@ -264,18 +266,18 @@ class PropertyWareService
     {
         try {
             $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
-                "entityId" => $workOrder->propertyware_id,
-                "fieldSetDTOS" => [
+                'entityId' => $workOrder->propertyware_id,
+                'fieldSetDTOS' => [
                     [
-                        "name" => "Service Status",
-                        "value" => $service_status->name
-                    ]
-                ]
+                        'name' => 'Service Status',
+                        'value' => $service_status->name,
+                    ],
+                ],
             ]);
 
             if ($response->status() == 200) {
                 Log::info('Success in updating work order service status', [
-                    'work order' =>  $workOrder->work_order_no,
+                    'work order' => $workOrder->work_order_no,
                     'status_code' => $response->status(),
                     'headers' => $response->headers(),
                 ]);
@@ -486,25 +488,25 @@ class PropertyWareService
     {
 
         $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
-                "entityId" => $workOrder->propertyware_id,
-                "fieldSetDTOS" => [
-                    [
-                        "name" => "Service Status",
-                        "value" => $servicestatusData->name
-                    ]
-                ]
+            'entityId' => $workOrder->propertyware_id,
+            'fieldSetDTOS' => [
+                [
+                    'name' => 'Service Status',
+                    'value' => $servicestatusData->name,
+                ],
+            ],
+        ]);
+
+        if ($response->status() == 200) {
+            Log::info('Work order service status has been changed successfully', [
+                'work order' => $workOrder->work_order_no,
+                'status_code' => $response->status(),
+                'headers' => $response->headers(),
+
             ]);
 
-        
-            if ($response->status() == 200) {
-                Log::info('Work order service status has been changed successfully', [
-                    'work order' =>  $workOrder->work_order_no,
-                    'status_code' => $response->status(),
-                    'headers' => $response->headers(),
-                    
-                ]);
-                return true;
-            }
+            return true;
+        }
 
         Log::error('Work order service status changed failed!', [
             'Work order no' => $workOrder->work_order_no,

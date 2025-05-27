@@ -33,7 +33,7 @@ Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute
 
-Route::get('/notifications', [NotificationController::class,'fetchNotification']);
-Route::put('/notifications/{message}/mark-as-read', [NotificationController::class,'markAsRead']);
+Route::get('/notifications', [NotificationController::class, 'fetchNotification']);
+Route::put('/notifications/{message}/mark-as-read', [NotificationController::class, 'markAsRead']);
 
 Route::post('/asana/webhook', [AsanaWebhookController::class, 'handleWebhook']);

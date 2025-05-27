@@ -25,7 +25,7 @@ class TwilioService
                 'body' => $message,
             ]);
 
-            Log::info('Message sent successfully',[
+            Log::info('Message sent successfully', [
                 'from' => $from,
                 'body' => $message,
             ]);

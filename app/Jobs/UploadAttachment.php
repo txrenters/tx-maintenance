@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Models\Attachments;
 use App\Services\PropertyWareService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,6 +15,7 @@ class UploadAttachment implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $data;
+
     /**
      * Create a new job instance.
      */
@@ -32,7 +32,7 @@ class UploadAttachment implements ShouldQueue
         $validatedData = [
             'title' => $this->data->title,
             'type' => $this->data->type,
-            'filename'  => $this->data->filename,
+            'filename' => $this->data->filename,
             'is_publish_to_tenant_portal' => $this->data->is_publish_to_tenant_portal == 'Yes',
             'is_publish_to_owner_portal' => $this->data->is_publish_to_owner_portal == 'Yes',
         ];
@@ -40,8 +40,8 @@ class UploadAttachment implements ShouldQueue
         $propertyware = new PropertyWareService;
 
         $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
-      
-        if($uploaded){
+
+        if ($uploaded) {
             Log::info('Work order attachment has been uploaded', [
                 'work order no' => $this->data->work_order->work_order_no,
                 'filename' => $this->data->filename,
@@ -51,5 +51,5 @@ class UploadAttachment implements ShouldQueue
                 'filename' => $this->data->filename,
             ]);
         }
-}
+    }
 }

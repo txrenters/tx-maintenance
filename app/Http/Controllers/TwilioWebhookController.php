@@ -91,7 +91,7 @@ class TwilioWebhookController extends Controller
                 Log::info('Text message information:', [
                     'from' => $from,
                     'to' => $to,
-                    'body' => $body
+                    'body' => $body,
                 ]);
 
                 Log::info('Message Forwarded successfully to PlusThis.');

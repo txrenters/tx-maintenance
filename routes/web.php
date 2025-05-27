@@ -127,73 +127,72 @@ Route::get('/functionssss', function () {
     dd($client->__getFunctions());
 });
 
-
 Route::get('/updateWorkOrder', function () {
-    
+
     $response = Http::withHeaders([
         'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
         'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
         'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
         'Content-Type' => 'application/json',
     ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
-        "entityId" => 7156957207,
-        "fieldSetDTOS" => [
+        'entityId' => 7156957207,
+        'fieldSetDTOS' => [
             [
-                "name" => "Management Plan",
-                "value" => "string"
+                'name' => 'Management Plan',
+                'value' => 'string',
             ],
-             [
-                "name" => "Additional work needed- Reschedule",
-                "value" => "string"
-             ],
-              [
-                "name" => "Zone",
-                "value" => "string"
-            ]
-        ]
+            [
+                'name' => 'Additional work needed- Reschedule',
+                'value' => 'string',
+            ],
+            [
+                'name' => 'Zone',
+                'value' => 'string',
+            ],
+        ],
     ]);
 
-        //                         xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-        //                         <customFields xsi:type="urn:CustomField">
-        //                             <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-        //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
-        //                         </customFields>
-        //                          <customFields xsi:type="urn:CustomField">
-        //                             <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-        //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
-        //                         </customFields>
-        //                          <customFields xsi:type="urn:CustomField">
-        //                             <fieldName xsi:type="xsd:string">Zone</fieldName>
-        //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
-        //                         </customFields>
-        //                          <customFields xsi:type="urn:CustomField">
-        //                             <fieldName xsi:type="xsd:string">closing comment</fieldName>
-        //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
-        //                         </customFields>
-        //                     </customFields>
+    //                         xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
+    //                         <customFields xsi:type="urn:CustomField">
+    //                             <fieldName xsi:type="xsd:string">Management Plan</fieldName>
+    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
+    //                         </customFields>
+    //                          <customFields xsi:type="urn:CustomField">
+    //                             <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
+    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
+    //                         </customFields>
+    //                          <customFields xsi:type="urn:CustomField">
+    //                             <fieldName xsi:type="xsd:string">Zone</fieldName>
+    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
+    //                         </customFields>
+    //                          <customFields xsi:type="urn:CustomField">
+    //                             <fieldName xsi:type="xsd:string">closing comment</fieldName>
+    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
+    //                         </customFields>
+    //                     </customFields>
 
     // dd($response);
 
-     if ($response->status() == 200) {
-             Log::error('Success in updating work order', [
-                'error_details' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->body(),
-                    'headers' => $response->headers(),
-                ]
-            ]);
+    if ($response->status() == 200) {
+        Log::error('Success in updating work order', [
+            'error_details' => [
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+                'headers' => $response->headers(),
+            ],
+        ]);
 
-            return true;
-        } else {
-            Log::error('Error updating Work Order', [
-                'error' => 'Unable to update work order',
-                'error_details' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->body(),
-                    'headers' => $response->headers(),
-                ]
-            ]);
+        return true;
+    } else {
+        Log::error('Error updating Work Order', [
+            'error' => 'Unable to update work order',
+            'error_details' => [
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+                'headers' => $response->headers(),
+            ],
+        ]);
 
-            return false;
-        }
+        return false;
+    }
 });
