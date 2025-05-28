@@ -491,6 +491,8 @@ const handleWorkOrder = async (orderId) => {
                 ? Object.values(order.vendors).map((vendor) => vendor.name)
                 : order.vendors;
         workOrderForm.is_approved = order.is_approved;
+        workOrderForm.approved_date = order.approved_date;
+        workOrderForm.approval_comments = order.approval_comments;
         workOrderForm.owners = order.owners;
         workOrderForm.management_plan = order.management_plan;
         workOrderForm.priority = order.priority;
