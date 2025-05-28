@@ -88,6 +88,7 @@ const workOrderForm = useForm({
     description: "",
     vendor_notes: "",
     is_emergency: "",
+    is_approved: "",
     vendor_id: "",
     vendors: Array,
     vendors: Array,
@@ -489,7 +490,7 @@ const handleWorkOrder = async (orderId) => {
             order.local_status === "Created"
                 ? Object.values(order.vendors).map((vendor) => vendor.name)
                 : order.vendors;
-
+        workOrderForm.is_approved = order.is_approved;
         workOrderForm.owners = order.owners;
         workOrderForm.management_plan = order.management_plan;
         workOrderForm.priority = order.priority;
@@ -769,6 +770,11 @@ usePoll(30000, {
                                     : 'destructive'
                             "
                             >{{ workOrderForm.is_emergency }}</Badge
+                        >
+                        <Badge
+                            v-if="workOrderForm.is_approved"
+                            variant="outline"
+                            >Approved</Badge
                         >
                     </div>
                 </DialogDescription>

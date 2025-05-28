@@ -23,8 +23,6 @@ use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
 use App\Services\PropertyWareService;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -99,15 +97,6 @@ Route::middleware([
     Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
-
-    Route::get('/maintenance/chatbot', function () {
-
-        return inertia('ChatBot/Index', [
-            'title' => 'Maintenance Chatbot',
-        ]);
-
-    })->name('maintenance.chatbot');
-
 });
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
@@ -127,72 +116,39 @@ Route::get('/functionssss', function () {
     dd($client->__getFunctions());
 });
 
-Route::get('/updateWorkOrder', function () {
+Route::get('/workOrder', function () {
+    $url = config('services.propertyware.url');
+    $username = config('services.propertyware.username');
+    $password = config('services.propertyware.password');
 
-    $response = Http::withHeaders([
-        'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-        'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-        'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-        'Content-Type' => 'application/json',
-    ])->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
-        'entityId' => 7156957207,
-        'fieldSetDTOS' => [
-            [
-                'name' => 'Management Plan',
-                'value' => 'string',
+    $options = [
+        'trace' => 1,
+        'login' => $username,
+        'password' => $password,
+        'connection_timeout' => 5000,
+        'exceptions' => true,
+        'stream_context' => stream_context_create([
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
             ],
-            [
-                'name' => 'Additional work needed- Reschedule',
-                'value' => 'string',
-            ],
-            [
-                'name' => 'Zone',
-                'value' => 'string',
-            ],
-        ],
-    ]);
+        ]),
+    ];
 
-    //                         xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-    //                         <customFields xsi:type="urn:CustomField">
-    //                             <fieldName xsi:type="xsd:string">Management Plan</fieldName>
-    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->management_plan ?? '', ENT_XML1, 'UTF-8').'</value>
-    //                         </customFields>
-    //                          <customFields xsi:type="urn:CustomField">
-    //                             <fieldName xsi:type="xsd:string">Additional work needed- Reschedule</fieldName>
-    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->additional_work_needed_reschedule ?? '', ENT_XML1, 'UTF-8').'</value>
-    //                         </customFields>
-    //                          <customFields xsi:type="urn:CustomField">
-    //                             <fieldName xsi:type="xsd:string">Zone</fieldName>
-    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->zone ?? '', ENT_XML1, 'UTF-8').'</value>
-    //                         </customFields>
-    //                          <customFields xsi:type="urn:CustomField">
-    //                             <fieldName xsi:type="xsd:string">closing comment</fieldName>
-    //                             <value xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</value>
-    //                         </customFields>
-    //                     </customFields>
+    $client = new \SoapClient($url.'?wsdl', $options);
+    $params = [
+        'pageNumber' => 1,
+        'orderByNewestFirst' => 1,
+        'ID' => 7318863975,
+    ];
+    $response = $client->getWorkOrders($params);
+    $allWorkOrders = [];
 
-    // dd($response);
-
-    if ($response->status() == 200) {
-        Log::error('Success in updating work order', [
-            'error_details' => [
-                'status_code' => $response->status(),
-                'body' => $response->body(),
-                'headers' => $response->headers(),
-            ],
-        ]);
-
-        return true;
-    } else {
-        Log::error('Error updating Work Order', [
-            'error' => 'Unable to update work order',
-            'error_details' => [
-                'status_code' => $response->status(),
-                'body' => $response->body(),
-                'headers' => $response->headers(),
-            ],
-        ]);
-
-        return false;
+    if (! empty($response)) {
+        $orders = json_decode(json_encode($response), true);
+        $allWorkOrders = array_merge($allWorkOrders, $orders);
     }
+
+    dd($allWorkOrders);
 });

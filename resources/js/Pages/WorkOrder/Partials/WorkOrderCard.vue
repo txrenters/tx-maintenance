@@ -1,5 +1,5 @@
 <script setup>
-import { Truck, Tag, UserRoundPen } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen, CircleCheckBig } from "lucide-vue-next";
 import { DateTime } from "luxon";
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -112,26 +112,32 @@ const checkDueTask = (tasks) => {
                             {{ work_order.location }}
                         </p>
                         <p
-                            class="text-sm text-gray-100 mb-2 flex items-center gap-1 justify-center"
+                            class="text-sm text-gray-100 flex items-center gap-1 justify-center"
                         >
                             <Tag class="w-4 h-4" />{{ work_order.category }}
                         </p>
+                        <p
+                            v-if="work_order.is_approved"
+                            class="text-sm text-gray-100 flex items-center gap-1 justify-center"
+                        >
+                            <CircleCheckBig class="w-4 h-4" />Approved
+                        </p>
                         <div
                             v-if="work_order.requested_by"
-                            class="flex justify-start gap-1 items-center mb-1"
+                            class="flex justify-start gap-1 items-center mb-1 mt-2"
                         >
                             <UserRoundPen class="w-4 h-4" />
-                            <p class="text-sm text-gray-100">
+                            <p class="text-sm text-gray-100 uppercase">
                                 {{ work_order.requested_by?.first_name }}
                                 {{ work_order.requested_by?.last_name }}
                             </p>
                         </div>
                         <div
                             v-else
-                            class="flex justify-start items-center mb-1"
+                            class="flex justify-start items-center mb-1 mt-2"
                         >
                             <UserRoundPen class="w-4 h-4" />
-                            <p class="text-sm text-gray-100">
+                            <p class="text-sm text-gray-100 uppercase">
                                 {{ work_order.owners[0].first_name }}
                                 {{ work_order.owners[0].last_name }}
                             </p>
