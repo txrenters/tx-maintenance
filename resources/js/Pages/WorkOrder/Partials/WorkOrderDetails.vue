@@ -469,6 +469,16 @@ const handleDeleteSubmit = () => {
                     <p>{{ formatDate(latestScheduledEndDate) }}</p>
                 </div>
             </div>
+            <div class="grid grid-cols-2 gap-4 items-center mt-5">
+                <div>
+                    <Label for="message">Approval Date:</Label>
+                    <p>{{ formatDate(workOrder.approved_date) }}</p>
+                </div>
+                <div>
+                    <Label for="message">Approval Comments:</Label>
+                    <p>{{ workOrder.approval_comments ?? "-------" }}</p>
+                </div>
+            </div>
             <div class="grid gap-1.5 mt-5">
                 <Label for="message">Zone:</Label>
                 <Input
