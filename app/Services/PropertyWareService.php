@@ -195,7 +195,7 @@ class PropertyWareService
     public function updateWorkOrder($workOrder)
     {
         $response = Http::withHeaders($this->headers)->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
-            'authorizedToEnter' => strtoupper($workOrder->authorized_to_enter),
+            'authorizedToEnter' => strtoupper(str_replace(' ', '', $workOrder->authorized_to_enter)),
             'buildingID' => $workOrder->building_id,
             'category' => $workOrder->category,
             'costEstimate' => $workOrder->cost_estimate,
