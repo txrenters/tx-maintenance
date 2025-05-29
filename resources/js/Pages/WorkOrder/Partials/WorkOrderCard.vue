@@ -107,27 +107,31 @@ const checkDueTask = (tasks) => {
                                 📅 {{ formatDate(work_order.created_date) }}
                             </p>
                         </div>
+
                         <!-- Location -->
-                        <p class="text-sm text-gray-100">
+                        <p class="text-sm text-gray-100 font-semibold">
                             {{ work_order.location }}
                         </p>
-                        <p
-                            class="text-sm text-gray-100 flex items-center gap-1 justify-center"
-                        >
-                            <Tag class="w-4 h-4" />{{ work_order.category }}
-                        </p>
-                        <p
-                            v-if="work_order.is_approved"
-                            class="text-sm text-gray-100 flex items-center gap-1 justify-center"
-                        >
-                            <CircleCheckBig class="w-4 h-4" />Approved
-                        </p>
+                        <div class="flex gap-2 justify-center">
+                            <p
+                                class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                            >
+                                <Tag class="w-3 h-3" />{{ work_order.category }}
+                            </p>
+                            <p
+                                v-if="work_order.is_approved"
+                                class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                            >
+                                <CircleCheckBig class="w-3 h-3" />Approved
+                            </p>
+                        </div>
+
                         <div
                             v-if="work_order.requested_by"
                             class="flex justify-start gap-1 items-center mb-1 mt-2"
                         >
                             <UserRoundPen class="w-4 h-4" />
-                            <p class="text-sm text-gray-100 uppercase">
+                            <p class="text-xs text-gray-100 uppercase">
                                 {{ work_order.requested_by?.first_name }}
                                 {{ work_order.requested_by?.last_name }}
                             </p>
@@ -137,7 +141,7 @@ const checkDueTask = (tasks) => {
                             class="flex justify-start items-center mb-1 mt-2"
                         >
                             <UserRoundPen class="w-4 h-4" />
-                            <p class="text-sm text-gray-100 uppercase">
+                            <p class="text-xs text-gray-100 uppercase">
                                 {{ work_order.owners[0].first_name }}
                                 {{ work_order.owners[0].last_name }}
                             </p>
