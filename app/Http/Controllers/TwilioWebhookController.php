@@ -79,14 +79,13 @@ class TwilioWebhookController extends Controller
     {
         try {
             $forwardUrl = 'https://e.plusthis.com/webhooks/Twilio/sms/19802';
-
             $txChatbotUrl = "https://tx-chatbot.azurewebsites.net/api/receive-text-messages";
 
-            // Send POST request with data to the other URL
-            $response = Http::post($forwardUrl, $data);
-            $response = Http::post($txChatbotUrl, $data);
+            // Send POST requests separately
+            $plusThisResponse = Http::post($forwardUrl, $data);
+            $txChatbotResponse = Http::post($txChatbotUrl, $data);
 
-            if ($response->successful()) {
+            if ($plusThisResponse->successful() && $txChatbotResponse->successful()) {
                 $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
                 $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
                 $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
@@ -97,13 +96,19 @@ class TwilioWebhookController extends Controller
                     'body' => $body,
                 ]);
 
-                Log::info('Message Forwarded successfully to PlusThis and Tx Chatbot.');
+                Log::info('Message forwarded successfully to PlusThis and Tx Chatbot.');
             } else {
-                Log::error('Failed to forward data to PlusThis. Response: '.$response->body());
+                if (!$plusThisResponse->successful()) {
+                    Log::error('Failed to forward data to PlusThis. Response: ' . $plusThisResponse->body());
+                }
+                if (!$txChatbotResponse->successful()) {
+                    Log::error('Failed to forward data to Tx Chatbot. Response: ' . $txChatbotResponse->body());
+                }
             }
         } catch (\Exception $e) {
-            Log::error('Error forwarding data to PlusThis: '.$e->getMessage());
+            Log::error('Error forwarding data: ' . $e->getMessage());
         }
+
     }
 
     protected function processMediaAttachments(Conversation $conversation, array $data): void
