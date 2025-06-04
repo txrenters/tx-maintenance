@@ -82,8 +82,12 @@ class TwilioWebhookController extends Controller
             $txChatbotUrl = "https://tx-chatbot.azurewebsites.net/api/receive-text-messages";
 
             // Send POST requests separately
-            $plusThisResponse = Http::post($forwardUrl, $data);
-            $txChatbotResponse = Http::post($txChatbotUrl, $data);
+            $plusThisResponse = Http::withHeaders([
+                'Accept' => 'application/json',
+            ])->post($forwardUrl, $data);
+            $txChatbotResponse = Http::withHeaders([
+                'Accept' => 'application/json',
+            ])->post($txChatbotUrl, $data);
 
             if ($plusThisResponse->successful() && $txChatbotResponse->successful()) {
                 $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
