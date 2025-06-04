@@ -85,6 +85,7 @@ class TwilioWebhookController extends Controller
             $plusThisResponse = Http::withHeaders([
                 'Accept' => 'application/json',
             ])->post($forwardUrl, $data);
+            
             $txChatbotResponse = Http::withHeaders([
                 'Accept' => 'application/json',
             ])->post($txChatbotUrl, $data);
