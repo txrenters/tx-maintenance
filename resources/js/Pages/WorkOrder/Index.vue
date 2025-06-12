@@ -752,7 +752,23 @@ usePoll(30000, {
                     <p v-if="!isLoading">#{{ workOrderForm.work_order_no }}</p>
                 </DialogTitle>
                 <DialogDescription>
-                    <div class="flex gap-2 mb-2" v-if="!isLoading">
+                    <div class="flex gap-2 mb-2 flex-wrap" v-if="!isLoading">
+                        <Badge
+                            :variant="
+                                workOrderForm.priority === 'High'
+                                    ? 'destructive'
+                                    : 'outline'
+                            "
+                            >Priority: {{ workOrderForm.priority }}</Badge
+                        >
+                        <Badge
+                            :variant="
+                                workOrderForm.priority === 'High'
+                                    ? 'destructive'
+                                    : 'outline'
+                            "
+                            >Priority: {{ workOrderForm.priority }}</Badge
+                        >
                         <Badge
                             :variant="
                                 workOrderForm.priority === 'High'
