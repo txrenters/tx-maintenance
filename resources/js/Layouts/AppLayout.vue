@@ -503,7 +503,7 @@ const closeBanner = () => {
                                     >
                                         <button
                                             type="submit"
-                                            class="flex gap-2 w-full bg-destructive"
+                                            class="flex gap-2 w-full"
                                         >
                                             <LogOut class="w-4" />Log Out
                                         </button>

@@ -765,7 +765,6 @@ class PropertyWareService
                         </document>
                         <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                             <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                            <!-- Include other work order properties here -->
                         </workOrder>
                     </ser:attachDocumentToWorkOrder>
                 </soapenv:Body>
