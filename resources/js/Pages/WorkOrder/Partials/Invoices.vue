@@ -21,6 +21,8 @@ const attachmentForm = useForm({
     title: "",
     amount: "",
     filename: "",
+    owner_portal: "No",
+    tenant_portal: "No",
     work_order_id: props.workOrder.id,
 });
 
@@ -185,6 +187,40 @@ const handleFetchInvoices = () => {
                 >
                     {{ attachmentForm.progress.percentage }}%
                 </Progress>
+                <div class="mb-3">
+                    <Label>Publish to Tenant Portal</Label>
+                    <RadioGroup
+                        default-value="comfortable"
+                        class="flex gap-5 mt-2"
+                        v-model="attachmentForm.tenant_portal"
+                    >
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r2" value="Yes" />
+                            <Label for="r2">Yes</Label>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r3" value="No" />
+                            <Label for="r3">No</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+                <div class="mb-3">
+                    <Label>Publish to Owner Portal</Label>
+                    <RadioGroup
+                        default-value="comfortable"
+                        class="flex gap-5 mt-2"
+                        v-model="attachmentForm.owner_portal"
+                    >
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r2" value="Yes" />
+                            <Label for="r2">Yes</Label>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <RadioGroupItem id="r3" value="No" />
+                            <Label for="r3">No</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
             </div>
             <DialogFooter class="p-6 pt-0">
                 <Button

@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InvoiceController extends Controller
 {
@@ -27,6 +30,8 @@ class InvoiceController extends Controller
             'filename' => 'required|mimes:jpg,jpeg,png,pdf|max:2048',
             'amount' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
+            'tenant_portal' => 'required',
+            'owner_portal' => 'required',
         ]);
 
         $user = User::with('vendor')->find(auth()->id());
@@ -39,9 +44,23 @@ class InvoiceController extends Controller
             $validatedData['filetype'] = $file->getMimeType();
         }
 
-        Invoice::create($validatedData);
+        DB::beginTransaction();
+        try {
+            $invoice = Invoice::create($validatedData);
 
-        return redirect()->back();
+            $propertyware = new PropertyWareService();
+
+            $propertyware->uploadVendorInvoice($request->work_order_id, $invoice);
+
+            DB::commit();
+
+            return redirect()->back()->with('Success uploading invoices');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error('Error uploading invoices:', ['error' => $th->getMessage()]);
+
+            return redirect()->back()->withErrors('Error uploading invoices');
+        }
     }
 
     /**

@@ -714,6 +714,92 @@ class PropertyWareService
         }
     }
 
+    public function uploadVendorInvoice($workOrderId, $invoice)
+    {
+        try {
+
+            if (! $invoice || ! $workOrderId) {
+                throw new \Exception('Invalid work order ID or invoice.');
+            }
+
+            $workorder = WorkOrder::find($workOrderId);
+            if (! $workorder) {
+                throw new \Exception('Work order not found.');
+            }
+            $workorderId = $workorder->propertyware_id;
+
+            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $invoice->filename);
+
+            $absolutePath = public_path('storage/invoices/'.basename($invoice->filename));
+
+            if (! file_exists($absolutePath)) {
+                throw new \Exception('Invoice file does not exist: '.$absolutePath);
+            }
+            $fileContents = file_get_contents($absolutePath);
+            $fileData = base64_encode($fileContents);
+
+            // Sanitize and construct filename
+            $title = $invoice->title;
+            $filePath = $invoice->filename;
+
+            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+            $sanitizedTitle = preg_replace('/[^a-zA-Z0-9-_]/', '_', $title);
+            $filename = $sanitizedTitle.'_'.uniqid().'.'.$fileExtension;
+
+            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                    <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                        <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">0</ID>
+                            <description xsi:type="xsd:string">'.$title.'</description>
+                            <fileData xsi:type="xsd:string">'.$fileData.'</fileData>
+                            <filename xsi:type="xsd:string">'.$filename.'</filename>
+                            <privateFile xsi:type="xsd:boolean">false</privateFile>
+                            <publishToOwnerPortal xsi:type="xsd:boolean">'.($invoice->is_publish_to_owner_portal ? 'true' : 'false').'</publishToOwnerPortal>
+                            <publishToTenantPortal xsi:type="xsd:boolean">'.($invoice->is_publish_to_tenant_portal ? 'true' : 'false').'</publishToTenantPortal>
+                        </document>
+                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                            <!-- Include other work order properties here -->
+                        </workOrder>
+                    </ser:attachDocumentToWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
+
+            // Execute SOAP request
+            $res = $this->execute($xmlPayload);
+
+            // Log and return response status
+            if ($res) {
+                Log::info('Work order invoice has been uploaded successfully!', [
+                    'Work order no' => $workorder->work_order_no,
+                    'filename' => $filename,
+                ]);
+
+                return true;
+            }
+
+            Log::error('Work order invoice upload failed!', [
+                'Work order no' => $workorder->work_order_no,
+                'filename' => $filename,
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error in work order invoice: '.$e->getMessage(), [
+                'Work order no' => $workorder->work_order_no,
+                'filename' => $invoice->filename ?? 'N/A',
+            ]);
+
+            return false;
+        }
+    }
+
     public function updateWorkOrderDetails($workOrder)
     {
         $cost_etimate = 0;
