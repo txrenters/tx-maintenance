@@ -674,8 +674,8 @@ class PropertyWareService
                             <fileData xsi:type="xsd:string">'.$fileData.'</fileData>
                             <filename xsi:type="xsd:string">'.$filename.'</filename>
                             <privateFile xsi:type="xsd:boolean">false</privateFile>
-                            <publishToOwnerPortal xsi:type="xsd:boolean">'.($attachments['is_publish_to_owner_portal'] == 1 ? 'true' : 'false').'</publishToOwnerPortal>
-                            <publishToTenantPortal xsi:type="xsd:boolean">'.($attachments['is_publish_to_tenant_portal'] == 1 ? 'true' : 'false').'</publishToTenantPortal>
+                            <publishToOwnerPortal xsi:type="xsd:boolean">'.($attachments['is_publish_to_owner_portal'] ? 'true' : 'false').'</publishToOwnerPortal>
+                            <publishToTenantPortal xsi:type="xsd:boolean">'.($attachments['is_publish_to_tenant_portal'] ? 'true' : 'false').'</publishToTenantPortal>
                         </document>
                         <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                             <ID xsi:type="xsd:long">'.$workorderId.'</ID>

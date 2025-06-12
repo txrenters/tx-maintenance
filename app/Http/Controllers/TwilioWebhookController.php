@@ -79,13 +79,13 @@ class TwilioWebhookController extends Controller
     {
         try {
             $forwardUrl = 'https://e.plusthis.com/webhooks/Twilio/sms/19802';
-            $txChatbotUrl = "https://tx-chatbot.azurewebsites.net/api/receive-text-messages";
+            $txChatbotUrl = 'https://tx-chatbot.azurewebsites.net/api/receive-text-messages';
 
             // Send POST requests separately
             $plusThisResponse = Http::withHeaders([
                 'Accept' => 'application/json',
             ])->post($forwardUrl, $data);
-            
+
             $txChatbotResponse = Http::withHeaders([
                 'Accept' => 'application/json',
             ])->post($txChatbotUrl, $data);
@@ -103,15 +103,15 @@ class TwilioWebhookController extends Controller
 
                 Log::info('Message forwarded successfully to PlusThis and Tx Chatbot.');
             } else {
-                if (!$plusThisResponse->successful()) {
-                    Log::error('Failed to forward data to PlusThis. Response: ' . $plusThisResponse->body());
+                if (! $plusThisResponse->successful()) {
+                    Log::error('Failed to forward data to PlusThis. Response: '.$plusThisResponse->body());
                 }
-                if (!$txChatbotResponse->successful()) {
-                    Log::error('Failed to forward data to Tx Chatbot. Response: ' . $txChatbotResponse->body());
+                if (! $txChatbotResponse->successful()) {
+                    Log::error('Failed to forward data to Tx Chatbot. Response: '.$txChatbotResponse->body());
                 }
             }
         } catch (\Exception $e) {
-            Log::error('Error forwarding data: ' . $e->getMessage());
+            Log::error('Error forwarding data: '.$e->getMessage());
         }
 
     }

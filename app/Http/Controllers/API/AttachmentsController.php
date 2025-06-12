@@ -66,8 +66,8 @@ class AttachmentsController extends Controller
                 'filetype' => $mimeType,
                 'type' => $validatedData['type'],
                 'work_order_id' => $validatedData['work_order_id'],
-                'is_publish_to_owner_portal' => $validatedData['owner_portal'] === 'Yes',
-                'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] === 'Yes',
+                'is_publish_to_owner_portal' => $validatedData['owner_portal'] == 'Yes',
+                'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes',
                 'user_id' => auth()->id(),
                 'created_at' => $request->date ?? now(),
             ];
