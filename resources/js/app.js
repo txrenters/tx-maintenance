@@ -72,6 +72,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogScrollContent
 } from '@/Components/ui/dialog'
 import {
     Card,
@@ -198,6 +199,7 @@ createInertiaApp({
             .component("DialogHeader", DialogHeader)
             .component("DialogTitle", DialogTitle)
             .component("DialogTrigger", DialogTrigger)
+            .component("DialogScrollContent", DialogScrollContent)
             .component("Tabs", Tabs)
             .component("TabsContent", TabsContent)
             .component("TabsList", TabsList)

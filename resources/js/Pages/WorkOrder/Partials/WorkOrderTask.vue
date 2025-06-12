@@ -134,7 +134,10 @@ const handleTaskSubmit = () => {
         <div class="flex justify-center" v-if="isLoading">
             <Loader2 class="w-12 h-12 animate-spin text-primary" />
         </div>
-        <div class="flex" v-if="!isLoading && workOrderTasks.length === 0">
+        <div
+            class="grid gap-3 overflow-y-auto px-6"
+            v-if="!isLoading && workOrderTasks.length === 0"
+        >
             <p class="font-semibold">No tasks available</p>
         </div>
         <div v-else>

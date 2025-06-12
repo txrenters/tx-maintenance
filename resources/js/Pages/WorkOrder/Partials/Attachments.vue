@@ -175,7 +175,7 @@ function handleFiles(event) {
 </script>
 
 <template>
-    <div class="overflow-y-auto px-6 w-full min-h-[300px] mb-10">
+    <div class="grid gap-3 overflow-y-auto px-6">
         <div class="flex justify-end gap-2 items-center mb-3">
             <Button
                 :disabled="isLoading"
