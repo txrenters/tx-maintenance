@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessLOnTheMarketJob;
+use App\Jobs\ProcessNewPmLeaseOnTheMarketJob;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AsanaWebhookController extends Controller
 {
@@ -17,8 +19,6 @@ class AsanaWebhookController extends Controller
                 'X-Hook-Secret' => $request->header('X-Hook-Secret'),
             ]);
         }
-
-        $event = $request->all();
 
         $data = $request->all();
 
@@ -33,15 +33,27 @@ class AsanaWebhookController extends Controller
                             'opt_fields' => 'projects',
                         ]);
 
+                    if ($response->failed()) {
+                        Log::error("Failed to fetch task {$resourceGid}", ['response' => $response->body()]);
+
+                        continue;
+                    }
+
                     $projectId = $response['data']['projects'][0]['gid'] ?? null;
 
-                    if ($projectId === env('ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET')) {
-                        Artisan::call('asana:process-new-pm-lease-on-the-market');
-                    } elseif ($projectId === env('ASANA_PROJECT_ID_L_ON_THE_MARKET')) {
-                        Artisan::call('asana:process-new-pm-lease-on-the-market');
+                    if ($projectId == env('ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET')) {
+                        ProcessNewPmLeaseOnTheMarketJob::dispatch();
+                    } elseif ($projectId == env('ASANA_PROJECT_ID_L_ON_THE_MARKET')) {
+                        ProcessLOnTheMarketJob::dispatch();
                     }
+
+                    Log::info('Asana webhook event received', [
+                        'event' => $event,
+                        'project_id' => $projectId ?? 'unknown',
+                    ]);
                 }
             }
+
         }
 
         return response()->noContent();
