@@ -48,7 +48,7 @@ class InvoiceController extends Controller
         try {
             $invoice = Invoice::create($validatedData);
 
-            $propertyware = new PropertyWareService();
+            $propertyware = new PropertyWareService;
 
             $propertyware->uploadVendorInvoice($request->work_order_id, $invoice);
 
