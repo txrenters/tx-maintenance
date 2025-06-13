@@ -761,22 +761,6 @@ usePoll(30000, {
                             "
                             >Priority: {{ workOrderForm.priority }}</Badge
                         >
-                        <Badge
-                            :variant="
-                                workOrderForm.priority === 'High'
-                                    ? 'destructive'
-                                    : 'outline'
-                            "
-                            >Priority: {{ workOrderForm.priority }}</Badge
-                        >
-                        <Badge
-                            :variant="
-                                workOrderForm.priority === 'High'
-                                    ? 'destructive'
-                                    : 'outline'
-                            "
-                            >Priority: {{ workOrderForm.priority }}</Badge
-                        >
                         <Badge variant="outline"
                             >Status: {{ workOrderForm.status }}</Badge
                         >
