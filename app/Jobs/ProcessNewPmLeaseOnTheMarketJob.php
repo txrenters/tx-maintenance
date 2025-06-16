@@ -10,23 +10,23 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
-class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
+class ProcessNewPmLeaseOnTheMarketJob1 implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function handle()
     {
-        Log::info('🔁 Starting update for Asana L on the Market (via Job)...');
+        Log::info('▶️ Processing NEW PM LEASE ON THE MARKET APM rules (via Job)...');
 
         $token = config('services.asana.token');
-        $projectId = env('ASANA_PROJECT_ID_L_ON_THE_MARKET');
+        $projectId = env('ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET');
 
-        $monday = Carbon::now()->next(Carbon::MONDAY)->toDateString();
-        $thursday = Carbon::now()->next(Carbon::THURSDAY)->toDateString();
+        $monday = Carbon::parse('next monday')->format('Y-m-d');
+        $tuesday = Carbon::parse('next tuesday')->format('Y-m-d');
+        $wednesday = Carbon::parse('next wednesday')->format('Y-m-d');
 
-        $mondayKeywords = ['FILL OUT', 'ARE THERE', 'HOW MANY', 'CMA LINK', 'SET DUE DATE', 'SET DUES DATE'];
+        $reviewCount = 0;
 
         $response = Http::withToken($token)->get('https://app.asana.com/api/1.0/tasks', [
             'project' => $projectId,
@@ -34,7 +34,7 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
         ]);
 
         if ($response->failed()) {
-            Log::error('❌ Failed to fetch tasks', ['project_id' => $projectId, 'response' => $response->body()]);
+            Log::error('❌ Failed to fetch tasks', ['project_id' => $projectId]);
 
             return;
         }
@@ -49,59 +49,54 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
             ]);
 
             if ($subtaskResponse->failed()) {
-                Log::error('❌ Failed to fetch subtasks', ['task_id' => $taskId, 'response' => $subtaskResponse->body()]);
+                Log::error('❌ Failed to fetch subtasks', ['task_id' => $taskId]);
 
                 continue;
             }
 
             $subtasks = $subtaskResponse->json()['data'] ?? [];
 
-            $ownerUpdateComplete = collect($subtasks)->contains(function ($sub) {
-                return Str::contains(strtolower($sub['name']), 'update owner') && $sub['completed'];
-            });
-
             foreach ($subtasks as $subtask) {
                 if ($subtask['completed']) {
                     continue;
                 }
 
+                $name = strtolower($subtask['name']);
                 $subtaskId = $subtask['gid'];
-                $subtaskName = $subtask['name'];
                 $oldDue = $subtask['due_on'];
 
-                if (
-                    ! Str::contains(strtoupper($subtaskName), $mondayKeywords) &&
-                    ! Str::contains(strtolower($subtaskName), 'update owner')
-                ) {
-                    continue;
+                // 🧠 Set new due date
+                if (str_contains($name, 'update owner')) {
+                    $newDue = $wednesday;
+                } elseif (str_contains($name, 'review recommended action') && $reviewCount < 2) {
+                    $newDue = $tuesday;
+                    $reviewCount++;
+                } else {
+                    $newDue = $monday;
                 }
 
-                $newDue = Str::contains(strtolower($subtaskName), 'update owner')
-                    ? $thursday
-                    : ($ownerUpdateComplete && Str::contains(strtolower($subtaskName), 'set due') ? $monday : $monday);
-
                 if ($oldDue !== $newDue) {
-                    Log::info("📅 Updating subtask: {$subtaskName}", [
-                        'old_due' => $oldDue,
-                        'new_due' => $newDue,
+                    Log::info("🔄 Updating subtask: {$subtask['name']}", [
+                        'old_due_on' => $oldDue,
+                        'new_due_on' => $newDue,
                     ]);
 
-                    $updateResponse = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                    $update = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
                         'data' => ['due_on' => $newDue],
                     ]);
 
-                    if ($updateResponse->failed()) {
+                    if ($update->failed()) {
                         Log::error('❌ Failed to update subtask', [
-                            'subtask_name' => $subtaskName,
-                            'response' => $updateResponse->body(),
+                            'subtask' => $subtask['name'],
+                            'response' => $update->body(),
                         ]);
                     } else {
-                        Log::info('✅ Subtask updated', ['subtask_name' => $subtaskName]);
+                        Log::info('✅ Subtask updated', ['name' => $subtask['name']]);
                     }
                 }
             }
         }
 
-        Log::info('✅ Completed update for L on the Market (via Job).');
+        Log::info('✅ Done updating tasks (Job finished).');
     }
 }
