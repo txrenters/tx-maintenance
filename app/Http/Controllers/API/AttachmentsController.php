@@ -35,7 +35,7 @@ class AttachmentsController extends Controller
 
         $attachment = Attachments::create($validatedData);
 
-        UploadAttachment::dispatch($attachment);
+        UploadAttachment::dispatch($attachment)->delay(now()->addSeconds(5));
 
         return redirect()->back()->with('success', 'Attachment uploaded successfully.');
     }
@@ -54,7 +54,7 @@ class AttachmentsController extends Controller
             'owner_portal' => 'required',
         ]);
 
-        foreach ($validatedData['files'] as $fileData) {
+        foreach ($validatedData['files'] as $index => $fileData) {
             $file = $fileData['file'];
             $mimeType = $fileData['type'];
 
@@ -73,7 +73,8 @@ class AttachmentsController extends Controller
             ];
 
             $attachment = Attachments::create($files);
-            UploadAttachment::dispatch($attachment);
+
+            UploadAttachment::dispatch($attachment)->delay(now()->addSeconds($index * 5));
         }
 
         return redirect()->back()->with('success', 'Attachment uploaded successfully.');

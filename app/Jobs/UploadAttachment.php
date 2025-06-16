@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Services\PropertyWareService;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
@@ -15,6 +16,10 @@ class UploadAttachment implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $data;
+
+    public $tries = 3;
+
+    public $backoff = 10;
 
     /**
      * Create a new job instance.
@@ -39,17 +44,20 @@ class UploadAttachment implements ShouldQueue
 
         $propertyware = new PropertyWareService;
 
-        $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
+        try {
+            $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
 
-        if ($uploaded) {
             Log::info('Work order attachment has been uploaded', [
                 'work order no' => $this->data->work_order->work_order_no,
                 'filename' => $this->data->filename,
             ]);
-        } else {
-            Log::error('Failed to upload vendor attachments', [
+
+        } catch (Exception $e) {
+            Log::error('Upload failed', [
                 'filename' => $this->data->filename,
+                'message' => $e->getMessage(),
             ]);
+            throw $e; // allows retry
         }
     }
 }

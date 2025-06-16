@@ -30,6 +30,7 @@ class AsanaWebhookController extends Controller
                 'project_id' => $projectId ?? 'unknown',
             ]);
         }
+
         return response()->noContent();
 
     }
