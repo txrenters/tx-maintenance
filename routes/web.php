@@ -23,6 +23,7 @@ use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
 use App\Services\PropertyWareService;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -151,4 +152,8 @@ Route::get('/workOrder', function () {
     }
 
     dd($allWorkOrders);
+});
+
+Route::get('/webhook/asana/register', function () {
+    Artisan::call('asana:register-webhook');
 });
