@@ -895,7 +895,7 @@ class PropertyWareService
 
             $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
 
-            Log::info('Work order approval has been added updated!', [
+            Log::info('Work order approval has been added!', [
                 'Work order no' => $work_order_no,
             ]);
 
