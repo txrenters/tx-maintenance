@@ -27,6 +27,7 @@ class UpdateWorkOrderRequest extends FormRequest
             'zone' => 'nullable|string',
             'management_plan' => 'nullable|string',
             'closing_comments' => 'nullable|string',
+            'latest_update_comments' => 'nullable|string',
             'additional_work_needed_reschedule' => 'nullable|string',
             'description' => 'nullable|string',
         ];
