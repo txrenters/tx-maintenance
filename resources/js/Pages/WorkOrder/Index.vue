@@ -78,6 +78,7 @@ const workOrderForm = useForm({
     additional_work_needed_reschedule: "",
     last_modified: "",
     closing_comments: "",
+    latest_update_comments: "",
     service_status: "",
     service_status_id: "",
     zone: "",
@@ -512,6 +513,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.hour_estimate = order.hour_estimate ?? "0";
         workOrderForm.type = order.type;
         workOrderForm.closing_comments = order.closing_comments;
+        workOrderForm.latest_update_comments = order.latest_update_comments;
         workOrderForm.source = order.source;
         workOrderForm.service_status = order.service_status.name;
         workOrderForm.service_status_id = order.service_status.id;

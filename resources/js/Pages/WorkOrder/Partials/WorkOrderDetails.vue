@@ -514,6 +514,14 @@ const handleDeleteSubmit = () => {
                     :disabled="$page.props.auth.user.roles.includes('vendor')"
                 />
             </div>
+            <div class="grid gap-1.5 mt-5">
+                <Label for="message">Latest Update Comments</Label>
+                <Textarea
+                    placeholder="Type your message here."
+                    v-model="workOrder.latest_update_comments"
+                    rows="1"
+                />
+            </div>
             <div class="grid gap-1.5 mt-5 pb-12">
                 <Label>Description:</Label>
                 <Textarea
