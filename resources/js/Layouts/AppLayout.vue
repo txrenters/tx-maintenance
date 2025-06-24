@@ -569,9 +569,9 @@ const closeBanner = () => {
                                                     :key="notification.id"
                                                     class="flex items-start gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
-                                                        'shadow-sm hover:bg-gray-50':
+                                                        'border-opacity-60 shadow hover:bg-secondary':
                                                             !notification.read,
-                                                        'bg-gray-50 hover:bg-gray-100 text-gray-600':
+                                                        'bg-muted-foreground hover:bg-gray-100 text-gray-600':
                                                             notification.read,
                                                     }"
                                                     @click="

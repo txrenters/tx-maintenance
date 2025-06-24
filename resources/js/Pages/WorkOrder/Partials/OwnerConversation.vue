@@ -181,22 +181,21 @@ watch(
                 {{ woc.woc_number.twilio_phone_number.phone_number }}
             </div>
         </div>
-        <ScrollArea class="border p-3 min-h-[300px] bg-secondary">
-            <div class="flex justify-center" v-if="isLoading || loading">
-                <Loader2 class="w-12 h-12 animate-spin text-primary" />
-            </div>
-            <div
-                class="h-80 overflow-y-auto space-y-2 flex flex-col"
-                v-else
-                ref="chatContainer"
-            >
+        <div
+            class="overflow-y-auto space-y-2 flex flex-col"
+            ref="chatContainer"
+        >
+            <ScrollArea class="border p-3 h-[520px] bg-secondary">
+                <div class="flex justify-center" v-if="isLoading || loading">
+                    <Loader2 class="w-12 h-12 animate-spin text-primary" />
+                </div>
                 <MessageCard
+                    v-else
                     :messages="ownerConversation"
                     :sender="woc_phone_number"
                 />
-            </div>
-        </ScrollArea>
-
+            </ScrollArea>
+        </div>
         <div class="relative w-full mt-4 mb-6">
             <Textarea
                 v-model="newMessage"

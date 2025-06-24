@@ -71,7 +71,7 @@ const removeMessage = (id) => {
     <div
         v-for="msg in messages"
         :key="msg.id"
-        class="p-4 rounded-3xl text-sm w-fit max-w-[75%] shadow"
+        class="p-3 rounded-3xl text-sm w-fit max-w-[75%] shadow mb-2"
         :class="
             msg.sender_number === sender
                 ? 'bg-blue-500 text-white self-end rounded-br-none'
@@ -89,11 +89,11 @@ const removeMessage = (id) => {
                 "
             >
                 <p
-                    class="text-xs text-gray-500"
+                    class="text-xs"
                     :class="
                         msg.sender_number === sender
-                            ? 'flex-row-reverse'
-                            : 'flex-row'
+                            ? 'flex-row-reverse text-white'
+                            : 'flex-row text-gray-500'
                     "
                 >
                     From: {{ msg.sender_number }}
@@ -120,11 +120,15 @@ const removeMessage = (id) => {
                 />
             </div>
             <div class="flex gap-20 items-center justify-between">
-                <p class="text-xs text-gray-500">
+                <p
+                    class="text-xs"
+                    :class="
+                        msg.sender_number === sender
+                            ? 'text-white'
+                            : 'text-gray-500'
+                    "
+                >
                     {{ msg.created_at }}
-                </p>
-                <p class="text-xs text-gray-500">
-                    To: {{ msg.receiver_number }}
                 </p>
             </div>
         </div>
