@@ -77,7 +77,6 @@ const removeMessage = (id) => {
                 ? 'bg-blue-500 text-white self-end rounded-br-none'
                 : 'bg-white text-gray-900 self-start rounded-bl-none'
         "
-        v-motion-slide-visible-right
     >
         <div class="flex flex-col gap-2 relative">
             <div
@@ -92,8 +91,8 @@ const removeMessage = (id) => {
                     class="text-xs"
                     :class="
                         msg.sender_number === sender
-                            ? 'flex-row-reverse text-white'
-                            : 'flex-row text-gray-500'
+                            ? 'text-white'
+                            : 'text-gray-500'
                     "
                 >
                     From: {{ msg.sender_number }}
