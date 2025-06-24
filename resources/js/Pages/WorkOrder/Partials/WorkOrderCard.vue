@@ -84,7 +84,7 @@ const checkDueTask = (tasks) => {
                 <ScrollArea class="h-[70vh] overflow-y-auto border-t pt-2 mb-5">
                     <div
                         @click="handleWorkOrder(work_order)"
-                        v-motion-slide-visible-right
+                        v-motion-slide-visible-once-right
                         v-for="work_order in status.work_orders"
                         :key="work_order.id"
                         class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"

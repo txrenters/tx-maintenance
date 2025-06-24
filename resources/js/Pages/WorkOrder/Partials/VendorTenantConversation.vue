@@ -181,8 +181,8 @@ watch(
             </div>
         </div>
 
-        <div class="border p-3 min-h-[300px] bg-secondary">
-            <div class="flex justify-center" v-if="loading || isLoading">
+        <ScrollArea class="border p-3 min-h-[300px] bg-secondary">
+            <div class="flex justify-center" v-if="isLoading || loading">
                 <Loader2 class="w-12 h-12 animate-spin text-primary" />
             </div>
             <div
@@ -192,10 +192,10 @@ watch(
             >
                 <MessageCard
                     :messages="vendorConversation"
-                    :sender="vendor_phone_number"
+                    :sender="woc_phone_number"
                 />
             </div>
-        </div>
+        </ScrollArea>
 
         <div class="relative w-full mt-4 mb-6">
             <Textarea

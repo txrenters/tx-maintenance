@@ -544,20 +544,18 @@ const closeBanner = () => {
                                     >
                                 </PopoverTrigger>
                                 <PopoverContent
-                                    class="w-full sm:min-w-[24rem] sm:max-w-2xl mx-auto max-h-[80vh] sm:max-h-96 overflow-y-auto"
+                                    class="w-full sm:min-w-[24rem] sm:max-w-2xl mx-auto max-h-[calc(100vh-200px)] overflow-y-auto"
                                 >
                                     <p
                                         class="uppercase text-xs font-bold flex gap-1"
                                     >
                                         <span v-if="notifications.length === 0"
-                                            >No New
+                                            >No New Notifications
                                         </span>
                                     </p>
                                     <template v-if="notifications.length > 0">
                                         <div class="flex flex-col gap-2">
-                                            <h3
-                                                class="text-2xl font-bold text-gray-800 mb-4"
-                                            >
+                                            <h3 class="text-2xl font-bold mb-4">
                                                 Notifications
                                             </h3>
                                             <template
@@ -571,7 +569,7 @@ const closeBanner = () => {
                                                     :key="notification.id"
                                                     class="flex items-start gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
-                                                        'bg-white shadow-sm hover:bg-gray-50':
+                                                        'shadow-sm hover:bg-gray-50':
                                                             !notification.read,
                                                         'bg-gray-50 hover:bg-gray-100 text-gray-600':
                                                             notification.read,
@@ -618,21 +616,21 @@ const closeBanner = () => {
 
                                                     <div class="flex-1">
                                                         <h4
-                                                            class="font-semibold text-base text-gray-900 leading-tight"
+                                                            class="font-semibold text-base leading-tight"
                                                         >
                                                             {{
                                                                 notification.title
                                                             }}
                                                         </h4>
                                                         <p
-                                                            class="text-sm text-gray-600 mt-1 line-clamp-2"
+                                                            class="text-sm mt-1 line-clamp-2"
                                                         >
                                                             {{
                                                                 notification.message
                                                             }}
                                                         </p>
                                                         <div
-                                                            class="text-xs text-gray-500 mt-2 flex justify-between items-center"
+                                                            class="text-xs mt-2 flex justify-between items-center"
                                                         >
                                                             <p class="mr-2">
                                                                 {{

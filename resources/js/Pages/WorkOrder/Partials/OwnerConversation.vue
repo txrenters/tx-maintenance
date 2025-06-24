@@ -181,7 +181,7 @@ watch(
                 {{ woc.woc_number.twilio_phone_number.phone_number }}
             </div>
         </div>
-        <div class="border p-3 min-h-[300px] bg-secondary">
+        <ScrollArea class="border p-3 min-h-[300px] bg-secondary">
             <div class="flex justify-center" v-if="isLoading || loading">
                 <Loader2 class="w-12 h-12 animate-spin text-primary" />
             </div>
@@ -195,7 +195,7 @@ watch(
                     :sender="woc_phone_number"
                 />
             </div>
-        </div>
+        </ScrollArea>
 
         <div class="relative w-full mt-4 mb-6">
             <Textarea
