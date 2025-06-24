@@ -117,11 +117,9 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="overflow-y-auto px-6 w-full min-h-[300px]">
+    <div class="grid gap-3 overflow-y-auto px-6">
         <p class="font-semibold uppercase text-xs mb-3">WOC Conversation</p>
-        <div
-            class="flex flex-col-reverse sm:flex-row sm:flex-wrap justify-between gap-2 mb-2"
-        >
+        <div class="flex justify-between gap-2 mb-2">
             <div>
                 <div class="flex gap-2">
                     <div class="flex flex-col text-left">
