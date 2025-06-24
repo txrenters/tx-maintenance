@@ -180,11 +180,8 @@ watch(
                 {{ page.props.auth.user.vendor.twilio_number }}
             </div>
         </div>
-        <div
-            class="overflow-y-auto space-y-2 flex flex-col"
-            ref="chatContainer"
-        >
-            <ScrollArea class="border p-3 h-[520px] bg-secondary p-3">
+        <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
+            <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
                 <div class="flex justify-center" v-if="isLoading || loading">
                     <Loader2 class="w-12 h-12 animate-spin text-primary" />
                 </div>
@@ -195,6 +192,8 @@ watch(
                 />
             </ScrollArea>
         </div>
+
+        vendorConversation
 
         <div class="relative w-full mt-4 mb-6">
             <Textarea
