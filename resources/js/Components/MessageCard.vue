@@ -102,7 +102,14 @@ const removeMessage = (id) => {
                     <X class="w-4 h-4" />
                 </button> -->
 
-            <p class="text-md">
+            <p
+                class="text-md"
+                :class="
+                    msg.sender_number === sender
+                        ? 'text-white'
+                        : 'text-gray-500'
+                "
+            >
                 {{ msg.message }}
             </p>
             <div v-if="msg.is_mms">

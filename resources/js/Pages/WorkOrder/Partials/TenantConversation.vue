@@ -181,7 +181,7 @@ console.log(props.workOrderTenants);
             </div>
         </div>
         <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
-            <ScrollArea class="bg-secondary h-[520px] rounded-md">
+            <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
                 <div class="flex justify-center" v-if="isLoading || loading">
                     <Loader2 class="w-12 h-12 animate-spin text-primary" />
                 </div>
