@@ -103,11 +103,9 @@ const removeMessage = (id) => {
                 </button> -->
 
             <p
-                class="text-md"
+                class="text-md py-1"
                 :class="
-                    msg.sender_number === sender
-                        ? 'text-white'
-                        : 'text-gray-500'
+                    msg.sender_number === sender ? 'text-white' : 'text-black'
                 "
             >
                 {{ msg.message }}
