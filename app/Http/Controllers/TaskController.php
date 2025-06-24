@@ -7,6 +7,7 @@ use App\Models\WorkOrderTask;
 use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class TaskController extends Controller
 {
@@ -72,10 +73,22 @@ class TaskController extends Controller
 
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
-            'dueTodayTasks' => $dueTodayTasks,
-            'upcomingTasks' => $upcomingTasks,
-            'pastDueTasks' => $pastDueTasks,
-            'completedTasks' => $completeTasks,
+            'total_dueTodayTasks' => count($dueTodayTasks),
+            'total_upcomingTasks' => count($upcomingTasks),
+            'total_pastDueTasks' => count($pastDueTasks),
+            'total_completedTasks' => count($completeTasks),
+            'dueTodayTasks' => Inertia::defer(function () use ($dueTodayTasks) {
+                return $dueTodayTasks;
+            }),            
+            'upcomingTasks' => Inertia::defer(function () use ($upcomingTasks) {
+                return $upcomingTasks;
+            }),
+            'pastDueTasks' => Inertia::defer(function () use ($pastDueTasks) {
+                return $pastDueTasks;
+            }),
+            'completedTasks' => Inertia::defer(function () use ($completeTasks) {
+                return $completeTasks;
+            }),
         ]);
     }
 

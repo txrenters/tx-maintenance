@@ -552,43 +552,117 @@ const closeBanner = () => {
                                         <span v-if="notifications.length === 0"
                                             >No New
                                         </span>
-                                        Notifications
                                     </p>
                                     <template v-if="notifications.length > 0">
-                                        <div
-                                            class="flex items-start gap-4 mt-2 hover:bg-muted p-2 rounded-md"
-                                            v-for="notification in notifications"
-                                            :key="notification.id"
-                                        >
-                                            <div class="flex-1">
-                                                <h4
-                                                    class="font-semibold text-sm text-foreground"
-                                                >
-                                                    {{ notification.title }}
-                                                </h4>
-                                                <p
-                                                    class="text-foreground/80 text-sm mt-1"
-                                                >
-                                                    {{ notification.message }}
-                                                </p>
+                                        <div class="flex flex-col gap-2">
+                                            <h3
+                                                class="text-2xl font-bold text-gray-800 mb-4"
+                                            >
+                                                Notifications
+                                            </h3>
+                                            <template
+                                                v-if="
+                                                    notifications &&
+                                                    notifications.length > 0
+                                                "
+                                            >
                                                 <div
-                                                    class="text-xs text-foreground/80 mt-2 flex justify-between"
+                                                    v-for="notification in notifications"
+                                                    :key="notification.id"
+                                                    class="flex items-start gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
+                                                    :class="{
+                                                        'bg-white shadow-sm hover:bg-gray-50':
+                                                            !notification.read,
+                                                        'bg-gray-50 hover:bg-gray-100 text-gray-600':
+                                                            notification.read,
+                                                    }"
+                                                    @click="
+                                                        markAsRead(
+                                                            notification.id
+                                                        )
+                                                    "
                                                 >
-                                                    <p>
-                                                        {{ notification.time }}
-                                                    </p>
-                                                    <button
-                                                        @click.prevent="
-                                                            markAsRead(
-                                                                notification.id
-                                                            )
+                                                    <!-- Unread indicator (optional) -->
+                                                    <div
+                                                        v-if="
+                                                            !notification.read
                                                         "
-                                                        class="text-primary hover:text-primary/80 text-xs p-0"
+                                                        class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white animate-pulse"
+                                                        title="Unread Notification"
+                                                    ></div>
+
+                                                    <!-- Icon placeholder -->
+                                                    <div
+                                                        class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"
                                                     >
-                                                        Mark as read
-                                                    </button>
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                            stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            class="lucide lucide-bell"
+                                                        >
+                                                            <path
+                                                                d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+                                                            />
+                                                            <path
+                                                                d="M10.3 21a1.94 1.94 0 0 0 3.4 0"
+                                                            />
+                                                        </svg>
+                                                    </div>
+
+                                                    <div class="flex-1">
+                                                        <h4
+                                                            class="font-semibold text-base text-gray-900 leading-tight"
+                                                        >
+                                                            {{
+                                                                notification.title
+                                                            }}
+                                                        </h4>
+                                                        <p
+                                                            class="text-sm text-gray-600 mt-1 line-clamp-2"
+                                                        >
+                                                            {{
+                                                                notification.message
+                                                            }}
+                                                        </p>
+                                                        <div
+                                                            class="text-xs text-gray-500 mt-2 flex justify-between items-center"
+                                                        >
+                                                            <p class="mr-2">
+                                                                {{
+                                                                    notification.time
+                                                                }}
+                                                            </p>
+                                                            <button
+                                                                v-if="
+                                                                    !notification.read
+                                                                "
+                                                                @click.stop="
+                                                                    markAsRead(
+                                                                        notification.id
+                                                                    )
+                                                                "
+                                                                class="text-blue-600 hover:text-blue-700 font-medium py-1 px-2 rounded-md transition-colors duration-150"
+                                                            >
+                                                                Mark as read
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </template>
+                                            <template v-else>
+                                                <div
+                                                    class="p-6 text-center text-gray-500 bg-gray-50 rounded-lg shadow-sm mt-4"
+                                                >
+                                                    <p>No new notifications.</p>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
                                 </PopoverContent>

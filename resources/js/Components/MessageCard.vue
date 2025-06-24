@@ -71,12 +71,13 @@ const removeMessage = (id) => {
     <div
         v-for="msg in messages"
         :key="msg.id"
-        class="p-2 rounded-lg text-sm w-fit max-w-[75%]"
+        class="p-4 rounded-3xl text-sm w-fit max-w-[75%] shadow"
         :class="
             msg.sender_number === sender
-                ? 'bg-blue-500 text-white self-end'
-                : 'bg-gray-200 text-gray-900 self-start'
+                ? 'bg-blue-500 text-white self-end rounded-br-none'
+                : 'bg-white text-gray-900 self-start rounded-bl-none'
         "
+        v-motion-slide-visible-right
     >
         <div class="flex flex-col gap-2 relative">
             <div
@@ -88,7 +89,7 @@ const removeMessage = (id) => {
                 "
             >
                 <p
-                    class="text-xs"
+                    class="text-xs text-gray-500"
                     :class="
                         msg.sender_number === sender
                             ? 'flex-row-reverse'
@@ -97,22 +98,17 @@ const removeMessage = (id) => {
                 >
                     From: {{ msg.sender_number }}
                 </p>
-                <button
+                <!-- <button
                     class="hover:text-red-500"
                     title="Delete"
                     @click.prevent="removeMessage(msg.id)"
                     v-if="!$page.props.auth.user.roles.includes('vendor')"
                 >
                     <X class="w-4 h-4" />
-                </button>
+                </button> -->
             </div>
 
-            <p
-                class="font-bold"
-                :class="
-                    msg.sender_number === sender ? 'text-right' : 'text-left'
-                "
-            >
+            <p class="text-md">
                 {{ msg.message }}
             </p>
             <div v-if="msg.is_mms">
@@ -124,10 +120,12 @@ const removeMessage = (id) => {
                 />
             </div>
             <div class="flex gap-20 items-center justify-between">
-                <p class="text-xs">
+                <p class="text-xs text-gray-500">
                     {{ msg.created_at }}
                 </p>
-                <p class="text-xs">To: {{ msg.receiver_number }}</p>
+                <p class="text-xs text-gray-500">
+                    To: {{ msg.receiver_number }}
+                </p>
             </div>
         </div>
     </div>

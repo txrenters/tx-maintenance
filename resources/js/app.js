@@ -116,6 +116,7 @@ import '@vuepic/vue-datepicker/dist/main.css'
 import Multiselect from 'vue-multiselect'
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { Progress } from '@/Components/ui/progress';
+import { MotionPlugin } from '@vueuse/motion'
 
 const appName = import.meta.env.VITE_APP_NAME || 'TX RentSync PropertyWare';
 
@@ -129,6 +130,7 @@ createInertiaApp({
         return app
             .use(plugin)
             .use(ZiggyVue)
+            .use(MotionPlugin)
             .component("Head", Head)
             .component("ScrollArea", ScrollArea)
             .component("ScrollBar", ScrollBar)

@@ -88,22 +88,15 @@ watch(selectedYear, (newYear) => {
     });
 });
 const show = ref(true);
-const startTimer = () => {
-    setTimeout(() => {
-        show.value = false;
-    }, 4000); // 4 seconds
-};
-
 usePoll(5000);
 </script>
 
 <template>
     <Head :title="title" />
     <div
-        class="flex justify-start flex-col gap-3 sm:justify-between sm:flex-row items-center my-2"
+        class="flex justify-start flex-col gap-3 sm:justify-between sm:flex-row items-center"
     >
-        <transition name="fade-slide" appear @after-enter="startTimer">
-            <div
+            <div v-motion-fade-visible
                 class="bg-gradient-to-r from-blue-500 to-green-500 text-white rounded shadow p-4 sm:p-6 md:p-8 w-full"
             >
                 <h2 class="text-xl sm:text-2xl md:text-3xl font-bold">
@@ -113,7 +106,6 @@ usePoll(5000);
                     We’re glad to see you again. Let’s get some work done today!
                 </p>
             </div>
-        </transition>
     </div>
     <div class="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <Card>
