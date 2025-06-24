@@ -124,7 +124,96 @@ console.log(props.workOrderTenants);
 </script>
 
 <template>
-    <div class="overflow-y-auto px-6 w-full min-h-[300px]">
+    <div class="grid gap-3 overflow-y-auto px-6">
+        <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
+        <div class="flex justify-between gap-2 mb-2">
+            <div>
+                <div class="flex gap-2">
+                    <Select v-model="selectedTenant">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select a tenant" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <template
+                                    v-for="tenant in workOrderTenants"
+                                    :key="tenant.id"
+                                >
+                                    <SelectItem
+                                        :value="String(tenant.id)"
+                                        :selected="
+                                            tenant.mobile_phone ===
+                                            workOrder.requested?.mobile_phone
+                                        "
+                                    >
+                                        {{ tenant.first_name }}
+                                        {{ tenant.last_name }} -
+                                        {{ tenant?.mobile_phone }}
+                                    </SelectItem>
+                                </template>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    <Input
+                        placeholder="Custom number"
+                        class=""
+                        v-model="tenant_phone_number"
+                    />
+                </div>
+                <p class="text-xs text-gray-500">
+                    Please include the country code (e.g. +1)
+                </p>
+            </div>
+
+            <div class="flex flex-col text-left">
+                <div class="flex gap-2 items-center">
+                    <Avatar class="w-5 h-5">
+                        <AvatarImage
+                            :src="woc?.profile_photo_url || 'default.jpg'"
+                        />
+                        <AvatarFallback>
+                            {{ woc.name?.charAt(0) }}
+                        </AvatarFallback>
+                    </Avatar>
+                    {{ woc.name }}
+                </div>
+                {{ woc.woc_number.twilio_phone_number.phone_number }}
+            </div>
+        </div>
+        <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
+            <ScrollArea class="bg-secondary h-[520px] rounded-md">
+                <div class="flex justify-center" v-if="isLoading || loading">
+                    <Loader2 class="w-12 h-12 animate-spin text-primary" />
+                </div>
+                <MessageCard
+                    v-else
+                    :messages="tenantConversation"
+                    :sender="woc_phone_number"
+                />
+            </ScrollArea>
+        </div>
+        <div class="relative w-full mt-4 mb-6">
+            <Textarea
+                v-model="newMessage"
+                @keyup.enter.exact="sendMessage"
+                placeholder="Type your message..."
+                class="w-full resize-none rounded-2xl border py-3 pr-20 pl-4"
+                rows="1"
+                :disabled="loading"
+            />
+            <Button
+                size="icon"
+                variant="ghost"
+                @click.prevent="sendMessage"
+                :disabled="isLoading || loading"
+                class="absolute top-1/2 right-2 -translate-y-1/2"
+            >
+                <Send v-if="!isLoading || loading" />
+                <Loader2 v-else class="w-4 h-4 animate-spin" />
+            </Button>
+        </div>
+    </div>
+    <!-- <div class="overflow-y-auto px-6 w-full min-h-[300px]">
         <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
 
         <div
@@ -183,11 +272,8 @@ console.log(props.workOrderTenants);
                 {{ woc.woc_number.twilio_phone_number.phone_number }}
             </div>
         </div>
-        <div
-            class="flex h-90 flex-col gap-4 overflow-y-auto px-3"
-            ref="chatContainer"
-        >
-            <ScrollArea class="border p-3 h-[480px] bg-secondary">
+        <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
+            <ScrollArea class="bg-secondary h-[520px] rounded-md">
                 <div class="flex justify-center" v-if="isLoading || loading">
                     <Loader2 class="w-12 h-12 animate-spin text-primary" />
                 </div>
@@ -218,7 +304,7 @@ console.log(props.workOrderTenants);
                 <Loader2 v-else class="w-4 h-4 animate-spin" />
             </Button>
         </div>
-    </div>
+    </div> -->
 </template>
 
 <style scoped>

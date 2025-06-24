@@ -71,33 +71,29 @@ const removeMessage = (id) => {
     <div
         v-for="msg in messages"
         :key="msg.id"
-        class="p-3 rounded-3xl text-sm w-fit max-w-[75%] shadow mb-2"
-        :class="
-            msg.sender_number === sender
-                ? 'bg-blue-500 text-white self-end rounded-br-none'
-                : 'bg-white text-gray-900 self-start rounded-bl-none'
-        "
+        class="mt-2 flex items-end"
+        :class="msg.sender_number === sender ? 'flex-row-reverse' : 'flex-row'"
+        v-motion-slide-visible-right
     >
-        <div class="flex flex-col gap-2 relative">
-            <div
-                class="flex gap-1 items-start justify-between"
+        <div
+            class="relative max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-md"
+            :class="
+                msg.sender_number !== sender
+                    ? 'rounded-bl-none bg-white text-black'
+                    : 'bg-primary text-primary-foreground rounded-br-none'
+            "
+        >
+            <p
+                class="text-xs"
                 :class="
                     msg.sender_number === sender
-                        ? 'flex-row-reverse'
-                        : 'flex-row'
+                        ? 'text-white'
+                        : 'text-gray-500'
                 "
             >
-                <p
-                    class="text-xs"
-                    :class="
-                        msg.sender_number === sender
-                            ? 'text-white'
-                            : 'text-gray-500'
-                    "
-                >
-                    From: {{ msg.sender_number }}
-                </p>
-                <!-- <button
+                From: {{ msg.sender_number }}
+            </p>
+            <!-- <button
                     class="hover:text-red-500"
                     title="Delete"
                     @click.prevent="removeMessage(msg.id)"
@@ -105,7 +101,6 @@ const removeMessage = (id) => {
                 >
                     <X class="w-4 h-4" />
                 </button> -->
-            </div>
 
             <p class="text-md">
                 {{ msg.message }}
