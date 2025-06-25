@@ -77,16 +77,16 @@ class TaskController extends Controller
             'total_upcomingTasks' => count($upcomingTasks),
             'total_pastDueTasks' => count($pastDueTasks),
             'total_completedTasks' => count($completeTasks),
-            'dueTodayTasks' => Inertia::defer(function () use ($dueTodayTasks) {
+            'dueTodayTasks' => Inertia::optional(function () use ($dueTodayTasks) {
                 return $dueTodayTasks;
             }),            
-            'upcomingTasks' => Inertia::defer(function () use ($upcomingTasks) {
+            'upcomingTasks' => Inertia::optional(function () use ($upcomingTasks) {
                 return $upcomingTasks;
             }),
-            'pastDueTasks' => Inertia::defer(function () use ($pastDueTasks) {
+            'pastDueTasks' => Inertia::optional(function () use ($pastDueTasks) {
                 return $pastDueTasks;
             }),
-            'completedTasks' => Inertia::defer(function () use ($completeTasks) {
+            'completedTasks' => Inertia::optional(function () use ($completeTasks) {
                 return $completeTasks;
             }),
         ]);
