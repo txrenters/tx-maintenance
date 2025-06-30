@@ -38,19 +38,14 @@ class UploadAttachment implements ShouldQueue
             'title' => $this->data->title,
             'type' => $this->data->type,
             'filename' => $this->data->filename,
-            'is_publish_to_tenant_portal' => $this->data->is_publish_to_tenant_portal == 'Yes',
-            'is_publish_to_owner_portal' => $this->data->is_publish_to_owner_portal == 'Yes',
+            'is_publish_to_tenant_portal' => $this->data->is_publish_to_tenant_portal,
+            'is_publish_to_owner_portal' => $this->data->is_publish_to_owner_portal,
         ];
 
         $propertyware = new PropertyWareService;
 
         try {
             $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
-
-            Log::info('Work order attachment has been uploaded', [
-                'work order no' => $this->data->work_order->work_order_no,
-                'filename' => $this->data->filename,
-            ]);
 
         } catch (Exception $e) {
             Log::error('Upload failed', [

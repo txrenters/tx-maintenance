@@ -46,7 +46,7 @@ class DashboardController extends Controller
         $workOrderData = WorkOrder::select(
             DB::raw('MONTHNAME(created_date) as name'), // Month name
             DB::raw("SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as Completed"), // Completed count
-            DB::raw("COUNT(id) as Created") // Created count
+            DB::raw('COUNT(id) as Created') // Created count
         )
             ->whereYear('created_date', $year) // Filter for the selected year
             ->groupBy(DB::raw('MONTHNAME(created_date), MONTH(created_date)')) // Group by both month name and month number

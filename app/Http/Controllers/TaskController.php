@@ -79,7 +79,7 @@ class TaskController extends Controller
             'total_completedTasks' => count($completeTasks),
             'dueTodayTasks' => Inertia::optional(function () use ($dueTodayTasks) {
                 return $dueTodayTasks;
-            }),            
+            }),
             'upcomingTasks' => Inertia::optional(function () use ($upcomingTasks) {
                 return $upcomingTasks;
             }),

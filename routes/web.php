@@ -24,6 +24,8 @@ use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
 use App\Services\PropertyWareService;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -108,50 +110,75 @@ Route::fallback(function () {
         ->setStatusCode(404);
 });
 
-Route::get('/functionssss', function () {
-
-    $propertyware = new PropertyWareService;
-
-    $client = $propertyware->initiate();
-
-    dd($client->__getFunctions());
-});
 
 Route::get('/workOrder', function () {
-    $url = config('services.propertyware.url');
-    $username = config('services.propertyware.username');
-    $password = config('services.propertyware.password');
+    try {
+        // API headers from environment variables
+        $headers = [
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+        ];
+        // Validate environment variables
+        if (empty($headers['x-propertyware-client-id']) || empty($headers['x-propertyware-client-secret']) || empty($headers['x-propertyware-system-id'])) {
+            throw new \Exception('Missing Propertyware API credentials in environment variables.');
+        }
 
-    $options = [
-        'trace' => 1,
-        'login' => $username,
-        'password' => $password,
-        'connection_timeout' => 5000,
-        'exceptions' => true,
-        'stream_context' => stream_context_create([
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
-            ],
-        ]),
-    ];
+        $absolutePath = public_path('logo.png');
+        if (!file_exists($absolutePath)) {
+            throw new \Exception('File does not exist: ' . $absolutePath);
+        }
 
-    $client = new \SoapClient($url.'?wsdl', $options);
-    $params = [
-        'pageNumber' => 1,
-        'orderByNewestFirst' => 1,
-        'ID' => 7318863975,
-    ];
-    $response = $client->getWorkOrders($params);
-    $allWorkOrders = [];
+        $fileName = 'logo434343.png';
+        $formFields = [
+            'entityId' => 7156957207, 
+            'entityType' => 'Work Order',
+            'publishToOwnerPortal' => false,
+            'publishToTenantPortal' => true,
+        ];
 
-    if (! empty($response)) {
-        $orders = json_decode(json_encode($response), true);
-        $allWorkOrders = array_merge($allWorkOrders, $orders);
+        $fileContents = file_get_contents($absolutePath);
+
+        $response = Http::withHeaders($headers)
+            ->attach('file', $fileContents, $fileName)
+            ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
+
+        // Handle the response
+        if ($response->successful()) {
+
+            $postData = $response->json();
+
+            $res = Http::withHeaders($headers)
+            ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'],[
+                'fileName' => $fileName,
+                'description' => 'TBP',
+                'publishToOwnerPortal' => true,
+                'publishToTenantPortal' => false,
+            ]);
+            return response()->json($response->json(), 200);
+        }
+
+        // Log error for debugging
+        Log::error('Propertyware API request failed', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+            'error' => $response->json(),
+        ]);
+
+        return response()->json([
+            'status' => $response->status(),
+            'body' => $response->body(),
+            'error' => $response->json() ?? 'Unknown error occurred',
+        ], $response->status());
+
+    } catch (\Exception $e) {
+        // Log any exceptions
+        Log::error('Error in workOrder route: ' . $e->getMessage());
+
+        return response()->json([
+            'error' => 'An error occurred: ' . $e->getMessage(),
+        ], 500);
     }
-
-    dd($allWorkOrders);
 });
 
 Route::get('/webhook/asana/register', function () {

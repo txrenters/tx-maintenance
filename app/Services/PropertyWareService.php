@@ -628,87 +628,72 @@ class PropertyWareService
 
     }
 
-    public function uploadVendorAttachment($workOrderId, $attachments)
+    public function uploadVendorAttachment($workOrderId, $attachment)
     {
         try {
 
-            if (! $attachments || ! $workOrderId) {
-                throw new \Exception('Invalid work order ID or attachments.');
-            }
+            $headers = [
+                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            ];
 
-            $workorder = WorkOrder::find($workOrderId);
-            if (! $workorder) {
-                throw new \Exception('Work order not found.');
-            }
-            $workorderId = $workorder->propertyware_id;
+            $workOrder = WorkOrder::find($workOrderId);
 
-            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $attachments['filename']);
-
-            $absolutePath = public_path('storage/attachments/'.basename($attachments['filename']));
+            $absolutePath = public_path('storage/'.$attachment['filename']);
 
             if (! file_exists($absolutePath)) {
-                throw new \Exception('Attachment file does not exist: '.$absolutePath);
+                throw new \Exception('File does not exist: '.$absolutePath);
             }
+
+            $cleanTitle = str_replace(' ', '_', $attachment['title']);
+
+            $fileName = $cleanTitle . '.' . pathinfo(basename($attachment['filename']), PATHINFO_EXTENSION);
             $fileContents = file_get_contents($absolutePath);
-            $fileData = base64_encode($fileContents);
 
-            // Sanitize and construct filename
-            $title = $attachments['title'];
-            $filePath = $attachments['filename'];
+            $formFields = [
+                'entityId' => (int) $workOrder->propertyware_id,
+                'entityType' => 'Work Order',
+                'publishToOwnerPortal' => (bool) $attachment['is_publish_to_owner_portal'],
+                'publishToTenantPortal' => (bool) $attachment['is_publish_to_tenant_portal'],
+            ];
 
-            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
-            $sanitizedTitle = preg_replace('/[^a-zA-Z0-9-_]/', '_', $title);
-            $filename = $sanitizedTitle.'_'.uniqid().'.'.$fileExtension;
+            $response = Http::withHeaders($headers)
+                ->attach('file',$fileContents, $fileName)
+                ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
-            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                    <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                        <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">0</ID>
-                            <description xsi:type="xsd:string">'.$attachments['title'].'</description>
-                            <fileData xsi:type="xsd:string">'.$fileData.'</fileData>
-                            <filename xsi:type="xsd:string">'.$filename.'</filename>
-                            <privateFile xsi:type="xsd:boolean">false</privateFile>
-                            <publishToOwnerPortal xsi:type="xsd:boolean">'.((bool) $attachments['is_publish_to_owner_portal'] == 1 ? 'true' : 'false').'</publishToOwnerPortal>
-                            <publishToTenantPortal xsi:type="xsd:boolean">'.((bool) $attachments['is_publish_to_tenant_portal'] == 1 ? 'true' : 'false').'</publishToTenantPortal>
-                        </document>
-                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                            <!-- Include other work order properties here -->
-                        </workOrder>
-                    </ser:attachDocumentToWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
+            // Handle the response
+            if ($response->successful()) {
 
-            // Execute SOAP request
-            $res = $this->execute($xmlPayload);
+                $postData = $response->json();
 
-            // Log and return response status
-            if ($res) {
+                Http::withHeaders($headers)
+                    ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
+                        'fileName' => $fileName,
+                        'description' => $attachment['title'],
+                        'publishToOwnerPortal' => (bool) $attachment['is_publish_to_owner_portal'],
+                        'publishToTenantPortal' => (bool) $attachment['is_publish_to_tenant_portal'],
+                    ]);
+
                 Log::info('Work order attachment has been uploaded successfully!', [
-                    'Work order no' => $workorder->work_order_no,
-                    'filename' => $filename,
+                    'Work order no' => (int) $workOrder->work_order_no,
+                    'filename' => $fileName,
                 ]);
 
                 return true;
             }
 
-            Log::error('Work order attachment upload failed!', [
-                'Work order no' => $workorder->work_order_no,
-                'filename' => $filename,
+            Log::error('Error uploading work order attachment', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'error' => $response->json(),
+                'fileName' => $fileName,
             ]);
 
             return false;
+
         } catch (\Exception $e) {
-            Log::error('Error in work order attachment: '.$e->getMessage(), [
-                'Work order no' => $workorder->work_order_no,
-                'filename' => $attachments->filename ?? 'N/A',
-            ]);
+            Log::error('Error uploading work order attachment: '.$e->getMessage());
 
             return false;
         }
@@ -717,83 +702,58 @@ class PropertyWareService
     public function uploadVendorInvoice($workOrderId, $invoice)
     {
         try {
+            $workOrder = WorkOrder::find($workOrderId);
 
-            if (! $invoice || ! $workOrderId) {
-                throw new \Exception('Invalid work order ID or invoice.');
-            }
-
-            $workorder = WorkOrder::find($workOrderId);
-            if (! $workorder) {
-                throw new \Exception('Work order not found.');
-            }
-            $workorderId = $workorder->propertyware_id;
-
-            $filePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $invoice->filename);
-
-            $absolutePath = public_path('storage/invoices/'.basename($invoice->filename));
+            $absolutePath = public_path('storage/'.$invoice->filename);
 
             if (! file_exists($absolutePath)) {
-                throw new \Exception('Invoice file does not exist: '.$absolutePath);
+                throw new \Exception('File does not exist: '.$absolutePath);
             }
+
+            $formFields = [
+                'entityId' => $workOrder->propertyware_id,
+                'entityType' => 'Work Order',
+                'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
+                'publishToTenantPortal' => (bool) $invoice->is_publish_to_owner_portal,
+            ];
+
             $fileContents = file_get_contents($absolutePath);
-            $fileData = base64_encode($fileContents);
 
-            // Sanitize and construct filename
-            $title = $invoice->title;
-            $filePath = $invoice->filename;
+            $response = Http::withHeaders($this->headers)
+                ->attach('file', $fileContents, $invoice->filename)
+                ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
-            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
-            $sanitizedTitle = preg_replace('/[^a-zA-Z0-9-_]/', '_', $title);
-            $filename = $sanitizedTitle.'_'.uniqid().'.'.$fileExtension;
+            // Handle the response
+            if ($response->successful()) {
 
-            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                    <ser:attachDocumentToWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                        <document xsi:type="urn:Document" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">0</ID>
-                            <description xsi:type="xsd:string">'.$title.'</description>
-                            <fileData xsi:type="xsd:string">'.$fileData.'</fileData>
-                            <filename xsi:type="xsd:string">'.$filename.'</filename>
-                            <privateFile xsi:type="xsd:boolean">false</privateFile>
-                            <publishToOwnerPortal xsi:type="xsd:boolean">'.((bool) $invoice->is_publish_to_owner_portal == 1 ? 'true' : 'false').'</publishToOwnerPortal>
-                            <publishToTenantPortal xsi:type="xsd:boolean">'.((bool) $invoice->is_publish_to_tenant_portal == 1 ? 'true' : 'false').'</publishToTenantPortal>
-                        </document>
-                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                        </workOrder>
-                    </ser:attachDocumentToWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
+                $postData = $response->json();
 
-            // Execute SOAP request
-            $res = $this->execute($xmlPayload);
+                Http::withHeaders($this->headers)
+                    ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
+                        'fileName' => $invoice->filename,
+                        'description' => $invoice->title,
+                        'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
+                        'publishToTenantPortal' => (bool) $invoice->is_publish_to_owner_portal,
+                    ]);
 
-            // Log and return response status
-            if ($res) {
                 Log::info('Work order invoice has been uploaded successfully!', [
-                    'Work order no' => $workorder->work_order_no,
-                    'filename' => $filename,
+                    'Work order no' => $workOrder->work_order_no,
+                    'filename' => $invoice->filename,
                 ]);
 
                 return true;
             }
 
-            Log::error('Work order invoice upload failed!', [
-                'Work order no' => $workorder->work_order_no,
-                'filename' => $filename,
+            Log::error('Error uploading work order invoice', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'error' => $response->json(),
             ]);
 
             return false;
+
         } catch (\Exception $e) {
-            Log::error('Error in work order invoice: '.$e->getMessage(), [
-                'Work order no' => $workorder->work_order_no,
-                'filename' => $invoice->filename ?? 'N/A',
-            ]);
+            Log::error('Error uploading work order invoice: '.$e->getMessage());
 
             return false;
         }
