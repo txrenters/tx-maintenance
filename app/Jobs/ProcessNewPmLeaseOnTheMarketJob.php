@@ -65,6 +65,11 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
                 $subtaskId = $subtask['gid'];
                 $oldDue = $subtask['due_on'];
 
+                 // Skip if already has due date
+                if (!empty($oldDue)) {
+                    continue;
+                }
+
                 // 🧠 Set new due date
                 if (str_contains($name, 'update owner')) {
                     $newDue = $wednesday;
@@ -75,25 +80,24 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
                     $newDue = $monday;
                 }
 
-                if ($oldDue !== $newDue) {
-                    Log::info("🔄 Updating subtask: {$subtask['name']}", [
-                        'old_due_on' => $oldDue,
-                        'new_due_on' => $newDue,
-                    ]);
+                Log::info("🔄 Updating subtask: {$subtask['name']}", [
+                    'old_due_on' => $oldDue,
+                    'new_due_on' => $newDue,
+                ]);
 
-                    $update = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
-                        'data' => ['due_on' => $newDue],
-                    ]);
+                $update = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                    'data' => ['due_on' => $newDue],
+                ]);
 
-                    if ($update->failed()) {
-                        Log::error('❌ Failed to update subtask', [
-                            'subtask' => $subtask['name'],
-                            'response' => $update->body(),
-                        ]);
-                    } else {
-                        Log::info('✅ Subtask updated', ['name' => $subtask['name']]);
-                    }
+                if ($update->failed()) {
+                    Log::error('❌ Failed to update subtask', [
+                        'subtask' => $subtask['name'],
+                        'response' => $update->body(),
+                    ]);
+                } else {
+                    Log::info('✅ Subtask updated', ['name' => $subtask['name']]);
                 }
+                
             }
         }
 

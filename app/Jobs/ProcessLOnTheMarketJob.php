@@ -76,29 +76,33 @@ class ProcessLOnTheMarketJob implements ShouldQueue
                     continue;
                 }
 
+                 // Skip if already has due date
+                if (!empty($oldDue)) {
+                    continue;
+                }
+
                 $newDue = Str::contains(strtolower($subtaskName), 'update owner')
                     ? $thursday
                     : ($ownerUpdateComplete && Str::contains(strtolower($subtaskName), 'set due') ? $monday : $monday);
 
-                if ($oldDue !== $newDue) {
-                    Log::info("📅 Updating subtask: {$subtaskName}", [
-                        'old_due' => $oldDue,
-                        'new_due' => $newDue,
-                    ]);
+                Log::info("📅 Updating subtask: {$subtaskName}", [
+                    'old_due' => $oldDue,
+                    'new_due' => $newDue,
+                ]);
 
-                    $updateResponse = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
-                        'data' => ['due_on' => $newDue],
-                    ]);
+                $updateResponse = Http::withToken($token)->put("https://app.asana.com/api/1.0/tasks/{$subtaskId}", [
+                    'data' => ['due_on' => $newDue],
+                ]);
 
-                    if ($updateResponse->failed()) {
-                        Log::error('❌ Failed to update subtask for L on the Market', [
-                            'subtask_name' => $subtaskName,
-                            'response' => $updateResponse->body(),
-                        ]);
-                    } else {
-                        Log::info('✅ Subtask updated for L on the Market', ['subtask_name' => $subtaskName]);
-                    }
+                if ($updateResponse->failed()) {
+                    Log::error('❌ Failed to update subtask for L on the Market', [
+                        'subtask_name' => $subtaskName,
+                        'response' => $updateResponse->body(),
+                    ]);
+                } else {
+                    Log::info('✅ Subtask updated for L on the Market', ['subtask_name' => $subtaskName]);
                 }
+            
             }
         }
 
