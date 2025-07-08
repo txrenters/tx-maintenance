@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Twilio\Rest\Client;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -110,76 +111,6 @@ Route::fallback(function () {
         ->setStatusCode(404);
 });
 
-
-Route::get('/workOrder', function () {
-    try {
-        // API headers from environment variables
-        $headers = [
-            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-        ];
-        // Validate environment variables
-        if (empty($headers['x-propertyware-client-id']) || empty($headers['x-propertyware-client-secret']) || empty($headers['x-propertyware-system-id'])) {
-            throw new \Exception('Missing Propertyware API credentials in environment variables.');
-        }
-
-        $absolutePath = public_path('logo.png');
-        if (!file_exists($absolutePath)) {
-            throw new \Exception('File does not exist: ' . $absolutePath);
-        }
-
-        $fileName = 'logo434343.png';
-        $formFields = [
-            'entityId' => 7156957207, 
-            'entityType' => 'Work Order',
-            'publishToOwnerPortal' => false,
-            'publishToTenantPortal' => true,
-        ];
-
-        $fileContents = file_get_contents($absolutePath);
-
-        $response = Http::withHeaders($headers)
-            ->attach('file', $fileContents, $fileName)
-            ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
-
-        // Handle the response
-        if ($response->successful()) {
-
-            $postData = $response->json();
-
-            $res = Http::withHeaders($headers)
-            ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'],[
-                'fileName' => $fileName,
-                'description' => 'TBP',
-                'publishToOwnerPortal' => true,
-                'publishToTenantPortal' => false,
-            ]);
-            return response()->json($response->json(), 200);
-        }
-
-        // Log error for debugging
-        Log::error('Propertyware API request failed', [
-            'status' => $response->status(),
-            'body' => $response->body(),
-            'error' => $response->json(),
-        ]);
-
-        return response()->json([
-            'status' => $response->status(),
-            'body' => $response->body(),
-            'error' => $response->json() ?? 'Unknown error occurred',
-        ], $response->status());
-
-    } catch (\Exception $e) {
-        // Log any exceptions
-        Log::error('Error in workOrder route: ' . $e->getMessage());
-
-        return response()->json([
-            'error' => 'An error occurred: ' . $e->getMessage(),
-        ], 500);
-    }
-});
 
 Route::get('/webhook/asana/register', function () {
     Artisan::call('asana:register-webhook');

@@ -86,11 +86,11 @@ class TwilioWebhookController extends Controller
                 'Accept' => 'application/json',
             ])->post($forwardUrl, $data);
 
-            $txChatbotResponse = Http::withHeaders([
-                'Accept' => 'application/json',
-            ])->post($txChatbotUrl, $data);
+            // $txChatbotResponse = Http::withHeaders([
+            //     'Accept' => 'application/json',
+            // ])->post($txChatbotUrl, $data);
 
-            if ($plusThisResponse->successful() && $txChatbotResponse->successful()) {
+            if ($plusThisResponse->successful()) {
                 $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
                 $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
                 $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
