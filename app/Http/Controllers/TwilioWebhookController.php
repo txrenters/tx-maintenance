@@ -36,15 +36,10 @@ class TwilioWebhookController extends Controller
         $type = $message->conversation_type ?? ''; // Provide a fallback
         $workOrderId = $message->work_order_id ?? ''; // Provide a fallback
 
-        // $type = $this->getMessageType($from, $to);
-        // $workOrderId = $this->getWorkOrderId($from, $to);
-        // $checkMessageDuplicate = $this->checkMessageDuplicate($from, $to, $body);
-
         if ($workOrderId && $type) {
 
             try {
 
-                // $this->validateTwilioRequest($request); remove this line if you want to skip validation
 
                 $conversation = Conversation::create([
                     'message' => $body,
@@ -86,10 +81,6 @@ class TwilioWebhookController extends Controller
                 'Accept' => 'application/json',
             ])->post($forwardUrl, $data);
 
-            // $txChatbotResponse = Http::withHeaders([
-            //     'Accept' => 'application/json',
-            // ])->post($txChatbotUrl, $data);
-
             if ($plusThisResponse->successful()) {
                 $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
                 $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
@@ -105,9 +96,6 @@ class TwilioWebhookController extends Controller
             } else {
                 if (! $plusThisResponse->successful()) {
                     Log::error('Failed to forward data to PlusThis. Response: '.$plusThisResponse->body());
-                }
-                if (! $txChatbotResponse->successful()) {
-                    Log::error('Failed to forward data to Tx Chatbot. Response: '.$txChatbotResponse->body());
                 }
             }
         } catch (\Exception $e) {
@@ -185,22 +173,5 @@ class TwilioWebhookController extends Controller
     protected function formatNumber(string $number): string
     {
         return '+1'.preg_replace('/[^0-9]/', '', $number);
-    }
-
-    protected function validateTwilioRequest(Request $request): void
-    {
-        if (app()->environment('local')) {
-            return; // Skip validation for local environment
-        }
-
-        $validator = new RequestValidator(env('TWILIO_AUTH_TOKEN'));
-
-        if (! $validator->validate(
-            $request->header('X-Twilio-Signature', ''),
-            $request->fullUrl(),
-            $request->toArray()
-        )) {
-            abort(403, 'Invalid Twilio request signature');
-        }
     }
 }
