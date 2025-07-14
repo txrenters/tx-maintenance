@@ -57,6 +57,7 @@ class HandleInertiaRequests extends Middleware
 
         return array_merge($sharedData, [
             'auth.user' => $userData,
+            'logo' => asset('tx-logo.webp'),
         ]);
     }
 }

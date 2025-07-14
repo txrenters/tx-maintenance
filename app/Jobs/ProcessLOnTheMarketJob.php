@@ -76,8 +76,8 @@ class ProcessLOnTheMarketJob implements ShouldQueue
                     continue;
                 }
 
-                 // Skip if already has due date
-                if (!empty($oldDue)) {
+                // Skip if already has due date
+                if (! empty($oldDue)) {
                     continue;
                 }
 
@@ -102,7 +102,7 @@ class ProcessLOnTheMarketJob implements ShouldQueue
                 } else {
                     Log::info('✅ Subtask updated for L on the Market', ['subtask_name' => $subtaskName]);
                 }
-            
+
             }
         }
 

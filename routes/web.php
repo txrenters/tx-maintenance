@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\TaskController;
+use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\CoordinatorController;
@@ -22,12 +23,8 @@ use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
-use App\Services\PropertyWareService;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-use Twilio\Rest\Client;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -103,6 +100,119 @@ Route::middleware([
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
 });
 
+Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');
+
+Route::get('/sample-pdf', function () {
+    // Sample data for PDF generation
+    $sampleData = [
+        'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+        'formData' => [
+            'paint' => 'Yes',
+            'paintColor' => '#ffffff',
+            'goingOnTheMarketLawnCare' => 'Management',
+            'goingOnTheMarketCleaning' => 'Management',
+            'goingOnTheMarketDebrisRemoval' => 'Owner',
+            'goingOnTheMarketPaint' => 'Management',
+            'goingOnTheMarketCarpetCleaning' => 'Management',
+            'goingOnTheMarketCarpetReplacement' => 'Owner',
+            'goingOnTheMarketUtilities' => 'Owner',
+            'homeOnTheMarketLawnCare' => 'Management',
+            'homeOnTheMarketCleaning' => 'Management',
+            'homeOnTheMarketUtilities' => 'Owner',
+            'beforeTenantMoveInLawnCare' => 'Management',
+            'beforeTenantMoveInPestControl' => 'Management',
+            'afterTenantMoveInLawnCare' => 'Tenant',
+            'reKey' => 'Management',
+            'tenantServiceRequest' => 'Use discretion on $75 co-payment',
+            'dogsAllowed' => 'Yes',
+            'dogsMaxWeight' => '50',
+            'catsAllowed' => 'Yes',
+            'catRestrictions' => 'No declawing required',
+            'otherPetsRestriction' => 'No exotic pets',
+            'swimmingPool' => 'Yes',
+            'poolService' => 'Yes',
+            'poolServiceName' => 'Crystal Clear Pool Service',
+            'poolServiceNumber' => '(555) 123-4567',
+            'alarmSystem' => 'Yes',
+            'alarmSystemIncludedInPrice' => 'No',
+            'alarmSystemUnderContract' => 'Yes',
+            'alarmSystemCode' => '1234',
+            'alarmSystemBeArmDuringMarketing' => 'Yes',
+            'communityPool' => 'Yes',
+            'park' => 'Yes',
+            'playGround' => 'Yes',
+            'tennisCourt' => 'No',
+            'refrigerator' => 'Yes',
+            'microwave' => 'Yes',
+            'washingMachine' => 'No',
+            'dryer' => 'No',
+            'waterSoftener' => 'No',
+            'hvacModelYear' => '2018',
+            'garageDoorOpener' => 'Yes',
+            'garageDoorRemote' => '2',
+            'mailboxKeyNo' => '2',
+            'mailboxLocation' => 'Front of house',
+            'hvacVendorName' => 'ABC HVAC Services',
+            'hvacVendorNumber' => '(555) 234-5678',
+            'electricVendorName' => 'Electric Pro',
+            'electricVendorNumber' => '(555) 345-6789',
+            'plumbingVendorName' => 'Plumber Plus',
+            'plumbingVendorNumber' => '(555) 456-7890',
+            'pestControlVendorName' => 'Pest Away',
+            'pestControlVenodrNumber' => '(555) 567-8901',
+            'lawnCareVendorName' => 'Green Lawn Care',
+            'lawnCareVendorNumber' => '(555) 678-9012',
+            'waterProvider' => 'City Water',
+            'gasProvider' => 'Texas Gas Co',
+            'trashProvider' => 'Waste Management',
+            'trashPickupDays' => 'Monday & Thursday',
+            'hvacMaintenancePlan' => 'Yes',
+            'installFloatSwitch' => 'Yes',
+            'homeWarranty' => 'Yes',
+            'homeWarrantyCompanyName' => 'Home Shield',
+            'floodedProperty' => 'No',
+            'floodedPropertyDate' => '',
+            'otherComments' => 'The property has recently been updated with new flooring throughout the main living areas. All appliances are in excellent working condition. The HVAC system was serviced last month and is running efficiently.'
+        ],
+        'buildingData' => [
+            'name' => 'Sample Property - 123 Main Street',
+            'id' => '12345',
+            'address' => [
+                'address' => '123 Main Street',
+                'addressCont' => 'Unit A',
+                'city' => 'Dallas',
+                'stateRegion' => 'TX',
+                'postalCode' => '75201'
+            ]
+        ],
+        'propertywareData' => [
+            'entityId' => 12345,
+            'fieldSetDTOS' => [
+                ['name' => 'paint', 'value' => 'Yes'],
+                ['name' => 'paintColor', 'value' => '#ffffff'],
+                ['name' => 'dogsAllowed', 'value' => 'Yes']
+            ]
+        ],
+        'ownerName' => 'John Smith',
+                'generated_at' => now()->tz('America/Chicago')->format('Y-m-d h:i A')
+    ];
+
+    try {
+        // Generate PDF
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('onboarding_process', $sampleData);
+        
+        // Return PDF as download
+        return $pdf->download('sample_property_onboarding_' . date('YmdHis') . '.pdf');
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to generate PDF',
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+})->name('sample.pdf');
+
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
 Route::fallback(function () {
@@ -110,7 +220,6 @@ Route::fallback(function () {
         ->toResponse(request())
         ->setStatusCode(404);
 });
-
 
 Route::get('/webhook/asana/register', function () {
     Artisan::call('asana:register-webhook');

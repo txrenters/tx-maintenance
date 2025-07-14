@@ -65,8 +65,8 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
                 $subtaskId = $subtask['gid'];
                 $oldDue = $subtask['due_on'];
 
-                 // Skip if already has due date
-                if (!empty($oldDue)) {
+                // Skip if already has due date
+                if (! empty($oldDue)) {
                     continue;
                 }
 
@@ -97,7 +97,7 @@ class ProcessNewPmLeaseOnTheMarketJob implements ShouldQueue
                 } else {
                     Log::info('✅ Subtask updated', ['name' => $subtask['name']]);
                 }
-                
+
             }
         }
 

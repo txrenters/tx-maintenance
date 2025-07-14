@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\AsanaWebhookController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
+use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TwilioWebhookController;
@@ -37,3 +38,6 @@ Route::get('/notifications', [NotificationController::class, 'fetchNotification'
 Route::put('/notifications/{message}/mark-as-read', [NotificationController::class, 'markAsRead']);
 
 Route::post('/asana/webhook', [AsanaWebhookController::class, 'handleWebhook']);
+
+Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
+Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);

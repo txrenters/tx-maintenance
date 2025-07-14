@@ -648,7 +648,7 @@ class PropertyWareService
 
             $cleanTitle = str_replace(' ', '_', $attachment['title']);
 
-            $fileName = $cleanTitle . '.' . pathinfo(basename($attachment['filename']), PATHINFO_EXTENSION);
+            $fileName = $cleanTitle.'.'.pathinfo(basename($attachment['filename']), PATHINFO_EXTENSION);
             $fileContents = file_get_contents($absolutePath);
 
             $formFields = [
@@ -659,7 +659,7 @@ class PropertyWareService
             ];
 
             $response = Http::withHeaders($headers)
-                ->attach('file',$fileContents, $fileName)
+                ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             // Handle the response

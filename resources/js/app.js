@@ -117,6 +117,7 @@ import Multiselect from 'vue-multiselect'
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { Progress } from '@/Components/ui/progress';
 import { MotionPlugin } from '@vueuse/motion'
+import Vue3Signature from "vue3-signature"
 
 const appName = import.meta.env.VITE_APP_NAME || 'TX RentSync PropertyWare';
 
@@ -131,6 +132,7 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .use(MotionPlugin)
+            .use(Vue3Signature)
             .component("Head", Head)
             .component("ScrollArea", ScrollArea)
             .component("ScrollBar", ScrollBar)

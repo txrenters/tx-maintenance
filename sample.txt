@@ -1,0 +1,713 @@
+ <section class="mx-auto mt-5 max-w-5xl rounded bg-white p-8 shadow-md">
+            <div class="mb-3 flex flex-col gap-5">
+                <h1 class="font-bold">Getting the Property Ready to Market:</h1>
+                <p>
+                    We want to make sure that your home is presentable during the marketing phase. There are a few key areas that need to be taken
+                    care of prior to placing your home on the market. A neat, clean home will help you to attract the best possible tenant.
+                </p>
+                <p>
+                    <span class="font-bold underline">Curb Appeal:</span> The first thing that someone will see when they pull up to the home is the
+                    lawn. Your home will lease faster if the yard is cut and the bushes & trees are trimmed. Also, if the home has any mildew or mold
+                    it should be cleaned or pressure washed.
+                </p>
+                <p><span class="font-bold underline">Flooring:</span> The flooring should be free of obvious defects, large stains, and pet odors.</p>
+                <p>
+                    <span class="font-bold underline">Walls:</span> Neutral colors will appeal to the most people. Brighter colors may be acceptable
+                    in some areas of the home. While it is not a requirement that you repaint the property, you may want to consider it if you have
+                    numerous scuff marks, holes, or rooms that have colors that might not appeal to a large group of people. If you have the paint
+                    code for your wall, please include them in the space provided below.
+                </p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <!-- Paint Toggle -->
+                <div>
+                    <label class="mb-1 block"> Apply Paint Color </label>
+                    <select class="w-full rounded border border-green-300 p-3" v-model="form.paint">
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+
+                <!-- Color Picker -->
+                <div v-if="form.paint === 'Yes'">
+                    <label class="mb-1 block"> Select a paint color </label>
+                    <div class="flex items-center gap-4">
+                        <input
+                            type="color"
+                            v-model="form.paintColor"
+                            class="h-12 w-12 rounded border border-gray-300 p-0"
+                            title="Click to choose a color"
+                        />
+                        <span class="text-sm text-gray-600">
+                            Selected: <span :style="{ color: form.paintColor }">{{ form.paintColor }}</span>
+                        </span>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Choose the paint color you want to apply.</p>
+                </div>
+            </div>
+
+            <div class="mt-5 mb-3 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">Valuables:</span> Crime can happen at any time. Please help to minimize the risk by putting away
+                    or removing valuables and fire arms from the property.
+                </p>
+                <p>
+                    <span class="font-bold underline">Insurance:</span> Make sure to contact your insurance company to learn about your insurance
+                    policy. If you are moving out of the property, and it will be vacant for any period, let your insurance company know. Some
+                    policies do not cover vandalism when home is vacant
+                </p>
+                <p>
+                    <span class="font-bold underline">Utilities:</span> We require that utilities are turned on. If vacant, we ask that you shut off
+                    water at the main cut off valve to prevent water leaks that might otherwise go unnoticed before causing significant damage. It's
+                    Texas, and it's hot. Prospective tenant's viewing your home will turn down your AC to see if it blows cold air, and will then walk
+                    out without turning the thermostat back up or off. Make sure that you have programmable thermostat that automatically go back to a
+                    reasonable temperature, so that you don't receive a surprise electric bill for a vacant home.
+                </p>
+
+                <p>
+                    For the above items, we are happy to arrange the services below. Please let us know by indicating in the appropriate box with your
+                    initials, if you would like to take care of the above items before the property goes on the market, or if you would like us to
+                    handle them for you.
+                </p>
+            </div>
+            <div class="mt-15 mb-3 flex flex-col gap-5">
+                <p>
+                    The following items are only for the initial lease term. After the initial tenant moves out, if TexasRenters.com is still managing
+                    the property, will handle utilities, lawn care, carpet clearning and cleaning unless otherwise instructed at that tme, per the
+                    property management agreement.
+                </p>
+            </div>
+
+            <div>
+                <h1 class="my-4 text-center text-2xl font-bold">Who will do what prior to the home going on the market</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Lawn Care</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketLawnCare">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Cleaning</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketCleaning">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Debris Removal</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketDebrisRemoval">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Paint</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketPaint">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Carpet Cleaning</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketCarpetCleaning">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Carpet Replacement</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketCarpetReplacement">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Utilities</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.goingOnTheMarketUtilities">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <p class="my-10">
+                <span class="font-bold underline">During the time the property is on the market:</span> It is important that the lawn and home stay in
+                good shape while the home is on the market. Please indicate below if you would like to be responsible for the below items, or if you
+                would like us to handle if for you.
+            </p>
+
+            <div>
+                <h1 class="my-4 text-center text-2xl font-bold">Who will do what While the Home is on the Market?</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Lawn Care</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.homeOnTheMarketLawnCare">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Cleaning</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.homeOnTheMarketCleaning">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Utilities</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.homeOnTheMarketUtilities">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <p class="my-10">
+                <span class="font-bold underline">Final Touches before Tenant Move in:</span> We require that all homes be profesionally cleaned, and
+                carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control prior to move in. We expect that
+                when a tenant moves out of the home, they will also have the home professionally cleaned and carpets steam cleaned. By having the home
+                professionally cleaned, and being able to provide receipts, we can help assure that as the home owner, you will not be paying to clean
+                up after tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the carpets were not
+                professionally cleaned prior to putting the home on the market, this is the time to do it. We do however, allow you to choose between
+                us providing the service, and you arranging the service on your own. If you arrange the service, please provide receipts for our
+                records.
+            </p>
+            <div class="my-15">
+                <h1 class="my-4 text-center text-2xl font-bold">Who will do what Just Before Tenant Move In?</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Lawn Care</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.beforeTenantMoveInLawnCare">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Pest Control</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.beforeTenantMoveInPestControl">
+                            <option value="Management">Management</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="my-15">
+                <h1 class="my-4 text-center text-2xl font-bold">Who will do lawn care After Tenant Move In?</h1>
+                <div>
+                    <label class="mb-1 block">Lawn Care</label>
+                    <select class="w-full rounded border border-green-300 p-3" v-model="form.afterTenantMoveInLawnCare">
+                        <option value="Management">Tenant</option>
+                        <option value="Owner">Owner</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">Re-Key & Code Work:</span> State law requires a working smoke detector in each bedroom and each
+                    hallway servicing more that one bedroom along with a peep hole and keyless locking device on each exterior door. Homes must be
+                    re-keyed between each tenant.
+                </p>
+                <p>
+                    <span class="font-bold underline"
+                        >This is a very large liability issue, therefore, if the items have not been completed prior to our move in inspection, the
+                        management company will automatically complete the items.
+                    </span>
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Re-Key and Code Work?</h1>
+                <div>
+                    <label class="mb-1 block">Re-Key & Code Work Responsibility</label>
+                    <select class="w-full rounded border border-green-300 p-3" v-model="form.reKey">
+                        <option value="Management">Management</option>
+                        <option value="Owner">Owner</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">Initial Repairs after move in:</span> If there are non-cosmetics items that are found that need
+                    to be repaired upon move in, such as garbage disposal that does not work, or a leaking toilet, we will normally repair these
+                    items, and waive the $75.00 repaire deductable for the tenant, as the items was not working when the tenant moved in. We will only
+                    do this for 1 trip, and it is not meant for cosmetic repairs. We find that this keeps tenants happy from the beginning, and helps
+                    to reduce your turnover expenses.
+                </p>
+                <p>
+                    <span class="font-bold underline">Repairs during the lease term:</span> Our leases require a $75.00 tenant co-payment for all
+                    repairs that are not related to the HVAC system, water heater or roof during the term of the lease. We jokingly call it the door
+                    stop and toilet flapper clause, because it keeps you from having a repair bill for nuisance items that a tenant can easily take
+                    care of themeselves. However, we do like to use our discretion on some items that it is obvious that the tenant did not cause, and
+                    waive the $75.00 co-payment. We find that this little bit of good helps to keep your tenants happy, and they are much more likely
+                    ti renew when they are treated fairly.
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">How would you like Us to Handle Tenant Service Request?</h1>
+                <div>
+                    <label class="mb-1 block">$75.00 Co Pay</label>
+                    <Input type="text" v-model="form.tenantServiceRequest" />
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">Pets:</span> Many renters are choosing to live in a home versus an apartment because they have
+                    pets. This reality means that if you do not accept pets, it will take about twice as long to rent your home if you do not allow
+                    pets. However, this is of course your choice. Please let us know if you would accept pets, and what type below.
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Pets?</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Dogs Allowed?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.dogsAllowed">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Maximun Weight for Dos?</label>
+                        <Input type="number" v-model="form.dogsMaxWeight" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Cats Allowed?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.catsAllowed">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Cat Restrictions?</label>
+                        <Input type="text" v-model="form.catRestrictions" />
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label class="mb-1 block">Other Restrictions on Pets?</label>
+                    <Input type="text" v-model="form.otherPetsRestriction" />
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline"
+                        >We need to know more about your home so that we can properly market the home and give the new tenant information on how to
+                        take care of the home.</span
+                    >
+                </p>
+                <p>
+                    <span class="font-bold underline">Amenities.</span>
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Swimming Pool</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Is there a swimming pool?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.swimmingPool">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Pool Service Included?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.poolService">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Name of Pool Service?</label>
+                        <Input type="text" v-model="form.poolServiceName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Number for Pool Service?</label>
+                        <Input type="text" v-model="form.poolServiceNumber" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Alarm System</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Is there an Alarm System?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.alarmSystem">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Included in Price?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.alarmSystemIncludedInPrice">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Under a contract?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.alarmSystemUnderContract">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Code?</label>
+                        <Input type="text" v-model="form.alarmSystemCode" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Will the system be armed during Marketing?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.alarmSystemBeArmDuringMarketing">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Neighborhood Amenities</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Community Pool?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.communityPool">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Park?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.park">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Playground?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.playGround">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Tennis Courts?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.tennisCourt">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Garage Access & Mailbox</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Garage Door Opener?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.garageDoorOpener">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Number of Remotes?</label>
+                        <Input type="number" v-model="form.garageDoorRemote" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Number of Mailbox Keys?</label>
+                        <Input type="number" v-model="form.mailboxKeyNo" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Location of Mailbox?</label>
+                        <Input type="text" v-model="form.mailboxLocation" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Appliances</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Refrigerator Included?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.refrigerator">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Microwave Included?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.microwave">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Washing Machine Included?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.washingMachine">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Washing Machine Hookups?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.washingMachineHookups">
+                            <option value="Gas">Gas</option>
+                            <option value="Electric">Electric</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Dryer Included?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.dryer">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Dryer Hookups?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.dryerHookups">
+                            <option value="Gas">Gas</option>
+                            <option value="Electric">Electric</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Water Softener?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.waterSoftener">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Water Heater Model Year?</label>
+                        <Input type="text" v-model="form.waterHeaterModelYear" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Dishwasher Model Year?</label>
+                        <Input type="text" v-model="form.dishWasherModelYear" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">HVAC Model Year?</label>
+                        <Input type="text" v-model="form.hvacModelYear" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Utilities & Trash Service</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Name of Water Provider?</label>
+                        <Input type="text" v-model="form.waterProvider" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Name of Gas Provider?</label>
+                        <Input type="text" v-model="form.gasProvider" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Trash Provider?</label>
+                        <Input type="text" v-model="form.trashProvider" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Trash Pick Up Days?</label>
+                        <Input type="text" v-model="form.trashPickupDays" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Recycling Pick Up Days?</label>
+                        <Input type="text" v-model="form.recyclePickupDays" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">HVAC Maintenance.</span> The most common cause for damage to homes that we see if from the
+                    emergency drain line overflowing from the air-conditioning drain pan. This is caused from mold or other debris clogging up the
+                    primary and secondary drain lines. This can be prevented by doing 2 things. First, the HVAC system can be serviced every 6 months,
+                    which includes blowing out the drain lines, cleaning exterior coils, checking for carbon monoxide leaks, and changing your air
+                    filter (all of this also extends the life of and increases the efficiency of your HVAC system). Second, an emergency float switch
+                    will be installed in the pan, so that if water builds up in the pan, they HVAC systems will shut off and stop producing water. The
+                    HVAC inspections are included on the premium pan and a float switch will be added if there is not already one in plase.
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">HVAC Issue Prevention</h1>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="mb-1 block">Participate in HVAC Maintenance Plan?(Included only on Premium Plan)</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.hvacMaintenancePlan">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Install Float Switch?(Automatically Completed)</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.installFloatSwitch">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline"
+                        >Home Warranty: We generally do not recommend them, because the responsiveness, and quality of the service are not often up to
+                        par.</span
+                    >
+                    They usually have 2 business days to respond to an air-conditioning service call(respond not complete), which means that if your
+                    tenant calls on Friday, they may not get a response until Tuesday. Also, if you have a plan or decide to get a plan, please read
+                    the exclusions and limitations very closely. Our experience is that many of the plans cap the most expensive such as the air
+                    air-conditioning at a set amount, and stick you with their vendor to install the new system, who usually charges 2x what we can
+                    get it done for. Alsom a repair may be covered, but damage caused by the repair or malfunction, along with brining older items up
+                    to code may not be covered. That being said, some would prefer the comfort of knowing that many cost can be covered. If you do not
+                    have a home warrant, get our advice on who to pick first. If you already have one, please include the information below,so that we
+                    can use the home warranty if your home needs service.
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Home Warrany</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Do you have a Home Warranty</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.homeWarranty">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Company Name</label>
+                        <Input type="text" v-model="form.homeWarrantyCompanyName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Service Request Number</label>
+                        <Input type="text" v-model="form.homeWarrantyServiceNumber" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    <span class="font-bold underline">Preferred Vendors.</span>
+                    If you have a preferred vendor, we will use them for non-emergency repairs, and make a reasonable effor to tuse them for emergency
+                    repairs. If your preferred vendor cannot be reached in a situation where delay would cause damage to your property or harm to the
+                    tenant, we will select a vendor who can get the job completed as soon as possible.
+                </p>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Preferred Vendors</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">HVAC Name</label>
+                        <Input type="text" v-model="form.hvacVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.hvacVendorNumber" />
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block">Electric</label>
+                        <Input type="text" v-model="form.electricVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.electricVendorNumber" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Plumbing</label>
+                        <Input type="text" v-model="form.plumbingVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.plumbingVendorNumber" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Pest Control</label>
+                        <Input type="text" v-model="form.pestControlVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.pestControlVenodrNumber" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Lawn Care</label>
+                        <Input type="text" v-model="form.lawnCareVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.lawnCareVendorNumber" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Other</label>
+                        <Input type="text" v-model="form.otherVendorName" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block">Phone Number</label>
+                        <Input type="text" v-model="form.otherVendorNumber" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10">
+                <h1 class="my-4 text-center text-2xl font-bold">Has the property ever flooded?</h1>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block">Flooded?</label>
+                        <select class="w-full rounded border border-green-300 p-3" v-model="form.floodedProperty">
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block">If yes, last date</label>
+                        <Input type="date" v-model="form.floodedPropertyDate" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <p>
+                    If there is anything not Covered above, please let us know if the space below. This would also include any repairs or bids that
+                    you would like us to habe completed for you.
+                </p>
+                <Textarea
+                    placeholder="Enter other details"
+                    class="w-full rounded border border-green-300 bg-white p-3"
+                    v-model="form.otherComments"
+                />
+            </div>
+
+            <div class="my-10 flex flex-col gap-5">
+                <div>
+                    <label class="mb-1 block"> Please sign below using your finger or mouse. </label>
+                    <p class="mb-2 text-xs text-gray-500">
+                        This will serve as your electronic signature for authorization and verification purposes.
+                    </p>
+                    <Vue3Signature
+                        ref="signature1"
+                        :h="'300px'"
+                        :sigOption="state.option"
+                        :disabled="state.disabled"
+                        class="w-full rounded border border-green-300"
+                    />
+                </div>
+
+                <div class="flex gap-2">
+                    <Button @click="clear">Clear</Button>
+                    <Button @click="undo">Undo</Button>
+                </div>
+            </div>
+            <button type="submit" class="w-full rounded bg-green-600 py-3 text-white hover:bg-green-700">Submit Onboarding</button>
+        </section>

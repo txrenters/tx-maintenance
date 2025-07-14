@@ -8,7 +8,6 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Twilio\Security\RequestValidator;
 
 class TwilioWebhookController extends Controller
 {
@@ -39,7 +38,6 @@ class TwilioWebhookController extends Controller
         if ($workOrderId && $type) {
 
             try {
-
 
                 $conversation = Conversation::create([
                     'message' => $body,
