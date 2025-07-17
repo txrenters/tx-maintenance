@@ -175,6 +175,16 @@ const getFileName = (attachment) => {
     return "Unknown file";
 };
 
+const isImageFile = (attachment) => {
+    const filename = getFileName(attachment);
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+};
+
+const getImageUrl = (attachment) => {
+    return `/storage/${attachment.file_path || attachment.filename}`;
+};
+
 const downloadFile = (attachment) => {
     // Create download link
     const downloadUrl = `/storage/${
@@ -825,7 +835,32 @@ const updateWorkOrderStatus = (status) => {
                         :key="attachment.id"
                     >
                         <CardContent class="pt-6">
-                            <div class="flex items-start gap-3">
+                            <div v-if="isImageFile(attachment)" class="space-y-3">
+                                <img 
+                                    :src="getImageUrl(attachment)" 
+                                    :alt="getFileName(attachment)"
+                                    class="w-full h-48 object-cover rounded-lg"
+                                    @error="$event.target.style.display = 'none'"
+                                />
+                                <div class="space-y-2">
+                                    <p class="text-sm text-gray-600">
+                                        {{ formatFileSize(attachment.file_size) }}
+                                    </p>
+                                    <p class="text-xs text-gray-500">
+                                        {{ formatDate(attachment.created_at) }}
+                                    </p>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        class="gap-1 w-full"
+                                        @click="downloadFile(attachment)"
+                                    >
+                                        <Download class="w-4 h-4" />
+                                        Download
+                                    </Button>
+                                </div>
+                            </div>
+                            <div v-else class="flex items-start gap-3">
                                 <Paperclip class="w-5 h-5 text-gray-500 mt-1" />
                                 <div class="flex-1">
                                     <p
