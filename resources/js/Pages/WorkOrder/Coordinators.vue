@@ -87,7 +87,12 @@ const updateCoordinator = () => {
                         :key="work_order.id"
                     >
                         <TableCell class="font-medium">
-                            #{{ work_order.work_order_no }}
+                            <Link 
+                                :href="route('work_orders.details', work_order.id)"
+                                class="text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                #{{ work_order.work_order_no }}
+                            </Link>
                             <p class="text-xs font-normal md:hidden">
                                 {{ work_order.location }}
                             </p>

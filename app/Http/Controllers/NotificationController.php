@@ -8,9 +8,10 @@ class NotificationController extends Controller
 {
     public function fetchNotification()
     {
+        // Get latest 10 conversations (both read and unread)
         $convos = Conversation::with('work_order:id,work_order_no') // select only needed fields
-            ->where('is_read', 0)
             ->orderBy('created_at', 'desc')
+            ->limit(10)
             ->get();
 
         $notifications = $convos->map(function ($item) {
@@ -19,6 +20,7 @@ class NotificationController extends Controller
                 'title' => '#'.$item->work_order->work_order_no.' - New Text Message',
                 'message' => $item->message,
                 'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
+                'read' => (bool) $item->is_read, // Include read status
             ];
         });
 

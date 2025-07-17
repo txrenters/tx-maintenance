@@ -44,6 +44,8 @@ import {
 import { Progress } from "@/Components/ui/progress";
 import { Badge } from "@/Components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/Components/ui/radio-group";
+import { Label } from "@/Components/ui/label";
 
 const { toast } = useToast();
 
@@ -184,7 +186,12 @@ const undo = () => {
 };
 
 const loading = ref(false);
-const building = ref(null);
+const buildings = ref([]);
+const selectedBuildingId = ref(null);
+const building = computed(() => {
+    if (!selectedBuildingId.value || buildings.value.length === 0) return null;
+    return buildings.value.find((b) => b.id === selectedBuildingId.value);
+});
 
 // Define sections for navigation
 const sections = [
@@ -283,7 +290,8 @@ const customFieldsData = ref([]);
 // Update your searchProperty function to store the custom field IDs
 const searchProperty = async () => {
     loading.value = true;
-    building.value = null;
+    buildings.value = [];
+    selectedBuildingId.value = null;
     customFieldsMap.value = {}; // Reset the map
     customFieldsData.value = []; // Reset the data
 
@@ -314,56 +322,34 @@ const searchProperty = async () => {
                 title: "Search failed",
                 description: res.data.error,
             });
-            building.value = null;
+            buildings.value = [];
             return;
         }
 
-        building.value = res.data;
-
-        // Set building info
-        buildingInfo.id = building.value.id;
-        buildingInfo.name = building.value.name;
-        buildingInfo.abbreviation = building.value.abbreviation;
-        buildingInfo.address.address = building.value.address?.address ?? "";
-        buildingInfo.address.addressCont =
-            building.value.address?.addressCont ?? "";
-        buildingInfo.address.city = building.value.address?.city ?? "";
-        buildingInfo.address.country = building.value.address?.country ?? "";
-        buildingInfo.address.postalCode =
-            building.value.address?.postalCode ?? "";
-        buildingInfo.address.stateRegion =
-            building.value.address?.stateRegion ?? "";
-
-        // Store custom fields and create ID mapping
-        if (building.value.customFields) {
-            customFieldsData.value = building.value.customFields;
-
-            // Create a map of custom field names to their data (including IDs)
-            building.value.customFields.forEach((field) => {
-                customFieldsMap.value[field.fieldName] = {
-                    definitionID: field.definitionID,
-                    dataType: field.dataType,
-                    value: field.value,
-                    fieldName: field.fieldName,
-                };
-            });
-
-            // Optional: Pre-populate form with existing values
-            populateFormFromCustomFields();
-
-            console.log("Custom fields mapped:", customFieldsMap.value);
-            toast({
-                title: "Property Found!",
-                description: "You can now update the property information.",
-            });
-
-            // Mark search section as completed
-            markSectionCompleted("search");
+        // Handle the new response format
+        if (res.data.buildings && Array.isArray(res.data.buildings)) {
+            buildings.value = res.data.buildings;
+            // Auto-select if only one building is found
+            if (buildings.value.length === 1) {
+                selectedBuildingId.value = buildings.value[0].id;
+                loadBuildingData();
+            }
+        } else {
+            // Fallback for old format (single building)
+            buildings.value = [res.data];
+            selectedBuildingId.value = res.data.id;
+            loadBuildingData();
         }
 
-        console.info("Owner's property:", building.value);
+        if (buildings.value.length > 1) {
+            toast({
+                title: "Multiple Properties Found!",
+                description: `Found ${buildings.value.length} properties. Please select one to continue.`,
+            });
+        }
     } catch (error) {
-        building.value = null;
+        buildings.value = [];
+        selectedBuildingId.value = null;
         toast({
             variant: "destructive",
             title: "Search failed",
@@ -392,6 +378,56 @@ const populateFormFromCustomFields = () => {
             }
         }
     );
+};
+
+// Function to load data for the selected building
+const loadBuildingData = () => {
+    if (!building.value) return;
+
+    // Set building info
+    buildingInfo.id = building.value.id;
+    buildingInfo.name = building.value.name;
+    buildingInfo.abbreviation = building.value.abbreviation;
+    buildingInfo.address.address = building.value.address?.address ?? "";
+    buildingInfo.address.addressCont =
+        building.value.address?.addressCont ?? "";
+    buildingInfo.address.city = building.value.address?.city ?? "";
+    buildingInfo.address.country = building.value.address?.country ?? "";
+    buildingInfo.address.postalCode = building.value.address?.postalCode ?? "";
+    buildingInfo.address.stateRegion =
+        building.value.address?.stateRegion ?? "";
+
+    // Store custom fields and create ID mapping
+    if (building.value.customFields) {
+        customFieldsData.value = building.value.customFields;
+
+        // Clear previous mapping
+        customFieldsMap.value = {};
+
+        // Create a map of custom field names to their data (including IDs)
+        building.value.customFields.forEach((field) => {
+            customFieldsMap.value[field.fieldName] = {
+                definitionID: field.definitionID,
+                dataType: field.dataType,
+                value: field.value,
+                fieldName: field.fieldName,
+            };
+        });
+
+        // Pre-populate form with existing values
+        populateFormFromCustomFields();
+
+        console.log("Custom fields mapped:", customFieldsMap.value);
+        toast({
+            title: "Property Selected!",
+            description: "You can now update the property information.",
+        });
+
+        // Mark search section as completed
+        markSectionCompleted("search");
+    }
+
+    console.info("Selected property:", building.value);
 };
 
 // Function to prepare custom fields for update (only fields from our form)
@@ -728,13 +764,99 @@ const submitForm = async () => {
                             </Button>
 
                             <!-- Search Results -->
-                            <div v-if="building" class="mt-6">
-                                <Alert class="border-green-200 bg-green-50">
+                            <div v-if="buildings.length > 0" class="mt-6">
+                                <!-- Multiple buildings found -->
+                                <div
+                                    v-if="
+                                        buildings.length > 1 &&
+                                        !selectedBuildingId
+                                    "
+                                    class="space-y-4"
+                                >
+                                    <Alert class="border-blue-200 bg-blue-50">
+                                        <Info class="h-4 w-4 text-blue-600" />
+                                        <AlertTitle class="text-blue-800"
+                                            >Multiple Properties
+                                            Found</AlertTitle
+                                        >
+                                        <AlertDescription class="text-blue-700">
+                                            Found
+                                            {{ buildings.length }} properties.
+                                            Please select one to continue.
+                                        </AlertDescription>
+                                    </Alert>
+
+                                    <RadioGroup
+                                        v-model="selectedBuildingId"
+                                        @update:modelValue="loadBuildingData"
+                                    >
+                                        <div class="space-y-3">
+                                            <div
+                                                v-for="b in buildings"
+                                                :key="b.id"
+                                                class="flex items-start space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                                            >
+                                                <RadioGroupItem
+                                                    :value="b.id"
+                                                    :id="`building-${b.id}`"
+                                                />
+                                                <Label
+                                                    :for="`building-${b.id}`"
+                                                    class="flex-1 cursor-pointer"
+                                                >
+                                                    <div class="space-y-1">
+                                                        <p
+                                                            class="font-semibold flex gap-2 items-center"
+                                                        >
+                                                            <Building
+                                                                class="w-4 h-4"
+                                                            />
+                                                            {{ b.name }}
+                                                        </p>
+                                                        <p
+                                                            class="text-sm text-gray-600 flex gap-2 items-center"
+                                                        >
+                                                            <MapIcon
+                                                                class="w-3 h-3"
+                                                            />
+                                                            {{
+                                                                b.address
+                                                                    ?.address
+                                                            }}
+                                                            {{
+                                                                b.address?.city
+                                                            }},
+                                                            {{
+                                                                b.address
+                                                                    ?.stateRegion
+                                                            }}
+                                                            {{
+                                                                b.address
+                                                                    ?.postalCode
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                </Label>
+                                            </div>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
+
+                                <!-- Single building or building selected -->
+                                <Alert
+                                    v-if="building"
+                                    class="border-green-200 bg-green-50"
+                                >
                                     <CheckCircle
                                         class="h-4 w-4 text-green-600"
                                     />
                                     <AlertTitle class="text-green-800"
-                                        >Property Found!</AlertTitle
+                                        >Property
+                                        {{
+                                            buildings.length > 1
+                                                ? "Selected"
+                                                : "Found"
+                                        }}!</AlertTitle
                                     >
                                     <AlertDescription class="text-green-700">
                                         <div class="mt-2 space-y-1">
@@ -3085,7 +3207,7 @@ const submitForm = async () => {
                     </p>
                     <p class="mt-2">
                         Need help? Call us at 1-800-XXX-XXXX or email
-                        support@example.com
+                        support@texarenters.com
                     </p>
                     <p>
                         Developed and maintained by Texas Renters IT Department.

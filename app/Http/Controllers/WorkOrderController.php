@@ -96,6 +96,52 @@ class WorkOrderController extends Controller
         return response()->json($workOrder, 200);
     }
 
+    public function details(WorkOrder $workOrder)
+    {
+        $workOrder->load([
+            'service_status',
+            'vendors',
+            'requested_by',
+            'managed_by',
+            'woc.wocNumber.twilioPhoneNumber',
+            'owners',
+            'tasks',
+            'notes.user',
+            'attachments',
+            'invoices',
+            'tenant_conversation',
+            'owner_conversation',
+            'vendor_conversation',
+            'vendor_tenant_conversation',
+        ]);
+
+        // Get all conversations for this work order
+        $conversations = collect()
+            ->merge($workOrder->tenant_conversation)
+            ->merge($workOrder->owner_conversation)
+            ->merge($workOrder->vendor_conversation)
+            ->merge($workOrder->vendor_tenant_conversation)
+            ->sortByDesc('created_at');
+
+        // Get service statuses for potential updates
+        $serviceStatuses = ServiceStatus::all();
+
+        // Get vendors for potential assignments
+        $vendors = Vendor::where('is_active', true)->get();
+
+        return inertia('WorkOrder/Show', [
+            'title' => 'Work Order #' . $workOrder->work_order_no,
+            'workOrder' => $workOrder,
+            'conversations' => $conversations->values(),
+            'tasks' => $workOrder->tasks,
+            'invoices' => $workOrder->invoices,
+            'notes' => $workOrder->notes,
+            'attachments' => $workOrder->attachments,
+            'vendors' => $vendors,
+            'serviceStatuses' => $serviceStatuses,
+        ]);
+    }
+
     public function report(WorkOrder $workOrder)
     {
         $workOrder->load([

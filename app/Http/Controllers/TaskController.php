@@ -26,7 +26,7 @@ class TaskController extends Controller
             })
             ->whereHas('tasks', function ($query) {
                 $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
-            })->get();
+            })->limit(100)->get();
 
         $now = now();
 

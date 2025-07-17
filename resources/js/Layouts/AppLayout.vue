@@ -57,6 +57,7 @@ import {
     Truck,
     BotMessageSquare,
     BadgeAlert,
+    Bell,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -98,6 +99,11 @@ const navs = computed(() => ({
                     title: "Completed",
                     url: route("work_orders.closed_work_orders"),
                     isActive: page.component === "WorkOrder/Close",
+                },
+                {
+                    title: "Conversation Logs",
+                    url: route("conversation_logs.index"),
+                    isActive: page.component === "ConversationLogs",
                 },
             ],
         },
@@ -209,7 +215,13 @@ const canAccess = (requiredRoles) => {
 };
 
 const notifications = ref([]);
+const markingAsRead = ref(new Set()); // Track which notifications are being marked as read
 let intervalId = null;
+
+// Computed property to count unread notifications
+const unreadCount = computed(() => {
+    return notifications.value.filter((n) => !n.read).length;
+});
 
 const fetchNotifications = async () => {
     try {
@@ -220,22 +232,48 @@ const fetchNotifications = async () => {
     }
 };
 
-// Mark notification as read and remove it from local state
+// Mark notification as read
 const markAsRead = async (notificationId) => {
     try {
-        // Send API request to mark as read (you might want to implement this in Laravel)
+        // Find the notification
+        const notification = notifications.value.find(
+            (n) => n.id === notificationId
+        );
+        if (
+            !notification ||
+            notification.read ||
+            markingAsRead.value.has(notificationId)
+        )
+            return; // Already read, not found, or in progress
+
+        // Add to marking set to prevent double clicks
+        markingAsRead.value.add(notificationId);
+
+        // Send API request to mark as read
         await axios.put(`/api/notifications/${notificationId}/mark-as-read`);
 
-        // Remove from local notifications array
-        notifications.value = notifications.value.filter(
-            (notification) => notification.id !== notificationId
+        // Update the notification's read status instead of removing it
+        const index = notifications.value.findIndex(
+            (n) => n.id === notificationId
         );
+        if (index !== -1) {
+            notifications.value[index].read = true;
+        }
+
         toast({
             title: "Success",
             description: "Notification marked as read!",
         });
     } catch (error) {
         console.error("Failed to mark notification as read:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to mark notification as read",
+        });
+    } finally {
+        // Remove from marking set
+        markingAsRead.value.delete(notificationId);
     }
 };
 
@@ -518,16 +556,6 @@ const closeBanner = () => {
         </Sidebar>
         <SidebarInset>
             <div>
-                <!-- Banner section -->
-                <!-- <div
-                    v-if="showBanner"
-                    class="bg-blue-500 text-white p-2 flex justify-between items-center"
-                >
-                    <span class="text-sm"
-                        >Important Notice: We will be performing an update soon.
-                        Please be aware!</span
-                    >
-                </div> -->
                 <header
                     class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
                 >
@@ -538,9 +566,9 @@ const closeBanner = () => {
                                 <PopoverTrigger class="relative">
                                     <BellRing class="w-4 h-4" />
                                     <span
-                                        v-if="notifications.length > 0"
+                                        v-if="unreadCount > 0"
                                         class="bg-destructive text-white px-1 rounded-full text-xs absolute top-1"
-                                        >{{ notifications.length }}</span
+                                        >{{ unreadCount }}</span
                                     >
                                 </PopoverTrigger>
                                 <PopoverContent
@@ -550,12 +578,21 @@ const closeBanner = () => {
                                         class="uppercase text-xs font-bold flex gap-1"
                                     >
                                         <span v-if="notifications.length === 0"
-                                            >No New Notifications
+                                            >No Notifications
+                                        </span>
+                                        <span v-else-if="unreadCount === 0"
+                                            >All Notifications Read
+                                        </span>
+                                        <span v-else
+                                            >{{ unreadCount }} New
+                                            Notification{{
+                                                unreadCount > 1 ? "s" : ""
+                                            }}
                                         </span>
                                     </p>
                                     <template v-if="notifications.length > 0">
                                         <div class="flex flex-col gap-2">
-                                            <h3 class="text-2xl font-bold mb-4">
+                                            <h3 class="font-bold my-2">
                                                 Notifications
                                             </h3>
                                             <template
@@ -567,17 +604,24 @@ const closeBanner = () => {
                                                 <div
                                                     v-for="notification in notifications"
                                                     :key="notification.id"
-                                                    class="flex items-start gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
+                                                    class="flex items-start border gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
-                                                        'border-opacity-60 shadow hover:bg-secondary':
-                                                            !notification.read,
-                                                        'bg-muted-foreground hover:bg-gray-100 text-gray-600':
-                                                            notification.read,
+                                                        'border-blue-400 shadow ':
+                                                            !notification.read &&
+                                                            !markingAsRead.has(
+                                                                notification.id
+                                                            ),
+                                                        ' ': notification.read,
+                                                        'opacity-50 cursor-wait':
+                                                            markingAsRead.has(
+                                                                notification.id
+                                                            ),
                                                     }"
                                                     @click="
-                                                        markAsRead(
-                                                            notification.id
-                                                        )
+                                                        !notification.read &&
+                                                            markAsRead(
+                                                                notification.id
+                                                            )
                                                     "
                                                 >
                                                     <!-- Unread indicator (optional) -->
@@ -593,25 +637,7 @@ const closeBanner = () => {
                                                     <div
                                                         class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"
                                                     >
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            width="18"
-                                                            height="18"
-                                                            viewBox="0 0 24 24"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            stroke-width="2"
-                                                            stroke-linecap="round"
-                                                            stroke-linejoin="round"
-                                                            class="lucide lucide-bell"
-                                                        >
-                                                            <path
-                                                                d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
-                                                            />
-                                                            <path
-                                                                d="M10.3 21a1.94 1.94 0 0 0 3.4 0"
-                                                            />
-                                                        </svg>
+                                                        <Bell class="w-4 h-4" />
                                                     </div>
 
                                                     <div class="flex-1">
@@ -646,9 +672,20 @@ const closeBanner = () => {
                                                                         notification.id
                                                                     )
                                                                 "
-                                                                class="text-blue-600 hover:text-blue-700 font-medium py-1 px-2 rounded-md transition-colors duration-150"
+                                                                :disabled="
+                                                                    markingAsRead.has(
+                                                                        notification.id
+                                                                    )
+                                                                "
+                                                                class="text-blue-600 hover:text-blue-700 font-medium py-1 px-2 rounded-md transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
-                                                                Mark as read
+                                                                {{
+                                                                    markingAsRead.has(
+                                                                        notification.id
+                                                                    )
+                                                                        ? "Marking..."
+                                                                        : "Mark as read"
+                                                                }}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -665,12 +702,6 @@ const closeBanner = () => {
                                     </template>
                                 </PopoverContent>
                             </Popover>
-                            <!-- <Button
-                            variant="outline"
-                            @click="router.visit(route('maintenance.chatbot'))"
-                        >
-                            <BotMessageSquare />
-                        </Button> -->
                             <DropdownMenu>
                                 <DropdownMenuTrigger as-child>
                                     <Button variant="icon">

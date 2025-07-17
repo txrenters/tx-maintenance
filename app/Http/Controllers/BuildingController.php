@@ -57,18 +57,24 @@ class BuildingController extends Controller
             return response()->json(['error' => 'No matching building found'], 404);
         }
 
-        // Get building ID from index 5
-        $buildingId = $filtered->first()[5];
-
-        // Fetch building details
-
-        $response = $this->getBuilding($buildingId);
-
-        if($response['success']){
-            return response()->json($response['building'], 200);
+        // Fetch details for all matching buildings
+        $buildings = [];
+        
+        foreach ($filtered as $record) {
+            $buildingId = $record[5]; // Get building ID from index 5
+            $response = $this->getBuilding($buildingId);
+            
+            if ($response['success']) {
+                $buildings[] = $response['building'];
+            }
         }
 
-        return response()->json(['error' => 'Failed to fetch building details'], 500);
+        if (empty($buildings)) {
+            return response()->json(['error' => 'Failed to fetch building details'], 500);
+        }
+
+        // Return all matching buildings
+        return response()->json(['buildings' => $buildings, 'count' => count($buildings)], 200);
        
     }
 
