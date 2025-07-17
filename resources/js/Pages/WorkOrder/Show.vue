@@ -132,7 +132,15 @@ const getPriorityVariant = (priority) => {
 const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    return (
+        date.toLocaleDateString("en-US", {
+            timeZone: "America/Chicago",
+        }) +
+        " " +
+        date.toLocaleTimeString("en-US", {
+            timeZone: "America/Chicago",
+        })
+    );
 };
 
 const formatCurrency = (amount) => {
@@ -141,6 +149,48 @@ const formatCurrency = (amount) => {
         style: "currency",
         currency: "USD",
     }).format(amount);
+};
+
+const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return "Unknown size";
+
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+};
+
+const getFileName = (attachment) => {
+    // Extract filename from path or use the stored filename
+    if (attachment.filename) {
+        return attachment.filename;
+    }
+
+    // If no filename, extract from path
+    if (attachment.file_path) {
+        const parts = attachment.file_path.split("/");
+        return parts[parts.length - 1];
+    }
+
+    return "Unknown file";
+};
+
+const downloadFile = (attachment) => {
+    // Create download link
+    const downloadUrl = `/storage/${
+        attachment.file_path || attachment.filename
+    }`;
+
+    // Create temporary link element
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = getFileName(attachment);
+    link.target = "_blank";
+
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
 // Computed properties
@@ -437,16 +487,19 @@ const updateWorkOrderStatus = (status) => {
                                 >
                                 <div class="flex items-center gap-2 mt-1">
                                     <User class="w-4 h-4 text-gray-500" />
-                                    <span>{{
-                                        workOrder.requested_by.name
-                                    }}</span>
+                                    <span>
+                                        {{ workOrder.requested_by.first_name }}
+                                        {{ workOrder.requested_by.last_name }}
+                                    </span>
                                 </div>
                                 <div
                                     class="flex items-center gap-2 mt-1 text-sm text-gray-600"
                                 >
                                     <Phone class="w-4 h-4" />
                                     <span>{{
-                                        workOrder.requested_by.phone || "N/A"
+                                        workOrder.requested_by.mobile_phone ||
+                                        workOrder.requested_by.home_phone ||
+                                        "N/A"
                                     }}</span>
                                 </div>
                             </div>
@@ -457,14 +510,19 @@ const updateWorkOrderStatus = (status) => {
                                 >
                                 <div class="flex items-center gap-2 mt-1">
                                     <UserCheck class="w-4 h-4 text-gray-500" />
-                                    <span>{{ workOrder.managed_by.name }}</span>
+                                    <span>
+                                        {{ workOrder.managed_by.first_name }}
+                                        {{ workOrder.managed_by.last_name }}
+                                    </span>
                                 </div>
                                 <div
                                     class="flex items-center gap-2 mt-1 text-sm text-gray-600"
                                 >
                                     <Phone class="w-4 h-4" />
                                     <span>{{
-                                        workOrder.managed_by.phone || "N/A"
+                                        workOrder.managed_by.mobile ||
+                                        workOrder.managed_by.phone ||
+                                        "N/A"
                                     }}</span>
                                 </div>
                             </div>
@@ -573,7 +631,7 @@ const updateWorkOrderStatus = (status) => {
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="font-medium">{{
-                                            conversation.sender_name ||
+                                            conversation.sender_number ||
                                             "Unknown"
                                         }}</span>
                                         <Badge
@@ -770,13 +828,15 @@ const updateWorkOrderStatus = (status) => {
                             <div class="flex items-start gap-3">
                                 <Paperclip class="w-5 h-5 text-gray-500 mt-1" />
                                 <div class="flex-1">
-                                    <p class="font-medium truncate">
-                                        {{ attachment.filename }}
+                                    <p
+                                        class="font-medium truncate"
+                                        :title="getFileName(attachment)"
+                                    >
+                                        {{ getFileName(attachment) }}
                                     </p>
                                     <p class="text-sm text-gray-600">
                                         {{
-                                            attachment.file_size ||
-                                            "Unknown size"
+                                            formatFileSize(attachment.file_size)
                                         }}
                                     </p>
                                     <p class="text-xs text-gray-500 mt-1">
@@ -786,6 +846,7 @@ const updateWorkOrderStatus = (status) => {
                                         variant="ghost"
                                         size="sm"
                                         class="mt-2 gap-1"
+                                        @click="downloadFile(attachment)"
                                     >
                                         <Download class="w-4 h-4" />
                                         Download

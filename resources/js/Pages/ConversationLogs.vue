@@ -15,6 +15,7 @@ import {
     Download,
     Eye,
     Wrench,
+    PhoneCall,
 } from "lucide-vue-next";
 import {
     Card,
@@ -286,6 +287,7 @@ const truncateMessage = (message, length = 100) => {
                             <TableHead>Status</TableHead>
                             <TableHead>Work Order</TableHead>
                             <TableHead>Sender</TableHead>
+                            <TableHead>Receiver</TableHead>
                             <TableHead>Message</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Actions</TableHead>
@@ -333,13 +335,19 @@ const truncateMessage = (message, length = 100) => {
                             </TableCell>
                             <TableCell>
                                 <div class="flex items-center gap-2">
-                                    <User class="w-4 h-4 text-gray-400" />
+                                    <Phone class="w-4 h-4 text-gray-400" />
                                     <span>{{
-                                        conversation.sender_name || "Unknown"
+                                        conversation.sender_number || "Unknown"
                                     }}</span>
                                 </div>
-                                <div class="text-sm text-gray-500">
-                                    {{ conversation.sender_phone || "N/A" }}
+                            </TableCell>
+                            <TableCell>
+                                <div class="flex items-center gap-2">
+                                    <Phone class="w-4 h-4 text-gray-400" />
+                                    <span>{{
+                                        conversation.receiver_number ||
+                                        "Unknown"
+                                    }}</span>
                                 </div>
                             </TableCell>
                             <TableCell>
@@ -417,23 +425,29 @@ const truncateMessage = (message, length = 100) => {
                     </div>
 
                     <!-- Metadata -->
-                    <div class="grid gap-4 md:grid-cols-2">
+                    <div class="grid gap-4 md:grid-cols-3">
                         <div class="space-y-3">
                             <h4 class="font-medium">Sender Information</h4>
                             <div class="space-y-2 text-sm">
                                 <div class="flex items-center gap-2">
-                                    <User class="w-4 h-4 text-gray-500" />
-                                    <span class="font-medium">Name:</span>
+                                    <Phone class="w-4 h-4 text-gray-500" />
+                                    <span class="font-medium">Phone:</span>
                                     <span>{{
-                                        selectedConversation.sender_name ||
-                                        "Unknown"
+                                        selectedConversation.sender_number ||
+                                        "N/A"
                                     }}</span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <h4 class="font-medium">Receiver Information</h4>
+                            <div class="space-y-2 text-sm">
                                 <div class="flex items-center gap-2">
                                     <Phone class="w-4 h-4 text-gray-500" />
                                     <span class="font-medium">Phone:</span>
                                     <span>{{
-                                        selectedConversation.sender_phone ||
+                                        selectedConversation.receiver_number ||
                                         "N/A"
                                     }}</span>
                                 </div>
@@ -443,9 +457,12 @@ const truncateMessage = (message, length = 100) => {
                         <div class="space-y-3">
                             <h4 class="font-medium">Message Details</h4>
                             <div class="space-y-2 text-sm">
-                                <div class="flex items-center gap-2">
-                                    <Clock class="w-4 h-4" />
-                                    <span class="font-medium">Sent:</span>
+                                <div class="flex gap-1 flex-col">
+                                    <div class="flex gap-2 items-center">
+                                        <Clock class="w-4 h-4" />
+                                        <span class="font-medium">Sent:</span>
+                                    </div>
+
                                     <span>{{
                                         formatDate(
                                             selectedConversation.created_at
