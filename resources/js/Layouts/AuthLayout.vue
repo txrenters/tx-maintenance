@@ -1,7 +1,6 @@
 <script setup>
-const currentYear = () => {
-    return new Date().getFullYear();
-};
+const startYear = 2025;
+const currentYear = new Date().getFullYear();
 </script>
 
 <template>
@@ -13,13 +12,24 @@ const currentYear = () => {
 
             <div class="flex flex-col gap-6 w-full max-w-md mx-auto">
                 <slot />
-
                 <div
                     class="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary"
                 >
+                    <p class="mt-2">Need help? Message us at 281-248-8018</p>
                     Developed and maintained by Texas Renters IT Department
                     &copy;
-                    {{ currentYear() }}. All rights reserved.
+                    {{
+                        startYear === currentYear
+                            ? currentYear
+                            : `${startYear}–${currentYear}`
+                    }}.
+
+                    <a
+                        href="https://www.texasrenters.com/"
+                        target="_blank"
+                        class="font-bold text-primary"
+                        >TexasRenters.com</a
+                    >. All rights reserved.
                     <br />
                 </div>
             </div>

@@ -67,6 +67,8 @@ class BuildingController extends Controller
             if ($response['success']) {
                 $buildings[] = $response['building'];
             }
+
+            Log::info('Building found:' ,['building' => $response['building']]);
         }
 
         if (empty($buildings)) {

@@ -4,7 +4,7 @@ import { Checkbox } from "@/Components/ui/checkbox";
 import Input from "@/Components/ui/input/Input.vue";
 import { Textarea } from "@/Components/ui/textarea";
 import { Head, useForm } from "@inertiajs/vue3";
-import { reactive, ref, computed } from "vue";
+import { reactive, ref, computed, watch } from "vue";
 import {
     Select,
     SelectContent,
@@ -32,6 +32,7 @@ import {
     Truck,
     Clock,
     MapIcon,
+    MessageCircle,
 } from "lucide-vue-next";
 import {
     Card,
@@ -102,6 +103,7 @@ const form = useForm({
     //Garage Access & Mailbox
     garageDoorOpener: "",
     garageDoorRemote: "",
+    lockboxCode: "",
     mailboxKeyNo: "",
     mailboxLocation: "",
     //Appliances
@@ -214,6 +216,29 @@ const progress = computed(() => {
     return (completedSections.value.length / sections.length) * 100;
 });
 
+// Watch for changes in alarmSystemCode - if it has a value, set alarmSystem to "Yes"
+watch(
+    () => form.alarmSystemCode,
+    (newValue) => {
+        if (
+            newValue &&
+            newValue.trim() !== "" &&
+            newValue !== "Not Completed"
+        ) {
+            form.alarmSystem = "Yes";
+        }
+    }
+);
+
+// Watch for changes in reKey field based on Property Re-Key custom field
+watch(
+    () => form.reKey,
+    (newValue) => {
+        // This watcher is for when form.reKey is directly modified
+        // The logic in populateFormFromBuilding handles the initial mapping
+    }
+);
+
 // Navigate to section
 const navigateToSection = (sectionId) => {
     currentSection.value = sectionId;
@@ -267,6 +292,10 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
 
     // Alarm
     alarmSystemCode: "Alarm System Code",
+
+    // Garage Access & Mailbox
+    lockboxCode: "Lockbox Code",
+    mailboxKeyNo: "Mailbox Keys",
 
     // Utilities
     waterProvider: "Water Provider",
@@ -378,6 +407,267 @@ const populateFormFromCustomFields = () => {
             }
         }
     );
+
+    // Handle special field mappings that require transformation
+
+    // Paint Color - if it has a hex value like "#b11010"
+    if (customFieldsMap.value["Paint Color"]?.value) {
+        form.paintColor = customFieldsMap.value["Paint Color"].value;
+    }
+
+    // Service Provided -> tenantServiceRequest with reverse mapping
+    if (customFieldsMap.value["Service Provided"]?.value) {
+        const serviceValue = customFieldsMap.value["Service Provided"].value;
+        if (serviceValue === "Lease Only") {
+            form.tenantServiceRequest = "$75 Co-Pay";
+        } else if (serviceValue === "Property Management") {
+            form.tenantServiceRequest = "Management Handles";
+        }
+    }
+
+    // Pool Service handling
+    if (customFieldsMap.value["Pool Service"]?.value) {
+        const poolValue = customFieldsMap.value["Pool Service"].value;
+        if (poolValue === "No Pool") {
+            form.swimmingPool = "No";
+        } else if (poolValue === "Required Contract") {
+            form.swimmingPool = "Yes";
+            form.poolService = "Yes";
+        } else if (poolValue === "Cared By Owner") {
+            form.swimmingPool = "Yes";
+            form.poolService = "No";
+        }
+    }
+
+    // HVAC Plan handling
+    if (customFieldsMap.value["HVAC Plan"]?.value) {
+        const hvacValue = customFieldsMap.value["HVAC Plan"].value;
+        if (hvacValue === "On our AC Plan") {
+            form.hvacMaintenancePlan = "Yes";
+        } else if (hvacValue === "Opted out HVAC Plan") {
+            form.hvacMaintenancePlan = "No";
+        }
+    }
+
+    // Home Warranty - extract info from the combined field
+    if (
+        customFieldsMap.value["Home Warranty"]?.value &&
+        customFieldsMap.value["Home Warranty"].value !== "Not Completed"
+    ) {
+        form.homeWarranty = "Yes";
+        form.homeWarrantyCompanyName =
+            customFieldsMap.value["Home Warranty"].value;
+    }
+
+    // Garage/Mailbox info
+    if (customFieldsMap.value["Garage Remotes_Garage Code"]?.value) {
+        const garageValue =
+            customFieldsMap.value["Garage Remotes_Garage Code"].value;
+        if (garageValue !== "Not Completed") {
+            form.garageDoorRemote = garageValue;
+        }
+    }
+
+    // Appliances - extract from "Included Appliances" field
+    if (
+        customFieldsMap.value["Included Appliances"]?.value &&
+        customFieldsMap.value["Included Appliances"].value !== "Not Completed"
+    ) {
+        const appliances =
+            customFieldsMap.value["Included Appliances"].value.toLowerCase();
+
+        if (appliances.includes("refrigerator")) form.refrigerator = "Yes";
+        if (appliances.includes("microwave")) form.microwave = "Yes";
+        if (appliances.includes("washing") || appliances.includes("washer"))
+            form.washingMachine = "Yes";
+        if (appliances.includes("dryer")) form.dryer = "Yes";
+        if (appliances.includes("dishwasher"))
+            form.dishWasherModelYear = "Included";
+        if (appliances.includes("water softener")) form.waterSoftener = "Yes";
+    }
+
+    // HVAC Filter info
+    if (
+        customFieldsMap.value["HVAC Filter Size 1"]?.value &&
+        customFieldsMap.value["HVAC Filter Size 1"].value !== "NA"
+    ) {
+        form.hvacModelYear = customFieldsMap.value["HVAC Filter Size 1"].value;
+    }
+
+    // Alarm System handling - if code exists, set alarm to Yes
+    if (
+        customFieldsMap.value["Alarm System Code"]?.value &&
+        customFieldsMap.value["Alarm System Code"].value !== "Not Completed" &&
+        customFieldsMap.value["Alarm System Code"].value !== ""
+    ) {
+        form.alarmSystem = "Yes";
+        form.alarmSystemCode = customFieldsMap.value["Alarm System Code"].value;
+    }
+
+    // Key Information - parse for alarm system details
+    if (customFieldsMap.value["Key Information - anything we need to know"]?.value &&
+        customFieldsMap.value["Key Information - anything we need to know"].value !== "Not Completed") {
+        const keyInfo = customFieldsMap.value["Key Information - anything we need to know"].value.toLowerCase();
+        
+        // Check for alarm system included in price
+        if (keyInfo.includes("included in price") || keyInfo.includes("included in rent")) {
+            form.alarmSystemIncludedInPrice = "Yes";
+        } else if (keyInfo.includes("not included") || keyInfo.includes("additional cost")) {
+            form.alarmSystemIncludedInPrice = "No";
+        }
+        
+        // Check for alarm system under contract
+        if (keyInfo.includes("under contract") || keyInfo.includes("contracted")) {
+            form.alarmSystemUnderContract = "Yes";
+        } else if (keyInfo.includes("no contract") || keyInfo.includes("not contracted")) {
+            form.alarmSystemUnderContract = "No";
+        }
+        
+        // Check for alarm system armed during marketing
+        if (keyInfo.includes("armed during marketing") || keyInfo.includes("armed while marketing")) {
+            form.alarmSystemBeArmDuringMarketing = "Yes";
+        } else if (keyInfo.includes("not armed") || keyInfo.includes("disarmed")) {
+            form.alarmSystemBeArmDuringMarketing = "No";
+        }
+    }
+
+    // Re-Key & Code Work Responsibility - combine Property Re-Key and Code Work fields
+    const reKeyValue = customFieldsMap.value["Property Re-Key"]?.value;
+    const codeWorkValue = customFieldsMap.value["Code Work"]?.value;
+    
+    // Check if either field indicates management responsibility
+    const reKeyByManagement = reKeyValue && reKeyValue.includes("Management");
+    const codeWorkCompleted = codeWorkValue && codeWorkValue !== "Not Completed";
+    
+    if (reKeyByManagement || codeWorkCompleted) {
+        form.reKey = "Management";
+    } else if (reKeyValue && reKeyValue.includes("Owner")) {
+        form.reKey = "Owner";
+    } else {
+        form.reKey = "";
+    }
+
+    // Yard Care During Lease mapping
+    if (
+        customFieldsMap.value["Yard Care During Lease"]?.value === "By Tenant"
+    ) {
+        form.afterTenantMoveInLawnCare = "Tenant";
+    } else if (
+        customFieldsMap.value["Yard Care During Lease"]?.value === "By Owner"
+    ) {
+        form.afterTenantMoveInLawnCare = "Owner";
+    }
+
+    // Cleaning Service mapping
+    if (customFieldsMap.value["Cleaning Service"]?.value === "By Management") {
+        form.goingOnTheMarketCleaning = "Management";
+    }
+
+    // Debris Removal mapping
+    if (customFieldsMap.value["Debris Removal"]?.value === "By Management") {
+        form.goingOnTheMarketDebrisRemoval = "Management";
+    }
+
+    // Lawn Care During Marketing mapping
+    if (
+        customFieldsMap.value["Lawn Care During Marketing"]?.value ===
+        "By Management"
+    ) {
+        form.goingOnTheMarketLawnCare = "Management";
+        form.homeOnTheMarketLawnCare = "Management";
+    }
+
+    // Utilities mapping
+    if (
+        customFieldsMap.value["Utilities"]?.value === "By Managment" ||
+        customFieldsMap.value["Utilities"]?.value === "By Management"
+    ) {
+        form.goingOnTheMarketUtilities = "Management";
+        form.homeOnTheMarketUtilities = "Management";
+    }
+
+    // Carpet Cleaning mapping
+    if (customFieldsMap.value["Carpet Cleaning"]?.value === "By Management") {
+        form.goingOnTheMarketCarpetCleaning = "Management";
+    }
+
+    // Final Clean mapping
+    if (customFieldsMap.value["Final Clean"]?.value === "By Management") {
+        form.homeOnTheMarketCleaning = "Management";
+    }
+
+    // Carpet Care mapping
+    if (customFieldsMap.value["Carpet Care"]?.value === "Management") {
+        form.goingOnTheMarketCarpetReplacement = "Management";
+    }
+
+    // Painting Required mapping
+    if (customFieldsMap.value["Painting Required"]?.value === "Management") {
+        form.paint = "Yes";
+        form.goingOnTheMarketPaint = "Management";
+    }
+
+    // Owner Pet Preferences handling
+    if (
+        customFieldsMap.value["Owner Pet Prefences"]?.value &&
+        customFieldsMap.value["Owner Pet Prefences"].value !== "Not Completed"
+    ) {
+        const petPrefs =
+            customFieldsMap.value["Owner Pet Prefences"].value.toLowerCase();
+
+        // Check for dogs
+        if (petPrefs.includes("dog")) {
+            form.dogsAllowed = "Yes";
+
+            // Extract weight limit if mentioned
+            const weightMatch = petPrefs.match(/(\d+)\s*(lb|lbs|pound)/i);
+            if (weightMatch) {
+                form.dogsMaxWeight = weightMatch[1];
+            }
+        } else if (petPrefs.includes("no dog")) {
+            form.dogsAllowed = "No";
+        }
+
+        // Check for cats
+        if (petPrefs.includes("cat") && !petPrefs.includes("no cat")) {
+            form.catsAllowed = "Yes";
+
+            // Extract cat restrictions if any
+            const catMatch = petPrefs.match(
+                /cat[s]?\s*[-:]?\s*(.+?)(?:,|;|$)/i
+            );
+            if (catMatch && catMatch[1]) {
+                form.catRestrictions = catMatch[1].trim();
+            }
+        } else if (petPrefs.includes("no cat")) {
+            form.catsAllowed = "No";
+        }
+
+        // Check if no pets allowed
+        if (petPrefs.includes("no pet") || petPrefs.includes("not allowed")) {
+            form.dogsAllowed = "No";
+            form.catsAllowed = "No";
+        }
+
+        // Store any other pet restrictions
+        if (!petPrefs.includes("no pet")) {
+            form.otherPetsRestriction =
+                customFieldsMap.value["Owner Pet Prefences"].value;
+        }
+    }
+
+    // Also check the Pet Restrictions field for additional info
+    if (
+        customFieldsMap.value["Pet Restrictions"]?.value &&
+        customFieldsMap.value["Pet Restrictions"].value !== "Not Completed" &&
+        customFieldsMap.value["Pet Restrictions"].value !== "test"
+    ) {
+        // If we haven't set other restrictions yet, use this field
+        if (!form.otherPetsRestriction) {
+            form.otherPetsRestriction =
+                customFieldsMap.value["Pet Restrictions"].value;
+        }
+    }
 };
 
 // Function to load data for the selected building
@@ -396,6 +686,71 @@ const loadBuildingData = () => {
     buildingInfo.address.postalCode = building.value.address?.postalCode ?? "";
     buildingInfo.address.stateRegion =
         building.value.address?.stateRegion ?? "";
+
+    // Handle amenities data - implode from array to individual form fields
+    if (building.value.amenities && Array.isArray(building.value.amenities)) {
+        const amenities = building.value.amenities.map((a) => a.toLowerCase());
+
+        // Reset amenity fields
+        form.communityPool = "";
+        form.park = "";
+        form.playGround = "";
+        form.tennisCourt = "";
+
+        // Set amenity fields based on amenities array
+        if (
+            amenities.some((a) => a.includes("pool") || a.includes("swimming"))
+        ) {
+            form.communityPool = "Yes";
+        }
+        if (amenities.some((a) => a.includes("park"))) {
+            form.park = "Yes";
+        }
+        if (
+            amenities.some(
+                (a) => a.includes("playground") || a.includes("play ground")
+            )
+        ) {
+            form.playGround = "Yes";
+        }
+        if (
+            amenities.some((a) => a.includes("tennis") || a.includes("court"))
+        ) {
+            form.tennisCourt = "Yes";
+        }
+    } else if (building.value.customFields) {
+        // Check if amenities are stored in custom fields like "Neighborhood Ammenity Access"
+        const neighborhoodAmenities = building.value.customFields.find(
+            (field) => field.fieldName === "Neighborhood Ammenity Access"
+        );
+
+        if (
+            neighborhoodAmenities?.value &&
+            neighborhoodAmenities.value !== "Not Provided"
+        ) {
+            const amenitiesText = neighborhoodAmenities.value.toLowerCase();
+
+            // Reset all amenity fields first
+            form.communityPool = "No";
+            form.park = "No";
+            form.playGround = "No";
+            form.tennisCourt = "No";
+
+            // Parse the concatenated amenities and set individual fields
+            if (amenitiesText.includes("community pool"))
+                form.communityPool = "Yes";
+            if (amenitiesText.includes("park")) form.park = "Yes";
+            if (amenitiesText.includes("playground")) form.playGround = "Yes";
+            if (amenitiesText.includes("tennis court"))
+                form.tennisCourt = "Yes";
+        } else {
+            // Set all to "No" if no amenities are provided
+            form.communityPool = "No";
+            form.park = "No";
+            form.playGround = "No";
+            form.tennisCourt = "No";
+        }
+    }
 
     // Store custom fields and create ID mapping
     if (building.value.customFields) {
@@ -440,6 +795,11 @@ const prepareCustomFieldsForUpdate = () => {
             const customField = customFieldsMap.value[customFieldName];
             const formValue = form[formField];
 
+            // Skip empty fields - don't update them
+            if (!formValue || formValue === "") {
+                return;
+            }
+
             // Only include if:
             // 1. The custom field exists in Propertyware
             // 2. The form has a value for this field
@@ -452,14 +812,112 @@ const prepareCustomFieldsForUpdate = () => {
 
     // Special handling for complex fields
 
+    // Neighborhood Ammenity Access - concatenate the 4 amenity fields
+    if (customFieldsMap.value["Neighborhood Ammenity Access"]) {
+        const amenities = [];
+        if (form.communityPool === "Yes") amenities.push("Community Pool");
+        if (form.park === "Yes") amenities.push("Park");
+        if (form.playGround === "Yes") amenities.push("Playground");
+        if (form.tennisCourt === "Yes") amenities.push("Tennis Court");
+
+        const amenityValue =
+            amenities.length > 0 ? amenities.join(", ") : "Not Provided";
+        fieldsToUpdate["Neighborhood Ammenity Access"] = amenityValue;
+    }
+
+    // Owner Pet Prefences - concatenate dog/cat preferences
+    if (customFieldsMap.value["Owner Pet Prefences"]) {
+        const petPrefs = [];
+
+        if (form.dogsAllowed === "Yes") {
+            let dogText = "Dogs allowed";
+            if (form.dogsMaxWeight) {
+                dogText += ` (max weight: ${form.dogsMaxWeight} lbs)`;
+            }
+            petPrefs.push(dogText);
+        }
+
+        if (form.catsAllowed === "Yes") {
+            let catText = "Cats allowed";
+            if (form.catRestrictions) {
+                catText += ` (${form.catRestrictions})`;
+            }
+            petPrefs.push(catText);
+        }
+
+        if (form.dogsAllowed === "No" && form.catsAllowed === "No") {
+            petPrefs.push("No pets allowed");
+        }
+
+        // Add any other pet restrictions
+        if (
+            form.otherPetsRestriction &&
+            form.otherPetsRestriction !== "Not Completed"
+        ) {
+            petPrefs.push(form.otherPetsRestriction);
+        }
+
+        const petValue =
+            petPrefs.length > 0 ? petPrefs.join(", ") : "Not Completed";
+        fieldsToUpdate["Owner Pet Prefences"] = petValue;
+    }
+
+    // Re-Key & Code Work Responsibility - update both Property Re-Key and Code Work fields
+    if (form.reKey && (customFieldsMap.value["Property Re-Key"] || customFieldsMap.value["Code Work"])) {
+        if (form.reKey === "Management") {
+            if (customFieldsMap.value["Property Re-Key"]) {
+                fieldsToUpdate["Property Re-Key"] = "Re-Key By Management";
+            }
+            if (customFieldsMap.value["Code Work"]) {
+                fieldsToUpdate["Code Work"] = "Completed";
+            }
+        } else if (form.reKey === "Owner") {
+            if (customFieldsMap.value["Property Re-Key"]) {
+                fieldsToUpdate["Property Re-Key"] = "Re-Key completed by Owner";
+            }
+            if (customFieldsMap.value["Code Work"]) {
+                fieldsToUpdate["Code Work"] = "Owner Responsibility";
+            }
+        }
+    }
+
+    // Key Information - combine alarm system details
+    if (customFieldsMap.value["Key Information - anything we need to know"]) {
+        const keyInfoParts = [];
+        
+        // Add alarm system pricing info
+        if (form.alarmSystemIncludedInPrice === "Yes") {
+            keyInfoParts.push("Alarm system included in price");
+        } else if (form.alarmSystemIncludedInPrice === "No") {
+            keyInfoParts.push("Alarm system not included in price");
+        }
+        
+        // Add alarm system contract info
+        if (form.alarmSystemUnderContract === "Yes") {
+            keyInfoParts.push("Alarm system under contract");
+        } else if (form.alarmSystemUnderContract === "No") {
+            keyInfoParts.push("Alarm system not under contract");
+        }
+        
+        // Add alarm system marketing info
+        if (form.alarmSystemBeArmDuringMarketing === "Yes") {
+            keyInfoParts.push("Alarm system armed during marketing");
+        } else if (form.alarmSystemBeArmDuringMarketing === "No") {
+            keyInfoParts.push("Alarm system not armed during marketing");
+        }
+        
+        const keyInfoValue = keyInfoParts.length > 0 ? keyInfoParts.join(", ") : "Not Completed";
+        fieldsToUpdate["Key Information - anything we need to know"] = keyInfoValue;
+    }
+
     // Pool Service - needs special value format
     if (form.swimmingPool && customFieldsMap.value["Pool Service"]) {
         const poolValue =
             form.swimmingPool === "No"
                 ? "No Pool"
                 : form.poolService === "Yes"
-                ? "Pool Service Included"
-                : "Owner Responsible";
+                ? "Required Contract"
+                : "Cared By Owner";
         fieldsToUpdate["Pool Service"] = poolValue;
     }
 
@@ -467,7 +925,7 @@ const prepareCustomFieldsForUpdate = () => {
     if (form.hvacMaintenancePlan && customFieldsMap.value["HVAC Plan"]) {
         const hvacValue =
             form.hvacMaintenancePlan === "Yes"
-                ? "Premium"
+                ? "On our AC Plan"
                 : "Opted out HVAC Plan";
         fieldsToUpdate["HVAC Plan"] = hvacValue;
     }
@@ -484,12 +942,80 @@ const prepareCustomFieldsForUpdate = () => {
         fieldsToUpdate["Home Warranty"] = warrantyValue;
     }
 
-    // Convert to Propertyware API format
+    // Convert to Propertyware API format with proper value mapping
     Object.entries(fieldsToUpdate).forEach(([fieldName, value]) => {
         if (customFieldsMap.value[fieldName]) {
+            // Map form values to PropertyWare accepted values
+            let mappedValue = value;
+
+            // Marketing Stage fields: Cleaning Service, Debris Removal, Lawn Care During Marketing, Utilities
+            const marketingFields = [
+                "Lawn Care During Marketing",
+                "Cleaning Service",
+                "Debris Removal",
+                "Utilities",
+            ];
+
+            // Pre Move In fields: Carpet Cleaning, Final Clean
+            const preMoveInFields = ["Carpet Cleaning", "Final Clean"];
+
+            // Map "Management" to "By Management" for marketing and pre-move-in fields
+            if (
+                (marketingFields.includes(fieldName) ||
+                    preMoveInFields.includes(fieldName)) &&
+                value === "Management"
+            ) {
+                mappedValue = "By Management";
+            }
+
+            // Map "Owner" to "By Owner" for marketing and pre-move-in fields
+            if (
+                (marketingFields.includes(fieldName) ||
+                    preMoveInFields.includes(fieldName)) &&
+                value === "Owner"
+            ) {
+                mappedValue = "By Owner";
+            }
+
+            if (fieldName === "Utilities") {
+                if (value === "Management") {
+                    mappedValue = "By Managment";
+                } else if (value === "Owner") {
+                    mappedValue = "By Owner";
+                }
+            }
+            // Property Re-Key mapping
+            if (fieldName === "Property Re-Key") {
+                if (value === "Management") {
+                    mappedValue = "Re-Key By Management";
+                } else if (value === "Owner") {
+                    mappedValue = "Re-Key completed by Owner";
+                }
+            }
+
+            // Yard Care During Lease mapping
+            if (fieldName === "Yard Care During Lease") {
+                if (value === "Tenant") {
+                    mappedValue = "By Tenant";
+                } else if (value === "Owner") {
+                    mappedValue = "By Owner";
+                }
+            }
+
+            // Service Provided mapping
+            if (fieldName === "Service Provided") {
+                if (value === "$75 Co-Pay" || value === "$75 Tenant Co-Pay") {
+                    mappedValue = "Lease Only";
+                } else if (value === "Management Handles") {
+                    mappedValue = "Property Management";
+                } else if (value === "Owner Handles") {
+                    mappedValue = "Property Management";
+                }
+            }
+
             fieldSetDTOS.push({
                 name: fieldName,
-                value: value.toString(), // Ensure value is string
+                value: mappedValue.toString(), // Ensure value is string
             });
         }
     });
@@ -570,6 +1096,9 @@ const submitForm = async () => {
         loading.value = false;
     }
 };
+
+const startYear = 2025;
+const currentYear = new Date().getFullYear();
 </script>
 
 <template>
@@ -596,8 +1125,10 @@ const submitForm = async () => {
                             <Clock class="w-4 h-4 mr-1" />
                             Estimated time: 15-20 minutes
                         </Badge>
-                        <Button variant="ghost" size="icon">
-                            <Phone class="h-5 w-5" />
+                        <Button variant="ghost" size="icon" as-child>
+                            <a href="tel:+12812488018"
+                                ><MessageCircle class="h-5 w-5"
+                            /></a>
                         </Button>
                     </div>
                 </div>
@@ -843,10 +1374,7 @@ const submitForm = async () => {
                                 </div>
 
                                 <!-- Single building or building selected -->
-                                <Alert
-                                    v-if="building"
-                                    class="border-green-200 bg-green-50"
-                                >
+                                <Alert class="border-green-200 bg-green-50">
                                     <CheckCircle
                                         class="h-4 w-4 text-green-600"
                                     />
@@ -892,7 +1420,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Property Preparation Section -->
-                <section id="preparation" v-if="building">
+                <section id="preparation" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -1151,7 +1679,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Service Responsibilities Section -->
-                <section id="services" v-if="building">
+                <section id="services" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -1245,7 +1773,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Security & Safety Section -->
-                <section id="security" v-if="building">
+                <section id="security" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -1462,7 +1990,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Policies & Rules Section -->
-                <section id="policies" v-if="building">
+                <section id="policies" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -1605,10 +2133,6 @@ const submitForm = async () => {
                                                 >$75 Tenant
                                                 Co-Payment</SelectItem
                                             >
-                                            <SelectItem value="Owner Handles"
-                                                >Owner Handles
-                                                Directly</SelectItem
-                                            >
                                             <SelectItem
                                                 value="Management Handles"
                                                 >Management Handles
@@ -1632,7 +2156,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Amenities & Features Section -->
-                <section id="amenities" v-if="building">
+                <section id="amenities" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -2057,6 +2581,16 @@ const submitForm = async () => {
 
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium"
+                                            >Lockbox Code</label
+                                        >
+                                        <Input
+                                            v-model="form.lockboxCode"
+                                            placeholder="Enter lockbox code"
+                                        />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium"
                                             >Number of Mailbox Keys?</label
                                         >
                                         <Input
@@ -2091,7 +2625,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Utilities & Maintenance Section -->
-                <section id="utilities" v-if="building">
+                <section id="utilities" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -2626,7 +3160,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Preferred Vendors Section -->
-                <section id="vendors" v-if="building">
+                <section id="vendors" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -3094,7 +3628,7 @@ const submitForm = async () => {
                 </section>
 
                 <!-- Final Submit Section -->
-                <section id="signature" v-if="building">
+                <section id="signature" v-if="buildingInfo.id">
                     <Card>
                         <CardHeader>
                             <div class="flex items-center gap-3">
@@ -3197,7 +3731,12 @@ const submitForm = async () => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div class="text-center text-sm text-gray-600">
                     <p>
-                        &copy; 2025
+                        &copy;
+                        {{
+                            startYear === currentYear
+                                ? currentYear
+                                : `${startYear}–${currentYear}`
+                        }}
                         <a
                             href="https://www.texasrenters.com/"
                             target="_blank"
@@ -3205,10 +3744,7 @@ const submitForm = async () => {
                             >TexasRenters.com</a
                         >. All rights reserved.
                     </p>
-                    <p class="mt-2">
-                        Need help? Call us at 1-800-XXX-XXXX or email
-                        support@texarenters.com
-                    </p>
+                    <p class="mt-2">Need help? Message us at 281-248-8018</p>
                     <p>
                         Developed and maintained by Texas Renters IT Department.
                     </p>

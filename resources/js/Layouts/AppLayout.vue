@@ -58,6 +58,8 @@ import {
     BotMessageSquare,
     BadgeAlert,
     Bell,
+    Users2,
+    Globe2,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -91,19 +93,9 @@ const navs = computed(() => ({
                     isActive: page.component === "WorkOrder/Index",
                 },
                 {
-                    title: "Coordinators",
-                    url: route("work_orders.coordinators"),
-                    isActive: page.component === "WorkOrder/Coordinators",
-                },
-                {
                     title: "Completed",
                     url: route("work_orders.closed_work_orders"),
                     isActive: page.component === "WorkOrder/Close",
-                },
-                {
-                    title: "Conversation Logs",
-                    url: route("conversation_logs.index"),
-                    isActive: page.component === "ConversationLogs",
                 },
             ],
         },
@@ -118,12 +110,20 @@ const navs = computed(() => ({
     ],
     menu2: [
         {
+            name: "Coordinators",
+            url: route("work_orders.coordinators"),
+            isActive: page.url.startsWith("/WorkOrder/Coordinators"),
+            icon: Users2,
+            requires: ["admin", "woc"],
+        },
+        {
             name: "Tasks",
             url: route("tasks.index"),
             isActive: page.url.startsWith("/tasks"),
             icon: ClipboardList,
             requires: ["admin", "woc", "vendor"],
         },
+
         {
             name: "Calendar",
             url: route("scheduled_service"),
@@ -157,6 +157,13 @@ const navs = computed(() => ({
             url: route("tenants.index"),
             isActive: page.url.startsWith("/tenants"),
             icon: Users,
+            requires: ["admin", "woc"],
+        },
+        {
+            name: "Conversation Logs",
+            url: route("conversation_logs.index"),
+            isActive: page.component === "ConversationLogs",
+            icon: Globe2,
             requires: ["admin", "woc"],
         },
     ],
