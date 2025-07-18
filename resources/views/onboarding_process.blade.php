@@ -385,6 +385,12 @@
                     <td>Alarm System Present</td>
                     <td>{{  $formData['alarmSystem'] ?? 'Not specified'  }}</td>
                 </tr>
+                @if(isset($formData['alarmSystemCode']) && $formData['alarmSystemCode'])
+                <tr>
+                    <td>Alarm System Code</td>
+                    <td>{{ $formData['alarmSystemCode'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Included in Price</td>
                     <td>{{ $formData['alarmSystemIncludedInPrice'] ?? 'Not specified' }}</td>
@@ -399,6 +405,18 @@
                 </tr>
             </tbody>
         </table>
+
+        @if(isset($buildingData['customFields']))
+            @php
+                $keyInfo = collect($buildingData['customFields'])->firstWhere('fieldName', 'Key Information - anything we need to know');
+            @endphp
+            @if($keyInfo && $keyInfo['value'] !== 'Not Completed')
+            <h4>Key Information:</h4>
+            <div class="alert alert-info">
+                <strong>Additional Property Information:</strong> {{ $keyInfo['value'] }}
+            </div>
+            @endif
+        @endif
 
         <h4>Re-Key & Code Work:</h4>
         <div class="alert alert-warning">
@@ -627,6 +645,12 @@
                     <td>Number of Remotes</td>
                     <td>{{ $formData['garageDoorRemote'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['lockboxCode']) && $formData['lockboxCode'])
+                <tr>
+                    <td>Lockbox Code</td>
+                    <td>{{ $formData['lockboxCode'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Mailbox Keys</td>
                     <td>{{ $formData['mailboxKeyNo'] ?? 'Not specified' }}</td>

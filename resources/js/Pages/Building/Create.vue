@@ -468,6 +468,14 @@ const populateFormFromCustomFields = () => {
         }
     }
 
+    // Gated Community Gate Code - populate Garage Door Opener field
+    if (customFieldsMap.value["Gated Community? Gate Code?"]?.value) {
+        const gateValue = customFieldsMap.value["Gated Community? Gate Code?"].value;
+        if (gateValue !== "Not Completed" && gateValue !== "") {
+            form.garageDoorOpener = gateValue;
+        }
+    }
+
     // Appliances - extract from "Included Appliances" field
     if (
         customFieldsMap.value["Included Appliances"]?.value &&
@@ -869,14 +877,14 @@ const prepareCustomFieldsForUpdate = () => {
                 fieldsToUpdate["Property Re-Key"] = "Re-Key By Management";
             }
             if (customFieldsMap.value["Code Work"]) {
-                fieldsToUpdate["Code Work"] = "Completed";
+                fieldsToUpdate["Code Work"] = "By Management";
             }
         } else if (form.reKey === "Owner") {
             if (customFieldsMap.value["Property Re-Key"]) {
                 fieldsToUpdate["Property Re-Key"] = "Re-Key completed by Owner";
             }
             if (customFieldsMap.value["Code Work"]) {
-                fieldsToUpdate["Code Work"] = "Owner Responsibility";
+                fieldsToUpdate["Code Work"] = "By Owner";
             }
         }
     }
@@ -908,6 +916,16 @@ const prepareCustomFieldsForUpdate = () => {
         
         const keyInfoValue = keyInfoParts.length > 0 ? keyInfoParts.join(", ") : "Not Completed";
         fieldsToUpdate["Key Information - anything we need to know"] = keyInfoValue;
+    }
+
+    // Gated Community Gate Code - save garage door opener value
+    if (form.garageDoorOpener && customFieldsMap.value["Gated Community? Gate Code?"]) {
+        fieldsToUpdate["Gated Community? Gate Code?"] = form.garageDoorOpener;
+    }
+
+    // Garage Remotes_Garage Code - save garage door remote value
+    if (form.garageDoorRemote && customFieldsMap.value["Garage Remotes_Garage Code"]) {
+        fieldsToUpdate["Garage Remotes_Garage Code"] = form.garageDoorRemote;
     }
 
     // Pool Service - needs special value format
