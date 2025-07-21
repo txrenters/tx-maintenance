@@ -1283,11 +1283,15 @@ const currentYear = new Date().getFullYear();
                         </h3>
                         <div class="space-y-2">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600"
+                                <span class="text-primary"
                                     >{{ Math.round(progress) }}% Complete</span
                                 >
                             </div>
-                            <Progress :model-value="progress" class="h-2" />
+                            <Progress
+                                variant=""
+                                :model-value="progress"
+                                class="h-2 text-primary"
+                            />
                         </div>
                     </div>
 
@@ -1929,15 +1933,35 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('preparation')"
-                                    :variant="completedSections.includes('preparation') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes(
+                                            'preparation'
+                                        )
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('preparation') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes(
+                                            'preparation'
+                                        )
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('preparation')"
+                                    :disabled="
+                                        completedSections.includes(
+                                            'preparation'
+                                        )
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('preparation') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes(
+                                            "preparation"
+                                        )
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -2033,15 +2057,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('services')"
-                                    :variant="completedSections.includes('services') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('services')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('services') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('services')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('services')"
+                                    :disabled="
+                                        completedSections.includes('services')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('services') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("services")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -2260,15 +2296,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('security')"
-                                    :variant="completedSections.includes('security') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('security')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('security') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('security')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('security')"
+                                    :disabled="
+                                        completedSections.includes('security')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('security') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("security")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -2440,15 +2488,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('policies')"
-                                    :variant="completedSections.includes('policies') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('policies')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('policies') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('policies')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('policies')"
+                                    :disabled="
+                                        completedSections.includes('policies')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('policies') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("policies")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -2935,15 +2995,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('amenities')"
-                                    :variant="completedSections.includes('amenities') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('amenities')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('amenities') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('amenities')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('amenities')"
+                                    :disabled="
+                                        completedSections.includes('amenities')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('amenities') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("amenities")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -3497,15 +3569,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('utilities')"
-                                    :variant="completedSections.includes('utilities') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('utilities')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('utilities') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('utilities')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('utilities')"
+                                    :disabled="
+                                        completedSections.includes('utilities')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('utilities') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("utilities")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
@@ -4013,15 +4097,27 @@ const currentYear = new Date().getFullYear();
 
                                 <Button
                                     @click="markSectionCompleted('vendors')"
-                                    :variant="completedSections.includes('vendors') ? 'default' : 'outline'"
+                                    :variant="
+                                        completedSections.includes('vendors')
+                                            ? 'default'
+                                            : 'outline'
+                                    "
                                     :class="[
                                         'w-full sm:w-auto',
-                                        completedSections.includes('vendors') ? 'bg-green-600 hover:bg-green-700 text-white' : ''
+                                        completedSections.includes('vendors')
+                                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                                            : '',
                                     ]"
-                                    :disabled="completedSections.includes('vendors')"
+                                    :disabled="
+                                        completedSections.includes('vendors')
+                                    "
                                 >
                                     <CheckCircle class="w-4 h-4 mr-2" />
-                                    {{ completedSections.includes('vendors') ? 'Section Completed' : 'Mark Section Complete' }}
+                                    {{
+                                        completedSections.includes("vendors")
+                                            ? "Section Completed"
+                                            : "Mark Section Complete"
+                                    }}
                                 </Button>
                             </CardContent>
                         </Card>
