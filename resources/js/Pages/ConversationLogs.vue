@@ -77,7 +77,7 @@ const closeViewModal = () => {
 };
 
 const filteredConversations = computed(() => {
-    let filtered = props.conversations;
+    let filtered = props.conversations.data;
 
     if (searchTerm.value) {
         filtered = filtered.filter(
@@ -396,6 +396,10 @@ const truncateMessage = (message, length = 100) => {
                     <p class="text-gray-500">
                         No conversations found matching your criteria
                     </p>
+                </div>
+                <div class="flex justify-between">
+                    <PaginationResultRange :data="conversations" />
+                    <Pagination :pagination="conversations.links" />
                 </div>
             </CardContent>
         </Card>

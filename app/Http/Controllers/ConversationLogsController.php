@@ -14,7 +14,7 @@ class ConversationLogsController extends Controller
         // Get all conversations with work order details
         $conversations = Conversation::with(['work_order:id,work_order_no'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(50);
 
         // Get all work orders for filter dropdown (only those that exist)
         $workOrders = WorkOrder::select('id', 'work_order_no')
@@ -28,7 +28,7 @@ class ConversationLogsController extends Controller
             'unread' => $conversations->where('is_read', false)->count(),
             'read' => $conversations->where('is_read', true)->count(),
             'active_conversations' => $conversations->groupBy('work_order_id')->count(),
-        ];
+        ]; 
 
         return inertia('ConversationLogs', [
             'title' => 'Conversation Logs',

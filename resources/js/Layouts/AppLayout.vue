@@ -60,6 +60,7 @@ import {
     Bell,
     Users2,
     Globe2,
+    Globe,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -160,10 +161,10 @@ const navs = computed(() => ({
             requires: ["admin", "woc"],
         },
         {
-            name: "Conversation Logs",
+            name: "Conversations",
             url: route("conversation_logs.index"),
             isActive: page.component === "ConversationLogs",
-            icon: Globe2,
+            icon: Globe,
             requires: ["admin", "woc"],
         },
     ],
