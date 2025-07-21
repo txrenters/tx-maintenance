@@ -834,7 +834,7 @@
                     <img src="{{ $signature }}" alt="Property Owner Signature" class="signature-image">
                      <br>
                     @if(isset($ownerName))
-                            <span class="value">{{ $ownerName }}</span>
+                        <span class="value" style="font-weight: 900; font-size: 14px">{{ $ownerName }}</span>
                     @endif
                 </div>
             @endif
@@ -848,7 +848,7 @@
 
     <!-- Footer -->
     <div class="footer">
-        <p>This document was generated electronically by TexasRenters.com Property Management System.</p>
+        <p>This document was generated electronically by TexasRenters.com Maintenance Portal – Powered by Propertyware.</p>
         <p>For questions about this onboarding process, please contact us at support@texasrenters.com</p>
     </div>
 </body>

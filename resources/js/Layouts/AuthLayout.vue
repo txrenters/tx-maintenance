@@ -8,7 +8,7 @@ const currentYear = new Date().getFullYear();
         <div
             class="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10"
         >
-            <Link href="/"> <img src="logo-ct.png" width="200" /></Link>
+            <Link href="/"> <img src="tx-portal-logo.png" width="400" /></Link>
 
             <div class="flex flex-col gap-6 w-full max-w-md mx-auto">
                 <slot />
@@ -27,9 +27,11 @@ const currentYear = new Date().getFullYear();
                     <a
                         href="https://www.texasrenters.com/"
                         target="_blank"
-                        class="font-bold text-primary"
+                        class="font-bold text-primary text-decoration-none"
                         >TexasRenters.com</a
-                    >. All rights reserved.
+                    >
+                    Maintenance Portal – Powered by Propertyware. All rights
+                    reserved.
                     <br />
                 </div>
             </div>

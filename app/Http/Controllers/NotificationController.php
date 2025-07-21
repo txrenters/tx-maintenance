@@ -11,7 +11,7 @@ class NotificationController extends Controller
         // Get latest 10 conversations (both read and unread)
         $convos = Conversation::with('work_order:id,work_order_no') // select only needed fields
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->limit(30)
             ->get();
 
         $notifications = $convos->map(function ($item) {

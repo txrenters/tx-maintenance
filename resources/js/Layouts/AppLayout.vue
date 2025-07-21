@@ -73,7 +73,7 @@ const data = computed(() => ({
     teams: [
         {
             name: "Texas Renters",
-            logo: "/logo-ct.png",
+            logo: "/tx-portal-logo.png",
             plan: "",
         },
     ],
