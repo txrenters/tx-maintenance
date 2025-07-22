@@ -5,6 +5,7 @@ namespace App\Jobs;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -67,6 +68,12 @@ class GenerateOnboardingPdfJob implements ShouldQueue
             // Optional: Upload to Propertyware (if needed)
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $buildingId);
+
+                DB::table('onboarding_clients')->create([
+                    'name' => $this->ownerName,
+                    'building_name' => $this->buildingData['name'] ?? 'Unknown',
+                    'filename' => $fileName
+                ]);
             }
 
         } catch (\Exception $e) {
