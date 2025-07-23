@@ -78,8 +78,8 @@ class ConversationController extends Controller
                 'is_read' => true,
             ]);
 
-            // Send the message via Twilio
-            $twilio = new TwilioService;
+            $twilio = new TwilioService();
+            
             $twilio->sendMessage(
                 $receiverNumber,
                 $senderNumber,
