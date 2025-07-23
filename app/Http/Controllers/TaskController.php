@@ -21,12 +21,14 @@ class TaskController extends Controller
             'tasks.task.nextServiceStatus',
             'tasks.assigned_user',
         ])
+            ->where('status','!=','closed')
             ->when($request->search, function ($query) use ($request) {
                 $query->where('work_order_no', 'like', '%'.$request->search.'%');
             })
             ->whereHas('tasks', function ($query) {
                 $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
-            })->limit(100)->get();
+            })
+            ->get();
 
         $now = now();
 

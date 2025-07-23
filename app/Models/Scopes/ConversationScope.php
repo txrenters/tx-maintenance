@@ -27,7 +27,7 @@ class ConversationScope implements Scope
         }
 
         if ($user->hasRole('vendor') && $user->vendor) {
-            $builder->whereHas('work_order', function ($query) use ($user) {
+            $builder->whereHas('work_order.vendors', function ($query) use ($user) {
                 $query->whereHas('vendors', function ($q) use ($user) {
                     $q->where('vendor_id', $user->vendor->id);
                 });

@@ -191,8 +191,6 @@ watch(
             </ScrollArea>
         </div>
 
-        vendorConversation
-
         <div class="relative w-full mt-4 mb-6">
             <Textarea
                 v-model="newMessage"
