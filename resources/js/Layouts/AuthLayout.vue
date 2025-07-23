@@ -15,8 +15,6 @@ const currentYear = new Date().getFullYear();
                 <div
                     class="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary"
                 >
-                    <p class="mt-2">Need help? Message us at 281-248-8018</p>
-                    Developed and maintained by Texas Renters IT Department
                     &copy;
                     {{
                         startYear === currentYear
@@ -33,6 +31,9 @@ const currentYear = new Date().getFullYear();
                     Maintenance Portal – Powered by Propertyware. All rights
                     reserved.
                     <br />
+                    <span>
+                        Developed and maintained by Texas Renters IT Department.
+                    </span>
                 </div>
             </div>
         </div>
