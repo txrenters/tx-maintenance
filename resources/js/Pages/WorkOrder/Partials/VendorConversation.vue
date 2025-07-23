@@ -206,7 +206,6 @@ onMounted(() => {
             <Button
                 size="icon"
                 variant="ghost"
-                @click.prevent="sendMessage"
                 :disabled="isLoading || loading"
                 class="absolute top-1/2 right-2 -translate-y-1/2"
             >

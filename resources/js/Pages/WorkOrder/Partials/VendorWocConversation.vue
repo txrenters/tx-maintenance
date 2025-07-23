@@ -32,7 +32,7 @@ const loading = ref(false);
 
 const sendMessage = () => {
     loading.value = true;
-    if (!vendor_phone_number.value) {
+    if (!woc_phone_number.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -172,14 +172,13 @@ onMounted(() => {
                 <MessageCard
                     v-else
                     :messages="wocConversation"
-                    :sender="woc_phone_number"
+                    :sender="vendor_phone_number"
                 />
             </ScrollArea>
         </div>
         <div class="relative w-full mt-4 mb-6">
             <Textarea
                 v-model="newMessage"
-                @keyup.enter.exact="sendMessage"
                 placeholder="Type your message..."
                 class="w-full resize-none rounded-2xl border py-3 pr-20 pl-4"
                 rows="1"

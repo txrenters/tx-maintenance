@@ -194,7 +194,6 @@ watch(
         <div class="relative w-full mt-4 mb-6">
             <Textarea
                 v-model="newMessage"
-                @keyup.enter.exact="sendMessage"
                 placeholder="Type your message..."
                 class="w-full resize-none rounded-2xl border py-3 pr-20 pl-4"
                 rows="1"
