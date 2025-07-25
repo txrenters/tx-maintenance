@@ -53,7 +53,7 @@ class ConversationController extends Controller
     public function SendMessage(Request $request)
     {
         $validatedData = $request->validate([
-            'text' => 'required|string',
+            'text' => 'required|string|max:1600',
             'sender_phone_number' => 'required',
             'receiver_phone_number' => 'required',
             'work_order_id' => 'required',

@@ -28,8 +28,13 @@ class TwilioWebhookController extends Controller
 
         if (! $message) {
             Log::info('Message not found in the database.');
-
             return response('Error processing request', 500);
+        }
+
+        $isDuplicateMessage = $this->checkMessageDuplicate($from, $to, $body);
+
+        if($isDuplicateMessage){
+            Log::info('Duplicate message:', ['message duplicate' => $body, 'from' => $from , 'to' => $to]);
         }
 
         $type = $message->conversation_type ?? ''; // Provide a fallback
@@ -121,21 +126,17 @@ class TwilioWebhookController extends Controller
 
     protected function checkMessageDuplicate(string $from, string $to, string $msg): bool
     {
-        $convo = Conversation::where('receiver_number', $from)
-            ->where('sender_number', $to)
-            ->latest()
+        $convo = Conversation::where('sender_number', $from)
+            ->where('receiver_number', $to)
+            ->where('message', $msg)
             ->first();
 
         // If no conversation is found, return false
         if (! $convo) {
             return false;
-            Log::info('Message not duplicate');
         }
 
-        // Compare trimmed messages
-        Log::info('Checking message:', ['message duplicate' => trim($convo->message) == trim($msg), 'data' => $convo->message.' - '.$msg]);
-
-        return trim($convo->message) == trim($msg);
+        return true;
     }
 
     protected function getMessage(string $from, string $to)
@@ -146,7 +147,8 @@ class TwilioWebhookController extends Controller
         })->orWhere(function ($query) use ($to, $from) {
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
-        })->latest()->first(); // fetch the latest conversation
+        })->latest()
+        ->first(); // fetch the latest conversation
 
     }
 
