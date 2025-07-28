@@ -135,6 +135,7 @@ const form = useForm({
     homeWarranty: "",
     homeWarrantyCompanyName: "",
     homeWarrantyServiceNumber: "",
+    homeWarrantyContactNumber: "",
     //Preferred Vendors
     hvacVendorName: "",
     hvacVendorNumber: "",
@@ -143,7 +144,7 @@ const form = useForm({
     plumbingVendorName: "",
     plumbingVendorNumber: "",
     pestControlVendorName: "",
-    pestControlVenodrNumber: "",
+    pestControlVendorNumber: "",
     lawnCareVendorName: "",
     lawnCareVendorNumber: "",
     otherVendorName: "",
@@ -153,6 +154,15 @@ const form = useForm({
     floodedPropertyDate: "",
 
     otherComments: "",
+
+    // New location fields
+    gasShutoffValveLocation: "",
+    breakerBoxLocation: "",
+    hvacFilterLocation: "",
+    hvacFilterSize1: "",
+    hvacFilterSize2: "",
+    hvacFilterSize3: "",
+    hvacFilterSize4: "",
 });
 
 const buildingInfo = reactive({
@@ -344,6 +354,15 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
 
     // Other
     otherComments: "Make Ready Notes",
+
+    // New location fields
+    gasShutoffValveLocation: "Gas Shut Off Valve Location",
+    breakerBoxLocation: "Breaker Box Location",
+    hvacFilterLocation: "HVAC Filter Location Information",
+    hvacFilterSize1: "HVAC Filter Size 1",
+    hvacFilterSize2: "HVAC Filter Size 2",
+    hvacFilterSize3: "HVAC Filter Size 3",
+    hvacFilterSize4: "HVAC Filter Size 4",
 };
 
 // Store for custom field IDs (add this after your reactive declarations)
@@ -489,8 +508,17 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Home Warranty"].value !== "Not Completed"
     ) {
         form.homeWarranty = "Yes";
-        form.homeWarrantyCompanyName =
-            customFieldsMap.value["Home Warranty"].value;
+        // Parse the warranty value which might be in format "Company - ServiceNumber"
+        const warrantyValue = customFieldsMap.value["Home Warranty"].value;
+        const parts = warrantyValue.split(" - ");
+        if (parts.length > 0) {
+            form.homeWarrantyCompanyName = parts[0];
+            if (parts.length > 1 && parts[1] !== "N/A") {
+                form.homeWarrantyServiceNumber = parts[1];
+            }
+        } else {
+            form.homeWarrantyCompanyName = warrantyValue;
+        }
     }
 
     // Garage/Mailbox info
@@ -529,12 +557,34 @@ const populateFormFromCustomFields = () => {
         if (appliances.includes("water softener")) form.waterSoftener = "Yes";
     }
 
-    // HVAC Filter info
+    // HVAC Filter info - populate the new filter size fields
     if (
         customFieldsMap.value["HVAC Filter Size 1"]?.value &&
         customFieldsMap.value["HVAC Filter Size 1"].value !== "NA"
     ) {
-        form.hvacModelYear = customFieldsMap.value["HVAC Filter Size 1"].value;
+        form.hvacFilterSize1 =
+            customFieldsMap.value["HVAC Filter Size 1"].value;
+    }
+    if (
+        customFieldsMap.value["HVAC Filter Size 2"]?.value &&
+        customFieldsMap.value["HVAC Filter Size 2"].value !== "NA"
+    ) {
+        form.hvacFilterSize2 =
+            customFieldsMap.value["HVAC Filter Size 2"].value;
+    }
+    if (
+        customFieldsMap.value["HVAC Filter Size 3"]?.value &&
+        customFieldsMap.value["HVAC Filter Size 3"].value !== "NA"
+    ) {
+        form.hvacFilterSize3 =
+            customFieldsMap.value["HVAC Filter Size 3"].value;
+    }
+    if (
+        customFieldsMap.value["HVAC Filter Size 4"]?.value &&
+        customFieldsMap.value["HVAC Filter Size 4"].value !== "NA"
+    ) {
+        form.hvacFilterSize4 =
+            customFieldsMap.value["HVAC Filter Size 4"].value;
     }
 
     // Alarm System handling - if code exists, set alarm to Yes
@@ -739,6 +789,71 @@ const populateFormFromCustomFields = () => {
     }
 };
 
+// Function to parse maintenance notice field for vendor information
+const parseMaintenanceNotice = (maintenanceNotice) => {
+    if (!maintenanceNotice || maintenanceNotice.trim() === "") return;
+
+    // Split by semicolon to get individual vendor entries
+    const vendorEntries = maintenanceNotice
+        .split(";")
+        .map((entry) => entry.trim());
+
+    vendorEntries.forEach((entry) => {
+        // Parse each entry format: "Type: Name Phone"
+        const colonIndex = entry.indexOf(":");
+        if (colonIndex > -1) {
+            const entryType = entry.substring(0, colonIndex).trim();
+            const entryInfo = entry.substring(colonIndex + 1).trim();
+
+            // Parse vendor/warranty info to separate name and phone
+            // Assume phone number is the last part that matches a phone pattern
+            const phoneMatch = entryInfo.match(
+                /(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})$/
+            );
+
+            if (phoneMatch) {
+                const phone = phoneMatch[1].trim();
+                const name = entryInfo
+                    .substring(0, entryInfo.lastIndexOf(phoneMatch[0]))
+                    .trim();
+
+                // Populate the appropriate fields based on vendor type
+                switch (entryType.toLowerCase()) {
+                    case "warranty":
+                        form.homeWarranty = "Yes";
+                        form.homeWarrantyCompanyName = name;
+                        form.homeWarrantyContactNumber = phone;
+                        break;
+                    case "hvac":
+                        form.hvacVendorName = name;
+                        form.hvacVendorNumber = phone;
+                        break;
+                    case "electric":
+                        form.electricVendorName = name;
+                        form.electricVendorNumber = phone;
+                        break;
+                    case "plumbing":
+                        form.plumbingVendorName = name;
+                        form.plumbingVendorNumber = phone;
+                        break;
+                    case "pest control":
+                        form.pestControlVendorName = name;
+                        form.pestControlVendorNumber = phone;
+                        break;
+                    case "lawn care":
+                        form.lawnCareVendorName = name;
+                        form.lawnCareVendorNumber = phone;
+                        break;
+                    case "other":
+                        form.otherVendorName = name;
+                        form.otherVendorNumber = phone;
+                        break;
+                }
+            }
+        }
+    });
+};
+
 // Function to load data for the selected building
 const loadBuildingData = () => {
     if (!building.value) return;
@@ -841,6 +956,14 @@ const loadBuildingData = () => {
         // Pre-populate form with existing values
         populateFormFromCustomFields();
 
+        // Parse maintenanceNotice built-in field for vendor information
+        if (
+            building.value.maintenanceNotice &&
+            building.value.maintenanceNotice.trim() !== ""
+        ) {
+            parseMaintenanceNotice(building.value.maintenanceNotice);
+        }
+
         console.log("Custom fields mapped:", customFieldsMap.value);
         toast({
             title: "Property Selected!",
@@ -894,8 +1017,15 @@ const prepareCustomFieldsForUpdate = () => {
         fieldsToUpdate["Neighborhood Ammenity Access"] = amenityValue;
     }
 
-    // Owner Pet Prefences - concatenate dog/cat preferences
-    if (customFieldsMap.value["Owner Pet Prefences"]) {
+    // Owner Pet Prefences - only update if pet data has actually changed
+    if (
+        customFieldsMap.value["Owner Pet Prefences"] &&
+        (form.dogsAllowed ||
+            form.catsAllowed ||
+            form.dogsMaxWeight ||
+            form.catRestrictions ||
+            form.otherPetsRestriction)
+    ) {
         const petPrefs = [];
 
         if (form.dogsAllowed === "Yes") {
@@ -926,9 +1056,11 @@ const prepareCustomFieldsForUpdate = () => {
             petPrefs.push(form.otherPetsRestriction);
         }
 
-        const petValue =
-            petPrefs.length > 0 ? petPrefs.join(", ") : "Not Completed";
-        fieldsToUpdate["Owner Pet Prefences"] = petValue;
+        // Only update if we have actual pet preference data
+        if (petPrefs.length > 0) {
+            const petValue = petPrefs.join(", ");
+            fieldsToUpdate["Owner Pet Prefences"] = petValue;
+        }
     }
 
     // Re-Key & Code Work Responsibility - update both Property Re-Key and Code Work fields
@@ -1033,6 +1165,74 @@ const prepareCustomFieldsForUpdate = () => {
         fieldsToUpdate["Home Warranty"] = warrantyValue;
     }
 
+    // Maintenance Notice - concatenate vendor names and phone numbers, and warranty info
+    // This will be handled as a built-in field, not a custom field
+    const notices = [];
+
+    // Add warranty information first if available
+    if (
+        form.homeWarranty === "Yes" &&
+        form.homeWarrantyCompanyName &&
+        form.homeWarrantyContactNumber
+    ) {
+        notices.push(
+            `Warranty: ${form.homeWarrantyCompanyName} ${form.homeWarrantyContactNumber}`
+        );
+    }
+
+    // Add vendor information
+    if (form.hvacVendorName && form.hvacVendorNumber) {
+        notices.push(`HVAC: ${form.hvacVendorName} ${form.hvacVendorNumber}`);
+    }
+    if (form.electricVendorName && form.electricVendorNumber) {
+        notices.push(
+            `Electric: ${form.electricVendorName} ${form.electricVendorNumber}`
+        );
+    }
+    if (form.plumbingVendorName && form.plumbingVendorNumber) {
+        notices.push(
+            `Plumbing: ${form.plumbingVendorName} ${form.plumbingVendorNumber}`
+        );
+    }
+    if (form.pestControlVendorName && form.pestControlVendorNumber) {
+        notices.push(
+            `Pest Control: ${form.pestControlVendorName} ${form.pestControlVendorNumber}`
+        );
+    }
+    if (form.lawnCareVendorName && form.lawnCareVendorNumber) {
+        notices.push(
+            `Lawn Care: ${form.lawnCareVendorName} ${form.lawnCareVendorNumber}`
+        );
+    }
+    if (form.otherVendorName && form.otherVendorNumber) {
+        notices.push(
+            `Other: ${form.otherVendorName} ${form.otherVendorNumber}`
+        );
+    }
+
+    // Store the maintenance notice data to be sent as built-in field
+    const maintenanceNoticeValue = notices.length > 0 ? notices.join("; ") : "";
+
+    // Included Appliances - concatenate all included appliances
+    if (customFieldsMap.value["Included Appliances"]) {
+        const includedAppliances = [];
+        if (form.refrigerator === "Yes")
+            includedAppliances.push("Refrigerator");
+        if (form.microwave === "Yes") includedAppliances.push("Microwave");
+        if (form.washingMachine === "Yes")
+            includedAppliances.push("Washing Machine");
+        if (form.dryer === "Yes") includedAppliances.push("Dryer");
+        if (form.waterSoftener === "Yes")
+            includedAppliances.push("Water Softener");
+        if (form.dishWasherModelYear && form.dishWasherModelYear !== "")
+            includedAppliances.push("Dishwasher");
+
+        if (includedAppliances.length > 0) {
+            fieldsToUpdate["Included Appliances"] =
+                includedAppliances.join(", ");
+        }
+    }
+
     // Convert to Propertyware API format with proper value mapping
     Object.entries(fieldsToUpdate).forEach(([fieldName, value]) => {
         if (customFieldsMap.value[fieldName]) {
@@ -1111,7 +1311,7 @@ const prepareCustomFieldsForUpdate = () => {
         }
     });
 
-    return fieldSetDTOS;
+    return { fieldSetDTOS, maintenanceNoticeValue };
 };
 
 // Submit function
@@ -1132,7 +1332,8 @@ const submitForm = async () => {
     }
 
     // Prepare only the custom fields that need updating
-    const fieldSetDTOS = prepareCustomFieldsForUpdate();
+    const { fieldSetDTOS, maintenanceNoticeValue } =
+        prepareCustomFieldsForUpdate();
 
     if (fieldSetDTOS.length === 0) {
         toast({
@@ -1160,6 +1361,7 @@ const submitForm = async () => {
                 formData: form,
                 signature: signatureData,
                 ownerName: fullName.value,
+                maintenanceNotice: maintenanceNoticeValue,
             }
         );
 
@@ -3730,7 +3932,7 @@ const currentYear = new Date().getFullYear();
                                             >
                                             <Input
                                                 v-model="
-                                                    form.pestControlVenodrNumber
+                                                    form.pestControlVendorNumber
                                                 "
                                                 placeholder="Phone number"
                                             />
@@ -3936,6 +4138,106 @@ const currentYear = new Date().getFullYear();
                                             </Select>
                                         </div>
                                     </div>
+
+                                    <!-- New Location Information Fields -->
+                                    <div class="space-y-4">
+                                        <h3 class="font-semibold">
+                                            Critical Location Information
+                                        </h3>
+                                        <div class="grid gap-4 md:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >Gas Shut Off Valve
+                                                    Location</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.gasShutoffValveLocation
+                                                    "
+                                                    placeholder="e.g. Left side of house near meter"
+                                                />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >Breaker Box Location</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.breakerBoxLocation
+                                                    "
+                                                    placeholder="e.g. Garage wall near entrance"
+                                                />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >HVAC Filter Location
+                                                    Information</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.hvacFilterLocation
+                                                    "
+                                                    placeholder="e.g. Return air grille in hallway ceiling"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+                                        >
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >HVAC Filter Size 1</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.hvacFilterSize1
+                                                    "
+                                                    placeholder="e.g. 20x25x1"
+                                                />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >HVAC Filter Size 2</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.hvacFilterSize2
+                                                    "
+                                                    placeholder="e.g. 16x20x1"
+                                                />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >HVAC Filter Size 3</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.hvacFilterSize3
+                                                    "
+                                                    placeholder="e.g. 14x14x1"
+                                                />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="text-sm font-medium"
+                                                    >HVAC Filter Size 4</label
+                                                >
+                                                <Input
+                                                    v-model="
+                                                        form.hvacFilterSize4
+                                                    "
+                                                    placeholder="e.g. 12x12x1"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <Alert class="mb-4">
                                         <Info class="h-4 w-4" />
                                         <AlertDescription>
@@ -4041,6 +4343,21 @@ const currentYear = new Date().getFullYear();
                                                     form.homeWarrantyServiceNumber
                                                 "
                                                 placeholder="Service request number"
+                                            />
+                                        </div>
+
+                                        <div
+                                            class="space-y-2"
+                                            v-if="form.homeWarranty === 'Yes'"
+                                        >
+                                            <label class="text-sm font-medium"
+                                                >Contact Number</label
+                                            >
+                                            <Input
+                                                v-model="
+                                                    form.homeWarrantyContactNumber
+                                                "
+                                                placeholder="Warranty contact number"
                                             />
                                         </div>
                                     </div>
@@ -4211,7 +4528,14 @@ const currentYear = new Date().getFullYear();
                                         size="lg"
                                         class="w-full"
                                     >
-                                        <CheckCircle class="w-5 h-5 mr-2" />
+                                        <Loader
+                                            class="w-5 h-5 mr-2 animate-spin"
+                                            v-if="loading"
+                                        />
+                                        <CheckCircle
+                                            class="w-5 h-5 mr-2"
+                                            v-else
+                                        />
                                         {{
                                             loading
                                                 ? "Submitting..."

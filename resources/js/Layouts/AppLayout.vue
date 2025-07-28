@@ -61,6 +61,8 @@ import {
     Users2,
     Globe2,
     Globe,
+    Handshake,
+    Hammer,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -110,6 +112,13 @@ const navs = computed(() => ({
         },
     ],
     menu2: [
+        {
+            name: "Inspections",
+            url: route("inspections.index"),
+            isActive: page.url.startsWith("/inspections"),
+            icon: Hammer,
+            requires: ["admin", "woc"],
+        },
         {
             name: "Coordinators",
             url: route("work_orders.coordinators"),

@@ -10,7 +10,9 @@ use App\Http\Controllers\ConversationLogsController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
+use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
+use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceStatusController;
@@ -24,7 +26,9 @@ use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
+use App\Models\JobberToken;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -73,6 +77,8 @@ Route::middleware([
     Route::get('/work_orders/coordinators/all', [CoordinatorController::class, 'index'])->name('work_orders.coordinators');
     Route::patch('/work_orders/coordinators/{workOrder}/change', [CoordinatorController::class, 'update'])->name('work_orders.coordinators.change');
     
+    Route::resource('/inspections', InspectionController::class);
+
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
 
     Route::resource('/task_templates', TaskTemplateController::class);
@@ -106,123 +112,32 @@ Route::middleware([
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');
 
-Route::get('/sample-pdf', function () {
-    // Sample data for PDF generation
-    $sampleData = [
-        'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-        'formData' => [
-            'paint' => 'Yes',
-            'paintColor' => '#ffffff',
-            'goingOnTheMarketLawnCare' => 'Management',
-            'goingOnTheMarketCleaning' => 'Management',
-            'goingOnTheMarketDebrisRemoval' => 'Owner',
-            'goingOnTheMarketPaint' => 'Management',
-            'goingOnTheMarketCarpetCleaning' => 'Management',
-            'goingOnTheMarketCarpetReplacement' => 'Owner',
-            'goingOnTheMarketUtilities' => 'Owner',
-            'homeOnTheMarketLawnCare' => 'Management',
-            'homeOnTheMarketCleaning' => 'Management',
-            'homeOnTheMarketUtilities' => 'Owner',
-            'beforeTenantMoveInLawnCare' => 'Management',
-            'beforeTenantMoveInPestControl' => 'Management',
-            'afterTenantMoveInLawnCare' => 'Tenant',
-            'reKey' => 'Management',
-            'tenantServiceRequest' => 'Use discretion on $75 co-payment',
-            'dogsAllowed' => 'Yes',
-            'dogsMaxWeight' => '50',
-            'catsAllowed' => 'Yes',
-            'catRestrictions' => 'No declawing required',
-            'otherPetsRestriction' => 'No exotic pets',
-            'swimmingPool' => 'Yes',
-            'poolService' => 'Yes',
-            'poolServiceName' => 'Crystal Clear Pool Service',
-            'poolServiceNumber' => '(555) 123-4567',
-            'alarmSystem' => 'Yes',
-            'alarmSystemIncludedInPrice' => 'No',
-            'alarmSystemUnderContract' => 'Yes',
-            'alarmSystemCode' => '1234',
-            'alarmSystemBeArmDuringMarketing' => 'Yes',
-            'communityPool' => 'Yes',
-            'park' => 'Yes',
-            'playGround' => 'Yes',
-            'tennisCourt' => 'No',
-            'refrigerator' => 'Yes',
-            'microwave' => 'Yes',
-            'washingMachine' => 'No',
-            'dryer' => 'No',
-            'waterSoftener' => 'No',
-            'hvacModelYear' => '2018',
-            'garageDoorOpener' => 'Yes',
-            'garageDoorRemote' => '2',
-            'mailboxKeyNo' => '2',
-            'mailboxLocation' => 'Front of house',
-            'hvacVendorName' => 'ABC HVAC Services',
-            'hvacVendorNumber' => '(555) 234-5678',
-            'electricVendorName' => 'Electric Pro',
-            'electricVendorNumber' => '(555) 345-6789',
-            'plumbingVendorName' => 'Plumber Plus',
-            'plumbingVendorNumber' => '(555) 456-7890',
-            'pestControlVendorName' => 'Pest Away',
-            'pestControlVenodrNumber' => '(555) 567-8901',
-            'lawnCareVendorName' => 'Green Lawn Care',
-            'lawnCareVendorNumber' => '(555) 678-9012',
-            'waterProvider' => 'City Water',
-            'gasProvider' => 'Texas Gas Co',
-            'trashProvider' => 'Waste Management',
-            'trashPickupDays' => 'Monday & Thursday',
-            'hvacMaintenancePlan' => 'Yes',
-            'installFloatSwitch' => 'Yes',
-            'homeWarranty' => 'Yes',
-            'homeWarrantyCompanyName' => 'Home Shield',
-            'floodedProperty' => 'No',
-            'floodedPropertyDate' => '',
-            'otherComments' => 'The property has recently been updated with new flooring throughout the main living areas. All appliances are in excellent working condition. The HVAC system was serviced last month and is running efficiently.'
-        ],
-        'buildingData' => [
-            'name' => 'Sample Property - 123 Main Street',
-            'id' => '12345',
-            'address' => [
-                'address' => '123 Main Street',
-                'addressCont' => 'Unit A',
-                'city' => 'Dallas',
-                'stateRegion' => 'TX',
-                'postalCode' => '75201'
-            ]
-        ],
-        'propertywareData' => [
-            'entityId' => 12345,
-            'fieldSetDTOS' => [
-                ['name' => 'paint', 'value' => 'Yes'],
-                ['name' => 'paintColor', 'value' => '#ffffff'],
-                ['name' => 'dogsAllowed', 'value' => 'Yes']
-            ]
-        ],
-        'ownerName' => 'John Smith',
-                'generated_at' => now()->tz('America/Chicago')->format('Y-m-d h:i A')
-    ];
-
-    try {
-        // Generate PDF
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('onboarding_process', $sampleData);
-        
-        // Return PDF as download
-        return $pdf->download('sample_property_onboarding_' . date('YmdHis') . '.pdf');
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to generate PDF',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('sample.pdf');
-
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
+
+Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
 
 Route::fallback(function () {
     return inertia('Error', ['status' => 404])
         ->toResponse(request())
         ->setStatusCode(404);
+});
+
+Route::get('jobber', function(){
+    $existingToken = JobberToken::find(1);
+
+    $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
+        'grant_type' => 'refresh_token',
+        'refresh_token' => $existingToken->refresh_token,
+        'client_id' => env('JOBBER_CLIENT_ID'),
+        'client_secret' => env('JOBBER_SECRET'),
+    ]);
+
+    $newData = $response->json();
+
+    $existingToken->update([
+        'access_token' => $newData['access_token'],
+        'refresh_token' => $newData['refresh_token'], // Jobber usually gives a new one
+    ]);
 });
 
 Route::get('/webhook/asana/register', function () {
