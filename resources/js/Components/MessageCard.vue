@@ -91,7 +91,7 @@ const removeMessage = (id) => {
                         : 'text-gray-500'
                 "
             >
-                From: {{ msg.sender_number }}
+                to: {{ msg.receiver_number }}
             </p>
             <!-- <button
                     class="hover:text-red-500"

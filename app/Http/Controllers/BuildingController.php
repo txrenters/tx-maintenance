@@ -20,7 +20,7 @@ class BuildingController extends Controller
 
     public function searchBuilding(Request $request)
     {
-        $response = Http::get('https://app.propertyware.com/pw/00a/3615817729/JSON?0SurHks&shardKey=182255624');
+        $response = Http::get('https://app.propertyware.com/pw/00a/4286939136/JSON?fzqyTfsI&shardKey=182255624');
 
         if ($response->failed()) {
             return response()->json(['error' => 'Failed to fetch data from Propertyware'], 500);
@@ -42,11 +42,12 @@ class BuildingController extends Controller
             $formattedPhone = $this->formatToUSDisplay($request->contactNumber);
 
             return
-                str_contains(strtolower($record[6] ?? ''), $propertyName) &&
-                str_contains(strtolower($record[1] ?? ''), $fullName) &&
+                str_contains(strtolower($record[2] ?? ''), $propertyName) &&
+                str_contains(strtolower($record[6] ?? ''), $fullName) &&
                 (
-                    str_contains($record[2] ?? '', $formattedPhone) ||
-                    str_contains($record[3] ?? '', $formattedPhone)
+                    str_contains($record[7] ?? '', $formattedPhone) ||
+                    str_contains($record[8] ?? '', $formattedPhone) ||
+                    str_contains($record[9] ?? '', $formattedPhone)
                 );
         })->values();
 
@@ -62,13 +63,15 @@ class BuildingController extends Controller
         
         foreach ($filtered as $record) {
             $buildingId = $record[5]; // Get building ID from index 5
+            Log::info('Searching Building:' ,['building' => $buildingId]);
+
             $response = $this->getBuilding($buildingId);
             
+
             if ($response['success']) {
                 $buildings[] = $response['building'];
+                Log::info('Building found:' ,['building' => $response['building']]);
             }
-
-            Log::info('Building found:' ,['building' => $response['building']]);
         }
 
         if (empty($buildings)) {
