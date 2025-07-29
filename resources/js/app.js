@@ -119,7 +119,7 @@ import { Progress } from '@/Components/ui/progress';
 import { MotionPlugin } from '@vueuse/motion'
 import Vue3Signature from "vue3-signature"
 
-const appName = import.meta.env.VITE_APP_NAME || 'TX RentSync PropertyWare';
+const appName = import.meta.env.VITE_APP_NAME || 'TX Maintenance Portal';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

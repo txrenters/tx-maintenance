@@ -34,9 +34,9 @@ class Jobber extends Model
 
             $query
                 ->whereAny([
-                    'filename',
-                    'status',
-                    'amount',
+                    'job_number',
+                    'title',
+                    'job_status',
                 ], 'LIKE', "%{$search}%");
         }
     }

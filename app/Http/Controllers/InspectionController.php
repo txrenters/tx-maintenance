@@ -15,7 +15,8 @@ class InspectionController extends Controller
         // Get all jobs with relationships (no pagination for grouping)
         $jobs = Jobber::query()
             ->with(['client', 'property', 'visits'])
-            // ->filter(request(['search'])) // Add search filter if needed
+            ->filter(request(['search'])) // Add search filter if needed
+            ->whereNot('job_status', 'archived')
             ->latest()
             ->get()
             ->map(function ($job) {
@@ -59,8 +60,6 @@ class InspectionController extends Controller
             'status_counts' => $jobs->countBy('job_status'),
             'statuses' => $allStatuses,
         ];
-
-        dd($statistics);
 
         return inertia('Inspection/Index', [
             'title' => 'Inspections',

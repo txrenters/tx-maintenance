@@ -115,7 +115,9 @@ const navs = computed(() => ({
         {
             name: "Inspections",
             url: route("inspections.index"),
-            isActive: page.url.startsWith("/inspections"),
+            isActive:
+                page.url.startsWith("/inspections") ||
+                page.url.startsWith("/visits"),
             icon: Hammer,
             requires: ["admin", "woc"],
         },

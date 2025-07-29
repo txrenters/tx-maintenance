@@ -59,17 +59,46 @@
     --vis-secondary-color: 160 81% 40%;
     --vis-text-color: var(--muted-foreground);
 
-    --vis-tooltip-background-color: none !important;
-    --vis-tooltip-border-color: none !important;
-    --vis-tooltip-text-color: none !important;
-    --vis-tooltip-shadow-color: none !important;
-    --vis-tooltip-backdrop-filter: none !important;
-    --vis-tooltip-padding: none !important;
+     /* Schedule-X (sx) - Matched to Tailwind tokens */
+    --sx-color-primary: hsl(var(--primary));
+    --sx-color-on-primary: hsl(var(--primary-foreground));
+    --sx-color-primary-container: #eaddff;
+    --sx-color-on-primary-container: #21005e;
 
-    --vis-primary-color: var(--primary);
-    /* change to any hsl value you want */
-    --vis-secondary-color: 160 81% 40%;
-    --vis-text-color: var(--muted-foreground);
+    --sx-color-secondary: hsl(var(--secondary-foreground));
+    --sx-color-on-secondary: hsl(var(--secondary));
+    --sx-color-secondary-container: #e8def8;
+    --sx-color-on-secondary-container: #1e192b;
+
+    --sx-color-tertiary: #7d5260;
+    --sx-color-on-tertiary: #fff;
+    --sx-color-tertiary-container: #ffd8e4;
+    --sx-color-on-tertiary-container: #370b1e;
+
+    --sx-color-surface: hsl(var(--background));
+    --sx-color-on-surface: hsl(var(--foreground));
+    --sx-color-surface-container: #f3edf7;
+    --sx-color-surface-container-low: #f7f2fa;
+    --sx-color-surface-container-high: #ece6f0;
+    --sx-color-surface-dim: #ded8e1;
+    --sx-color-surface-bright: #fef7ff;
+
+    --sx-color-background: hsl(var(--background));
+    --sx-color-on-background: hsl(var(--foreground));
+
+    --sx-color-outline: hsl(var(--muted-foreground));
+    --sx-color-outline-variant: #c4c7c5;
+
+    --sx-color-shadow: #000;
+    --sx-color-surface-tint: hsl(var(--primary));
+
+    --sx-color-neutral: hsl(var(--muted-foreground));
+    --sx-color-neutral-variant: #c4c7c5;
+
+    /* Internals */
+    --sx-internal-color-gray-ripple-background: #e0e0e0;
+    --sx-internal-color-light-gray: #fafafa;
+    --sx-internal-color-text: hsl(var(--foreground));
   }
 
   .dark {

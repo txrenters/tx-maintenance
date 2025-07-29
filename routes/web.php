@@ -11,6 +11,7 @@ use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InspectionController;
+use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\OwnerController;
@@ -78,6 +79,7 @@ Route::middleware([
     Route::patch('/work_orders/coordinators/{workOrder}/change', [CoordinatorController::class, 'update'])->name('work_orders.coordinators.change');
     
     Route::resource('/inspections', InspectionController::class);
+    Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
 
