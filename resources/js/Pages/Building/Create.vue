@@ -53,7 +53,7 @@ import {
 } from "@/Components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
 import FindProperty from "./partial/FindProperty.vue";
-import PreparetionProperty from "./partial/PreparetionProperty.vue";
+import PreparetionProperty from "./partial/PropertyPreparetion.vue";
 import PropertyPriorToMarket from "./partial/PropertyPriorToMarket.vue";
 import ReKeyCodeWork from "./partial/ReKeyCodeWork.vue";
 import TenantServiceRequest from "./partial/TenantServiceRequest.vue";
@@ -484,15 +484,16 @@ const populateFormFromCustomFields = () => {
     // Paint Color - if it has a hex value like "#b11010"
     if (customFieldsMap.value["Paint Color"]?.value) {
         form.paintColor = customFieldsMap.value["Paint Color"].value;
+        form.paintColorCode = customFieldsMap.value["Paint Color"].value;
     }
 
     // Service Provided -> tenantServiceRequest with reverse mapping
     if (customFieldsMap.value["Service Provided"]?.value) {
         const serviceValue = customFieldsMap.value["Service Provided"].value;
         if (serviceValue === "Lease Only") {
-            form.tenantServiceRequest = "$75 Co-Pay";
+            form.tenantServiceRequest = "Lease Only";
         } else if (serviceValue === "Property Management") {
-            form.tenantServiceRequest = "Management Handles";
+            form.tenantServiceRequest = "Property Management";
         }
     }
 
@@ -1005,6 +1006,11 @@ const prepareCustomFieldsForUpdate = () => {
             const customField = customFieldsMap.value[customFieldName];
             const formValue = form[formField];
 
+            // Skip fields that are handled separately to avoid conflicts
+            if (customFieldName === "Pet Restrictions" || customFieldName === "Owner Pet Prefences") {
+                return;
+            }
+
             // Skip empty fields - don't update them
             if (!formValue || formValue === "") {
                 return;
@@ -1035,23 +1041,19 @@ const prepareCustomFieldsForUpdate = () => {
         fieldsToUpdate["Neighborhood Ammenity Access"] = amenityValue;
     }
 
-    // Owner Pet Prefences - only update if pet data has actually changed
-    if (
-        customFieldsMap.value["Owner Pet Prefences"] &&
-        (form.dogsAllowed ||
-            form.catsAllowed ||
-            form.dogsMaxWeight ||
-            form.catRestrictions ||
-            form.otherPetsRestriction)
-    ) {
+    // Owner Pet Prefences - always update to replace existing data completely
+    if (customFieldsMap.value["Owner Pet Prefences"]) {
         const petPrefs = [];
 
+        // Handle explicit pet preferences
         if (form.dogsAllowed === "Yes") {
             let dogText = "Dogs allowed";
             if (form.dogsMaxWeight) {
                 dogText += ` (max weight: ${form.dogsMaxWeight} lbs)`;
             }
             petPrefs.push(dogText);
+        } else if (form.dogsAllowed === "No") {
+            petPrefs.push("No dogs allowed");
         }
 
         if (form.catsAllowed === "Yes") {
@@ -1060,24 +1062,38 @@ const prepareCustomFieldsForUpdate = () => {
                 catText += ` (${form.catRestrictions})`;
             }
             petPrefs.push(catText);
+        } else if (form.catsAllowed === "No") {
+            petPrefs.push("No cats allowed");
         }
 
+        // If both dogs and cats are explicitly set to No, use single statement
         if (form.dogsAllowed === "No" && form.catsAllowed === "No") {
+            petPrefs.length = 0; // Clear individual "No" statements
             petPrefs.push("No pets allowed");
         }
 
-        // Add any other pet restrictions
+        // Add any other pet restrictions (but don't duplicate existing data)
         if (
             form.otherPetsRestriction &&
-            form.otherPetsRestriction !== "Not Completed"
+            form.otherPetsRestriction !== "Not Completed" &&
+            form.otherPetsRestriction !== customFieldsMap.value["Owner Pet Prefences"].value
         ) {
             petPrefs.push(form.otherPetsRestriction);
         }
 
-        // Only update if we have actual pet preference data
-        if (petPrefs.length > 0) {
-            const petValue = petPrefs.join(", ");
-            fieldsToUpdate["Owner Pet Prefences"] = petValue;
+        // Always update - if no preferences set, clear the field
+        const petValue = petPrefs.length > 0 ? petPrefs.join(", ") : "Not Completed";
+        fieldsToUpdate["Owner Pet Prefences"] = petValue;
+    }
+
+    // Pet Restrictions - always update to replace existing data completely
+    if (customFieldsMap.value["Pet Restrictions"]) {
+        // Only use otherPetsRestriction if it's different from the stored value and not empty
+        if (form.otherPetsRestriction && form.otherPetsRestriction !== "Not Completed") {
+            fieldsToUpdate["Pet Restrictions"] = form.otherPetsRestriction;
+        } else {
+            // Clear the field if no restrictions are set
+            fieldsToUpdate["Pet Restrictions"] = "Not Completed";
         }
     }
 
@@ -1313,11 +1329,9 @@ const prepareCustomFieldsForUpdate = () => {
 
             // Service Provided mapping
             if (fieldName === "Service Provided") {
-                if (value === "$75 Co-Pay" || value === "$75 Tenant Co-Pay") {
+                if (value === "Lease Only") {
                     mappedValue = "Lease Only";
-                } else if (value === "Management Handles") {
-                    mappedValue = "Property Management";
-                } else if (value === "Owner Handles") {
+                } else if (value === "Property Management") {
                     mappedValue = "Property Management";
                 }
             }

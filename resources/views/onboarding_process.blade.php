@@ -141,14 +141,19 @@
         <img src="{{ public_path('tx-logo.webp')}}" alt="TexasRenters.com Logo" class="logo" />
     </div>
     <div class="header">
-        <h1 style="color: #007bff; text-transform:uppercase">Property Onboarding Process</h1>
-        <p><strong>TexasRenters.com</strong></p>
+        <h1 style="color: #007bff; text-transform:uppercase">Welcome to Property Onboarding</h1>
+        <p style="font-size: 14px; margin: 15px auto; max-width: 600px;">We'll guide you through a simple process to set up your property for management. Your responses help us provide the best service for your investment.</p>
         <p>Generated on: {{ $generated_at }}</p>
     </div>
 
     <!-- Property Information -->
     <div class="section">
         <div class="section-title">Property Information</div>
+        
+        <div class="alert alert-info">
+            <strong>Important:</strong> Please ensure the information matches exactly with your Propertyware records.
+        </div>
+        
         <div class="property-info">
             @if(isset($ownerName))
                 <div class="form-group">
@@ -179,35 +184,35 @@
 
     <!-- Property Preparation -->
     <div class="section">
-        <div class="section-title">Property Preparation</div>
+        <div class="section-title">Getting your Home Rent Ready</div>
+        <p style="margin-bottom: 15px;"><strong>Getting the Property Ready to Market:</strong> We want to make sure that your home is presentable during the marketing phase. There are a few key areas that need to be taken care of prior to placing your home on the market. A neat, clean home will help you to attract the best possible tenant.</p>
         
-        <div class="alert alert-info">
-            <strong>Important:</strong> A well-presented property attracts quality tenants and commands better rent.
+        <div class="alert alert-warning">
+            <strong>Curb Appeal:</strong> The first thing that someone will see when they pull up to the home is the lawn. Your home will lease faster if the yard is cut and the bushes & trees are trimmed. Also, if the home has any mildew or mold it should be cleaned or pressure washed.
         </div>
-
-        <h4>Getting the Property Ready to Market:</h4>
-        <p style="margin-bottom: 15px;">
-            We want to make sure that your home is presentable during the marketing phase. There are a few key areas that need to be taken
-            care of prior to placing your home on the market. A neat, clean home will help you to attract the best possible tenant.
-        </p>
         
-        <p style="margin-bottom: 15px;">
-            <strong>Curb Appeal:</strong> The first thing that someone will see when they pull up to the home is the
-            lawn. Your home will lease faster if the yard is cut and the bushes & trees are trimmed. Also, if the home has any mildew or mold
-            it should be cleaned or pressure washed.
-        </p>
-        
-        <p style="margin-bottom: 15px;">
+        <div class="alert alert-warning">
             <strong>Flooring:</strong> The flooring should be free of obvious defects, large stains, and pet odors.
-        </p>
+        </div>
         
-        <p style="margin-bottom: 15px;">
-            <strong>Walls:</strong> Neutral colors will appeal to the most people. Brighter colors may be acceptable
-            in some areas of the home. While it is not a requirement that you repaint the property, you may want to consider it if you have
-            numerous scuff marks, holes, or rooms that have colors that might not appeal to a large group of people. If you have the paint
-            code for your wall, please include them in the space provided below.
-        </p>
-
+        <div class="alert alert-warning">
+            <strong>Walls/Paint:</strong> Neutral colors will appeal to the most people. Brighter colors may be acceptable in some areas of the home. While it is not a requirement that you repaint the property, you may want to consider it if you have numerous scuff marks, holes, or rooms that have colors that might not appeal to a large group of people. If you have the paint code for your wall, please include them in the space provided below.
+        </div>
+        
+        <div class="alert alert-warning">
+            <strong>Valuables:</strong> Crime can happen at any time. Please help to minimize the risk by putting away or removing valuables and fire arms from the property.
+        </div>
+        
+        <div class="alert alert-warning">
+            <strong>Insurance:</strong> Make sure to contact your insurance company to learn about your insurance policy. If you are moving out of the property, and it will be vacant for any period, let your insurance company know. Some policies do not cover vandalism when home is vacant.
+        </div>
+        
+        <div class="alert alert-warning">
+            <strong>Utilities:</strong> We require that utilities are turned on. If vacant, we ask that you shut off water at the main cut off valve to prevent water leaks that might otherwise go unnoticed before causing significant damage. It's Texas, and it's hot. Prospective tenant's viewing your home will turn down your AC to see if it blows cold air, and will then walk out without turning the thermostat back up or off. Make sure that you have programmable thermostat that automatically go back to a reasonable temperature, so that you don't receive a surprise electric bill for a vacant home.
+        </div>
+        
+        <p style="margin: 15px 0;"><strong>For the above items, we are happy to arrange the services below. Please let us know by indicating in the appropriate box with your initials, if you would like to take care of the above items before the property goes on the market, or if you would like us to handle them for you.</strong></p>
+        
         <table class="responsibilities-table">
             <thead>
                 <tr>
@@ -224,49 +229,33 @@
                     <td>Paint Color</td>
                     <td>{{ $formData['paintColor'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['paintColorCode']) && $formData['paintColorCode'])
+                <tr>
+                    <td>Paint Color Code</td>
+                    <td>{{ $formData['paintColorCode'] }}</td>
+                </tr>
+                @endif
             </tbody>
         </table>
-        
-        <p style="margin-bottom: 15px;">
-            <strong>Valuables:</strong> Crime can happen at any time. Please help to minimize the risk by putting away
-            or removing valuables and fire arms from the property.
-        </p>
-        
-        <p style="margin-bottom: 15px;">
-            <strong>Insurance:</strong> Make sure to contact your insurance company to learn about your insurance
-            policy. If you are moving out of the property, and it will be vacant for any period, let your insurance company know. Some
-            policies do not cover vandalism when home is vacant.
-        </p>
-        
-        <p style="margin-bottom: 15px;">
-            <strong>Utilities:</strong> We require that utilities are turned on. If vacant, we ask that you shut off
-            water at the main cut off valve to prevent water leaks that might otherwise go unnoticed before causing significant damage. It's
-            Texas, and it's hot. Prospective tenant's viewing your home will turn down your AC to see if it blows cold air, and will then walk
-            out without turning the thermostat back up or off. Make sure that you have programmable thermostat that automatically go back to a
-            reasonable temperature, so that you don't receive a surprise electric bill for a vacant home.
-        </p>
-
-        <p style="margin-bottom: 15px;">
-            For the above items, we are happy to arrange the services below. Please let us know by indicating in the appropriate box with your
-            initials, if you would like to take care of the above items before the property goes on the market, or if you would like us to
-            handle them for you.
-        </p>
-        
-      
-        
     </div>
 
     <!-- Service Responsibilities -->
     <div class="section">
         <div class="section-title">Service Responsibilities</div>
+        <p style="margin-bottom: 15px;"><strong>Utility providers and maintenance preferences</strong></p>
         
-        <div class="alert alert-warning">
-            <strong>Note:</strong> The following items are only for the initial lease term. After the initial tenant moves out, if TexasRenters.com is still managing
-            the property, will handle utilities, lawn care, carpet cleaning and cleaning unless otherwise instructed at that time, per the
-            property management agreement.
+        <div class="alert alert-info">
+            <strong>Initial Lease Term:</strong> The following items are only for the initial lease term. After the initial tenant moves out, if TexasRenters.com is still managing the property, will handle utilities, lawn care, carpet clearning and cleaning unless otherwise instructed at that tme, per the property management agreement.
         </div>
         
-
+        <div class="alert alert-info">
+            <strong>During Marketing Period:</strong> During the time the property is on the market: It is important that the lawn and home stay in good shape while the home is on the market. Please indicate below if you would like to be responsible for the below items, or if you would like us to handle it for you.
+        </div>
+        
+        <div class="alert alert-info">
+            <strong>Final Touches before Tenant Move in:</strong> We require that all homes be profesionally cleaned, and carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control prior to move in. We expect that when a tenant moves out of the home, they will also have the home professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being able to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the carpets were not professionally cleaned prior to putting the home on the market, this is the time to do it. We do however, allow you to choose between us providing the service, and you arranging the service on your own. If you arrange the service, please provide receipts for our records.
+        </div>
+        
         <h4>Prior to Marketing:</h4>
         <table class="responsibilities-table">
             <thead>
@@ -368,9 +357,17 @@
         </table>
     </div>
 
-    <!-- Security & Safety -->
+    <!-- Re-key and Code Work -->
     <div class="section">
-        <div class="section-title">Security & Safety</div>
+        <div class="section-title">Re-Key and Code Work</div>
+        
+        <div class="alert alert-warning">
+            <strong>Re-Key & Code Work:</strong> State law requires a working smoke detector in each bedroom and each hallway servicing more than one bedroom along with a peep hole and keyless locking device on each exterior door. Homes must be re-keyed between each tenant.
+        </div>
+        
+        <div class="alert alert-warning">
+            <strong>Liability Warning:</strong> This is a very large liability issue, therefore, if the items have not been completed prior to our move in inspection, the management company will automatically complete the items.
+        </div>
         
         <h4>Alarm System:</h4>
         <table class="responsibilities-table">
@@ -419,9 +416,6 @@
         @endif
 
         <h4>Re-Key & Code Work:</h4>
-        <div class="alert alert-warning">
-            <strong>State Law Requirement:</strong> State law requires a working smoke detector in each bedroom and each hallway servicing more than one bedroom along with a peep hole and keyless locking device on each exterior door. Homes must be re-keyed between each tenant.
-        </div>
         <table class="responsibilities-table">
             <thead>
                 <tr>
@@ -439,14 +433,46 @@
         </table>
     </div>
 
-    <!-- Policies & Rules -->
+    <!-- Tenant Service Request -->
     <div class="section">
-        <div class="section-title">Policies & Rules</div>
+        <div class="section-title">Tenant Service Request Policy</div>
+        <p style="margin-bottom: 15px;"><strong>Tenant Service Request Handling</strong></p>
+        
+        <div class="alert alert-info">
+            <strong>Initial Repairs after move in:</strong> If there are non-cosmetics items that are found that need to be repaired upon move in, such as a garbage disposal that does not work, or leaking toilet, we will normally repair these items, and waive the $75.00 repair deductible for the tenant, as the item was not working when the tenant moved in. We will only do this for 1 beginning, and helps to reduce your turnover expense.
+        </div>
+        
+        <div class="alert alert-info">
+            <strong>Repairs during the Lease terms:</strong> Our leases require a $75.00 tenant co-payment for all repairs that are not related to the HVAC system, water heater or roof during the term of the lease. We jokingly call it the door stop and toilet flapper clause, because it keeps you from having a repair bill for nuisance items that a tenant can easily take case of themselves. However, we do like to use discretion on some items that it is obvious that the tenant did not cause, and waive the $75.00 co-payment. We find that this little bit of good helps to keep your tenant happy, and they are much more likely to renew when they are treated fairly.
+        </div>
+        
+        <h4>Service Request Policy:</h4>
+        <table class="responsibilities-table">
+            <thead>
+                <tr>
+                    <th>Policy</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Tenant Service Request Handling</td>
+                    <td>{{ $formData['tenantServiceRequest'] ?? 'Not specified' }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pet Policies -->
+    <div class="section">
+        <div class="section-title">Pet Policies & Rules</div>
+        <p style="margin-bottom: 15px;"><strong>Set your preferences for tenant policies</strong></p>
+        
+        <div class="alert alert-info">
+            <strong>Pets:</strong> Many renters are choosing to live in a home versus an apartment because they have pets. This reality means that if you do not accept pets, it will take about twice as long to rent your home if you do not allow pets. However, this is of course your choice. Please let us know if you would accept pets, and what type below.
+        </div>
         
         <h4>Pet Policy:</h4>
-        <div class="alert alert-info">
-            <strong>Tip:</strong> Properties that allow pets typically rent twice as fast as those that don't.
-        </div>
         
         <table class="responsibilities-table">
             <thead>
@@ -481,58 +507,16 @@
             </tbody>
         </table>
 
-        <h4>Service Request Policy:</h4>
-        <table class="responsibilities-table">
-            <thead>
-                <tr>
-                    <th>Policy</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Tenant Service Request Handling</td>
-                    <td>{{ $formData['tenantServiceRequest'] ?? 'Not specified' }}</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h4>During the time the property is on the market:</h4>
-        <p style="margin-bottom: 15px;">
-            It is important that the lawn and home stay in good shape while the home is on the market. Please indicate below if you would like to be responsible for the below items, or if you would like us to handle it for you.
-        </p>
-
-        <h4>Final Touches before Tenant Move in:</h4>
-        <p style="margin-bottom: 15px;">
-            We require that all homes be professionally cleaned, and carpets that are not new be professionally cleaned, a final lawn cut be done and pest control prior to move in. We expect that when a tenant moves out of the home, they will also have the home professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being able to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the carpets were not professionally cleaned prior to putting the home on the market, this is the time to do it. We do however, allow you to choose between us providing the service, and you arranging the service on your own. If you arrange the service, please provide receipts for our records.
-        </p>
-
-        <h4>Initial Repairs after move in:</h4>
-        <p style="margin-bottom: 15px;">
-            If there are non-cosmetic items that are found that need to be repaired upon move in, such as garbage disposal that does not work, or a leaking toilet, we will normally repair these items, and waive the $75.00 repair deductible for the tenant, as the item was not working when the tenant moved in. We will only do this for 1 trip, and it is not meant for cosmetic repairs. We find that this keeps tenants happy from the beginning, and helps to reduce your turnover expenses.
-        </p>
-
-        <h4>Repairs during the lease term:</h4>
-        <p style="margin-bottom: 15px;">
-            Our leases require a $75.00 tenant co-payment for all repairs that are not related to the HVAC system, water heater or roof during the term of the lease. We jokingly call it the door stop and toilet flapper clause, because it keeps you from having a repair bill for nuisance items that a tenant can easily take care of themselves. However, we do like to use our discretion on some items that it is obvious that the tenant did not cause, and waive the $75.00 co-payment. We find that this little bit of good helps to keep your tenants happy, and they are much more likely to renew when they are treated fairly.
-        </p>
-
-        <h4>Pets:</h4>
-        <p style="margin-bottom: 15px;">
-            Many renters are choosing to live in a home versus an apartment because they have pets. This reality means that if you do not accept pets, it will take about twice as long to rent your home if you do not allow pets. However, this is of course your choice. Please let us know if you would accept pets, and what type below.
-        </p>
     </div>
 
     <!-- Amenities & Features -->
     <div class="section">
         <div class="section-title">Amenities & Features</div>
+        <p style="margin-bottom: 15px;"><strong>Property features and neighborhood amenities</strong></p>
         
-        <h4>We need to know more about your home:</h4>
-        <p style="margin-bottom: 15px;">
-            We need to know more about your home so that we can properly market the home and give the new tenant information on how to take care of the home.
-        </p>
-        
-        <h4>Amenities:</h4>
+        <div class="alert alert-info">
+            <strong>Property Information:</strong> We need to know more about your home so that we can properly market the home and give the new tenant information on how to take care of the home.
+        </div>
         
         <h4>Swimming Pool:</h4>
         <table class="responsibilities-table">
@@ -613,14 +597,38 @@
                     <td>Washing Machine</td>
                     <td>{{ $formData['washingMachine'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['washingMachineHookups']) && $formData['washingMachineHookups'])
+                <tr>
+                    <td>Washing Machine Hookups</td>
+                    <td>{{ $formData['washingMachineHookups'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Dryer Included</td>
                     <td>{{ $formData['dryer'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['dryerHookups']) && $formData['dryerHookups'])
+                <tr>
+                    <td>Dryer Hookups</td>
+                    <td>{{ $formData['dryerHookups'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Water Softener</td>
                     <td>{{ $formData['waterSoftener'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['waterHeaterModelYear']) && $formData['waterHeaterModelYear'])
+                <tr>
+                    <td>Water Heater Model Year</td>
+                    <td>{{ $formData['waterHeaterModelYear'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['dishWasherModelYear']) && $formData['dishWasherModelYear'])
+                <tr>
+                    <td>Dishwasher Model Year</td>
+                    <td>{{ $formData['dishWasherModelYear'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>HVAC Model Year</td>
                     <td>{{ $formData['hvacModelYear'] ?? 'Not specified' }}</td>
@@ -661,16 +669,138 @@
                 </tr>
             </tbody>
         </table>
+
+        <h4>Location Information:</h4>
+        <table class="responsibilities-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Location/Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if(isset($formData['gasShutoffValveLocation']) && $formData['gasShutoffValveLocation'])
+                <tr>
+                    <td>Gas Shut-off Valve Location</td>
+                    <td>{{ $formData['gasShutoffValveLocation'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['breakerBoxLocation']) && $formData['breakerBoxLocation'])
+                <tr>
+                    <td>Breaker Box Location</td>
+                    <td>{{ $formData['breakerBoxLocation'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterLocation']) && $formData['hvacFilterLocation'])
+                <tr>
+                    <td>HVAC Filter Location</td>
+                    <td>{{ $formData['hvacFilterLocation'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterSize1']) && $formData['hvacFilterSize1'])
+                <tr>
+                    <td>HVAC Filter Size 1</td>
+                    <td>{{ $formData['hvacFilterSize1'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterSize2']) && $formData['hvacFilterSize2'])
+                <tr>
+                    <td>HVAC Filter Size 2</td>
+                    <td>{{ $formData['hvacFilterSize2'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterSize3']) && $formData['hvacFilterSize3'])
+                <tr>
+                    <td>HVAC Filter Size 3</td>
+                    <td>{{ $formData['hvacFilterSize3'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterSize4']) && $formData['hvacFilterSize4'])
+                <tr>
+                    <td>HVAC Filter Size 4</td>
+                    <td>{{ $formData['hvacFilterSize4'] }}</td>
+                </tr>
+                @endif
+            </tbody>
+        </table>
+    </div>
+
+    <!-- HVAC & Home Warranty -->
+    <div class="section">
+        <div class="section-title">HVAC & Home Warranty</div>
+        <p style="margin-bottom: 15px;"><strong>Set your participation in HVAC maintenance plan and home warranty</strong></p>
+        
+        <div class="alert alert-warning">
+            <strong>HVAC Maintenance:</strong> The most common cause for damage to homes that we see is from the emergency drain line overflowing from the air-conditioning drain pan. This is caused from mold or other debris clogging up the primary and secondary drain lines. This can be prevented by doing 2 things. First, the HVAC system can be serviced every 6 months, which includes blowing out the drain lines, cleaning exterior coils, checking for carbon monoxide leaks, and changing your air filter (all of this also extends the life of and increases the efficiency of your HVAC system). Second, an emergency float switch will be installed in the pan, so that if water builds up in the pan, the HVAC systems will shut off and stop producing water. The HVAC inspections are included on the premium plan and a float switch will be added if there is not already one in place.
+        </div>
+        
+        <div class="alert alert-warning">
+            <strong>Home Warranty:</strong> We generally do not recommend them, because the responsiveness, and quality of the service are not often up to par. They usually have 2 business days to respond to an air-conditioning service call (respond not complete), which means that if your tenant calls on Friday, they may not get a response until Tuesday. Also, if you have a plan or decide to get a plan, please read the exclusions and limitations very closely. Our experience is that many of the plans cap the most expensive such as the air air-conditioning at a set amount, and stick you with their vendor to install the new system, who usually charges 2x what we can get it done for. Also, a repair may be covered, but damage caused by the repair or malfunction, along with bringing older items up to code may not be covered. That being said, some would prefer the comfort of knowing that many cost can be covered. If you do not have a home warranty, get our advice on who to pick first. If you already have one, please include the information below, so that we can use the home warranty if your home needs service.
+        </div>
+        
+        <h4>HVAC & Home Warranty:</h4>
+        <table class="responsibilities-table">
+            <thead>
+                <tr>
+                    <th>HVAC Service</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>HVAC Maintenance Plan</td>
+                    <td>{{ $formData['hvacMaintenancePlan'] ?? 'Not specified' }}</td>
+                </tr>
+                <tr>
+                    <td>Install Float Switch</td>
+                    <td>{{ $formData['installFloatSwitch'] ?? 'Not specified' }}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h4>Home Warranty:</h4>
+        <table class="responsibilities-table">
+            <thead>
+                <tr>
+                    <th>Warranty Information</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Home Warranty</td>
+                    <td>{{ $formData['homeWarranty'] ?? 'Not specified' }}</td>
+                </tr>
+                <tr>
+                    <td>Warranty Company</td>
+                    <td>{{ $formData['homeWarrantyCompanyName'] ?? 'Not specified' }}</td>
+                </tr>
+                @if(isset($formData['homeWarrantyServiceNumber']) && $formData['homeWarrantyServiceNumber'])
+                <tr>
+                    <td>Service Number</td>
+                    <td>{{ $formData['homeWarrantyServiceNumber'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['homeWarrantyContactNumber']) && $formData['homeWarrantyContactNumber'])
+                <tr>
+                    <td>Contact Number</td>
+                    <td>{{ $formData['homeWarrantyContactNumber'] }}</td>
+                </tr>
+                @endif
+            </tbody>
+        </table>
     </div>
 
     <!-- Preferred Vendors -->
     <div class="section">
-        <div class="section-title">Preferred Vendors & Maintenance</div>
+        <div class="section-title">Preferred Vendors</div>
+        <p style="margin-bottom: 15px;"><strong>Your trusted service providers</strong></p>
+        
+        <div class="alert alert-info">
+            <strong>Preferred Vendors:</strong> If you have a preferred vendor, we will use them for non-emergency repairs, and make a reasonable effor to tuse them for emergency repairs. If your preferred vendor cannot be reached in a situation where delay would cause damage to your property or harm to the tenant, we will select a vendor who can get the job completed as soon as possible.
+        </div>
         
         <h4>Preferred Vendors:</h4>
-        <p style="margin-bottom: 15px;">
-            If you have a preferred vendor, we will use them for non-emergency repairs, and make a reasonable effort to use them for emergency repairs. If your preferred vendor cannot be reached in a situation where delay would cause damage to your property or harm to the tenant, we will select a vendor who can get the job completed as soon as possible.
-        </p>
         <table class="responsibilities-table">
             <thead>
                 <tr>
@@ -698,13 +828,20 @@
                 <tr>
                     <td>Pest Control</td>
                     <td>{{ $formData['pestControlVendorName'] ?? 'Not specified' }}</td>
-                    <td>{{ $formData['pestControlVenodrNumber'] ?? 'Not specified' }}</td>
+                    <td>{{ $formData['pestControlVendorNumber'] ?? 'Not specified' }}</td>
                 </tr>
                 <tr>
                     <td>Lawn Care</td>
                     <td>{{ $formData['lawnCareVendorName'] ?? 'Not specified' }}</td>
                     <td>{{ $formData['lawnCareVendorNumber'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['otherVendorName']) && $formData['otherVendorName'])
+                <tr>
+                    <td>Other</td>
+                    <td>{{ $formData['otherVendorName'] }}</td>
+                    <td>{{ $formData['otherVendorNumber'] ?? 'Not specified' }}</td>
+                </tr>
+                @endif
             </tbody>
         </table>
 
@@ -733,58 +870,22 @@
                     <td>Trash Pickup Days</td>
                     <td>{{ $formData['trashPickupDays'] ?? 'Not specified' }}</td>
                 </tr>
+                @if(isset($formData['recyclePickupDays']) && $formData['recyclePickupDays'])
+                <tr>
+                    <td>Recycle Pickup Days</td>
+                    <td>{{ $formData['recyclePickupDays'] }}</td>
+                </tr>
+                @endif
             </tbody>
         </table>
 
-        <h4>HVAC Maintenance:</h4>
-        <p style="margin-bottom: 15px;">
-            The most common cause for damage to homes that we see is from the emergency drain line overflowing from the air-conditioning drain pan. This is caused from mold or other debris clogging up the primary and secondary drain lines. This can be prevented by doing 2 things. First, the HVAC system can be serviced every 6 months, which includes blowing out the drain lines, cleaning exterior coils, checking for carbon monoxide leaks, and changing your air filter (all of this also extends the life of and increases the efficiency of your HVAC system). Second, an emergency float switch will be installed in the pan, so that if water builds up in the pan, the HVAC system will shut off and stop producing water. The HVAC inspections are included on the premium plan and a float switch will be added if there is not already one in place.
-        </p>
-        
-        <h4>HVAC & Home Warranty:</h4>
-        <table class="responsibilities-table">
-            <thead>
-                <tr>
-                    <th>HVAC Service</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>HVAC Maintenance Plan</td>
-                    <td>{{ $formData['hvacMaintenancePlan'] ?? 'Not specified' }}</td>
-                </tr>
-                <tr>
-                    <td>Install Float Switch</td>
-                    <td>{{ $formData['installFloatSwitch'] ?? 'Not specified' }}</td>
-                </tr>
-            </tbody>
-        </table>
-        
-        <h4>Home Warranty:</h4>
-        <p style="margin-bottom: 15px;">
-            <strong>Home Warranty:</strong> We generally do not recommend them, because the responsiveness, and quality of the service are not often up to par. They usually have 2 business days to respond to an air-conditioning service call (respond not complete), which means that if your tenant calls on Friday, they may not get a response until Tuesday. Also, if you have a plan or decide to get a plan, please read the exclusions and limitations very closely. Our experience is that many of the plans cap the most expensive such as the air-conditioning at a set amount, and stick you with their vendor to install the new system, who usually charges 2x what we can get it done for. Also, a repair may be covered, but damage caused by the repair or malfunction, along with bringing older items up to code may not be covered. That being said, some would prefer the comfort of knowing that many costs can be covered. If you do not have a home warranty, get our advice on who to pick first. If you already have one, please include the information below, so that we can use the home warranty if your home needs service.
-        </p>
-        
-        <table class="responsibilities-table">
-            <thead>
-                <tr>
-                    <th>Warranty Information</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Home Warranty</td>
-                    <td>{{ $formData['homeWarranty'] ?? 'Not specified' }}</td>
-                </tr>
-                <tr>
-                    <td>Warranty Company</td>
-                    <td>{{ $formData['homeWarrantyCompanyName'] ?? 'Not specified' }}</td>
-                </tr>
-            </tbody>
-        </table>
+    </div>
 
+    <!-- Property History -->
+    <div class="section">
+        <div class="section-title">Property History</div>
+        <p style="margin-bottom: 15px;"><strong>Historical information about your property</strong></p>
+        
         <h4>Property History:</h4>
         <table class="responsibilities-table">
             <thead>
@@ -810,9 +911,9 @@
     @if(isset($formData['otherComments']) && $formData['otherComments'])
         <div class="section page-break">
             <div class="section-title">Additional Information</div>
-            <p style="margin-bottom: 15px;">
-                If there is anything not covered above, please let us know in the space below. This would also include any repairs or bids that you would like us to have completed for you.
-            </p>
+            <div class="alert alert-info">
+                <strong>Additional Information:</strong> If there is anything not Covered above, please let us know if the space below. This would also include any repairs or bids that you would like us to have completed for you.
+            </div>
             <div class="form-group">
                 <label>Additional Comments:</label>
                 <div class="value">{{ $formData['otherComments'] }}</div>
@@ -820,12 +921,13 @@
         </div>
     @endif
 
-    <!-- Electronic Signature -->
+    <!-- Final Details & Signature -->
     <div class="section">
-        <div class="section-title">Electronic Signature</div>
+        <div class="section-title">Final Details & Signature</div>
+        <p style="color: #666; margin-bottom: 20px;">Almost done! Add any additional information and sign</p>
         <div class="signature-section">
-            <p><strong>Property Owner Authorization</strong></p>
-            <p>By signing below, I authorize TexasRenters.com to manage my property according to the specifications provided in this onboarding form.</p>
+            <p><strong>Electronic Signature</strong></p>
+            <p>Please sign below to authorize and verify the information provided.</p>
             
             @if($signature)
                 <div class="form-group">
@@ -840,16 +942,16 @@
             @endif
             
             <div class="form-group">
-                <label>Date Signed:</label>
-                <span class="value">{{ $generated_at }}</span>
+                <label>Date Signed: {{ $generated_at }}</label>
             </div>
         </div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-        <p>This document was generated electronically by TexasRenters.com Maintenance Portal – Powered by Propertyware.</p>
-        <p>For questions about this onboarding process, please contact us at support@texasrenters.com</p>
+        <p>This document was generated electronically by TexasRenters.com Maintenance Portal.</p>
+        <p>For questions about this onboarding process form, please contact us at 281-248-8018.</p>
+        <p>Developed and maintained by Texas Renters IT Department.</p>
     </div>
 </body>
 </html>

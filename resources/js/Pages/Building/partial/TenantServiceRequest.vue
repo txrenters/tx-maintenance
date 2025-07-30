@@ -93,11 +93,10 @@ const markSectionCompleted = (value) => {
                                     />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="$75 Co-Pay from Tenant"
+                                    <SelectItem value="Lease Only"
                                         >$75 Co-Pay from Tenant</SelectItem
                                     >
-                                    <SelectItem
-                                        value="Full Invoice Amount to Owner"
+                                    <SelectItem value="Property Management"
                                         >Full Invoice Amount to
                                         Owner</SelectItem
                                     >
