@@ -85,12 +85,12 @@ const openJobModal = (job) => {
     jobContacts.value = [];
     selectedImage.value = null;
     imagePreview.value = null;
-    
+
     // Auto-populate receiver number from latest message
     if (jobMessages.value.length > 0) {
         // Get the most recent message (assuming they're ordered by created_at)
         const latestMessage = jobMessages.value[jobMessages.value.length - 1];
-        
+
         // If the user was the sender of the latest message, use the receiver number
         // Otherwise, use the sender number (to reply to who sent the message)
         if (latestMessage.sender_number === page.props.twilio_phone_number) {
@@ -240,34 +240,30 @@ const sendMessage = () => {
         formData.append("image", selectedImage.value);
     }
 
-    router.post(
-        route("jobber-text-messages.store"),
-        formData,
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: (page) => {
-                toast({
-                    title: "Success",
-                    description: "Message sent successfully!",
-                });
-                newMessage.value = "";
-                removeImage();
-                // Refresh the page data to get updated messages
-                router.reload({ only: ['jobsByStatus'] });
-            },
-            onError: (errors) => {
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: "Failed to send message. Please try again.",
-                });
-            },
-            onFinish: () => {
-                isSendingMessage.value = false;
-            },
-        }
-    );
+    router.post(route("jobber-text-messages.store"), formData, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: (page) => {
+            toast({
+                title: "Success",
+                description: "Message sent successfully!",
+            });
+            newMessage.value = "";
+            removeImage();
+            // Refresh the page data to get updated messages
+            router.reload({ only: ["jobsByStatus"] });
+        },
+        onError: (errors) => {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to send message. Please try again.",
+            });
+        },
+        onFinish: () => {
+            isSendingMessage.value = false;
+        },
+    });
 };
 
 // Watch for contact selection changes
@@ -1036,15 +1032,13 @@ const formatUSD = (value) => {
                     Close
                 </Button>
                 <Button
-                    variant="outline"
-                    v-if="selectedJob?.edit_url || selectedJob?.id"
+                    v-if="selectedJob?.view_url || selectedJob?.id"
+                    as-child
                 >
-                    <Edit class="h-4 w-4 mr-2" />
-                    Edit Job
-                </Button>
-                <Button v-if="selectedJob?.view_url || selectedJob?.id">
-                    <Eye class="h-4 w-4 mr-2" />
-                    View Full Details
+                    <a :href="selectedJob.jobber_web_uri" target="_blank">
+                        <Eye class="h-4 w-4" />
+                        View Full Details
+                    </a>
                 </Button>
             </DialogFooter>
         </DialogContent>
