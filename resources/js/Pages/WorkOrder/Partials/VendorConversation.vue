@@ -1,9 +1,22 @@
 <script setup>
 import { ref, watch, onMounted, nextTick } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
-import { Loader2, Send } from "lucide-vue-next";
+import { Loader2, Send, Paperclip, X } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import { Input } from "@/Components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
+import { ScrollArea } from "@/Components/ui/scroll-area";
+import { Textarea } from "@/Components/ui/textarea";
+import { Button } from "@/Components/ui/button";
 
 const props = defineProps({
     vendorConversation: Array,
@@ -17,6 +30,8 @@ const newMessage = ref("");
 const selectedVendor = ref("");
 const vendor_phone_number = ref("");
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
+const attachedImages = ref([]);
+const fileInputRef = ref(null);
 
 const emit = defineEmits(["update-vendor-convo"]);
 
@@ -29,6 +44,53 @@ const woc_phone_number = ref(
 );
 
 const loading = ref(false);
+
+const triggerFileInput = () => {
+    if (fileInputRef.value) {
+        fileInputRef.value.click();
+    }
+};
+
+const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length !== files.length) {
+        toast({
+            variant: "destructive",
+            title: "Invalid file type",
+            description: "Only image files are allowed.",
+        });
+    }
+    
+    imageFiles.forEach(file => {
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            toast({
+                variant: "destructive",
+                title: "File too large",
+                description: `${file.name} is too large. Maximum size is 10MB.`,
+            });
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            attachedImages.value.push({
+                file,
+                url: e.target.result,
+                name: file.name
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Clear the input so the same file can be selected again
+    event.target.value = '';
+};
+
+const removeImage = (index) => {
+    attachedImages.value.splice(index, 1);
+};
 
 const sendMessage = () => {
     loading.value = true;
@@ -44,28 +106,34 @@ const sendMessage = () => {
         return;
     }
 
-    if (!newMessage.value) {
+    if (!newMessage.value && attachedImages.value.length === 0) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
             description:
-                "There was a problem with your request. Please type a message!",
+                "There was a problem with your request. Please type a message or attach an image!",
         });
         loading.value = false;
 
         return;
     }
 
-    if (newMessage.value.trim() !== "") {
+    if (newMessage.value.trim() !== "" || attachedImages.value.length > 0) {
+        const formData = new FormData();
+        formData.append('text', newMessage.value);
+        formData.append('sender_phone_number', woc_phone_number.value);
+        formData.append('receiver_phone_number', vendor_phone_number.value);
+        formData.append('work_order_id', props.workOrder.id);
+        formData.append('conversation_type', 'vendor');
+        
+        // Add image files to FormData
+        attachedImages.value.forEach((image, index) => {
+            formData.append(`images[${index}]`, image.file);
+        });
+        
         router.post(
             route("work_order.vendor.conversation.send"),
-            {
-                text: newMessage.value,
-                sender_phone_number: woc_phone_number.value,
-                receiver_phone_number: vendor_phone_number.value,
-                work_order_id: props.workOrder.id,
-                conversation_type: "vendor",
-            },
+            formData,
             {
                 preserveState: true,
                 preserveScroll: true,
@@ -75,6 +143,7 @@ const sendMessage = () => {
                         description: "Message has been sent successfully!",
                     });
                     newMessage.value = "";
+                    attachedImages.value = [];
                     scrollToBottom();
                     emit("update-vendor-convo");
                 },
@@ -194,6 +263,31 @@ onMounted(() => {
             </ScrollArea>
         </div>
 
+        <!-- Image attachments preview -->
+        <div v-if="attachedImages.length > 0" class="mb-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                <div 
+                    v-for="(image, index) in attachedImages" 
+                    :key="index"
+                    class="relative group"
+                >
+                    <img 
+                        :src="image.url" 
+                        :alt="image.name"
+                        class="w-full h-20 object-cover rounded-lg border"
+                    />
+                    <Button
+                        size="icon"
+                        variant="destructive"
+                        class="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click="removeImage(index)"
+                    >
+                        <X class="w-3 h-3" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+
         <div class="relative w-full mt-4 mb-6">
             <Textarea
                 v-model="newMessage"
@@ -202,6 +296,17 @@ onMounted(() => {
                 rows="1"
                 :disabled="loading"
             />
+            <div class="absolute top-1/2 right-12 -translate-y-1/2">
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    @click="triggerFileInput"
+                    :disabled="loading"
+                    class="text-gray-500 hover:text-gray-700"
+                >
+                    <Paperclip class="w-4 h-4" />
+                </Button>
+            </div>
             <Button
                 size="icon"
                 variant="ghost"
@@ -212,6 +317,16 @@ onMounted(() => {
                 <Send v-if="!isLoading || loading" />
                 <Loader2 v-else class="w-4 h-4 animate-spin" />
             </Button>
+            
+            <!-- Hidden file input -->
+            <input
+                ref="fileInputRef"
+                type="file"
+                multiple
+                accept="image/*"
+                @change="handleFileSelect"
+                class="hidden"
+            />
         </div>
     </div>
 </template>

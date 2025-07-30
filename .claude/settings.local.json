@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(php artisan:*)",
-      "Bash(php:*)"
+      "Bash(php:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

@@ -14,7 +14,7 @@ class InspectionController extends Controller
     {
         // Get all jobs with relationships (no pagination for grouping)
         $jobs = Jobber::query()
-            ->with(['client', 'property', 'visits'])
+            ->with(['client', 'property', 'visits', 'textMessages'])
             ->filter(request(['search'])) // Add search filter if needed
             ->whereNot('job_status', 'archived')
             ->latest()
@@ -39,7 +39,20 @@ class InspectionController extends Controller
                     'property_address' => $job->property ? 
                         trim($job->property->street . ' ' . $job->property->city . ' ' . $job->property->province . ' ' . $job->property->postal_code . ' ' . $job->property->country) 
                         : 'No Property',
+                    'visits' => $job->visits,
                     'visits_count' => $job->visits->count(),
+                    'text_messages' => $job->textMessages->sortBy('created_at')->map(function ($message) {
+                        return [
+                            'id' => $message->id,
+                            'message' => $message->messages,
+                            'sender_number' => $message->sender_number,
+                            'receiver_number' => $message->receiver_number,
+                            'image' => $message->image ? asset('storage/' . $message->image) : null,
+                            'is_mms' => !empty($message->image), // Set MMS flag for images
+                            'created_at' => $message->created_at,
+                        ];
+                    }),
+                    'text_messages_count' => $job->textMessages->count(),
                 ];
             });
 

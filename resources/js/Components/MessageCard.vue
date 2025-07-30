@@ -66,6 +66,12 @@ const removeMessage = (id) => {
         }
     );
 };
+
+const openMedia = (mediaUrl) => {
+    if (mediaUrl) {
+        window.open(mediaUrl, '_blank', 'noopener,noreferrer');
+    }
+};
 </script>
 <template>
     <div
@@ -91,7 +97,7 @@ const removeMessage = (id) => {
                         : 'text-gray-500'
                 "
             >
-                to: {{ msg.receiver_number }}
+                To: {{ msg.receiver_number }}
             </p>
             <!-- <button
                     class="hover:text-red-500"
@@ -110,12 +116,26 @@ const removeMessage = (id) => {
             >
                 {{ msg.message }}
             </p>
-            <div v-if="msg.is_mms">
+            <!-- Handle both formats: is_mms with media array OR single image property -->
+            <div v-if="(msg.is_mms && msg.media && msg.media.length > 0) || msg.image" class="mt-2">
+                <!-- Multiple media format (original conversation format) -->
                 <img
-                    v-for="media in msg.media"
-                    :key="media.key"
+                    v-for="media in msg.media || []"
+                    :key="media.id"
                     :src="media.public_url"
-                    width="350"
+                    :alt="media.file_name || 'Attached image'"
+                    class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
+                    style="max-width: 300px; max-height: 200px;"
+                    @click="openMedia(media.public_url)"
+                />
+                <!-- Single image format (jobber text message format) -->
+                <img
+                    v-if="msg.image && !msg.media"
+                    :src="msg.image"
+                    :alt="'Attached image'"
+                    class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
+                    style="max-width: 300px; max-height: 200px;"
+                    @click="openMedia(msg.image)"
                 />
             </div>
             <div class="flex gap-20 items-center justify-between">

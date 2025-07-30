@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 class ConversationController extends Controller
@@ -53,12 +55,18 @@ class ConversationController extends Controller
     public function SendMessage(Request $request)
     {
         $validatedData = $request->validate([
-            'text' => 'required|string|max:1600',
+            'text' => 'nullable|string|max:1600',
             'sender_phone_number' => 'required',
             'receiver_phone_number' => 'required',
             'work_order_id' => 'required',
             'conversation_type' => 'required',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
         ]);
+
+        // Validate that either text or image is provided
+        if (empty($validatedData['text']) && !$request->hasFile('image')) {
+            return redirect()->back()->with('error', 'Please provide either a message or an image.');
+        }
 
         // Format phone numbers ensuring proper + prefix
         $senderNumber = $validatedData['sender_phone_number'];
@@ -67,24 +75,56 @@ class ConversationController extends Controller
         DB::beginTransaction();
 
         try {
-
             // Save the message to the database
-            Conversation::create([
-                'message' => $validatedData['text'],
+            $conversation = Conversation::create([
+                'message' => $validatedData['text'] ?? '',
                 'sender_number' => $senderNumber,
                 'receiver_number' => $receiverNumber,
                 'work_order_id' => $validatedData['work_order_id'],
                 'conversation_type' => $validatedData['conversation_type'],
                 'is_read' => true,
+                'is_mms' => $request->hasFile('image'), // Set MMS flag if image is present
             ]);
+
+            // Handle image upload if present
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+                $originalName = $image->getClientOriginalName();
+                $filename = time() . '_' . $originalName;
+                
+                // Store image in storage/app/public/conversation_images
+                $imagePath = $image->storeAs('conversation_images', $filename, 'public');
+                
+                // Save image info to conversation_medias table
+                ConversationMedia::create([
+                    'message_id' => $conversation->id,
+                    'original_url' => '', // We're storing locally, no original URL from external source
+                    'local_path' => $imagePath,
+                    'content_type' => $image->getMimeType(),
+                    'file_name' => $originalName,
+                ]);
+            }
 
             $twilio = new TwilioService();
             
-            $twilio->sendMessage(
-                $receiverNumber,
-                $senderNumber,
-                $validatedData['text']
-            );
+            // Prepare message content for Twilio
+            $messageContent = $validatedData['text'] ?? '';
+            
+            // If there's an image, add a note about it in the SMS
+            if ($imagePath) {
+                $imageNote = $messageContent ? "\n\n📷 Image attached" : "📷 Image sent";
+                $messageContent = $messageContent . $imageNote;
+            }
+            
+            // Only send SMS if there's content (text or image note)
+            if (!empty($messageContent)) {
+                $twilio->sendMessage(
+                    $receiverNumber,
+                    $senderNumber,
+                    $messageContent
+                );
+            }
 
             // Commit the transaction if both operations succeed
             DB::commit();

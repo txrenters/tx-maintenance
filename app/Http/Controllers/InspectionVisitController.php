@@ -36,6 +36,10 @@ class InspectionVisitController extends Controller
                 'start' => $start,
                 'end' => $end,
                 'description'=>  $visit->instructions,
+                'is_complete' => $visit->is_complete,
+                'job'=>  $visit->job->title,
+                'job_number'=>  $visit->job->job_number,
+                'jobber_web_uri'=>  $visit->job->jobber_web_uri,
                 'location'=>  $visit->job->property ? 
                         trim($visit->job->property->street . ' ' . $visit->job->property->city . ' ' . $visit->job->property->province . ' ' .$visit->job->property->postal_code . ' ' . $visit->job->property->country) : 'No Property',
                 'people'=>  [$visit->job->client->name],

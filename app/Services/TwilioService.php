@@ -17,17 +17,25 @@ class TwilioService
         );
     }
 
-    public function sendMessage($to, $from, $message)
+    public function sendMessage($to, $from, $message, $mediaUrl = null)
     {
         try {
-            $this->client->messages->create($to, [
+            $messageData = [
                 'from' => $from,
                 'body' => $message,
-            ]);
+            ];
+
+            // Add media URL if provided for MMS
+            if ($mediaUrl) {
+                $messageData['mediaUrl'] = [$mediaUrl];
+            }
+
+            $this->client->messages->create($to, $messageData);
 
             Log::info('Message sent successfully', [
                 'from' => $from,
                 'body' => $message,
+                'media' => $mediaUrl ? 'included' : 'none',
             ]);
         } catch (\Exception $e) {
             Log::error('Message unsuccessfully: '.$e->getMessage());
