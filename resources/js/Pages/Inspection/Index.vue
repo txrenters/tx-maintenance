@@ -42,6 +42,7 @@ const props = defineProps({
     title: String,
     jobsByStatus: Object,
     statistics: Object,
+    access_token_exist: Boolean,
     filter: Object,
 });
 
@@ -318,7 +319,7 @@ const formatUSD = (value) => {
     <Head :title="title" />
     <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
         <SearchBar :url="url" v-model="search" class="w-full" />
-        <Navigation />
+        <Navigation :token-exist="access_token_exist" />
     </div>
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"

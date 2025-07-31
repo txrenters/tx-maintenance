@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
+use App\Models\JobberToken;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -21,90 +22,7 @@ class ImportJobberJobs extends Command
         $this->info('Importing jobs from Jobber...');
         Log::info('Importing jobs from Jobber');
 
-        $query = 'query {
-            jobs(first: 10) {
-                edges {
-                    node {
-                        id
-                        jobNumber
-                        title
-                        jobStatus
-                        jobType
-                        total
-                        willClientBeAutomaticallyCharged
-                        instructions
-                        jobberWebUri
-                        bookingConfirmationSentAt
-                        startAt
-                        endAt
-                        completedAt
-                        createdAt
-                        updatedAt
-                        client {
-                            id
-                            firstName
-                            lastName
-                            companyName
-                            name
-                            secondaryName
-                            title
-                            emails {
-                                address
-                            }
-                            balance
-                            jobberWebUri
-                        }
-                        property {
-                            id
-                            isBillingAddress
-                            jobberWebUri
-                            address {
-                                street
-                                city
-                                province
-                                postalCode
-                                country
-                            }
-                        }
-                        visits {
-                            edges {
-                                node {
-                                    id
-                                    title
-                                    visitStatus
-                                    duration
-                                    instructions
-                                    startAt
-                                    endAt
-                                    completedAt
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }';
-
-        $accessToken = [
-            'Authorization' => 'Bearer '.env('JOBBER_API_TOKEN'),
-            'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
-            'Content-Type' => 'application/json',
-        ];
-
-        $response = Http::withHeaders($accessToken)
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query
-            ]);
-
-        if ($response->failed()) {
-            $this->error('Failed to fetch jobs: ' . $response->body());
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-            return;
-        }
-
-        // Debug the response structure
-        $responseData = $response->json();
-        Log::info('Jobber API Response:', ['response' => $responseData]);
+        $responseData = $this->getJobs();
         
         // Check if we have the expected data structure
         if (!isset($responseData['data']['jobs']['edges'])) {
@@ -133,10 +51,10 @@ class ImportJobberJobs extends Command
 
         foreach($jobs as $jobEdge) {
             $jobData = $jobEdge['node'];
-            $propertyData = $jobData['property'];
-            $clientData = $jobData['client'];
 
-            // Create/update client with CORRECT field mapping
+            $client= $this->getClient($jobData['id']);
+            $clientData = $client['data']['job']['client'];
+            
             $client = JobberClient::updateOrCreate(
                 ['jobber_id' => $clientData['id']],
                 [
@@ -152,6 +70,8 @@ class ImportJobberJobs extends Command
                 ]
             );
 
+            $property = $this->getProperty($jobData['id']);
+            $propertyData = $property['data']['job']['property'];
             // Create/update property
             $property = JobberProperty::updateOrCreate(
                 ['jobber_id' => $propertyData['id']],
@@ -166,6 +86,7 @@ class ImportJobberJobs extends Command
                     'jobber_web_uri' => $propertyData['jobberWebUri']
                 ]
             );  
+
             // Create/update job (INSIDE the loop)
             $job = Jobber::updateOrCreate(
                 ['jobber_id' => $jobData['id']],
@@ -189,9 +110,12 @@ class ImportJobberJobs extends Command
                 ]
             );
 
+            $visits = $this->getVisits($jobData['id']);
+            $visitsData = $visits['data']['job']['visits']['edges'];
+
             // Create/update visits for this job
-            if (isset($jobData['visits']['edges']) && is_array($jobData['visits']['edges'])) {
-                foreach ($jobData['visits']['edges'] as $visitEdge) {
+            if (isset($visitsData) && is_array($visitsData)) {
+                foreach ($visitsData as $visitEdge) {
                     $visitData = $visitEdge['node'];
                     JobberVisit::updateOrCreate(
                         ['jobber_id' => $visitData['id']],
@@ -217,5 +141,183 @@ class ImportJobberJobs extends Command
 
         $this->info("Successfully imported {$importedCount} jobs from Jobber");
         Log::info("Successfully imported {$importedCount} jobs from Jobber");
+    }
+
+    public function getJobs(){
+        $headers = $this->accessToken();
+
+        $query = 'query {
+            jobs(first: 500) {
+                edges {
+                    node {
+                        id
+                        jobNumber
+                        title
+                        jobStatus
+                        jobType
+                        total
+                        willClientBeAutomaticallyCharged
+                        instructions
+                        jobberWebUri
+                        bookingConfirmationSentAt
+                        startAt
+                        endAt
+                        completedAt
+                        createdAt
+                        updatedAt
+                    }
+                }
+            }
+        }';
+        $response = Http::withHeaders($headers)
+             ->timeout(60)
+            ->retry(3, 2000)  // Increase timeout to 30 seconds
+            ->post('https://api.getjobber.com/api/graphql', [
+                'query' => $query
+            ]);
+
+        if ($response->failed()) {
+            $this->error('Failed to fetch jobs: ' . $response->body());
+            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+            return;
+        }
+
+        // Debug the response structure
+        return $response->json();
+    }
+
+    public function getClient($jobberId){
+
+        $headers = $this->accessToken();
+
+        $query = 'query {
+                job(id: "'.$jobberId.'") {
+                    client {
+                        id
+                        firstName
+                        lastName
+                        companyName
+                        name
+                        secondaryName
+                        title
+                        balance
+                        jobberWebUri
+                        emails {
+                            address
+                        }
+                    }
+                }
+            }';
+
+        $response = Http::withHeaders($headers)
+             ->timeout(60)
+    ->retry(3, 2000)  // Increase timeout to 30 seconds
+            ->post('https://api.getjobber.com/api/graphql', [
+                'query' => $query
+            ]);
+
+        if ($response->failed()) {
+            $this->error('Failed to fetch jobs: ' . $response->body());
+            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+            return;
+        }
+
+        Log::info('Client:', ['response' => $response->json()]);
+
+        // Debug the response structure
+        return $response->json();
+    }
+
+    public function getProperty($jobberId){
+
+        $headers = $this->accessToken();
+
+        $query = 'query {
+                job(id: "'.$jobberId.'") {
+                    property{
+                        id
+                        isBillingAddress
+                        jobberWebUri
+                        address {
+                            street
+                            city
+                            province
+                            postalCode
+                            country
+                        }
+                    }
+                }
+            }';
+
+        $response = Http::withHeaders($headers)
+             ->timeout(60)
+    ->retry(3, 2000)  // Increase timeout to 30 seconds
+            ->post('https://api.getjobber.com/api/graphql', [
+                'query' => $query
+            ]);
+
+        if ($response->failed()) {
+            $this->error('Failed to fetch jobs: ' . $response->body());
+            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+            return;
+        }
+
+        Log::info('Property:', ['response' => $response->json()]);
+
+        // Debug the response structure
+        return $response->json();
+    }
+
+    public function getVisits($jobberId){
+
+        $headers = $this->accessToken();
+
+        $query = 'query {
+                job(id: "'.$jobberId.'") {
+                    visits {
+                        edges {
+                            node {
+                                id
+                                title
+                                visitStatus
+                                duration
+                                instructions
+                                startAt
+                                endAt
+                                completedAt
+                            }
+                        }
+                    }
+                }
+            }';
+
+        $response = Http::withHeaders($headers)
+             ->timeout(60)
+    ->retry(3, 2000)  // Increase timeout to 30 seconds
+            ->post('https://api.getjobber.com/api/graphql', [
+                'query' => $query
+            ]);
+
+        if ($response->failed()) {
+            $this->error('Failed to fetch jobs: ' . $response->body());
+            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+            return;
+        }
+
+        Log::info('Visits:', ['response' => $response->json()]);
+
+        // Debug the response structure
+        return $response->json();
+    }
+
+    public function accessToken(){
+        $jobberToken = JobberToken::whereNotNull('access_token')->first();
+        $accessToken = [
+            'Authorization' => 'Bearer '.$jobberToken->access_token,
+            'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
+            'Content-Type' => 'application/json',
+        ];
+
+        return $accessToken;
     }
 }

@@ -11,34 +11,44 @@ class JobberAuthController extends Controller
 {
     public function handleCallback(Request $request)
     {
-        Log::info('Data received:', ['data' => $request->all()]);
         $code = $request->query('code');
+        $state = $request->get('state');
 
         if (!$code) {
-            return response()->json(['error' => 'No authorization code provided'], 400);
+            Log::error('No authorization code provided: ');
+            return redirect('/inspections')->with('error', ['error','No authorization code provided']);
         }
 
-        $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
-            'client_id' => env('JOBBER_CLIENT_ID'),
-            'client_secret' => env('JOBBER_CLIENT_SECRET'),
-            'grant_type' => 'authorization_code',
-            'redirect_uri' => env('JOBBER_CALLBACK_URL'),
-            'code' => $code,
-        ]);
+        try {
+            $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
+                'grant_type' => 'authorization_code',
+                'client_id' =>  env('JOBBER_CLIENT_ID'),
+                'client_secret' =>  env('JOBBER_SECRET'),
+                'redirect_uri' => env('JOBBER_CALLBACK_URL'), // or hardcode your redirect URI
+                'code' => $code,
+            ]);
 
-        if ($response->failed()) {
-            dd($response->body()); // or log it
+            if ($response->failed()) {
+                Log::error('Token exchange failed: ' . $response->body());
+                return redirect('/inspections')->with('error', ['error','Token exchange failed: ' . $response->body()]);
+            }
+
+            $data = $response->json();
+            $accessToken = $data['access_token'];
+            $refreshToken = $data['refresh_token'];
+
+            Log::info('Tokens: ', ['data' => $data]);
+            // Save to DB or session
+            JobberToken::updateOrCreate([], [
+                'access_token' => $accessToken,
+                'refresh_token' => $refreshToken,
+            ]);
+
+            return redirect('/inspections')->with('success', 'Connected to Jobber');
+
+        } catch (\Exception $e) {
+            Log::error('Exception: ' . $e->getMessage());
+            return redirect('/inspections')->with('error', 'Exception: ' . $e->getMessage());
         }
-
-        $data = $response->json();
-
-        // Save token
-        JobberToken::create([
-            'access_token' => $data['access_token'],
-            'refresh_token' => $data['refresh_token'],
-            'expires_at' => now()->addSeconds(3600), // Adjust if Jobber returns an exact expiry
-        ]);
-
-        return response()->json(['message' => 'Jobber tokens saved successfully!']);
     }
 }

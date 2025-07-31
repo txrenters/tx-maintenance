@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Jobber;
+use App\Models\JobberToken;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class InspectionController extends Controller
 {
@@ -12,7 +14,6 @@ class InspectionController extends Controller
      */
     public function index(Request $request)
     {
-        // Get all jobs with relationships (no pagination for grouping)
         $jobs = Jobber::query()
             ->with(['client', 'property', 'visits', 'textMessages'])
             ->filter(request(['search'])) // Add search filter if needed
@@ -78,55 +79,28 @@ class InspectionController extends Controller
             'title' => 'Inspections',
             'jobsByStatus' => $jobsByStatus,
             'statistics' => $statistics,
+            'access_token_exist' => $this->accessTokenExist(),
             'filter' => $request->only(['search', 'per_page']),
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function accessTokenExist()
     {
-        //
+        return JobberToken::whereNotNull('access_token')->exists();
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function redirectToJobber()
     {
-        //
-    }
+        $state = Str::random(32);
+        session(['jobber_oauth_state' => $state]);
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $query = http_build_query([
+            'response_type' => 'code',
+            'client_id' => env('JOBBER_CLIENT_ID'),
+            'redirect_uri' => env('JOBBER_CALLBACK_URL'),
+            'state' => $state,
+        ]);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return redirect("https://api.getjobber.com/api/oauth/authorize?$query");
     }
 }

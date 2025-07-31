@@ -80,8 +80,9 @@ Route::middleware([
     Route::patch('/work_orders/coordinators/{workOrder}/change', [CoordinatorController::class, 'update'])->name('work_orders.coordinators.change');
     
     Route::resource('/inspections', InspectionController::class);
+    Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
-    
+
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
