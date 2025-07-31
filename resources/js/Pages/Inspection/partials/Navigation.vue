@@ -6,7 +6,7 @@ const props = defineProps({
 </script>
 <template>
     <div class="flex gap-2">
-        <Button class="rounded" as-child v-if="!tokenExist">
+        <Button class="rounded" as-child>
             <a :href="route('jobber.connect')" target="_blank">
                 <Hammer class="w-4 h-4" />
                 Connect with Jobber

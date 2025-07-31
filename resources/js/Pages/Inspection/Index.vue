@@ -319,7 +319,7 @@ const formatUSD = (value) => {
     <Head :title="title" />
     <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
         <SearchBar :url="url" v-model="search" class="w-full" />
-        <Navigation :token-exist="access_token_exist" />
+        <Navigation />
     </div>
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
@@ -352,11 +352,12 @@ const formatUSD = (value) => {
                             // Past/Late items - Red (matching calendar past events)
                             'bg-red-100 text-red-800 border-red-300 hover:bg-red-200':
                                 item.job_status === 'late' ||
-                                item.job_status === 'ending_within_30_days',
+                                item.job_status === 'ending_within_30_days' ||
+                                item.job_status === 'unscheduled',
                             // Current/Today items - Blue (matching calendar today events)
                             'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200':
                                 item.job_status === 'active' ||
-                                item.job_status === 'unscheduled',
+                                item.job_status === 'today',
                             // Action Required/On Hold - Yellow (warning state)
                             'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200':
                                 item.job_status === 'requires_invoicing' ||
