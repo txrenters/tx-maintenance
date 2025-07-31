@@ -197,7 +197,7 @@ class ImportJobberJobs extends Command
         return $property;
     }
 
-    public function createJobber(array $jobData, object $client, object $property): object
+    public function createJob(array $jobData, object $client, object $property): object
     {
         $job = Jobber::updateOrCreate(
             ['jobber_id' => $jobData['id']],
