@@ -61,7 +61,7 @@ class HandleInertiaRequests extends Middleware
             'auth.user' => $userData,
             'twilio_phone_number' => $twilio_phone_number,
             'logo' => asset('tx-logo.webp'),
-            'app_url' => env('APP_URL')
+            'app_url' => env('APP_URL'),
         ]);
     }
 }

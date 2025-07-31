@@ -64,7 +64,7 @@ class ConversationController extends Controller
         ]);
 
         // Validate that either text or image is provided
-        if (empty($validatedData['text']) && !$request->hasFile('image')) {
+        if (empty($validatedData['text']) && ! $request->hasFile('image')) {
             return redirect()->back()->with('error', 'Please provide either a message or an image.');
         }
 
@@ -91,11 +91,11 @@ class ConversationController extends Controller
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
                 $originalName = $image->getClientOriginalName();
-                $filename = time() . '_' . $originalName;
-                
+                $filename = time().'_'.$originalName;
+
                 // Store image in storage/app/public/conversation_images
                 $imagePath = $image->storeAs('conversation_images', $filename, 'public');
-                
+
                 // Save image info to conversation_medias table
                 ConversationMedia::create([
                     'message_id' => $conversation->id,
@@ -106,19 +106,19 @@ class ConversationController extends Controller
                 ]);
             }
 
-            $twilio = new TwilioService();
-            
+            $twilio = new TwilioService;
+
             // Prepare message content for Twilio
             $messageContent = $validatedData['text'] ?? '';
-            
+
             // If there's an image, add a note about it in the SMS
             if ($imagePath) {
-                $imageNote = $messageContent ? "\n\n📷 Image attached" : "📷 Image sent";
-                $messageContent = $messageContent . $imageNote;
+                $imageNote = $messageContent ? "\n\n📷 Image attached" : '📷 Image sent';
+                $messageContent = $messageContent.$imageNote;
             }
-            
+
             // Only send SMS if there's content (text or image note)
-            if (!empty($messageContent)) {
+            if (! empty($messageContent)) {
                 $twilio->sendMessage(
                     $receiverNumber,
                     $senderNumber,

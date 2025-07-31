@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 class ImportJobberJobs extends Command
 {
     protected $signature = 'jobber:import-jobs';
+
     protected $description = 'Import jobs from Jobber GraphQL API';
 
     // public function handle()
@@ -23,7 +24,7 @@ class ImportJobberJobs extends Command
     //     Log::info('Importing jobs from Jobber');
 
     //     $responseData = $this->getJobs();
-        
+
     //     // Check if we have the expected data structure
     //     if (!isset($responseData['data']['jobs']['edges'])) {
     //         $this->error('Unexpected API response structure');
@@ -32,7 +33,7 @@ class ImportJobberJobs extends Command
     //     }
 
     //     $jobs = $responseData['data']['jobs']['edges'];
-        
+
     //     // Check if jobs is actually an array
     //     if (!is_array($jobs)) {
     //         $this->error('Jobs data is not an array');
@@ -45,7 +46,6 @@ class ImportJobberJobs extends Command
     //         Log::info('No jobs found to import');
     //         return;
     //     }
-        
 
     //     $this->info('Found ' . count($jobs) . ' jobs to import');
     //     $importedCount = 0;
@@ -60,11 +60,10 @@ class ImportJobberJobs extends Command
 
     //         $property = $this->getProperty($jobData['id']);
     //         $propertyData = $property['data']['job']['property'];
-           
+
     //         $property = $this->createProperty($propertyData, $client);
 
     //         $job = $this->createJob($jobData, $client, $property);
-            
 
     //         $visits = $this->getVisits($jobData['id']);
     //         $visitsData = $visits['data']['job']['visits']['edges'];
@@ -96,17 +95,19 @@ class ImportJobberJobs extends Command
             $responseData = $this->getJobs($cursor);
 
             // Validate response structure
-            if (!isset($responseData['data']['jobs']['edges'])) {
+            if (! isset($responseData['data']['jobs']['edges'])) {
                 $this->error('Unexpected API response structure');
                 Log::error('Unexpected API response structure:', ['response' => $responseData]);
+
                 return;
             }
 
             $jobs = $responseData['data']['jobs']['edges'];
 
-            if (!is_array($jobs)) {
+            if (! is_array($jobs)) {
                 $this->error('Jobs data is not an array');
                 Log::error('Jobs data is not an array:', ['jobs' => $jobs]);
+
                 return;
             }
 
@@ -116,7 +117,7 @@ class ImportJobberJobs extends Command
                 break;
             }
 
-            $this->info('Found ' . count($jobs) . ' jobs to import this page');
+            $this->info('Found '.count($jobs).' jobs to import this page');
 
             foreach ($jobs as $jobEdge) {
                 $jobData = $jobEdge['node'];
@@ -157,7 +158,6 @@ class ImportJobberJobs extends Command
         Log::info("Successfully imported {$importedCount} jobs from Jobber");
     }
 
-
     public function createClient(array $clientData): object
     {
         $client = JobberClient::updateOrCreate(
@@ -171,28 +171,28 @@ class ImportJobberJobs extends Command
                 'title' => $clientData['title'],
                 'email' => isset($clientData['emails']) ? json_encode(array_column($clientData['emails'], 'address')) : null,
                 'balance' => $clientData['balance'],
-                'jobber_web_uri' => $clientData['jobberWebUri']
+                'jobber_web_uri' => $clientData['jobberWebUri'],
             ]
         );
 
         return $client;
     }
 
-    public function createProperty(array $propertyData,object $client): object
+    public function createProperty(array $propertyData, object $client): object
     {
         $property = JobberProperty::updateOrCreate(
-                ['jobber_id' => $propertyData['id']],
-                [
-                    'jobber_client_id' => $client->id,
-                    'is_billing_address' => $propertyData['isBillingAddress'],
-                    'street' => $propertyData['address']['street'] ?? null,
-                    'city' => $propertyData['address']['city'] ?? null,
-                    'province' => $propertyData['address']['province'] ?? null,
-                    'postal_code' => $propertyData['address']['postalCode'] ?? null,
-                    'country' => $propertyData['address']['country'] ?? null,
-                    'jobber_web_uri' => $propertyData['jobberWebUri']
-                ]
-            );  
+            ['jobber_id' => $propertyData['id']],
+            [
+                'jobber_client_id' => $client->id,
+                'is_billing_address' => $propertyData['isBillingAddress'],
+                'street' => $propertyData['address']['street'] ?? null,
+                'city' => $propertyData['address']['city'] ?? null,
+                'province' => $propertyData['address']['province'] ?? null,
+                'postal_code' => $propertyData['address']['postalCode'] ?? null,
+                'country' => $propertyData['address']['country'] ?? null,
+                'jobber_web_uri' => $propertyData['jobberWebUri'],
+            ]
+        );
 
         return $property;
     }
@@ -217,7 +217,7 @@ class ImportJobberJobs extends Command
                 'end_at' => $jobData['endAt'] ? Carbon::parse($jobData['endAt'])->toDateTimeString() : null,
                 'completed_at' => $jobData['completedAt'] ? Carbon::parse($jobData['completedAt'])->toDateTimeString() : null,
                 'created_at_jobber' => $jobData['createdAt'] ? Carbon::parse($jobData['createdAt'])->toDateTimeString() : null,
-                'updated_at_jobber' => $jobData['updatedAt'] ? Carbon::parse($jobData['updatedAt'])->toDateTimeString() : null
+                'updated_at_jobber' => $jobData['updatedAt'] ? Carbon::parse($jobData['updatedAt'])->toDateTimeString() : null,
             ]
         );
 
@@ -234,9 +234,9 @@ class ImportJobberJobs extends Command
                 'visit_status' => $visitData['visitStatus'],
                 'duration' => $visitData['duration'],
                 'instructions' => $visitData['instructions'],
-                'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null ,
-                'end_at' =>  $visitData['endAt'] ? Carbon::parse( $visitData['endAt'])->toDateTimeString() : null,
-                'completed_at' => $visitData['completedAt'] ? Carbon::parse( $visitData['completedAt'])->toDateTimeString() : null,
+                'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
+                'end_at' => $visitData['endAt'] ? Carbon::parse($visitData['endAt'])->toDateTimeString() : null,
+                'completed_at' => $visitData['completedAt'] ? Carbon::parse($visitData['completedAt'])->toDateTimeString() : null,
                 'jobber_job_id' => $job->id,
                 'jobber_client_id' => $client->id,
                 'jobber_property_id' => $property->id,
@@ -330,16 +330,17 @@ class ImportJobberJobs extends Command
             ]);
 
         if ($response->failed()) {
-            $this->error('Failed to fetch jobs: ' . $response->body());
+            $this->error('Failed to fetch jobs: '.$response->body());
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+
             return null;
         }
 
         return $response->json();
     }
 
-
-    public function getClient($jobberId){
+    public function getClient($jobberId)
+    {
 
         $headers = $this->accessToken();
 
@@ -363,15 +364,16 @@ class ImportJobberJobs extends Command
             }';
 
         $response = Http::withHeaders($headers)
-             ->timeout(60)
+            ->timeout(60)
             ->retry(3, 2000)  // Increase timeout to 30 seconds
             ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query
+                'query' => $query,
             ]);
 
         if ($response->failed()) {
-            $this->error('Failed to fetch jobs: ' . $response->body());
+            $this->error('Failed to fetch jobs: '.$response->body());
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+
             return;
         }
 
@@ -381,7 +383,8 @@ class ImportJobberJobs extends Command
         return $response->json();
     }
 
-    public function getProperty($jobberId){
+    public function getProperty($jobberId)
+    {
 
         $headers = $this->accessToken();
 
@@ -403,15 +406,16 @@ class ImportJobberJobs extends Command
             }';
 
         $response = Http::withHeaders($headers)
-             ->timeout(60)
+            ->timeout(60)
             ->retry(3, 2000)  // Increase timeout to 30 seconds
             ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query
+                'query' => $query,
             ]);
 
         if ($response->failed()) {
-            $this->error('Failed to fetch jobs: ' . $response->body());
+            $this->error('Failed to fetch jobs: '.$response->body());
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+
             return;
         }
 
@@ -421,7 +425,8 @@ class ImportJobberJobs extends Command
         return $response->json();
     }
 
-    public function getVisits($jobberId){
+    public function getVisits($jobberId)
+    {
 
         $headers = $this->accessToken();
 
@@ -445,15 +450,16 @@ class ImportJobberJobs extends Command
             }';
 
         $response = Http::withHeaders($headers)
-             ->timeout(60)
+            ->timeout(60)
             ->retry(3, 2000)  // Increase timeout to 30 seconds
             ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query
+                'query' => $query,
             ]);
 
         if ($response->failed()) {
-            $this->error('Failed to fetch jobs: ' . $response->body());
+            $this->error('Failed to fetch jobs: '.$response->body());
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+
             return;
         }
 
@@ -463,7 +469,8 @@ class ImportJobberJobs extends Command
         return $response->json();
     }
 
-    public function accessToken(){
+    public function accessToken()
+    {
         $jobberToken = JobberToken::whereNotNull('access_token')->first();
         $accessToken = [
             'Authorization' => 'Bearer '.$jobberToken->access_token,

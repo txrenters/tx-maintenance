@@ -78,7 +78,7 @@ Route::middleware([
 
     Route::get('/work_orders/coordinators/all', [CoordinatorController::class, 'index'])->name('work_orders.coordinators');
     Route::patch('/work_orders/coordinators/{workOrder}/change', [CoordinatorController::class, 'update'])->name('work_orders.coordinators.change');
-    
+
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
@@ -128,7 +128,7 @@ Route::fallback(function () {
         ->setStatusCode(404);
 });
 
-Route::get('jobber', function(){
+Route::get('jobber', function () {
     $existingToken = JobberToken::find(1);
 
     $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [

@@ -21,7 +21,7 @@ class TaskController extends Controller
             'tasks.task.nextServiceStatus',
             'tasks.assigned_user',
         ])
-            ->where('status','!=','closed')
+            ->where('status', '!=', 'closed')
             ->when($request->search, function ($query) use ($request) {
                 $query->where('work_order_no', 'like', '%'.$request->search.'%');
             })

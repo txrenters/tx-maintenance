@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__.'/vendor/autoload.php';
 
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -73,7 +73,7 @@ $sampleData = [
         'homeWarrantyCompanyName' => 'Home Shield',
         'floodedProperty' => 'No',
         'floodedPropertyDate' => '',
-        'otherComments' => 'The property has recently been updated with new flooring throughout the main living areas. All appliances are in excellent working condition.'
+        'otherComments' => 'The property has recently been updated with new flooring throughout the main living areas. All appliances are in excellent working condition.',
     ],
     'buildingData' => [
         'name' => 'Sample Property - 123 Main Street',
@@ -83,32 +83,32 @@ $sampleData = [
             'addressCont' => 'Unit A',
             'city' => 'Dallas',
             'stateRegion' => 'TX',
-            'postalCode' => '75201'
-        ]
+            'postalCode' => '75201',
+        ],
     ],
     'propertywareData' => [
         'entityId' => 12345,
         'fieldSetDTOS' => [
             ['name' => 'paint', 'value' => 'Yes'],
             ['name' => 'paintColor', 'value' => '#ffffff'],
-            ['name' => 'dogsAllowed', 'value' => 'Yes']
-        ]
+            ['name' => 'dogsAllowed', 'value' => 'Yes'],
+        ],
     ],
-    'generated_at' => date('Y-m-d H:i:s')
+    'generated_at' => date('Y-m-d H:i:s'),
 ];
 
 try {
     // Generate PDF
     $pdf = Pdf::loadView('onboarding_process', $sampleData);
-    
+
     // Save to file
-    $filename = 'sample_property_onboarding_' . date('YmdHis') . '.pdf';
+    $filename = 'sample_property_onboarding_'.date('YmdHis').'.pdf';
     $pdf->save($filename);
-    
-    echo "Sample PDF generated successfully: " . $filename . "\n";
-    echo "File size: " . number_format(filesize($filename) / 1024, 2) . " KB\n";
-    
+
+    echo 'Sample PDF generated successfully: '.$filename."\n";
+    echo 'File size: '.number_format(filesize($filename) / 1024, 2)." KB\n";
+
 } catch (Exception $e) {
-    echo "Error generating PDF: " . $e->getMessage() . "\n";
-    echo "Stack trace: " . $e->getTraceAsString() . "\n";
+    echo 'Error generating PDF: '.$e->getMessage()."\n";
+    echo 'Stack trace: '.$e->getTraceAsString()."\n";
 }

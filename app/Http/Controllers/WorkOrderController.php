@@ -130,7 +130,7 @@ class WorkOrderController extends Controller
         $vendors = Vendor::where('is_active', true)->get();
 
         return inertia('WorkOrder/Show', [
-            'title' => 'Work Order #' . $workOrder->work_order_no,
+            'title' => 'Work Order #'.$workOrder->work_order_no,
             'workOrder' => $workOrder,
             'conversations' => $conversations->values(),
             'tasks' => $workOrder->tasks,

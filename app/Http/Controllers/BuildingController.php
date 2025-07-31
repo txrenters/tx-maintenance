@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateOnboardingPdfJob;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -60,17 +58,16 @@ class BuildingController extends Controller
 
         // Fetch details for all matching buildings
         $buildings = [];
-        
+
         foreach ($filtered as $record) {
             $buildingId = $record[5]; // Get building ID from index 5
-            Log::info('Searching Building:' ,['building' => $buildingId]);
+            Log::info('Searching Building:', ['building' => $buildingId]);
 
             $response = $this->getBuilding($buildingId);
-            
 
             if ($response['success']) {
                 $buildings[] = $response['building'];
-                Log::info('Building found:' ,['building' => $response['building']]);
+                Log::info('Building found:', ['building' => $response['building']]);
             }
         }
 
@@ -80,7 +77,7 @@ class BuildingController extends Controller
 
         // Return all matching buildings
         return response()->json(['buildings' => $buildings, 'count' => count($buildings)], 200);
-       
+
     }
 
     public function updateCustomFields(Request $request, $buildingId)
@@ -93,18 +90,18 @@ class BuildingController extends Controller
             'propertywareData.fieldSetDTOS.*.value' => 'required|string',
             'formData' => 'required|array',
             'signature' => 'required|string',
-            'maintenanceNotice' => 'nullable|string'
+            'maintenanceNotice' => 'nullable|string',
         ]);
 
         try {
             $propertywareData = $request->input('propertywareData');
-            
+
             // Log the update attempt
-            Log::info('Updating custom fields for building: ' . $buildingId, [
+            Log::info('Updating custom fields for building: '.$buildingId, [
                 'fields_count' => count($propertywareData['fieldSetDTOS']),
-                'fields' => array_map(function($field) {
-                    return $field['name'] . ' => ' . $field['value'];
-                }, $propertywareData['fieldSetDTOS'])
+                'fields' => array_map(function ($field) {
+                    return $field['name'].' => '.$field['value'];
+                }, $propertywareData['fieldSetDTOS']),
             ]);
 
             // Make API call to Propertyware for custom fields
@@ -115,29 +112,29 @@ class BuildingController extends Controller
                 $maintenanceNotice = $request->input('maintenanceNotice');
                 if ($maintenanceNotice !== null) {
                     $maintenanceResponse = $this->updateMaintenanceNotice($buildingId, $maintenanceNotice);
-                    if (!$maintenanceResponse['success']) {
+                    if (! $maintenanceResponse['success']) {
                         Log::warning('Failed to update maintenance notice', [
                             'Building ID' => $buildingId,
-                            'Error' => $maintenanceResponse['error']
+                            'Error' => $maintenanceResponse['error'],
                         ]);
                     }
                 }
-                
+
                 $signature = $request->input('signature');
                 $formData = $request->input('formData');
                 $ownerName = $request->input('ownerName');
-                
+
                 // Get building details for PDF
                 $buildingResponse = $this->getBuilding($buildingId);
                 if ($buildingResponse['success']) {
                     $buildingData = $buildingResponse['building'];
-                    
+
                     // Dispatch PDF generation job
                     GenerateOnboardingPdfJob::dispatch($signature, $formData, $buildingData, $propertywareData, $ownerName)->delay(now()->addSeconds(5));
-                    
+
                     Log::info('Property has been updated successfully', [
                         'Building ID' => $buildingId,
-                        'Fields updated' => count($propertywareData['fieldSetDTOS'])
+                        'Fields updated' => count($propertywareData['fieldSetDTOS']),
                     ]);
                 }
 
@@ -145,18 +142,18 @@ class BuildingController extends Controller
                     'success' => true,
                     'message' => 'Building information updated successfully',
                     'updated_fields' => array_column($propertywareData['fieldSetDTOS'], 'name'),
-                    'total_updated' => count($propertywareData['fieldSetDTOS'])
+                    'total_updated' => count($propertywareData['fieldSetDTOS']),
                 ]);
             } else {
                 throw new \Exception('Propertyware API update failed');
             }
 
         } catch (\Exception $e) {
-            Log::error('Failed to update custom fields: ' . $e->getMessage());
-            
+            Log::error('Failed to update custom fields: '.$e->getMessage());
+
             return response()->json([
                 'error' => 'Failed to update building information',
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -186,25 +183,25 @@ class BuildingController extends Controller
             'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
             'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
             'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
         ])->put('https://api.propertyware.com/pw/api/rest/v1/buildings/customfields', $data);
 
         if ($response->successful()) {
 
             return [
                 'success' => true,
-                'data' => $response->json()
+                'data' => $response->json(),
             ];
         }
 
         Log::error('Propertyware API Error', [
             'status' => $response->status(),
-            'body' => $response->body()
+            'body' => $response->body(),
         ]);
 
         return [
             'success' => false,
-            'error' => $response->body()
+            'error' => $response->body(),
         ];
     }
 
@@ -212,15 +209,15 @@ class BuildingController extends Controller
     {
         // First get the current building data
         $buildingResponse = $this->getBuilding($buildingId);
-        if (!$buildingResponse['success']) {
+        if (! $buildingResponse['success']) {
             return [
                 'success' => false,
-                'error' => 'Failed to retrieve building data'
+                'error' => 'Failed to retrieve building data',
             ];
         }
 
         $buildingData = $buildingResponse['building'];
-        
+
         // Create building object with all required fields including address
         $updateData = [
             'abbreviation' => $buildingData['abbreviation'],
@@ -229,18 +226,18 @@ class BuildingController extends Controller
             'propertyType' => $buildingData['propertyType'],
             'rentable' => $buildingData['rentable'] ?? true,
             'type' => $buildingData['type'],
-            'address' => $buildingData['address'] ?? []
+            'address' => $buildingData['address'] ?? [],
         ];
-        
+
         // Ensure address has required country field
-        if (!isset($updateData['address']['country']) || empty($updateData['address']['country'])) {
+        if (! isset($updateData['address']['country']) || empty($updateData['address']['country'])) {
             $updateData['address']['country'] = 'United States';
         }
-        
+
         // Try to update maintenanceNotice field directly using PUT with all required fields
         Log::info('Attempting to update maintenanceNotice field directly', [
             'Building ID' => $buildingId,
-            'Maintenance Notice' => $maintenanceNotice
+            'Maintenance Notice' => $maintenanceNotice,
         ]);
 
         // Add maintenanceNotice to the update data
@@ -251,24 +248,24 @@ class BuildingController extends Controller
             'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
             'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
             'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
         ])->put("https://api.propertyware.com/pw/api/rest/v1/buildings/{$buildingId}", $updateData);
 
         if ($response->successful()) {
             Log::info('Maintenance notice updated successfully in maintenanceNotice field', [
                 'Building ID' => $buildingId,
-                'Maintenance Notice' => $maintenanceNotice
+                'Maintenance Notice' => $maintenanceNotice,
             ]);
-            
+
             return [
                 'success' => true,
-                'data' => $response->json()
+                'data' => $response->json(),
             ];
         }
 
         return [
             'success' => false,
-            'error' => 'Unable to update maintenanceNotice field: ' . $response->body()
+            'error' => 'Unable to update maintenanceNotice field: '.$response->body(),
         ];
     }
 

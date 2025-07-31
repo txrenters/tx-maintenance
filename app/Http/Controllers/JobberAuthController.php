@@ -14,23 +14,25 @@ class JobberAuthController extends Controller
         $code = $request->query('code');
         $state = $request->get('state');
 
-        if (!$code) {
+        if (! $code) {
             Log::error('No authorization code provided: ');
-            return redirect('/inspections')->with('error', ['error','No authorization code provided']);
+
+            return redirect('/inspections')->with('error', ['error', 'No authorization code provided']);
         }
 
         try {
             $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
                 'grant_type' => 'authorization_code',
-                'client_id' =>  env('JOBBER_CLIENT_ID'),
-                'client_secret' =>  env('JOBBER_SECRET'),
+                'client_id' => env('JOBBER_CLIENT_ID'),
+                'client_secret' => env('JOBBER_SECRET'),
                 'redirect_uri' => env('JOBBER_CALLBACK_URL'), // or hardcode your redirect URI
                 'code' => $code,
             ]);
 
             if ($response->failed()) {
-                Log::error('Token exchange failed: ' . $response->body());
-                return redirect('/inspections')->with('error', ['error','Token exchange failed: ' . $response->body()]);
+                Log::error('Token exchange failed: '.$response->body());
+
+                return redirect('/inspections')->with('error', ['error', 'Token exchange failed: '.$response->body()]);
             }
 
             $data = $response->json();
@@ -47,8 +49,9 @@ class JobberAuthController extends Controller
             return redirect('/inspections')->with('success', 'Connected to Jobber');
 
         } catch (\Exception $e) {
-            Log::error('Exception: ' . $e->getMessage());
-            return redirect('/inspections')->with('error', 'Exception: ' . $e->getMessage());
+            Log::error('Exception: '.$e->getMessage());
+
+            return redirect('/inspections')->with('error', 'Exception: '.$e->getMessage());
         }
     }
 }

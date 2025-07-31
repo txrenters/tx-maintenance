@@ -14,9 +14,13 @@ class GenerateOnboardingPdfJob implements ShouldQueue
     use Queueable;
 
     public $signature;
+
     public $formData;
+
     public $buildingData;
+
     public $propertywareData;
+
     public $ownerName;
 
     /**
@@ -35,7 +39,7 @@ class GenerateOnboardingPdfJob implements ShouldQueue
      * Execute the job.
      */
     public function handle(): void
-    {        
+    {
         try {
             // Prepare data for PDF
             $pdfData = [
@@ -44,25 +48,25 @@ class GenerateOnboardingPdfJob implements ShouldQueue
                 'buildingData' => $this->buildingData,
                 'propertywareData' => $this->propertywareData,
                 'ownerName' => $this->ownerName,
-                'generated_at' => now()->tz('America/Chicago')->format('Y-m-d h:i A')
+                'generated_at' => now()->tz('America/Chicago')->format('Y-m-d h:i A'),
             ];
 
             // Generate PDF
             $pdf = Pdf::loadView('onboarding_process', $pdfData);
-            
+
             // Create filename with building ID and timestamp
             $buildingId = $this->buildingData['id'] ?? 'unknown';
-            $fileName = 'property_onboarding_' . $buildingId . '_' . date('YmdHis') . '.pdf';
-            
+            $fileName = 'property_onboarding_'.$buildingId.'_'.date('YmdHis').'.pdf';
+
             // Save to storage directory
-            $storagePath = storage_path('app/public/' . $fileName);
+            $storagePath = storage_path('app/public/'.$fileName);
             $pdf->save($storagePath);
 
             Log::info('Property onboarding PDF generated successfully', [
                 'Building ID' => $buildingId,
                 'Building Name' => $this->buildingData['name'] ?? 'Unknown',
                 'Filename' => $fileName,
-                'File Path' => $storagePath
+                'File Path' => $storagePath,
             ]);
 
             // Optional: Upload to Propertyware (if needed)
@@ -72,15 +76,15 @@ class GenerateOnboardingPdfJob implements ShouldQueue
                 DB::table('onboarding_clients')->create([
                     'name' => $this->ownerName,
                     'building_name' => $this->buildingData['name'] ?? 'Unknown',
-                    'filename' => $fileName
+                    'filename' => $fileName,
                 ]);
             }
 
         } catch (\Exception $e) {
-            Log::error('Failed to generate onboarding PDF: ' . $e->getMessage(), [
+            Log::error('Failed to generate onboarding PDF: '.$e->getMessage(), [
                 'Building ID' => $this->buildingData['id'] ?? 'unknown',
                 'Error' => $e->getMessage(),
-                'Stack Trace' => $e->getTraceAsString()
+                'Stack Trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -103,25 +107,25 @@ class GenerateOnboardingPdfJob implements ShouldQueue
                     'entityType' => 'Building',
                     'publishToOwnerPortal' => true,
                 ]);
-            
+
             if ($response->successful()) {
                 Log::info('Property onboarding PDF uploaded to Propertyware successfully', [
                     'Building ID' => $buildingId,
                     'Filename' => $fileName,
-                    'Response' => $response->json()
+                    'Response' => $response->json(),
                 ]);
             } else {
                 Log::error('Failed to upload PDF to Propertyware', [
                     'Building ID' => $buildingId,
                     'Filename' => $fileName,
                     'Status' => $response->status(),
-                    'Response' => $response->body()
+                    'Response' => $response->body(),
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('Exception while uploading PDF to Propertyware: ' . $e->getMessage(), [
+            Log::error('Exception while uploading PDF to Propertyware: '.$e->getMessage(), [
                 'Building ID' => $buildingId,
-                'Filename' => $fileName
+                'Filename' => $fileName,
             ]);
         }
     }

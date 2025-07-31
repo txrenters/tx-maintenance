@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\WorkOrder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ConversationLogsController extends Controller
 {
@@ -28,7 +27,7 @@ class ConversationLogsController extends Controller
             'unread' => $conversations->where('is_read', false)->count(),
             'read' => $conversations->where('is_read', true)->count(),
             'active_conversations' => $conversations->groupBy('work_order_id')->count(),
-        ]; 
+        ];
 
         return inertia('ConversationLogs', [
             'title' => 'Conversation Logs',

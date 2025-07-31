@@ -23,7 +23,7 @@ class JobberTextMessageController extends Controller
         ]);
 
         // Validate that either message or image is provided
-        if (empty($validatedData['messages']) && !$request->hasFile('image')) {
+        if (empty($validatedData['messages']) && ! $request->hasFile('image')) {
             return response()->json(['error' => 'Please provide either a message or an image.'], 422);
         }
 
@@ -39,8 +39,8 @@ class JobberTextMessageController extends Controller
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
                 $originalName = $image->getClientOriginalName();
-                $filename = time() . '_' . $originalName;
-                
+                $filename = time().'_'.$originalName;
+
                 // Store image in storage/app/public/jobber_images
                 $imagePath = $image->storeAs('jobber_images', $filename, 'public');
             }
@@ -54,23 +54,23 @@ class JobberTextMessageController extends Controller
                 'image' => $imagePath,
             ]);
 
-            $twilio = new TwilioService();
-            
+            $twilio = new TwilioService;
+
             // Prepare message content for Twilio
             $messageContent = $validatedData['messages'] ?? '';
-            
+
             // If there's an image, add a note about it in the SMS
             if ($imagePath) {
-                $imageNote = $messageContent ? "\n\n📷 Image attached" : "📷 Image sent";
-                $messageContent = $messageContent . $imageNote;
+                $imageNote = $messageContent ? "\n\n📷 Image attached" : '📷 Image sent';
+                $messageContent = $messageContent.$imageNote;
             }
-            
+
             // Only send SMS if there's content (text or image note)
-            if (!empty($messageContent)) {
+            if (! empty($messageContent)) {
                 // Prepare media URL for MMS if image exists
                 $mediaUrl = null;
                 if ($imagePath) {
-                    $mediaUrl = asset('storage/' . $imagePath);
+                    $mediaUrl = asset('storage/'.$imagePath);
                 }
 
                 $twilio->sendMessage(
@@ -88,7 +88,7 @@ class JobberTextMessageController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Message sent successfully!',
-                'data' => $jobberTextMessage
+                'data' => $jobberTextMessage,
             ], 201);
 
         } catch (\Exception $e) {
@@ -96,12 +96,12 @@ class JobberTextMessageController extends Controller
             DB::rollBack();
 
             // Log the error
-            Log::error('Failed to send jobber text message: ' . $e->getMessage());
+            Log::error('Failed to send jobber text message: '.$e->getMessage());
 
             // Return an error response
             return response()->json([
                 'error' => 'Failed to send the message. Please try again.',
-                'details' => $e->getMessage()
+                'details' => $e->getMessage(),
             ], 500);
         }
     }
@@ -114,7 +114,7 @@ class JobberTextMessageController extends Controller
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
 
-        return '+' . $cleanedNumber;
+        return '+'.$cleanedNumber;
     }
 
     public function index(Request $request)
@@ -134,6 +134,7 @@ class JobberTextMessageController extends Controller
     public function show(JobberTextMessage $jobberTextMessage)
     {
         $jobberTextMessage->load('jobber');
+
         return response()->json($jobberTextMessage);
     }
 
@@ -149,7 +150,8 @@ class JobberTextMessageController extends Controller
 
             return response()->json(['message' => 'Message deleted successfully!']);
         } catch (\Exception $e) {
-            Log::error('Failed to delete jobber text message: ' . $e->getMessage());
+            Log::error('Failed to delete jobber text message: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to delete message.'], 500);
         }
     }

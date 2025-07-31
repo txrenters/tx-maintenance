@@ -28,13 +28,14 @@ class TwilioWebhookController extends Controller
 
         if (! $message) {
             Log::info('Message not found in the database.');
+
             return response('Error processing request', 500);
         }
 
         $isDuplicateMessage = $this->checkMessageDuplicate($from, $to, $body);
 
-        if($isDuplicateMessage){
-            Log::info('Duplicate message:', ['message duplicate' => $body, 'from' => $from , 'to' => $to]);
+        if ($isDuplicateMessage) {
+            Log::info('Duplicate message:', ['message duplicate' => $body, 'from' => $from, 'to' => $to]);
         }
 
         $type = $message->conversation_type ?? ''; // Provide a fallback
@@ -148,7 +149,7 @@ class TwilioWebhookController extends Controller
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
         })->latest()
-        ->first(); // fetch the latest conversation
+            ->first(); // fetch the latest conversation
 
     }
 

@@ -37,8 +37,8 @@ class InspectionController extends Controller
                     'client_name' => $job->client->name ?? 'No Client',
                     'client_company' => $job->client->company_name ?? null,
                     'property_id' => $job->property->id ?? null,
-                    'property_address' => $job->property ? 
-                        trim($job->property->street . ' ' . $job->property->city . ' ' . $job->property->province . ' ' . $job->property->postal_code . ' ' . $job->property->country) 
+                    'property_address' => $job->property ?
+                        trim($job->property->street.' '.$job->property->city.' '.$job->property->province.' '.$job->property->postal_code.' '.$job->property->country)
                         : 'No Property',
                     'visits' => $job->visits,
                     'visits_count' => $job->visits->count(),
@@ -48,8 +48,8 @@ class InspectionController extends Controller
                             'message' => $message->messages,
                             'sender_number' => $message->sender_number,
                             'receiver_number' => $message->receiver_number,
-                            'image' => $message->image ? asset('storage/' . $message->image) : null,
-                            'is_mms' => !empty($message->image), // Set MMS flag for images
+                            'image' => $message->image ? asset('storage/'.$message->image) : null,
+                            'is_mms' => ! empty($message->image), // Set MMS flag for images
                             'created_at' => $message->created_at,
                         ];
                     }),

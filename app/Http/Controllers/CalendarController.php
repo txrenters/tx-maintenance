@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ServiceSchedule;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 
 class CalendarController extends Controller
 {
