@@ -18,71 +18,6 @@ class ImportJobberJobs extends Command
 
     protected $description = 'Import jobs from Jobber GraphQL API';
 
-    // public function handle()
-    // {
-    //     $this->info('Importing jobs from Jobber...');
-    //     Log::info('Importing jobs from Jobber');
-
-    //     $responseData = $this->getJobs();
-
-    //     // Check if we have the expected data structure
-    //     if (!isset($responseData['data']['jobs']['edges'])) {
-    //         $this->error('Unexpected API response structure');
-    //         Log::error('Unexpected API response structure:', ['response' => $responseData]);
-    //         return;
-    //     }
-
-    //     $jobs = $responseData['data']['jobs']['edges'];
-
-    //     // Check if jobs is actually an array
-    //     if (!is_array($jobs)) {
-    //         $this->error('Jobs data is not an array');
-    //         Log::error('Jobs data is not an array:', ['jobs' => $jobs]);
-    //         return;
-    //     }
-
-    //     if (empty($jobs)) {
-    //         $this->info('No jobs found to import');
-    //         Log::info('No jobs found to import');
-    //         return;
-    //     }
-
-    //     $this->info('Found ' . count($jobs) . ' jobs to import');
-    //     $importedCount = 0;
-
-    //     foreach($jobs as $jobEdge) {
-    //         $jobData = $jobEdge['node'];
-
-    //         $client = $this->getClient($jobData['id']);
-    //         $clientData = $client['data']['job']['client'];
-
-    //         $client = $this->createClient($clientData);
-
-    //         $property = $this->getProperty($jobData['id']);
-    //         $propertyData = $property['data']['job']['property'];
-
-    //         $property = $this->createProperty($propertyData, $client);
-
-    //         $job = $this->createJob($jobData, $client, $property);
-
-    //         $visits = $this->getVisits($jobData['id']);
-    //         $visitsData = $visits['data']['job']['visits']['edges'];
-
-    //         // Create/update visits for this job
-    //         if (isset($visitsData) && is_array($visitsData)) {
-    //             foreach ($visitsData as $visitEdge) {
-    //                 $visitData = $visitEdge['node'];
-    //                 $this->createVisits($visitData, $client, $property, $job);
-    //             }
-    //         }
-
-    //         $importedCount++;
-    //     }
-
-    //     $this->info("Successfully imported {$importedCount} jobs from Jobber");
-    //     Log::info("Successfully imported {$importedCount} jobs from Jobber");
-    // }
-
     public function handle()
     {
         $this->info('Importing jobs from Jobber...');
@@ -243,49 +178,6 @@ class ImportJobberJobs extends Command
             ]
         );
     }
-
-    // public function getJobs(){
-    //     $headers = $this->accessToken();
-
-    //     $query = 'query {
-    //         jobs(first: 500) {
-    //             edges {
-    //                 node {
-    //                     id
-    //                     jobNumber
-    //                     title
-    //                     jobStatus
-    //                     jobType
-    //                     total
-    //                     willClientBeAutomaticallyCharged
-    //                     instructions
-    //                     jobberWebUri
-    //                     bookingConfirmationSentAt
-    //                     startAt
-    //                     endAt
-    //                     completedAt
-    //                     createdAt
-    //                     updatedAt
-    //                 }
-    //             }
-    //         }
-    //     }';
-    //     $response = Http::withHeaders($headers)
-    //          ->timeout(60)
-    //         ->retry(3, 2000)  // Increase timeout to 30 seconds
-    //         ->post('https://api.getjobber.com/api/graphql', [
-    //             'query' => $query
-    //         ]);
-
-    //     if ($response->failed()) {
-    //         $this->error('Failed to fetch jobs: ' . $response->body());
-    //         Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-    //         return;
-    //     }
-
-    //     // Debug the response structure
-    //     return $response->json();
-    // }
 
     public function getJobs($cursor = null)
     {
