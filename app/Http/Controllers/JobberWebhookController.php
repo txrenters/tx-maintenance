@@ -38,7 +38,7 @@ class JobberWebhookController extends Controller
             match($topic){
                 'JOB_CREATE',
                 'JOB_UPDATE' => $this->handleCreateOrUpdateJobber($itemId),
-                'JOB_CLOSED' => '',
+                'JOB_CLOSED' => $this->handleClosedJobber($itemId),
                 'JOB_DESTROY' => $this->handleDeleteJobber($itemId),
                 'VISIT_CREATE' => $this->handleCreateOrUpdateVisit($itemId),
                 'VISIT_UPDATE' => $this->handleCreateOrUpdateVisit($itemId),
@@ -81,6 +81,16 @@ class JobberWebhookController extends Controller
         }
     }
 
+    public function handleDeleteJobber($jobberId){
+        Jobber::findOrFail($jobberId)->delete();
+    }
+
+    public function handleClosedJobber($jobberId){
+        Jobber::findOrFail($jobberId)->update([
+            'job_status' => 'closed'
+        ]);
+    }
+
     public function handleCompleteVisit($jobberId){
         Jobber::findOrFail($jobberId)->update([
             'is_complete' => true,
@@ -88,9 +98,7 @@ class JobberWebhookController extends Controller
         ]);
     }
 
-    public function handleDeleteJobber($jobberId){
-        Jobber::findOrFail($jobberId)->delete();
-    }
+    
 
     public function handleCreateOrUpdateVisit($visitId){
 
@@ -247,7 +255,7 @@ class JobberWebhookController extends Controller
                     'query' => $query,
                 ]);
         }
-        
+
         if ($response->failed()) {
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
             return;
