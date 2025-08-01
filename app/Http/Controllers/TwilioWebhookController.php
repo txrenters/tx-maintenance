@@ -7,6 +7,7 @@ use App\Models\JobberTextMessage;
 use App\Services\MediaService;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Calculation\Logical\Boolean;
@@ -27,11 +28,12 @@ class TwilioWebhookController extends Controller
         $isMms = isset($data['NumMedia']) && $data['NumMedia'] > 0;
 
         Log::info('New SMS message received', [
-            'phone' => $from,
+            'from' => $from,
+            'to' => $to,
             'message' => $body,
             'message_length' => strlen($body),
-            'has_media' => $request->hasMedia(),
-            'media_count' => $request->getMediaCount(),
+            'has_media' => (int) $request->input('NumMedia') > 0,
+            'media_count' => (int) $request->input('NumMedia'),
         ]);
 
         $workOrderMessage = $this->getWorkOrderMessage($from, $to);
@@ -74,18 +76,36 @@ class TwilioWebhookController extends Controller
 
         if($jobberMessage){
 
-            $imageUrl = null;
-            if ($request->hasMedia()) {
-                $imageUrl = $request->getFirstMediaUrl();
-            }
+            $numMedia = (int) $request->input('NumMedia');
 
             $textMessage = JobberTextMessage::create([
                 'message' => $body,
                 'sender_number' => $from,
                 'receiver_number' => $to,
-                'image' => $imageUrl,
+                'image' => $numMedia > 0 ? $request->input("MediaUrl0") : null,
                 'jobber_job_id' => $jobberMessage->jobber_job_id
             ]);
+
+            if ($numMedia > 1) {
+                $mediaWithTextMessage = [];
+
+                for ($i = 1; $i < $numMedia; $i++) {
+                    $mediaUrl = $request->input("MediaUrl{$i}");
+
+                    $mediaWithTextMessage[] =  [
+                        'sender_number' => $from,
+                        'receiver_number' => $to,
+                        'message' => '',
+                        'image' => $mediaUrl,
+                        'jobber_job_id' => $jobberMessage->jobber_job_id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                DB::table('jobber_text_messages')->insert($mediaWithTextMessage);
+            }
+               
             
             Log::info('Message saved successfully into the database.', ['data' => $textMessage]);
 
@@ -109,7 +129,7 @@ class TwilioWebhookController extends Controller
             if ($plusThisResponse->successful()) {
 
                 Log::info('Text message information:', [
-                    'data' => $$data,
+                    'data' => $data,
                 ]);
 
                 Log::info('Message forwarded successfully to PlusThis');
