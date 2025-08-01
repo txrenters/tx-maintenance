@@ -85,11 +85,11 @@ class JobberTextMessageController extends Controller
             DB::commit();
 
             // Return a success response
-            return response()->json([
+            return redirect()->back()->with([
                 'success' => true,
                 'message' => 'Message sent successfully!',
                 'data' => $jobberTextMessage,
-            ], 201);
+            ]);
 
         } catch (\Exception $e) {
             // Roll back the transaction in case of an error
@@ -99,10 +99,10 @@ class JobberTextMessageController extends Controller
             Log::error('Failed to send jobber text message: '.$e->getMessage());
 
             // Return an error response
-            return response()->json([
+            return redirect()->back()->withErrors([
                 'error' => 'Failed to send the message. Please try again.',
                 'details' => $e->getMessage(),
-            ], 500);
+            ]);
         }
     }
 

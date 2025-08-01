@@ -15,6 +15,7 @@ use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberTextMessageController;
+use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceStatusController;
@@ -82,6 +83,8 @@ Route::middleware([
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
+    Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
+    Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
 
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
 
@@ -121,6 +124,7 @@ Route::get('/onboarding/building', [BuildingController::class, 'create'])->name(
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
+Route::post('/jobber/webhook', JobberWebhookController::class)->name('jobber.webhook');
 
 Route::fallback(function () {
     return inertia('Error', ['status' => 404])

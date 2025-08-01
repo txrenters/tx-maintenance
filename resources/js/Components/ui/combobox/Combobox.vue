@@ -1,11 +1,13 @@
 <script setup>
-import { ComboboxRoot, useForwardPropsEmits } from 'reka-ui';
+import { ComboboxRoot, useForwardPropsEmits } from "reka-ui";
 
 const props = defineProps({
   open: { type: Boolean, required: false },
   defaultOpen: { type: Boolean, required: false },
   resetSearchTermOnBlur: { type: Boolean, required: false },
   resetSearchTermOnSelect: { type: Boolean, required: false },
+  openOnFocus: { type: Boolean, required: false },
+  openOnClick: { type: Boolean, required: false },
   ignoreFilter: { type: Boolean, required: false },
   modelValue: { type: null, required: false },
   defaultValue: { type: null, required: false },
@@ -15,11 +17,11 @@ const props = defineProps({
   highlightOnHover: { type: Boolean, required: false },
   by: { type: [String, Function], required: false },
   asChild: { type: Boolean, required: false },
-  as: { type: null, required: false },
+  as: { type: [String, Object, Function], required: false },
   name: { type: String, required: false },
   required: { type: Boolean, required: false },
 });
-const emits = defineEmits(['update:modelValue', 'highlight', 'update:open']);
+const emits = defineEmits(["update:modelValue", "highlight", "update:open"]);
 
 const forwarded = useForwardPropsEmits(props, emits);
 </script>

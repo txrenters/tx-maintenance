@@ -44,6 +44,7 @@ class JobberAuthController extends Controller
             JobberToken::updateOrCreate([], [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
+                'expires_at' => now()->addHour()
             ]);
 
             return redirect('/inspections')->with('success', 'Connected to Jobber');
@@ -54,4 +55,31 @@ class JobberAuthController extends Controller
             return redirect('/inspections')->with('error', 'Exception: '.$e->getMessage());
         }
     }
+
+    public function refreshAccessToken()
+    {
+        $token = JobberToken::first(); // adjust as needed
+
+        $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
+            'client_id' => env('JOBBER_CLIENT_ID'),
+            'client_secret' => env('JOBBER_CLIENT_SECRET'),
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $token->refresh_token,
+        ]);
+
+        if ($response->ok()) {
+            $data = $response->json();
+
+            $token->access_token = $data['access_token'];
+            if (isset($data['refresh_token'])) {
+                $token->refresh_token = $data['refresh_token']; // optional if rotation is off
+            }
+            $token->save();
+
+            return $data['access_token'];
+        }
+
+        throw new \Exception("Unable to refresh Jobber access token");
+    }
+
 }

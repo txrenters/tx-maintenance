@@ -15,13 +15,25 @@ import {
     Clock,
     MessageCircle,
     Eye,
-    Edit,
+    Search,
     ClipboardList,
     Send,
     Loader2,
     Paperclip,
     X,
+    Check,
 } from "lucide-vue-next";
+import {
+    Combobox,
+    ComboboxAnchor,
+    ComboboxEmpty,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxItemIndicator,
+    ComboboxList,
+} from "@/Components/ui/combobox";
+
 import Navigation from "./partials/Navigation.vue";
 import {
     Dialog,
@@ -32,8 +44,11 @@ import {
     DialogTitle,
 } from "@/Components/ui/dialog";
 import MessageCard from "@/Components/MessageCard.vue";
+import { cn } from "@/lib/utils";
+import debounce from "lodash.debounce";
 
 const { toast } = useToast();
+
 const page = usePage();
 
 defineOptions({ layout: AppLayout });
@@ -86,25 +101,8 @@ const openJobModal = (job) => {
     jobContacts.value = [];
     selectedImage.value = null;
     imagePreview.value = null;
-
-    // Auto-populate receiver number from latest message
-    if (jobMessages.value.length > 0) {
-        // Get the most recent message (assuming they're ordered by created_at)
-        const latestMessage = jobMessages.value[jobMessages.value.length - 1];
-
-        // If the user was the sender of the latest message, use the receiver number
-        // Otherwise, use the sender number (to reply to who sent the message)
-        if (latestMessage.sender_number === page.props.twilio_phone_number) {
-            contactPhoneNumber.value = latestMessage.receiver_number || "";
-        } else {
-            contactPhoneNumber.value = latestMessage.sender_number || "";
-        }
-    } else {
-        contactPhoneNumber.value = "";
-    }
-
-    // Set sender phone number (adjust this based on your user structure)
-    senderPhoneNumber.value = page.props.twilio_phone_number;
+    selectedClient.value = job.client;
+    contactPhoneNumber.value = job.client.phone ?? "";
 };
 
 // Function to close modal
@@ -126,7 +124,7 @@ const switchTab = (tabName) => {
 const newMessage = ref("");
 const selectedContact = ref("");
 const contactPhoneNumber = ref("");
-const senderPhoneNumber = ref(""); // This should come from user's settings/config
+const senderPhoneNumber = ref(page.props.twilio_phone_number); // This should come from user's settings/config
 const isLoadingMessages = ref(false);
 const isSendingMessage = ref(false);
 const jobMessages = ref([]);
@@ -264,6 +262,7 @@ const sendMessage = () => {
         onFinish: () => {
             isSendingMessage.value = false;
         },
+        only: ["jobsByStatus"],
     });
 };
 
@@ -313,6 +312,73 @@ const formatUSD = (value) => {
         style: "currency",
         currency: "USD",
     }).format(value);
+};
+
+const clients = ref([]);
+const isSearchingLoading = ref(false);
+const isSavingLoading = ref(false);
+const searchQuery = ref("");
+const selectedClient = ref(null);
+const fetchClients = async (query) => {
+    if (!query) {
+        clients.value = [];
+        return;
+    }
+
+    isSearchingLoading.value = true;
+    try {
+        const response = await axios.get(
+            route("jobber.searchClient", { search: query })
+        );
+
+        clients.value = response.data;
+    } catch (e) {
+        console.error("Error fetching clients", e);
+    } finally {
+        isSearchingLoading.value = false;
+    }
+};
+const debouncedSearch = debounce(fetchClients, 500);
+watch(searchQuery, (val) => {
+    debouncedSearch(val);
+});
+
+const saveClient = async () => {
+    if (!selectedClient.value) {
+        return;
+    }
+
+    isSavingLoading.value = true;
+    try {
+        const response = await axios.post(
+            route("jobber.saveClient", {
+                jobber_id: selectedJob.value.id,
+                client: selectedClient.value,
+            })
+        );
+
+        const res = response.data;
+
+        if (res.success) {
+            toast({
+                title: "Success",
+                description: "Client has been saved successfully!",
+            });
+
+            contactPhoneNumber.value = selectedClient.value.phone;
+
+            router.reload();
+        } else {
+            toast({
+                title: "Error",
+                description: res.error || "Something went wrong.",
+            });
+        }
+    } catch (e) {
+        console.error("Error saving clients", e);
+    } finally {
+        isSavingLoading.value = false;
+    }
 };
 </script>
 <template>
@@ -590,7 +656,9 @@ const formatUSD = (value) => {
                                     >Client Name</span
                                 >
                                 <p class="text-sm">
-                                    {{ selectedJob.client_name }}
+                                    {{ selectedJob.client.first_name }}
+                                    {{ selectedJob.client.last_name }} -
+                                    {{ selectedJob.client.phone }}
                                 </p>
                             </div>
 
@@ -884,17 +952,87 @@ const formatUSD = (value) => {
 
                 <!-- Contact Selection -->
                 <div class="flex justify-between gap-2 mb-2">
-                    <div>
+                    <div class="grid flex-1 gap-2">
+                        <Label for="link"> Client Name</Label>
                         <div class="flex gap-2">
-                            <Input
-                                placeholder="Custom number"
-                                v-model="contactPhoneNumber"
-                            />
+                            <Combobox v-model="selectedClient" by="phone">
+                                <ComboboxAnchor class="w-[300px]">
+                                    <div
+                                        class="relative flex w-full items-center border"
+                                    >
+                                        <span
+                                            class="absolute inset-y-0 start-0 flex items-center justify-center px-2"
+                                        >
+                                            <Search
+                                                class="text-muted-foreground size-4"
+                                            />
+                                        </span>
+                                        <ComboboxInput
+                                            class="w-[300px] pl-7"
+                                            :display-value="
+                                                (val) =>
+                                                    val?.first_name
+                                                        ? val?.first_name +
+                                                          ' ' +
+                                                          val?.last_name +
+                                                          ' ' +
+                                                          val?.phone
+                                                        : ''
+                                            "
+                                            :model-value="searchQuery"
+                                            @update:model-value="
+                                                searchQuery = $event
+                                            "
+                                            placeholder="Search client..."
+                                        />
+                                    </div>
+                                </ComboboxAnchor>
+
+                                <ComboboxList class="w-[300px]">
+                                    <ComboboxEmpty v-if="!isSearchingLoading"
+                                        >No client found.</ComboboxEmpty
+                                    >
+                                    <div
+                                        v-if="isSearchingLoading"
+                                        class="text-muted-foreground p-2 text-sm"
+                                    >
+                                        Loading...
+                                    </div>
+
+                                    <ComboboxGroup class="w-[300px]">
+                                        <ComboboxItem
+                                            class="w-[300px]"
+                                            v-for="client in clients"
+                                            :key="
+                                                client.id + '-' + client.phone
+                                            "
+                                            :value="client"
+                                        >
+                                            {{ client.first_name }}
+                                            {{ client.last_name }} -
+                                            {{ client.phone }}
+                                        </ComboboxItem>
+                                    </ComboboxGroup>
+                                </ComboboxList>
+                            </Combobox>
+                            <Button
+                                v-if="
+                                    selectedClient || selectedJob.client.phone
+                                "
+                                @click="saveClient"
+                                size="sm"
+                            >
+                                <Loader2
+                                    v-if="isSavingLoading"
+                                    class="animate-spin"
+                                />
+                                {{
+                                    isSavingLoading ? "Saving..." : "Save"
+                                }}</Button
+                            >
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">
-                            Please include the country code (e.g. +1)
-                        </p>
                     </div>
+
                     <div class="flex flex-col text-left">
                         <div class="flex gap-2 items-center">
                             <Avatar class="w-5 h-5">

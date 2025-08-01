@@ -1,20 +1,16 @@
 <script setup>
-import { cn } from '@/lib/utils';
-import { ComboboxAnchor, useForwardProps } from 'reka-ui';
-import { computed } from 'vue';
+import { reactiveOmit } from "@vueuse/core";
+import { ComboboxAnchor, useForwardProps } from "reka-ui";
+import { cn } from "@/lib/utils";
 
 const props = defineProps({
   reference: { type: null, required: false },
   asChild: { type: Boolean, required: false },
-  as: { type: null, required: false },
+  as: { type: [String, Object, Function], required: false },
   class: { type: null, required: false },
 });
 
-const delegatedProps = computed(() => {
-  const { class: _, ...delegated } = props;
-
-  return delegated;
-});
+const delegatedProps = reactiveOmit(props, "class");
 
 const forwarded = useForwardProps(delegatedProps);
 </script>

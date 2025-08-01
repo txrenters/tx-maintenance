@@ -104,7 +104,6 @@ const calendarApp = createCalendar({
     firstDayOfWeek: 0,
     views: [
         createViewDay(),
-        createViewWeek(),
         createViewMonthGrid(),
         createViewMonthAgenda(),
         createViewList(),
@@ -168,22 +167,30 @@ const closeEventModal = () => {
                 <!-- Status Badge -->
                 <div class="flex items-center gap-2">
                     <Badge
-                        :variant="selectedEvent.is_complete ? 'default' : 'secondary'"
+                        :variant="
+                            selectedEvent.is_complete ? 'default' : 'secondary'
+                        "
                         :class="[
                             'px-3 py-1 font-medium',
-                            selectedEvent.is_complete 
-                                ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
-                                : 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200'
+                            selectedEvent.is_complete
+                                ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200'
+                                : 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200',
                         ]"
                     >
                         <div class="flex items-center gap-1.5">
-                            <div 
+                            <div
                                 :class="[
                                     'w-2 h-2 rounded-full',
-                                    selectedEvent.is_complete ? 'bg-green-500' : 'bg-yellow-500'
+                                    selectedEvent.is_complete
+                                        ? 'bg-green-500'
+                                        : 'bg-yellow-500',
                                 ]"
                             ></div>
-                            {{ selectedEvent.is_complete ? 'Completed' : 'In Progress' }}
+                            {{
+                                selectedEvent.is_complete
+                                    ? "Completed"
+                                    : "In Progress"
+                            }}
                         </div>
                     </Badge>
                 </div>
@@ -193,12 +200,12 @@ const closeEventModal = () => {
                     <h3 class="font-semibold">Details</h3>
                     <div class="bg-muted/50 p-4 rounded-lg">
                         <a
-                            :href="selectedEvent.jobber_web_uri"
+                            :href="selectedEvent.job.jobber_web_uri"
                             target="_blank"
                             class="text-sm leading-relaxed text-primary font-semibold"
                         >
-                            {{ selectedEvent.job }} - Job #{{
-                                selectedEvent.job_number
+                            {{ selectedEvent.job.title }} - Job #{{
+                                selectedEvent.job.job_number
                             }}
                         </a>
                         <p
@@ -322,9 +329,15 @@ const closeEventModal = () => {
                 <Button variant="outline" @click="closeEventModal">
                     Close
                 </Button>
-                <Button v-if="selectedEvent?.viewUrl || selectedEvent?.id">
-                    <Eye class="h-4 w-4" />
-                    View Details
+                <Button
+                    v-if="
+                        selectedEvent?.job.jobber_web_uri || selectedEvent?.id
+                    "
+                    as-child
+                >
+                    <a :href="selectedEvent.job.jobber_web_uri" target="_blank">
+                        <Eye class="h-4 w-4" /> View Details</a
+                    >
                 </Button>
             </DialogFooter>
         </DialogContent>
@@ -339,143 +352,8 @@ const closeEventModal = () => {
     height: fit-content;
 }
 
-/* Event title text wrapping similar to Jobber's calendar */
-:deep(.sx__month-grid-event) {
-    white-space: normal !important;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: 20px;
-    max-height: none !important; /* Remove any height restrictions */
-    line-height: 1.3;
-    font-size: 13px;
-    padding: 4px 6px !important;
-    align-items: flex-start !important;
-    word-wrap: break-word;
-    hyphens: auto;
-    /* Ensure events can stack but also stretch */
-    position: relative;
-    z-index: 1;
-    flex-shrink: 0; /* Prevent events from shrinking */
-    /* Remove line clamp restrictions */
-    -webkit-line-clamp: unset !important;
-    /* Don't force display block - let Schedule-X handle layout for multi-day events */
-}
-
-/* Adjust month grid cells to accommodate wrapped text - fully dynamic height */
-:deep(.sx__month-grid-cell) {
-    height: auto !important;
-    min-height: auto !important;
-    max-height: none !important;
-    flex: 1 1 auto;
-}
-
-/* Ensure events container has enough space and proper stacking */
-:deep(.sx__month-grid-day__events) {
-    height: auto !important;
-    min-height: auto !important;
-    padding: 2px !important;
-    position: relative !important;
-    /* Enable proper stacking while allowing multi-day stretching */
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 2px !important;
-}
-
-/* Make calendar rows dynamic height */
-:deep(.sx__month-grid-week) {
-    height: auto !important;
-    min-height: auto !important;
-}
-
-/* Make month grid fully dynamic */
-:deep(.sx__month-grid) {
-    height: auto !important;
-    min-height: auto !important;
-}
-
-/* Calendar wrapper should adapt to content */
-:deep(.sx__calendar-content) {
-    height: auto !important;
-    min-height: auto !important;
-}
-
-/* Style event time text to be more compact */
-:deep(.sx__month-grid-event-time) {
-    margin-right: 4px;
-    font-size: 11px;
-    opacity: 0.8;
-    flex-shrink: 0;
-}
-
-/* Prevent events from overlapping when text wraps */
-:deep(.sx__month-grid-day) {
-    overflow: visible;
-}
-
-/* Event container - allow stretching across days */
-:deep(.sx__month-grid-event) {
-    line-height: 1.3 !important;
-    position: relative;
-    z-index: 1;
-    flex-shrink: 0;
-    /* Don't apply clamp to the container itself */
-}
-
-/* Apply 2-line clamp only to the text content inside events */
-:deep(.sx__month-grid-event .sx__event-title),
-:deep(.sx__month-grid-event span),
-:deep(.sx__month-grid-event div) {
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-height: calc(1.3em * 2) !important; /* Exactly 2 lines */
-    word-wrap: break-word !important;
-    white-space: normal !important;
-    line-height: 1.3 !important;
-}
-
-/* Multi-day event specific handling */
-:deep(.sx__month-grid-event[data-event-id]) {
-    /* Allow events to stretch across days while maintaining stacking within cells */
-    position: relative;
-    width: auto; /* Let Schedule-X determine width for multi-day events */
-}
-
-/* Style for agenda view events */
-:deep(.sx__month-agenda-event__title) {
-    white-space: normal !important;
-    word-wrap: break-word;
-    hyphens: auto;
-    line-height: 1.3;
-}
-
-/* Style for week/day view events */
-:deep(.sx__time-grid-event) {
-    overflow: visible !important;
-}
-
-:deep(.sx__time-grid-event-title) {
-    white-space: normal !important;
-    word-wrap: break-word;
-    hyphens: auto;
-    line-height: 1.3;
-    overflow: visible !important;
-}
-
-/* Ensure date grid events also wrap properly */
-:deep(.sx__date-grid-event-text) {
-    white-space: normal !important;
-    word-wrap: break-word;
-    hyphens: auto;
-    line-height: 1.3;
-    overflow: visible !important;
-}
-
 /* Shadcn Theme Color Integration - Override Schedule-X dark theme */
 .calendar-theme-override {
-    /* Override Schedule-X CSS variables with Shadcn theme colors */
     --sx-color-surface: hsl(var(--background));
     --sx-color-on-surface: hsl(var(--foreground));
     --sx-color-background: hsl(var(--background));
