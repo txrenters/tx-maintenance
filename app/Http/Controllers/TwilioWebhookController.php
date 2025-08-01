@@ -40,8 +40,8 @@ class TwilioWebhookController extends Controller
 
         if ($workOrderMessage) {
 
-            $type = $message->conversation_type ?? ''; // Provide a fallback
-            $workOrderId = $message->work_order_id ?? ''; // Provide a fallback
+            $type = $workOrderMessage->conversation_type ?? ''; // Provide a fallback
+            $workOrderId = $workOrderMessage->work_order_id ?? ''; // Provide a fallback
 
             if ($workOrderId && $type) {
                 try {
