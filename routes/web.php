@@ -85,6 +85,7 @@ Route::middleware([
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
+    Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
 
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
 

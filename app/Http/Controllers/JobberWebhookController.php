@@ -20,6 +20,8 @@ class JobberWebhookController extends Controller
         $hmacHeader = $request->header('X-Jobber-Hmac-SHA256');
         $rawPayload = $request->getContent();
 
+        Log::info('Job data received.', ['data' => $rawPayload]);
+
         $calculatedHmac = base64_encode(hash_hmac('sha256', $rawPayload, $clientSecret, true));
 
         // Securely compare the hashes to prevent timing attacks

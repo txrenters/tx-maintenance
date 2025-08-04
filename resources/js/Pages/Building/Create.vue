@@ -84,9 +84,10 @@ const form = useForm({
     goingOnTheMarketUtilities: "",
     //Who will do what While the Home is on the Market?
     homeOnTheMarketLawnCare: "",
-    homeOnTheMarketCleaning: "",
+    homeOnTheMarketCleaning: "Management",
     homeOnTheMarketUtilities: "",
     //Who will do what Just Before Tenant Move In?
+    beforeTenantMoveInClearning: "Management",
     beforeTenantMoveInLawnCare: "",
     beforeTenantMoveInPestControl: "",
     //Who will do lawn care After Tenant Move In?
@@ -170,7 +171,10 @@ const form = useForm({
     // New location fields
     gasShutoffValveLocation: "",
     breakerBoxLocation: "",
-    hvacFilterLocation: "",
+    hvacFilterLocation1: "",
+    hvacFilterLocation2: "",
+    hvacFilterLocation3: "",
+    hvacFilterLocation4: "",
     hvacFilterSize1: "",
     hvacFilterSize2: "",
     hvacFilterSize3: "",
@@ -376,7 +380,10 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
     // New location fields
     gasShutoffValveLocation: "Gas Shut Off Valve Location",
     breakerBoxLocation: "Breaker Box Location",
-    hvacFilterLocation: "HVAC Filter Location Information",
+    hvacFilterLocation1: "HVAC Filter Location Information 1",
+    hvacFilterLocation2: "HVAC Filter Location Information 2",
+    hvacFilterLocation3: "HVAC Filter Location Information 3",
+    hvacFilterLocation4: "HVAC Filter Location Information 4",
     hvacFilterSize1: "HVAC Filter Size 1",
     hvacFilterSize2: "HVAC Filter Size 2",
     hvacFilterSize3: "HVAC Filter Size 3",
@@ -731,7 +738,7 @@ const populateFormFromCustomFields = () => {
 
     // Final Clean mapping
     if (customFieldsMap.value["Final Clean"]?.value === "By Management") {
-        form.homeOnTheMarketCleaning = "Management";
+        form.beforeTenantMoveInClearning = "Management";
     }
 
     // Carpet Care mapping
@@ -1007,7 +1014,10 @@ const prepareCustomFieldsForUpdate = () => {
             const formValue = form[formField];
 
             // Skip fields that are handled separately to avoid conflicts
-            if (customFieldName === "Pet Restrictions" || customFieldName === "Owner Pet Prefences") {
+            if (
+                customFieldName === "Pet Restrictions" ||
+                customFieldName === "Owner Pet Prefences"
+            ) {
                 return;
             }
 
@@ -1076,20 +1086,25 @@ const prepareCustomFieldsForUpdate = () => {
         if (
             form.otherPetsRestriction &&
             form.otherPetsRestriction !== "Not Completed" &&
-            form.otherPetsRestriction !== customFieldsMap.value["Owner Pet Prefences"].value
+            form.otherPetsRestriction !==
+                customFieldsMap.value["Owner Pet Prefences"].value
         ) {
             petPrefs.push(form.otherPetsRestriction);
         }
 
         // Always update - if no preferences set, clear the field
-        const petValue = petPrefs.length > 0 ? petPrefs.join(", ") : "Not Completed";
+        const petValue =
+            petPrefs.length > 0 ? petPrefs.join(", ") : "Not Completed";
         fieldsToUpdate["Owner Pet Prefences"] = petValue;
     }
 
     // Pet Restrictions - always update to replace existing data completely
     if (customFieldsMap.value["Pet Restrictions"]) {
         // Only use otherPetsRestriction if it's different from the stored value and not empty
-        if (form.otherPetsRestriction && form.otherPetsRestriction !== "Not Completed") {
+        if (
+            form.otherPetsRestriction &&
+            form.otherPetsRestriction !== "Not Completed"
+        ) {
             fieldsToUpdate["Pet Restrictions"] = form.otherPetsRestriction;
         } else {
             // Clear the field if no restrictions are set
@@ -1265,6 +1280,26 @@ const prepareCustomFieldsForUpdate = () => {
             fieldsToUpdate["Included Appliances"] =
                 includedAppliances.join(", ");
         }
+    }
+
+    // HVAC Filter Information - concatenate location and size for each filter
+    const hvacFilters = [];
+    for (let i = 1; i <= 4; i++) {
+        const location = form[`hvacFilterLocation${i}`];
+        const size = form[`hvacFilterSize${i}`];
+
+        if (location && location.trim() !== "" && size && size.trim() !== "") {
+            hvacFilters.push(`Filter ${i}: ${location} - Size: ${size}`);
+        }
+    }
+
+    // Store concatenated HVAC filter information in a single custom field
+    if (
+        hvacFilters.length > 0 &&
+        customFieldsMap.value["HVAC Filter Location Information"]
+    ) {
+        fieldsToUpdate["HVAC Filter Location Information"] =
+            hvacFilters.join("; ");
     }
 
     // Convert to Propertyware API format with proper value mapping
@@ -1679,7 +1714,6 @@ const submitForm = async () => {
                     />
 
                     <PropertyPriorToMarket
-                        v-if="buildingInfo.id"
                         v-model:form="form"
                         :completedSections="completedSections"
                         @sectionComplete="markSectionCompleted"
@@ -1714,7 +1748,6 @@ const submitForm = async () => {
                     />
 
                     <HVACMaintenance
-                        v-if="buildingInfo.id"
                         v-model:form="form"
                         :completedSections="completedSections"
                         @sectionComplete="markSectionCompleted"

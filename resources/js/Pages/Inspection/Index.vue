@@ -89,15 +89,17 @@ const tabButtons = [
 ];
 
 // Function to open modal with job details
-const openJobModal = (job) => {
-    selectedJob.value = job;
+const openJobModal = async (job) => {
+    const response = await axios.get(route("jobber.jobDetails", job.id));
+
+    selectedJob.value = { ...job, ...response.data };
     isModalOpen.value = true;
     activeTab.value = "details"; // Always start with details view
 
     // Reset messaging state
     newMessage.value = "";
     selectedContact.value = "";
-    jobMessages.value = job.text_messages || [];
+    jobMessages.value = response.data.text_messages || [];
     jobContacts.value = [];
     selectedImage.value = null;
     imagePreview.value = null;
@@ -277,6 +279,8 @@ watch(selectedContact, (newContactId) => {
 });
 
 const formatStatus = (status) => {
+    if (typeof status !== "string") return "";
+
     return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 };
 

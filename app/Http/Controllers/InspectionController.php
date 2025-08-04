@@ -19,7 +19,7 @@ class InspectionController extends Controller
     public function index(Request $request)
     {
         $jobs = Jobber::query()
-            ->with(['client', 'property', 'visits', 'textMessages'])
+            ->with(['client', 'visits'])
             ->filter(request(['search'])) // Add search filter if needed
             ->whereNot('job_status', 'archived')
             ->latest()
@@ -31,34 +31,10 @@ class InspectionController extends Controller
                     'title' => $job->title,
                     'job_status' => $job->job_status,
                     'job_type' => $job->job_type,
-                    'jobber_web_uri' => $job->jobber_web_uri,
                     'total' => $job->total,
-                    'instructions' => $job->instructions,
                     'start_at' => $job->start_at,
-                    'end_at' => $job->end_at,
-                    'completed_at' => $job->completed_at,
-                    'client_id' => $job->client->id ?? null,
-                    'client' => $job->client ?? null,
                     'client_name' => $job->client->first_name." ".$job->client->last_name ?? 'No Client',
-                    'client_company' => $job->client->company_name ?? null,
-                    'property_id' => $job->property->id ?? null,
-                    'property_address' => $job->property ?
-                        trim($job->property->street.' '.$job->property->city.' '.$job->property->province.' '.$job->property->postal_code.' '.$job->property->country)
-                        : 'No Property',
-                    'visits' => $job->visits,
                     'visits_count' => $job->visits->count(),
-                    'text_messages' => $job->textMessages->sortBy('created_at')->map(function ($message) {
-                        return [
-                            'id' => $message->id,
-                            'message' => $message->messages,
-                            'sender_number' => $message->sender_number,
-                            'receiver_number' => $message->receiver_number,
-                            'image' => $message->image ? asset('storage/'.$message->image) : null,
-                            'is_mms' => ! empty($message->image), // Set MMS flag for images
-                            'created_at' => $message->created_at,
-                        ];
-                    }),
-                    'text_messages_count' => $job->textMessages->count(),
                 ];
             });
 
@@ -84,6 +60,39 @@ class InspectionController extends Controller
             'statistics' => $statistics,
             'access_token_exist' => $this->accessTokenExist(),
             'filter' => $request->only(['search', 'per_page']),
+        ]);
+    }
+
+    public function jobDetails(Jobber $job)
+    {
+        $job->load(['visits','client','property','textMessages']);
+
+        return response()->json([
+            'jobber_web_uri' => $job->jobber_web_uri,
+            'instructions' => $job->instructions,
+            'end_at' => $job->end_at,
+            'completed_at' => $job->completed_at,
+            'client' => $job->client ?? null,
+            'client_id' => $job->client->id ?? null,
+            'client_company' => $job->client->company_name ?? null,
+            'property_id' => $job->property->id ?? null,
+            'property_address' => $job->property ?
+                trim($job->property->street.' '.$job->property->city.' '.$job->property->province.' '.$job->property->postal_code.' '.$job->property->country)
+                : 'No Property',
+            'visits' => $job->visits,
+            'visits_count' => $job->visits->count(),
+            'text_messages' => $job->textMessages->sortBy('created_at')->map(function($message){
+                return [
+                    'id' => $message->id,
+                    'message' => $message->messages,
+                    'sender_number' => $message->sender_number,
+                    'receiver_number' => $message->receiver_number,
+                    'image' => $message->image ? asset('storage/'.$message->image) : null,
+                    'is_mms' => ! empty($message->image), // Set MMS flag for images
+                    'created_at' => $message->created_at,
+                ];
+            }),
+            'text_messages_count' => $job->textMessages->count(),
         ]);
     }
 

@@ -1,14 +1,7 @@
 <script setup>
-import {
-    AppWindow,
-    CheckCircle,
-    Dog,
-    Key,
-    User2,
-    Users2,
-} from "lucide-vue-next";
+import { AppWindow, CheckCircle } from "lucide-vue-next";
 
-import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { Alert, AlertDescription } from "@/Components/ui/alert";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -131,15 +124,13 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Location Information</label
+                                    >HVAC Filter Location Information 1</label
                                 >
                                 <Input
-                                    v-model="form.hvacFilterLocation"
+                                    v-model="form.hvacFilterLocation1"
                                     placeholder="e.g. Return air grille in hallway ceiling"
                                 />
                             </div>
-                        </div>
-                        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
                                     >HVAC Filter Size 1</label
@@ -151,11 +142,29 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
+                                    >HVAC Filter Location Information 2</label
+                                >
+                                <Input
+                                    v-model="form.hvacFilterLocation2"
+                                    placeholder="e.g. Return air grille in hallway ceiling"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium"
                                     >HVAC Filter Size 2</label
                                 >
                                 <Input
                                     v-model="form.hvacFilterSize2"
-                                    placeholder="e.g. 16x20x1"
+                                    placeholder="e.g. 20x25x1"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium"
+                                    >HVAC Filter Location Information 3</label
+                                >
+                                <Input
+                                    v-model="form.hvacFilterLocation3"
+                                    placeholder="e.g. Return air grille in hallway ceiling"
                                 />
                             </div>
                             <div class="space-y-2">
@@ -164,7 +173,16 @@ const markSectionCompleted = (value) => {
                                 >
                                 <Input
                                     v-model="form.hvacFilterSize3"
-                                    placeholder="e.g. 14x14x1"
+                                    placeholder="e.g. 20x25x1"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium"
+                                    >HVAC Filter Location Information 4</label
+                                >
+                                <Input
+                                    v-model="form.hvacFilterLocation4"
+                                    placeholder="e.g. Return air grille in hallway ceiling"
                                 />
                             </div>
                             <div class="space-y-2">
@@ -173,7 +191,7 @@ const markSectionCompleted = (value) => {
                                 >
                                 <Input
                                     v-model="form.hvacFilterSize4"
-                                    placeholder="e.g. 12x12x1"
+                                    placeholder="e.g. 20x25x1"
                                 />
                             </div>
                         </div>
