@@ -674,9 +674,9 @@ const saveClient = async () => {
                                     >Client Name</span
                                 >
                                 <p class="text-sm">
-                                    {{ selectedJob.client.first_name }}
-                                    {{ selectedJob.client.last_name }} -
-                                    {{ selectedJob.client.phone }}
+                                    {{ selectedJob.client?.first_name }}
+                                    {{ selectedJob.client?.last_name }} -
+                                    {{ selectedJob.client?.phone }}
                                 </p>
                             </div>
 
@@ -1035,7 +1035,7 @@ const saveClient = async () => {
                             </Combobox>
                             <Button
                                 v-if="
-                                    selectedClient || selectedJob.client.phone
+                                    selectedClient || selectedJob.client?.phone
                                 "
                                 @click="saveClient"
                                 size="sm"

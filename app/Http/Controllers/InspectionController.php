@@ -74,6 +74,7 @@ class InspectionController extends Controller
             'completed_at' => $job->completed_at,
             'client' => $job->client ?? null,
             'client_id' => $job->client->id ?? null,
+            'phone' => $job->client->phone,
             'client_company' => $job->client->company_name ?? null,
             'property_id' => $job->property->id ?? null,
             'property_address' => $job->property ?

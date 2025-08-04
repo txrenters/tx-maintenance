@@ -277,6 +277,9 @@ const markSectionCompleted = (value) => {
                                             <SelectItem value="Management"
                                                 >Management</SelectItem
                                             >
+                                            <SelectItem value="Owner"
+                                                >Owner</SelectItem
+                                            >
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -398,25 +401,6 @@ const markSectionCompleted = (value) => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                            </div>
-                            <div class="space-y-2 mt-2">
-                                <label class="text-sm font-medium"
-                                    >Cleaning</label
-                                >
-                                <Select
-                                    v-model="form.beforeTenantMoveInClearning"
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue
-                                            placeholder="Who handles?"
-                                        />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Management"
-                                            >Management</SelectItem
-                                        >
-                                    </SelectContent>
-                                </Select>
                             </div>
                         </div>
 

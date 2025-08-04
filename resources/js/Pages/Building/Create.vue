@@ -253,7 +253,51 @@ onMounted(() => {
     onUnmounted(() => {
         window.removeEventListener("resize", handleResize);
     });
+
+    // Restore form data from localStorage
+    const savedFormData = localStorage.getItem('buildingOnboardingForm');
+    if (savedFormData) {
+        try {
+            const parsedData = JSON.parse(savedFormData);
+            // Only restore data if building ID matches (to avoid restoring wrong building data)
+            if (parsedData.buildingId && parsedData.buildingId === buildingInfo?.id) {
+                Object.keys(parsedData).forEach(key => {
+                    if (key !== 'buildingId' && form.hasOwnProperty(key)) {
+                        form[key] = parsedData[key];
+                    }
+                });
+                
+                // Show notification that data was restored
+                toast({
+                    title: "Form Restored",
+                    description: "Your previous progress has been restored.",
+                });
+            }
+        } catch (error) {
+            console.error('Error restoring form data:', error);
+        }
+    }
 });
+
+// Auto-save form data to localStorage
+const saveFormToLocalStorage = () => {
+    if (buildingInfo?.id) {
+        const formData = {
+            buildingId: buildingInfo.id,
+            ...form
+        };
+        localStorage.setItem('buildingOnboardingForm', JSON.stringify(formData));
+    }
+};
+
+// Watch for form changes and auto-save
+watch(
+    () => ({ ...form }),
+    () => {
+        saveFormToLocalStorage();
+    },
+    { deep: true }
+);
 
 // Define sections for navigation
 const sections = [
@@ -1442,6 +1486,9 @@ const submitForm = async () => {
         // Mark signature section as completed
         markSectionCompleted("signature");
 
+        // Clear localStorage after successful submission
+        localStorage.removeItem('buildingOnboardingForm');
+
         // Optional: redirect or reset form
         // window.location.href = '/thank-you';
     } catch (error) {
@@ -1692,6 +1739,10 @@ const submitForm = async () => {
                             your property for management. Your responses help us
                             provide the best service for your investment.
                         </p>
+                        <div class="mt-4 inline-flex items-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+                            <CheckCircle class="w-4 h-4 mr-2" />
+                            Your progress is automatically saved
+                        </div>
                     </div>
 
                     <FindProperty

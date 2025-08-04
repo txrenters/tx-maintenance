@@ -14,13 +14,13 @@ use Illuminate\Support\Facades\Log;
 
 class JobberWebhookController extends Controller
 {
-    public function __invoke(Request $request)
+    public function handle(Request $request)
     {
         $clientSecret = env('JOBBER_SECRET');
         $hmacHeader = $request->header('X-Jobber-Hmac-SHA256');
         $rawPayload = $request->getContent();
 
-        Log::info('Job data received.', ['data' => $rawPayload]);
+        Log::info('Jobber rawpayload received.', ['data' => $rawPayload]);
 
         $calculatedHmac = base64_encode(hash_hmac('sha256', $rawPayload, $clientSecret, true));
 

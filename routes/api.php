@@ -5,6 +5,7 @@ use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TwilioWebhookController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -33,6 +34,10 @@ Route::post('/service_schedule/{serviceSchedule}/complete', [ServiceScheduleCont
 Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute
+
+Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:60,1'); // 60 requests per minute;
 
 Route::get('/notifications', [NotificationController::class, 'fetchNotification']);
 Route::put('/notifications/{message}/mark-as-read', [NotificationController::class, 'markAsRead']);
