@@ -61,7 +61,7 @@ class JobberAuthController extends Controller
     public function refreshAccessToken(): string
     {
         // Fetch the latest token row (assuming single-row table)
-        $token = JobberToken::first();
+        $token = JobberToken::latest();
 
         if (!$token || !$token->refresh_token) {
             throw new \Exception('No Jobber refresh token found');
