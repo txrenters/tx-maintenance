@@ -104,7 +104,7 @@ const openJobModal = async (job) => {
     selectedImage.value = null;
     imagePreview.value = null;
     selectedClient.value = job.client;
-    contactPhoneNumber.value = job.client.phone ?? "";
+    contactPhoneNumber.value = job.client?.phone ?? "";
 };
 
 // Function to close modal
@@ -425,7 +425,6 @@ const saveClient = async () => {
                         class="h-[70vh] overflow-y-auto border-t pt-2 mb-5"
                     >
                         <div
-                            v-motion-slide-visible-once-right
                             v-for="item in collection"
                             :key="item.id"
                             class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border"

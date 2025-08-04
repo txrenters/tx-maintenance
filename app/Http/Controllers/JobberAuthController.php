@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobberToken;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -56,10 +58,16 @@ class JobberAuthController extends Controller
         }
     }
 
-    public function refreshAccessToken()
+    public function refreshAccessToken(): string
     {
-        $token = JobberToken::first(); // adjust as needed
+        // Fetch the latest token row (assuming single-row table)
+        $token = JobberToken::first();
 
+        if (!$token || !$token->refresh_token) {
+            throw new \Exception('No Jobber refresh token found');
+        }
+
+        // Perform token refresh request
         $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
             'client_id' => env('JOBBER_CLIENT_ID'),
             'client_secret' => env('JOBBER_CLIENT_SECRET'),
@@ -70,15 +78,33 @@ class JobberAuthController extends Controller
         if ($response->ok()) {
             $data = $response->json();
 
-            $token->access_token = $data['access_token'];
-            if (isset($data['refresh_token'])) {
-                $token->refresh_token = $data['refresh_token']; // optional if rotation is off
-            }
-            $token->save();
+            // 🌐 Use DB transaction to avoid race conditions
+            DB::transaction(function () use ($token, $data) {
+                $token->access_token = $data['access_token'];
+
+                if (isset($data['refresh_token'])) {
+                    $token->refresh_token = $data['refresh_token'];
+                }
+
+                // You may store `expires_at` as well if needed
+                if (isset($data['expires_at'])) {
+                    $token->expires_at = Carbon::parse($data['expires_at']);
+                }
+
+                $token->save();
+            });
+
+            Log::info('✅ Jobber access and refresh tokens updated.');
 
             return $data['access_token'];
         }
 
+        Log::error('❌ Failed to refresh Jobber token', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
         throw new \Exception('Unable to refresh Jobber access token');
     }
+
 }
