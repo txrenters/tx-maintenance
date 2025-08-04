@@ -46,7 +46,7 @@ import {
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred } from "@inertiajs/vue3";
-import { useEcho } from "@laravel/echo-vue";
+import { useEchoPublic } from "@laravel/echo-vue";
 
 const { toast } = useToast();
 
@@ -386,7 +386,7 @@ const saveClient = async () => {
     }
 };
 
-useEcho(`jobs`, "JobUpdated", (e) => {
+useEchoPublic(`jobs`, "JobUpdated", (e) => {
     console.log(e.job);
     props.jobsByStatus.collection = { ...jobs };
 });
