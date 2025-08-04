@@ -61,7 +61,7 @@ class JobberAuthController extends Controller
     public function refreshAccessToken(): string
     {
         // Fetch the latest token row (assuming single-row table)
-        $token = JobberToken::latest();
+        $token = JobberToken::first();
 
         if (!$token || !$token->refresh_token) {
             throw new \Exception('No Jobber refresh token found');
@@ -88,7 +88,7 @@ class JobberAuthController extends Controller
 
                 // You may store `expires_at` as well if needed
                 if (isset($data['expires_at'])) {
-                    $token->expires_at = Carbon::parse($data['expires_at']);
+                    $token->expires_at = Carbon::parse($data['expires_at']) ?? now()->addHour();
                 }
 
                 $token->save();
