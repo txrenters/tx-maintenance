@@ -62,19 +62,19 @@ class JobberWebhookController extends Controller
 
         $responseData = $this->getJobDetails($jobberId);
 
-        $job = $responseData['data']['job'];
+        $job = (object) $responseData['data']['job'];
 
-        $clientData = $job['client'];
+        $clientData = $job->client;
 
         $client = $this->createOrUpdateClient($clientData);
 
-        $propertyData = $job['property'];
+        $propertyData = $job->property;
 
         $property = $this->createOrUpdateProperty($propertyData, $client);
 
-        $property = $this->createOrUpdateJob($job, $client, $property);
+        $property = $this->createOrUpdateJob($job->toArray(), $client, $property);
 
-        $visitsData = $job['visits']['edges'];
+        $visitsData = $job->visits->edges;
 
         if (isset($visitsData) && is_array($visitsData)) {
             foreach ($visitsData as $visitEdge) {

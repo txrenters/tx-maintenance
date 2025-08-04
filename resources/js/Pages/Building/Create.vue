@@ -69,6 +69,8 @@ const { toast } = useToast();
 const fullName = ref("");
 const contactNumber = ref("");
 const propertyName = ref("");
+const showThankYou = ref(false);
+const redirectCountdown = ref(5);
 
 const form = useForm({
     paint: "",
@@ -1510,8 +1512,9 @@ const submitForm = async () => {
         // Clear localStorage after successful submission
         localStorage.removeItem("buildingOnboardingForm");
 
-        // Optional: redirect or reset form
-        // window.location.href = '/thank-you';
+        // Show thank you overlay and start countdown
+        showThankYou.value = true;
+        startCountdown();
     } catch (error) {
         toast({
             variant: "destructive",
@@ -1523,6 +1526,23 @@ const submitForm = async () => {
     } finally {
         loading.value = false;
     }
+};
+
+// Countdown timer function
+const startCountdown = () => {
+    const timer = setInterval(() => {
+        redirectCountdown.value--;
+        if (redirectCountdown.value <= 0) {
+            clearInterval(timer);
+            redirectToHandbook();
+        }
+    }, 1000);
+};
+
+// Redirect to owner handbook
+const redirectToHandbook = () => {
+    // Replace this URL with your actual owner handbook URL
+    window.location.href = '/owner-handbook'; // UPDATE THIS URL
 };
 </script>
 
@@ -1958,6 +1978,46 @@ const submitForm = async () => {
         </div>
 
         <!-- Modern Footer -->
+    </div>
+
+    <!-- Thank You Overlay -->
+    <div v-if="showThankYou" class="fixed inset-0 z-50 flex items-center justify-center">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        
+        <!-- Content -->
+        <div class="relative bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all duration-500 scale-100">
+            <div class="text-center">
+                <!-- Success Icon -->
+                <div class="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle class="w-12 h-12 text-green-600" />
+                </div>
+                
+                <!-- Thank You Message -->
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Thank You!</h2>
+                <p class="text-lg text-gray-600 mb-6">
+                    Your property information has been successfully submitted. We appreciate you taking the time to complete this onboarding process.
+                </p>
+                
+                <!-- Countdown Message -->
+                <div class="bg-blue-50 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-blue-900">
+                        Redirecting to your Owner Handbook in
+                        <span class="font-bold text-2xl mx-1">{{ redirectCountdown }}</span>
+                        seconds...
+                    </p>
+                </div>
+                
+                <!-- Manual Redirect Button -->
+                <Button 
+                    @click="redirectToHandbook"
+                    class="w-full"
+                    size="lg"
+                >
+                    Go to Owner Handbook Now
+                </Button>
+            </div>
+        </div>
     </div>
 
     <Toaster />
