@@ -264,6 +264,16 @@ const markSectionCompleted = (value) => {
                             </Select>
                         </div>
                     </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium"
+                            >Who the tenant should contact to access
+                            Neighborhood Amenities</label
+                        >
+                        <Input
+                            type="text"
+                            v-model="form.tenantToContactNeighborhoodAmenities"
+                        />
+                    </div>
                 </div>
 
                 <div>

@@ -61,18 +61,20 @@ class TwilioWebhookController extends Controller
 
                 } catch (Exception $e) {
                     Log::error('Failed to create conversation: '.$e->getMessage());
+
                     return response('Error processing request', 500);
                 }
 
             } else {
                 Log::info('Message not valid for insertion (duplicate or missing data).');
+
                 return response('Error processing request', 500);
             }
         }
 
         $jobberMessage = $this->getJobberMessage($from, $to);
 
-        if($jobberMessage){
+        if ($jobberMessage) {
 
             $numMedia = (int) $request->input('NumMedia');
 
@@ -80,8 +82,8 @@ class TwilioWebhookController extends Controller
                 'message' => $body,
                 'sender_number' => $from,
                 'receiver_number' => $to,
-                'image' => $numMedia > 0 ? $request->input("MediaUrl0") : null,
-                'jobber_job_id' => $jobberMessage->jobber_job_id
+                'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
+                'jobber_job_id' => $jobberMessage->jobber_job_id,
             ]);
 
             if ($numMedia > 1) {
@@ -90,7 +92,7 @@ class TwilioWebhookController extends Controller
                 for ($i = 1; $i < $numMedia; $i++) {
                     $mediaUrl = $request->input("MediaUrl{$i}");
 
-                    $mediaWithTextMessage[] =  [
+                    $mediaWithTextMessage[] = [
                         'sender_number' => $from,
                         'receiver_number' => $to,
                         'message' => '',
@@ -103,14 +105,14 @@ class TwilioWebhookController extends Controller
 
                 DB::table('jobber_text_messages')->insert($mediaWithTextMessage);
             }
-               
-            
+
             Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);
 
-            return response()->noContent(); 
+            return response()->noContent();
         }
 
         Log::info('Message not found in the database.');
+
         return response('Error processing request', 500);
     }
 

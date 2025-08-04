@@ -44,7 +44,7 @@ class JobberAuthController extends Controller
             JobberToken::updateOrCreate([], [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
-                'expires_at' => now()->addHour()
+                'expires_at' => now()->addHour(),
             ]);
 
             return redirect('/inspections')->with('success', 'Connected to Jobber');
@@ -79,7 +79,6 @@ class JobberAuthController extends Controller
             return $data['access_token'];
         }
 
-        throw new \Exception("Unable to refresh Jobber access token");
+        throw new \Exception('Unable to refresh Jobber access token');
     }
-
 }

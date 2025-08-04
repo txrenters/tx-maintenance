@@ -366,7 +366,7 @@ class ImportJobberJobs extends Command
         $token = JobberToken::first();
 
         return [
-            'Authorization' => 'Bearer ' . $token->access_token,
+            'Authorization' => 'Bearer '.$token->access_token,
             'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
             'Content-Type' => 'application/json',
         ];

@@ -33,7 +33,7 @@ class InspectionController extends Controller
                     'job_type' => $job->job_type,
                     'total' => $job->total,
                     'start_at' => $job->start_at,
-                    'client_name' => $job->client->first_name." ".$job->client->last_name ?? 'No Client',
+                    'client_name' => $job->client->first_name.' '.$job->client->last_name ?? 'No Client',
                     'visits_count' => $job->visits->count(),
                 ];
             });
@@ -56,7 +56,7 @@ class InspectionController extends Controller
 
         return inertia('Inspection/Index', [
             'title' => 'Inspections',
-            'jobsByStatus' => Inertia::defer(fn() => $jobsByStatus),
+            'jobsByStatus' => Inertia::defer(fn () => $jobsByStatus),
             'statistics' => $statistics,
             'access_token_exist' => $this->accessTokenExist(),
             'filter' => $request->only(['search', 'per_page']),
@@ -65,7 +65,7 @@ class InspectionController extends Controller
 
     public function jobDetails(Jobber $job)
     {
-        $job->load(['visits','client','property','textMessages']);
+        $job->load(['visits', 'client', 'property', 'textMessages']);
 
         return response()->json([
             'jobber_web_uri' => $job->jobber_web_uri,
@@ -82,7 +82,7 @@ class InspectionController extends Controller
                 : 'No Property',
             'visits' => $job->visits,
             'visits_count' => $job->visits->count(),
-            'text_messages' => $job->textMessages->sortBy('created_at')->map(function($message){
+            'text_messages' => $job->textMessages->sortBy('created_at')->map(function ($message) {
                 return [
                     'id' => $message->id,
                     'message' => $message->messages,
@@ -102,11 +102,12 @@ class InspectionController extends Controller
         return JobberToken::whereNotNull('access_token')->exists();
     }
 
-    public function searchClient(Request $request){
-        
+    public function searchClient(Request $request)
+    {
+
         $search = $request->search;
 
-        $tenants = Tenants::select('id','first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
+        $tenants = Tenants::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
             ->where(function ($query) use ($search) {
                 $query->where('first_name', 'like', "%$search%")
                     ->orWhere('last_name', 'like', "%$search%");
@@ -121,8 +122,8 @@ class InspectionController extends Controller
                 ];
 
                 foreach ($phones as $number) {
-                    if($number){
-                        $matches->push((object)[
+                    if ($number) {
+                        $matches->push((object) [
                             'id' => $tenant->id,
                             'first_name' => $tenant->first_name,
                             'last_name' => $tenant->last_name,
@@ -134,14 +135,14 @@ class InspectionController extends Controller
                 return $matches;
             });
 
-        $owners = Owner::select('id','first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
+        $owners = Owner::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
             ->where(function ($query) use ($search) {
-                    $query->where('first_name', 'like', "%$search%")
-                        ->orWhere('last_name', 'like', "%$search%");
-                })
+                $query->where('first_name', 'like', "%$search%")
+                    ->orWhere('last_name', 'like', "%$search%");
+            })
             ->orWhere('last_name', $request->search)
             ->get()
-            ->flatMap(function ($owner){
+            ->flatMap(function ($owner) {
                 $matches = collect();
                 $phones = [
                     'home_phone' => $owner->home_phone,
@@ -150,8 +151,8 @@ class InspectionController extends Controller
                 ];
 
                 foreach ($phones as $number) {
-                    if($number){
-                        $matches->push((object)[
+                    if ($number) {
+                        $matches->push((object) [
                             'id' => $owner->id,
                             'first_name' => $owner->first_name,
                             'last_name' => $owner->last_name,
@@ -162,7 +163,7 @@ class InspectionController extends Controller
 
                 return $matches;
             });
-    
+
         $clients = $tenants->merge($owners);
 
         $distinctClients = $clients->unique(function ($client) {
@@ -173,7 +174,8 @@ class InspectionController extends Controller
 
     }
 
-    public function saveClient(Request $request){
+    public function saveClient(Request $request)
+    {
 
         $validated = $request->validate([
             'jobber_id' => 'required|integer',
@@ -185,10 +187,10 @@ class InspectionController extends Controller
         $jobber = Jobber::with('client')->findOrFail($validated['jobber_id']);
 
         // ✅ Make sure the client relationship exists
-        if (!$jobber->client) {
+        if (! $jobber->client) {
             return response()->json(['error' => 'Client not found for this jobber.'], 404);
         }
-        
+
         JobberClient::find($jobber->jobber_client_id)->update([
             'first_name' => $validated['client']['first_name'],
             'last_name' => $validated['client']['last_name'],

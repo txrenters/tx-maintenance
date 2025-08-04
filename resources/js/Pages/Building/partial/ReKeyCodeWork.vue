@@ -39,11 +39,10 @@ const markSectionCompleted = (value) => {
                                         >Re-Key & Code Work:</span
                                     >
                                     State law requires a working smoke detector
-                                    in each bedroom and each hallway servicing
-                                    more than one bedroom along with a peep hole
-                                    and keyless locking device on each exterior
-                                    door. Homes must be re-keyed between each
-                                    tenant.
+                                    in each bedroom and each hallway servicing a
+                                    bedroom along with a peep hole and keyless
+                                    locking device on each exterior door. Homes
+                                    must be re-keyed between each tenant.
                                 </p>
                                 <p>
                                     <span class="font-bold underline"

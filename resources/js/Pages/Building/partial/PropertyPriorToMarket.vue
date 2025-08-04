@@ -46,7 +46,10 @@ const markSectionCompleted = (value) => {
 
                     <div class="space-y-6">
                         <div>
-                            <h4 class="font-medium mb-3">Prior to Market</h4>
+                            <h4 class="font-medium mb-3">
+                                Prior to property photos the following items
+                                need to be completed
+                            </h4>
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
@@ -344,6 +347,22 @@ const markSectionCompleted = (value) => {
                                             arranging the service on your own.
                                             If you arrange the service, please
                                             provide receipts for our records.
+                                        </p>
+                                        <p>
+                                            <a
+                                                href="https://www.texasrenters.com/"
+                                                class="text-primary font-bold"
+                                                >TexasRenters.com, LLC</a
+                                            >
+                                            will arrange for and pay for, at the
+                                            owner's expense, a final cleaning
+                                            just prior to tenant move in. You
+                                            may have the lawn and pest control
+                                            done at your discretion. For
+                                            standard treatment of roaches and
+                                            bugs (excluding rodents and bee
+                                            hives) the charge is $60.00 for pest
+                                            control
                                         </p>
                                     </div>
                                 </AlertDescription>

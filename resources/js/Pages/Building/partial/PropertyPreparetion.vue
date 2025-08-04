@@ -125,19 +125,6 @@ const markSectionCompleted = (value) => {
                                     />
                                 </div>
                             </div>
-                            <div v-if="form.paint === 'Yes'" class="">
-                                <Label> Color Code</Label>
-                                <div class="flex items-center gap-3">
-                                    <input
-                                        type="color"
-                                        v-model="form.paintColorCode"
-                                        class="h-10 w-20 rounded border cursor-pointer"
-                                    />
-                                    <span class="text-sm">{{
-                                        form.paintColorCode || "Select color"
-                                    }}</span>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>

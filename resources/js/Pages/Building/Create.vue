@@ -73,7 +73,6 @@ const propertyName = ref("");
 const form = useForm({
     paint: "",
     paintColor: "",
-    paintColorCode: "",
     //Who will do what prior to the home going on the market
     goingOnTheMarketLawnCare: "",
     goingOnTheMarketCleaning: "",
@@ -87,7 +86,6 @@ const form = useForm({
     homeOnTheMarketCleaning: "Management",
     homeOnTheMarketUtilities: "",
     //Who will do what Just Before Tenant Move In?
-    beforeTenantMoveInClearning: "Management",
     beforeTenantMoveInLawnCare: "",
     beforeTenantMoveInPestControl: "",
     //Who will do lawn care After Tenant Move In?
@@ -118,6 +116,7 @@ const form = useForm({
     park: "",
     playGround: "",
     tennisCourt: "",
+    tenantToContactNeighborhoodAmenities: "",
     //Garage Access & Mailbox
     garageDoorOpener: "",
     garageDoorRemote: "",
@@ -255,18 +254,21 @@ onMounted(() => {
     });
 
     // Restore form data from localStorage
-    const savedFormData = localStorage.getItem('buildingOnboardingForm');
+    const savedFormData = localStorage.getItem("buildingOnboardingForm");
     if (savedFormData) {
         try {
             const parsedData = JSON.parse(savedFormData);
             // Only restore data if building ID matches (to avoid restoring wrong building data)
-            if (parsedData.buildingId && parsedData.buildingId === buildingInfo?.id) {
-                Object.keys(parsedData).forEach(key => {
-                    if (key !== 'buildingId' && form.hasOwnProperty(key)) {
+            if (
+                parsedData.buildingId &&
+                parsedData.buildingId === buildingInfo?.id
+            ) {
+                Object.keys(parsedData).forEach((key) => {
+                    if (key !== "buildingId" && form.hasOwnProperty(key)) {
                         form[key] = parsedData[key];
                     }
                 });
-                
+
                 // Show notification that data was restored
                 toast({
                     title: "Form Restored",
@@ -274,7 +276,7 @@ onMounted(() => {
                 });
             }
         } catch (error) {
-            console.error('Error restoring form data:', error);
+            console.error("Error restoring form data:", error);
         }
     }
 });
@@ -282,19 +284,37 @@ onMounted(() => {
 // Auto-save form data to localStorage
 const saveFormToLocalStorage = () => {
     if (buildingInfo?.id) {
+        // Extract only the data from the Inertia form object
         const formData = {
             buildingId: buildingInfo.id,
-            ...form
+            ...form.data(),
         };
-        localStorage.setItem('buildingOnboardingForm', JSON.stringify(formData));
+        localStorage.setItem(
+            "buildingOnboardingForm",
+            JSON.stringify(formData)
+        );
     }
 };
 
-// Watch for form changes and auto-save
-watch(
-    () => ({ ...form }),
-    () => {
+// Debounce timer reference
+let saveTimer = null;
+
+// Debounced save function to prevent too many localStorage writes
+const debouncedSave = () => {
+    if (saveTimer) {
+        clearTimeout(saveTimer);
+    }
+    saveTimer = setTimeout(() => {
         saveFormToLocalStorage();
+    }, 1000); // Save after 1 second of no changes
+};
+
+// Watch for form changes and auto-save
+// Watch the form.data() which contains the actual form values
+watch(
+    () => form.data(),
+    () => {
+        debouncedSave();
     },
     { deep: true }
 );
@@ -363,6 +383,8 @@ const markSectionCompleted = (sectionId) => {
     if (!completedSections.value.includes(sectionId)) {
         completedSections.value.push(sectionId);
     }
+    // Save form data when section is completed
+    saveFormToLocalStorage();
 };
 
 // Define the mapping between form fields and Propertyware custom field names
@@ -535,7 +557,6 @@ const populateFormFromCustomFields = () => {
     // Paint Color - if it has a hex value like "#b11010"
     if (customFieldsMap.value["Paint Color"]?.value) {
         form.paintColor = customFieldsMap.value["Paint Color"].value;
-        form.paintColorCode = customFieldsMap.value["Paint Color"].value;
     }
 
     // Service Provided -> tenantServiceRequest with reverse mapping
@@ -1487,7 +1508,7 @@ const submitForm = async () => {
         markSectionCompleted("signature");
 
         // Clear localStorage after successful submission
-        localStorage.removeItem('buildingOnboardingForm');
+        localStorage.removeItem("buildingOnboardingForm");
 
         // Optional: redirect or reset form
         // window.location.href = '/thank-you';
@@ -1739,7 +1760,9 @@ const submitForm = async () => {
                             your property for management. Your responses help us
                             provide the best service for your investment.
                         </p>
-                        <div class="mt-4 inline-flex items-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+                        <div
+                            class="mt-4 inline-flex items-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full"
+                        >
                             <CheckCircle class="w-4 h-4 mr-2" />
                             Your progress is automatically saved
                         </div>
@@ -1765,6 +1788,7 @@ const submitForm = async () => {
                     />
 
                     <PropertyPriorToMarket
+                        v-if="buildingInfo.id"
                         v-model:form="form"
                         :completedSections="completedSections"
                         @sectionComplete="markSectionCompleted"
@@ -1799,6 +1823,7 @@ const submitForm = async () => {
                     />
 
                     <HVACMaintenance
+                        v-if="buildingInfo.id"
                         v-model:form="form"
                         :completedSections="completedSections"
                         @sectionComplete="markSectionCompleted"

@@ -8,6 +8,7 @@ use App\Models\JobberProperty;
 use App\Models\JobberToken;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -20,12 +21,10 @@ class JobberWebhookController extends Controller
         $hmacHeader = $request->header('X-Jobber-Hmac-SHA256');
         $rawPayload = $request->getContent();
 
-        Log::info('Jobber rawpayload received.', ['data' => $rawPayload]);
-
         $calculatedHmac = base64_encode(hash_hmac('sha256', $rawPayload, $clientSecret, true));
 
         // Securely compare the hashes to prevent timing attacks
-        if (!hash_equals($calculatedHmac, $hmacHeader)) {
+        if (! hash_equals($calculatedHmac, $hmacHeader)) {
             Log::warning('Jobber webhook signature mismatch.');
             abort(401, 'Invalid signature');
         }
@@ -37,7 +36,7 @@ class JobberWebhookController extends Controller
             $topic = $payload['topic'];
             $itemId = $payload['itemId']; // Base64-encoded
 
-            match($topic){
+            match ($topic) {
                 'JOB_CREATE',
                 'JOB_UPDATE' => $this->handleCreateOrUpdateJobber($itemId),
                 'JOB_CLOSED' => $this->handleClosedJobber($itemId),
@@ -52,13 +51,15 @@ class JobberWebhookController extends Controller
             return response()->json(['status' => 'ok']);
 
         } catch (\Throwable $e) {
-            Log::error("Jobber Webhook Error: ".$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            Log::error('Jobber Webhook Error: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
             return response()->json(['error' => 'Internal server error'], 500);
         }
     }
 
-    public function handleCreateOrUpdateJobber($jobberId){
-        
+    public function handleCreateOrUpdateJobber($jobberId)
+    {
+
         $responseData = $this->getJobDetails($jobberId);
 
         $job = $responseData['data']['job'];
@@ -86,9 +87,10 @@ class JobberWebhookController extends Controller
     public function handleDeleteJobber($jobberId): void
     {
         $job = Jobber::where('jobber_id', $jobberId)->first();
-        
-        if (!$job) {
+
+        if (! $job) {
             Log::warning('Job not found when trying to delete.', ['jobber_id' => $jobberId]);
+
             return;
         }
         $job->delete();
@@ -98,64 +100,65 @@ class JobberWebhookController extends Controller
     public function handleClosedJobber($jobberId): void
     {
         $job = Jobber::where('jobber_id', $jobberId)->first();
-        
-        if (!$job) {
+
+        if (! $job) {
             Log::warning('Job not found when trying to closed.', ['jobber_id' => $jobberId]);
+
             return;
         }
 
         $job->update([
-            'job_status' => 'closed'
+            'job_status' => 'closed',
         ]);
 
         Log::info('Job has been closed:', ['job' => $job]);
     }
 
-    public function handleCompleteVisit($jobberId):void 
+    public function handleCompleteVisit($jobberId): void
     {
         $job = Jobber::where('jobber_id', $jobberId)->first();
-        
-        if (!$job) {
+
+        if (! $job) {
             Log::warning('Job not found when trying to complete.', ['jobber_id' => $jobberId]);
+
             return;
         }
 
         $job->update([
             'is_complete' => true,
-            'completed_at' => now()
+            'completed_at' => now(),
         ]);
 
         Log::info('Job has been completed:', [
             'jobber_id' => $jobberId,
             'job_id' => $job->id,
-            'completed_at' => $job->completed_at
+            'completed_at' => $job->completed_at,
         ]);
     }
 
-    
-
-    public function handleCreateOrUpdateVisit($visitId){
+    public function handleCreateOrUpdateVisit($visitId)
+    {
 
         $responseData = $this->getVisitDetails($visitId);
 
-        if (!isset($responseData['data']['visit'])) {
+        if (! isset($responseData['data']['visit'])) {
             Log::error('Visit not found from Jobber API', ['visitId' => $visitId]);
+
             return;
         }
 
         $jobberVisit = $responseData['data']['visit'];
 
-        $visitData = JobberVisit::with(['job.client','job.property'])
+        $visitData = JobberVisit::with(['job.client', 'job.property'])
             ->where('jobber_id', $jobberVisit['id'])
             ->first();
 
-        $visitArray  = $visitData->toArray();
-
-        $this->createOrUpdateVisits($visitArray, $visitData->job->client, $visitData->job->property, $visitData->job);
+        $this->createOrUpdateVisits($visitData->toArray(), $visitData->job->client, $visitData->job->property, $visitData->job);
 
     }
 
-    public function handleDeleteVisit($jobberId){
+    public function handleDeleteVisit($jobberId)
+    {
         JobberVisit::findOrFail($jobberId)->delete();
     }
 
@@ -223,32 +226,44 @@ class JobberWebhookController extends Controller
                 }
             }';
 
-        
-        
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)  // Increase timeout to 30 seconds
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-            ]);
-
-        if ($response->unauthorized()) {
-            $jobberAuth = new JobberAuthController(); 
-            $jobberAuth->refreshAccessToken();
-
-            $response = Http::withHeaders($this->accessTokenHeaders()) 
+        try {
+            $response = Http::withHeaders($headers)
                 ->timeout(60)
                 ->retry(3, 2000)
                 ->post('https://api.getjobber.com/api/graphql', [
                     'query' => $query,
                 ]);
+
+        } catch (RequestException $e) {
+            if ($e->response && $e->response->status() === 401) {
+                Log::warning('Access token expired. Refreshing token...');
+
+                $jobberAuth = new JobberAuthController;
+                $jobberAuth->refreshAccessToken();
+
+                // Use the new access token after refresh
+                $response = Http::withHeaders($headers)
+                    ->timeout(60)
+                    ->retry(3, 2000)
+                    ->post('https://api.getjobber.com/api/graphql', [
+                        'query' => $query,
+                    ]);
+            } else {
+                Log::error('Failed to refresh the token:', ['response' => $e->response]);
+                throw $e; // re-throw if it's not a 401
+            }
         }
 
         if ($response->failed()) {
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-            return;
+            Log::error('Failed to fetch job details:', [
+                'jobberId' => $jobberId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return response()->json(['error' => 'Failed to fetch job details'], 500);
         }
-        
+
         return $response->json();
     }
 
@@ -269,28 +284,37 @@ class JobberWebhookController extends Controller
                 }
             }';
 
-        
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)  // Increase timeout to 30 seconds
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-            ]);
-
-        if ($response->unauthorized()) {
-            $jobberAuth = new JobberAuthController(); 
-            $jobberAuth->refreshAccessToken();
-
-            $response = Http::withHeaders($this->accessTokenHeaders()) 
+        try {
+            $response = Http::withHeaders($headers)
                 ->timeout(60)
                 ->retry(3, 2000)
                 ->post('https://api.getjobber.com/api/graphql', [
                     'query' => $query,
                 ]);
+
+        } catch (RequestException $e) {
+            if ($e->response && $e->response->status() === 401) {
+                Log::warning('Access token expired. Refreshing token...');
+
+                $jobberAuth = new JobberAuthController;
+                $jobberAuth->refreshAccessToken();
+
+                // Use the new access token after refresh
+                $response = Http::withHeaders($headers)
+                    ->timeout(60)
+                    ->retry(3, 2000)
+                    ->post('https://api.getjobber.com/api/graphql', [
+                        'query' => $query,
+                    ]);
+            } else {
+                Log::error('Failed to refresh the token:', ['response' => $e->response]);
+                throw $e; // re-throw if it's not a 401
+            }
         }
 
         if ($response->failed()) {
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+
             return;
         }
 
@@ -385,10 +409,10 @@ class JobberWebhookController extends Controller
 
     public function accessTokenHeaders()
     {
-       $token = JobberToken::first();
+        $token = JobberToken::first();
 
         return [
-            'Authorization' => 'Bearer ' . $token->access_token,
+            'Authorization' => 'Bearer '.$token->access_token,
             'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
             'Content-Type' => 'application/json',
         ];

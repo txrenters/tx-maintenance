@@ -171,7 +171,7 @@
             
             @if(isset($buildingData['address']))
                 <div class="form-group">
-                    <label>Address:</label>
+                    <label>Building Address:</label>
                     <span class="value">
                         {{ $buildingData['address']['address'] ?? '' }}
                         {{ $buildingData['address']['addressCont'] ?? '' }}<br>
@@ -229,12 +229,6 @@
                     <td>Paint Color</td>
                     <td>{{ $formData['paintColor'] ?? 'Not specified' }}</td>
                 </tr>
-                @if(isset($formData['paintColorCode']) && $formData['paintColorCode'])
-                <tr>
-                    <td>Paint Color Code</td>
-                    <td>{{ $formData['paintColorCode'] }}</td>
-                </tr>
-                @endif
             </tbody>
         </table>
     </div>
@@ -253,10 +247,10 @@
         </div>
         
         <div class="alert alert-info">
-            <strong>Final Touches before Tenant Move in:</strong> We require that all homes be profesionally cleaned, and carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control prior to move in. We expect that when a tenant moves out of the home, they will also have the home professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being able to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the carpets were not professionally cleaned prior to putting the home on the market, this is the time to do it. We do however, allow you to choose between us providing the service, and you arranging the service on your own. If you arrange the service, please provide receipts for our records.
+            <strong>Final Touches before Tenant Move in:</strong> We require that all homes be profesionally cleaned, and carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control prior to move in. We expect that when a tenant moves out of the home, they will also have the home professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being able to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the carpets were not professionally cleaned prior to putting the home on the market, this is the time to do it. We do however, allow you to choose between us providing the service, and you arranging the service on your own. If you arrange the service, please provide receipts for our records. TexasRenters.com, LLC will arrange for and pay for, at the owner's expense, a final cleaning just prior to tenant move in.   You may have the lawn and pest control done at your discretion.  For standard treatment of roaches and bugs (excluding rodents and bee hives) the charge is $60.00 for pest control.
         </div>
         
-        <h4>Prior to Marketing:</h4>
+        <h4>Prior to property photos the following items need to be completed.</h4>
         <table class="responsibilities-table">
             <thead>
                 <tr>
@@ -362,7 +356,7 @@
         <div class="section-title">Re-Key and Code Work</div>
         
         <div class="alert alert-warning">
-            <strong>Re-Key & Code Work:</strong> State law requires a working smoke detector in each bedroom and each hallway servicing more than one bedroom along with a peep hole and keyless locking device on each exterior door. Homes must be re-keyed between each tenant.
+            <strong>Re-Key & Code Work:</strong> State law requires a working smoke detector in each bedroom and each hallway servicing a bedroom along with a peep hole and keyless locking device on each exterior door. Homes must be re-keyed between each tenant.
         </div>
         
         <div class="alert alert-warning">
@@ -573,6 +567,11 @@
                     <td>Tennis Court</td>
                     <td>{{ $formData['tennisCourt'] ?? 'Not specified' }}</td>
                 </tr>
+                <tr>
+                    <td>Who the tenant should contact to access
+                            Neighborhood Amenities?</td>
+                    <td>{{ $formData['tenantToContactNeighborhoodAmenities'] ?? 'Not specified' }}</td>
+                </tr>
             </tbody>
         </table>
 
@@ -691,9 +690,9 @@
                     <td>{{ $formData['breakerBoxLocation'] }}</td>
                 </tr>
                 @endif
-                @if(isset($formData['hvacFilterLocation']) && $formData['hvacFilterLocation'])
+                @if(isset($formData['hvacFilterLocation1']) && $formData['hvacFilterLocation1'])
                 <tr>
-                    <td>HVAC Filter Location</td>
+                    <td>HVAC Filter Location 1</td>
                     <td>{{ $formData['hvacFilterLocation'] }}</td>
                 </tr>
                 @endif
@@ -709,16 +708,34 @@
                     <td>{{ $formData['hvacFilterSize2'] }}</td>
                 </tr>
                 @endif
+                @if(isset($formData['hvacFilterLocation2']) && $formData['hvacFilterLocation2'])
+                <tr>
+                    <td>HVAC Filter Location 2</td>
+                    <td>{{ $formData['hvacFilterLocation2'] }}</td>
+                </tr>
+                @endif
                 @if(isset($formData['hvacFilterSize3']) && $formData['hvacFilterSize3'])
                 <tr>
                     <td>HVAC Filter Size 3</td>
                     <td>{{ $formData['hvacFilterSize3'] }}</td>
                 </tr>
                 @endif
+                @if(isset($formData['hvacFilterLocation3']) && $formData['hvacFilterLocation3'])
+                <tr>
+                    <td>HVAC Filter Location 3</td>
+                    <td>{{ $formData['hvacFilterLocation3'] }}</td>
+                </tr>
+                @endif
                 @if(isset($formData['hvacFilterSize4']) && $formData['hvacFilterSize4'])
                 <tr>
                     <td>HVAC Filter Size 4</td>
                     <td>{{ $formData['hvacFilterSize4'] }}</td>
+                </tr>
+                @endif
+                @if(isset($formData['hvacFilterLocation4']) && $formData['hvacFilterLocation4'])
+                <tr>
+                    <td>HVAC Filter Location 4</td>
+                    <td>{{ $formData['hvacFilterLocation4'] }}</td>
                 </tr>
                 @endif
             </tbody>
@@ -731,7 +748,7 @@
         <p style="margin-bottom: 15px;"><strong>Set your participation in HVAC maintenance plan and home warranty</strong></p>
         
         <div class="alert alert-warning">
-            <strong>HVAC Maintenance:</strong> The most common cause for damage to homes that we see is from the emergency drain line overflowing from the air-conditioning drain pan. This is caused from mold or other debris clogging up the primary and secondary drain lines. This can be prevented by doing 2 things. First, the HVAC system can be serviced every 6 months, which includes blowing out the drain lines, cleaning exterior coils, checking for carbon monoxide leaks, and changing your air filter (all of this also extends the life of and increases the efficiency of your HVAC system). Second, an emergency float switch will be installed in the pan, so that if water builds up in the pan, the HVAC systems will shut off and stop producing water. The HVAC inspections are included on the premium plan and a float switch will be added if there is not already one in place.
+            <strong>HVAC Maintenance:</strong> The most common cause for damage to homes that we see is from the emergency drain line overflowing from the air-conditioning drain pan. This is caused from mold or other debris clogging up the primary and secondary drain lines. This can be prevented by doing 2 things. First, the HVAC system can be serviced every 6 months, which includes blowing out the drain lines, cleaning exterior coils, checking for carbon monoxide leaks, and changing your air filter (all of this also extends the life of and increases the efficiency of your HVAC system). Second, an emergency float switch will be installed in the pan, so that if water builds up in the pan, the HVAC systems will shut off and stop producing water. 2 HVAC inspection are $11.00 per month for the first HVAC and a additional $6.00 per month for each additional unit. The float switch will automatically be installed if not present at a cost of $89.00. Please note your HVAC warranty does not cover this type of maintenance.
         </div>
         
         <div class="alert alert-warning">

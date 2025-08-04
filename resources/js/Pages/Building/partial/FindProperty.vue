@@ -88,7 +88,7 @@ const searchProperty = () => {
 
                     <div class="space-y-2 md:col-span-2">
                         <label class="text-sm font-medium">
-                            Building Name
+                            Building Address
                             <span class="text-red-500">*</span>
                         </label>
                         <Input

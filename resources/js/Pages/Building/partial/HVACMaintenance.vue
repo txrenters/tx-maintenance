@@ -56,10 +56,14 @@ const markSectionCompleted = (value) => {
                                     an emergency float switch will be installed
                                     in the pan, so that if water builds up in
                                     the pan, the HVAC systems will shut off and
-                                    stop producing water. The HVAC inspections
-                                    are included on the premium plan and a float
-                                    switch will be added if there is not already
-                                    one in place.
+                                    stop producing water. 2 HVAC inspection are
+                                    $11.00 per month for the first HVAC and a
+                                    additional $6.00 per month for each
+                                    additional unit. The float switch will
+                                    automatically be installed if not present at
+                                    a cost of $89.00. Please note your HVAC
+                                    warranty does not cover this type of
+                                    maintenance.
                                 </p>
                             </div>
                         </AlertDescription>
@@ -67,9 +71,8 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Participate in HVAC Maintenance Plan? <br />
-                                (Included only on Premium Plan)</label
-                            >
+                                >Participate in HVAC Maintenance Plan?
+                            </label>
                             <Select v-model="form.hvacMaintenancePlan">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
