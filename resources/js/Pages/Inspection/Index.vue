@@ -44,8 +44,8 @@ import {
     DialogTitle,
 } from "@/Components/ui/dialog";
 import MessageCard from "@/Components/MessageCard.vue";
-import { cn } from "@/lib/utils";
 import debounce from "lodash.debounce";
+import { Deferred } from "@inertiajs/vue3";
 
 const { toast } = useToast();
 
@@ -393,99 +393,113 @@ const saveClient = async () => {
         <div
             class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
         >
-            <div
-                v-for="(collection, status) in jobsByStatus"
-                :key="status"
-                class="overflow-hidden min-w-[250px] max-w-[250px]"
-            >
-                <div class="text-center font-semibol">
-                    <div
-                        class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
-                    >
-                        <p>
-                            {{ formatStatus(status) }} ({{ collection.length }})
-                        </p>
+            <Deferred data="jobsByStatus">
+                <template #fallback>
+                    <div class="flex items-center justify-center py-6 gap-3">
+                        <Loader2 class="animate-spin" />
+                        <span class="text-gray-700">Loading...</span>
                     </div>
-                </div>
-                <ScrollArea class="h-[70vh] overflow-y-auto border-t pt-2 mb-5">
-                    <div
-                        v-motion-slide-visible-once-right
-                        v-for="item in collection"
-                        :key="item.id"
-                        class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border"
-                        @click="openJobModal(item)"
-                        :class="{
-                            // Past/Late items - Red (matching calendar past events)
-                            'bg-red-100 text-red-800 border-red-300 hover:bg-red-200':
-                                item.job_status === 'late' ||
-                                item.job_status === 'ending_within_30_days' ||
-                                item.job_status === 'unscheduled',
-                            // Current/Today items - Blue (matching calendar today events)
-                            'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200':
-                                item.job_status === 'active' ||
-                                item.job_status === 'today',
-                            // Action Required/On Hold - Yellow (warning state)
-                            'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200':
-                                item.job_status === 'requires_invoicing' ||
-                                item.job_status === 'action_required' ||
-                                item.job_status === 'on_hold',
-                            // Future/Upcoming items - Green (matching calendar future events)
-                            'bg-green-100 text-green-800 border-green-300 hover:bg-green-200':
-                                item.job_status === 'upcoming',
-                        }"
-                    >
-                        <!-- Work Order Number & Date -->
+                </template>
+
+                <div
+                    v-for="(collection, status) in jobsByStatus"
+                    :key="status"
+                    class="overflow-hidden min-w-[250px] max-w-[250px]"
+                >
+                    <div class="text-center font-semibol">
                         <div
-                            class="flex justify-between items-center border-b pb-2 mb-2"
+                            class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
                         >
-                            <h1 class="text-lg font-semibold">
-                                {{ item.job_number }}
-                            </h1>
-                            <p class="text-lg font-semibold">
-                                {{ formatUSD(item.total) }}
+                            <p>
+                                {{ formatStatus(status) }} ({{
+                                    collection.length
+                                }})
                             </p>
                         </div>
-
-                        <!-- Location -->
-                        <p
-                            class="text-sm text-center font-semibold text-wrap opacity-90"
+                    </div>
+                    <ScrollArea
+                        class="h-[70vh] overflow-y-auto border-t pt-2 mb-5"
+                    >
+                        <div
+                            v-motion-slide-visible-once-right
+                            v-for="item in collection"
+                            :key="item.id"
+                            class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border"
+                            @click="openJobModal(item)"
+                            :class="{
+                                // Past/Late items - Red (matching calendar past events)
+                                'bg-red-100 text-red-800 border-red-300 hover:bg-red-200':
+                                    item.job_status === 'late' ||
+                                    item.job_status ===
+                                        'ending_within_30_days' ||
+                                    item.job_status === 'unscheduled',
+                                // Current/Today items - Blue (matching calendar today events)
+                                'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200':
+                                    item.job_status === 'active' ||
+                                    item.job_status === 'today',
+                                // Action Required/On Hold - Yellow (warning state)
+                                'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200':
+                                    item.job_status === 'requires_invoicing' ||
+                                    item.job_status === 'action_required' ||
+                                    item.job_status === 'on_hold',
+                                // Future/Upcoming items - Green (matching calendar future events)
+                                'bg-green-100 text-green-800 border-green-300 hover:bg-green-200':
+                                    item.job_status === 'upcoming',
+                            }"
                         >
-                            {{ item.title }}
-                        </p>
-                        <div class="flex gap-2 justify-center">
-                            <p
-                                class="text-xs flex items-center gap-1 justify-center opacity-80"
+                            <!-- Work Order Number & Date -->
+                            <div
+                                class="flex justify-between items-center border-b pb-2 mb-2"
                             >
-                                <Tag class="w-3 h-3" />{{
-                                    item.job_type === "ONE_OFF"
-                                        ? "One-off Job"
-                                        : "Recurring Job"
-                                }}
-                            </p>
-                        </div>
-                        <div
-                            v-if="item.client_name"
-                            class="flex justify-start items-start mb-1 mt-2"
-                        >
-                            <User class="w-4 h-4 opacity-80" />
-                            <p class="text-sm text-wrap opacity-90">
-                                {{ item.client_name }}
-                            </p>
-                        </div>
-                        <div class="flex justify-between items-center mt-2">
-                            <p class="text-xs flex gap-1 opacity-80">
-                                <Truck class="w-4 h-4" />
-                                Visits: {{ item.visits_count }}
-                            </p>
-                            <p class="text-xs opacity-80">
-                                📅 {{ formatDate(item.start_at) }}
-                            </p>
-                        </div>
-                    </div>
+                                <h1 class="text-lg font-semibold">
+                                    {{ item.job_number }}
+                                </h1>
+                                <p class="text-lg font-semibold">
+                                    {{ formatUSD(item.total) }}
+                                </p>
+                            </div>
 
-                    <ScrollBar orientation="vertical" />
-                </ScrollArea>
-            </div>
+                            <!-- Location -->
+                            <p
+                                class="text-sm text-center font-semibold text-wrap opacity-90"
+                            >
+                                {{ item.title }}
+                            </p>
+                            <div class="flex gap-2 justify-center">
+                                <p
+                                    class="text-xs flex items-center gap-1 justify-center opacity-80"
+                                >
+                                    <Tag class="w-3 h-3" />{{
+                                        item.job_type === "ONE_OFF"
+                                            ? "One-off Job"
+                                            : "Recurring Job"
+                                    }}
+                                </p>
+                            </div>
+                            <div
+                                v-if="item.client_name"
+                                class="flex justify-start items-start mb-1 mt-2"
+                            >
+                                <User class="w-4 h-4 opacity-80" />
+                                <p class="text-sm text-wrap opacity-90">
+                                    {{ item.client_name }}
+                                </p>
+                            </div>
+                            <div class="flex justify-between items-center mt-2">
+                                <p class="text-xs flex gap-1 opacity-80">
+                                    <Truck class="w-4 h-4" />
+                                    Visits: {{ item.visits_count }}
+                                </p>
+                                <p class="text-xs opacity-80">
+                                    📅 {{ formatDate(item.start_at) }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <ScrollBar orientation="vertical" />
+                    </ScrollArea>
+                </div>
+            </Deferred>
         </div>
         <ScrollBar orientation="horizontal" />
     </ScrollArea>

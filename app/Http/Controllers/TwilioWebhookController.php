@@ -10,8 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpSpreadsheet\Calculation\Logical\Boolean;
-use PhpParser\Node\Expr\Cast\Object_;
 
 class TwilioWebhookController extends Controller
 {
@@ -107,7 +105,7 @@ class TwilioWebhookController extends Controller
             }
                
             
-            Log::info('Message saved successfully into the database.', ['data' => $textMessage]);
+            Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);
 
             return response()->noContent(); 
         }

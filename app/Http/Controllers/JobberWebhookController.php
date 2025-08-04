@@ -81,20 +81,52 @@ class JobberWebhookController extends Controller
         }
     }
 
-    public function handleDeleteJobber($jobberId){
-        Jobber::findOrFail($jobberId)->delete();
+    public function handleDeleteJobber($jobberId): void
+    {
+        $job = Jobber::where('jobber_id', $jobberId)->first();
+        
+        if (!$job) {
+            Log::warning('Job not found when trying to delete.', ['jobber_id' => $jobberId]);
+            return;
+        }
+        $job->delete();
+        Log::info('Job has been deleted:', ['job' => $job]);
     }
 
-    public function handleClosedJobber($jobberId){
-        Jobber::findOrFail($jobberId)->update([
+    public function handleClosedJobber($jobberId): void
+    {
+        $job = Jobber::where('jobber_id', $jobberId)->first();
+        
+        if (!$job) {
+            Log::warning('Job not found when trying to closed.', ['jobber_id' => $jobberId]);
+            return;
+        }
+
+        $job->update([
             'job_status' => 'closed'
         ]);
+
+        Log::info('Job has been closed:', ['job' => $job]);
     }
 
-    public function handleCompleteVisit($jobberId){
-        Jobber::findOrFail($jobberId)->update([
+    public function handleCompleteVisit($jobberId):void 
+    {
+        $job = Jobber::where('jobber_id', $jobberId)->first();
+        
+        if (!$job) {
+            Log::warning('Job not found when trying to complete.', ['jobber_id' => $jobberId]);
+            return;
+        }
+
+        $job->update([
             'is_complete' => true,
             'completed_at' => now()
+        ]);
+
+        Log::info('Job has been completed:', [
+            'jobber_id' => $jobberId,
+            'job_id' => $job->id,
+            'completed_at' => $job->completed_at
         ]);
     }
 
@@ -209,7 +241,6 @@ class JobberWebhookController extends Controller
                     'query' => $query,
                 ]);
         }
-
 
         if ($response->failed()) {
             Log::error('Failed to fetch jobs:', ['response' => $response->body()]);

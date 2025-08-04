@@ -9,6 +9,7 @@ use App\Models\Owner;
 use App\Models\Tenants;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class InspectionController extends Controller
 {
@@ -61,10 +62,8 @@ class InspectionController extends Controller
                 ];
             });
 
-        // Group jobs by status
         $groupedJobs = $jobs->groupBy('job_status');
 
-        // Get all unique statuses and ensure consistent ordering
         $allStatuses = $jobs->pluck('job_status')->unique()->sort()->values();
 
         // Format the grouped data for frontend
@@ -81,7 +80,7 @@ class InspectionController extends Controller
 
         return inertia('Inspection/Index', [
             'title' => 'Inspections',
-            'jobsByStatus' => $jobsByStatus,
+            'jobsByStatus' => Inertia::defer(fn() => $jobsByStatus),
             'statistics' => $statistics,
             'access_token_exist' => $this->accessTokenExist(),
             'filter' => $request->only(['search', 'per_page']),
