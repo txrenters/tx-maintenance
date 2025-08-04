@@ -281,6 +281,7 @@ class JobberWebhookController extends Controller
     {
         $headers = $this->accessTokenHeaders();
 
+        
         $query = 'query {
                 visit(id: "'.$jobberId.'") {
                     id
