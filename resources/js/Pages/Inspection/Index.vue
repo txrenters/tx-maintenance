@@ -46,6 +46,7 @@ import {
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred } from "@inertiajs/vue3";
+import { useEcho } from "@laravel/echo-vue";
 
 const { toast } = useToast();
 
@@ -384,6 +385,11 @@ const saveClient = async () => {
         isSavingLoading.value = false;
     }
 };
+
+useEcho(`jobs`, "JobUpdated", (e) => {
+    console.log(e.job);
+    props.jobsByStatus.collection = { ...jobs };
+});
 </script>
 <template>
     <Head :title="title" />

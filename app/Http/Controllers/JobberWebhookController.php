@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\JobUpdated;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
@@ -82,6 +83,9 @@ class JobberWebhookController extends Controller
                 $this->createOrUpdateVisits($visitData, $client, $property, $job);
             }
         }
+
+        event(new JobUpdated($job));
+
     }
 
     public function handleDeleteJobber($jobberId): void
@@ -94,6 +98,7 @@ class JobberWebhookController extends Controller
             return;
         }
         $job->delete();
+
         Log::info('Job has been deleted:', ['job' => $job]);
     }
 
@@ -110,6 +115,9 @@ class JobberWebhookController extends Controller
         $job->update([
             'job_status' => 'closed',
         ]);
+
+        event(new JobUpdated($job));
+
 
         Log::info('Job has been closed:', ['job' => $job]);
     }
@@ -128,6 +136,8 @@ class JobberWebhookController extends Controller
             'is_complete' => true,
             'completed_at' => now(),
         ]);
+
+        event(new JobUpdated($job));
 
         Log::info('Job has been completed:', [
             'jobber_id' => $jobberId,

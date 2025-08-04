@@ -119,6 +119,8 @@ import { Progress } from '@/Components/ui/progress';
 import { MotionPlugin } from '@vueuse/motion'
 import Vue3Signature from "vue3-signature"
 
+import './echo';
+
 const appName = import.meta.env.VITE_APP_NAME || 'TX Maintenance Portal';
 
 createInertiaApp({
