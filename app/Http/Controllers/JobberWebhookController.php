@@ -63,7 +63,7 @@ class JobberWebhookController extends Controller
 
         $responseData = $this->getJobDetails($jobberId);
 
-        $job = (object) $responseData['data']['job'];
+        $job = $responseData['data']['job'];
 
         $clientData = $job->client;
 
@@ -73,14 +73,14 @@ class JobberWebhookController extends Controller
 
         $property = $this->createOrUpdateProperty($propertyData, $client);
 
-        $property = $this->createOrUpdateJob($job->toArray(), $client, $property);
+        $property = $this->createOrUpdateJob($job, $client, $property);
 
-        $visitsData = $job->visits->edges;
+        $visitsData = $job['visits']['edges'] ?? [];
 
         if (isset($visitsData) && is_array($visitsData)) {
             foreach ($visitsData as $visitEdge) {
                 $visitData = $visitEdge['node'];
-                $this->createOrUpdateVisits($visitData, $client, $property, $job);
+                $this->createOrUpdateVisits($visitData, $client, $property, (object) $job); // cast back only if needed
             }
         }
 
