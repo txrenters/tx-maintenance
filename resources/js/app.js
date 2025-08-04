@@ -120,10 +120,6 @@ import { MotionPlugin } from '@vueuse/motion'
 import Vue3Signature from "vue3-signature"
 import { configureEcho } from "@laravel/echo-vue";
 
-import Echo from 'laravel-echo';
-
-import Pusher from 'pusher-js';
-window.Pusher = Pusher;
 
 const appName = import.meta.env.VITE_APP_NAME || 'TX Maintenance Portal';
 
@@ -244,8 +240,7 @@ createInertiaApp({
     },
 });
 
-
-window.Echo = new Echo({
+configureEcho({
     broadcaster: 'reverb',
     key: import.meta.env.VITE_REVERB_APP_KEY,
     wsHost: window.location.hostname,
