@@ -70,7 +70,7 @@ class JobberAuthController extends Controller
         // Perform token refresh request
         $response = Http::asForm()->post('https://api.getjobber.com/api/oauth/token', [
             'client_id' => env('JOBBER_CLIENT_ID'),
-            'client_secret' => env('JOBBER_CLIENT_SECRET'),
+            'client_secret' => env('JOBBER_SECRET'),
             'grant_type' => 'refresh_token',
             'refresh_token' => $token->refresh_token,
         ]);
@@ -94,12 +94,12 @@ class JobberAuthController extends Controller
                 $token->save();
             });
 
-            Log::info('✅ Jobber access and refresh tokens updated.');
+            Log::info('Jobber access and refresh tokens updated.');
 
             return $data['access_token'];
         }
 
-        Log::error('❌ Failed to refresh Jobber token', [
+        Log::error('Failed to refresh Jobber token', [
             'status' => $response->status(),
             'body' => $response->body(),
         ]);
