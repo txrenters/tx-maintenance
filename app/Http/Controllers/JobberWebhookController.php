@@ -190,7 +190,11 @@ class JobberWebhookController extends Controller
             $this->createOrUpdateVisits($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
             Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
 
-            event(new VisitUpdated($jobberVisit));
+            // Refresh the visit model to get the latest data
+            $updatedVisit = $existingVisit->fresh();
+            if ($updatedVisit) {
+                event(new VisitUpdated($updatedVisit));
+            }
         } else {
             // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
             Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
