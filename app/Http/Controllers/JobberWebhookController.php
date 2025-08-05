@@ -143,7 +143,6 @@ class JobberWebhookController extends Controller
             
             if ($allVisitsCompleted) {
                 $job->update([
-                    'is_complete' => true,
                     'completed_at' => now(),
                 ]);
                 
