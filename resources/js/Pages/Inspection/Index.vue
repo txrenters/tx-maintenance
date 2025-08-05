@@ -386,9 +386,48 @@ const saveClient = async () => {
     }
 };
 
-useEchoPublic(`jobs`, "JobUpdated", (e) => {
-    console.log(e.job);
-    props.jobsByStatus.collection = { ...jobs };
+useEchoPublic("jobs", "JobUpdated", (e) => {
+    const updatedJob = e.job;
+    const statusGroups = props.jobsByStatus;
+
+    let found = false;
+
+    // Loop through each status group to find and update the job
+    for (const [status, jobs] of Object.entries(statusGroups)) {
+        const index = jobs.findIndex((job) => job.id === updatedJob.id);
+
+        if (index !== -1) {
+            // Update the job in the current group
+            jobs[index] = {
+                ...jobs[index],
+                ...updatedJob,
+            };
+
+            // If status changed, move to new group
+            if (status !== updatedJob.job_status) {
+                jobs.splice(index, 1); // Remove from old group
+
+                // Add to new group
+                if (!statusGroups[updatedJob.job_status]) {
+                    statusGroups[updatedJob.job_status] = [];
+                }
+
+                statusGroups[updatedJob.job_status].unshift(updatedJob);
+            }
+
+            found = true;
+            break;
+        }
+    }
+
+    // If not found (i.e., new job), add it to its correct status group
+    if (!found) {
+        if (!statusGroups[updatedJob.job_status]) {
+            statusGroups[updatedJob.job_status] = [];
+        }
+
+        statusGroups[updatedJob.job_status].unshift(updatedJob);
+    }
 });
 </script>
 <template>
@@ -1054,6 +1093,7 @@ useEchoPublic(`jobs`, "JobUpdated", (e) => {
                                 }}</Button
                             >
                         </div>
+                        Client Phone: {{ selectedJob.client?.phone }}
                     </div>
 
                     <div class="flex flex-col text-left">
