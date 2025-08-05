@@ -7,6 +7,7 @@ use App\Models\JobberClient;
 use App\Models\JobberToken;
 use App\Models\Owner;
 use App\Models\Tenants;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -21,6 +22,15 @@ class InspectionController extends Controller
         $jobs = Jobber::query()
             ->with(['client', 'visits'])
             ->filter(request(['search'])) // Add search filter if needed
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $start_date = Carbon::parse(request('start_date'))->startOfDay();
+                $end_date = Carbon::parse(request('end_date'))->endOfDay();
+
+                $q->where(function ($query) use ($start_date, $end_date) {
+                    $query->whereBetween('start_at', [$start_date, $end_date])
+                        ->orWhereBetween('end_at', [$start_date, $end_date]);
+                });
+            })
             ->whereNot('job_status', 'archived')
             ->orderBy('start_at','desc')
             ->get()

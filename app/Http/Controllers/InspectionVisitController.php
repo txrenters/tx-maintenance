@@ -15,15 +15,7 @@ class InspectionVisitController extends Controller
             ->whereHas('job', function ($q) {
                 $q->where('job_status', '!=', 'archived');
             })
-            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-                $start_date = Carbon::parse(request('start_date'))->startOfDay();
-                $end_date = Carbon::parse(request('end_date'))->endOfDay();
-
-                $q->where(function ($query) use ($start_date, $end_date) {
-                    $query->whereBetween('start_at', [$start_date, $end_date])
-                        ->orWhereBetween('end_at', [$start_date, $end_date]);
-                });
-            })
+            
             ->whereNotNull('start_at')
             ->whereNotNull('end_at')
             ->get();
