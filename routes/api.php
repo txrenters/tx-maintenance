@@ -4,6 +4,7 @@ use App\Http\Controllers\API\AsanaWebhookController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
+use App\Http\Controllers\ClientContactController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
@@ -46,3 +47,8 @@ Route::post('/asana/webhook', [AsanaWebhookController::class, 'handleWebhook']);
 
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
 Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);
+
+// Client contacts routes
+Route::get('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'index'])->name('client-contacts.index');
+Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'store'])->name('client-contacts.store');
+Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');

@@ -23,6 +23,7 @@ import {
     X,
     Check,
     Calendar1,
+    Plus,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -55,6 +56,21 @@ import {
 } from "@/Components/ui/popover";
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import {
+    TagsInput,
+    TagsInputInput,
+    TagsInputItem,
+    TagsInputItemDelete,
+    TagsInputItemText,
+} from "@/Components/ui/tags-input";
+import { Label } from "@/Components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
+import { Badge } from "@/Components/ui/badge";
+import { Progress } from "@/Components/ui/progress";
+import { Separator } from "@/Components/ui/separator";
+import { Textarea } from "@/Components/ui/textarea";
+import { Button } from "@/Components/ui/button";
+import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 
 const { toast } = useToast();
 
@@ -108,12 +124,16 @@ const openJobModal = async (job) => {
     // Reset messaging state
     newMessage.value = "";
     selectedContact.value = "";
+    selectedRecipients.value = [];
     jobMessages.value = response.data.text_messages || [];
     jobContacts.value = [];
     selectedImage.value = null;
     imagePreview.value = null;
     selectedClient.value = job.client;
     contactPhoneNumber.value = job.client?.phone ?? "";
+
+    // Load saved contacts for this job
+    loadSavedContacts(job.id);
 };
 
 // Function to close modal
@@ -135,11 +155,14 @@ const switchTab = (tabName) => {
 const newMessage = ref("");
 const selectedContact = ref("");
 const contactPhoneNumber = ref("");
+const selectedRecipients = ref([]);
 const senderPhoneNumber = ref(page.props.twilio_phone_number); // This should come from user's settings/config
 const isLoadingMessages = ref(false);
 const isSendingMessage = ref(false);
 const jobMessages = ref([]);
 const jobContacts = ref([]);
+const savedContacts = ref([]);
+const isLoadingContacts = ref(false);
 
 // Image attachment functionality
 const selectedImage = ref(null);
@@ -216,13 +239,91 @@ const triggerFileInput = () => {
     fileInput.value?.click();
 };
 
-// Send message function
-const sendMessage = () => {
-    if (!contactPhoneNumber.value) {
+// Load saved contacts for the job
+const loadSavedContacts = async (jobId) => {
+    try {
+        isLoadingContacts.value = true;
+        const response = await axios.get(
+            route("client-contacts.index", { jobber: jobId })
+        );
+        savedContacts.value = response.data || [];
+
+        // Pre-populate recipients with saved contacts
+        if (savedContacts.value.length > 0) {
+            selectedRecipients.value = savedContacts.value.map((contact) => ({
+                name: contact.name,
+                phone: contact.phone,
+            }));
+        }
+    } catch (error) {
+        console.error("Error loading contacts:", error);
+        savedContacts.value = [];
+    } finally {
+        isLoadingContacts.value = false;
+    }
+};
+
+// Save contacts for future use
+const saveContactsForJob = async () => {
+    if (!selectedJob.value || selectedRecipients.value.length === 0) return;
+
+    try {
+        const response = await axios.post(
+            route("client-contacts.store", { jobber: selectedJob.value.id }),
+            {
+                contacts: selectedRecipients.value.map((recipient) => ({
+                    name: recipient.name || recipient.phone,
+                    phone: recipient.phone,
+                })),
+            }
+        );
+
+        if (response.data.success) {
+            savedContacts.value = response.data.contacts;
+            toast({
+                title: "Success",
+                description: "Contacts saved for future use",
+            });
+        }
+    } catch (error) {
+        console.error("Error saving contacts:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Please select a contact or enter a phone number",
+            description: "Failed to save contacts",
+        });
+    }
+};
+
+// Add recipient from client search
+const addRecipientFromClient = () => {
+    if (selectedClient.value && selectedClient.value.phone) {
+        const recipient = {
+            name: `${selectedClient.value.first_name} ${selectedClient.value.last_name}`,
+            phone: selectedClient.value.phone,
+        };
+
+        // Check if recipient already exists
+        const exists = selectedRecipients.value.some(
+            (r) => r.phone === recipient.phone
+        );
+        if (!exists) {
+            selectedRecipients.value.push(recipient);
+        }
+
+        // Clear selection
+        selectedClient.value = null;
+        searchQuery.value = "";
+    }
+};
+
+// Send message function
+const sendMessage = () => {
+    if (selectedRecipients.value.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Please add at least one recipient",
         });
         return;
     }
@@ -242,7 +343,12 @@ const sendMessage = () => {
     const formData = new FormData();
     formData.append("messages", newMessage.value || "");
     formData.append("sender_number", senderPhoneNumber.value);
-    formData.append("receiver_number", contactPhoneNumber.value);
+
+    // Add all recipient numbers
+    selectedRecipients.value.forEach((recipient, index) => {
+        formData.append(`receiver_numbers[${index}]`, recipient.phone);
+    });
+
     formData.append("jobber_id", selectedJob.value.id);
 
     // Add image if selected
@@ -256,10 +362,14 @@ const sendMessage = () => {
         onSuccess: (page) => {
             toast({
                 title: "Success",
-                description: "Message sent successfully!",
+                description: "Messages sent successfully!",
             });
             newMessage.value = "";
             removeImage();
+
+            // Save contacts for future use
+            saveContactsForJob();
+
             // Refresh the page data to get updated messages
             router.reload({ only: ["jobsByStatus"] });
         },
@@ -1115,49 +1225,43 @@ useEchoPublic("jobs", "JobDeleted", (e) => {
             <!-- Text Messages View -->
             <div
                 v-if="activeTab === 'messages' && selectedJob"
-                class="grid gap-3 overflow-y-auto px-6"
+                class="grid gap-1 overflow-y-auto px-6"
             >
-                <p class="font-semibold uppercase text-xs mb-3">Job Messages</p>
+                <p class="font-semibold uppercase text-xs">Job Messages</p>
 
-                <!-- Contact Selection -->
-                <div class="flex justify-between gap-2 mb-2">
-                    <div class="grid flex-1 gap-2">
-                        <Label for="link"> Client Name</Label>
-                        <div class="flex gap-2">
+                <!-- Contact Selection & Recipients - All Inline -->
+                <div
+                    class="flex flex-wrap gap-2 items-center bg-muted/20 rounded-lg"
+                >
+                    <!-- Client Search -->
+                    <div class="flex flex-col">
+                        <Label class="text-sm whitespace-nowrap">Add:</Label>
+                        <div class="flex gap-1">
                             <Combobox v-model="selectedClient" by="phone">
-                                <ComboboxAnchor class="w-[300px]">
+                                <ComboboxAnchor class="w-[250px]">
                                     <div
-                                        class="relative flex w-full items-center border"
+                                        class="relative flex w-full items-center border rounded-md"
                                     >
-                                        <span
-                                            class="absolute inset-y-0 start-0 flex items-center justify-center px-2"
-                                        >
-                                            <Search
-                                                class="text-muted-foreground size-4"
-                                            />
-                                        </span>
+                                        <Search
+                                            class="absolute left-2 h-4 w-4 text-muted-foreground"
+                                        />
                                         <ComboboxInput
-                                            class="w-[300px] pl-7"
+                                            class="w-[250px] pl-8 pr-2 py-1 text-sm"
                                             :display-value="
                                                 (val) =>
                                                     val?.first_name
-                                                        ? val?.first_name +
-                                                          ' ' +
-                                                          val?.last_name +
-                                                          ' ' +
-                                                          val?.phone
+                                                        ? `${val.first_name} ${val.last_name} - ${val.phone}`
                                                         : ''
                                             "
                                             :model-value="searchQuery"
                                             @update:model-value="
                                                 searchQuery = $event
                                             "
-                                            placeholder="Search client..."
+                                            placeholder="Search clients..."
                                         />
                                     </div>
                                 </ComboboxAnchor>
-
-                                <ComboboxList class="w-[300px]">
+                                <ComboboxList class="w-[250px]">
                                     <ComboboxEmpty v-if="!isSearchingLoading"
                                         >No client found.</ComboboxEmpty
                                     >
@@ -1167,10 +1271,9 @@ useEchoPublic("jobs", "JobDeleted", (e) => {
                                     >
                                         Loading...
                                     </div>
-
-                                    <ComboboxGroup class="w-[300px]">
+                                    <ComboboxGroup class="w-[250px]">
                                         <ComboboxItem
-                                            class="w-[300px]"
+                                            class="w-[250px]"
                                             v-for="client in clients"
                                             :key="
                                                 client.id + '-' + client.phone
@@ -1184,46 +1287,65 @@ useEchoPublic("jobs", "JobDeleted", (e) => {
                                     </ComboboxGroup>
                                 </ComboboxList>
                             </Combobox>
+
                             <Button
-                                v-if="
-                                    selectedClient || selectedJob.client?.phone
-                                "
-                                @click="saveClient"
+                                v-if="selectedClient"
+                                @click="addRecipientFromClient"
                                 size="sm"
                             >
-                                <Loader2
-                                    v-if="isSavingLoading"
-                                    class="animate-spin"
-                                />
-                                {{
-                                    isSavingLoading ? "Saving..." : "Save"
-                                }}</Button
-                            >
+                                <Plus class="h-4 w-4" />
+                            </Button>
                         </div>
-                        Client Phone: {{ selectedJob.client?.phone }}
                     </div>
 
-                    <div class="flex flex-col text-left">
-                        <div class="flex gap-2 items-center">
-                            <Avatar class="w-5 h-5">
-                                <AvatarImage
-                                    :src="
-                                        $page.props.auth.user
-                                            ?.profile_photo_url || 'default.jpg'
-                                    "
-                                />
-                                <AvatarFallback>
-                                    {{ $page.props.auth.user.name?.charAt(0) }}
-                                </AvatarFallback>
-                            </Avatar>
-                            {{ $page.props.auth.user.name }}
+                    <!-- Sender Info -->
+                    <div class="flex items-center gap-2 ml-auto">
+                        <Avatar>
+                            <AvatarImage
+                                :src="
+                                    $page.props.auth.user?.profile_photo_url ||
+                                    'default.jpg'
+                                "
+                            />
+                            <AvatarFallback>
+                                {{ $page.props.auth.user.name?.charAt(0) }}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div class="text-right">
+                            <div class="font-medium">
+                                {{ $page.props.auth.user.name }}
+                            </div>
+                            <div class="text-muted-foreground">
+                                {{ senderPhoneNumber || "Not configured" }}
+                            </div>
                         </div>
-                        <span class="text-sm text-muted-foreground">{{
-                            senderPhoneNumber || "No sender number configured"
-                        }}</span>
                     </div>
                 </div>
-
+                <!-- Recipients Tags -->
+                <div v-if="selectedRecipients.length > 0" class="flex gap-2">
+                    <Label class="text-sm whitespace-nowrap">To:</Label>
+                    <div
+                        v-for="(recipient, index) in selectedRecipients"
+                        :key="`${recipient.phone}-${index}`"
+                        class="inline-flex items-center gap-1 bg-primary/10 text-primary rounded px-2 py-1 text-sm"
+                    >
+                        <span>{{ recipient.name || recipient.phone }}</span>
+                        <button
+                            @click="selectedRecipients.splice(index, 1)"
+                            class="hover:bg-primary/20 rounded p-0.5"
+                        >
+                            <X class="h-3 w-3" />
+                        </button>
+                    </div>
+                    <Button
+                        @click="selectedRecipients = []"
+                        variant="ghost"
+                        size="sm"
+                        class="h-6 px-2 text-xs"
+                    >
+                        Clear
+                    </Button>
+                </div>
                 <!-- Messages Display -->
                 <div class="flex flex-col gap-4 overflow-y-auto">
                     <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">

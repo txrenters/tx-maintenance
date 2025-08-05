@@ -17,7 +17,8 @@ class JobberTextMessageController extends Controller
         $validatedData = $request->validate([
             'messages' => 'nullable|string|max:1600',
             'sender_number' => 'required|string',
-            'receiver_number' => 'required|string',
+            'receiver_numbers' => 'required|array|min:1',
+            'receiver_numbers.*' => 'required|string',
             'jobber_id' => 'required|exists:jobber_jobs,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
         ]);
@@ -29,7 +30,7 @@ class JobberTextMessageController extends Controller
 
         // Format phone numbers ensuring proper + prefix
         $senderNumber = $validatedData['sender_number'];
-        $receiverNumber = $this->formatNumber($validatedData['receiver_number']);
+        $receiverNumbers = array_map([$this, 'formatNumber'], $validatedData['receiver_numbers']);
 
         DB::beginTransaction();
 
@@ -45,16 +46,9 @@ class JobberTextMessageController extends Controller
                 $imagePath = $image->storeAs('jobber_images', $filename, 'public');
             }
 
-            // Save the message to the database
-            $jobberTextMessage = JobberTextMessage::create([
-                'messages' => $validatedData['messages'] ?? '',
-                'sender_number' => $senderNumber,
-                'receiver_number' => $receiverNumber,
-                'jobber_id' => $validatedData['jobber_id'],
-                'image' => $imagePath,
-            ]);
-
             $twilio = new TwilioService;
+            $sentMessages = [];
+            $failedRecipients = [];
 
             // Prepare message content for Twilio
             $messageContent = $validatedData['messages'] ?? '';
@@ -65,31 +59,61 @@ class JobberTextMessageController extends Controller
                 $messageContent = $messageContent.$imageNote;
             }
 
-            // Only send SMS if there's content (text or image note)
-            if (! empty($messageContent)) {
-                // Prepare media URL for MMS if image exists
-                $mediaUrl = null;
-                if ($imagePath) {
-                    $mediaUrl = asset('storage/'.$imagePath);
-                }
-
-                $twilio->sendMessage(
-                    $receiverNumber,
-                    $senderNumber,
-                    $messageContent,
-                    $mediaUrl
-                );
+            // Prepare media URL for MMS if image exists
+            $mediaUrl = null;
+            if ($imagePath) {
+                $mediaUrl = asset('storage/'.$imagePath);
             }
 
-            // Commit the transaction if both operations succeed
-            DB::commit();
+            // Send message to each recipient
+            foreach ($receiverNumbers as $receiverNumber) {
+                try {
+                    // Save the message to the database
+                    $jobberTextMessage = JobberTextMessage::create([
+                        'messages' => $validatedData['messages'] ?? '',
+                        'sender_number' => $senderNumber,
+                        'receiver_number' => $receiverNumber,
+                        'jobber_id' => $validatedData['jobber_id'],
+                        'image' => $imagePath,
+                    ]);
 
-            // Return a success response
-            return redirect()->back()->with([
-                'success' => true,
-                'message' => 'Message sent successfully!',
-                'data' => $jobberTextMessage,
-            ]);
+                    // Only send SMS if there's content (text or image note)
+                    if (! empty($messageContent)) {
+                        $twilio->sendMessage(
+                            $receiverNumber,
+                            $senderNumber,
+                            $messageContent,
+                            $mediaUrl
+                        );
+                    }
+
+                    $sentMessages[] = $jobberTextMessage;
+                } catch (\Exception $e) {
+                    Log::error("Failed to send message to {$receiverNumber}: " . $e->getMessage());
+                    $failedRecipients[] = $receiverNumber;
+                }
+            }
+
+            // Commit the transaction if at least one message was sent successfully
+            if (!empty($sentMessages)) {
+                DB::commit();
+
+                $successMessage = count($sentMessages) . ' message(s) sent successfully!';
+                if (!empty($failedRecipients)) {
+                    $successMessage .= ' Failed to send to: ' . implode(', ', $failedRecipients);
+                }
+
+                // Return a success response
+                return redirect()->back()->with([
+                    'success' => true,
+                    'message' => $successMessage,
+                    'data' => $sentMessages,
+                ]);
+            } else {
+                // All messages failed
+                DB::rollBack();
+                throw new \Exception('Failed to send messages to all recipients.');
+            }
 
         } catch (\Exception $e) {
             // Roll back the transaction in case of an error

@@ -32,6 +32,11 @@ class Jobber extends Model
         return $this->hasMany(JobberTextMessage::class, 'jobber_id');
     }
 
+    public function clientContacts(): HasMany
+    {
+        return $this->hasMany(ClientContact::class, 'jobber_id');
+    }
+
     public function scopeFilter($query, array $filter): void
     {
         if (! empty($filter['search'])) {
