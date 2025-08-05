@@ -22,6 +22,7 @@ import {
     Paperclip,
     X,
     Check,
+    Calendar1,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -47,6 +48,13 @@ import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred } from "@inertiajs/vue3";
 import { useEchoPublic } from "@laravel/echo-vue";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/Components/ui/popover";
+import { RangeCalendar } from "@/Components/ui/range-calendar";
+import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 
 const { toast } = useToast();
 
@@ -386,6 +394,33 @@ const saveClient = async () => {
     }
 };
 
+const df = new DateFormatter("en-US", {
+    dateStyle: "medium",
+});
+
+const date_range = ref({
+    start: "",
+    end: "",
+});
+
+const fetchFilteredData = debounce(() => {
+    const newQuery = {
+        start_date: date_range.value.start
+            ? date_range.value.start.toString()
+            : "",
+        end_date: date_range.value.end ? date_range.value.end.toString() : "",
+    };
+
+    router.visit(url, {
+        method: "get",
+        data: newQuery,
+        preserveState: true,
+        preserveScroll: true,
+    });
+}, 2000);
+
+watch(date_range, fetchFilteredData, { deep: true });
+
 useEchoPublic("jobs", "JobUpdated", (e) => {
     const updatedJob = e.job;
     const statusGroups = props.jobsByStatus;
@@ -449,7 +484,64 @@ useEchoPublic("jobs", "JobDeleted", (e) => {
     <Head :title="title" />
     <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
         <SearchBar :url="url" v-model="search" class="w-full" />
-        <Navigation />
+        <div class="flex gap-2">
+            <Popover>
+                <PopoverTrigger as-child>
+                    <Button
+                        variant="outline"
+                        :class="[
+                            'w-full justify-start text-left text-xs font-normal sm:w-[220px]',
+                            !date_range.start ? 'text-muted-foreground' : '',
+                        ]"
+                    >
+                        <Calendar1 class="mr-2 h-4 w-4" />
+                        <template v-if="date_range.start">
+                            <template v-if="date_range.end">
+                                {{
+                                    df.format(
+                                        date_range.start.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                                -
+                                {{
+                                    df.format(
+                                        date_range.end.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                            </template>
+                            <template v-else>
+                                {{
+                                    df.format(
+                                        date_range.start.toDate(
+                                            getLocalTimeZone()
+                                        )
+                                    )
+                                }}
+                            </template>
+                        </template>
+                        <template v-else> Pick a date </template>
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent class="w-auto p-0">
+                    <RangeCalendar
+                        v-model="date_range"
+                        initial-focus
+                        :number-of-months="2"
+                        @update:start-value="
+                            (startDate) => (date_range.start = startDate)
+                        "
+                        @update:end-value="
+                            (endDate) => (date_range.end = endDate)
+                        "
+                    />
+                </PopoverContent>
+            </Popover>
+            <Navigation />
+        </div>
     </div>
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"

@@ -22,7 +22,7 @@ class InspectionController extends Controller
             ->with(['client', 'visits'])
             ->filter(request(['search'])) // Add search filter if needed
             ->whereNot('job_status', 'archived')
-            ->latest()
+            ->orderBy('start_at','desc')
             ->get()
             ->map(function ($job) {
                 return [

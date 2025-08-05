@@ -10,10 +10,19 @@ class InspectionVisitController extends Controller
     public function index()
     {
         $visits = JobberVisit::query()
-            ->with(['job', 'job.client', 'job.property'])
+            ->with(['job.client', 'job.property'])
             ->filter(request(['search']))
             ->whereHas('job', function ($q) {
-                $q->whereNot('job_status', 'archived');
+                $q->where('job_status', '!=', 'archived');
+            })
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $start_date = Carbon::parse(request('start_date'))->startOfDay();
+                $end_date = Carbon::parse(request('end_date'))->endOfDay();
+
+                $q->where(function ($query) use ($start_date, $end_date) {
+                    $query->whereBetween('start_at', [$start_date, $end_date])
+                        ->orWhereBetween('end_at', [$start_date, $end_date]);
+                });
             })
             ->whereNotNull('start_at')
             ->whereNotNull('end_at')
@@ -21,25 +30,20 @@ class InspectionVisitController extends Controller
 
         $events = $visits->map(function ($visit) {
             $startDate = Carbon::parse($visit->start_at);
-            $start = $startDate->format('H:i') === '00:00'
-                        ? $startDate->format('Y-m-d')
-                        : $startDate->format('Y-m-d H:i');
             $endDate = Carbon::parse($visit->end_at);
-            $end = $startDate->format('H:i') === '00:00'
-                        ? $endDate->format('Y-m-d')
-                        : $endDate->format('Y-m-d H:i');
+
+            $isAllDay = $visit->all_day;
 
             return [
                 'id' => $visit->id,
                 'title' => $visit->title,
-                'start' => $start,
-                'end' => $end,
+                'start' => $isAllDay ? $startDate->format('Y-m-d') : $startDate->format('Y-m-d H:i'),
+                'end' => $isAllDay ? $endDate->format('Y-m-d') : $endDate->format('Y-m-d H:i'),
                 'description' => $visit->instructions,
                 'is_complete' => $visit->is_complete,
                 'job' => $visit->job,
-                'location' => $visit->job->property ?
-                        trim($visit->job->property->street.' '.$visit->job->property->city.' '.$visit->job->property->province.' '.$visit->job->property->postal_code.' '.$visit->job->property->country) : 'No Property',
-                'people' => [$visit->job->client->name],
+                'location' => optional($visit->job->property)->full_address ?? 'No Property',
+                'people' => [$visit->job->client->name ?? 'No Client'],
                 'calendarId' => 'main',
                 '_options' => [
                     'additionalClasses' => 'event_class',

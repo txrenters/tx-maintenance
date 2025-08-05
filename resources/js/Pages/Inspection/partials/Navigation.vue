@@ -6,12 +6,12 @@ const props = defineProps({
 </script>
 <template>
     <div class="flex gap-2">
-        <Button class="rounded" as-child>
+        <!-- <Button class="rounded" as-child>
             <a :href="route('jobber.connect')" target="_blank">
                 <Hammer class="w-4 h-4" />
                 Connect with Jobber
             </a>
-        </Button>
+        </Button> -->
         <Button
             class="rounded"
             :variant="
@@ -21,7 +21,6 @@ const props = defineProps({
         >
             <Link :href="route('inspections.index')" prefetch>
                 <Hammer class="w-4 h-4" />
-                Jobs
             </Link>
         </Button>
         <Button
@@ -31,7 +30,6 @@ const props = defineProps({
         >
             <Link :href="route('visits.index')" prefetch>
                 <Calendar class="w-4 h-4" />
-                Schedule Visit
             </Link>
         </Button>
     </div>
