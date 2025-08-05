@@ -53,8 +53,8 @@ const triggerFileInput = () => {
 
 const handleFileSelect = (event) => {
     const files = Array.from(event.target.files || []);
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
     if (imageFiles.length !== files.length) {
         toast({
             variant: "destructive",
@@ -62,9 +62,10 @@ const handleFileSelect = (event) => {
             description: "Only image files are allowed.",
         });
     }
-    
-    imageFiles.forEach(file => {
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+
+    imageFiles.forEach((file) => {
+        if (file.size > 10 * 1024 * 1024) {
+            // 10MB limit
             toast({
                 variant: "destructive",
                 title: "File too large",
@@ -72,20 +73,20 @@ const handleFileSelect = (event) => {
             });
             return;
         }
-        
+
         const reader = new FileReader();
         reader.onload = (e) => {
             attachedImages.value.push({
                 file,
                 url: e.target.result,
-                name: file.name
+                name: file.name,
             });
         };
         reader.readAsDataURL(file);
     });
-    
+
     // Clear the input so the same file can be selected again
-    event.target.value = '';
+    event.target.value = "";
 };
 
 const removeImage = (index) => {
@@ -120,47 +121,43 @@ const sendMessage = () => {
 
     if (newMessage.value.trim() !== "" || attachedImages.value.length > 0) {
         const formData = new FormData();
-        formData.append('text', newMessage.value);
-        formData.append('sender_phone_number', woc_phone_number.value);
-        formData.append('receiver_phone_number', vendor_phone_number.value);
-        formData.append('work_order_id', props.workOrder.id);
-        formData.append('conversation_type', 'vendor');
-        
+        formData.append("text", newMessage.value);
+        formData.append("sender_phone_number", woc_phone_number.value);
+        formData.append("receiver_phone_number", vendor_phone_number.value);
+        formData.append("work_order_id", props.workOrder.id);
+        formData.append("conversation_type", "vendor");
+
         // Add image files to FormData
         attachedImages.value.forEach((image, index) => {
             formData.append(`images[${index}]`, image.file);
         });
-        
-        router.post(
-            route("work_order.vendor.conversation.send"),
-            formData,
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast({
-                        title: "Success",
-                        description: "Message has been sent successfully!",
-                    });
-                    newMessage.value = "";
-                    attachedImages.value = [];
-                    scrollToBottom();
-                    emit("update-vendor-convo");
-                },
-                onError: () => {
-                    toast({
-                        variant: "destructive",
-                        title: "Uh oh! Something went wrong.",
-                        description:
-                            "There was a problem with your request. Please try again!",
-                    });
-                },
-                onFinish: () => {
-                    loading.value = false;
-                    scrollToBottom(); // Scroll to the bottom after sending a message
-                },
-            }
-        );
+
+        router.post(route("work_order.vendor.conversation.send"), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Message has been sent successfully!",
+                });
+                newMessage.value = "";
+                attachedImages.value = [];
+                scrollToBottom();
+                emit("update-vendor-convo");
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                loading.value = false;
+                scrollToBottom(); // Scroll to the bottom after sending a message
+            },
+        });
     }
 };
 
@@ -266,13 +263,13 @@ onMounted(() => {
         <!-- Image attachments preview -->
         <div v-if="attachedImages.length > 0" class="mb-4">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                <div 
-                    v-for="(image, index) in attachedImages" 
+                <div
+                    v-for="(image, index) in attachedImages"
                     :key="index"
                     class="relative group"
                 >
-                    <img 
-                        :src="image.url" 
+                    <img
+                        :src="image.url"
                         :alt="image.name"
                         class="w-full h-20 object-cover rounded-lg border"
                     />
@@ -292,32 +289,34 @@ onMounted(() => {
             <Textarea
                 v-model="newMessage"
                 placeholder="Type your message..."
-                class="w-full resize-none rounded-2xl border py-3 pr-20 pl-4"
+                class="w-full resize-none rounded-2xl border py-3 pr-24"
                 rows="1"
                 :disabled="loading"
             />
-            <div class="absolute top-1/2 right-12 -translate-y-1/2">
+            <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                <!-- Attachment Button -->
                 <Button
                     size="icon"
                     variant="ghost"
                     @click="triggerFileInput"
                     :disabled="loading"
-                    class="text-gray-500 hover:text-gray-700"
+                    title="Attach image"
                 >
-                    <Paperclip class="w-4 h-4" />
+                    <Paperclip class="h-4 w-4" />
+                </Button>
+
+                <!-- Send Button -->
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    @click.prevent="sendMessage"
+                    :disabled="isLoading || loading"
+                >
+                    <Send v-if="!isLoading || loading" class="h-4 w-4" />
+                    <Loader2 v-else class="w-4 h-4 animate-spin" />
                 </Button>
             </div>
-            <Button
-                size="icon"
-                variant="ghost"
-                @click.prevent="sendMessage"
-                :disabled="isLoading || loading"
-                class="absolute top-1/2 right-2 -translate-y-1/2"
-            >
-                <Send v-if="!isLoading || loading" />
-                <Loader2 v-else class="w-4 h-4 animate-spin" />
-            </Button>
-            
+
             <!-- Hidden file input -->
             <input
                 ref="fileInputRef"

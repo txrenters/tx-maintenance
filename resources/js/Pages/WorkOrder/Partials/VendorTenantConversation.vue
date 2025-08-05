@@ -56,11 +56,12 @@ const handleImageSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
         // Validate file type
-        if (!file.type.startsWith('image/')) {
+        if (!file.type.startsWith("image/")) {
             toast({
                 variant: "destructive",
                 title: "Invalid file type",
-                description: "Please select an image file (JPG, PNG, GIF, etc.)",
+                description:
+                    "Please select an image file (JPG, PNG, GIF, etc.)",
             });
             return;
         }
@@ -76,7 +77,7 @@ const handleImageSelect = (event) => {
         }
 
         selectedImage.value = file;
-        
+
         // Create preview URL
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -91,7 +92,7 @@ const removeImage = () => {
     selectedImage.value = null;
     imagePreview.value = null;
     if (fileInput.value) {
-        fileInput.value.value = '';
+        fileInput.value.value = "";
     }
 };
 
@@ -117,8 +118,7 @@ const sendMessage = () => {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
-            description:
-                "Please type a message or select an image to send!",
+            description: "Please type a message or select an image to send!",
         });
         loading.value = false;
 
@@ -128,47 +128,43 @@ const sendMessage = () => {
     if (newMessage.value.trim() !== "" || selectedImage.value) {
         // Create FormData for file upload
         const formData = new FormData();
-        formData.append('text', newMessage.value || '');
-        formData.append('sender_phone_number', vendor_phone_number.value);
-        formData.append('receiver_phone_number', tenant_phone_number.value);
-        formData.append('work_order_id', props.workOrder.id);
-        formData.append('conversation_type', 'vendor_tenant');
-        
+        formData.append("text", newMessage.value || "");
+        formData.append("sender_phone_number", vendor_phone_number.value);
+        formData.append("receiver_phone_number", tenant_phone_number.value);
+        formData.append("work_order_id", props.workOrder.id);
+        formData.append("conversation_type", "vendor_tenant");
+
         // Add image if selected
         if (selectedImage.value) {
-            formData.append('image', selectedImage.value);
+            formData.append("image", selectedImage.value);
         }
 
-        router.post(
-            route("work_order.vendor.conversation.send"),
-            formData,
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast({
-                        title: "Success",
-                        description: "Message has been sent successfully!",
-                    });
-                    newMessage.value = "";
-                    removeImage(); // Clear the selected image
-                    emit("update-vendor-tenant-convo");
-                    scrollToBottom(); // Scroll to the bottom after sending a message
-                },
-                onError: () => {
-                    toast({
-                        variant: "destructive",
-                        title: "Uh oh! Something went wrong.",
-                        description:
-                            "There was a problem with your request. Please try again!",
-                    });
-                },
-                onFinish: () => {
-                    loading.value = false;
-                    scrollToBottom(); // Scroll to the bottom after sending a message
-                },
-            }
-        );
+        router.post(route("work_order.vendor.conversation.send"), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Message has been sent successfully!",
+                });
+                newMessage.value = "";
+                removeImage(); // Clear the selected image
+                emit("update-vendor-tenant-convo");
+                scrollToBottom(); // Scroll to the bottom after sending a message
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                loading.value = false;
+                scrollToBottom(); // Scroll to the bottom after sending a message
+            },
+        });
     }
 };
 
@@ -270,9 +266,9 @@ watch(
         <div v-if="imagePreview" class="mb-4 p-3 border rounded-lg bg-muted/20">
             <div class="flex items-start gap-3">
                 <div class="relative">
-                    <img 
-                        :src="imagePreview" 
-                        alt="Selected image" 
+                    <img
+                        :src="imagePreview"
+                        alt="Selected image"
                         class="w-20 h-20 object-cover rounded-lg border"
                     />
                     <Button
@@ -306,38 +302,38 @@ watch(
                 @change="handleImageSelect"
                 class="hidden"
             />
-            
+
             <Textarea
                 v-model="newMessage"
                 placeholder="Type your message..."
-                class="w-full resize-none rounded-2xl border py-3 pr-24 pl-12"
+                class="w-full resize-none rounded-2xl border py-3 pr-24"
                 rows="1"
                 :disabled="loading"
             />
-            
-            <!-- Attachment Button -->
-            <Button
-                size="icon"
-                variant="ghost"
-                @click="triggerFileInput"
-                :disabled="loading"
-                class="absolute top-1/2 left-2 -translate-y-1/2"
-                title="Attach image"
-            >
-                <Paperclip class="h-4 w-4" />
-            </Button>
-            
-            <!-- Send Button -->
-            <Button
-                size="icon"
-                variant="ghost"
-                @click.prevent="sendMessage"
-                :disabled="isLoading || loading"
-                class="absolute top-1/2 right-2 -translate-y-1/2"
-            >
-                <Send v-if="!loading" class="h-4 w-4" />
-                <Loader2 v-else class="w-4 h-4 animate-spin" />
-            </Button>
+
+            <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                <!-- Attachment Button -->
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    @click="triggerFileInput"
+                    :disabled="loading"
+                    title="Attach image"
+                >
+                    <Paperclip class="h-4 w-4" />
+                </Button>
+
+                <!-- Send Button -->
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    @click.prevent="sendMessage"
+                    :disabled="isLoading || loading"
+                >
+                    <Send v-if="!isLoading || loading" class="h-4 w-4" />
+                    <Loader2 v-else class="w-4 h-4 animate-spin" />
+                </Button>
+            </div>
         </div>
     </div>
 </template>
