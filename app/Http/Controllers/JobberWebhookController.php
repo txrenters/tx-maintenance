@@ -65,26 +65,26 @@ class JobberWebhookController extends Controller
 
         $job = $responseData['data']['job'];
 
-        $clientData = $job->client;
+        $clientData = $job['client'];
 
         $client = $this->createOrUpdateClient($clientData);
 
-        $propertyData = $job->property;
+        $propertyData = $job['property'];
 
         $property = $this->createOrUpdateProperty($propertyData, $client);
 
-        $property = $this->createOrUpdateJob($job, $client, $property);
+        $jobModel = $this->createOrUpdateJob($job, $client, $property);
 
         $visitsData = $job['visits']['edges'] ?? [];
 
         if (isset($visitsData) && is_array($visitsData)) {
             foreach ($visitsData as $visitEdge) {
                 $visitData = $visitEdge['node'];
-                $this->createOrUpdateVisits($visitData, $client, $property, (object) $job); // cast back only if needed
+                $this->createOrUpdateVisits($visitData, $client, $property, $jobModel);
             }
         }
 
-        event(new JobUpdated($job));
+        event(new JobUpdated($jobModel));
 
     }
 
@@ -122,27 +122,39 @@ class JobberWebhookController extends Controller
         Log::info('Job has been closed:', ['job' => $job]);
     }
 
-    public function handleCompleteVisit($jobberId): void
+    public function handleCompleteVisit($visitId): void
     {
-        $job = Jobber::where('jobber_id', $jobberId)->first();
+        $visit = JobberVisit::where('jobber_id', $visitId)->first();
 
-        if (! $job) {
-            Log::warning('Job not found when trying to complete.', ['jobber_id' => $jobberId]);
-
+        if (! $visit) {
+            Log::warning('Visit not found when trying to complete.', ['visit_id' => $visitId]);
             return;
         }
 
-        $job->update([
-            'is_complete' => true,
+        $visit->update([
             'completed_at' => now(),
+            'visit_status' => 'completed',
         ]);
 
-        event(new JobUpdated($job));
+        // Check if all visits for this job are completed
+        $job = $visit->job;
+        if ($job) {
+            $allVisitsCompleted = $job->visits()->whereNull('completed_at')->count() === 0;
+            
+            if ($allVisitsCompleted) {
+                $job->update([
+                    'is_complete' => true,
+                    'completed_at' => now(),
+                ]);
+                
+                event(new JobUpdated($job));
+            }
+        }
 
-        Log::info('Job has been completed:', [
-            'jobber_id' => $jobberId,
-            'job_id' => $job->id,
-            'completed_at' => $job->completed_at,
+        Log::info('Visit has been completed:', [
+            'visit_id' => $visitId,
+            'job_id' => $job ? $job->id : null,
+            'completed_at' => $visit->completed_at,
         ]);
     }
 
@@ -159,17 +171,37 @@ class JobberWebhookController extends Controller
 
         $jobberVisit = $responseData['data']['visit'];
 
-        $visitData = JobberVisit::with(['job.client', 'job.property'])
+        // Find the existing visit to get related job, client, and property
+        $existingVisit = JobberVisit::with(['job.client', 'job.property'])
             ->where('jobber_id', $jobberVisit['id'])
             ->first();
 
-        $this->createOrUpdateVisits($visitData->toArray(), $visitData->job->client, $visitData->job->property, $visitData->job);
+        // If visit exists with job, update it
+        if ($existingVisit && $existingVisit->job) {
+            $this->createOrUpdateVisits($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
+        } else {
+            // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
+            Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
+            
+            // For now, just log this scenario. In a complete implementation, you might want to:
+            // 1. Extract the job ID from the visit data (if available)
+            // 2. Fetch the job details from Jobber API
+            // 3. Create the job, client, and property records
+            // 4. Then create the visit
+        }
 
     }
 
-    public function handleDeleteVisit($jobberId)
+    public function handleDeleteVisit($visitId)
     {
-        JobberVisit::findOrFail($jobberId)->delete();
+        $visit = JobberVisit::where('jobber_id', $visitId)->first();
+        
+        if ($visit) {
+            $visit->delete();
+            Log::info('Visit deleted', ['jobber_id' => $visitId]);
+        } else {
+            Log::warning('Visit not found when trying to delete', ['jobber_id' => $visitId]);
+        }
     }
 
     public function getJobDetails($jobberId)
@@ -251,6 +283,9 @@ class JobberWebhookController extends Controller
                 $jobberAuth = new JobberAuthController;
                 $jobberAuth->refreshAccessToken();
 
+                // Get fresh headers with the new access token
+                $headers = $this->accessTokenHeaders();
+                
                 // Use the new access token after refresh
                 $response = Http::withHeaders($headers)
                     ->timeout(60)
@@ -310,6 +345,9 @@ class JobberWebhookController extends Controller
                 $jobberAuth = new JobberAuthController;
                 $jobberAuth->refreshAccessToken();
 
+                // Get fresh headers with the new access token
+                $headers = $this->accessTokenHeaders();
+                
                 // Use the new access token after refresh
                 $response = Http::withHeaders($headers)
                     ->timeout(60)
@@ -420,12 +458,18 @@ class JobberWebhookController extends Controller
 
     public function accessTokenHeaders()
     {
-        $token = JobberToken::first();
-
-        return [
-            'Authorization' => 'Bearer '.$token->access_token,
-            'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
-            'Content-Type' => 'application/json',
-        ];
+        try {
+            $jobberAuth = new JobberAuthController();
+            $accessToken = $jobberAuth->ensureValidToken();
+            
+            return [
+                'Authorization' => 'Bearer '.$accessToken,
+                'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
+                'Content-Type' => 'application/json',
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to get valid Jobber token', ['error' => $e->getMessage()]);
+            throw $e;
+        }
     }
 }

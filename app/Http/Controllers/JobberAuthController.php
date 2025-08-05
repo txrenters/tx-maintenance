@@ -64,7 +64,8 @@ class JobberAuthController extends Controller
         $token = JobberToken::first();
 
         if (!$token || !$token->refresh_token) {
-            throw new \Exception('No Jobber refresh token found');
+            Log::error('No Jobber refresh token found - manual reconnection required');
+            throw new \Exception('No Jobber refresh token found. Please reconnect to Jobber at /jobber-connect');
         }
 
         // Perform token refresh request
@@ -89,6 +90,9 @@ class JobberAuthController extends Controller
                 // You may store `expires_at` as well if needed
                 if (isset($data['expires_at'])) {
                     $token->expires_at = Carbon::parse($data['expires_at']) ?? now()->addHour();
+                } else {
+                    // Default to 1 hour expiry if not provided
+                    $token->expires_at = now()->addHour();
                 }
 
                 $token->save();
@@ -102,9 +106,35 @@ class JobberAuthController extends Controller
         Log::error('Failed to refresh Jobber token', [
             'status' => $response->status(),
             'body' => $response->body(),
+            'request' => [
+                'client_id' => env('JOBBER_CLIENT_ID'),
+                'has_refresh_token' => !empty($token->refresh_token),
+            ]
         ]);
 
-        throw new \Exception('Unable to refresh Jobber access token');
+        // If we get a 401, the refresh token is invalid
+        if ($response->status() === 401) {
+            throw new \Exception('Refresh token is invalid. Please reconnect to Jobber.');
+        }
+
+        throw new \Exception('Unable to refresh Jobber access token: ' . $response->body());
+    }
+
+    public function ensureValidToken(): string
+    {
+        $token = JobberToken::first();
+        
+        if (!$token) {
+            throw new \Exception('No Jobber token found. Please connect to Jobber at /jobber-connect');
+        }
+        
+        // Check if token is expired or expires soon (within 5 minutes)
+        if (!$token->expires_at || now()->addMinutes(5)->isAfter($token->expires_at)) {
+            Log::info('Jobber token expired or expiring soon, refreshing...');
+            return $this->refreshAccessToken();
+        }
+        
+        return $token->access_token;
     }
 
 }

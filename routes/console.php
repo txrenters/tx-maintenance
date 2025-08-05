@@ -8,4 +8,10 @@ Schedule::command('import:work-orders')
     ->weekdays()
     ->withoutOverlapping()
     ->runInBackground();
-// Schedule::command('asana:set-dues')->everyTwoMinutes()->withoutOverlapping()->between('0:01', '23:59')->runInBackground();
+
+// Refresh Jobber token every 30 minutes to prevent expiration
+Schedule::command('jobber:refresh-token')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+    

@@ -14,6 +14,7 @@ use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
+use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
@@ -124,6 +125,10 @@ Route::get('/onboarding/building', [BuildingController::class, 'create'])->name(
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
+
+// Jobber diagnostic routes
+Route::get('/jobber/diagnose', [JobberDiagnosticController::class, 'diagnose'])->name('jobber.diagnose');
+Route::post('/jobber/clear-tokens', [JobberDiagnosticController::class, 'clearTokens'])->name('jobber.clearTokens');
 
 Route::fallback(function () {
     return inertia('Error', ['status' => 404])
