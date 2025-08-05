@@ -429,6 +429,21 @@ useEchoPublic("jobs", "JobUpdated", (e) => {
         statusGroups[updatedJob.job_status].unshift(updatedJob);
     }
 });
+
+useEchoPublic("jobs", "JobDeleted", (e) => {
+    const deletedJob = e.job;
+    const statusGroups = props.jobsByStatus;
+
+    // Loop through all status groups to find and remove the job
+    for (const [status, jobs] of Object.entries(statusGroups)) {
+        const index = jobs.findIndex((job) => job.id === deletedJob.id);
+
+        if (index !== -1) {
+            jobs.splice(index, 1); // Remove job from the list
+            break;
+        }
+    }
+});
 </script>
 <template>
     <Head :title="title" />

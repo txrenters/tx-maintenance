@@ -2,24 +2,25 @@
 
 namespace App\Events;
 
-use App\Models\Jobber;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Broadcasting\Channel;
 
-class JobUpdated
+class JobDeleted
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $job;
+    public $jobId;
     /**
      * Create a new event instance.
      */
-    public function __construct(Jobber $job)
+    public function __construct($jobId)
     {
-        $this->job = $job;
+        $this->jobId = $jobId;
     }
 
     /**
@@ -34,8 +35,8 @@ class JobUpdated
         ];
     }
 
-    public function broadcastAs(): string
+    public function broadcastAs()
     {
-        return 'JobUpdated';
-    }
+        return 'JobDeleted';
+    } 
 }

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\JobDeleted;
 use App\Events\JobUpdated;
+use App\Events\VisitDeleted;
+use App\Events\VisitUpdated;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
-use App\Models\JobberToken;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Client\RequestException;
@@ -86,6 +88,7 @@ class JobberWebhookController extends Controller
 
         event(new JobUpdated($jobModel));
 
+        Log::info('Job has been updated successfully:', ['job' => $jobModel]);
     }
 
     public function handleDeleteJobber($jobberId): void
@@ -97,7 +100,12 @@ class JobberWebhookController extends Controller
 
             return;
         }
+
+        $jobId = $job->id;
+
         $job->delete();
+
+        event(new JobDeleted($jobId));
 
         Log::info('Job has been deleted:', ['job' => $job]);
     }
@@ -115,11 +123,9 @@ class JobberWebhookController extends Controller
         $job->update([
             'job_status' => 'closed',
         ]);
+        Log::info('Job has been closed:', ['job' => $job]);
 
         event(new JobUpdated($job));
-
-
-        Log::info('Job has been closed:', ['job' => $job]);
     }
 
     public function handleCompleteVisit($visitId): void
@@ -135,9 +141,10 @@ class JobberWebhookController extends Controller
             'completed_at' => now(),
             'visit_status' => 'completed',
         ]);
-
+        Log::info('Visit completed successfully:', ['visit' => $visit]);
         // Check if all visits for this job are completed
         $job = $visit->job;
+
         if ($job) {
             $allVisitsCompleted = $job->visits()->whereNull('completed_at')->count() === 0;
             
@@ -145,10 +152,13 @@ class JobberWebhookController extends Controller
                 $job->update([
                     'completed_at' => now(),
                 ]);
-                
+
+                Log::info('Job completed successfully:', ['job' => $job]);
                 event(new JobUpdated($job));
             }
         }
+
+        event(new VisitUpdated($visit));
 
         Log::info('Visit has been completed:', [
             'visit_id' => $visitId,
@@ -178,6 +188,9 @@ class JobberWebhookController extends Controller
         // If visit exists with job, update it
         if ($existingVisit && $existingVisit->job) {
             $this->createOrUpdateVisits($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
+            Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
+
+            event(new VisitUpdated($jobberVisit));
         } else {
             // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
             Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
@@ -195,8 +208,13 @@ class JobberWebhookController extends Controller
     {
         $visit = JobberVisit::where('jobber_id', $visitId)->first();
         
+
         if ($visit) {
+            $visitId = $visit->id;
             $visit->delete();
+            
+            event(new VisitDeleted($visitId));
+
             Log::info('Visit deleted', ['jobber_id' => $visitId]);
         } else {
             Log::warning('Visit not found when trying to delete', ['jobber_id' => $visitId]);

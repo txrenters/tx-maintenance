@@ -26,6 +26,7 @@ import {
     viewMonthGrid,
     createViewList,
 } from "@schedule-x/calendar";
+import { useEchoPublic } from "@laravel/echo-vue";
 
 const { toast } = useToast();
 
@@ -134,6 +135,39 @@ const closeEventModal = () => {
     isModalOpen.value = false;
     selectedEvent.value = null;
 };
+
+useEchoPublic("visits", "VisitUpdated", (e) => {
+    const updatedVisit = e.visit;
+
+    const existingIndex = props.events.findIndex(
+        (event) => event.id === updatedVisit.id
+    );
+
+    const formattedEvent = {
+        ...updatedVisit,
+        id: updatedVisit.id,
+        start: updatedVisit.start || updatedVisit.date,
+        end: updatedVisit.end || updatedVisit.date,
+        title: updatedVisit.title || updatedVisit.summary || "Untitled Event",
+        _options: {
+            ...updatedVisit._options,
+            additionalClasses: [
+                getEventDateClass(updatedVisit.start, updatedVisit.end),
+                ...(updatedVisit._options?.additionalClasses || []),
+            ],
+        },
+    };
+
+    if (existingIndex !== -1) {
+        props.events.splice(existingIndex, 1, formattedEvent); // update
+    } else {
+        props.events.push(formattedEvent); // insert new
+    }
+});
+
+useEchoPublic("visits", "VisitDeleted", (e) => {
+    events.value = events.value.filter((event) => event.id !== e.visitId);
+});
 </script>
 
 <template>
