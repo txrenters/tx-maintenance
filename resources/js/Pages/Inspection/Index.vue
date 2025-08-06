@@ -564,6 +564,7 @@ useEchoPublic("jobs", "JobUpdated", (e) => {
 });
 
 useEchoPublic("jobs", "JobDeleted", (e) => {
+    console.log("Job: ", e.jobsByStatus);
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;
 

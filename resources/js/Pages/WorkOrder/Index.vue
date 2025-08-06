@@ -611,6 +611,7 @@ watch(date_range, fetchFilteredData, { deep: true });
 
 useEchoPublic("workOrders", "WorkOrderUpdated", (e) => {
     const updatedWorkOrder = e.workOrder;
+    console.log("workOrder: ", e.workOrder);
 
     // Find and remove the work order from its current status
     let existingWorkOrder = null;
