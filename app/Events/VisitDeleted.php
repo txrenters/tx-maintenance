@@ -39,4 +39,11 @@ class VisitDeleted implements ShouldBroadcast
     {
         return 'VisitDeleted';
     }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'visitId' => $this->visitId,
+        ];
+    }
 }

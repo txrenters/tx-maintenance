@@ -40,4 +40,16 @@ class VisitUpdated implements ShouldBroadcast
     {
         return 'VisitUpdated';
     }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'visit' => [
+                'id' => $this->visit->id,
+                'status' => $this->visit->status,
+                'scheduled_start' => $this->visit->scheduled_start,
+                'updated_at' => $this->visit->updated_at,
+            ],
+        ];
+    }
 }

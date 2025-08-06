@@ -15,6 +15,13 @@ class JobberTextMessage extends Model
         'receiver_number',
         'image',
         'jobber_id',
+        'status',
+        'sent_at',
+        'error_message',
+    ];
+
+    protected $casts = [
+        'sent_at' => 'datetime',
     ];
 
     public function jobber(): BelongsTo

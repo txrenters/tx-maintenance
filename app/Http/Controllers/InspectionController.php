@@ -75,7 +75,7 @@ class InspectionController extends Controller
 
     public function jobDetails(Jobber $job)
     {
-        $job->load(['visits', 'client', 'property', 'textMessages']);
+        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts']);
 
         return response()->json([
             'jobber_web_uri' => $job->jobber_web_uri,
@@ -104,6 +104,13 @@ class InspectionController extends Controller
                 ];
             }),
             'text_messages_count' => $job->textMessages->count(),
+            'client_contacts' => $job->clientContacts->map(function ($client) {
+                return [
+                    'id' => $client->id,
+                    'client' => $client->name,
+                    'phone' => $client->phone,
+                ];
+            }),
         ]);
     }
 

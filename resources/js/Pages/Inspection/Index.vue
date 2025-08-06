@@ -56,17 +56,9 @@ import {
 } from "@/Components/ui/popover";
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
-import {
-    TagsInput,
-    TagsInputInput,
-    TagsInputItem,
-    TagsInputItemDelete,
-    TagsInputItemText,
-} from "@/Components/ui/tags-input";
 import { Label } from "@/Components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Badge } from "@/Components/ui/badge";
-import { Progress } from "@/Components/ui/progress";
 import { Separator } from "@/Components/ui/separator";
 import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
@@ -364,14 +356,45 @@ const sendMessage = () => {
                 title: "Success",
                 description: "Messages sent successfully!",
             });
+
+            // Create and push the new message(s) to jobMessages immediately
+            const timestamp = new Date().toISOString();
+            selectedRecipients.value.forEach((recipient) => {
+                const newMessageObj = {
+                    id: Date.now() + Math.random(), // Temporary ID
+                    messages: newMessage.value || "",
+                    sender_number: senderPhoneNumber.value,
+                    receiver_number: recipient.phone,
+                    image: selectedImage.value ? URL.createObjectURL(selectedImage.value) : null,
+                    created_at: timestamp,
+                    jobber_id: selectedJob.value.id,
+                };
+                
+                // Push the new message to the beginning of the array
+                jobMessages.value.unshift(newMessageObj);
+                
+                // Also update the selectedJob's text_messages if it exists
+                if (selectedJob.value.text_messages) {
+                    selectedJob.value.text_messages.unshift(newMessageObj);
+                }
+            });
+
+            // Update the job in jobsByStatus to reflect the new message count
+            Object.keys(props.jobsByStatus).forEach(status => {
+                const jobIndex = props.jobsByStatus[status].findIndex(
+                    job => job.id === selectedJob.value.id
+                );
+                if (jobIndex !== -1) {
+                    props.jobsByStatus[status][jobIndex].text_messages_count = 
+                        (props.jobsByStatus[status][jobIndex].text_messages_count || 0) + selectedRecipients.value.length;
+                }
+            });
+
             newMessage.value = "";
             removeImage();
 
             // Save contacts for future use
             saveContactsForJob();
-
-            // Refresh the page data to get updated messages
-            router.reload({ only: ["jobsByStatus"] });
         },
         onError: (errors) => {
             toast({

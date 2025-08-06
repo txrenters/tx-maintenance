@@ -41,16 +41,21 @@ class WorkOrderUpdated implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
-        return [
-            'workOrder' => [
-                'id' => $this->workOrder->id,
-                'work_order_no' => $this->workOrder->work_order_no,
-                'service_status_id' => $this->workOrder->service_status_id,
-                'service_status' => $this->workOrder->service_status,
-                'status' => $this->workOrder->status,
-                'local_status' => $this->workOrder->local_status,
-                'updated_at' => $this->workOrder->updated_at,
-            ],
-        ];
+        if($this->workOrder->status === 'open'){
+            return [
+                'workOrder' => [
+                    'id' => $this->workOrder->id,
+                    'work_order_no' => $this->workOrder->work_order_no,
+                    'service_status_id' => $this->workOrder->service_status_id,
+                    'service_status' => $this->workOrder->service_status,
+                    'status' => $this->workOrder->status,
+                    'local_status' => $this->workOrder->local_status,
+                    'updated_at' => $this->workOrder->updated_at,
+                ],
+            ];
+        }else{
+            return [];
+        }
+       
     }
 }

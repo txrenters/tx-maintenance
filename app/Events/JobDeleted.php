@@ -35,8 +35,15 @@ class JobDeleted implements ShouldBroadcast
         ];
     }
 
-    public function broadcastAs()
+    public function broadcastAs(): string
     {
         return 'JobDeleted';
-    } 
+    }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'jobId' => $this->jobId,
+        ];
+    }
 }

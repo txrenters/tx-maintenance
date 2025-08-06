@@ -39,4 +39,16 @@ class JobUpdated implements ShouldBroadcast
     {
         return 'JobUpdated';
     }
+
+    public function broadcastWith(): array
+    {
+        return [
+            'job' => [
+                'id' => $this->job->id,
+                'job_number' => $this->job->job_number,
+                'status' => $this->job->status,
+                'updated_at' => $this->job->updated_at,
+            ],
+        ];
+    }
 }
