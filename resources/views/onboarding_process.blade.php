@@ -935,6 +935,10 @@
                 <label>Additional Comments:</label>
                 <div class="value">{{ $formData['otherComments'] }}</div>
             </div>
+            <div class="form-group">
+                <label>Owner Preferred Communication:</label>
+                <div class="value">{{ $formData['preferredCommunication'] }}</div>
+            </div>
         </div>
     @endif
 

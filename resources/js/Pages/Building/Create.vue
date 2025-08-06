@@ -168,6 +168,7 @@ const form = useForm({
     floodedPropertyDate: "",
 
     otherComments: "",
+    preferredCommunication: "",
 
     // New location fields
     gasShutoffValveLocation: "",
@@ -444,6 +445,7 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
 
     // Other
     otherComments: "Make Ready Notes",
+    preferredCommunication: "Owner Preferred Communication",
 
     // Neighborhood Amenities Contact
     tenantToContactNeighborhoodAmenities:
@@ -1918,7 +1920,7 @@ const redirectToHandbook = () => {
                                         <Info class="h-4 w-4" />
                                         <AlertDescription>
                                             If there is anything not Covered
-                                            above, please let us know if the
+                                            above, please let us know in the
                                             space below. This would also include
                                             any repairs or bids that you would
                                             like us to have completed for you.
@@ -1932,6 +1934,31 @@ const redirectToHandbook = () => {
                                         placeholder="Any other details we should know about your property?"
                                         class="min-h-[100px]"
                                     />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium"
+                                        >Owner Preferred Communication</label
+                                    >
+                                    <Select
+                                        v-model="form.preferredCommunication"
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue
+                                                placeholder="Select your preferred line of communication"
+                                            />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Text Message"
+                                                >Text Message</SelectItem
+                                            >
+                                            <SelectItem value="Email"
+                                                >Email</SelectItem
+                                            >
+                                            <SelectItem value="Phone Call"
+                                                >Phone Call</SelectItem
+                                            >
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
                                 <div class="border-t pt-6">
