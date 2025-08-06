@@ -20,7 +20,7 @@ class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
      */
     public function __construct(WorkOrder $workOrder)
     {
-        $this->workOrder = $workOrder;
+        $this->workOrder = $workOrder->load('service_status');
     }
 
     /**
@@ -38,11 +38,6 @@ class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
     public function broadcastAs(): string
     {
         return 'WorkOrderUpdated';
-    }
-
-    public function broadcastWhen(): bool
-    {
-        return $this->workOrder->status === 'open';
     }
 
     public function broadcastWith(): array
