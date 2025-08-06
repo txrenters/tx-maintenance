@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -63,6 +63,7 @@ import { Separator } from "@/Components/ui/separator";
 import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import axios from "axios";
 
 const { toast } = useToast();
 
@@ -519,7 +520,7 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-useEchoPublic("jobs", "JobUpdated", (e) => {
+useEchoPublic("jobs", "JobUpdated", (e: any) => {
     const updatedJob = e.job;
     const statusGroups = props.jobsByStatus;
     console.log("Job: ", e.job);
@@ -564,7 +565,7 @@ useEchoPublic("jobs", "JobUpdated", (e) => {
     }
 });
 
-useEchoPublic("jobs", "JobDeleted", (e) => {
+useEchoPublic("jobs", "JobDeleted", (e: any) => {
     console.log("Job: ", e.job);
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;

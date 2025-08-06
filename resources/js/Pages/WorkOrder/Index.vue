@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watch, onMounted, computed } from "vue";
 import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
 import axios from "axios";
@@ -93,13 +93,11 @@ const workOrderForm = useForm({
     is_emergency: "",
     is_approved: "",
     vendor_id: "",
-    vendors: Array,
-    vendors: Array,
+    vendors: [],
     managed_by: "",
     requested: "",
-    owners: Array,
+    owners: [],
     local_status: "",
-    vendor_notes: "",
     woc: "",
 });
 
@@ -609,7 +607,7 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-useEchoPublic("workOrders", "WorkOrderUpdated", (e) => {
+useEchoPublic("workOrders", "WorkOrderUpdated", (e: any) => {
     const updatedWorkOrder = e.workOrder;
     console.log("workOrder: ", e.workOrder);
 
