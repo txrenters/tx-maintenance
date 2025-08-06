@@ -365,28 +365,32 @@ const sendMessage = () => {
                     messages: newMessage.value || "",
                     sender_number: senderPhoneNumber.value,
                     receiver_number: recipient.phone,
-                    image: selectedImage.value ? URL.createObjectURL(selectedImage.value) : null,
+                    image: selectedImage.value
+                        ? URL.createObjectURL(selectedImage.value)
+                        : null,
                     created_at: timestamp,
                     jobber_id: selectedJob.value.id,
                 };
-                
+
                 // Push the new message to the beginning of the array
                 jobMessages.value.unshift(newMessageObj);
-                
+
                 // Also update the selectedJob's text_messages if it exists
-                if (selectedJob.value.text_messages) {
-                    selectedJob.value.text_messages.unshift(newMessageObj);
-                }
+                // if (selectedJob.value.text_messages) {
+                //     selectedJob.value.text_messages.unshift(newMessageObj);
+                // }
             });
 
             // Update the job in jobsByStatus to reflect the new message count
-            Object.keys(props.jobsByStatus).forEach(status => {
+            Object.keys(props.jobsByStatus).forEach((status) => {
                 const jobIndex = props.jobsByStatus[status].findIndex(
-                    job => job.id === selectedJob.value.id
+                    (job) => job.id === selectedJob.value.id
                 );
                 if (jobIndex !== -1) {
-                    props.jobsByStatus[status][jobIndex].text_messages_count = 
-                        (props.jobsByStatus[status][jobIndex].text_messages_count || 0) + selectedRecipients.value.length;
+                    props.jobsByStatus[status][jobIndex].text_messages_count =
+                        (props.jobsByStatus[status][jobIndex]
+                            .text_messages_count || 0) +
+                        selectedRecipients.value.length;
                 }
             });
 
@@ -488,45 +492,6 @@ const debouncedSearch = debounce(fetchClients, 500);
 watch(searchQuery, (val) => {
     debouncedSearch(val);
 });
-
-const saveClient = async () => {
-    if (!selectedClient.value) {
-        return;
-    }
-
-    isSavingLoading.value = true;
-    try {
-        const response = await axios.post(
-            route("jobber.saveClient", {
-                jobber_id: selectedJob.value.id,
-                client: selectedClient.value,
-            })
-        );
-
-        const res = response.data;
-
-        if (res.success) {
-            toast({
-                title: "Success",
-                description: "Client has been saved successfully!",
-            });
-
-            contactPhoneNumber.value = selectedClient.value.phone;
-
-            router.reload();
-        } else {
-            toast({
-                title: "Error",
-                description: res.error || "Something went wrong.",
-            });
-        }
-    } catch (e) {
-        console.error("Error saving clients", e);
-    } finally {
-        isSavingLoading.value = false;
-    }
-};
-
 const df = new DateFormatter("en-US", {
     dateStyle: "medium",
 });
