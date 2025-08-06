@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Events\WorkOrderUpdated;
 use App\Models\User;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
@@ -155,12 +156,14 @@ class WorkOrderImportCommand extends Command
                 $work_order_data
             );
 
-            $workOrderId = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
+            $workOrder = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->first();
 
-            DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
+            WorkOrderUpdated::dispatch($workOrder);
+
+            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
             DB::table('work_order_custom_fields')->insert($customFieldData);
 
-            $this->processRelatedData($data, $workOrderId, $now);
+            $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();
         } catch (\Throwable $th) {
