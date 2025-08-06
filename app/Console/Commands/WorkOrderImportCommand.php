@@ -158,8 +158,8 @@ class WorkOrderImportCommand extends Command
 
             $workOrder = WorkOrder::where('propertyware_id', $work_order_propertyware_id)->first();
 
-            WorkOrderUpdated::dispatch($workOrder);
-            usleep(50000); 
+            // WorkOrderUpdated::dispatch($workOrder);
+            // usleep(50000); 
 
             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
             DB::table('work_order_custom_fields')->insert($customFieldData);
