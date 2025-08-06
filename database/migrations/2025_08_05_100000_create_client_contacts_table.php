@@ -20,7 +20,6 @@ return new class extends Migration
             $table->boolean('is_primary')->default(false);
             $table->timestamps();
             
-            $table->foreign('jobber_id')->references('id')->on('jobber')->onDelete('cascade');
             $table->index(['jobber_id', 'phone']);
         });
     }

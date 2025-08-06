@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
+import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
@@ -45,6 +46,7 @@ import {
 } from "@/Components/ui/popover";
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { useEchoPublic } from "@laravel/echo-vue";
 
 const props = defineProps({
     title: String,
@@ -607,10 +609,62 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-usePoll(30000, {
-    preserveScroll: true,
-    preserveState: true,
-    only: ["service_status"],
+useEchoPublic("workOrders", "WorkOrderUpdated", (e) => {
+    const updatedWorkOrder = e.workOrder;
+
+    // Find and remove the work order from its current status
+    let existingWorkOrder = null;
+    Object.values(props.service_status).forEach((status) => {
+        if (status.work_orders) {
+            const index = status.work_orders.findIndex(
+                (wo) => wo.id === updatedWorkOrder.id
+            );
+            if (index !== -1) {
+                // Store the existing work order data before removing
+                existingWorkOrder = status.work_orders[index];
+                status.work_orders.splice(index, 1);
+            }
+        }
+    });
+
+    // Find the new status and add the work order
+    const newStatus = Object.values(props.service_status).find(
+        (status) => status.id === updatedWorkOrder.service_status_id
+    );
+
+    if (newStatus) {
+        if (!newStatus.work_orders) {
+            newStatus.work_orders = [];
+        }
+
+        // If we had existing work order data, update it with the new service status
+        if (existingWorkOrder) {
+            existingWorkOrder.service_status = updatedWorkOrder.service_status;
+            existingWorkOrder.service_status_id =
+                updatedWorkOrder.service_status_id;
+            existingWorkOrder.status = updatedWorkOrder.status;
+            existingWorkOrder.local_status = updatedWorkOrder.local_status;
+            existingWorkOrder.updated_at = updatedWorkOrder.updated_at;
+
+            // Add to the beginning of the new status array
+            newStatus.work_orders.unshift(existingWorkOrder);
+        } else {
+            // If it's a new work order (not found in existing statuses), fetch full data
+            axios
+                .get(route("work_orders.show", updatedWorkOrder.id))
+                .then((response) => {
+                    newStatus.work_orders.unshift(response.data);
+                })
+                .catch((error) => {
+                    console.error("Error fetching updated work order:", error);
+                });
+        }
+    }
+
+    // If the current work order dialog is open and it's the updated one, refresh it
+    if (openWorkOrder.value && workOrderForm.id === updatedWorkOrder.id) {
+        handleWorkOrder(updatedWorkOrder.id);
+    }
 });
 </script>
 <template>

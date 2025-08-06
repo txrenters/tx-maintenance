@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Events\WorkOrderUpdated;
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -156,7 +157,7 @@ class WorkOrderImportCommand extends Command
                 $work_order_data
             );
 
-            $workOrder = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->first();
+            $workOrder = WorkOrder::where('propertyware_id', $work_order_propertyware_id)->first();
 
             WorkOrderUpdated::dispatch($workOrder);
 

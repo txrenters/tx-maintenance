@@ -10,7 +10,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class VisitDeleted
+class VisitDeleted implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -20,7 +20,7 @@ class VisitDeleted
      */
     public function __construct($visitId)
     {
-        $this->$visitId = $visitId;
+        $this->visitId = $visitId;
     }
 
     /**
@@ -31,7 +31,7 @@ class VisitDeleted
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('visits'),
+            new Channel('visits'),
         ];
     }
 

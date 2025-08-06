@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Jobs\UpdateWorkOrder;
@@ -180,6 +181,10 @@ class WorkOrderController extends Controller
 
             UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
 
+            // Broadcast the work order update
+            $workOrder->load('service_status');
+            event(new WorkOrderUpdated($workOrder));
+
             Log::info('Work Order Update Dispatched', ['work_order_no' => $workOrder->work_order_no]);
 
             return redirect()->back()->with('success', 'Work order update has been queued.');
@@ -296,6 +301,10 @@ class WorkOrderController extends Controller
         $propertyWare = new PropertyWareService;
         $propertyWare->updateServiceStatus($workOrder, $service_status);
 
+        // Broadcast the work order update
+        $workOrder->load('service_status');
+        event(new WorkOrderUpdated($workOrder));
+
         return redirect()->back()->with('success', 'Work order emergency status updated successfully.');
     }
 
@@ -315,6 +324,10 @@ class WorkOrderController extends Controller
                 'local_status' => 'Created',
                 'completed_date' => null,
             ]);
+
+            // Broadcast the work order update
+            $workOrder->load('service_status');
+            event(new WorkOrderUpdated($workOrder));
         }
 
         return redirect()->route('work_orders.closed_work_orders');
@@ -338,6 +351,10 @@ class WorkOrderController extends Controller
             $workOrder->tasks()->each(function ($task) {
                 $task->delete();
             });
+
+            // Broadcast the work order update
+            $workOrder->load('service_status');
+            event(new WorkOrderUpdated($workOrder));
         }
 
         return redirect()->back();
