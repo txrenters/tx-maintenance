@@ -522,6 +522,7 @@ watch(date_range, fetchFilteredData, { deep: true });
 useEchoPublic("jobs", "JobUpdated", (e) => {
     const updatedJob = e.job;
     const statusGroups = props.jobsByStatus;
+    console.log("Job: ", e.job);
 
     let found = false;
 
@@ -564,7 +565,7 @@ useEchoPublic("jobs", "JobUpdated", (e) => {
 });
 
 useEchoPublic("jobs", "JobDeleted", (e) => {
-    console.log("Job: ", e.jobsByStatus);
+    console.log("Job: ", e.job);
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;
 
