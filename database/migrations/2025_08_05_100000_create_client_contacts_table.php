@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Jobber;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -13,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('client_contacts', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('jobber_id');
+            $table->foreignIdFor(Jobber::class,'jobber_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('phone');
             $table->boolean('is_primary')->default(false);

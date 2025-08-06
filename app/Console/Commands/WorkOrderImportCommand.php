@@ -60,6 +60,8 @@ class WorkOrderImportCommand extends Command
 
                     // Process work order and related data
                     $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+
+
                 }
 
             }
@@ -172,7 +174,6 @@ class WorkOrderImportCommand extends Command
         // Process custom fields, notes, documents, etc.
         $this->processNotes($data, $work_order, $now);
         $this->processVendors($data, $work_order, $now);
-        // $this->processDocuments($data, $work_order, $now);
         $this->processTenants($data, $work_order, $now);
         $this->processOwners($data, $work_order, $now);
     }
@@ -365,110 +366,6 @@ class WorkOrderImportCommand extends Command
         }
         if ($vendorsData) {
             DB::table('work_order_vendors')->insert($vendorsData);
-        }
-    }
-
-    private function processDocuments(array $data, int $work_order, string $now): void
-    {
-        try {
-            $documentsData = [];
-
-            if (! empty($data['documents']) && is_array($data['documents'])) {
-                foreach ($data['documents'] as $index => $document) {
-                    // Validate required document fields
-                    if (empty($document['fileData'])) {
-                        continue;
-                    }
-
-                    // Process file data if it's base64 encoded
-                    $fileData = $this->processFileData($document['fileData'] ?? '');
-
-                    $documentsData = [
-                        'propertyware_id' => $document['ID'] ?? null,
-                        'client_data' => $document['clientData'] ?? null,
-                        'description' => $document['description'] ?? null,
-                        'created_by_id' => $document['createdById'] ?? null,
-                        'file_data' => $fileData,
-                        'file_type' => $document['fileType'] ?? $this->detectFileType($document['fileName'] ?? ''),
-                        'file_name' => $this->sanitizeFileName($document['fileName'] ?? 'document_'.time().'_'.$index),
-                        'is_private' => filter_var($document['private'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                        'is_publish_to_owner_portal' => $document['publishToOwnerPortal'] ?? null,
-                        'is_publish_to_tenant_portal' => $document['publishToTenantPortal'] ?? null,
-                        'system_id' => $document['systemId'] ?? null,
-                        'work_order_id' => $work_order,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-
-                    $fileDocumentExist = DB::table('work_order_documents')
-                        ->where('propertyware_id', $document['ID'])
-                        ->whereIn('file_name', $this->sanitizeFileName($document['fileName'] ?? 'document_'.time().'_'.$index))
-                        ->exists();
-
-                    if (! $fileDocumentExist) { // don't insert if exists
-                        DB::table('work_order_documents')->insert($documentsData);
-                        $this->storeDocumentsOnDisk($documentsData);
-                    }
-                }
-
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Failed to process documents', [
-                'work_order' => $work_order,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-        }
-    }
-
-    /**
-     * Process file data (handle base64 or binary)
-     */
-    private function processFileData(string $fileData): string
-    {
-        // Check if the data is base64 encoded
-        if (base64_encode(base64_decode($fileData, true)) === $fileData) {
-            return base64_decode($fileData);
-        }
-
-        return $fileData;
-    }
-
-    /**
-     * Detect file type from filename
-     */
-    private function detectFileType(string $filename): ?string
-    {
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
-
-        return $extension ?: null;
-    }
-
-    /**
-     * Sanitize filename
-     */
-    private function sanitizeFileName(string $filename): string
-    {
-        // Remove illegal file system characters
-        $filename = preg_replace('/[^a-zA-Z0-9\-\._]/', '', $filename);
-
-        // Remove multiple dots
-        $filename = preg_replace('/\.+/', '.', $filename);
-
-        return $filename;
-    }
-
-    /**
-     * Store documents in filesystem if needed
-     */
-    private function storeDocumentsOnDisk(array $documents): void
-    {
-        foreach ($documents as $document) {
-            if (! empty($document['file_data']) && ! empty($document['file_name'])) {
-                $path = 'attachments/'.$document['file_name'];
-                Storage::put($path, $document['file_data']);
-            }
         }
     }
 
