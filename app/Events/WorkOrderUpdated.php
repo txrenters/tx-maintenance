@@ -39,12 +39,6 @@ class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
     {
         return 'WorkOrderUpdated';
     }
-
-    public function broadcastWhen(): bool
-    {
-        return $this->workOrder->status === 'open';
-    }
-
     public function broadcastWith(): array
     {
         return [
