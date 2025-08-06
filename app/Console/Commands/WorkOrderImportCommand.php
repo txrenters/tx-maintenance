@@ -160,6 +160,8 @@ class WorkOrderImportCommand extends Command
                 ->with('service_status')
                 ->first();
 
+            // Add logging to see if event is being dispatched
+            Log::info('Dispatching WorkOrderUpdated event for work order: ' . $workOrder->work_order_no);
             WorkOrderUpdated::dispatch($workOrder);
             usleep(50000); // Small delay to prevent overwhelming the broadcast queue 
 

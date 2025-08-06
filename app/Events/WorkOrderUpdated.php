@@ -9,8 +9,9 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
-class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
+class WorkOrderUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -42,7 +43,7 @@ class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
 
     public function broadcastWith(): array
     {
-        return [
+        $data = [
             'workOrder' => [
                 'id' => $this->workOrder->id,
                 'work_order_no' => $this->workOrder->work_order_no,
@@ -53,6 +54,9 @@ class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
                 'updated_at' => $this->workOrder->updated_at,
             ],
         ];
-       
+        
+        Log::info('Broadcasting WorkOrderUpdated with data: ', $data);
+        
+        return $data;
     }
 }
