@@ -842,7 +842,6 @@ window.Echo.channel("workOrders").listen("WorkOrderUpdated", (e) => {
             </Link>
         </div>
     </div>
-    <!-- Scrollable Service Status Area -->
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
     >
