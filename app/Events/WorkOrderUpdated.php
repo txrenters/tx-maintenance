@@ -6,10 +6,11 @@ use App\Models\WorkOrder;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class WorkOrderUpdated implements ShouldBroadcast
+class WorkOrderUpdated implements ShouldBroadcast, ShouldQueue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -39,23 +40,24 @@ class WorkOrderUpdated implements ShouldBroadcast
         return 'WorkOrderUpdated';
     }
 
+    public function broadcastWhen(): bool
+    {
+        return $this->workOrder->status === 'open';
+    }
+
     public function broadcastWith(): array
     {
-        if($this->workOrder->status === 'open'){
-            return [
-                'workOrder' => [
-                    'id' => $this->workOrder->id,
-                    'work_order_no' => $this->workOrder->work_order_no,
-                    'service_status_id' => $this->workOrder->service_status_id,
-                    'service_status' => $this->workOrder->service_status,
-                    'status' => $this->workOrder->status,
-                    'local_status' => $this->workOrder->local_status,
-                    'updated_at' => $this->workOrder->updated_at,
-                ],
-            ];
-        }else{
-            return [];
-        }
+        return [
+            'workOrder' => [
+                'id' => $this->workOrder->id,
+                'work_order_no' => $this->workOrder->work_order_no,
+                'service_status_id' => $this->workOrder->service_status_id,
+                'service_status' => $this->workOrder->service_status,
+                'status' => $this->workOrder->status,
+                'local_status' => $this->workOrder->local_status,
+                'updated_at' => $this->workOrder->updated_at,
+            ],
+        ];
        
     }
 }

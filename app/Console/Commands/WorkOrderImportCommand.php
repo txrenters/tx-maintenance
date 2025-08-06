@@ -63,7 +63,6 @@ class WorkOrderImportCommand extends Command
                     // Process work order and related data
                     $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
 
-
                 }
 
             }

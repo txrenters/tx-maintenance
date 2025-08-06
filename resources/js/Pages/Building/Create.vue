@@ -1801,14 +1801,13 @@ const redirectToHandbook = () => {
                             provide the best service for your investment.
                         </p>
                         <div
-                            class="mt-4 inline-flex items-center text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded-full"
+                            class="mt-4 inline-flex items-center text-sm text-green-600 bg-green-50 px-3 py-1.5 border rounded font-semibold"
                         >
-                            <CheckCircle class="w-4 h-4 mr-2 font-semibold" />
                             Your progress will be automatically saved in the
                             browser you are currently using for this form. If
                             you change devices or browsers, you will not see
                             your saved progress. For example if you start this
-                            on your PC and later come back to it on your IPhone,
+                            on your PC and later come back to it on your iPhone,
                             you will not see your saved progress. If you come
                             back to your PC, you will see your saved progress.
                         </div>
