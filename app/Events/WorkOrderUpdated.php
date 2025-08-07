@@ -40,6 +40,11 @@ class WorkOrderUpdated implements ShouldBroadcastNow
         return 'WorkOrderUpdated';
     }
 
+    public function broadcastWhen(): bool
+    {
+        return $this->workOrder->value !== 'Closed';
+    }
+
     public function broadcastWith(): array
     {
         $data = [

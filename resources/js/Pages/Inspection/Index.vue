@@ -64,6 +64,7 @@ import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import axios from "axios";
+import { useEcho } from "@laravel/echo-vue";
 
 const { toast } = useToast();
 
@@ -568,7 +569,7 @@ window.Echo.channel("jobs").listen("JobUpdated", (e) => {
 });
 
 window.Echo.channel("jobs").listen("JobDeleted", (e) => {
-    console.log(e.job);
+    console.log("Deleted:", e);
 
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;
@@ -582,6 +583,10 @@ window.Echo.channel("jobs").listen("JobDeleted", (e) => {
             break;
         }
     }
+});
+
+useEcho("jobs", "JobDeleted", (e) => {
+    console.log("JobDeleted:", e);
 });
 </script>
 <template>
