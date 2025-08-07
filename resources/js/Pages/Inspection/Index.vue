@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { ref, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -520,7 +520,9 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-useEchoPublic("jobs", "JobUpdated", (e: any) => {
+Echo.channel("jobs").listen("JobUpdated", (e) => {
+    console.log(e.job);
+
     const updatedJob = e.job;
     const statusGroups = props.jobsByStatus;
     console.log("Job: ", e.job);
@@ -565,8 +567,9 @@ useEchoPublic("jobs", "JobUpdated", (e: any) => {
     }
 });
 
-useEchoPublic("jobs", "JobDeleted", (e: any) => {
-    console.log("Job: ", e.job);
+Echo.channel("jobs").listen("JobDeleted", (e) => {
+    console.log(e.job);
+
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;
 
