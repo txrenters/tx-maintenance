@@ -118,6 +118,31 @@ Route::middleware([
     Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
+
+    // Guide routes
+    Route::get('/guide/vendor', function () {
+        $user = auth()->user();
+        if (!$user->hasRole('vendor')) {
+            abort(403, 'Unauthorized');
+        }
+        return inertia('Guide/VendorGuide');
+    })->name('guide.vendor');
+    
+    Route::get('/guide/woc', function () {
+        $user = auth()->user();
+        if (!$user->hasRole('woc')) {
+            abort(403, 'Unauthorized');
+        }
+        return inertia('Guide/WocGuide');
+    })->name('guide.woc');
+    
+    Route::get('/guide/admin', function () {
+        $user = auth()->user();
+        if (!$user->hasRole('admin')) {
+            abort(403, 'Unauthorized');
+        }
+        return inertia('Guide/AdminGuide');
+    })->name('guide.admin');
 });
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');

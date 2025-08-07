@@ -35,6 +35,19 @@ import {
 } from "@/Components/ui/sidebar";
 
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/Components/ui/dropdown-menu";
+
+import { Button } from "@/Components/ui/button";
+import { Separator } from "@/Components/ui/separator";
+
+import {
     BellRing,
     BadgeCheck,
     ChevronRight,
@@ -63,6 +76,7 @@ import {
     Globe,
     Handshake,
     Hammer,
+    BookOpen,
 } from "lucide-vue-next";
 
 const page = usePage();
@@ -721,6 +735,52 @@ const closeBanner = () => {
                                     </template>
                                 </PopoverContent>
                             </Popover>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger as-child>
+                                    <Button variant="icon">
+                                        <BookOpen class="w-4 h-4" />
+                                        <span class="sr-only">User Guide</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                        v-if="
+                                            page.props.auth.user.roles.includes(
+                                                'vendor'
+                                            )
+                                        "
+                                        @click="
+                                            router.visit(route('guide.vendor'))
+                                        "
+                                    >
+                                        Vendor Guide
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        v-if="
+                                            page.props.auth.user.roles.includes(
+                                                'woc'
+                                            )
+                                        "
+                                        @click="
+                                            router.visit(route('guide.woc'))
+                                        "
+                                    >
+                                        Coordinator Guide
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        v-if="
+                                            page.props.auth.user.roles.includes(
+                                                'admin'
+                                            )
+                                        "
+                                        @click="
+                                            router.visit(route('guide.admin'))
+                                        "
+                                    >
+                                        Admin Guide
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             <DropdownMenu>
                                 <DropdownMenuTrigger as-child>
                                     <Button variant="icon">

@@ -129,7 +129,7 @@ const checkDueTask = (tasks) => {
 
                         <div
                             v-if="work_order.requested_by"
-                            class="flex justify-start gap-1 items-center mb-1 mt-2"
+                            class="flex text-left gap-1 mb-1 mt-2"
                         >
                             <UserRoundPen class="w-4 h-4" />
                             <p class="text-xs text-gray-100 uppercase">
@@ -137,10 +137,7 @@ const checkDueTask = (tasks) => {
                                 {{ work_order.requested_by?.last_name }}
                             </p>
                         </div>
-                        <div
-                            v-else
-                            class="flex justify-start items-center mb-1 mt-2"
-                        >
+                        <div v-else class="flex text-left mb-1 mt-2">
                             <UserRoundPen class="w-4 h-4" />
                             <p class="text-xs text-gray-100 uppercase">
                                 {{ work_order.owners[0].first_name }}
