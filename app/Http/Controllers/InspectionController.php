@@ -31,7 +31,7 @@ class InspectionController extends Controller
                         ->orWhereBetween('end_at', [$start_date, $end_date]);
                 });
             })
-            ->whereNot('job_status', 'archived')
+            ->whereNotIn('job_status', ['archived','closed'])
             ->orderBy('start_at','desc')
             ->get()
             ->map(function ($job) {
@@ -50,7 +50,7 @@ class InspectionController extends Controller
 
         $groupedJobs = $jobs->groupBy('job_status');
 
-        $allStatuses = $jobs->pluck('job_status')->unique()->sort()->values();
+        $allStatuses = $jobs->pluck('job_status')->unique()->sortDesc()->values();
 
         // Format the grouped data for frontend
         $jobsByStatus = $allStatuses->mapWithKeys(function ($status) use ($groupedJobs) {

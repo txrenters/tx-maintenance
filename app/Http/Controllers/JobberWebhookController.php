@@ -169,7 +169,6 @@ class JobberWebhookController extends Controller
 
     public function handleCreateOrUpdateVisit($visitId)
     {
-
         $responseData = $this->getVisitDetails($visitId);
 
         if (! isset($responseData['data']['visit'])) {

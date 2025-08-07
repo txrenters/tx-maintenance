@@ -520,7 +520,7 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-useEchoPublic("jobs", "JobUpdated", (e) => {
+useEchoPublic("jobs", "JobUpdated", (e: any) => {
     const updatedJob = e.job;
     const statusGroups = props.jobsByStatus;
     console.log("Job: ", e.job);
@@ -565,7 +565,7 @@ useEchoPublic("jobs", "JobUpdated", (e) => {
     }
 });
 
-useEchoPublic("jobs", "JobDeleted", (e) => {
+useEchoPublic("jobs", "JobDeleted", (e: any) => {
     console.log("Job: ", e.job);
     const deletedJob = e.job;
     const statusGroups = props.jobsByStatus;

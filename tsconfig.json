@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "lib": ["DOM", "ESNext"],
+        "allowJs": true, // allows .js files
+        "checkJs": false,
+        "jsx": "preserve", // required for Vue
+        "strict": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true,
+        "noImplicitAny": false,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["resources/js/*"] // adjust if needed
+        }
+    },
+    "include": [
+        "resources/js/**/*.ts",
+        "resources/js/**/*.d.ts",
+        "resources/js/**/*.vue"
+    ],
+    "exclude": ["node_modules"]
+}
