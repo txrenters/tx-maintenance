@@ -14,6 +14,7 @@ class JobDeleted implements ShouldBroadcast, ShouldQueue
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $jobId;
+
     /**
      * Create a new event instance.
      */

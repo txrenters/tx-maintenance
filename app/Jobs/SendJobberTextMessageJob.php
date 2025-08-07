@@ -16,10 +16,13 @@ class SendJobberTextMessageJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $jobberTextMessage;
+
     protected $messageContent;
+
     protected $mediaUrl;
 
     public $tries = 3;
+
     public $backoff = [60, 180, 300]; // Retry after 1, 3, and 5 minutes
 
     /**
@@ -61,7 +64,7 @@ class SendJobberTextMessageJob implements ShouldQueue
 
         } catch (\Exception $e) {
             // Log the error
-            Log::error("Failed to send message to {$this->jobberTextMessage->receiver_number}: " . $e->getMessage());
+            Log::error("Failed to send message to {$this->jobberTextMessage->receiver_number}: ".$e->getMessage());
 
             // Update status to failed if this is the last retry
             if ($this->attempts() >= $this->tries) {
@@ -87,6 +90,6 @@ class SendJobberTextMessageJob implements ShouldQueue
             'error_message' => $exception->getMessage(),
         ]);
 
-        Log::error("Job failed permanently for message to {$this->jobberTextMessage->receiver_number}: " . $exception->getMessage());
+        Log::error("Job failed permanently for message to {$this->jobberTextMessage->receiver_number}: ".$exception->getMessage());
     }
 }

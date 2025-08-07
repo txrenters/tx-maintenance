@@ -10,4 +10,4 @@ use App\Models\JobberToken;
 
 JobberToken::truncate();
 echo "All Jobber tokens have been cleared.\n";
-echo "Please reconnect at: " . env('APP_URL') . "/jobber-connect\n";
+echo 'Please reconnect at: '.env('APP_URL')."/jobber-connect\n";

@@ -14,6 +14,7 @@ class VisitDeleted implements ShouldBroadcast, ShouldQueue
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $visitId;
+
     /**
      * Create a new event instance.
      */

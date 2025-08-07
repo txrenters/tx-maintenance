@@ -15,6 +15,7 @@ class JobUpdated implements ShouldBroadcast, ShouldQueue
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $job;
+
     /**
      * Create a new event instance.
      */

@@ -31,8 +31,8 @@ class InspectionController extends Controller
                         ->orWhereBetween('end_at', [$start_date, $end_date]);
                 });
             })
-            ->whereNotIn('job_status', ['archived','closed'])
-            ->orderBy('start_at','desc')
+            ->whereNotIn('job_status', ['archived', 'closed'])
+            ->orderBy('start_at', 'desc')
             ->get()
             ->map(function ($job) {
                 return [

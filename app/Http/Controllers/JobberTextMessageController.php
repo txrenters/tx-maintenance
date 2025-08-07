@@ -89,18 +89,18 @@ class JobberTextMessageController extends Controller
 
                     $sentMessages[] = $jobberTextMessage;
                 } catch (\Exception $e) {
-                    Log::error("Failed to send message to {$receiverNumber}: " . $e->getMessage());
+                    Log::error("Failed to send message to {$receiverNumber}: ".$e->getMessage());
                     $failedRecipients[] = $receiverNumber;
                 }
             }
 
             // Commit the transaction if at least one message was sent successfully
-            if (!empty($sentMessages)) {
+            if (! empty($sentMessages)) {
                 DB::commit();
 
-                $successMessage = count($sentMessages) . ' message(s) sent successfully!';
-                if (!empty($failedRecipients)) {
-                    $successMessage .= ' Failed to send to: ' . implode(', ', $failedRecipients);
+                $successMessage = count($sentMessages).' message(s) sent successfully!';
+                if (! empty($failedRecipients)) {
+                    $successMessage .= ' Failed to send to: '.implode(', ', $failedRecipients);
                 }
 
                 // Return a success response

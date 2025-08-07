@@ -15,6 +15,7 @@ class VisitUpdated implements ShouldBroadcast, ShouldQueue
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $visit;
+
     /**
      * Create a new event instance.
      */

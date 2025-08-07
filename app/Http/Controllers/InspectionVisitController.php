@@ -15,7 +15,7 @@ class InspectionVisitController extends Controller
             ->whereHas('job', function ($q) {
                 $q->where('job_status', '!=', 'archived');
             })
-            
+
             ->whereNotNull('start_at')
             ->whereNotNull('end_at')
             ->get();

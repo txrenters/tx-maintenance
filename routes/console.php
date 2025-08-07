@@ -14,4 +14,3 @@ Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
     ->withoutOverlapping()
     ->runInBackground();
-    

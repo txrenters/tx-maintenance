@@ -134,6 +134,7 @@ class JobberWebhookController extends Controller
 
         if (! $visit) {
             Log::warning('Visit not found when trying to complete.', ['visit_id' => $visitId]);
+
             return;
         }
 
@@ -147,7 +148,7 @@ class JobberWebhookController extends Controller
 
         if ($job) {
             $allVisitsCompleted = $job->visits()->whereNull('completed_at')->count() === 0;
-            
+
             if ($allVisitsCompleted) {
                 $job->update([
                     'completed_at' => now(),
@@ -197,7 +198,7 @@ class JobberWebhookController extends Controller
         } else {
             // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
             Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
-            
+
             // For now, just log this scenario. In a complete implementation, you might want to:
             // 1. Extract the job ID from the visit data (if available)
             // 2. Fetch the job details from Jobber API
@@ -210,12 +211,11 @@ class JobberWebhookController extends Controller
     public function handleDeleteVisit($visitId)
     {
         $visit = JobberVisit::where('jobber_id', $visitId)->first();
-        
 
         if ($visit) {
             $visitId = $visit->id;
             $visit->delete();
-            
+
             event(new VisitDeleted($visitId));
 
             Log::info('Visit deleted', ['jobber_id' => $visitId]);
@@ -305,7 +305,7 @@ class JobberWebhookController extends Controller
 
                 // Get fresh headers with the new access token
                 $headers = $this->accessTokenHeaders();
-                
+
                 // Use the new access token after refresh
                 $response = Http::withHeaders($headers)
                     ->timeout(60)
@@ -336,7 +336,6 @@ class JobberWebhookController extends Controller
     {
         $headers = $this->accessTokenHeaders();
 
-        
         $query = 'query {
                 visit(id: "'.$jobberId.'") {
                     id
@@ -367,7 +366,7 @@ class JobberWebhookController extends Controller
 
                 // Get fresh headers with the new access token
                 $headers = $this->accessTokenHeaders();
-                
+
                 // Use the new access token after refresh
                 $response = Http::withHeaders($headers)
                     ->timeout(60)
@@ -479,9 +478,9 @@ class JobberWebhookController extends Controller
     public function accessTokenHeaders()
     {
         try {
-            $jobberAuth = new JobberAuthController();
+            $jobberAuth = new JobberAuthController;
             $accessToken = $jobberAuth->ensureValidToken();
-            
+
             return [
                 'Authorization' => 'Bearer '.$accessToken,
                 'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),

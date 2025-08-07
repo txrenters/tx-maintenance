@@ -63,7 +63,7 @@ class JobberAuthController extends Controller
         // Fetch the latest token row (assuming single-row table)
         $token = JobberToken::first();
 
-        if (!$token || !$token->refresh_token) {
+        if (! $token || ! $token->refresh_token) {
             Log::error('No Jobber refresh token found - manual reconnection required');
             throw new \Exception('No Jobber refresh token found. Please reconnect to Jobber at /jobber-connect');
         }
@@ -108,8 +108,8 @@ class JobberAuthController extends Controller
             'body' => $response->body(),
             'request' => [
                 'client_id' => env('JOBBER_CLIENT_ID'),
-                'has_refresh_token' => !empty($token->refresh_token),
-            ]
+                'has_refresh_token' => ! empty($token->refresh_token),
+            ],
         ]);
 
         // If we get a 401, the refresh token is invalid
@@ -117,24 +117,24 @@ class JobberAuthController extends Controller
             throw new \Exception('Refresh token is invalid. Please reconnect to Jobber.');
         }
 
-        throw new \Exception('Unable to refresh Jobber access token: ' . $response->body());
+        throw new \Exception('Unable to refresh Jobber access token: '.$response->body());
     }
 
     public function ensureValidToken(): string
     {
         $token = JobberToken::first();
-        
-        if (!$token) {
+
+        if (! $token) {
             throw new \Exception('No Jobber token found. Please connect to Jobber at /jobber-connect');
         }
-        
+
         // Check if token is expired or expires soon (within 5 minutes)
-        if (!$token->expires_at || now()->addMinutes(5)->isAfter($token->expires_at)) {
+        if (! $token->expires_at || now()->addMinutes(5)->isAfter($token->expires_at)) {
             Log::info('Jobber token expired or expiring soon, refreshing...');
+
             return $this->refreshAccessToken();
         }
-        
+
         return $token->access_token;
     }
-
 }

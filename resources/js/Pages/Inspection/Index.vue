@@ -520,7 +520,7 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-Echo.channel("jobs").listen("JobUpdated", (e) => {
+window.Echo.channel("jobs").listen("JobUpdated", (e) => {
     console.log(e.job);
 
     const updatedJob = e.job;
@@ -567,7 +567,7 @@ Echo.channel("jobs").listen("JobUpdated", (e) => {
     }
 });
 
-Echo.channel("jobs").listen("JobDeleted", (e) => {
+window.Echo.channel("jobs").listen("JobDeleted", (e) => {
     console.log(e.job);
 
     const deletedJob = e.job;

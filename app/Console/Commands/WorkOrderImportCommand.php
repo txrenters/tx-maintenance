@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Events\WorkOrderUpdated;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -10,7 +9,6 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class WorkOrderImportCommand extends Command
 {

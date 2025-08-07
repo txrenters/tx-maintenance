@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientContact;
 use App\Models\Jobber;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ClientContactController extends Controller
 {
