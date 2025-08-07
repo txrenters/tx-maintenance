@@ -1,0 +1,61 @@
+<?php
+
+namespace App\Events;
+
+use App\Models\WorkOrder;
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class WorkOrderUpdated implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public $workOrder;
+    /**
+     * Create a new event instance.
+     */
+    public function __construct(WorkOrder $workOrder)
+    {
+        $this->workOrder = $workOrder->load('service_status');
+    }
+
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return array<int, \Illuminate\Broadcasting\Channel>
+     */
+    public function broadcastOn(): array
+    {
+        return [
+            new Channel('workOrders'),
+        ];
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'WorkOrderUpdated';
+    }
+
+    public function broadcastWith(): array
+    {
+        $data = [
+            'workOrder' => [
+                'id' => $this->workOrder->id,
+                'work_order_no' => $this->workOrder->work_order_no,
+                'service_status_id' => $this->workOrder->service_status_id,
+                'service_status' => $this->workOrder->service_status,
+                'status' => $this->workOrder->status,
+                'local_status' => $this->workOrder->local_status,
+                'updated_at' => $this->workOrder->updated_at,
+            ],
+        ];
+        
+        Log::info('Broadcasting WorkOrderUpdated with data: ', $data);
+        
+        return $data;
+    }
+}

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Events\WorkOrderUpdated;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -161,6 +162,8 @@ class WorkOrderImportCommand extends Command
             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
             DB::table('work_order_custom_fields')->insert($customFieldData);
 
+            event(new WorkOrderUpdated($workOrder));
+            
             $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();
