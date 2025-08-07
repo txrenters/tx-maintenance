@@ -160,10 +160,7 @@ class WorkOrderImportCommand extends Command
                 ->first();
 
             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
-            DB::table('work_order_custom_fields')->insert($customFieldData);
-
-            event(new WorkOrderUpdated($workOrder));
-            
+            DB::table('work_order_custom_fields')->insert($customFieldData);            
             $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();

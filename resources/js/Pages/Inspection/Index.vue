@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
-import { router, usePage } from "@inertiajs/vue3";
+import { router, usePage, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
@@ -64,7 +64,6 @@ import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import axios from "axios";
-import { useEcho } from "@laravel/echo-vue";
 
 const { toast } = useToast();
 
@@ -521,76 +520,10 @@ const fetchFilteredData = debounce(() => {
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-window.Echo.channel("jobs").listen("JobUpdated", (e) => {
-    console.log(e.job);
-
-    const updatedJob = e.job;
-    const statusGroups = props.jobsByStatus;
-    console.log("Job: ", e.job);
-
-    let found = false;
-
-    // Loop through each status group to find and update the job
-    for (const [status, jobs] of Object.entries(statusGroups)) {
-        const index = jobs.findIndex((job) => job.id === updatedJob.id);
-
-        if (index !== -1) {
-            // Update the job in the current group
-            jobs[index] = {
-                ...jobs[index],
-                ...updatedJob,
-            };
-
-            // If status changed, move to new group
-            if (status !== updatedJob.job_status) {
-                jobs.splice(index, 1); // Remove from old group
-
-                // Add to new group
-                if (!statusGroups[updatedJob.job_status]) {
-                    statusGroups[updatedJob.job_status] = [];
-                }
-
-                statusGroups[updatedJob.job_status].unshift(updatedJob);
-            }
-
-            found = true;
-            break;
-        }
-    }
-
-    // If not found (i.e., new job), add it to its correct status group
-    if (!found) {
-        if (!statusGroups[updatedJob.job_status]) {
-            statusGroups[updatedJob.job_status] = [];
-        }
-
-        statusGroups[updatedJob.job_status].unshift(updatedJob);
-    }
-});
-
-window.Echo.channel("jobs").listen("JobDeleted", (e) => {
-    console.log("Deleted:", e);
-
-    const deletedJob = e.job;
-    const statusGroups = props.jobsByStatus;
-
-    // Loop through all status groups to find and remove the job
-    for (const [status, jobs] of Object.entries(statusGroups)) {
-        const index = jobs.findIndex((job) => job.id === deletedJob.id);
-
-        if (index !== -1) {
-            jobs.splice(index, 1); // Remove job from the list
-            break;
-        }
-    }
-});
-
-useEcho("jobs", "JobUpdated", (e) => {
-    console.log("JobUpdated:", e);
-});
-
-useEcho("jobs", "JobDeleted", (e) => {
-    console.log("JobDeleted:", e);
+usePoll(10000, {
+    only: ["jobsByStatus"],
+    preserveScroll,
+    preserveState,
 });
 </script>
 <template>

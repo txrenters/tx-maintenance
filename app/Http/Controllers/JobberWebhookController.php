@@ -86,8 +86,6 @@ class JobberWebhookController extends Controller
             }
         }
 
-        event(new JobUpdated($jobModel));
-
         Log::info('Job has been updated successfully:', ['job' => $jobModel]);
     }
 
@@ -104,8 +102,6 @@ class JobberWebhookController extends Controller
         $jobId = $job->id;
 
         $job->delete();
-
-        event(new JobDeleted($jobId));
 
         Log::info('Job has been deleted:', ['job' => $job]);
     }
@@ -124,8 +120,6 @@ class JobberWebhookController extends Controller
             'job_status' => 'closed',
         ]);
         Log::info('Job has been closed:', ['job' => $job]);
-
-        event(new JobUpdated($job));
     }
 
     public function handleCompleteVisit($visitId): void
@@ -155,11 +149,8 @@ class JobberWebhookController extends Controller
                 ]);
 
                 Log::info('Job completed successfully:', ['job' => $job]);
-                event(new JobUpdated($job));
             }
         }
-
-        event(new VisitUpdated($visit));
 
         Log::info('Visit has been completed:', [
             'visit_id' => $visitId,
@@ -189,12 +180,6 @@ class JobberWebhookController extends Controller
         if ($existingVisit && $existingVisit->job) {
             $this->createOrUpdateVisits($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
             Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
-
-            // Refresh the visit model to get the latest data
-            $updatedVisit = $existingVisit->fresh();
-            if ($updatedVisit) {
-                event(new VisitUpdated($updatedVisit));
-            }
         } else {
             // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
             Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
@@ -215,8 +200,6 @@ class JobberWebhookController extends Controller
         if ($visit) {
             $visitId = $visit->id;
             $visit->delete();
-
-            event(new VisitDeleted($visitId));
 
             Log::info('Visit deleted', ['jobber_id' => $visitId]);
         } else {
