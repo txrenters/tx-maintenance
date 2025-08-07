@@ -522,8 +522,6 @@ watch(date_range, fetchFilteredData, { deep: true });
 
 usePoll(10000, {
     only: ["jobsByStatus"],
-    preserveScroll,
-    preserveState,
 });
 </script>
 <template>

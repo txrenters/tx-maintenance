@@ -609,8 +609,6 @@ watch(date_range, fetchFilteredData, { deep: true });
 
 usePoll(10000, {
     only: ["service_status"],
-    preserveScroll,
-    preserveState,
 });
 </script>
 <template>
