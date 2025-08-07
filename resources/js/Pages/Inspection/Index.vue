@@ -585,6 +585,10 @@ window.Echo.channel("jobs").listen("JobDeleted", (e) => {
     }
 });
 
+useEcho("jobs", "JobUpdated", (e) => {
+    console.log("JobUpdated:", e);
+});
+
 useEcho("jobs", "JobDeleted", (e) => {
     console.log("JobDeleted:", e);
 });
