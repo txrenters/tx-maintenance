@@ -10,6 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use Illuminate\Support\Str;
 
 class SendJobReminders extends Command
 {
@@ -108,7 +109,7 @@ class SendJobReminders extends Command
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
                 Log::warning("Searching records!",['data' => $record[4], 'client' => $client]);
-                return preg_match('/'.strtolower($record[4]).'/i', $client ?? '');
+                return Str::contains($client ?? '', $record[4] ?? '', true); // true = ignore case
             })->values();
 
             if ($filtered->isEmpty()) {
