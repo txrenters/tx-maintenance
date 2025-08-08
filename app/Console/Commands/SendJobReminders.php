@@ -58,10 +58,13 @@ class SendJobReminders extends Command
             TexasRenters.com, LLC";
 
         // 7 days before
-        $this->sendMessages($today->copy()->addDays(7), 'notified_7_days', $notifyMessageFor7days);
+        // $this->sendMessages($today->copy()->addDays(7), 'notified_7_days', $notifyMessageFor7days);
 
-        // 3 days before
-        $this->sendMessages($today->copy()->addDays(3), 'notified_3_days', $notifyMessageFor3days);
+        // // 3 days before
+        // $this->sendMessages($today->copy()->addDays(3), 'notified_3_days', $notifyMessageFor3days);
+
+        $this->sendMessages($today->copy()->addDays(2), 'notified_7_days', $notifyMessageFor7days);
+
     }
 
     protected function sendMessages(Carbon $date, string $notifiedField, string $messageText)
