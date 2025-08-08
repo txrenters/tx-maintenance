@@ -143,15 +143,15 @@ class JobberWebhookController extends Controller
 
             $clientData = [
                 'id' => $jobberClient['id'],
-                'first_name' => $jobberClient['firstName'],
-                'last_name' => $jobberClient['lastName'],
-                'company_name' => $jobberClient['companyName'],
+                'firstName' => $jobberClient['firstName'],
+                'lastName' => $jobberClient['lastName'],
+                'companyName' => $jobberClient['companyName'],
                 'name' => $jobberClient['name'],
-                'secondary_name' => $jobberClient['secondaryName'],
+                'secondaryName' => $jobberClient['secondaryName'],
                 'title' => $jobberClient['title'],
                 'email' => isset($jobberClient['emails']) ? json_encode(array_column($jobberClient['emails'], 'address')) : null,
                 'balance' => $jobberClient['balance'],
-                'jobber_web_uri' => $jobberClient['jobberWebUri'],
+                'jobberWebUri' => $jobberClient['jobberWebUri'],
             ];
 
             $client = $this->updateOrCreateClient($clientData);
@@ -160,12 +160,14 @@ class JobberWebhookController extends Controller
 
             $propertyData = [
                 'id' => $jobberProperty['id'],
-                'is_billing_address' => $jobberProperty['isBillingAddress'],
-                'street' => $jobberProperty['address']['street'] ?? null,
-                'city' => $jobberProperty['address']['city'] ?? null,
-                'province' => $jobberProperty['address']['province'] ?? null,
-                'postal_code' => $jobberProperty['address']['postalCode'] ?? null,
-                'country' => $jobberProperty['address']['country'] ?? null,
+                'isBillingAddress' => $jobberProperty['isBillingAddress'],
+                'address' => [
+                    'street' => $jobberProperty['address']['street'] ?? null,
+                    'city' => $jobberProperty['address']['city'] ?? null,
+                    'province' => $jobberProperty['address']['province'] ?? null,
+                    'postalCode' => $jobberProperty['address']['postalCode'] ?? null,
+                    'country' => $jobberProperty['address']['country'] ?? null,
+                ],
                 'jobber_web_uri' => $jobberProperty['jobberWebUri'],
             ];
 
