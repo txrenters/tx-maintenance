@@ -135,7 +135,7 @@ class SendJobReminders extends Command
             }
         }
 
-        Log::info("Sent messages for date: {$date->toDateString()}");
+        Log::info("Sent messages(".count($visits)." for date: {$date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string
