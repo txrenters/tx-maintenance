@@ -153,6 +153,7 @@ Route::get('/onboarding/building', [BuildingController::class, 'create'])->name(
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
+Route::get('/jobber/reconnect', [JobberAuthController::class, 'refreshAccessToken'])->name('jobber.reconnect');
 
 // Jobber diagnostic routes
 Route::get('/jobber/diagnose', [JobberDiagnosticController::class, 'diagnose'])->name('jobber.diagnose');
