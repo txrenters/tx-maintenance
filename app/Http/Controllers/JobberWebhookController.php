@@ -142,6 +142,7 @@ class JobberWebhookController extends Controller
             $jobberClient = $jobberVisit['client'];
 
             $clientData = [
+                'id' => $jobberClient['id'],
                 'first_name' => $jobberClient['firstName'],
                 'last_name' => $jobberClient['lastName'],
                 'company_name' => $jobberClient['companyName'],
@@ -158,6 +159,7 @@ class JobberWebhookController extends Controller
             $jobberProperty = $jobberVisit['property'];
 
             $propertyData = [
+                'id' => $jobberProperty['id'],
                 'is_billing_address' => $jobberProperty['isBillingAddress'],
                 'street' => $jobberProperty['address']['street'] ?? null,
                 'city' => $jobberProperty['address']['city'] ?? null,

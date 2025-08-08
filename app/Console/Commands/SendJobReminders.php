@@ -74,7 +74,7 @@ class SendJobReminders extends Command
             ->whereNull('completed_at')
             ->get();
 
-        $sms = new TwilioService;
+        $twilio = new TwilioService;
         $senderNumber = env('TWILIO_PHONE_NUMBER');
 
         $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
@@ -117,7 +117,7 @@ class SendJobReminders extends Command
                 if ($clientStatus === 'Active' && ! empty($mobilePhoneNumber)) {
                     $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
 
-                    $sms->sendMessage($mobilePhoneNumber, $senderNumber, $message);
+                    $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
 
                     $visit->{$notifiedField} = true;
                     $visit->save();
