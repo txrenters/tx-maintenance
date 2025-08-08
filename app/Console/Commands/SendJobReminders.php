@@ -64,7 +64,7 @@ class SendJobReminders extends Command
         // // 3 days before
         // $this->sendMessages($today->copy()->addDays(3), 'notified_3_days', $notifyMessageFor3days);
 
-        $this->sendMessages($today->copy()->addDays(2), 'notified_7_days', $notifyMessageFor7days);
+        // $this->sendMessages($today->copy()->addDays(2), 'notified_7_days', $notifyMessageFor7days);
 
     }
 
