@@ -168,7 +168,7 @@ class JobberWebhookController extends Controller
                     'postalCode' => $jobberProperty['address']['postalCode'] ?? null,
                     'country' => $jobberProperty['address']['country'] ?? null,
                 ],
-                'jobber_web_uri' => $jobberProperty['jobberWebUri'],
+                'jobberWebUri' => $jobberProperty['jobberWebUri'],
             ];
 
             $property = $this->updateOrCreateProperty($propertyData, $client);
