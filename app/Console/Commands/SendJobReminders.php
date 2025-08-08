@@ -95,10 +95,12 @@ class SendJobReminders extends Command
             $visitTitle = $visit->title;
 
             if (! preg_match('/tenant benefit package|tbp/i', $jobTitle ?? '')) { // Exclude non TBP jobs
+                Log::warning("No job found!");
                 continue;
             }
 
             if (! preg_match('/tenant benefit package|tbp/i', $visitTitle ?? '')) { // Exclude non TBP visits
+                Log::warning("No visit found!");
                 continue;
             }
 
@@ -109,6 +111,7 @@ class SendJobReminders extends Command
             })->values();
 
             if ($filtered->isEmpty()) {
+                Log::warning("Filtered jobs empty!");
                 continue;
             }
 
@@ -117,7 +120,7 @@ class SendJobReminders extends Command
                 $clientName = $record[3];
                 $mobilePhoneNumber = $this->formatNumber($record[13]);
 
-                if ($clientStatus === 'Active' && ! empty($mobilePhoneNumber)) {
+                if (strtolower($clientStatus) === 'active' && ! empty($mobilePhoneNumber)) {
                     $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
 
                     $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
