@@ -107,8 +107,8 @@ class SendJobReminders extends Command
             $client = $visit->job->client->name;
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                Log::warning("Searching records!",['data' => $record[4]]);
-                return str_contains(strtolower($record[4] ?? ''), $client);
+                Log::warning("Searching records!",['data' => $record[4], 'client' => $client]);
+                return preg_match('/'.strtolower($record[4]).'/i', $client ?? '');
             })->values();
 
             if ($filtered->isEmpty()) {
