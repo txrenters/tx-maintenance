@@ -125,17 +125,19 @@ class SendJobReminders extends Command
                     $visit->{$notifiedField} = true;
                     $visit->save();
 
-                    JobberTextMessage::create([
+                    $text = JobberTextMessage::create([
                         'messages' => $message ?? '',
                         'sender_number' => $senderNumber,
                         'receiver_number' => $mobilePhoneNumber,
                         'jobber_id' => $visit->job->jobber_id,
                     ]);
+
+                    Log::info("Sent messages successfully:", ['text' => $text]);
                 }
             }
         }
 
-        Log::info("Sent messages(".count($visits)." for date: {$date->toDateString()}");
+        Log::info("Visits (".count($visits).") for date: {$date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string
