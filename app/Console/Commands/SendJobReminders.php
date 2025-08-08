@@ -95,12 +95,12 @@ class SendJobReminders extends Command
             $visitTitle = $visit->title;
 
             if (! preg_match('/tenant benefit package|tbp/i', $jobTitle ?? '')) { // Exclude non TBP jobs
-                Log::warning("No job found!");
+                Log::warning("No job found!", ['title' => $jobTitle]);
                 continue;
             }
 
             if (! preg_match('/tenant benefit package|tbp/i', $visitTitle ?? '')) { // Exclude non TBP visits
-                Log::warning("No visit found!");
+                Log::warning("No visit found!", ['title' => $visitTitle]);
                 continue;
             }
 
@@ -111,7 +111,7 @@ class SendJobReminders extends Command
             })->values();
 
             if ($filtered->isEmpty()) {
-                Log::warning("Filtered jobs empty!");
+                Log::warning("Filtered jobs empty!",['data' => $records]);
                 continue;
             }
 
