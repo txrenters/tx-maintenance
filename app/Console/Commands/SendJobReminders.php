@@ -133,7 +133,7 @@ class SendJobReminders extends Command
                         'messages' => $message ?? '',
                         'sender_number' => $senderNumber,
                         'receiver_number' => $mobilePhoneNumber,
-                        'jobber_id' => $visit->job->jobber_id,
+                        'jobber_id' => $visit->job->id,
                     ]);
 
                     Log::info("Sent messages successfully:", ['text' => $text]);
