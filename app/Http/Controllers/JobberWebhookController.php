@@ -2,10 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\JobDeleted;
-use App\Events\JobUpdated;
-use App\Events\VisitDeleted;
-use App\Events\VisitUpdated;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
@@ -41,10 +37,10 @@ class JobberWebhookController extends Controller
 
             match ($topic) {
                 'JOB_CREATE',
-                'JOB_UPDATE' => $this->handleCreateOrUpdateJobber($itemId),
+                'JOB_UPDATE' => $this->handleupdateOrCreateJobber($itemId),
                 'JOB_CLOSED' => $this->handleClosedJobber($itemId),
                 'JOB_DESTROY' => $this->handleDeleteJobber($itemId),
-                'VISIT_CREATE' => $this->handleCreateOrUpdateVisit($itemId),
+                'VISIT_CREATE',
                 'VISIT_UPDATE' => $this->handleCreateOrUpdateVisit($itemId),
                 'VISIT_COMPLETE' => $this->handleCompleteVisit($itemId),
                 'VISIT_DESTROY' => $this->handleDeleteVisit($itemId),
@@ -60,29 +56,28 @@ class JobberWebhookController extends Controller
         }
     }
 
-    public function handleCreateOrUpdateJobber($jobberId)
+    public function handleupdateOrCreateJobber($jobberId)
     {
-
         $responseData = $this->getJobDetails($jobberId);
 
         $job = $responseData['data']['job'];
 
         $clientData = $job['client'];
 
-        $client = $this->createOrUpdateClient($clientData);
+        $client = $this->updateOrCreateClient($clientData);
 
         $propertyData = $job['property'];
 
-        $property = $this->createOrUpdateProperty($propertyData, $client);
+        $property = $this->updateOrCreateProperty($propertyData, $client);
 
-        $jobModel = $this->createOrUpdateJob($job, $client, $property);
+        $jobModel = $this->updateOrCreateJob($job, $client, $property);
 
         $visitsData = $job['visits']['edges'] ?? [];
 
         if (isset($visitsData) && is_array($visitsData)) {
             foreach ($visitsData as $visitEdge) {
                 $visitData = $visitEdge['node'];
-                $this->createOrUpdateVisits($visitData, $client, $property, $jobModel);
+                $this->updateOrCreateVisit($visitData, $client, $property, $jobModel);
             }
         }
 
@@ -122,6 +117,64 @@ class JobberWebhookController extends Controller
         Log::info('Job has been closed:', ['job' => $job]);
     }
 
+    public function handleCreateOrUpdateVisit($visitId)
+    {
+        $responseData = $this->getVisitDetails($visitId);
+
+        if (! isset($responseData['data']['visit'])) {
+            Log::error('Visit not found from Jobber API', ['visitId' => $visitId]);
+
+            return;
+        }
+
+        $jobberVisit = $responseData['data']['visit'];
+
+        // Find the existing visit to get related job, client, and property
+        $existingVisit = JobberVisit::with(['job.client', 'job.property'])
+            ->where('jobber_id', $jobberVisit['id'])
+            ->first();
+
+        // If visit exists with job, update it
+        if ($existingVisit && $existingVisit->job) {
+            $this->updateOrCreateVisit($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
+            Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
+        } else {
+            $jobberClient = $jobberVisit['client'];
+
+            $clientData = [
+                'first_name' => $jobberClient['firstName'],
+                'last_name' => $jobberClient['lastName'],
+                'company_name' => $jobberClient['companyName'],
+                'name' => $jobberClient['name'],
+                'secondary_name' => $jobberClient['secondaryName'],
+                'title' => $jobberClient['title'],
+                'email' => isset($jobberClient['emails']) ? json_encode(array_column($jobberClient['emails'], 'address')) : null,
+                'balance' => $jobberClient['balance'],
+                'jobber_web_uri' => $jobberClient['jobberWebUri'],
+            ];
+
+            $client = $this->updateOrCreateClient($clientData);
+
+            $jobberProperty = $jobberVisit['property'];
+
+            $propertyData = [
+                'is_billing_address' => $jobberProperty['isBillingAddress'],
+                'street' => $jobberProperty['address']['street'] ?? null,
+                'city' => $jobberProperty['address']['city'] ?? null,
+                'province' => $jobberProperty['address']['province'] ?? null,
+                'postal_code' => $jobberProperty['address']['postalCode'] ?? null,
+                'country' => $jobberProperty['address']['country'] ?? null,
+                'jobber_web_uri' => $jobberProperty['jobberWebUri'],
+            ];
+
+            $property = $this->updateOrCreateProperty($propertyData, $client);
+
+            $this->updateOrCreateVisit($jobberVisit, $client, $$property, $existingVisit->job);
+            Log::warning('Visit created successfully: ', ['visitId' => $jobberVisit]);
+        }
+
+    }
+
     public function handleCompleteVisit($visitId): void
     {
         $visit = JobberVisit::where('jobber_id', $visitId)->first();
@@ -159,7 +212,7 @@ class JobberWebhookController extends Controller
         ]);
     }
 
-    public function handleCreateOrUpdateVisit($visitId)
+    public function handleupdateOrCreateVisit($visitId)
     {
         $responseData = $this->getVisitDetails($visitId);
 
@@ -178,17 +231,11 @@ class JobberWebhookController extends Controller
 
         // If visit exists with job, update it
         if ($existingVisit && $existingVisit->job) {
-            $this->createOrUpdateVisits($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
+            $this->updateVisit($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
             Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
         } else {
-            // Visit doesn't exist or job is missing - we need to fetch the job details from the visit
-            Log::warning('Visit or related job not found in database, creating placeholder', ['visitId' => $visitId]);
-
-            // For now, just log this scenario. In a complete implementation, you might want to:
-            // 1. Extract the job ID from the visit data (if available)
-            // 2. Fetch the job details from Jobber API
-            // 3. Create the job, client, and property records
-            // 4. Then create the visit
+            $this->createVisit($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
+            Log::warning('Visit created successfully: ', ['visitId' => $jobberVisit]);
         }
 
     }
@@ -329,6 +376,49 @@ class JobberWebhookController extends Controller
                     startAt
                     endAt
                     completedAt
+                    job{
+                        id
+                        jobNumber
+                        title
+                        jobStatus
+                        jobType
+                        total
+                        willClientBeAutomaticallyCharged
+                        instructions
+                        jobberWebUri
+                        bookingConfirmationSentAt
+                        startAt
+                        endAt
+                        completedAt
+                        createdAt
+                        updatedAt
+                    }
+                    client{
+                        id
+                        firstName
+                        lastName
+                        companyName
+                        name
+                        secondaryName
+                        title
+                        balance
+                        jobberWebUri
+                        emails {
+                            address
+                        }
+                    }
+                    property{
+                        id
+                        isBillingAddress
+                        jobberWebUri
+                        address {
+                            street
+                            city
+                            province
+                            postalCode
+                            country
+                        }
+                    }
                 }
             }';
 
@@ -372,7 +462,7 @@ class JobberWebhookController extends Controller
         return $response->json();
     }
 
-    public function createOrUpdateClient(array $clientData): object
+    public function updateOrCreateClient(array $clientData): object
     {
         $client = JobberClient::updateOrCreate(
             ['jobber_id' => $clientData['id']],
@@ -392,7 +482,7 @@ class JobberWebhookController extends Controller
         return $client;
     }
 
-    public function createOrUpdateProperty(array $propertyData, object $client): object
+    public function updateOrCreateProperty(array $propertyData, object $client): object
     {
         $property = JobberProperty::updateOrCreate(
             ['jobber_id' => $propertyData['id']],
@@ -411,7 +501,7 @@ class JobberWebhookController extends Controller
         return $property;
     }
 
-    public function createOrUpdateJob(array $jobData, object $client, object $property): object
+    public function updateOrCreateJob(array $jobData, object $client, object $property): object
     {
         $job = Jobber::updateOrCreate(
             ['jobber_id' => $jobData['id']],
@@ -438,7 +528,7 @@ class JobberWebhookController extends Controller
         return $job;
     }
 
-    public function createOrUpdateVisits(array $visitData, object $client, object $property, object $job): void
+    public function updateOrCreateVisit(array $visitData, object $client, object $property, object $job): void
     {
         JobberVisit::updateOrCreate(
             ['jobber_id' => $visitData['id']],

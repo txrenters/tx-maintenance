@@ -122,25 +122,28 @@ Route::middleware([
     // Guide routes
     Route::get('/guide/vendor', function () {
         $user = auth()->user();
-        if (!$user->hasRole('vendor')) {
+        if (! $user->hasRole('vendor')) {
             abort(403, 'Unauthorized');
         }
+
         return inertia('Guide/VendorGuide');
     })->name('guide.vendor');
-    
+
     Route::get('/guide/woc', function () {
         $user = auth()->user();
-        if (!$user->hasRole('woc')) {
+        if (! $user->hasRole('woc')) {
             abort(403, 'Unauthorized');
         }
+
         return inertia('Guide/WocGuide');
     })->name('guide.woc');
-    
+
     Route::get('/guide/admin', function () {
         $user = auth()->user();
-        if (!$user->hasRole('admin')) {
+        if (! $user->hasRole('admin')) {
             abort(403, 'Unauthorized');
         }
+
         return inertia('Guide/AdminGuide');
     })->name('guide.admin');
 });

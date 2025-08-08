@@ -23,7 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('jobber_visits', function (Blueprint $table) {
-            $table->dropColumn(['notified_7_days','notified_3_days']);
+            $table->dropColumn(['notified_7_days', 'notified_3_days']);
         });
     }
 };

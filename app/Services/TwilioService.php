@@ -37,6 +37,7 @@ class TwilioService
                 'body' => $message,
                 'media' => $mediaUrl ? 'included' : 'none',
             ]);
+
         } catch (\Exception $e) {
             Log::error('Message unsuccessfully: '.$e->getMessage());
         }

@@ -66,20 +66,7 @@ const tabButtons = [
     { value: "video-tutorials", label: "Video Tutorials", icon: FileText },
 ];
 
-// Load Vimeo player script
-onMounted(() => {
-    // Check if script is already loaded
-    if (
-        !document.querySelector(
-            'script[src="https://player.vimeo.com/api/player.js"]'
-        )
-    ) {
-        const script = document.createElement("script");
-        script.src = "https://player.vimeo.com/api/player.js";
-        script.async = true;
-        document.head.appendChild(script);
-    }
-});
+// No need to load external scripts for YouTube embeds
 </script>
 
 <template>
@@ -2007,25 +1994,14 @@ onMounted(() => {
                                     </CardHeader>
                                     <CardContent>
                                         <div class="rounded-lg overflow-hidden">
-                                            <div
-                                                style="
-                                                    padding: 56.25% 0 0 0;
-                                                    position: relative;
-                                                "
-                                            >
+                                            <div class="aspect-video">
                                                 <iframe
-                                                    src="https://player.vimeo.com/video/1108246339?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479&amp;autoplay=1&amp;muted=1&amp;loop=1&amp;dnt=1"
+                                                    src="https://www.youtube.com/embed/BB5pTiAUbxo"
+                                                    title="TX Work Order - Vendor Training"
                                                     frameborder="0"
-                                                    allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
-                                                    referrerpolicy="strict-origin-when-cross-origin"
-                                                    style="
-                                                        position: absolute;
-                                                        top: 0;
-                                                        left: 0;
-                                                        width: 100%;
-                                                        height: 100%;
-                                                    "
-                                                    title="Maintenance-Portal-Vendor"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowfullscreen
+                                                    class="w-full h-full"
                                                 ></iframe>
                                             </div>
                                         </div>
