@@ -1,5 +1,5 @@
 <script setup>
-import { Calendar, Hammer } from "lucide-vue-next";
+import { Calendar, Hammer, MessageCircleIcon } from "lucide-vue-next";
 const props = defineProps({
     tokenExist: Boolean,
 });
@@ -30,6 +30,19 @@ const props = defineProps({
         >
             <Link :href="route('visits.index')" prefetch>
                 <Calendar class="w-4 h-4" />
+            </Link>
+        </Button>
+        <Button
+            class="rounded"
+            :variant="
+                $page.url.startsWith('/inspections/text')
+                    ? 'default'
+                    : 'outline'
+            "
+            as-child
+        >
+            <Link :href="route('jobber.messages')" prefetch>
+                <MessageCircleIcon class="w-4 h-4" />
             </Link>
         </Button>
     </div>

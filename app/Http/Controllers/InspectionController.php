@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use InvalidArgumentException;
 
 class InspectionController extends Controller
 {
@@ -131,14 +132,18 @@ class InspectionController extends Controller
             ->withQueryString()
             ->through(function ($sms) {
                 $receiver_number = $sms->receiver_number;
+                $sender_number   = $sms->sender_number;
+
+                $matchedContact = $sms->jobber->clientContacts->first(function ($q) use ($receiver_number, $sender_number) {
+                    $formatted = $this->formatNumber($q->phone);
+                    return $formatted === $receiver_number || $formatted === $sender_number;
+                });
 
                 return [
                     'id' => $sms->id,
                     'job_number' => $sms->jobber->job_number,
-                    'clients' => $sms->jobber->clientContacts->filter(function($q) use ($receiver_number){
-                            $q->phone === $receiver_number;
-                    }),
-                    'message' => $sms->message,
+                    'client' => optional($matchedContact)->name ?? 'Unknown', // only name, null if no match
+                    'message' => $sms->messages,
                     'sender_number' => $sms->sender_number,
                     'receiver_number' => $sms->receiver_number,
                     'created_at' => $sms->created_at,
@@ -274,5 +279,16 @@ class InspectionController extends Controller
         ]);
 
         return redirect("https://api.getjobber.com/api/oauth/authorize?$query");
+    }
+
+    protected function formatNumber(string $number): string
+    {
+        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
+
+        if (empty($cleanedNumber)) {
+            throw new InvalidArgumentException('The provided phone number is invalid.');
+        }
+
+        return '+1'.$cleanedNumber;
     }
 }
