@@ -64,14 +64,13 @@ class SendJobReminders extends Command
         // // 3 days before
         // $this->sendMessages($today->copy()->addDays(3), 'notified_3_days', $notifyMessageFor3days);
 
-        // $this->sendMessages($today->copy()->addDays(2), 'notified_7_days', $notifyMessageFor7days);
+        $this->sendMessages(Carbon::create(2025, 8, 10, 0, 0, 0, 'America/Chicago'), 'notified_7_days', $notifyMessageFor7days);
+        $this->sendMessages(Carbon::create(2025, 8, 10, 0, 0, 0, 'America/Chicago'), 'notified_3_days', $notifyMessageFor3days);
 
     }
 
-    protected function sendMessages(Carbon $date, string $notifiedField, string $messageText)
+    protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText)
     {
-        $scheduled_date = $date;
-
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
             ->where($notifiedField, false)
@@ -122,26 +121,33 @@ class SendJobReminders extends Command
                 $mobilePhoneNumber = $this->formatNumber($record[13]);
 
                 if (strtolower($clientStatus) === 'active' && ! empty($mobilePhoneNumber)) {
-                    $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
 
-                    $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
+                    try {
+                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
 
-                    $visit->{$notifiedField} = true;
-                    $visit->save();
+                        $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
 
-                    $text = JobberTextMessage::create([
-                        'messages' => $message ?? '',
-                        'sender_number' => $senderNumber,
-                        'receiver_number' => $mobilePhoneNumber,
-                        'jobber_id' => $visit->job->id,
-                    ]);
+                        $visit->{$notifiedField} = true;
+                        $visit->save();
 
-                    Log::info("Sent messages successfully:", ['text' => $text]);
+                        $text = JobberTextMessage::create([
+                            'messages' => $message ?? '',
+                            'sender_number' => $senderNumber,
+                            'receiver_number' => $mobilePhoneNumber,
+                            'jobber_id' => $visit->job->id,
+                        ]);
+
+                        Log::info("Sent messages successfully:", ['text' => $text]);
+                        
+                    } catch (\Throwable $th) {
+                        Log::error("Sending message is unsuccesfull:", ['error' => $th->getMessage()]);
+                    }
+                   
                 }
             }
         }
 
-        Log::info("Visits (".count($visits).") for date: {$date->toDateString()}");
+        Log::info("Visits (".count($visits).") for date: {$scheduled_date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string

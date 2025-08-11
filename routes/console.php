@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('import:work-orders')
-    ->everyFiveMinutes()
+    ->everyTenMinutes()
     ->timezone('America/Chicago')
     ->weekdays()
     ->withoutOverlapping()
@@ -23,5 +23,6 @@ Schedule::command('jobber:refresh-token')
 
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
+    ->everyMinute()
         ->withoutOverlapping()
         ->runInBackground();
