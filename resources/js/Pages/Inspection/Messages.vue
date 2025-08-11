@@ -16,6 +16,7 @@ import {
     Wrench,
     PhoneCall,
 } from "lucide-vue-next";
+import Navigation from "./partials/Navigation.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -99,7 +100,7 @@ const truncateMessage = (message, length = 100) => {
         <Card>
             <CardHeader>
                 <!-- Filters -->
-                <div class="grid gap-4 md:grid-cols-3">
+                <div class="flex justify-between">
                     <div class="space-y-2">
                         <div class="relative">
                             <Search
@@ -113,6 +114,7 @@ const truncateMessage = (message, length = 100) => {
                             />
                         </div>
                     </div>
+                    <Navigation />
                 </div>
             </CardHeader>
             <CardContent>

@@ -33,6 +33,7 @@ class TwilioService
             $this->client->messages->create($to, $messageData);
 
             Log::info('Message sent successfully', [
+                'to' => $to,
                 'from' => $from,
                 'body' => $message,
                 'media' => $mediaUrl ? 'included' : 'none',

@@ -35,7 +35,7 @@ const props = defineProps({
         <Button
             class="rounded"
             :variant="
-                $page.url.startsWith('/inspections/text')
+                $page.url.startsWith('/inspections/text/messages')
                     ? 'default'
                     : 'outline'
             "
