@@ -20,9 +20,10 @@ class NotificationController extends Controller
                     'title' => 'Work Order #'.$item->work_order->work_order_no.' - New Text Message',
                     'message' => $item->message,
                     'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
+                    'timestamp' => $item->created_at->timestamp, // raw for sorting
                     'read' => (bool) $item->is_read, // Include read status
                 ];
-            });
+            })->toArray();
 
         $jobberText = JobberTextMessage::with('jobber.clientContacts') // select only needed fields
             ->orderBy('created_at', 'desc')
@@ -34,15 +35,17 @@ class NotificationController extends Controller
                     'title' => 'Job #'.$item->jobber->job_number.' - New Text Message',
                     'message' => $item->messages,
                     'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
-                    'read' => false, // Include read status
+                    'timestamp' => $item->created_at->timestamp, // raw for sorting
+                    'read' => false, 
                 ];
-            });
+            })->toArray();
 
         
-        $notifications =  $workOrderText
-            ->concat($jobberText)
-            ->sortByAsc('time')
-            ->values();
+        $notifications = array_merge($workOrderText, $jobberText);
+
+        usort($notifications, function ($a, $b) {
+            return $b['timestamp'] <=> $a['timestamp']; // latest first
+        });
 
         return response()->json($notifications);
 
