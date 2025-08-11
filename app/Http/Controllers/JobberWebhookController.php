@@ -37,7 +37,7 @@ class JobberWebhookController extends Controller
 
             match ($topic) {
                 'JOB_CREATE',
-                'JOB_UPDATE' => $this->handleupdateOrCreateJobber($itemId),
+                'JOB_UPDATE' => $this->handleCreateOrUpdateJobber($itemId),
                 'JOB_CLOSED' => $this->handleClosedJobber($itemId),
                 'JOB_DESTROY' => $this->handleDeleteJobber($itemId),
                 'VISIT_CREATE',
@@ -56,7 +56,7 @@ class JobberWebhookController extends Controller
         }
     }
 
-    public function handleupdateOrCreateJobber($jobberId)
+    public function handleCreateOrUpdateJobber($jobberId)
     {
         $responseData = $this->getJobDetails($jobberId);
 
@@ -173,7 +173,31 @@ class JobberWebhookController extends Controller
 
             $property = $this->updateOrCreateProperty($propertyData, $client);
 
-            $this->updateOrCreateVisit($jobberVisit, $client, $property, $existingVisit->job);
+            $jobberJob = $jobberVisit['job'];
+
+            $jobData = [
+                'id' => $jobberJob['id'],
+                'jobber_client_id' => $client->id,
+                'jobber_property_id' => $property->id,
+                'jobNumber' => $jobberJob['jobNumber'],
+                'title' => $jobberJob['title'],
+                'jobStatus' => $jobberJob['jobStatus'],
+                'jobType' => $jobberJob['jobType'],
+                'total' => $jobberJob['total'],
+                'willClientBeAutomaticallyCharged' => $jobberJob['willClientBeAutomaticallyCharged'],
+                'instructions' => $jobberJob['instructions'],
+                'jobberWebUri' => $jobberJob['jobberWebUri'],
+                'bookingConfirmationSentAt' => $jobberJob['bookingConfirmationSentAt'],
+                'startAt' => $jobberJob['startAt'] ? Carbon::parse($jobberJob['startAt'])->toDateTimeString() : null,
+                'endAt' => $jobberJob['endAt'] ? Carbon::parse($jobberJob['endAt'])->toDateTimeString() : null,
+                'completedAt' => $jobberJob['completedAt'] ? Carbon::parse($jobberJob['completedAt'])->toDateTimeString() : null,
+                'createdAt' => $jobberJob['createdAt'] ? Carbon::parse($jobberJob['createdAt'])->toDateTimeString() : null,
+                'updatedAt' => $jobberJob['updatedAt'] ? Carbon::parse($jobberJob['updatedAt'])->toDateTimeString() : null,
+            ];
+
+            $job = $this->updateOrCreateJob($jobData, $client, $property);
+
+            $this->updateOrCreateVisit($jobberVisit, $client, $property, $job);
             Log::warning('Visit created successfully: ', ['visitId' => $jobberVisit]);
         }
 
@@ -214,34 +238,6 @@ class JobberWebhookController extends Controller
             'job_id' => $job ? $job->id : null,
             'completed_at' => $visit->completed_at,
         ]);
-    }
-
-    public function handleupdateOrCreateVisit($visitId)
-    {
-        $responseData = $this->getVisitDetails($visitId);
-
-        if (! isset($responseData['data']['visit'])) {
-            Log::error('Visit not found from Jobber API', ['visitId' => $visitId]);
-
-            return;
-        }
-
-        $jobberVisit = $responseData['data']['visit'];
-
-        // Find the existing visit to get related job, client, and property
-        $existingVisit = JobberVisit::with(['job.client', 'job.property'])
-            ->where('jobber_id', $jobberVisit['id'])
-            ->first();
-
-        // If visit exists with job, update it
-        if ($existingVisit && $existingVisit->job) {
-            $this->updateVisit($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
-            Log::info('Visit updated successfully:', ['visit' => $jobberVisit]);
-        } else {
-            $this->createVisit($jobberVisit, $existingVisit->job->client, $existingVisit->job->property, $existingVisit->job);
-            Log::warning('Visit created successfully: ', ['visitId' => $jobberVisit]);
-        }
-
     }
 
     public function handleDeleteVisit($visitId)

@@ -77,7 +77,13 @@ const filteredConversations = computed(() => {
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    const options = { timeZone: "America/Chicago" };
+
+    return (
+        date.toLocaleDateString("en-US", options) +
+        " " +
+        date.toLocaleTimeString("en-US", options)
+    );
 };
 
 const truncateMessage = (message, length = 100) => {
