@@ -36,7 +36,7 @@ class SendJobReminders extends Command
         $today = Carbon::today();
 
         $notifyMessageFor7days = "Hello {CLIENT_NAME}!\n\n
-            As part of the Tenant Benefit Package (TBP), we have scheduled the pest control treatment and filter change on Tuesday, 8/12. 
+            As part of the Tenant Benefit Package (TBP), we have scheduled the pest control treatment and filter change on {SCHEDULED_DATE}. 
             We’ll also perform an Occupied Inspection. 
             Please secure your valuables and crate pets If areas can't be accessed, a trip charge may be applied as per your lease agreement.
             No need for you to be present; we'll provide access to our technician. 
@@ -51,7 +51,7 @@ class SendJobReminders extends Command
             TexasRenters.com, LLC";
 
         $notifyMessageFor3days = "Good day {CLIENT_NAME}!\n\n
-            Just a quick reminder of the scheduled visit on DATE. 
+            Just a quick reminder of the scheduled visit on {SCHEDULED_DATE}. 
             We cannot provide an exact arrival time, as our technicians have multiple jobs, and the duration of each job may vary but he will notify or call you before arrival. 
             Please ensure that any pets are secured in a crate or leashed, as technicians will not be able to enter otherwise. 
             Thank you for your cooperation! Let us know if you have any questions. .\n\n 
@@ -85,7 +85,8 @@ class SendJobReminders extends Command
         $response = Http::get($TENANT_JSON_API_LINK);
 
         if ($response->failed()) {
-            return response()->json(['error' => 'Failed to fetch data from Propertyware'], 500);
+            Log::error("Failed to fetch client data from Propertyware");
+            return;
         }
 
         $records = $response->json()['records'] ?? [];
@@ -95,12 +96,10 @@ class SendJobReminders extends Command
             $visitTitle = $visit->title;
 
             if (! preg_match('/tenant benefit package|tbp/i', $jobTitle ?? '')) { // Exclude non TBP jobs
-                Log::warning("No job found!", ['title' => $jobTitle]);
                 continue;
             }
 
             if (! preg_match('/tenant benefit package|tbp/i', $visitTitle ?? '')) { // Exclude non TBP visits
-                Log::warning("No visit found!", ['title' => $visitTitle]);
                 continue;
             }
 
@@ -118,12 +117,14 @@ class SendJobReminders extends Command
             foreach ($filtered as $record) {
                 $clientStatus = $record[2];
                 $clientName = $record[3];
+                $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
                 $mobilePhoneNumber = $this->formatNumber($record[13]);
 
                 if (strtolower($clientStatus) === 'active' && ! empty($mobilePhoneNumber)) {
 
                     try {
-                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
+                        $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
+                        $message = str_replace('{SCHEDULED_DATE}', $visitDate, $messageText);
 
                         $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
 
@@ -158,6 +159,6 @@ class SendJobReminders extends Command
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
 
-        return '+'.$cleanedNumber;
+        return '+1'.$cleanedNumber;
     }
 }
