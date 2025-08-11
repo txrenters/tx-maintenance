@@ -34,15 +34,15 @@ class NotificationController extends Controller
                     'title' => 'Job #'.$item->jobber->job_number.' - New Text Message',
                     'message' => $item->messages,
                     'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
-                    'read' => true, // Include read status
+                    'read' => false, // Include read status
                 ];
             });
 
         
         $notifications =  $workOrderText
             ->concat($jobberText)
-            ->sortByDesc('time')
-            ->values();;
+            ->sortByAsc('time')
+            ->values();
 
         return response()->json($notifications);
 
