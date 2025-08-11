@@ -35,13 +35,27 @@ class SendJobReminders extends Command
     {
         $today = Carbon::today();
 
-        $notifyMessageFor7days = "Hello {CLIENT_NAME}!\n
-            As part of the Tenant Benefit Package (TBP), we have scheduled the pest control treatment and filter change on {SCHEDULED_DATE}. We’ll also perform an Occupied Inspection. Please secure your valuables and crate pets If areas can't be accessed, a trip charge may be applied as per your lease agreement.  No need for you to be present; we'll provide access to our technician. You can confirm your approval by sending a reply to this message. We can't provide a specific time for the visit, as our technicians have multiple jobs to complete, and the duration of each job can vary but he will notify or call you before arrival. Please note that our technicians wear body cameras during visits. Additionally, filters will only be changed if they are unobstructed. If any furniture or objects are blocking access to the filter, the tenant will need to move them prior to our visit. If for any reason, our technician can't make it, we'll arrange another date and inform you promptly. Please respond if you have received this so our technician can proceed with the inspection. We appreciate your understanding.\n
+        $notifyMessageFor7days = "Dear {CLIENT_NAME},\n
+            As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}: 
+                * Pest control treatment
+                * Air filter replacement
+                * Occupied inspection
+            Please note the following important details:
+                * Access & Preparation: You do not need to be present during the visit. We will provide access to our technician. Please secure all valuables and crate any pets. If any areas are inaccessible, a trip charge may be applied in accordance with your lease agreement.
+                * Timing: We cannot provide an exact arrival time, as our technicians have multiple appointments, and job durations may vary. However, the technician will call or notify you prior to arrival.
+                * Body Cameras: For security and documentation purposes, our technicians wear body cameras during all visits.
+                * Filter Access: Filters will only be replaced if they are unobstructed. Please ensure furniture or other items are moved beforehand to allow access.
+                * Rescheduling: If the technician is unable to attend for any reason, we will promptly reschedule and notify you.
+            Please confirm receipt of this notice and your approval by replying to this message. We appreciate your cooperation and understanding.\n
             Warm regards,
             TexasRenters.com, LLC";
 
-        $notifyMessageFor3days = "Good day {CLIENT_NAME}!\n
-            Just a quick reminder of the scheduled visit on {SCHEDULED_DATE}. We cannot provide an exact arrival time, as our technicians have multiple jobs, and the duration of each job may vary but he will notify or call you before arrival. Please ensure that any pets are secured in a crate or leashed, as technicians will not be able to enter otherwise.Thank you for your cooperation! Let us know if you have any questions.\n
+        $notifyMessageFor3days = "Dear {CLIENT_NAME},\n
+            This is a friendly reminder of the scheduled visit on {SCHEDULED_DATE}.\n
+            Please note:\n 
+                * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
+                * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
+            Thank you for your cooperation. Should you have any questions, feel free to reach out to us\n
             Warm regards,
             TexasRenters.com, LLC";
 
