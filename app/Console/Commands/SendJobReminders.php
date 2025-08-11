@@ -35,37 +35,21 @@ class SendJobReminders extends Command
     {
         $today = Carbon::today();
 
-        $notifyMessageFor7days = "Hello {CLIENT_NAME}!\n\n
-            As part of the Tenant Benefit Package (TBP), we have scheduled the pest control treatment and filter change on {SCHEDULED_DATE}. 
-            We’ll also perform an Occupied Inspection. 
-            Please secure your valuables and crate pets If areas can't be accessed, a trip charge may be applied as per your lease agreement.
-            No need for you to be present; we'll provide access to our technician. 
-            You can confirm your approval by sending a message through your tenant portal or contacting us via phone. 
-            We can't provide a specific time for the visit, as our technicians have multiple jobs to complete, and the duration of each job can vary but he will notify or call you before arrival. Please note that our technicians wear body cameras during visits. 
-            Additionally, filters will only be changed if they are unobstructed. 
-            If any furniture or objects are blocking access to the filter, the tenant will need to move them prior to our visit. 
-            If for any reason, our technician can't make it, we'll arrange another date and inform you promptly. 
-            Please respond if you have received this so our technician can proceed with the inspection. 
-            We appreciate your understanding.\n\n 
-            Warm regards,\n 
+        $notifyMessageFor7days = "Hello {CLIENT_NAME}!\n
+            As part of the Tenant Benefit Package (TBP), we have scheduled the pest control treatment and filter change on {SCHEDULED_DATE}. We’ll also perform an Occupied Inspection. Please secure your valuables and crate pets If areas can't be accessed, a trip charge may be applied as per your lease agreement.  No need for you to be present; we'll provide access to our technician. You can confirm your approval by sending a reply to this message. We can't provide a specific time for the visit, as our technicians have multiple jobs to complete, and the duration of each job can vary but he will notify or call you before arrival. Please note that our technicians wear body cameras during visits. Additionally, filters will only be changed if they are unobstructed. If any furniture or objects are blocking access to the filter, the tenant will need to move them prior to our visit. If for any reason, our technician can't make it, we'll arrange another date and inform you promptly. Please respond if you have received this so our technician can proceed with the inspection. We appreciate your understanding.\n
+            Warm regards,
             TexasRenters.com, LLC";
 
-        $notifyMessageFor3days = "Good day {CLIENT_NAME}!\n\n
-            Just a quick reminder of the scheduled visit on {SCHEDULED_DATE}. 
-            We cannot provide an exact arrival time, as our technicians have multiple jobs, and the duration of each job may vary but he will notify or call you before arrival. 
-            Please ensure that any pets are secured in a crate or leashed, as technicians will not be able to enter otherwise. 
-            Thank you for your cooperation! Let us know if you have any questions. .\n\n 
-            Warm regards,\n 
+        $notifyMessageFor3days = "Good day {CLIENT_NAME}!\n
+            Just a quick reminder of the scheduled visit on {SCHEDULED_DATE}. We cannot provide an exact arrival time, as our technicians have multiple jobs, and the duration of each job may vary but he will notify or call you before arrival. Please ensure that any pets are secured in a crate or leashed, as technicians will not be able to enter otherwise.Thank you for your cooperation! Let us know if you have any questions.\n
+            Warm regards,
             TexasRenters.com, LLC";
 
         // 7 days before
-        // $this->sendMessages($today->copy()->addDays(7), 'notified_7_days', $notifyMessageFor7days);
+        $this->sendMessages($today->copy()->timezone('America/Chicago')->addDays(7), 'notified_7_days', $notifyMessageFor7days);
 
-        // // 3 days before
-        // $this->sendMessages($today->copy()->addDays(3), 'notified_3_days', $notifyMessageFor3days);
-
-        $this->sendMessages(Carbon::create(2025, 8, 10, 0, 0, 0, 'America/Chicago'), 'notified_7_days', $notifyMessageFor7days);
-        $this->sendMessages(Carbon::create(2025, 8, 10, 0, 0, 0, 'America/Chicago'), 'notified_3_days', $notifyMessageFor3days);
+        // 3 days before
+        $this->sendMessages($today->copy()->timezone('America/Chicago')->addDays(3), 'notified_3_days', $notifyMessageFor3days);
 
     }
 

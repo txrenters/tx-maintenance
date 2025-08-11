@@ -15,14 +15,7 @@ Schedule::command('jobber:refresh-token')
     ->withoutOverlapping()
     ->runInBackground();
 
-// Schedule::command('jobs:send-reminders')
-//     ->timezone('America/Chicago')
-//     ->dailyAt('09:00')
-        // ->withoutOverlapping()
-        // ->runInBackground();
-
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
-    ->everyMinute()
-        ->withoutOverlapping()
-        ->runInBackground();
+    ->dailyAt('16:00')
+    ->runInBackground();
