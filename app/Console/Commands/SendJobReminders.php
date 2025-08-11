@@ -106,7 +106,6 @@ class SendJobReminders extends Command
             $client = $visit->job->client->name;
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                Log::warning("Searching records!",['data' => $record[4], 'client' => $client]);
                 return Str::contains($client ?? '', $record[4] ?? '', true); // true = ignore case
             })->values();
 
@@ -124,15 +123,15 @@ class SendJobReminders extends Command
 
                     try {
                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
-                        $message = str_replace('{SCHEDULED_DATE}', $visitDate, $messageText);
+                        $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
-                        $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message);
+                        $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message2);
 
                         $visit->{$notifiedField} = true;
                         $visit->save();
 
                         $text = JobberTextMessage::create([
-                            'messages' => $message ?? '',
+                            'messages' => $message2 ?? '',
                             'sender_number' => $senderNumber,
                             'receiver_number' => $mobilePhoneNumber,
                             'jobber_id' => $visit->job->id,
