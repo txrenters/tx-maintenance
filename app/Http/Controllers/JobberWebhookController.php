@@ -173,7 +173,7 @@ class JobberWebhookController extends Controller
 
             $property = $this->updateOrCreateProperty($propertyData, $client);
 
-            $this->updateOrCreateVisit($jobberVisit, $client, $$property, $existingVisit->job);
+            $this->updateOrCreateVisit($jobberVisit, $client, $property, $existingVisit->job);
             Log::warning('Visit created successfully: ', ['visitId' => $jobberVisit]);
         }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Jobber;
 use App\Models\JobberClient;
+use App\Models\JobberTextMessage;
 use App\Models\JobberToken;
 use App\Models\Owner;
 use App\Models\Tenants;
@@ -114,6 +115,42 @@ class InspectionController extends Controller
         ]);
     }
 
+    public function messages(Request $request)
+    {
+        $conversations = JobberTextMessage::with(['jobber.clientContacts'])
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $start_date = Carbon::parse(request('start_date'))->startOfDay();
+                $end_date = Carbon::parse(request('end_date'))->endOfDay();
+
+                $q->where(function ($query) use ($start_date, $end_date) {
+                    $query->whereBetween('created_at', [$start_date, $end_date]);
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate(50)
+            ->withQueryString()
+            ->through(function ($sms) {
+                $receiver_number = $sms->receiver_number;
+
+                return [
+                    'id' => $sms->id,
+                    'job_number' => $sms->jobber->job_number,
+                    'clients' => $sms->jobber->clientContacts->filter(function($q) use ($receiver_number){
+                            $q->phone === $receiver_number;
+                    }),
+                    'message' => $sms->message,
+                    'sender_number' => $sms->sender_number,
+                    'receiver_number' => $sms->receiver_number,
+                    'created_at' => $sms->created_at,
+                ];
+            });
+
+        return inertia('Inspection/Messages', [
+            'title' => 'Jobber Messages',
+            'conversations' => $conversations,
+        ]);
+    }
+
     public function accessTokenExist()
     {
         return JobberToken::whereNotNull('access_token')->exists();
@@ -127,7 +164,10 @@ class InspectionController extends Controller
         $tenants = Tenants::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
             ->where(function ($query) use ($search) {
                 $query->where('first_name', 'like', "%$search%")
-                    ->orWhere('last_name', 'like', "%$search%");
+                    ->orWhere('last_name', 'like', "%$search%")
+                    ->orWhere('home_phone', 'like', "%$search%")
+                    ->orWhere('mobile_phone', 'like', "%$search%")
+                    ->orWhere('work_phone', 'like', "%$search%");
             })
             ->get()
             ->flatMap(function ($tenant) {
@@ -155,7 +195,10 @@ class InspectionController extends Controller
         $owners = Owner::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
             ->where(function ($query) use ($search) {
                 $query->where('first_name', 'like', "%$search%")
-                    ->orWhere('last_name', 'like', "%$search%");
+                        ->orWhere('last_name', 'like', "%$search%")
+                        ->orWhere('home_phone', 'like', "%$search%")
+                        ->orWhere('mobile_phone', 'like', "%$search%")
+                        ->orWhere('work_phone', 'like', "%$search%");
             })
             ->orWhere('last_name', $request->search)
             ->get()

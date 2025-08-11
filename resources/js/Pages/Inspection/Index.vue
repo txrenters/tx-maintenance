@@ -363,7 +363,7 @@ const sendMessage = () => {
             selectedRecipients.value.forEach((recipient) => {
                 const newMessageObj = {
                     id: Date.now() + Math.random(), // Temporary ID
-                    messages: newMessage.value || "",
+                    message: newMessage.value || "",
                     sender_number: senderPhoneNumber.value,
                     receiver_number: recipient.phone,
                     image: selectedImage.value

@@ -80,7 +80,7 @@ class JobberTextMessageController extends Controller
                     // Only send SMS if there's content (text or image note)
                     if (! empty($messageContent)) {
                         $twilio->sendMessage(
-                            $receiverNumber,
+                            $this->formatNumber($receiverNumber),
                             $senderNumber,
                             $messageContent,
                             $mediaUrl
@@ -138,7 +138,7 @@ class JobberTextMessageController extends Controller
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
 
-        return '+'.$cleanedNumber;
+        return '+1'.$cleanedNumber;
     }
 
     public function index(Request $request)

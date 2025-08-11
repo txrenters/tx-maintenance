@@ -9,16 +9,7 @@ class JobberTextMessage extends Model
 {
     protected $table = 'jobber_text_messages';
 
-    protected $fillable = [
-        'messages',
-        'sender_number',
-        'receiver_number',
-        'image',
-        'jobber_id',
-        'status',
-        'sent_at',
-        'error_message',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'sent_at' => 'datetime',

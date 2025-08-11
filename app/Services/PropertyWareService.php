@@ -78,6 +78,38 @@ class PropertyWareService
 
     }
 
+    public function getWorkOrdersViaRestAPI()
+    {
+        try {
+
+            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders',[
+                'limit' => 500,
+            ]);
+
+            if ($response->status() == 200) {
+                Log::info('Success in retrieving work order');
+
+                return $response->json();
+            } else {
+                Log::error('Error updating Work Order', [
+                    'error' => 'Unable to update work order',
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                    ],
+                ]);
+
+                return false;
+            }
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
     public function getOwners()
     {
         try {
@@ -162,6 +194,25 @@ class PropertyWareService
             return 'Error: '.$e->getMessage();
         }
 
+    }
+
+    public function getWorkOrderByNum($workOrderNo)
+    {
+        try {
+            $client = $this->initiate();
+
+            $response = $client->getWorkOrder($workOrderNo);
+
+            if (!empty($response)) {
+                return json_decode(json_encode($response), true);
+            }
+
+            return []; // Return empty array if no result
+
+        } catch (\Exception $e) {
+            Log::error('SOAP request failed: ' . $e->getMessage());
+            return [];
+        }
     }
 
     public function getWorkOrderByNumber($workorderNo)

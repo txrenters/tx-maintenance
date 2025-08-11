@@ -39,9 +39,13 @@ class WorkOrderImportCommand extends Command
      */
     public function handle(): void
     {
-        $data = $this->propertyWareService->getWorkOrders();
+        $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
 
-        $work_orders = collect($data)->toArray();
+        if (empty($work_orders)) {
+            Log::warning('No work orders returned from Propertyware API.');
+            return;
+        }
+
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
 
