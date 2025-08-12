@@ -117,9 +117,16 @@ class SendJobReminders extends Command
                 $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
                 $mobilePhoneNumber = $this->formatNumber($record[13]);
 
-                if (strtolower($clientStatus) === 'active' && ! empty($mobilePhoneNumber)) {
+                if (strtolower($clientStatus) === 'active') {
 
                     try {
+                        $mobilePhoneNumber = $this->formatNumber($record[13]);
+            
+                        if (empty($mobilePhoneNumber)) {
+                            Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
+                            continue;
+                        }
+
                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
                         $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
