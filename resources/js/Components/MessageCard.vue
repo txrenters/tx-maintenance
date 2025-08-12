@@ -69,7 +69,7 @@ const removeMessage = (id) => {
 
 const openMedia = (mediaUrl) => {
     if (mediaUrl) {
-        window.open(mediaUrl, '_blank', 'noopener,noreferrer');
+        window.open(mediaUrl, "_blank", "noopener,noreferrer");
     }
 };
 </script>
@@ -113,11 +113,16 @@ const openMedia = (mediaUrl) => {
                 :class="
                     msg.sender_number === sender ? 'text-white' : 'text-black'
                 "
-            >
-                {{ msg.message }}
-            </p>
+                v-html="msg.message"
+            ></p>
             <!-- Handle both formats: is_mms with media array OR single image property -->
-            <div v-if="(msg.is_mms && msg.media && msg.media.length > 0) || msg.image" class="mt-2">
+            <div
+                v-if="
+                    (msg.is_mms && msg.media && msg.media.length > 0) ||
+                    msg.image
+                "
+                class="mt-2"
+            >
                 <!-- Multiple media format (original conversation format) -->
                 <img
                     v-for="media in msg.media || []"
@@ -125,7 +130,7 @@ const openMedia = (mediaUrl) => {
                     :src="media.public_url"
                     :alt="media.file_name || 'Attached image'"
                     class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
-                    style="max-width: 300px; max-height: 200px;"
+                    style="max-width: 300px; max-height: 200px"
                     @click="openMedia(media.public_url)"
                 />
                 <!-- Single image format (jobber text message format) -->
@@ -134,7 +139,7 @@ const openMedia = (mediaUrl) => {
                     :src="msg.image"
                     :alt="'Attached image'"
                     class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
-                    style="max-width: 300px; max-height: 200px;"
+                    style="max-width: 300px; max-height: 200px"
                     @click="openMedia(msg.image)"
                 />
             </div>

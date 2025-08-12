@@ -135,7 +135,7 @@ class InspectionController extends Controller
                 $sender_number   = $sms->sender_number;
 
                 $matchedContact = $sms->jobber->clientContacts->first(function ($q) use ($receiver_number, $sender_number) {
-                    $formatted = $this->formatNumber($q->phone);
+                    $formatted = $q->phone;
                     return $formatted === $receiver_number || $formatted === $sender_number;
                 });
 
@@ -279,16 +279,5 @@ class InspectionController extends Controller
         ]);
 
         return redirect("https://api.getjobber.com/api/oauth/authorize?$query");
-    }
-
-    protected function formatNumber(string $number): string
-    {
-        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
-
-        if (empty($cleanedNumber)) {
-            throw new InvalidArgumentException('The provided phone number is invalid.');
-        }
-
-        return '+1'.$cleanedNumber;
     }
 }

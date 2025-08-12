@@ -88,6 +88,7 @@ class SendJobReminders extends Command
         }
 
         $records = $response->json()['records'] ?? [];
+        $numSent = 0;
 
         foreach ($visits as $visit) {
             $jobTitle = $visit->job->title;
@@ -142,6 +143,8 @@ class SendJobReminders extends Command
                             'jobber_id' => $visit->job->id,
                         ]);
 
+                        $numSent =+ 1;
+
                         Log::info("Sent messages successfully:", ['text' => $text]);
                         
                     } catch (\Throwable $th) {
@@ -152,7 +155,7 @@ class SendJobReminders extends Command
             }
         }
 
-        Log::info("Visits (".count($visits).") for date: {$scheduled_date->toDateString()}");
+        Log::info("Number of visit sent: (".$numSent.") for date: {$scheduled_date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string
