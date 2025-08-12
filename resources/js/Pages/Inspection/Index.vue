@@ -37,14 +37,6 @@ import {
 } from "@/Components/ui/combobox";
 
 import Navigation from "./partials/Navigation.vue";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/Components/ui/dialog";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred } from "@inertiajs/vue3";
@@ -56,13 +48,6 @@ import {
 } from "@/Components/ui/popover";
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
-import { Label } from "@/Components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
-import { Badge } from "@/Components/ui/badge";
-import { Separator } from "@/Components/ui/separator";
-import { Textarea } from "@/Components/ui/textarea";
-import { Button } from "@/Components/ui/button";
-import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import axios from "axios";
 
 const { toast } = useToast();
@@ -595,7 +580,9 @@ usePoll(10000, {
         >
             <Deferred data="jobsByStatus">
                 <template #fallback>
-                    <div class="flex items-center justify-center py-6 gap-3">
+                    <div
+                        class="flex items-center justify-center gap-2 w-full h-[70vh]"
+                    >
                         <Loader2 class="animate-spin" />
                         <span class="text-gray-700">Loading...</span>
                     </div>

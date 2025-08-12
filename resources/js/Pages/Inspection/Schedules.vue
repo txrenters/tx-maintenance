@@ -7,16 +7,14 @@ import Navigation from "./partials/Navigation.vue";
 import "@schedule-x/theme-shadcn/dist/index.css";
 import { ScheduleXCalendar } from "@schedule-x/vue";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/Components/ui/dialog";
-import { Button } from "@/Components/ui/button";
-import { Badge } from "@/Components/ui/badge";
-import { MapPin, Calendar, User, Edit, Eye } from "lucide-vue-next";
+    MapPin,
+    Calendar,
+    User,
+    Edit,
+    Eye,
+    Loader2,
+    Loader2Icon,
+} from "lucide-vue-next";
 import {
     createCalendar,
     createViewDay,
@@ -27,6 +25,7 @@ import {
     createViewList,
 } from "@schedule-x/calendar";
 import { useEchoPublic } from "@laravel/echo-vue";
+import { Deferred } from "@inertiajs/vue3";
 
 const { toast } = useToast();
 
@@ -37,8 +36,6 @@ const props = defineProps({
     events: Array,
     filters: Object,
 });
-console.log("events:", props.events);
-
 // Helper function to get date status and add CSS class
 const getEventDateClass = (eventStart, eventEnd) => {
     const today = new Date();
@@ -176,10 +173,22 @@ useEchoPublic("visits", "VisitDeleted", (e) => {
         <SearchBar :url="url" v-model="search" class="w-full" />
         <Navigation />
     </div>
-    <div class="is-light-mode calendar-theme-override">
-        <ScheduleXCalendar :calendar-app="calendarApp"> </ScheduleXCalendar>
-    </div>
+    <Deferred data="visits">
+        <template #fallback>
+            <div class="relative w-full h-[70vh]">
+                <div
+                    class="absolute inset-0 flex items-center justify-center bg-white"
+                >
+                    <Loader2Icon class="animate-spin" />
+                    <span class="text-gray-700 ml-3">Loading...</span>
+                </div>
+            </div>
+        </template>
 
+        <div class="is-light-mode calendar-theme-override">
+            <ScheduleXCalendar :calendar-app="calendarApp"> </ScheduleXCalendar>
+        </div>
+    </Deferred>
     <!-- Event Details Modal -->
     <Dialog :open="isModalOpen" @update:open="isModalOpen = $event">
         <DialogContent class="overflow-y-auto">

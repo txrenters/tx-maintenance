@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\JobberVisit;
 use Carbon\Carbon;
+use Inertia\Inertia;
 
 class InspectionVisitController extends Controller
 {
@@ -45,7 +46,8 @@ class InspectionVisitController extends Controller
 
         return inertia('Inspection/Schedules', [
             'title' => 'Job Schedules',
-            'events' => $events,
+            'visits' => Inertia::defer(fn() => $visits) ,
+            'events' => $events ,
             'filters' => request(['search']),
         ]);
     }
