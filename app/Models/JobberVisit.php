@@ -22,7 +22,10 @@ class JobberVisit extends Model
             $search = $filter['search'];
 
             $query
-                ->whereAny([
+                ->whereHas('job',function($q) use ($search){
+                    $q->where('job_number', $search);
+                })
+                ->orWhereAny([
                     'title',
                     'visit_status',
                     'instructions',

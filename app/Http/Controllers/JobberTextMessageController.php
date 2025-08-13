@@ -13,6 +13,20 @@ use InvalidArgumentException;
 
 class JobberTextMessageController extends Controller
 {
+    public function index(Request $request)
+    {
+        $query = JobberTextMessage::with('jobber');
+
+        // Filter by jobber_id if provided
+        if ($request->has('jobber_id')) {
+            $query->where('jobber_id', $request->jobber_id);
+        }
+
+        $messages = $query->orderBy('created_at', 'desc')->paginate(20);
+
+        return response()->json($messages);
+    }
+
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -142,20 +156,7 @@ class JobberTextMessageController extends Controller
         return '+'.$cleanedNumber;
     }
 
-    public function index(Request $request)
-    {
-        $query = JobberTextMessage::with('jobber');
-
-        // Filter by jobber_id if provided
-        if ($request->has('jobber_id')) {
-            $query->where('jobber_id', $request->jobber_id);
-        }
-
-        $messages = $query->orderBy('created_at', 'desc')->paginate(20);
-
-        return response()->json($messages);
-    }
-
+   
     public function show(JobberTextMessage $jobberTextMessage)
     {
         $jobberTextMessage->load('jobber');

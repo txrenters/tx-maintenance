@@ -167,13 +167,12 @@ class InspectionController extends Controller
         $search = $request->search;
 
         $tenants = Tenants::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
-            ->where(function ($query) use ($search) {
-                $query->where('first_name', 'like', "%$search%")
-                    ->orWhere('last_name', 'like', "%$search%")
-                    ->orWhere('home_phone', 'like', "%$search%")
-                    ->orWhere('mobile_phone', 'like', "%$search%")
-                    ->orWhere('work_phone', 'like', "%$search%");
-            })
+            ->where('first_name', 'like', "%$request->search%")
+            ->orWhere('last_name', 'like', "%$request->search%")
+            ->orWhere('home_phone', 'like', "%$request->search%")
+            ->orWhere('mobile_phone', 'like', "%$request->search%")
+            ->orWhere('work_phone', 'like', "%$request->search%")
+            ->orWhere('last_name', 'like', "%$request->search%")
             ->get()
             ->flatMap(function ($tenant) {
                 $matches = collect();
@@ -198,14 +197,12 @@ class InspectionController extends Controller
             });
 
         $owners = Owner::select('id', 'first_name', 'last_name', 'home_phone', 'mobile_phone', 'work_phone')
-            ->where(function ($query) use ($search) {
-                $query->where('first_name', 'like', "%$search%")
-                        ->orWhere('last_name', 'like', "%$search%")
-                        ->orWhere('home_phone', 'like', "%$search%")
-                        ->orWhere('mobile_phone', 'like', "%$search%")
-                        ->orWhere('work_phone', 'like', "%$search%");
-            })
-            ->orWhere('last_name', $request->search)
+            ->where('first_name', 'like', "%$request->search%")
+            ->orWhere('last_name', 'like', "%$request->search%")
+            ->orWhere('home_phone', 'like', "%$request->search%")
+            ->orWhere('mobile_phone', 'like', "%$request->search%")
+            ->orWhere('work_phone', 'like', "%$request->search%")
+            ->orWhere('last_name', 'like', "%$request->search%")
             ->get()
             ->flatMap(function ($owner) {
                 $matches = collect();
