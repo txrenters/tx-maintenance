@@ -184,6 +184,90 @@ Route::get('jobber', function () {
     ]);
 });
 
+Route::get('lofty', function () {
+
+    // $response = Http::withHeaders([
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Content-Type'  => 'application/json',
+    // ])->get('https://api.lofty.com/v1.0/webhooks');
+
+    // $response = Http::withHeaders([
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Content-Type'  => 'application/json',
+    // ])->post('https://api.lofty.com/v1.0/webhook', [
+    //     "listId" => 2,
+    //     "callbackUrl" => "https://n8n.srv902502.hstgr.cloud/webhook-test/42e817d2-a5e6-47e3-a893-45742f4650e7",
+    //     "limit" =>  100
+    // ]);
+
+    // $response = Http::withHeaders([
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Content-Type'  => 'application/json',
+    // ])->post('https://api.lofty.com/v1.0/webhook', [
+    //     "listId" => 3,
+    //     "callbackUrl" => "https://n8n.srv902502.hstgr.cloud/webhook-test/42e817d2-a5e6-47e3-a893-45742f4650e7",
+    //     "limit" =>  100
+    // ]);
+
+    // $response = Http::withHeaders([
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Content-Type'  => 'application/json',
+    // ])->post('https://api.lofty.com/v1.0/webhook', [
+    //     "listId" =>4,
+    //     "callbackUrl" => "https://n8n.srv902502.hstgr.cloud/webhook-test/42e817d2-a5e6-47e3-a893-45742f4650e7",
+    //     "limit" =>  100
+    // ]);
+
+    $response = Http::withHeaders([
+        'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+        'Content-Type'  => 'application/json',
+    ])->post('https://api.lofty.com/v1.0/leads', [
+            'firstName' => 'Bob',
+            'lastName' => 'Li',
+            'emails' => [
+                'wwww@gmail.com',
+                'eeeee@gmail.com'
+            ],
+            'phones' => [
+                '123456789',
+                '987654321'
+            ],
+            'leadTypes' => [
+                1,
+                2
+            ],
+            'streetAddress' => 'The White House,1600 Pennsylvania Avenue NW',
+            'city' => 'Washington DC',
+            'state' => 'Washington DC',
+            'zipCode' => '20500',
+            'referredBy' => 'Jeremy Kelly',
+            'stage' => 'Pending',
+  
+            'property' => [
+                'price' => 100000,
+                'state' => 'California',
+                'city' => 'New York',
+                'streetAddress' => '22348 Regnart RD',
+                'zipCode' => '25401',
+                'propertyType' => 'Single Family Home',
+                'bedrooms' => 3,
+                'bathrooms' => 2,
+                'squareFeet' => 100,
+                'lotSize' => 26.33,
+                'parkingSpace' => 1,
+                'floors' => 1,
+                'priceMax' => 10000000,
+                'priceMin' => 100000
+            ],
+            
+            ]);
+
+    $newData = $response->json();
+
+    dd($newData);
+});
+
+
 Route::get('/webhook/asana/register', function () {
     Artisan::call('asana:register-webhook');
 });
