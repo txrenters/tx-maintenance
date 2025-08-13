@@ -105,7 +105,7 @@ class SendJobReminders extends Command
             $client = $visit->job->client->name;
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                return Str::contains($client ?? '', $record[4] ?? '', true); // true = ignore case
+                return Str::contains( $record[4]?? '',  $client ?? '', true); // true = ignore case
             })->values();
 
             if ($filtered->isEmpty()) {
