@@ -236,7 +236,7 @@ const sendMessage = () => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
 
-    formData.append("jobber_id", selectedEvent.job.id);
+    formData.append("jobber_id", selectedEvent.value.job.id);
 
     // Add image if selected
     if (selectedImage.value) {
@@ -264,7 +264,7 @@ const sendMessage = () => {
                         ? URL.createObjectURL(selectedImage.value)
                         : null,
                     created_at: timestamp,
-                    jobber_id: selectedJob.value.id,
+                    jobber_id: selectedEvent.value.job.id,
                 };
 
                 // Push the new message to the beginning of the array
@@ -279,7 +279,7 @@ const sendMessage = () => {
             // Update the job in jobsByStatus to reflect the new message count
             Object.keys(props.jobsByStatus).forEach((status) => {
                 const jobIndex = props.jobsByStatus[status].findIndex(
-                    (job) => job.id === selectedJob.value.id
+                    (job) => job.id === selectedEvent.value.job.id
                 );
                 if (jobIndex !== -1) {
                     props.jobsByStatus[status][jobIndex].text_messages_count =
@@ -405,6 +405,7 @@ const switchTab = (tabName) => {
     activeTab.value = tabName;
     if (tabName === "messages" && selectedEvent.value?.id) {
         // Fetch messages when switching to messages tab
+
         fetchJobMessages(selectedEvent.value.id);
     }
 };
