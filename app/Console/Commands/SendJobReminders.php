@@ -116,22 +116,37 @@ class SendJobReminders extends Command
                 $clientStatus = $record[2];
                 $clientName = $record[3];
                 $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
+                $workPhoneNumber = $this->formatNumber($record[11]);
+                $otherPhoneNumber = $this->formatNumber($record[12]);
                 $mobilePhoneNumber = $this->formatNumber($record[13]);
+                $homePhoneNumber = $this->formatNumber($record[14]);
 
                 if (strtolower($clientStatus) === 'active') {
 
                     try {
-                        $mobilePhoneNumber = $this->formatNumber($record[13]);
+                        $workingPhoneNumber = collect([
+                            $mobilePhoneNumber,
+                            $homePhoneNumber,
+                            $workPhoneNumber,
+                            $otherPhoneNumber
+                        ])->first(fn($number) => !empty($number));
             
-                        if (empty($mobilePhoneNumber)) {
+                        if (empty($workingPhoneNumber)) {
                             Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
                             continue;
                         }
-
+                       
                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
                         $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
-                        $twilio->sendMessage($mobilePhoneNumber, $senderNumber, $message2);
+                        Log::info('Processing text message:', [
+                            'client_name' => $clientName,
+                            'date' => $visitDate,
+                            'to' => $workingPhoneNumber,
+                            'text' => $message2
+                        ]);
+
+                        $twilio->sendMessage($workingPhoneNumber, $senderNumber, $message2);
 
                         $visit->{$notifiedField} = true;
                         $visit->save();
@@ -145,7 +160,7 @@ class SendJobReminders extends Command
 
                         $numSent =+ 1;
 
-                        Log::info("Sent messages successfully:", ['text' => $text]);
+                        Log::info("Successfully sent text messages :", ['text' => $text]);
                         
                     } catch (\Throwable $th) {
                         Log::error("Sending message is unsuccesfull:", ['error' => $th->getMessage()]);
