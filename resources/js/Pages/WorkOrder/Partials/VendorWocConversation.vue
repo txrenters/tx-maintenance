@@ -292,7 +292,7 @@ onMounted(() => {
             <Textarea
                 v-model="newMessage"
                 placeholder="Type your message..."
-                class="w-full resize-none rounded-2xl border py-3 pr-24 pl-12"
+                class="w-full resize-y rounded-2xl border py-3 pr-24 pl-12"
                 rows="1"
                 :disabled="loading"
             />

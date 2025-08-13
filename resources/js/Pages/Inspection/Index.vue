@@ -1344,7 +1344,7 @@ usePoll(10000, {
                     <Textarea
                         v-model="newMessage"
                         placeholder="Type your message..."
-                        class="w-full resize-none rounded-2xl border py-3 pr-24"
+                        class="w-full resize-y rounded-2xl border py-3 pr-24"
                         rows="1"
                         :disabled="isSendingMessage"
                         @keydown.enter.prevent="sendMessage"

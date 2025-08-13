@@ -276,19 +276,6 @@ const sendMessage = () => {
                 // }
             });
 
-            // Update the job in jobsByStatus to reflect the new message count
-            Object.keys(props.jobsByStatus).forEach((status) => {
-                const jobIndex = props.jobsByStatus[status].findIndex(
-                    (job) => job.id === selectedEvent.value.job.id
-                );
-                if (jobIndex !== -1) {
-                    props.jobsByStatus[status][jobIndex].text_messages_count =
-                        (props.jobsByStatus[status][jobIndex]
-                            .text_messages_count || 0) +
-                        selectedRecipients.value.length;
-                }
-            });
-
             newMessage.value = "";
             removeImage();
 
@@ -307,6 +294,26 @@ const sendMessage = () => {
         },
         only: ["jobsByStatus"],
     });
+};
+// Save contacts for future use
+const saveContactsForJob = async () => {
+    if (!selectedEvent.value || selectedRecipients.value.length === 0) return;
+
+    try {
+        const response = await axios.post(
+            route("client-contacts.store", {
+                jobber: selectedEvent.value.job.id,
+            }),
+            {
+                contacts: selectedRecipients.value.map((recipient) => ({
+                    name: recipient.name || recipient.phone,
+                    phone: recipient.phone,
+                })),
+            }
+        );
+    } catch (error) {
+        console.error("Error saving contacts:", error);
+    }
 };
 
 // Watch for contact selection changes
@@ -914,7 +921,7 @@ const closeEventModal = () => {
                     <Textarea
                         v-model="newMessage"
                         placeholder="Type your message..."
-                        class="w-full resize-none rounded-2xl border py-3 pr-24"
+                        class="w-full resize-y rounded-2xl border py-3 pr-24"
                         rows="1"
                         :disabled="isSendingMessage"
                         @keydown.enter.prevent="sendMessage"
