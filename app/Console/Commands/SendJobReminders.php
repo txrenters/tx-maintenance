@@ -116,25 +116,25 @@ class SendJobReminders extends Command
                 $clientStatus = $record[2];
                 $clientName = $record[3];
                 $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
-                $workPhoneNumber = $this->formatNumber($record[11]);
-                $otherPhoneNumber = $this->formatNumber($record[12]);
-                $mobilePhoneNumber = $this->formatNumber($record[13]);
-                $homePhoneNumber = $this->formatNumber($record[14]);
 
                 if (strtolower($clientStatus) === 'active') {
 
                     try {
                         $workingPhoneNumber = collect([
-                            $mobilePhoneNumber,
-                            $homePhoneNumber,
-                            $workPhoneNumber,
-                            $otherPhoneNumber
-                        ])->first(fn($number) => !empty($number));
+                            $record[11] ?? null,
+                            $record[12] ?? null,
+                            $record[13] ?? null,
+                            $record[14] ?? null
+                        ])
+                        ->map(fn($number) => trim((string) $number))
+                        ->first(fn($number) => $number !== '');
             
                         if (empty($workingPhoneNumber)) {
                             Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
                             continue;
                         }
+
+                        $workingPhoneNumber = $this->formatNumber($workingPhoneNumber);
                        
                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
                         $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
@@ -154,7 +154,7 @@ class SendJobReminders extends Command
                         $text = JobberTextMessage::create([
                             'messages' => $message2 ?? '',
                             'sender_number' => $senderNumber,
-                            'receiver_number' => $mobilePhoneNumber,
+                            'receiver_number' => $workingPhoneNumber,
                             'jobber_id' => $visit->job->id,
                         ]);
 
@@ -178,7 +178,7 @@ class SendJobReminders extends Command
         $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
 
         if (empty($cleanedNumber)) {
-            throw new InvalidArgumentException('The provided phone number is invalid.');
+            Log::error('The provided phone number is invalid', ['phone' => $number]);
         }
 
         return '+1'.$cleanedNumber;

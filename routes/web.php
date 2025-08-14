@@ -187,7 +187,7 @@ Route::get('jobber', function () {
 Route::get('lofty', function () {
 
     // $response = Http::withHeaders([
-    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMTg2Nzg1Mjk2OTMsInVzZXJfaWQiOjg0NDc2NzIwMDg5NjI3OCwic2NvcGUiOiI1IiwiaWF0IjoxNzQxODc4NTI5NjkzfQ.CwelU10RiIOmcd3NaRX2r83oMuKMBurfx6wwKV2XIYM',
     //     'Content-Type'  => 'application/json',
     // ])->get('https://api.lofty.com/v1.0/webhooks');
 
@@ -201,7 +201,7 @@ Route::get('lofty', function () {
     // ]);
 
     // $response = Http::withHeaders([
-    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMTg2Nzg1Mjk2OTMsInVzZXJfaWQiOjg0NDc2NzIwMDg5NjI3OCwic2NvcGUiOiI1IiwiaWF0IjoxNzQxODc4NTI5NjkzfQ.CwelU10RiIOmcd3NaRX2r83oMuKMBurfx6wwKV2XIYM',
     //     'Content-Type'  => 'application/json',
     // ])->post('https://api.lofty.com/v1.0/webhook', [
     //     "listId" => 3,
@@ -219,14 +219,14 @@ Route::get('lofty', function () {
     // ]);
 
     $response = Http::withHeaders([
-        'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+        'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMTg2Nzg1Mjk2OTMsInVzZXJfaWQiOjg0NDc2NzIwMDg5NjI3OCwic2NvcGUiOiI1IiwiaWF0IjoxNzQxODc4NTI5NjkzfQ.CwelU10RiIOmcd3NaRX2r83oMuKMBurfx6wwKV2XIYM',
         'Content-Type'  => 'application/json',
     ])->post('https://api.lofty.com/v1.0/leads', [
-            'firstName' => 'Bob',
+            'firstName' => 'Test 2',
             'lastName' => 'Li',
             'emails' => [
-                'wwww@gmail.com',
-                'eeeee@gmail.com'
+                'text@gmail.com',
+                'test@gmail.com'
             ],
             'phones' => [
                 '123456789',
@@ -262,9 +262,9 @@ Route::get('lofty', function () {
             
             ]);
 
-    $newData = $response->json();
+    $response->json();
 
-    dd($newData);
+    dd($response->json());
 });
 
 
