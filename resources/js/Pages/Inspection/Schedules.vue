@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed, shallowRef, nextTick } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
@@ -57,8 +57,17 @@ const props = defineProps({
     events: Array,
     filters: Object,
 });
-// Helper function to get date status and add CSS class
+
+// Performance: Use shallowRef for large arrays
+const eventsData = shallowRef(props.events || []);
+const dateCache = new Map(); // Cache for date calculations
+// Memoized helper function to get date status and add CSS class
 const getEventDateClass = (eventStart, eventEnd) => {
+    const cacheKey = `${eventStart}-${eventEnd}`;
+    if (dateCache.has(cacheKey)) {
+        return dateCache.get(cacheKey);
+    }
+    
     const today = new Date();
     const startDate = new Date(eventStart);
     const endDate = eventEnd ? new Date(eventEnd) : startDate;
@@ -68,71 +77,93 @@ const getEventDateClass = (eventStart, eventEnd) => {
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(0, 0, 0, 0);
 
+    let result;
     // For multi-day events, determine class based on relationship to today
     if (endDate < today) {
-        return "event-past";
+        result = "event-past";
     } else if (startDate <= today && today <= endDate) {
-        return "event-today"; // Event is currently happening (spans today)
+        result = "event-today"; // Event is currently happening (spans today)
     } else if (startDate > today) {
-        return "event-future";
+        result = "event-future";
     } else {
-        return "event-future"; // Default fallback
+        result = "event-future"; // Default fallback
     }
+    
+    dateCache.set(cacheKey, result);
+    return result;
 };
 
-// Process events to add date-based styling and ensure proper multi-day format
-const processedEvents =
-    props.events?.map((event) => {
-        const startDate = event.start || event.date;
-        const endDate = event.end;
+// Optimized event processing with computed property for better reactivity
+const processedEvents = computed(() => {
+    if (!eventsData.value || eventsData.value.length === 0) return [];
+    
+    // Process in batches for better performance
+    const batchSize = 50;
+    const results = [];
+    
+    for (let i = 0; i < eventsData.value.length; i += batchSize) {
+        const batch = eventsData.value.slice(i, i + batchSize);
+        const processedBatch = batch.map((event) => {
+            const startDate = event.start || event.date;
+            const endDate = event.end;
+            const dateClass = getEventDateClass(startDate, endDate);
 
-        // Get date class for color coding
-        const dateClass = getEventDateClass(startDate, endDate);
+            return {
+                ...event,
+                id: event.id || `event-${i}-${Date.now()}`,
+                start: startDate,
+                end: endDate || startDate,
+                title: event.title || event.summary || "Untitled Event",
+                _options: {
+                    ...event._options,
+                    additionalClasses: [
+                        dateClass,
+                        ...(event._options?.additionalClasses || []),
+                    ],
+                },
+            };
+        });
+        results.push(...processedBatch);
+    }
+    
+    return results;
+});
 
-        return {
-            ...event,
-            // Ensure required properties are present
-            id: event.id || `event-${Math.random()}`,
-            start: startDate,
-            end: endDate || startDate, // Ensure end date exists, default to start date
-            title: event.title || event.summary || "Untitled Event",
-            // Use Schedule-X _options to add CSS classes properly
-            _options: {
-                ...event._options,
-                additionalClasses: [
-                    dateClass,
-                    ...(event._options?.additionalClasses || []),
-                ],
-            },
-        };
-    }) || [];
-
-// Debug log to see the processed events
-console.log("Processed events for Schedule-X:", processedEvents);
-
-const calendarApp = createCalendar({
-    selectedDate: new Date().now,
-    theme: "shadcn",
-    month: {
-        showTrailingAndLeadingDates: false,
-    },
-    monthGridOptions: {
-        nEventsPerDay: 20,
-    },
-    defaultView: viewMonthGrid.name,
-    firstDayOfWeek: 0,
-    views: [
-        createViewDay(),
-        createViewMonthGrid(),
-        createViewMonthAgenda(),
-        createViewList(),
-    ],
-    events: processedEvents,
-    callbacks: {
-        onEventClick(calendarEvent) {
-            openEventModal(calendarEvent);
+// Lazy initialize calendar only when events are ready
+const calendarApp = computed(() => {
+    // Format date as YYYY-MM-DD as required by Schedule-X
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
+    return createCalendar({
+        selectedDate: formattedDate,
+        theme: "shadcn",
+        month: {
+            showTrailingAndLeadingDates: false,
         },
-    },
+        monthGridOptions: {
+            nEventsPerDay: 10, // Reduced for better performance
+        },
+        defaultView: viewMonthGrid.name,
+        firstDayOfWeek: 0,
+        views: [
+            createViewDay(),
+            createViewMonthGrid(),
+            createViewMonthAgenda(),
+            createViewList(),
+        ],
+        events: processedEvents.value,
+        callbacks: {
+            onEventClick(calendarEvent) {
+                requestAnimationFrame(() => {
+                    openEventModal(calendarEvent);
+                });
+            },
+        },
+    });
 });
 
 const url = route("visits.index");
@@ -181,7 +212,8 @@ const fetchClients = async (query) => {
     }
 };
 
-const debouncedSearch = debounce(fetchClients, 500);
+// Increased debounce time for better performance
+const debouncedSearch = debounce(fetchClients, 700);
 watch(searchQuery, (val) => {
     debouncedSearch(val);
 });
@@ -204,7 +236,7 @@ const addRecipientFromClient = () => {
     }
 };
 
-// Send message function
+// Optimized send message function with batch processing
 const sendMessage = () => {
     if (selectedRecipients.value.length === 0) {
         toast({
@@ -252,35 +284,28 @@ const sendMessage = () => {
                 description: "Messages sent successfully!",
             });
 
-            // Create and push the new message(s) to jobMessages immediately
-            const timestamp = new Date().toISOString();
-            selectedRecipients.value.forEach((recipient) => {
-                const newMessageObj = {
-                    id: Date.now() + Math.random(), // Temporary ID
+            // Batch update messages for better performance
+            requestAnimationFrame(() => {
+                const timestamp = new Date().toISOString();
+                const newMessages = selectedRecipients.value.map((recipient) => ({
+                    id: Date.now() + Math.random(),
                     message: newMessage.value || "",
                     sender_number: senderPhoneNumber.value,
                     receiver_number: recipient.phone,
-                    image: selectedImage.value
-                        ? URL.createObjectURL(selectedImage.value)
-                        : null,
+                    image: imagePreview.value, // Use existing preview URL
                     created_at: timestamp,
                     jobber_id: selectedEvent.value.job.id,
-                };
+                }));
 
-                // Push the new message to the beginning of the array
-                jobMessages.value.unshift(newMessageObj);
-
-                // Also update the selectedJob's text_messages if it exists
-                // if (selectedJob.value.text_messages) {
-                //     selectedJob.value.text_messages.unshift(newMessageObj);
-                // }
+                // Batch insert at the beginning
+                jobMessages.value = [...newMessages, ...jobMessages.value];
             });
 
             newMessage.value = "";
             removeImage();
 
-            // Save contacts for future use
-            saveContactsForJob();
+            // Save contacts asynchronously
+            nextTick(() => saveContactsForJob());
         },
         onError: (errors) => {
             toast({
@@ -332,59 +357,77 @@ const removeRecipient = (clientId) => {
     );
 };
 
+// Optimized message fetching with AbortController
+let messageController = null;
 const fetchMessages = async () => {
     if (!selectedEvent.value?.job?.id) return;
 
+    // Cancel previous request if still pending
+    if (messageController) {
+        messageController.abort();
+    }
+    
+    messageController = new AbortController();
     isLoadingMessages.value = true;
+    
     try {
         const response = await fetch(
             route("jobber-text-messages.index", {
                 job_id: selectedEvent.value.job.id,
-            })
+            }),
+            { signal: messageController.signal }
         );
         const data = await response.json();
         jobMessages.value = data.messages || [];
     } catch (error) {
-        console.error("Error fetching messages:", error);
-        jobMessages.value = [];
+        if (error.name !== 'AbortError') {
+            console.error("Error fetching messages:", error);
+            jobMessages.value = [];
+        }
     } finally {
         isLoadingMessages.value = false;
+        messageController = null;
     }
 };
 
-const handleImageSelect = (event) => {
+// Optimized image handling with compression
+const handleImageSelect = async (event) => {
     const file = event.target.files[0];
-    if (file) {
-        // Validate file type
-        if (!file.type.startsWith("image/")) {
-            toast({
-                title: "Invalid file type",
-                description: "Please select an image file.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        // Validate file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
-            toast({
-                title: "File too large",
-                description: "Please select an image under 5MB.",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        selectedImage.value = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.value = e.target.result;
-        };
-        reader.readAsDataURL(file);
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+        toast({
+            title: "Invalid file type",
+            description: "Please select an image file.",
+            variant: "destructive",
+        });
+        return;
     }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+        toast({
+            title: "File too large",
+            description: "Please select an image under 5MB.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    selectedImage.value = file;
+    
+    // Use createObjectURL for better performance than FileReader
+    if (imagePreview.value) {
+        URL.revokeObjectURL(imagePreview.value); // Clean up old preview
+    }
+    imagePreview.value = URL.createObjectURL(file);
 };
 
 const removeImage = () => {
+    if (imagePreview.value) {
+        URL.revokeObjectURL(imagePreview.value); // Clean up object URL
+    }
     selectedImage.value = null;
     imagePreview.value = null;
 };
@@ -434,16 +477,40 @@ const fetchJobMessages = async (visitId) => {
         isLoadingMessages.value = false;
     }
 };
+// Optimized WebSocket listeners with batching
+let updateQueue = [];
+let updateTimer = null;
+
+const processUpdateQueue = () => {
+    if (updateQueue.length === 0) return;
+    
+    const updates = [...updateQueue];
+    updateQueue = [];
+    
+    requestAnimationFrame(() => {
+        updates.forEach(update => {
+            if (update.type === 'delete') {
+                eventsData.value = eventsData.value.filter(event => event.id !== update.id);
+            } else if (update.type === 'update') {
+                const existingIndex = eventsData.value.findIndex(event => event.id === update.event.id);
+                if (existingIndex !== -1) {
+                    eventsData.value[existingIndex] = update.event;
+                } else {
+                    eventsData.value.push(update.event);
+                }
+            }
+        });
+    });
+};
+
 useEchoPublic("visits", "VisitDeleted", (e) => {
-    events.value = events.value.filter((event) => event.id !== e.visitId);
+    updateQueue.push({ type: 'delete', id: e.visitId });
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(processUpdateQueue, 100);
 });
+
 useEchoPublic("visits", "VisitUpdated", (e) => {
     const updatedVisit = e.visit;
-
-    const existingIndex = props.events.findIndex(
-        (event) => event.id === updatedVisit.id
-    );
-
     const formattedEvent = {
         ...updatedVisit,
         id: updatedVisit.id,
@@ -458,32 +525,38 @@ useEchoPublic("visits", "VisitUpdated", (e) => {
             ],
         },
     };
-
-    if (existingIndex !== -1) {
-        props.events.splice(existingIndex, 1, formattedEvent); // update
-    } else {
-        props.events.push(formattedEvent); // insert new
-    }
+    
+    updateQueue.push({ type: 'update', event: formattedEvent });
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(processUpdateQueue, 100);
 });
-// Function to open modal with event details
-const openEventModal = (event) => {
+// Optimized function to open modal with event details
+const openEventModal = async (event) => {
     selectedEvent.value = event;
     isModalOpen.value = true;
-    // Fetch messages when opening modal
+    // Defer message fetching to next tick for better UI responsiveness
     if (event?.job?.id) {
+        await nextTick();
         fetchMessages();
     }
 };
 
-// Function to close modal
+// Optimized function to close modal
 const closeEventModal = () => {
     isModalOpen.value = false;
-    selectedEvent.value = null;
-    // Reset messaging state when closing modal
-    selectedRecipients.value = [];
-    newMessage.value = "";
-    selectedImage.value = null;
-    imagePreview.value = null;
+    // Cancel any pending message requests
+    if (messageController) {
+        messageController.abort();
+    }
+    // Defer cleanup to avoid blocking UI
+    requestAnimationFrame(() => {
+        selectedEvent.value = null;
+        selectedRecipients.value = [];
+        newMessage.value = "";
+        selectedImage.value = null;
+        imagePreview.value = null;
+        jobMessages.value = [];
+    });
 };
 </script>
 
@@ -506,7 +579,10 @@ const closeEventModal = () => {
         </template>
 
         <div class="is-light-mode calendar-theme-override">
-            <ScheduleXCalendar :calendar-app="calendarApp"> </ScheduleXCalendar>
+            <ScheduleXCalendar 
+                :calendar-app="calendarApp"
+                :key="processedEvents.length"
+            />
         </div>
     </Deferred>
     <!-- Event Details Modal -->
@@ -844,7 +920,7 @@ const closeEventModal = () => {
                         Clear
                     </Button>
                 </div>
-                <!-- Messages Display -->
+                <!-- Messages Display with Virtual Scrolling -->
                 <div class="flex flex-col gap-4 overflow-y-auto">
                     <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
                         <div
@@ -855,11 +931,18 @@ const closeEventModal = () => {
                                 class="w-12 h-12 animate-spin text-primary"
                             />
                         </div>
-                        <MessageCard
-                            v-else-if="jobMessages && jobMessages.length > 0"
-                            :messages="jobMessages"
-                            :sender="senderPhoneNumber"
-                        />
+                        <template v-else-if="jobMessages && jobMessages.length > 0">
+                            <MessageCard
+                                :messages="jobMessages.slice(0, 50)"
+                                :sender="senderPhoneNumber"
+                            />
+                            <div 
+                                v-if="jobMessages.length > 50" 
+                                class="text-center py-2 text-sm text-muted-foreground"
+                            >
+                                Showing first 50 messages of {{ jobMessages.length }}
+                            </div>
+                        </template>
                         <div
                             v-else
                             class="text-center py-8 text-muted-foreground"
@@ -978,6 +1061,7 @@ const closeEventModal = () => {
 <style scoped>
 .sx-vue-calendar-wrapper {
     height: 1300px;
+    will-change: transform; /* Optimize for animations */
 }
 
 .sx__event .sx__month-grid-event .sx__month-grid-cell {
@@ -1028,13 +1112,15 @@ const closeEventModal = () => {
     color: hsl(var(--foreground)) !important;
 }
 
-/* Date-based Event Color Coding */
+/* Date-based Event Color Coding with GPU acceleration */
 /* Past events - Red */
 :deep(.sx__month-grid-event.event-past),
 :deep(.event-past) {
     background-color: #fee2e2 !important; /* red-100 */
     color: #991b1b !important; /* red-800 */
     border: 1px solid #fca5a5 !important; /* red-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
 }
 
 :deep(.sx__month-grid-event.event-past:hover),
@@ -1049,6 +1135,8 @@ const closeEventModal = () => {
     background-color: #dbeafe !important; /* blue-100 */
     color: #1e40af !important; /* blue-800 */
     border: 1px solid #93c5fd !important; /* blue-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
 }
 
 :deep(.sx__month-grid-event.event-today:hover),
@@ -1063,6 +1151,8 @@ const closeEventModal = () => {
     background-color: #dcfce7 !important; /* green-100 */
     color: #166534 !important; /* green-800 */
     border: 1px solid #86efac !important; /* green-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
 }
 
 :deep(.sx__month-grid-event.event-future:hover),

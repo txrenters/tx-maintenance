@@ -210,10 +210,10 @@ Route::get('lofty', function () {
     // ]);
 
     // $response = Http::withHeaders([
-    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMzE5MTcwMDk4MTQsInVzZXJfaWQiOjg0NDc2OTk4NjczMzMyOSwic2NvcGUiOiI1IiwiaWF0IjoxNzU1MTE3MDA5ODE0fQ.tth0iTRGjkcpOXVN1KYXk7oHjWqJ8Y1dn_NqLaoBosI',
+    //     'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMTg2Nzg1Mjk2OTMsInVzZXJfaWQiOjg0NDc2NzIwMDg5NjI3OCwic2NvcGUiOiI1IiwiaWF0IjoxNzQxODc4NTI5NjkzfQ.CwelU10RiIOmcd3NaRX2r83oMuKMBurfx6wwKV2XIYM',
     //     'Content-Type'  => 'application/json',
     // ])->post('https://api.lofty.com/v1.0/webhook', [
-    //     "listId" =>4,
+    //     "listId" =>1,
     //     "callbackUrl" => "https://n8n.srv902502.hstgr.cloud/webhook-test/42e817d2-a5e6-47e3-a893-45742f4650e7",
     //     "limit" =>  100
     // ]);
@@ -225,8 +225,8 @@ Route::get('lofty', function () {
             'firstName' => 'Test 2',
             'lastName' => 'Li',
             'emails' => [
-                'text@gmail.com',
-                'test@gmail.com'
+                'sample@gmail.com',
+                'sample@gmail.com'
             ],
             'phones' => [
                 '123456789',

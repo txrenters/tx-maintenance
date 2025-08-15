@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, shallowRef, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, watch } from "vue";
 import { router, usePage, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -39,7 +39,7 @@ import {
 import Navigation from "./partials/Navigation.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
-import { Deferred, Head } from "@inertiajs/vue3";
+import { Deferred } from "@inertiajs/vue3";
 import { useEchoPublic } from "@laravel/echo-vue";
 import {
     Popover,
@@ -49,21 +49,6 @@ import {
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import axios from "axios";
-import { Button } from "@/Components/ui/button";
-import { Badge } from "@/Components/ui/badge";
-import { 
-    Dialog, 
-    DialogContent, 
-    DialogDescription, 
-    DialogHeader, 
-    DialogTitle, 
-    DialogFooter 
-} from "@/Components/ui/dialog";
-import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
-import { Separator } from "@/Components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
-import { Label } from "@/Components/ui/label";
-import { Textarea } from "@/Components/ui/textarea";
 
 const { toast } = useToast();
 
@@ -79,13 +64,6 @@ const props = defineProps({
     filter: Object,
 });
 
-// Performance: Use shallowRef for large objects
-const dateFormatCache = new Map();
-const currencyFormatCache = new Map();
-
-// Watch for prop changes and update reactive data
-const jobsByStatusData = computed(() => props.jobsByStatus || {});
-
 const url = route("inspections.index");
 const search = ref(props.filter.search ?? "");
 
@@ -93,8 +71,6 @@ const search = ref(props.filter.search ?? "");
 const isModalOpen = ref(false);
 const selectedJob = ref(null);
 const activeTab = ref("details");
-
-// Remove virtual scrolling for now to fix data loading
 
 // Tab configuration
 const tabButtons = [
@@ -115,84 +91,41 @@ const tabButtons = [
     },
 ];
 
-// Optimized job modal opening with lazy loading
-let jobDetailsController = null;
+// Function to open modal with job details
 const openJobModal = async (job) => {
-    // Cancel previous request if still pending
-    if (jobDetailsController) {
-        jobDetailsController.abort();
-    }
-    
-    jobDetailsController = new AbortController();
-    
-    try {
-        const response = await axios.get(
-            route("jobber.jobDetails", job.id),
-            { signal: jobDetailsController.signal }
-        );
+    const response = await axios.get(route("jobber.jobDetails", job.id));
 
-        selectedJob.value = { ...job, ...response.data };
-        isModalOpen.value = true;
-        activeTab.value = "details";
+    selectedJob.value = { ...job, ...response.data };
+    isModalOpen.value = true;
+    activeTab.value = "details"; // Always start with details view
 
-        // Defer state reset to next tick
-        await nextTick();
-        
-        // Reset messaging state
-        newMessage.value = "";
-        selectedContact.value = "";
-        selectedRecipients.value = [];
-        jobMessages.value = response.data.text_messages?.slice(0, 50) || []; // Limit initial messages
-        jobContacts.value = [];
-        selectedImage.value = null;
-        imagePreview.value = null;
-        selectedClient.value = job.client;
-        contactPhoneNumber.value = job.client?.phone ?? "";
+    // Reset messaging state
+    newMessage.value = "";
+    selectedContact.value = "";
+    selectedRecipients.value = [];
+    jobMessages.value = response.data.text_messages || [];
+    jobContacts.value = [];
+    selectedImage.value = null;
+    imagePreview.value = null;
+    selectedClient.value = job.client;
+    contactPhoneNumber.value = job.client?.phone ?? "";
 
-        // Load saved contacts asynchronously
-        loadSavedContacts(job.id);
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error("Error loading job details:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Failed to load job details",
-            });
-        }
-    } finally {
-        jobDetailsController = null;
-    }
+    // Load saved contacts for this job
+    loadSavedContacts(job.id);
 };
 
-// Optimized modal closing
+// Function to close modal
 const closeJobModal = () => {
     isModalOpen.value = false;
-    
-    // Cancel any pending requests
-    if (jobDetailsController) {
-        jobDetailsController.abort();
-    }
-    
-    // Defer cleanup to avoid blocking UI
-    requestAnimationFrame(() => {
-        selectedJob.value = null;
-        activeTab.value = "details";
-        jobMessages.value = [];
-        selectedRecipients.value = [];
-        newMessage.value = "";
-        if (imagePreview.value) {
-            URL.revokeObjectURL(imagePreview.value);
-            imagePreview.value = null;
-        }
-        selectedImage.value = null;
-    });
+    selectedJob.value = null;
+    activeTab.value = "details";
 };
 
 // Function to switch tabs
 const switchTab = (tabName) => {
     activeTab.value = tabName;
     if (tabName === "messages" && selectedJob.value?.id) {
+        // Fetch messages when switching to messages tab
         fetchJobMessages(selectedJob.value.id);
     }
 };
@@ -201,7 +134,7 @@ const newMessage = ref("");
 const selectedContact = ref("");
 const contactPhoneNumber = ref("");
 const selectedRecipients = ref([]);
-const senderPhoneNumber = ref(page.props.twilio_phone_number);
+const senderPhoneNumber = ref(page.props.twilio_phone_number); // This should come from user's settings/config
 const isLoadingMessages = ref(false);
 const isSendingMessage = ref(false);
 const jobMessages = ref([]);
@@ -214,77 +147,64 @@ const selectedImage = ref(null);
 const imagePreview = ref(null);
 const fileInput = ref(null);
 
-// Optimized message fetching
-let messageController = null;
+// Fetch job messages
 const fetchJobMessages = async (jobId) => {
-    // Cancel previous request if still pending
-    if (messageController) {
-        messageController.abort();
-    }
-    
-    messageController = new AbortController();
-    
     try {
         isLoadingMessages.value = true;
-        // Messages are already loaded with the job data
+        // Messages are already loaded with the job data, so just use what we have
         if (selectedJob.value?.text_messages) {
-            // Limit messages for performance
-            jobMessages.value = selectedJob.value.text_messages.slice(0, 50);
+            jobMessages.value = selectedJob.value.text_messages;
         } else {
             jobMessages.value = [];
         }
         jobContacts.value = [];
     } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error("Error fetching messages:", error);
-            jobMessages.value = [];
-            jobContacts.value = [];
-        }
+        console.error("Error fetching messages:", error);
+        jobMessages.value = [];
+        jobContacts.value = [];
     } finally {
         isLoadingMessages.value = false;
-        messageController = null;
     }
 };
 
-// Optimized image handling
-const handleImageSelect = async (event) => {
+// Handle file selection
+const handleImageSelect = (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (file) {
+        // Validate file type
+        if (!file.type.startsWith("image/")) {
+            toast({
+                variant: "destructive",
+                title: "Invalid file type",
+                description:
+                    "Please select an image file (JPG, PNG, GIF, etc.)",
+            });
+            return;
+        }
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-        toast({
-            variant: "destructive",
-            title: "Invalid file type",
-            description: "Please select an image file (JPG, PNG, GIF, etc.)",
-        });
-        return;
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            toast({
+                variant: "destructive",
+                title: "File too large",
+                description: "Please select an image smaller than 5MB",
+            });
+            return;
+        }
+
+        selectedImage.value = file;
+
+        // Create preview URL
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.value = e.target.result;
+        };
+        reader.readAsDataURL(file);
     }
-
-    // Validate file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-        toast({
-            variant: "destructive",
-            title: "File too large",
-            description: "Please select an image smaller than 5MB",
-        });
-        return;
-    }
-
-    selectedImage.value = file;
-
-    // Use createObjectURL for better performance
-    if (imagePreview.value) {
-        URL.revokeObjectURL(imagePreview.value);
-    }
-    imagePreview.value = URL.createObjectURL(file);
 };
 
-// Remove selected image with cleanup
+// Remove selected image
 const removeImage = () => {
-    if (imagePreview.value) {
-        URL.revokeObjectURL(imagePreview.value);
-    }
     selectedImage.value = null;
     imagePreview.value = null;
     if (fileInput.value) {
@@ -297,21 +217,12 @@ const triggerFileInput = () => {
     fileInput.value?.click();
 };
 
-// Optimized contact loading
-let contactsController = null;
+// Load saved contacts for the job
 const loadSavedContacts = async (jobId) => {
-    // Cancel previous request if still pending
-    if (contactsController) {
-        contactsController.abort();
-    }
-    
-    contactsController = new AbortController();
-    
     try {
         isLoadingContacts.value = true;
         const response = await axios.get(
-            route("client-contacts.index", { jobber: jobId }),
-            { signal: contactsController.signal }
+            route("client-contacts.index", { jobber: jobId })
         );
         savedContacts.value = response.data || [];
 
@@ -323,13 +234,10 @@ const loadSavedContacts = async (jobId) => {
             }));
         }
     } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error("Error loading contacts:", error);
-            savedContacts.value = [];
-        }
+        console.error("Error loading contacts:", error);
+        savedContacts.value = [];
     } finally {
         isLoadingContacts.value = false;
-        contactsController = null;
     }
 };
 
@@ -350,9 +258,18 @@ const saveContactsForJob = async () => {
 
         if (response.data.success) {
             savedContacts.value = response.data.contacts;
+            toast({
+                title: "Success",
+                description: "Contacts saved for future use",
+            });
         }
     } catch (error) {
         console.error("Error saving contacts:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to save contacts",
+        });
     }
 };
 
@@ -378,7 +295,7 @@ const addRecipientFromClient = () => {
     }
 };
 
-// Optimized send message function
+// Send message function
 const sendMessage = () => {
     if (selectedRecipients.value.length === 0) {
         toast({
@@ -426,31 +343,48 @@ const sendMessage = () => {
                 description: "Messages sent successfully!",
             });
 
-            // Batch update messages for better performance
-            requestAnimationFrame(() => {
-                const timestamp = new Date().toISOString();
-                const newMessages = selectedRecipients.value.map((recipient) => ({
-                    id: Date.now() + Math.random(),
+            // Create and push the new message(s) to jobMessages immediately
+            const timestamp = new Date().toISOString();
+            selectedRecipients.value.forEach((recipient) => {
+                const newMessageObj = {
+                    id: Date.now() + Math.random(), // Temporary ID
                     message: newMessage.value || "",
                     sender_number: senderPhoneNumber.value,
                     receiver_number: recipient.phone,
-                    image: imagePreview.value,
+                    image: selectedImage.value
+                        ? URL.createObjectURL(selectedImage.value)
+                        : null,
                     created_at: timestamp,
                     jobber_id: selectedJob.value.id,
-                }));
+                };
 
-                // Batch insert at the beginning
-                jobMessages.value = [...newMessages, ...jobMessages.value].slice(0, 50);
+                // Push the new message to the beginning of the array
+                jobMessages.value.unshift(newMessageObj);
 
-                // Update job count in the main list
-                updateJobMessageCount(selectedJob.value.id, selectedRecipients.value.length);
+                // Also update the selectedJob's text_messages if it exists
+                // if (selectedJob.value.text_messages) {
+                //     selectedJob.value.text_messages.unshift(newMessageObj);
+                // }
+            });
+
+            // Update the job in jobsByStatus to reflect the new message count
+            Object.keys(props.jobsByStatus).forEach((status) => {
+                const jobIndex = props.jobsByStatus[status].findIndex(
+                    (job) => job.id === selectedJob.value.id
+                );
+                if (jobIndex !== -1) {
+                    props.jobsByStatus[status][jobIndex].text_messages_count =
+                        (props.jobsByStatus[status][jobIndex]
+                            .text_messages_count || 0) +
+                        selectedRecipients.value.length;
+                }
             });
 
             newMessage.value = "";
             removeImage();
 
-            // Save contacts asynchronously
-            nextTick(() => saveContactsForJob());
+            // Save contacts for future use
+            saveContactsForJob();
         },
         onError: (errors) => {
             toast({
@@ -466,19 +400,6 @@ const sendMessage = () => {
     });
 };
 
-// Update job message count
-const updateJobMessageCount = (jobId, addCount) => {
-    Object.keys(props.jobsByStatus).forEach((status) => {
-        const jobIndex = props.jobsByStatus[status].findIndex(
-            (job) => job.id === jobId
-        );
-        if (jobIndex !== -1) {
-            props.jobsByStatus[status][jobIndex].text_messages_count =
-                (props.jobsByStatus[status][jobIndex].text_messages_count || 0) + addCount;
-        }
-    });
-};
-
 // Watch for contact selection changes
 watch(selectedContact, (newContactId) => {
     if (newContactId) {
@@ -491,24 +412,21 @@ watch(selectedContact, (newContactId) => {
 
 const formatStatus = (status) => {
     if (typeof status !== "string") return "";
+
     return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
-// Memoized date formatting
 const formatDate = (date) => {
     if (!date) return "------";
-    
-    // Check cache first
-    if (dateFormatCache.has(date)) {
-        return dateFormatCache.get(date);
-    }
 
     let parsedDate;
 
     if (typeof date === "string") {
         if (date.includes("T")) {
+            // Handle ISO format (2025-03-06T17:41:20.000000Z)
             parsedDate = DateTime.fromISO(date, { zone: "utc" });
         } else {
+            // Handle non-ISO format (2025-03-06 23:10:06)
             parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", {
                 zone: "utc",
             });
@@ -519,32 +437,17 @@ const formatDate = (date) => {
         return "Invalid Date";
     }
 
-    const formatted = parsedDate.isValid
+    return parsedDate.isValid
         ? parsedDate.toFormat("MM/dd/yyyy")
         : "Invalid Date";
-    
-    // Cache the result
-    dateFormatCache.set(date, formatted);
-    return formatted;
 };
 
-// Memoized currency formatting
 const formatUSD = (value) => {
     if (typeof value !== "number") return value;
-    
-    // Check cache first
-    if (currencyFormatCache.has(value)) {
-        return currencyFormatCache.get(value);
-    }
-    
-    const formatted = new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
     }).format(value);
-    
-    // Cache the result
-    currencyFormatCache.set(value, formatted);
-    return formatted;
 };
 
 const clients = ref([]);
@@ -552,8 +455,6 @@ const isSearchingLoading = ref(false);
 const isSavingLoading = ref(false);
 const searchQuery = ref("");
 const selectedClient = ref(null);
-
-// Optimized client fetching with increased debounce
 const fetchClients = async (query) => {
     if (!query) {
         clients.value = [];
@@ -565,6 +466,7 @@ const fetchClients = async (query) => {
         const response = await axios.get(
             route("jobber.searchClient", { search: query })
         );
+
         clients.value = response.data;
     } catch (e) {
         console.error("Error fetching clients", e);
@@ -572,12 +474,10 @@ const fetchClients = async (query) => {
         isSearchingLoading.value = false;
     }
 };
-
-const debouncedSearch = debounce(fetchClients, 700); // Increased debounce time
+const debouncedSearch = debounce(fetchClients, 500);
 watch(searchQuery, (val) => {
     debouncedSearch(val);
 });
-
 const df = new DateFormatter("en-US", {
     dateStyle: "medium",
 });
@@ -587,7 +487,6 @@ const date_range = ref({
     end: "",
 });
 
-// Optimized filtering with increased debounce
 const fetchFilteredData = debounce(() => {
     const newQuery = {
         start_date: date_range.value.start
@@ -602,36 +501,11 @@ const fetchFilteredData = debounce(() => {
         preserveState: true,
         preserveScroll: true,
     });
-}, 2500); // Increased debounce time
+}, 2000);
 
 watch(date_range, fetchFilteredData, { deep: true });
 
-// Virtual scrolling removed for now to fix data display
-
-// Cleanup on unmount
-onUnmounted(() => {
-    // Clean up any object URLs
-    if (imagePreview.value) {
-        URL.revokeObjectURL(imagePreview.value);
-    }
-    
-    // Cancel any pending requests
-    if (jobDetailsController) {
-        jobDetailsController.abort();
-    }
-    if (messageController) {
-        messageController.abort();
-    }
-    if (contactsController) {
-        contactsController.abort();
-    }
-    
-    // Clear caches
-    dateFormatCache.clear();
-    currencyFormatCache.clear();
-});
-
-usePoll(15000, { // Increased poll interval
+usePoll(10000, {
     only: ["jobsByStatus"],
 });
 </script>
@@ -736,7 +610,7 @@ usePoll(15000, { // Increased poll interval
                         <div
                             v-for="item in collection"
                             :key="item.id"
-                            class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border transform-gpu"
+                            class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border"
                             @click="openJobModal(item)"
                             :class="{
                                 // Past/Late items - Red (matching calendar past events)
@@ -1097,7 +971,7 @@ usePoll(15000, { // Increased poll interval
                 </div>
             </div>
 
-            <!-- Visits/Schedules View - Limited to first 10 visits -->
+            <!-- Visits/Schedules View -->
             <div
                 v-if="activeTab === 'visits' && selectedJob"
                 class="p-6 space-y-6 overflow-y-auto"
@@ -1117,7 +991,7 @@ usePoll(15000, { // Increased poll interval
                     class="space-y-4"
                 >
                     <div
-                        v-for="(visit, index) in selectedJob.visits.slice(0, 10)"
+                        v-for="(visit, index) in selectedJob.visits"
                         :key="visit.id || index"
                         class="border rounded-lg p-4 hover:bg-muted/20 transition-colors"
                     >
@@ -1255,14 +1129,6 @@ usePoll(15000, { // Increased poll interval
                             </Button>
                         </div>
                     </div>
-                    
-                    <!-- Show more visits indicator -->
-                    <div 
-                        v-if="selectedJob.visits.length > 10"
-                        class="text-center py-2 text-sm text-muted-foreground"
-                    >
-                        Showing first 10 of {{ selectedJob.visits.length }} visits
-                    </div>
                 </div>
 
                 <!-- Empty State for Visits -->
@@ -1277,7 +1143,7 @@ usePoll(15000, { // Increased poll interval
                 </div>
             </div>
 
-            <!-- Text Messages View with Virtual Scrolling -->
+            <!-- Text Messages View -->
             <div
                 v-if="activeTab === 'messages' && selectedJob"
                 class="grid gap-1 overflow-y-auto px-6"
@@ -1401,7 +1267,7 @@ usePoll(15000, { // Increased poll interval
                         Clear
                     </Button>
                 </div>
-                <!-- Messages Display with Virtual Scrolling -->
+                <!-- Messages Display -->
                 <div class="flex flex-col gap-4 overflow-y-auto">
                     <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
                         <div
@@ -1412,18 +1278,11 @@ usePoll(15000, { // Increased poll interval
                                 class="w-12 h-12 animate-spin text-primary"
                             />
                         </div>
-                        <template v-else-if="jobMessages && jobMessages.length > 0">
-                            <MessageCard
-                                :messages="jobMessages"
-                                :sender="senderPhoneNumber"
-                            />
-                            <div 
-                                v-if="selectedJob?.text_messages?.length > 50"
-                                class="text-center py-2 text-sm text-muted-foreground"
-                            >
-                                Showing first 50 of {{ selectedJob.text_messages.length }} messages
-                            </div>
-                        </template>
+                        <MessageCard
+                            v-else-if="jobMessages && jobMessages.length > 0"
+                            :messages="jobMessages"
+                            :sender="senderPhoneNumber"
+                        />
                         <div
                             v-else
                             class="text-center py-8 text-muted-foreground"

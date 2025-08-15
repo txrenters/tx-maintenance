@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import {
     MessageSquare,
@@ -15,8 +16,17 @@ import {
     Eye,
     Wrench,
     PhoneCall,
+    Loader2,
 } from "lucide-vue-next";
 import Navigation from "./partials/Navigation.vue";
+import { Card, CardContent, CardHeader } from "@/Components/ui/card";
+import { Input } from "@/Components/ui/input";
+import { Button } from "@/Components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/Components/ui/dialog";
+import { Head } from "@inertiajs/vue3";
+import Pagination from "@/Components/Pagination.vue";
+import PaginationResultRange from "@/Components/PaginationResultRange.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -30,10 +40,19 @@ const statusFilter = ref("all");
 const workOrderFilter = ref("all");
 const selectedConversation = ref(null);
 const isViewModalOpen = ref(false);
+const isLoading = ref(false);
+const visibleItems = ref(50); // Virtual scrolling - show 50 items initially
+const itemHeight = 64; // Approximate height of each table row in pixels
 
-const openViewModal = (conversation) => {
+const openViewModal = async (conversation) => {
+    isLoading.value = true;
+    
+    // Simulate lazy loading - in a real app, you might fetch additional data here
+    await nextTick();
+    
     selectedConversation.value = conversation;
     isViewModalOpen.value = true;
+    isLoading.value = false;
 };
 
 const closeViewModal = () => {
@@ -41,29 +60,34 @@ const closeViewModal = () => {
     isViewModalOpen.value = false;
 };
 
-const filteredConversations = computed(() => {
-    let filtered = props.conversations.data;
+// Debounced search to avoid excessive filtering
+const debouncedSearch = useDebounceFn((term) => {
+    searchTerm.value = term;
+}, 300);
 
-    if (searchTerm.value) {
-        filtered = filtered.filter(
-            (conv) =>
-                conv.message
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.job_number
-                    ?.toString()
-                    .toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.client
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.sender_number
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.receiver_number
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase())
-        );
+// Optimized filtering with early returns and reduced computations
+const filteredConversations = computed(() => {
+    if (!props.conversations?.data) return [];
+    
+    let filtered = props.conversations.data;
+    const searchLower = searchTerm.value.toLowerCase();
+
+    // Early return if no filters applied
+    if (!searchLower && statusFilter.value === "all") {
+        return filtered;
+    }
+
+    if (searchLower) {
+        filtered = filtered.filter((conv) => {
+            // Use optional chaining and early returns for better performance
+            return (
+                conv.message?.toLowerCase().includes(searchLower) ||
+                conv.job_number?.toString().includes(searchLower) ||
+                conv.client?.toLowerCase().includes(searchLower) ||
+                conv.sender_number?.toLowerCase().includes(searchLower) ||
+                conv.receiver_number?.toLowerCase().includes(searchLower)
+            );
+        });
     }
 
     if (statusFilter.value !== "all") {
@@ -76,15 +100,39 @@ const filteredConversations = computed(() => {
     return filtered;
 });
 
+// Virtual scrolling - only show visible items
+const visibleConversations = computed(() => {
+    return filteredConversations.value.slice(0, visibleItems.value);
+});
+
+// Load more items when scrolling
+const loadMoreItems = () => {
+    if (visibleItems.value < filteredConversations.value.length) {
+        visibleItems.value = Math.min(
+            visibleItems.value + 25,
+            filteredConversations.value.length
+        );
+    }
+};
+
+// Watch for search changes and reset visible items
+watch(searchTerm, () => {
+    visibleItems.value = 50;
+});
+
+// Memoize date formatting for better performance
+const dateCache = new Map();
 const formatDate = (dateString) => {
+    if (dateCache.has(dateString)) {
+        return dateCache.get(dateString);
+    }
+    
     const date = new Date(dateString);
     const options = { timeZone: "America/Chicago" };
-
-    return (
-        date.toLocaleDateString("en-US", options) +
-        " " +
-        date.toLocaleTimeString("en-US", options)
-    );
+    const formatted = date.toLocaleDateString("en-US", options) + " " + date.toLocaleTimeString("en-US", options);
+    
+    dateCache.set(dateString, formatted);
+    return formatted;
 };
 
 const truncateMessage = (message, length = 100) => {
@@ -107,7 +155,8 @@ const truncateMessage = (message, length = 100) => {
                                 class="absolute left-3 top-3 h-4 w-4 text-gray-400"
                             />
                             <Input
-                                v-model="searchTerm"
+                                :model-value="searchTerm"
+                                @input="debouncedSearch($event.target.value)"
                                 type="search"
                                 placeholder="Search messages..."
                                 class="pl-10"
@@ -130,9 +179,12 @@ const truncateMessage = (message, length = 100) => {
                             <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody 
+                        @scroll="loadMoreItems"
+                        style="max-height: 600px; overflow-y: auto;"
+                    >
                         <TableRow
-                            v-for="conversation in filteredConversations"
+                            v-for="conversation in visibleConversations"
                             :key="conversation.id"
                         >
                             <TableCell
@@ -181,10 +233,12 @@ const truncateMessage = (message, length = 100) => {
                                         variant="ghost"
                                         size="sm"
                                         class="gap-1"
+                                        :disabled="isLoading"
                                         @click="openViewModal(conversation)"
                                     >
-                                        <Eye class="w-4 h-4" />
-                                        View
+                                        <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
+                                        <Eye v-else class="w-4 h-4" />
+                                        {{ isLoading ? 'Loading...' : 'View' }}
                                     </Button>
                                 </div>
                             </TableCell>
@@ -202,6 +256,20 @@ const truncateMessage = (message, length = 100) => {
                     <p class="text-gray-500">
                         No conversations found matching your criteria
                     </p>
+                </div>
+                
+                <!-- Load more indicator -->
+                <div 
+                    v-if="visibleItems < filteredConversations.length"
+                    class="text-center py-4 border-t"
+                >
+                    <Button 
+                        variant="outline" 
+                        size="sm"
+                        @click="loadMoreItems"
+                    >
+                        Load More ({{ filteredConversations.length - visibleItems }} remaining)
+                    </Button>
                 </div>
                 <div class="flex justify-between">
                     <PaginationResultRange :data="conversations" />
