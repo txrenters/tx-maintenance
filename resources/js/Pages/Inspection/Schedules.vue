@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, shallowRef, nextTick } from "vue";
+import { ref, watch, computed, shallowRef, nextTick, onMounted } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
@@ -58,9 +58,11 @@ const props = defineProps({
     filters: Object,
 });
 
-// Performance: Use shallowRef for large arrays
-const eventsData = shallowRef(props.events || []);
+// Performance: Use shallowRef for large arrays with deferred loading
+const eventsData = shallowRef([]);
 const dateCache = new Map(); // Cache for date calculations
+const isEventsLoading = ref(true);
+const hasInitializedCalendar = ref(false);
 // Memoized helper function to get date status and add CSS class
 const getEventDateClass = (eventStart, eventEnd) => {
     const cacheKey = `${eventStart}-${eventEnd}`;
@@ -93,12 +95,12 @@ const getEventDateClass = (eventStart, eventEnd) => {
     return result;
 };
 
-// Optimized event processing with computed property for better reactivity
+// Deferred event processing with lazy loading
 const processedEvents = computed(() => {
     if (!eventsData.value || eventsData.value.length === 0) return [];
     
-    // Process in batches for better performance
-    const batchSize = 50;
+    // Process in smaller batches for better performance
+    const batchSize = 25;
     const results = [];
     
     for (let i = 0; i < eventsData.value.length; i += batchSize) {
@@ -129,8 +131,23 @@ const processedEvents = computed(() => {
     return results;
 });
 
-// Lazy initialize calendar only when events are ready
+// Deferred data loader
+const loadEventsData = () => {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+            eventsData.value = props.events || [];
+            isEventsLoading.value = false;
+            resolve();
+        });
+    });
+};
+
+// Lazy initialize calendar only when events are loaded
 const calendarApp = computed(() => {
+    if (isEventsLoading.value || !hasInitializedCalendar.value) {
+        return null;
+    }
+    
     // Format date as YYYY-MM-DD as required by Schedule-X
     const today = new Date();
     const year = today.getFullYear();
@@ -145,7 +162,7 @@ const calendarApp = computed(() => {
             showTrailingAndLeadingDates: false,
         },
         monthGridOptions: {
-            nEventsPerDay: 10, // Reduced for better performance
+            nEventsPerDay: 8, // Further reduced for better performance
         },
         defaultView: viewMonthGrid.name,
         firstDayOfWeek: 0,
@@ -558,6 +575,18 @@ const closeEventModal = () => {
         jobMessages.value = [];
     });
 };
+
+// Initialize deferred loading on mount
+onMounted(async () => {
+    // Show page immediately, then load data
+    await nextTick();
+    
+    // Add a small delay to let the page render first
+    setTimeout(async () => {
+        await loadEventsData();
+        hasInitializedCalendar.value = true;
+    }, 150);
+});
 </script>
 
 <template>
@@ -566,25 +595,28 @@ const closeEventModal = () => {
         <SearchBar :url="url" v-model="search" class="w-full" />
         <Navigation />
     </div>
-    <Deferred data="visits">
-        <template #fallback>
-            <div class="relative w-full h-[70vh]">
-                <div
-                    class="absolute inset-0 flex items-center justify-center bg-white"
-                >
-                    <Loader2Icon class="animate-spin" />
-                    <span class="text-gray-700 ml-3">Loading...</span>
-                </div>
+    <!-- Initial page load - show immediately -->
+    <div class="relative w-full h-[70vh]">
+        <!-- Loading state for calendar initialization -->
+        <div 
+            v-if="isEventsLoading || !hasInitializedCalendar || !calendarApp"
+            class="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10"
+        >
+            <div class="flex flex-col items-center gap-3">
+                <Loader2Icon class="animate-spin h-8 w-8" />
+                <span class="text-muted-foreground">Loading schedule...</span>
             </div>
-        </template>
-
+        </div>
+        
+        <!-- Calendar - render when ready -->
         <div class="is-light-mode calendar-theme-override">
             <ScheduleXCalendar 
+                v-if="calendarApp && !isEventsLoading"
                 :calendar-app="calendarApp"
-                :key="processedEvents.length"
+                :key="`calendar-${processedEvents.length}-${hasInitializedCalendar}`"
             />
         </div>
-    </Deferred>
+    </div>
     <!-- Event Details Modal -->
     <Dialog :open="isModalOpen" @update:open="isModalOpen = $event">
         <DialogContent
