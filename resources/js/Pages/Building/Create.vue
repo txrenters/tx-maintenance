@@ -1417,13 +1417,23 @@ const prepareCustomFieldsForUpdate = () => {
                 mappedValue = "By Management";
             }
 
-            // Map "Owner" to "By Owner" for marketing and pre-move-in fields
+            // Map "Owner" to "By Owner" for marketing and pre-move-in fields (except Debris Removal)
             if (
                 (marketingFields.includes(fieldName) ||
                     preMoveInFields.includes(fieldName)) &&
-                value === "Owner"
+                value === "Owner" &&
+                fieldName !== "Debris Removal"
             ) {
                 mappedValue = "By Owner";
+            }
+
+            // Special handling for Debris Removal field
+            if (fieldName === "Debris Removal") {
+                if (value === "Management") {
+                    mappedValue = "By Management";
+                } else if (value === "Owner") {
+                    mappedValue = "Owner"; // Using simple "Owner" instead of "By Owner"
+                }
             }
 
             if (fieldName === "Utilities") {

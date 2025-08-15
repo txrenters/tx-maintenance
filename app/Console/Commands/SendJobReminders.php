@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Services\TwilioService;
@@ -88,7 +89,6 @@ class SendJobReminders extends Command
         }
 
         $records = $response->json()['records'] ?? [];
-        $numSent = 0;
 
         foreach ($visits as $visit) {
             $jobTitle = $visit->job->title;
@@ -121,13 +121,13 @@ class SendJobReminders extends Command
 
                     try {
                         $workingPhoneNumber = collect([
-                            $record[11] ?? null,
-                            $record[12] ?? null,
-                            $record[13] ?? null,
-                            $record[14] ?? null
-                        ])
-                        ->map(fn($number) => trim((string) $number))
-                        ->first(fn($number) => $number !== '');
+                                $record[11] ?? null,
+                                $record[12] ?? null,
+                                $record[13] ?? null,
+                                $record[14] ?? null
+                            ])
+                            ->map(fn($number) => trim((string) $number))
+                            ->first(fn($number) => $number !== '');
             
                         if (empty($workingPhoneNumber)) {
                             Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
@@ -158,7 +158,11 @@ class SendJobReminders extends Command
                             'jobber_id' => $visit->job->id,
                         ]);
 
-                        $numSent =+ 1;
+                        JobberClient::find($visit->job->client->id)->update([
+                            'first_name' => $clientName,
+                            'last_name' => '',
+                            'phone' => $workingPhoneNumber
+                        ]);
 
                         Log::info("Successfully sent text messages :", ['text' => $text]);
                         
@@ -170,7 +174,7 @@ class SendJobReminders extends Command
             }
         }
 
-        Log::info("Number of visit sent: (".$numSent.") for date: {$scheduled_date->toDateString()}");
+        Log::info("Number of visit: (".count($visits).") for date: {$scheduled_date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string
