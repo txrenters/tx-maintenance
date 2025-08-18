@@ -566,6 +566,7 @@ useEchoPublic("visits", "VisitUpdated", (e) => {
 });
 // Optimized function to open modal with event details
 const openEventModal = async (event) => {
+    activeTab.value = "details";
     selectedEvent.value = event;
     isModalOpen.value = true;
     // Defer message fetching to next tick for better UI responsiveness
