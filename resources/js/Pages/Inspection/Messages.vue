@@ -225,7 +225,7 @@ const truncateMessage = (message, length = 100) => {
                             </TableCell>
                             <TableCell>
                                 <div
-                                    class="flex items-center gap-2"
+                                    class="flex items-center gap-2 mb-1"
                                     v-for="message in conversation.messages"
                                     :key="message.id"
                                 >
@@ -237,7 +237,7 @@ const truncateMessage = (message, length = 100) => {
                             </TableCell>
                             <TableCell>
                                 <div
-                                    class="flex items-center gap-2 flex-col border"
+                                    class="flex items-center gap-2 border mb-1"
                                     v-for="message in conversation.messages"
                                     :key="message.id"
                                 >
@@ -249,12 +249,21 @@ const truncateMessage = (message, length = 100) => {
                             </TableCell>
                             <TableCell>
                                 <div
-                                    class="max-w-md flex-col gap-2 border"
+                                    class="max-w-md flex-col border mb-1"
                                     v-for="message in conversation.messages"
                                     :key="message.id"
                                 >
+                                    <p class="text-sm truncate">
+                                        {{ message.messages }}
+                                    </p>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <div class="max-w-md flex-col gap-2">
                                     <p class="text-sm">
-                                        {{ truncateMessage(message.message) }}
+                                        {{
+                                            conversation.messages[0]?.created_at
+                                        }}
                                     </p>
                                 </div>
                             </TableCell>
