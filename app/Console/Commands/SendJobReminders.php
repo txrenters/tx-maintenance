@@ -70,6 +70,11 @@ class SendJobReminders extends Command
 
     protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText)
     {
+         // Don’t process if the visit date is on weekend
+        if ($scheduled_date->isWeekend()) {
+            return;
+        }
+
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
             ->where($notifiedField, false)
@@ -94,11 +99,11 @@ class SendJobReminders extends Command
             $jobTitle = $visit->job->title;
             $visitTitle = $visit->title;
 
-            if (! preg_match('/tenant benefit package|tbp/i', $jobTitle ?? '')) { // Exclude non TBP jobs
+            if (! preg_match('/tenant benefit|tbp/i', $jobTitle ?? '')) { // Exclude non TBP jobs
                 continue;
             }
 
-            if (! preg_match('/tenant benefit package|tbp/i', $visitTitle ?? '')) { // Exclude non TBP visits
+            if (! preg_match('/tenant benefit|tbp/i', $visitTitle ?? '')) { // Exclude non TBP visits
                 continue;
             }
 
@@ -156,12 +161,7 @@ class SendJobReminders extends Command
                             'sender_number' => $senderNumber,
                             'receiver_number' => $workingPhoneNumber,
                             'jobber_id' => $visit->job->id,
-                        ]);
-
-                        JobberClient::find($visit->job->client->id)->update([
-                            'first_name' => $clientName,
-                            'last_name' => '',
-                            'phone' => $workingPhoneNumber
+                            'sent_at' => $visit->job->start_at
                         ]);
 
                         Log::info("Successfully sent text messages :", ['text' => $text]);

@@ -118,7 +118,7 @@ class InspectionController extends Controller
 
     public function messages(Request $request)
     {
-        $conversations = JobberTextMessage::with(['jobber.clientContacts'])
+        $conversations = JobberTextMessage::with(['jobber.clientContacts','jobber.visits'])
             ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                 $start_date = Carbon::parse(request('start_date'))->startOfDay();
                 $end_date = Carbon::parse(request('end_date'))->endOfDay();
@@ -134,15 +134,11 @@ class InspectionController extends Controller
                 $receiver_number = $sms->receiver_number;
                 $sender_number   = $sms->sender_number;
 
-                $matchedContact = $sms->jobber->clientContacts->first(function ($q) use ($receiver_number, $sender_number) {
-                    $formatted = $q->phone;
-                    return $formatted === $receiver_number || $formatted === $sender_number;
-                });
-
                 return [
                     'id' => $sms->id,
                     'job_number' => $sms->jobber->job_number,
-                    'client' => optional($matchedContact)->name ?? 'Unknown', // only name, null if no match
+                    'job_title' => $sms->jobber->title,
+                    'visit' => $sms->jobber->visits,
                     'message' => $sms->messages,
                     'sender_number' => $sms->sender_number,
                     'receiver_number' => $sms->receiver_number,

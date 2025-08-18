@@ -30,8 +30,8 @@ class InspectionVisitController extends Controller
             return [
                 'id' => $visit->id,
                 'title' => $visit->title,
-                'start' => $isAllDay ? $startDate->format('Y-m-d') : $startDate->format('Y-m-d H:i'),
-                'end' => $isAllDay ? $endDate->format('Y-m-d') : $endDate->format('Y-m-d H:i'),
+                'start' =>$startDate->format('Y-m-d') ,
+                'end' =>$endDate->format('Y-m-d') ,
                 'description' => $visit->instructions,
                 'is_complete' => $visit->is_complete,
                 'job' => $visit->job,

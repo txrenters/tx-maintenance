@@ -22,8 +22,21 @@ import Navigation from "./partials/Navigation.vue";
 import { Card, CardContent, CardHeader } from "@/Components/ui/card";
 import { Input } from "@/Components/ui/input";
 import { Button } from "@/Components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/Components/ui/dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/Components/ui/dialog";
 import { Head } from "@inertiajs/vue3";
 import Pagination from "@/Components/Pagination.vue";
 import PaginationResultRange from "@/Components/PaginationResultRange.vue";
@@ -46,10 +59,10 @@ const itemHeight = 64; // Approximate height of each table row in pixels
 
 const openViewModal = async (conversation) => {
     isLoading.value = true;
-    
+
     // Simulate lazy loading - in a real app, you might fetch additional data here
     await nextTick();
-    
+
     selectedConversation.value = conversation;
     isViewModalOpen.value = true;
     isLoading.value = false;
@@ -68,7 +81,7 @@ const debouncedSearch = useDebounceFn((term) => {
 // Optimized filtering with early returns and reduced computations
 const filteredConversations = computed(() => {
     if (!props.conversations?.data) return [];
-    
+
     let filtered = props.conversations.data;
     const searchLower = searchTerm.value.toLowerCase();
 
@@ -126,11 +139,14 @@ const formatDate = (dateString) => {
     if (dateCache.has(dateString)) {
         return dateCache.get(dateString);
     }
-    
+
     const date = new Date(dateString);
     const options = { timeZone: "America/Chicago" };
-    const formatted = date.toLocaleDateString("en-US", options) + " " + date.toLocaleTimeString("en-US", options);
-    
+    const formatted =
+        date.toLocaleDateString("en-US", options) +
+        " " +
+        date.toLocaleTimeString("en-US", options);
+
     dateCache.set(dateString, formatted);
     return formatted;
 };
@@ -171,7 +187,7 @@ const truncateMessage = (message, length = 100) => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Job Number</TableHead>
-                            <TableHead>Client</TableHead>
+                            <TableHead>Scheduled Date</TableHead>
                             <TableHead>Sender</TableHead>
                             <TableHead>Receiver</TableHead>
                             <TableHead>Message</TableHead>
@@ -179,18 +195,30 @@ const truncateMessage = (message, length = 100) => {
                             <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
-                    <TableBody 
+                    <TableBody
                         @scroll="loadMoreItems"
-                        style="max-height: 600px; overflow-y: auto;"
+                        style="max-height: 600px; overflow-y: auto"
                     >
                         <TableRow
                             v-for="conversation in visibleConversations"
                             :key="conversation.id"
                         >
-                            <TableCell
-                                >{{ conversation.job_number }}
+                            <TableCell>
+                                <div class="flex flex-col">
+                                    <p>{{ conversation.job_number }}</p>
+                                    <p>{{ conversation.job_title }}</p>
+                                </div>
                             </TableCell>
-                            <TableCell>{{ conversation.client }} </TableCell>
+                            <TableCell>
+                                <div
+                                    class="flex flex-col"
+                                    v-for="visit in conversation.visit"
+                                    :key="visit.id"
+                                >
+                                    <p>{{ visit.title }}</p>
+                                    <p>{{ formatDate(visit.start_at) }}</p>
+                                </div>
+                            </TableCell>
                             <TableCell>
                                 <div class="flex items-center gap-2">
                                     <Phone class="w-4 h-4 text-gray-400" />
@@ -236,9 +264,12 @@ const truncateMessage = (message, length = 100) => {
                                         :disabled="isLoading"
                                         @click="openViewModal(conversation)"
                                     >
-                                        <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin" />
+                                        <Loader2
+                                            v-if="isLoading"
+                                            class="w-4 h-4 animate-spin"
+                                        />
                                         <Eye v-else class="w-4 h-4" />
-                                        {{ isLoading ? 'Loading...' : 'View' }}
+                                        {{ isLoading ? "Loading..." : "View" }}
                                     </Button>
                                 </div>
                             </TableCell>
@@ -257,18 +288,17 @@ const truncateMessage = (message, length = 100) => {
                         No conversations found matching your criteria
                     </p>
                 </div>
-                
+
                 <!-- Load more indicator -->
-                <div 
+                <div
                     v-if="visibleItems < filteredConversations.length"
                     class="text-center py-4 border-t"
                 >
-                    <Button 
-                        variant="outline" 
-                        size="sm"
-                        @click="loadMoreItems"
-                    >
-                        Load More ({{ filteredConversations.length - visibleItems }} remaining)
+                    <Button variant="outline" size="sm" @click="loadMoreItems">
+                        Load More ({{
+                            filteredConversations.length - visibleItems
+                        }}
+                        remaining)
                     </Button>
                 </div>
                 <div class="flex justify-between">
