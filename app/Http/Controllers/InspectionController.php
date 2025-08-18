@@ -138,40 +138,9 @@ class InspectionController extends Controller
                     'start_at' => $visit->start_at,
                     'client' => $visit->job->client->title,
                     'messages' => $visit->job?->textMessages,
-                    // 'sender_number' => $visit->job->textMessages?->sender_number,
-                    // 'receiver_number' => $visit->job->textMessages?->receiver_number,
-                    // 'created_at' => $visit->job->textMessages?->created_at,
                 ];
             });
-
-        // $conversations = JobberTextMessage::with(['jobber.clientContacts','jobber.visits'])
-        //     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-        //         $start_date = Carbon::parse(request('start_date'))->startOfDay();
-        //         $end_date = Carbon::parse(request('end_date'))->endOfDay();
-
-        //         $q->where(function ($query) use ($start_date, $end_date) {
-        //             $query->whereBetween('created_at', [$start_date, $end_date]);
-        //         });
-        //     })
-        //     ->orderBy('created_at', 'desc')
-        //     ->paginate(50)
-        //     ->withQueryString()
-        //     ->through(function ($sms) {
-        //         $receiver_number = $sms->receiver_number;
-        //         $sender_number   = $sms->sender_number;
-
-        //         return [
-        //             'id' => $sms->id,
-        //             'job_number' => $sms->jobber->job_number,
-        //             'job_title' => $sms->jobber->title,
-        //             'visit' => $sms->jobber->visits,
-        //             'message' => $sms->messages,
-        //             'sender_number' => $sms->sender_number,
-        //             'receiver_number' => $sms->receiver_number,
-        //             'created_at' => $sms->created_at,
-        //         ];
-        //     });
-
+            
         return inertia('Inspection/Messages', [
             'title' => 'Jobber Messages',
             'conversations' => $visits,

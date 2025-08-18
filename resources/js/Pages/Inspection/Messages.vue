@@ -192,7 +192,6 @@ const truncateMessage = (message, length = 100) => {
                             <TableHead>Receiver</TableHead>
                             <TableHead>Message</TableHead>
                             <TableHead>Date</TableHead>
-                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody
@@ -264,28 +263,10 @@ const truncateMessage = (message, length = 100) => {
                                         {{
                                             formatDate(
                                                 conversation.messages[0]
-                                                    ?.created_at
+                                                    ?.created_at ?? ""
                                             )
                                         }}
                                     </p>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="gap-1"
-                                        :disabled="isLoading"
-                                        @click="openViewModal(conversation)"
-                                    >
-                                        <Loader2
-                                            v-if="isLoading"
-                                            class="w-4 h-4 animate-spin"
-                                        />
-                                        <Eye v-else class="w-4 h-4" />
-                                        {{ isLoading ? "Loading..." : "View" }}
-                                    </Button>
                                 </div>
                             </TableCell>
                         </TableRow>
