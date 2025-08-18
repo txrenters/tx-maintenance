@@ -210,49 +210,62 @@ const truncateMessage = (message, length = 100) => {
                                 </div>
                             </TableCell>
                             <TableCell>
-                                <div
-                                    class="flex flex-col"
-                                    v-for="visit in conversation.visit"
-                                    :key="visit.id"
-                                >
-                                    <p>{{ visit.title }}</p>
-                                    <p>{{ formatDate(visit.start_at) }}</p>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        conversation.sender_number || "Unknown"
-                                    }}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        conversation.receiver_number ||
-                                        "Unknown"
-                                    }}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="max-w-md">
-                                    <p class="text-sm">
+                                <div class="flex flex-col">
+                                    <p>{{ conversation.visit_title }}</p>
+                                    <p>
                                         {{
-                                            truncateMessage(
-                                                conversation.message
-                                            )
+                                            conversation.start_at
+                                                ? formatDate(
+                                                      conversation.start_at
+                                                  )
+                                                : ""
                                         }}
                                     </p>
                                 </div>
                             </TableCell>
                             <TableCell>
                                 <div
-                                    class="flex items-center gap-2 text-sm text-gray-600"
+                                    class="flex items-center gap-2"
+                                    v-for="message in conversation.messages"
+                                    :key="message.id"
+                                >
+                                    <Phone class="w-4 h-4 text-gray-400" />
+                                    <span>{{
+                                        message.sender_number || "Unknown"
+                                    }}</span>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <div
+                                    class="flex items-center gap-2 flex-col border"
+                                    v-for="message in conversation.messages"
+                                    :key="message.id"
+                                >
+                                    <Phone class="w-4 h-4 text-gray-400" />
+                                    <span>{{
+                                        message.receiver_number || "Unknown"
+                                    }}</span>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <div
+                                    class="max-w-md flex-col gap-2 border"
+                                    v-for="message in conversation.messages"
+                                    :key="message.id"
+                                >
+                                    <p class="text-sm">
+                                        {{ truncateMessage(message.message) }}
+                                    </p>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <div
+                                    class="flex items-center gap-2 border text-sm text-gray-600 flex-col"
+                                    v-for="message in conversation.messages"
+                                    :key="message.id"
                                 >
                                     <Clock class="w-4 h-4" />
-                                    {{ formatDate(conversation.created_at) }}
+                                    {{ formatDate(message.created_at) }}
                                 </div>
                             </TableCell>
                             <TableCell>

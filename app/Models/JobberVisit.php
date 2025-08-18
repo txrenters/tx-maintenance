@@ -32,4 +32,13 @@ class JobberVisit extends Model
                 ], 'LIKE', "%{$search}%");
         }
     }
+
+    public function scopeTbp($query): void
+    {
+        $query->where(function ($q) {
+            $q->whereRaw('LOWER(title) LIKE ?', ['%tenant benefit%'])
+                ->orWhereRaw('LOWER(title) LIKE ?', ['%tbp%']);
+        }); 
+        
+    }
 }

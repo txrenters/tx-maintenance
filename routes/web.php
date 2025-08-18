@@ -278,29 +278,43 @@ Route::get('register-asana', function (){
     //         ->post('https://app.asana.com/api/1.0/webhooks', [
     //             'data' => [
     //                 'resource' => '1207374645683175',
-    //                 'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/9c29a837-0008-438f-8faa-dc247c1ef7b8/webhook',
+    //                 'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/3cb77602-8f95-4d44-97d4-f8bb5faed435/webhook',
     //             ],
     //         ]);
     //     if (!$response->successful()) {
-    //          dd('Webhook registered for project', ['project_id' => '1207374645683175']);
+    //          echo('Webhook registered for project');
     //     }   
 
-        $res = Http::withToken($token)
-            ->withHeaders([
-                'Asana-Enable' => 'new_goal_memberships',
-                'Content-Type' => 'application/json',
-            ])
-            ->post('https://app.asana.com/api/1.0/webhooks', [
-                'data' => [
-                    'resource' => '1207535257037786',
-                    'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/9c29a837-0008-438f-8faa-dc247c1ef7b8/webhook',
-                ],
-            ]);
+    //     $res = Http::withToken($token)
+    //         ->withHeaders([
+    //             'Asana-Enable' => 'new_goal_memberships',
+    //             'Content-Type' => 'application/json',
+    //         ])
+    //         ->post('https://app.asana.com/api/1.0/webhooks', [
+    //             'data' => [
+    //                 'resource' => '1207535257037786',
+    //                 'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/349863ae-5576-407a-9cc7-4d70ad6ffa66/webhook',
+    //             ],
+    //         ]);
 
-    if (!$res->successful()) {
-             dd('Webhook registered for project', ['project_id' => '1207535257037786']);
-        }   
-        
+    // if (!$res->successful()) {
+    //          echo('Webhook registered for project');
+    //     }   
+
+    $response = Http::withToken($token)->get('https://app.asana.com/api/1.0/webhooks', [
+        'resource' => '1207374645683175',
+        'workspace' => env('ASANA_WORKSPACE_ID')
+
+    ]);
+     print_r($response->json());
+    $res = Http::withToken($token)->get('https://app.asana.com/api/1.0/webhooks', [
+        'resource' => '1207535257037786',
+        'workspace' => env('ASANA_WORKSPACE_ID')
+    ]);
+
+   
+    print_r($res->json());
+
 });
 
 Route::get('/webhook/asana/register', function () {

@@ -69,7 +69,7 @@ const getEventDateClass = (eventStart, eventEnd) => {
     if (dateCache.has(cacheKey)) {
         return dateCache.get(cacheKey);
     }
-    
+
     const today = new Date();
     const startDate = new Date(eventStart);
     const endDate = eventEnd ? new Date(eventEnd) : startDate;
@@ -90,7 +90,7 @@ const getEventDateClass = (eventStart, eventEnd) => {
     } else {
         result = "event-future"; // Default fallback
     }
-    
+
     dateCache.set(cacheKey, result);
     return result;
 };
@@ -98,11 +98,11 @@ const getEventDateClass = (eventStart, eventEnd) => {
 // Deferred event processing with lazy loading
 const processedEvents = computed(() => {
     if (!eventsData.value || eventsData.value.length === 0) return [];
-    
+
     // Process in smaller batches for better performance
     const batchSize = 25;
     const results = [];
-    
+
     for (let i = 0; i < eventsData.value.length; i += batchSize) {
         const batch = eventsData.value.slice(i, i + batchSize);
         const processedBatch = batch.map((event) => {
@@ -127,7 +127,7 @@ const processedEvents = computed(() => {
         });
         results.push(...processedBatch);
     }
-    
+
     return results;
 });
 
@@ -147,14 +147,14 @@ const calendarApp = computed(() => {
     if (isEventsLoading.value || !hasInitializedCalendar.value) {
         return null;
     }
-    
+
     // Format date as YYYY-MM-DD as required by Schedule-X
     const today = new Date();
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
     const formattedDate = `${year}-${month}-${day}`;
-    
+
     return createCalendar({
         selectedDate: formattedDate,
         theme: "shadcn",
@@ -253,9 +253,13 @@ const addRecipientFromClient = () => {
     }
 };
 
+const customePhoneNumber = ref("");
 // Optimized send message function with batch processing
 const sendMessage = () => {
-    if (selectedRecipients.value.length === 0) {
+    if (
+        selectedRecipients.value.length === 0 &&
+        customePhoneNumber.value === ""
+    ) {
         toast({
             variant: "destructive",
             title: "Error",
@@ -285,6 +289,13 @@ const sendMessage = () => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
 
+    if (customePhoneNumber.value.trim() !== "") {
+        formData.append(
+            `receiver_numbers[${selectedRecipients.value.length}]`,
+            customePhoneNumber.value.trim()
+        );
+    }
+
     formData.append("jobber_id", selectedEvent.value.job.id);
 
     // Add image if selected
@@ -304,15 +315,17 @@ const sendMessage = () => {
             // Batch update messages for better performance
             requestAnimationFrame(() => {
                 const timestamp = new Date().toISOString();
-                const newMessages = selectedRecipients.value.map((recipient) => ({
-                    id: Date.now() + Math.random(),
-                    message: newMessage.value || "",
-                    sender_number: senderPhoneNumber.value,
-                    receiver_number: recipient.phone,
-                    image: imagePreview.value, // Use existing preview URL
-                    created_at: timestamp,
-                    jobber_id: selectedEvent.value.job.id,
-                }));
+                const newMessages = selectedRecipients.value.map(
+                    (recipient) => ({
+                        id: Date.now() + Math.random(),
+                        message: newMessage.value || "",
+                        sender_number: senderPhoneNumber.value,
+                        receiver_number: recipient.phone,
+                        image: imagePreview.value, // Use existing preview URL
+                        created_at: timestamp,
+                        jobber_id: selectedEvent.value.job.id,
+                    })
+                );
 
                 // Batch insert at the beginning
                 jobMessages.value = [...newMessages, ...jobMessages.value];
@@ -383,10 +396,10 @@ const fetchMessages = async () => {
     if (messageController) {
         messageController.abort();
     }
-    
+
     messageController = new AbortController();
     isLoadingMessages.value = true;
-    
+
     try {
         const response = await fetch(
             route("jobber-text-messages.index", {
@@ -397,7 +410,7 @@ const fetchMessages = async () => {
         const data = await response.json();
         jobMessages.value = data.messages || [];
     } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== "AbortError") {
             console.error("Error fetching messages:", error);
             jobMessages.value = [];
         }
@@ -411,7 +424,7 @@ const fetchMessages = async () => {
 const handleImageSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     // Validate file type
     if (!file.type.startsWith("image/")) {
         toast({
@@ -433,7 +446,7 @@ const handleImageSelect = async (event) => {
     }
 
     selectedImage.value = file;
-    
+
     // Use createObjectURL for better performance than FileReader
     if (imagePreview.value) {
         URL.revokeObjectURL(imagePreview.value); // Clean up old preview
@@ -500,16 +513,20 @@ let updateTimer = null;
 
 const processUpdateQueue = () => {
     if (updateQueue.length === 0) return;
-    
+
     const updates = [...updateQueue];
     updateQueue = [];
-    
+
     requestAnimationFrame(() => {
-        updates.forEach(update => {
-            if (update.type === 'delete') {
-                eventsData.value = eventsData.value.filter(event => event.id !== update.id);
-            } else if (update.type === 'update') {
-                const existingIndex = eventsData.value.findIndex(event => event.id === update.event.id);
+        updates.forEach((update) => {
+            if (update.type === "delete") {
+                eventsData.value = eventsData.value.filter(
+                    (event) => event.id !== update.id
+                );
+            } else if (update.type === "update") {
+                const existingIndex = eventsData.value.findIndex(
+                    (event) => event.id === update.event.id
+                );
                 if (existingIndex !== -1) {
                     eventsData.value[existingIndex] = update.event;
                 } else {
@@ -521,7 +538,7 @@ const processUpdateQueue = () => {
 };
 
 useEchoPublic("visits", "VisitDeleted", (e) => {
-    updateQueue.push({ type: 'delete', id: e.visitId });
+    updateQueue.push({ type: "delete", id: e.visitId });
     clearTimeout(updateTimer);
     updateTimer = setTimeout(processUpdateQueue, 100);
 });
@@ -542,8 +559,8 @@ useEchoPublic("visits", "VisitUpdated", (e) => {
             ],
         },
     };
-    
-    updateQueue.push({ type: 'update', event: formattedEvent });
+
+    updateQueue.push({ type: "update", event: formattedEvent });
     clearTimeout(updateTimer);
     updateTimer = setTimeout(processUpdateQueue, 100);
 });
@@ -580,7 +597,7 @@ const closeEventModal = () => {
 onMounted(async () => {
     // Show page immediately, then load data
     await nextTick();
-    
+
     // Add a small delay to let the page render first
     setTimeout(async () => {
         await loadEventsData();
@@ -598,7 +615,7 @@ onMounted(async () => {
     <!-- Initial page load - show immediately -->
     <div class="relative w-full h-[70vh]">
         <!-- Loading state for calendar initialization -->
-        <div 
+        <div
             v-if="isEventsLoading || !hasInitializedCalendar || !calendarApp"
             class="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10"
         >
@@ -607,10 +624,10 @@ onMounted(async () => {
                 <span class="text-muted-foreground">Loading schedule...</span>
             </div>
         </div>
-        
+
         <!-- Calendar - render when ready -->
         <div class="is-light-mode calendar-theme-override">
-            <ScheduleXCalendar 
+            <ScheduleXCalendar
                 v-if="calendarApp && !isEventsLoading"
                 :calendar-app="calendarApp"
                 :key="`calendar-${processedEvents.length}-${hasInitializedCalendar}`"
@@ -901,6 +918,10 @@ onMounted(async () => {
                             >
                                 <Plus class="h-4 w-4" />
                             </Button>
+                            <Input
+                                v-model="customePhoneNumber"
+                                placeholder="Enter custom number..."
+                            />
                         </div>
                     </div>
 
@@ -963,16 +984,19 @@ onMounted(async () => {
                                 class="w-12 h-12 animate-spin text-primary"
                             />
                         </div>
-                        <template v-else-if="jobMessages && jobMessages.length > 0">
+                        <template
+                            v-else-if="jobMessages && jobMessages.length > 0"
+                        >
                             <MessageCard
                                 :messages="jobMessages.slice(0, 50)"
                                 :sender="senderPhoneNumber"
                             />
-                            <div 
-                                v-if="jobMessages.length > 50" 
+                            <div
+                                v-if="jobMessages.length > 50"
                                 class="text-center py-2 text-sm text-muted-foreground"
                             >
-                                Showing first 50 messages of {{ jobMessages.length }}
+                                Showing first 50 messages of
+                                {{ jobMessages.length }}
                             </div>
                         </template>
                         <div

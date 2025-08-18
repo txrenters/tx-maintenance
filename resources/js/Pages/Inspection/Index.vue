@@ -1,5 +1,13 @@
 <script setup>
-import { ref, watch, computed, shallowRef, nextTick, onMounted, onUnmounted } from "vue";
+import {
+    ref,
+    watch,
+    computed,
+    shallowRef,
+    nextTick,
+    onMounted,
+    onUnmounted,
+} from "vue";
 import { router, usePage, usePoll } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -51,13 +59,13 @@ import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import axios from "axios";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
-import { 
-    Dialog, 
-    DialogContent, 
-    DialogDescription, 
-    DialogHeader, 
-    DialogTitle, 
-    DialogFooter 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
 } from "@/Components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { Separator } from "@/Components/ui/separator";
@@ -122,14 +130,13 @@ const openJobModal = async (job) => {
     if (jobDetailsController) {
         jobDetailsController.abort();
     }
-    
+
     jobDetailsController = new AbortController();
-    
+
     try {
-        const response = await axios.get(
-            route("jobber.jobDetails", job.id),
-            { signal: jobDetailsController.signal }
-        );
+        const response = await axios.get(route("jobber.jobDetails", job.id), {
+            signal: jobDetailsController.signal,
+        });
 
         selectedJob.value = { ...job, ...response.data };
         isModalOpen.value = true;
@@ -137,7 +144,7 @@ const openJobModal = async (job) => {
 
         // Defer state reset to next tick
         await nextTick();
-        
+
         // Reset messaging state
         newMessage.value = "";
         selectedContact.value = "";
@@ -152,7 +159,7 @@ const openJobModal = async (job) => {
         // Load saved contacts asynchronously
         loadSavedContacts(job.id);
     } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== "AbortError") {
             console.error("Error loading job details:", error);
             toast({
                 variant: "destructive",
@@ -168,12 +175,12 @@ const openJobModal = async (job) => {
 // Optimized modal closing
 const closeJobModal = () => {
     isModalOpen.value = false;
-    
+
     // Cancel any pending requests
     if (jobDetailsController) {
         jobDetailsController.abort();
     }
-    
+
     // Defer cleanup to avoid blocking UI
     requestAnimationFrame(() => {
         selectedJob.value = null;
@@ -221,9 +228,9 @@ const fetchJobMessages = async (jobId) => {
     if (messageController) {
         messageController.abort();
     }
-    
+
     messageController = new AbortController();
-    
+
     try {
         isLoadingMessages.value = true;
         // Messages are already loaded with the job data
@@ -235,7 +242,7 @@ const fetchJobMessages = async (jobId) => {
         }
         jobContacts.value = [];
     } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== "AbortError") {
             console.error("Error fetching messages:", error);
             jobMessages.value = [];
             jobContacts.value = [];
@@ -304,9 +311,9 @@ const loadSavedContacts = async (jobId) => {
     if (contactsController) {
         contactsController.abort();
     }
-    
+
     contactsController = new AbortController();
-    
+
     try {
         isLoadingContacts.value = true;
         const response = await axios.get(
@@ -323,7 +330,7 @@ const loadSavedContacts = async (jobId) => {
             }));
         }
     } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error.name !== "AbortError") {
             console.error("Error loading contacts:", error);
             savedContacts.value = [];
         }
@@ -377,10 +384,13 @@ const addRecipientFromClient = () => {
         searchQuery.value = "";
     }
 };
-
+const customePhoneNumber = ref("");
 // Optimized send message function
 const sendMessage = () => {
-    if (selectedRecipients.value.length === 0) {
+    if (
+        selectedRecipients.value.length === 0 &&
+        customePhoneNumber.value === ""
+    ) {
         toast({
             variant: "destructive",
             title: "Error",
@@ -410,6 +420,13 @@ const sendMessage = () => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
 
+    if (customePhoneNumber.value.trim() !== "") {
+        formData.append(
+            `receiver_numbers[${selectedRecipients.value.length}]`,
+            customePhoneNumber.value.trim()
+        );
+    }
+
     formData.append("jobber_id", selectedJob.value.id);
 
     // Add image if selected
@@ -429,21 +446,29 @@ const sendMessage = () => {
             // Batch update messages for better performance
             requestAnimationFrame(() => {
                 const timestamp = new Date().toISOString();
-                const newMessages = selectedRecipients.value.map((recipient) => ({
-                    id: Date.now() + Math.random(),
-                    message: newMessage.value || "",
-                    sender_number: senderPhoneNumber.value,
-                    receiver_number: recipient.phone,
-                    image: imagePreview.value,
-                    created_at: timestamp,
-                    jobber_id: selectedJob.value.id,
-                }));
+                const newMessages = selectedRecipients.value.map(
+                    (recipient) => ({
+                        id: Date.now() + Math.random(),
+                        message: newMessage.value || "",
+                        sender_number: senderPhoneNumber.value,
+                        receiver_number: recipient.phone,
+                        image: imagePreview.value,
+                        created_at: timestamp,
+                        jobber_id: selectedJob.value.id,
+                    })
+                );
 
                 // Batch insert at the beginning
-                jobMessages.value = [...newMessages, ...jobMessages.value].slice(0, 50);
+                jobMessages.value = [
+                    ...newMessages,
+                    ...jobMessages.value,
+                ].slice(0, 50);
 
                 // Update job count in the main list
-                updateJobMessageCount(selectedJob.value.id, selectedRecipients.value.length);
+                updateJobMessageCount(
+                    selectedJob.value.id,
+                    selectedRecipients.value.length
+                );
             });
 
             newMessage.value = "";
@@ -474,7 +499,8 @@ const updateJobMessageCount = (jobId, addCount) => {
         );
         if (jobIndex !== -1) {
             props.jobsByStatus[status][jobIndex].text_messages_count =
-                (props.jobsByStatus[status][jobIndex].text_messages_count || 0) + addCount;
+                (props.jobsByStatus[status][jobIndex].text_messages_count ||
+                    0) + addCount;
         }
     });
 };
@@ -497,7 +523,7 @@ const formatStatus = (status) => {
 // Memoized date formatting
 const formatDate = (date) => {
     if (!date) return "------";
-    
+
     // Check cache first
     if (dateFormatCache.has(date)) {
         return dateFormatCache.get(date);
@@ -522,7 +548,7 @@ const formatDate = (date) => {
     const formatted = parsedDate.isValid
         ? parsedDate.toFormat("MM/dd/yyyy")
         : "Invalid Date";
-    
+
     // Cache the result
     dateFormatCache.set(date, formatted);
     return formatted;
@@ -531,17 +557,17 @@ const formatDate = (date) => {
 // Memoized currency formatting
 const formatUSD = (value) => {
     if (typeof value !== "number") return value;
-    
+
     // Check cache first
     if (currencyFormatCache.has(value)) {
         return currencyFormatCache.get(value);
     }
-    
+
     const formatted = new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
     }).format(value);
-    
+
     // Cache the result
     currencyFormatCache.set(value, formatted);
     return formatted;
@@ -614,7 +640,7 @@ onUnmounted(() => {
     if (imagePreview.value) {
         URL.revokeObjectURL(imagePreview.value);
     }
-    
+
     // Cancel any pending requests
     if (jobDetailsController) {
         jobDetailsController.abort();
@@ -625,13 +651,14 @@ onUnmounted(() => {
     if (contactsController) {
         contactsController.abort();
     }
-    
+
     // Clear caches
     dateFormatCache.clear();
     currencyFormatCache.clear();
 });
 
-usePoll(15000, { // Increased poll interval
+usePoll(15000, {
+    // Increased poll interval
     only: ["jobsByStatus"],
 });
 </script>
@@ -1117,7 +1144,10 @@ usePoll(15000, { // Increased poll interval
                     class="space-y-4"
                 >
                     <div
-                        v-for="(visit, index) in selectedJob.visits.slice(0, 10)"
+                        v-for="(visit, index) in selectedJob.visits.slice(
+                            0,
+                            10
+                        )"
                         :key="visit.id || index"
                         class="border rounded-lg p-4 hover:bg-muted/20 transition-colors"
                     >
@@ -1255,13 +1285,14 @@ usePoll(15000, { // Increased poll interval
                             </Button>
                         </div>
                     </div>
-                    
+
                     <!-- Show more visits indicator -->
-                    <div 
+                    <div
                         v-if="selectedJob.visits.length > 10"
                         class="text-center py-2 text-sm text-muted-foreground"
                     >
-                        Showing first 10 of {{ selectedJob.visits.length }} visits
+                        Showing first 10 of
+                        {{ selectedJob.visits.length }} visits
                     </div>
                 </div>
 
@@ -1350,6 +1381,10 @@ usePoll(15000, { // Increased poll interval
                             >
                                 <Plus class="h-4 w-4" />
                             </Button>
+                            <Input
+                                v-model="customPhoneNumber"
+                                placeholder="Enter custom number..."
+                            />
                         </div>
                     </div>
 
@@ -1412,16 +1447,19 @@ usePoll(15000, { // Increased poll interval
                                 class="w-12 h-12 animate-spin text-primary"
                             />
                         </div>
-                        <template v-else-if="jobMessages && jobMessages.length > 0">
+                        <template
+                            v-else-if="jobMessages && jobMessages.length > 0"
+                        >
                             <MessageCard
                                 :messages="jobMessages"
                                 :sender="senderPhoneNumber"
                             />
-                            <div 
+                            <div
                                 v-if="selectedJob?.text_messages?.length > 50"
                                 class="text-center py-2 text-sm text-muted-foreground"
                             >
-                                Showing first 50 of {{ selectedJob.text_messages.length }} messages
+                                Showing first 50 of
+                                {{ selectedJob.text_messages.length }} messages
                             </div>
                         </template>
                         <div

@@ -6,6 +6,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
 use App\Models\JobberToken;
+use App\Models\JobberVisit;
 use App\Models\Owner;
 use App\Models\Tenants;
 use Carbon\Carbon;
@@ -118,37 +119,62 @@ class InspectionController extends Controller
 
     public function messages(Request $request)
     {
-        $conversations = JobberTextMessage::with(['jobber.clientContacts','jobber.visits'])
-            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-                $start_date = Carbon::parse(request('start_date'))->startOfDay();
-                $end_date = Carbon::parse(request('end_date'))->endOfDay();
-
-                $q->where(function ($query) use ($start_date, $end_date) {
-                    $query->whereBetween('created_at', [$start_date, $end_date]);
-                });
+        $visits = JobberVisit::query()
+            ->with(['job.client', 'job.property', 'job.textMessages'])
+            ->tbp()
+            ->filter(request(['search']))
+            ->whereHas('job', function ($q) {
+                $q->where('job_status', '!=', 'archived');
             })
-            ->orderBy('created_at', 'desc')
+            ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
             ->paginate(50)
             ->withQueryString()
-            ->through(function ($sms) {
-                $receiver_number = $sms->receiver_number;
-                $sender_number   = $sms->sender_number;
-
+            ->through(function ($visit) {
                 return [
-                    'id' => $sms->id,
-                    'job_number' => $sms->jobber->job_number,
-                    'job_title' => $sms->jobber->title,
-                    'visit' => $sms->jobber->visits,
-                    'message' => $sms->messages,
-                    'sender_number' => $sms->sender_number,
-                    'receiver_number' => $sms->receiver_number,
-                    'created_at' => $sms->created_at,
+                    'id' => $visit->id,
+                    'job_number' => $visit->job->job_number,
+                    'job_title' => $visit->job->title,
+                    'visit_title' => $visit->title,
+                    'start_at' => $visit->start_at,
+                    'client' => $visit->job->client->title,
+                    'messages' => $visit->job?->textMessages,
+                    // 'sender_number' => $visit->job->textMessages?->sender_number,
+                    // 'receiver_number' => $visit->job->textMessages?->receiver_number,
+                    // 'created_at' => $visit->job->textMessages?->created_at,
                 ];
             });
 
+        // $conversations = JobberTextMessage::with(['jobber.clientContacts','jobber.visits'])
+        //     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+        //         $start_date = Carbon::parse(request('start_date'))->startOfDay();
+        //         $end_date = Carbon::parse(request('end_date'))->endOfDay();
+
+        //         $q->where(function ($query) use ($start_date, $end_date) {
+        //             $query->whereBetween('created_at', [$start_date, $end_date]);
+        //         });
+        //     })
+        //     ->orderBy('created_at', 'desc')
+        //     ->paginate(50)
+        //     ->withQueryString()
+        //     ->through(function ($sms) {
+        //         $receiver_number = $sms->receiver_number;
+        //         $sender_number   = $sms->sender_number;
+
+        //         return [
+        //             'id' => $sms->id,
+        //             'job_number' => $sms->jobber->job_number,
+        //             'job_title' => $sms->jobber->title,
+        //             'visit' => $sms->jobber->visits,
+        //             'message' => $sms->messages,
+        //             'sender_number' => $sms->sender_number,
+        //             'receiver_number' => $sms->receiver_number,
+        //             'created_at' => $sms->created_at,
+        //         ];
+        //     });
+
         return inertia('Inspection/Messages', [
             'title' => 'Jobber Messages',
-            'conversations' => $conversations,
+            'conversations' => $visits,
         ]);
     }
 
