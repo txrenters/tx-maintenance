@@ -267,6 +267,41 @@ Route::get('lofty', function () {
     dd($response->json());
 });
 
+Route::get('register-asana', function (){
+            $token = env('ASANA_ACCESS_TOKEN');
+
+    // $response = Http::withToken($token)
+    //         ->withHeaders([
+    //             'Asana-Enable' => 'new_goal_memberships',
+    //             'Content-Type' => 'application/json',
+    //         ])
+    //         ->post('https://app.asana.com/api/1.0/webhooks', [
+    //             'data' => [
+    //                 'resource' => '1207374645683175',
+    //                 'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/9c29a837-0008-438f-8faa-dc247c1ef7b8/webhook',
+    //             ],
+    //         ]);
+    //     if (!$response->successful()) {
+    //          dd('Webhook registered for project', ['project_id' => '1207374645683175']);
+    //     }   
+
+        $res = Http::withToken($token)
+            ->withHeaders([
+                'Asana-Enable' => 'new_goal_memberships',
+                'Content-Type' => 'application/json',
+            ])
+            ->post('https://app.asana.com/api/1.0/webhooks', [
+                'data' => [
+                    'resource' => '1207535257037786',
+                    'target' => 'https://n8n.srv902502.hstgr.cloud/webhook/9c29a837-0008-438f-8faa-dc247c1ef7b8/webhook',
+                ],
+            ]);
+
+    if (!$res->successful()) {
+             dd('Webhook registered for project', ['project_id' => '1207535257037786']);
+        }   
+        
+});
 
 Route::get('/webhook/asana/register', function () {
     Artisan::call('asana:register-webhook');

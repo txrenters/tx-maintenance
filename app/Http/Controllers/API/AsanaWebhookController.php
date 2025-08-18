@@ -21,15 +21,15 @@ class AsanaWebhookController extends Controller
 
         $data = $request->all();
 
-        if (! empty($data['events'])) {
-            ProcessNewPmLeaseOnTheMarketJob::dispatch();
-            ProcessLOnTheMarketJob::dispatch();
+        // if (! empty($data['events'])) {
+        //     ProcessNewPmLeaseOnTheMarketJob::dispatch();
+        //     ProcessLOnTheMarketJob::dispatch();
 
-            Log::info('Asana webhook event received', [
-                'event' => $data['events'],
-                'project_id' => $projectId ?? 'unknown',
-            ]);
-        }
+        //     Log::info('Asana webhook event received', [
+        //         'event' => $data['events'],
+        //         'project_id' => $projectId ?? 'unknown',
+        //     ]);
+        // }
 
         return response()->noContent();
 
