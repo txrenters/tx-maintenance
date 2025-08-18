@@ -237,7 +237,7 @@ const truncateMessage = (message, length = 100) => {
                             </TableCell>
                             <TableCell>
                                 <div
-                                    class="flex items-center gap-2 border mb-1"
+                                    class="flex items-center gap-2 mb-1"
                                     v-for="message in conversation.messages"
                                     :key="message.id"
                                 >
@@ -262,19 +262,12 @@ const truncateMessage = (message, length = 100) => {
                                 <div class="max-w-md flex-col gap-2">
                                     <p class="text-sm">
                                         {{
-                                            conversation.messages[0]?.created_at
+                                            formatDate(
+                                                conversation.messages[0]
+                                                    ?.created_at
+                                            )
                                         }}
                                     </p>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div
-                                    class="flex items-center gap-2 border text-sm text-gray-600 flex-col"
-                                    v-for="message in conversation.messages"
-                                    :key="message.id"
-                                >
-                                    <Clock class="w-4 h-4" />
-                                    {{ formatDate(message.created_at) }}
                                 </div>
                             </TableCell>
                             <TableCell>
