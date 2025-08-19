@@ -1546,7 +1546,7 @@ const submitForm = async () => {
 
         // Show thank you overlay and start countdown
         showThankYou.value = true;
-        // startCountdown();
+        startCountdown();
     } catch (error) {
         toast({
             variant: "destructive",
@@ -1568,13 +1568,13 @@ const startCountdown = () => {
             clearInterval(timer);
             redirectToHandbook();
         }
-    }, 1000);
+    }, 4000);
 };
 
 // Redirect to owner handbook
 const redirectToHandbook = () => {
     // Replace this URL with your actual owner handbook URL
-    window.location.href = "/owner-handbook"; // UPDATE THIS URL
+    window.location.href = "https://heyzine.com/flip-book/30dc55160e.html"; // UPDATE THIS URL
 };
 </script>
 
