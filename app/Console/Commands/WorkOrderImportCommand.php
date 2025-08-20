@@ -39,6 +39,7 @@ class WorkOrderImportCommand extends Command
      */
     public function handle(): void
     {
+        // $work_orders = $this->propertyWareService->getWorkOrdersViaRestAPI() ?? [];
         $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
 
         if (empty($work_orders)) {
@@ -46,6 +47,7 @@ class WorkOrderImportCommand extends Command
             return;
         }
 
+    
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
 
@@ -55,7 +57,10 @@ class WorkOrderImportCommand extends Command
 
                 $ID = $data['ID'] ?? null;
 
+                // $workOrder = $this->propertyWareService->getWorkOrderById($ID);
                 if ($ID) {
+                    // $this->info('ID: '.$ID ?? '');
+                    // $this->info('Work order: '.$workOrder ?? '');
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
 

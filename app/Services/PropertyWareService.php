@@ -196,18 +196,20 @@ class PropertyWareService
 
     }
 
-    public function getWorkOrderByNum($workOrderNo)
+    public function getWorkOrderById($workOrderNo)
     {
         try {
             $client = $this->initiate();
 
             $response = $client->getWorkOrder($workOrderNo);
 
-            if (!empty($response)) {
-                return json_decode(json_encode($response), true);
-            }
+            return json_encode($response);
 
-            return []; // Return empty array if no result
+            // if (!empty($response)) {
+            //     return json_decode(json_encode($response), true);
+            // }
+
+            // return []; // Return empty array if no result
 
         } catch (\Exception $e) {
             Log::error('SOAP request failed: ' . $e->getMessage());
