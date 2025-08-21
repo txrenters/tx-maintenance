@@ -256,18 +256,6 @@ const addRecipientFromClient = () => {
 const customePhoneNumber = ref("");
 // Optimized send message function with batch processing
 const sendMessage = () => {
-    if (
-        selectedRecipients.value.length === 0 &&
-        customePhoneNumber.value === ""
-    ) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Please add at least one recipient",
-        });
-        return;
-    }
-
     if (!newMessage.value.trim() && !selectedImage.value) {
         toast({
             variant: "destructive",
