@@ -155,33 +155,17 @@ const truncateMessage = (message, length = 100) => {
     if (message.length <= length) return message;
     return message.substring(0, length) + "...";
 };
+const url = route("jobber.messages");
 </script>
 
 <template>
     <Head :title="title" />
-
+    <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
+        <SearchBar :url="url" v-model="search" class="w-full" />
+        <Navigation />
+    </div>
     <div class="space-y-6">
         <Card>
-            <CardHeader>
-                <!-- Filters -->
-                <div class="flex justify-between">
-                    <div class="space-y-2">
-                        <div class="relative">
-                            <Search
-                                class="absolute left-3 top-3 h-4 w-4 text-gray-400"
-                            />
-                            <Input
-                                :model-value="searchTerm"
-                                @input="debouncedSearch($event.target.value)"
-                                type="search"
-                                placeholder="Search messages..."
-                                class="pl-10"
-                            />
-                        </div>
-                    </div>
-                    <Navigation />
-                </div>
-            </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>

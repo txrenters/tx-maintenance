@@ -30,9 +30,9 @@ class JobberTextMessage extends Model
                     $q->where('job_number', $search);
                 })
                 ->orWhereAny([
-                    'title',
-                    'visit_status',
-                    'instructions',
+                    'messages',
+                    'receiver_number',
+                    'sender_number',
                 ], 'LIKE', "%{$search}%");
         }
     }
