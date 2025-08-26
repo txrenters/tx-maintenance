@@ -5,18 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class InspectionVisitController extends Controller
 {
     public function index(Request $request)
     {
-        // Debug logging
-        \Log::info('Visits index called', [
-            'has_week_start' => $request->has('week_start'),
-            'week_start' => $request->get('week_start'),
-            'search' => $request->get('search'),
-        ]);
-
         // Get week range from request or use current week (always in Chicago timezone)
         if ($request->has('week_start') && $request->week_start) {
             // Parse the date as if it's already in Chicago timezone (don't convert)
@@ -27,11 +21,6 @@ class InspectionVisitController extends Controller
         }
 
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SATURDAY);
-
-        \Log::info('Week range calculated', [
-            'week_start' => $weekStart->toDateString(),
-            'week_end' => $weekEnd->toDateString(),
-        ]);
 
         // Load only this week's visits with minimal relationships
         $visits = JobberVisit::query()

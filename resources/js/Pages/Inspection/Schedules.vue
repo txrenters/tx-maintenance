@@ -77,7 +77,7 @@ const initializeWeek = () => {
     if (props.weekStart) {
         // Use the week start provided by backend (already a Sunday in Chicago timezone)
         // Parse as UTC to avoid timezone issues, then treat as local date
-        currentWeekStart.value = new Date(props.weekStart + 'T00:00:00');
+        currentWeekStart.value = new Date(props.weekStart + "T00:00:00");
         console.log(
             "Initialized week from backend prop:",
             props.weekStart,
@@ -95,7 +95,7 @@ const initializeWeek = () => {
             day: "2-digit",
         }).format(today);
 
-        const chicagoDate = new Date(chicagoTime + 'T00:00:00');
+        const chicagoDate = new Date(chicagoTime + "T00:00:00");
         const dayOfWeek = chicagoDate.getDay();
         const diff = dayOfWeek; // Days to subtract to get to Sunday
         currentWeekStart.value = new Date(chicagoDate);
@@ -111,10 +111,10 @@ const weekDates = computed(() => {
     const dates = [];
     const start = new Date(currentWeekStart.value);
     const startTime = start.getTime();
-    
+
     // Add exactly 24 hours * i days to avoid DST issues
     for (let i = 0; i < 7; i++) {
-        const date = new Date(startTime + (i * 24 * 60 * 60 * 1000));
+        const date = new Date(startTime + i * 24 * 60 * 60 * 1000);
         dates.push(date);
     }
 
@@ -186,13 +186,13 @@ const navigateWeek = (direction) => {
 
     // Calculate new date using millisecond arithmetic (exactly 7 days)
     const currentTime = currentWeekStart.value.getTime();
-    const newTime = currentTime + (direction * 7 * 24 * 60 * 60 * 1000);
+    const newTime = currentTime + direction * 7 * 24 * 60 * 60 * 1000;
     const newDate = new Date(newTime);
-    
+
     // Format as YYYY-MM-DD in local timezone
     const year = newDate.getFullYear();
-    const month = String(newDate.getMonth() + 1).padStart(2, '0');
-    const day = String(newDate.getDate()).padStart(2, '0');
+    const month = String(newDate.getMonth() + 1).padStart(2, "0");
+    const day = String(newDate.getDate()).padStart(2, "0");
     const weekKey = `${year}-${month}-${day}`;
 
     console.log(
