@@ -6,15 +6,12 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
 use App\Models\JobberToken;
-use App\Models\JobberVisit;
 use App\Models\Owner;
 use App\Models\Tenants;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use InvalidArgumentException;
 
 class InspectionController extends Controller
 {
@@ -120,30 +117,6 @@ class InspectionController extends Controller
 
     public function messages(Request $request)
     {
-        // $visits = JobberVisit::query()
-        //     ->with(['job.client', 'job.property', 'job.textMessages'])
-        //     ->tbp()
-        //     ->latest()
-        //     ->filter(request(['search']))
-        //     ->whereHas('job', function ($q) {
-        //         $q->where('job_status', '!=', 'archived');
-        //     })
-        //     // ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
-        //     ->paginate(50)
-        //     ->withQueryString()
-        //     ->through(function ($visit) {
-        //         return [
-        //             'id' => $visit->id,
-        //             'job_number' => $visit->job->job_number,
-        //             'job_title' => $visit->job->title,
-        //             'visit_title' => $visit->title,
-        //             'start_at' => $visit->start_at,
-        //             'client' => $visit->job->client->title,
-        //             'messages' => $visit->job?->textMessages,
-        //             'created_at' => $visit->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
-        //         ];
-        //     });
-
         $convos = JobberTextMessage::query()
             ->with(['jobber.client', 'jobber.property', 'jobber.visits'])
             ->latest()
@@ -164,7 +137,7 @@ class InspectionController extends Controller
                     'sender' => $convo->sender_number,
                     'receiver' => $convo->receiver_number,
                     'messages' => $convo->messages,
-                    'created_at' => $convo->created_at->format('F d, y h:i A'),
+                    'created_at' => $convo->created_at->tz('America/Chicago')->format('F d, Y h:i A'),
                 ];
             });
 

@@ -1,30 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from "vue";
+import { ref, watch, computed, shallowRef, nextTick, onMounted } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
 import Navigation from "./partials/Navigation.vue";
 import MessageCard from "@/Components/MessageCard.vue";
-import { router, usePage, Head } from "@inertiajs/vue3";
-import debounce from "lodash.debounce";
-import { useEchoPublic } from "@laravel/echo-vue";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-} from "@/Components/ui/dialog";
-import { Badge } from "@/Components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
-import { Button } from "@/Components/ui/button";
-import { Card, CardContent } from "@/Components/ui/card";
-import { Input } from "@/Components/ui/input";
-import { Label } from "@/Components/ui/label";
-import { Textarea } from "@/Components/ui/textarea";
-import { ScrollArea } from "@/Components/ui/scroll-area";
-import { Separator } from "@/Components/ui/separator";
 import {
     Combobox,
     ComboboxAnchor,
@@ -32,27 +12,41 @@ import {
     ComboboxGroup,
     ComboboxInput,
     ComboboxItem,
+    ComboboxItemIndicator,
     ComboboxList,
 } from "@/Components/ui/combobox";
+import { router, usePage, Head } from "@inertiajs/vue3";
+import debounce from "lodash.debounce";
+import "@schedule-x/theme-shadcn/dist/index.css";
+import { ScheduleXCalendar } from "@schedule-x/vue";
 import {
     MapPin,
     Calendar,
     User,
+    Edit,
     Eye,
     Loader2,
+    Loader2Icon,
     Send,
     Paperclip,
     X,
-    MessageCircle,
+    MessageSquare,
     Search,
     Plus,
+    MessageCircle,
     ClipboardList,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    CheckCircle2,
-    AlertCircle,
 } from "lucide-vue-next";
+import {
+    createCalendar,
+    createViewDay,
+    createViewMonthAgenda,
+    createViewMonthGrid,
+    createViewWeek,
+    viewMonthGrid,
+    createViewList,
+} from "@schedule-x/calendar";
+import { useEchoPublic } from "@laravel/echo-vue";
+import { Deferred } from "@inertiajs/vue3";
 
 const { toast } = useToast();
 
@@ -64,236 +58,137 @@ const props = defineProps({
     filters: Object,
 });
 
-// Week Navigation State
-const currentWeekStart = ref(new Date());
-const touchStartX = ref(0);
-const touchEndX = ref(0);
-const isTransitioning = ref(false);
-const weekContainer = ref(null);
-
-// Initialize to start of current week (Sunday)
-const initializeWeek = () => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day;
-    currentWeekStart.value = new Date(today.setDate(diff));
-    currentWeekStart.value.setHours(0, 0, 0, 0);
-};
-
-// Get week dates
-const weekDates = computed(() => {
-    const dates = [];
-    const start = new Date(currentWeekStart.value);
-
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(start);
-        date.setDate(start.getDate() + i);
-        dates.push(date);
+// Performance: Use shallowRef for large arrays with deferred loading
+const eventsData = shallowRef([]);
+const dateCache = new Map(); // Cache for date calculations
+const isEventsLoading = ref(true);
+const hasInitializedCalendar = ref(false);
+// Memoized helper function to get date status and add CSS class
+const getEventDateClass = (eventStart, eventEnd) => {
+    const cacheKey = `${eventStart}-${eventEnd}`;
+    if (dateCache.has(cacheKey)) {
+        return dateCache.get(cacheKey);
     }
 
-    return dates;
-});
+    const today = new Date();
+    const startDate = new Date(eventStart);
+    const endDate = eventEnd ? new Date(eventEnd) : startDate;
 
-// Format week range for header
-const weekRangeText = computed(() => {
-    const start = weekDates.value[0];
-    const end = weekDates.value[6];
-    const startMonth = start.toLocaleDateString("en-US", { month: "short" });
-    const endMonth = end.toLocaleDateString("en-US", { month: "short" });
-    const startDate = start.getDate();
-    const endDate = end.getDate();
-    const year = end.getFullYear();
+    // Reset time to compare only dates
+    today.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
 
-    if (startMonth === endMonth) {
-        return `${startMonth} ${startDate}-${endDate}, ${year}`;
+    let result;
+    // For multi-day events, determine class based on relationship to today
+    if (endDate < today) {
+        result = "event-past";
+    } else if (startDate <= today && today <= endDate) {
+        result = "event-today"; // Event is currently happening (spans today)
+    } else if (startDate > today) {
+        result = "event-future";
     } else {
-        return `${startMonth} ${startDate} - ${endMonth} ${endDate}, ${year}`;
+        result = "event-future"; // Default fallback
     }
+
+    dateCache.set(cacheKey, result);
+    return result;
+};
+
+// Deferred event processing with lazy loading
+const processedEvents = computed(() => {
+    if (!eventsData.value || eventsData.value.length === 0) return [];
+
+    // Process in smaller batches for better performance
+    const batchSize = 25;
+    const results = [];
+
+    for (let i = 0; i < eventsData.value.length; i += batchSize) {
+        const batch = eventsData.value.slice(i, i + batchSize);
+        const processedBatch = batch.map((event) => {
+            const startDate = event.start || event.date;
+            const endDate = event.end;
+            const dateClass = getEventDateClass(startDate, endDate);
+
+            return {
+                ...event,
+                id: event.id || `event-${i}-${Date.now()}`,
+                start: startDate,
+                end: endDate || startDate,
+                title: event.title || event.summary || "Untitled Event",
+                _options: {
+                    ...event._options,
+                    additionalClasses: [
+                        dateClass,
+                        ...(event._options?.additionalClasses || []),
+                    ],
+                },
+            };
+        });
+        results.push(...processedBatch);
+    }
+
+    return results;
 });
 
-// Check if a date is today
-const isToday = (date) => {
-    const today = new Date();
-    return (
-        date.getDate() === today.getDate() &&
-        date.getMonth() === today.getMonth() &&
-        date.getFullYear() === today.getFullYear()
-    );
-};
-
-// Check if viewing current week
-const isCurrentWeek = computed(() => {
-    const today = new Date();
-    const weekStart = new Date(currentWeekStart.value);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-
-    return today >= weekStart && today <= weekEnd;
-});
-
-// Navigate weeks with smooth transition
-const navigateWeek = (direction) => {
-    if (isTransitioning.value) return;
-
-    isTransitioning.value = true;
-    const newDate = new Date(currentWeekStart.value);
-    newDate.setDate(newDate.getDate() + direction * 7);
-
-    // Add slide animation class
-    if (weekContainer.value) {
-        weekContainer.value.style.transform = `translateX(${
-            direction * -100
-        }%)`;
-        weekContainer.value.style.opacity = "0.5";
-    }
-
-    setTimeout(() => {
-        currentWeekStart.value = newDate;
-        if (weekContainer.value) {
-            weekContainer.value.style.transform = "";
-            weekContainer.value.style.opacity = "1";
-        }
-        isTransitioning.value = false;
-    }, 300);
-};
-
-// Go to today's week
-const goToToday = () => {
-    initializeWeek();
-};
-
-// Touch handlers for swipe navigation
-const handleTouchStart = (e) => {
-    touchStartX.value = e.touches[0].clientX;
-};
-
-const handleTouchMove = (e) => {
-    touchEndX.value = e.touches[0].clientX;
-};
-
-const handleTouchEnd = () => {
-    if (!touchStartX.value || !touchEndX.value) return;
-
-    const distance = touchStartX.value - touchEndX.value;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe) {
-        navigateWeek(1); // Next week
-    }
-    if (isRightSwipe) {
-        navigateWeek(-1); // Previous week
-    }
-
-    touchStartX.value = 0;
-    touchEndX.value = 0;
-};
-
-// Group events by date
-const eventsByDate = computed(() => {
-    const grouped = {};
-
-    weekDates.value.forEach((date) => {
-        const dateStr = date.toISOString().split("T")[0];
-        grouped[dateStr] = [];
+// Deferred data loader
+const loadEventsData = () => {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+            eventsData.value = props.events || [];
+            isEventsLoading.value = false;
+            resolve();
+        });
     });
+};
 
-    if (props.events) {
-        props.events.forEach((event) => {
-            const eventDate = new Date(event.start || event.date);
-            const dateStr = eventDate.toISOString().split("T")[0];
+// Lazy initialize calendar only when events are loaded
+const calendarApp = computed(() => {
+    if (isEventsLoading.value || !hasInitializedCalendar.value) {
+        return null;
+    }
 
-            if (grouped[dateStr]) {
-                grouped[dateStr].push({
-                    ...event,
-                    time: eventDate.toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                    }),
+    // Format date as YYYY-MM-DD as required by Schedule-X
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const formattedDate = `${year}-${month}-${day}`;
+
+    return createCalendar({
+        selectedDate: formattedDate,
+        theme: "shadcn",
+        month: {
+            showTrailingAndLeadingDates: false,
+        },
+        monthGridOptions: {
+            nEventsPerDay: 8, // Further reduced for better performance
+        },
+        defaultView: viewMonthGrid.name,
+        firstDayOfWeek: 0,
+        views: [
+            createViewDay(),
+            createViewMonthGrid(),
+            createViewMonthAgenda(),
+            createViewList(),
+        ],
+        events: processedEvents.value,
+        callbacks: {
+            onEventClick(calendarEvent) {
+                requestAnimationFrame(() => {
+                    openEventModal(calendarEvent);
                 });
-            }
-        });
-    }
-
-    // Sort events by time within each day
-    Object.keys(grouped).forEach((date) => {
-        grouped[date].sort((a, b) => {
-            const timeA = new Date(a.start || a.date);
-            const timeB = new Date(b.start || b.date);
-            return timeA - timeB;
-        });
+            },
+        },
     });
-
-    return grouped;
 });
 
-// Get status color classes
-const getStatusColor = (event) => {
-    if (event.is_complete) {
-        return "bg-green-50 border-green-200 hover:bg-green-100";
-    }
-
-    const eventDate = new Date(event.start || event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
-
-    if (eventDate < today) {
-        return "bg-red-50 border-red-200 hover:bg-red-100";
-    } else if (eventDate.getTime() === today.getTime()) {
-        return "bg-blue-50 border-blue-200 hover:bg-blue-100";
-    } else {
-        return "bg-gray-50 border-gray-200 hover:bg-gray-100";
-    }
-};
-
-// Get status icon
-const getStatusIcon = (event) => {
-    if (event.is_complete) {
-        return CheckCircle2;
-    }
-
-    const eventDate = new Date(event.start || event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
-
-    if (eventDate < today) {
-        return AlertCircle;
-    } else {
-        return Clock;
-    }
-};
-
-// Get status icon color
-const getStatusIconColor = (event) => {
-    if (event.is_complete) {
-        return "text-green-600";
-    }
-
-    const eventDate = new Date(event.start || event.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
-
-    if (eventDate < today) {
-        return "text-red-600";
-    } else if (eventDate.getTime() === today.getTime()) {
-        return "text-blue-600";
-    } else {
-        return "text-gray-600";
-    }
-};
-
-// Search functionality
 const url = route("visits.index");
 const search = ref(props.filters.search ?? "");
 
 // Modal state management
 const isModalOpen = ref(false);
 const selectedEvent = ref(null);
-const activeTab = ref("details");
 
 // Messaging state
 const newMessage = ref("");
@@ -305,33 +200,14 @@ const jobMessages = ref([]);
 const selectedImage = ref(null);
 const imagePreview = ref(null);
 const searchQuery = ref("");
-const isSearchingLoading = ref(false);
-const fileInput = ref(null);
+const searchResults = ref([]);
+const isSearching = ref(false);
 const selectedClient = ref(null);
 const clients = ref([]);
-const customePhoneNumber = ref("");
+const isSearchingLoading = ref(false);
+const fileInput = ref(null);
 const selectedContact = ref("");
 const jobContacts = ref([]);
-
-const tabButtons = [
-    {
-        name: "details",
-        tooltip: "Details",
-        icon: ClipboardList,
-    },
-    {
-        name: "messages",
-        tooltip: "Messages",
-        icon: MessageCircle,
-    },
-];
-
-const switchTab = (tabName) => {
-    activeTab.value = tabName;
-    if (tabName === "messages" && selectedEvent.value?.id) {
-        fetchJobMessages(selectedEvent.value.id);
-    }
-};
 
 const fetchClients = async (query) => {
     if (!query) {
@@ -344,6 +220,7 @@ const fetchClients = async (query) => {
         const response = await axios.get(
             route("jobber.searchClient", { search: query })
         );
+
         clients.value = response.data;
     } catch (e) {
         console.error("Error fetching clients", e);
@@ -352,6 +229,7 @@ const fetchClients = async (query) => {
     }
 };
 
+// Increased debounce time for better performance
 const debouncedSearch = debounce(fetchClients, 700);
 watch(searchQuery, (val) => {
     debouncedSearch(val);
@@ -375,6 +253,8 @@ const addRecipientFromClient = () => {
     }
 };
 
+const customePhoneNumber = ref("");
+// Optimized send message function with batch processing
 const sendMessage = () => {
     if (!newMessage.value.trim() && !selectedImage.value) {
         toast({
@@ -387,10 +267,12 @@ const sendMessage = () => {
 
     isSendingMessage.value = true;
 
+    // Create FormData for file upload
     const formData = new FormData();
     formData.append("messages", newMessage.value || "");
     formData.append("sender_number", senderPhoneNumber.value);
 
+    // Add all recipient numbers
     selectedRecipients.value.forEach((recipient, index) => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
@@ -404,6 +286,7 @@ const sendMessage = () => {
 
     formData.append("jobber_id", selectedEvent.value.job.id);
 
+    // Add image if selected
     if (selectedImage.value) {
         formData.append("image", selectedImage.value);
     }
@@ -417,21 +300,30 @@ const sendMessage = () => {
                 description: "Messages sent successfully!",
             });
 
-            const timestamp = new Date().toISOString();
-            const newMessages = selectedRecipients.value.map((recipient) => ({
-                id: Date.now() + Math.random(),
-                message: newMessage.value || "",
-                sender_number: senderPhoneNumber.value,
-                receiver_number: recipient.phone,
-                image: imagePreview.value,
-                created_at: timestamp,
-                jobber_id: selectedEvent.value.job.id,
-            }));
+            // Batch update messages for better performance
+            requestAnimationFrame(() => {
+                const timestamp = new Date().toISOString();
+                const newMessages = selectedRecipients.value.map(
+                    (recipient) => ({
+                        id: Date.now() + Math.random(),
+                        message: newMessage.value || "",
+                        sender_number: senderPhoneNumber.value,
+                        receiver_number: recipient.phone,
+                        image: imagePreview.value, // Use existing preview URL
+                        created_at: timestamp,
+                        jobber_id: selectedEvent.value.job.id,
+                    })
+                );
 
-            jobMessages.value = [...newMessages, ...jobMessages.value];
+                // Batch insert at the beginning
+                jobMessages.value = [...newMessages, ...jobMessages.value];
+            });
+
             newMessage.value = "";
             removeImage();
-            saveContactsForJob();
+
+            // Save contacts asynchronously
+            nextTick(() => saveContactsForJob());
         },
         onError: (errors) => {
             toast({
@@ -446,12 +338,12 @@ const sendMessage = () => {
         only: ["jobsByStatus"],
     });
 };
-
+// Save contacts for future use
 const saveContactsForJob = async () => {
     if (!selectedEvent.value || selectedRecipients.value.length === 0) return;
 
     try {
-        await axios.post(
+        const response = await axios.post(
             route("client-contacts.store", {
                 jobber: selectedEvent.value.job.id,
             }),
@@ -467,6 +359,7 @@ const saveContactsForJob = async () => {
     }
 };
 
+// Watch for contact selection changes
 watch(selectedContact, (newContactId) => {
     if (newContactId) {
         const foundContact = jobContacts.value.find(
@@ -476,10 +369,18 @@ watch(selectedContact, (newContactId) => {
     }
 });
 
+const removeRecipient = (clientId) => {
+    selectedRecipients.value = selectedRecipients.value.filter(
+        (r) => r.id !== clientId
+    );
+};
+
+// Optimized message fetching with AbortController
 let messageController = null;
 const fetchMessages = async () => {
     if (!selectedEvent.value?.job?.id) return;
 
+    // Cancel previous request if still pending
     if (messageController) {
         messageController.abort();
     }
@@ -507,9 +408,79 @@ const fetchMessages = async () => {
     }
 };
 
+// Optimized image handling with compression
+const handleImageSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+        toast({
+            title: "Invalid file type",
+            description: "Please select an image file.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+        toast({
+            title: "File too large",
+            description: "Please select an image under 5MB.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    selectedImage.value = file;
+
+    // Use createObjectURL for better performance than FileReader
+    if (imagePreview.value) {
+        URL.revokeObjectURL(imagePreview.value); // Clean up old preview
+    }
+    imagePreview.value = URL.createObjectURL(file);
+};
+
+const removeImage = () => {
+    if (imagePreview.value) {
+        URL.revokeObjectURL(imagePreview.value); // Clean up object URL
+    }
+    selectedImage.value = null;
+    imagePreview.value = null;
+};
+
+const triggerFileInput = () => {
+    fileInput.value?.click();
+};
+
+const activeTab = ref("details");
+
+const tabButtons = [
+    {
+        name: "details",
+        tooltip: "Details",
+        icon: ClipboardList,
+    },
+    {
+        name: "messages",
+        tooltip: "Messages",
+        icon: MessageCircle,
+    },
+];
+
+const switchTab = (tabName) => {
+    activeTab.value = tabName;
+    if (tabName === "messages" && selectedEvent.value?.id) {
+        // Fetch messages when switching to messages tab
+
+        fetchJobMessages(selectedEvent.value.id);
+    }
+};
 const fetchJobMessages = async (visitId) => {
     try {
         isLoadingMessages.value = true;
+        // Messages are already loaded with the job data, so just use what we have
         if (selectedEvent.value?.text_messages) {
             jobMessages.value = selectedEvent.value.text_messages;
         } else {
@@ -524,65 +495,83 @@ const fetchJobMessages = async (visitId) => {
         isLoadingMessages.value = false;
     }
 };
+// Optimized WebSocket listeners with batching
+let updateQueue = [];
+let updateTimer = null;
 
-const handleImageSelect = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+const processUpdateQueue = () => {
+    if (updateQueue.length === 0) return;
 
-    if (!file.type.startsWith("image/")) {
-        toast({
-            title: "Invalid file type",
-            description: "Please select an image file.",
-            variant: "destructive",
+    const updates = [...updateQueue];
+    updateQueue = [];
+
+    requestAnimationFrame(() => {
+        updates.forEach((update) => {
+            if (update.type === "delete") {
+                eventsData.value = eventsData.value.filter(
+                    (event) => event.id !== update.id
+                );
+            } else if (update.type === "update") {
+                const existingIndex = eventsData.value.findIndex(
+                    (event) => event.id === update.event.id
+                );
+                if (existingIndex !== -1) {
+                    eventsData.value[existingIndex] = update.event;
+                } else {
+                    eventsData.value.push(update.event);
+                }
+            }
         });
-        return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-        toast({
-            title: "File too large",
-            description: "Please select an image under 5MB.",
-            variant: "destructive",
-        });
-        return;
-    }
-
-    selectedImage.value = file;
-
-    if (imagePreview.value) {
-        URL.revokeObjectURL(imagePreview.value);
-    }
-    imagePreview.value = URL.createObjectURL(file);
+    });
 };
 
-const removeImage = () => {
-    if (imagePreview.value) {
-        URL.revokeObjectURL(imagePreview.value);
-    }
-    selectedImage.value = null;
-    imagePreview.value = null;
-};
+useEchoPublic("visits", "VisitDeleted", (e) => {
+    updateQueue.push({ type: "delete", id: e.visitId });
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(processUpdateQueue, 100);
+});
 
-const triggerFileInput = () => {
-    fileInput.value?.click();
-};
+useEchoPublic("visits", "VisitUpdated", (e) => {
+    const updatedVisit = e.visit;
+    const formattedEvent = {
+        ...updatedVisit,
+        id: updatedVisit.id,
+        start: updatedVisit.start || updatedVisit.date,
+        end: updatedVisit.end || updatedVisit.date,
+        title: updatedVisit.title || updatedVisit.summary || "Untitled Event",
+        _options: {
+            ...updatedVisit._options,
+            additionalClasses: [
+                getEventDateClass(updatedVisit.start, updatedVisit.end),
+                ...(updatedVisit._options?.additionalClasses || []),
+            ],
+        },
+    };
 
+    updateQueue.push({ type: "update", event: formattedEvent });
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(processUpdateQueue, 100);
+});
+// Optimized function to open modal with event details
 const openEventModal = async (event) => {
     activeTab.value = "details";
     selectedEvent.value = event;
     isModalOpen.value = true;
-
+    // Defer message fetching to next tick for better UI responsiveness
     if (event?.job?.id) {
         await nextTick();
         fetchMessages();
     }
 };
 
+// Optimized function to close modal
 const closeEventModal = () => {
     isModalOpen.value = false;
+    // Cancel any pending message requests
     if (messageController) {
         messageController.abort();
     }
+    // Defer cleanup to avoid blocking UI
     requestAnimationFrame(() => {
         selectedEvent.value = null;
         selectedRecipients.value = [];
@@ -593,207 +582,48 @@ const closeEventModal = () => {
     });
 };
 
-// WebSocket listeners for real-time updates
-useEchoPublic("visits", "VisitDeleted", (e) => {
-    // Trigger a refresh or remove the event from the list
-    router.reload({ only: ["events"] });
-});
+// Initialize deferred loading on mount
+onMounted(async () => {
+    // Show page immediately, then load data
+    await nextTick();
 
-useEchoPublic("visits", "VisitUpdated", (e) => {
-    // Trigger a refresh to get updated data
-    router.reload({ only: ["events"] });
-});
-
-// Initialize on mount
-onMounted(() => {
-    initializeWeek();
+    // Add a small delay to let the page render first
+    setTimeout(async () => {
+        await loadEventsData();
+        hasInitializedCalendar.value = true;
+    }, 150);
 });
 </script>
 
 <template>
     <Head :title="title" />
-
-    <!-- Search and Navigation -->
-    <div
-        class="flex gap-3 flex-col sm:flex-row items-center justify-between mb-4"
-    >
+    <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
         <SearchBar :url="url" v-model="search" class="w-full" />
         <Navigation />
     </div>
-
-    <!-- Week Navigation Header -->
-    <div class="bg-background border rounded-lg p-4 mb-4">
-        <div class="flex items-center justify-between">
-            <!-- Previous Week Button -->
-            <Button
-                variant="ghost"
-                size="icon"
-                @click="navigateWeek(-1)"
-                :disabled="isTransitioning"
-                class="hover:bg-accent"
-            >
-                <ChevronLeft class="h-5 w-5" />
-            </Button>
-
-            <!-- Week Range and Today Button -->
-            <div class="flex items-center gap-3">
-                <h2 class="text-lg font-semibold">{{ weekRangeText }}</h2>
-                <Button
-                    v-if="!isCurrentWeek"
-                    variant="outline"
-                    size="sm"
-                    @click="goToToday"
-                    class="text-xs"
-                >
-                    Today
-                </Button>
+    <!-- Initial page load - show immediately -->
+    <div class="relative w-full h-[70vh]">
+        <!-- Loading state for calendar initialization -->
+        <div
+            v-if="isEventsLoading || !hasInitializedCalendar || !calendarApp"
+            class="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10"
+        >
+            <div class="flex flex-col items-center gap-3">
+                <Loader2Icon class="animate-spin h-8 w-8" />
+                <span class="text-muted-foreground">Loading schedule...</span>
             </div>
+        </div>
 
-            <!-- Next Week Button -->
-            <Button
-                variant="ghost"
-                size="icon"
-                @click="navigateWeek(1)"
-                :disabled="isTransitioning"
-                class="hover:bg-accent"
-            >
-                <ChevronRight class="h-5 w-5" />
-            </Button>
+        <!-- Calendar - render when ready -->
+        <div class="is-light-mode calendar-theme-override">
+            <ScheduleXCalendar
+                v-if="calendarApp && !isEventsLoading"
+                :calendar-app="calendarApp"
+                :key="`calendar-${processedEvents.length}-${hasInitializedCalendar}`"
+            />
         </div>
     </div>
-
-    <!-- Week View Container -->
-    <div
-        ref="weekContainer"
-        class="bg-background border rounded-lg overflow-hidden transition-all duration-300"
-        @touchstart="handleTouchStart"
-        @touchmove="handleTouchMove"
-        @touchend="handleTouchEnd"
-    >
-        <!-- Days Header -->
-        <div class="grid grid-cols-7 border-b bg-muted/30">
-            <div
-                v-for="date in weekDates"
-                :key="date.toISOString()"
-                :class="[
-                    'p-3 text-center border-r last:border-r-0',
-                    isToday(date) ? 'bg-primary/10' : '',
-                ]"
-            >
-                <div class="font-medium text-sm">
-                    {{ date.toLocaleDateString("en-US", { weekday: "short" }) }}
-                </div>
-                <div
-                    :class="[
-                        'text-lg',
-                        isToday(date) ? 'font-bold text-primary' : '',
-                    ]"
-                >
-                    {{ date.getDate() }}
-                </div>
-                <div class="text-xs text-muted-foreground">
-                    {{ date.toLocaleDateString("en-US", { month: "short" }) }}
-                </div>
-            </div>
-        </div>
-
-        <!-- Days Content -->
-        <div class="grid grid-cols-7 min-h-[500px]">
-            <div
-                v-for="date in weekDates"
-                :key="date.toISOString()"
-                :class="[
-                    'border-r last:border-r-0 p-2 overflow-y-auto max-h-[600px]',
-                    isToday(date) ? 'bg-primary/5' : '',
-                ]"
-            >
-                <!-- Visit Cards -->
-                <div class="space-y-2">
-                    <Card
-                        v-for="event in eventsByDate[
-                            date.toISOString().split('T')[0]
-                        ]"
-                        :key="event.id"
-                        :class="[
-                            'cursor-pointer transition-all hover:shadow-md',
-                            getStatusColor(event),
-                        ]"
-                        @click="openEventModal(event)"
-                    >
-                        <CardContent class="p-3">
-                            <!-- Time and Status -->
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs font-semibold">
-                                    {{ event.time }}
-                                </span>
-                                <component
-                                    :is="getStatusIcon(event)"
-                                    :class="[
-                                        'h-4 w-4',
-                                        getStatusIconColor(event),
-                                    ]"
-                                />
-                            </div>
-
-                            <!-- Job Number -->
-                            <div
-                                class="font-medium text-sm text-muted-foreground mb-1"
-                            >
-                                Job #{{ event.job?.job_number }}
-                            </div>
-
-                            <!-- Title -->
-                            <div class="font-medium text-sm line-clamp-2 mb-2">
-                                {{ event.title || event.summary }}
-                            </div>
-
-                            <!-- Location -->
-                            <div
-                                v-if="event.location || event.address"
-                                class="flex items-start gap-1"
-                            >
-                                <MapPin
-                                    class="h-3 w-3 text-muted-foreground mt-0.5"
-                                />
-                                <span
-                                    class="text-xs text-muted-foreground line-clamp-2"
-                                >
-                                    {{ event.location || event.address }}
-                                </span>
-                            </div>
-
-                            <!-- Team Member -->
-                            <div
-                                v-if="event.teamMember || event.assignedTo"
-                                class="flex items-center gap-1 mt-1"
-                            >
-                                <User class="h-3 w-3 text-muted-foreground" />
-                                <span
-                                    class="text-xs text-muted-foreground truncate"
-                                >
-                                    {{ event.teamMember || event.assignedTo }}
-                                </span>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <!-- Empty State -->
-                    <div
-                        v-if="
-                            !eventsByDate[date.toISOString().split('T')[0]]
-                                ?.length
-                        "
-                        class="text-center py-8 text-muted-foreground"
-                    >
-                        <Calendar class="h-8 w-8 mx-auto mb-2 opacity-20" />
-                        <p class="text-xs">No visits</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Event Details Modal (keeping the same modal functionality) -->
+    <!-- Event Details Modal -->
     <Dialog :open="isModalOpen" @update:open="isModalOpen = $event">
         <DialogContent
             class="flex max-h-[90dvh] w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
@@ -860,7 +690,11 @@ onMounted(() => {
                                     selectedEvent?.text_messages_count
                                 "
                             >
-                                {{ selectedEvent.text_messages_count }}
+                                {{
+                                    tab.name === "messages"
+                                        ? selectedEvent.text_messages_count
+                                        : ""
+                                }}
                             </Badge>
                         </button>
                     </div>
@@ -1269,49 +1103,212 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 </template>
-
 <style scoped>
-/* Smooth transitions */
-.transition-all {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.sx-vue-calendar-wrapper {
+    height: 1300px;
+    will-change: transform; /* Optimize for animations */
 }
 
-/* Card hover effects */
-.hover\:shadow-md:hover {
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+.sx__event .sx__month-grid-event .sx__month-grid-cell {
+    height: fit-content;
 }
 
-/* Scrollbar styling for week columns */
-::-webkit-scrollbar {
-    width: 6px;
+/* Shadcn Theme Color Integration - Override Schedule-X dark theme */
+.calendar-theme-override {
+    --sx-color-surface: hsl(var(--background));
+    --sx-color-on-surface: hsl(var(--foreground));
+    --sx-color-background: hsl(var(--background));
+    --sx-color-on-background: hsl(var(--foreground));
+    --sx-color-primary: hsl(var(--primary));
+    --sx-color-on-primary: hsl(var(--primary-foreground));
+    --sx-color-secondary: hsl(var(--secondary));
+    --sx-color-on-secondary: hsl(var(--secondary-foreground));
+    --sx-color-outline: hsl(var(--border));
+    --sx-color-outline-variant: hsl(var(--border));
+    --sx-internal-color-text: hsl(var(--foreground));
 }
 
-::-webkit-scrollbar-track {
-    background: transparent;
+/* Calendar background and text colors */
+:deep(.sx__calendar-wrapper) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
 }
 
-::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 3px;
+/* Month grid styling */
+:deep(.sx__month-grid) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
+/* Calendar cells */
+:deep(.sx__month-grid-cell) {
+    background-color: hsl(var(--background)) !important;
+    border-color: hsl(var(--border)) !important;
 }
 
-/* Line clamp utilities */
-.line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+/* Day headers */
+:deep(.sx__week-grid__day-name) {
+    color: hsl(var(--muted-foreground)) !important;
+    background-color: hsl(var(--muted)) !important;
 }
 
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-    .grid-cols-7 {
-        grid-template-columns: repeat(7, minmax(80px, 1fr));
-        overflow-x: auto;
-    }
+/* Date numbers */
+:deep(.sx__week-grid__date-number) {
+    color: hsl(var(--foreground)) !important;
+}
+
+/* Date-based Event Color Coding with GPU acceleration */
+/* Past events - Red */
+:deep(.sx__month-grid-event.event-past),
+:deep(.event-past) {
+    background-color: #fee2e2 !important; /* red-100 */
+    color: #991b1b !important; /* red-800 */
+    border: 1px solid #fca5a5 !important; /* red-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
+}
+
+:deep(.sx__month-grid-event.event-past:hover),
+:deep(.event-past:hover) {
+    background-color: #fecaca !important; /* red-200 */
+    color: #7f1d1d !important; /* red-900 */
+}
+
+/* Today's events - Blue */
+:deep(.sx__month-grid-event.event-today),
+:deep(.event-today) {
+    background-color: #dbeafe !important; /* blue-100 */
+    color: #1e40af !important; /* blue-800 */
+    border: 1px solid #93c5fd !important; /* blue-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
+}
+
+:deep(.sx__month-grid-event.event-today:hover),
+:deep(.event-today:hover) {
+    background-color: #bfdbfe !important; /* blue-200 */
+    color: #1e3a8a !important; /* blue-900 */
+}
+
+/* Future events - Green */
+:deep(.sx__month-grid-event.event-future),
+:deep(.event-future) {
+    background-color: #dcfce7 !important; /* green-100 */
+    color: #166534 !important; /* green-800 */
+    border: 1px solid #86efac !important; /* green-300 */
+    transform: translateZ(0); /* GPU acceleration */
+    backface-visibility: hidden;
+}
+
+:deep(.sx__month-grid-event.event-future:hover),
+:deep(.event-future:hover) {
+    background-color: #bbf7d0 !important; /* green-200 */
+    color: #14532d !important; /* green-900 */
+}
+
+/* Default fallback (if date cannot be determined) */
+:deep(
+        .sx__month-grid-event:not(.event-past):not(.event-today):not(
+                .event-future
+            )
+    ) {
+    background-color: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+}
+
+:deep(
+        .sx__month-grid-event:not(.event-past):not(.event-today):not(
+                .event-future
+            ):hover
+    ) {
+    background-color: hsl(var(--accent)) !important;
+    color: hsl(var(--accent-foreground)) !important;
+}
+
+/* Calendar header */
+:deep(.sx__calendar-header) {
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+/* Navigation buttons */
+:deep(.sx__calendar-header button) {
+    color: hsl(var(--foreground)) !important;
+    background-color: transparent !important;
+}
+
+:deep(.sx__calendar-header button:hover) {
+    background-color: hsl(var(--accent)) !important;
+    color: hsl(var(--accent-foreground)) !important;
+}
+
+/* Today's date highlighting */
+:deep(.sx__month-grid-day.is-today) {
+    background-color: hsl(var(--accent)) !important;
+}
+
+:deep(.sx__month-grid-day.is-today .sx__week-grid__date-number) {
+    color: hsl(var(--accent-foreground)) !important;
+    font-weight: 600;
+}
+
+/* Week view and day view date-based coloring */
+:deep(.sx__time-grid-event.event-past) {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5 !important;
+}
+
+:deep(.sx__time-grid-event.event-today) {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+    border: 1px solid #93c5fd !important;
+}
+
+:deep(.sx__time-grid-event.event-future) {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac !important;
+}
+
+:deep(
+        .sx__time-grid-event:not(.event-past):not(.event-today):not(
+                .event-future
+            )
+    ) {
+    background-color: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+}
+
+/* Agenda view date-based coloring */
+:deep(.sx__month-agenda-event.event-past) {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5 !important;
+}
+
+:deep(.sx__month-agenda-event.event-today) {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+    border: 1px solid #93c5fd !important;
+}
+
+:deep(.sx__month-agenda-event.event-future) {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac !important;
+}
+
+:deep(
+        .sx__month-agenda-event:not(.event-past):not(.event-today):not(
+                .event-future
+            )
+    ) {
+    background-color: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+    border: 1px solid hsl(var(--border)) !important;
 }
 </style>
