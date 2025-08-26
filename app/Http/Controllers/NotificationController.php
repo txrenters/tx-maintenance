@@ -36,11 +36,10 @@ class NotificationController extends Controller
                     'message' => $item->messages,
                     'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
                     'timestamp' => $item->created_at->timestamp, // raw for sorting
-                    'read' => false, 
+                    'read' => false,
                 ];
             })->toArray();
 
-        
         $notifications = array_merge($workOrderText, $jobberText);
 
         usort($notifications, function ($a, $b) {

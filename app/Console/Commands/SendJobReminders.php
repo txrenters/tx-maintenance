@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Services\TwilioService;
@@ -10,7 +9,6 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use InvalidArgumentException;
 use Illuminate\Support\Str;
 
 class SendJobReminders extends Command
@@ -70,7 +68,7 @@ class SendJobReminders extends Command
 
     protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText)
     {
-         // Don’t process if the visit date is on weekend
+        // Don’t process if the visit date is on weekend
         if ($scheduled_date->isWeekend()) {
             return;
         }
@@ -89,7 +87,8 @@ class SendJobReminders extends Command
         $response = Http::get($TENANT_JSON_API_LINK);
 
         if ($response->failed()) {
-            Log::error("Failed to fetch client data from Propertyware");
+            Log::error('Failed to fetch client data from Propertyware');
+
             return;
         }
 
@@ -110,7 +109,7 @@ class SendJobReminders extends Command
             $client = $visit->job->client->name;
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                return Str::contains( $record[4]?? '',  $client ?? '', true); // true = ignore case
+                return Str::contains($record[4] ?? '', $client ?? '', true); // true = ignore case
             })->values();
 
             if ($filtered->isEmpty()) {
@@ -126,21 +125,22 @@ class SendJobReminders extends Command
 
                     try {
                         $workingPhoneNumber = collect([
-                                $record[11] ?? null,
-                                $record[12] ?? null,
-                                $record[13] ?? null,
-                                $record[14] ?? null
-                            ])
-                            ->map(fn($number) => trim((string) $number))
-                            ->first(fn($number) => $number !== '');
-            
+                            $record[11] ?? null,
+                            $record[12] ?? null,
+                            $record[13] ?? null,
+                            $record[14] ?? null,
+                        ])
+                            ->map(fn ($number) => trim((string) $number))
+                            ->first(fn ($number) => $number !== '');
+
                         if (empty($workingPhoneNumber)) {
                             Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
+
                             continue;
                         }
 
                         $workingPhoneNumber = $this->formatNumber($workingPhoneNumber);
-                       
+
                         $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
                         $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
@@ -148,7 +148,7 @@ class SendJobReminders extends Command
                             'client_name' => $clientName,
                             'date' => $visitDate,
                             'to' => $workingPhoneNumber,
-                            'text' => $message2
+                            'text' => $message2,
                         ]);
 
                         $twilio->sendMessage($workingPhoneNumber, $senderNumber, $message2);
@@ -161,20 +161,20 @@ class SendJobReminders extends Command
                             'sender_number' => $senderNumber,
                             'receiver_number' => $workingPhoneNumber,
                             'jobber_id' => $visit->job->id,
-                            'sent_at' => $visit->job->start_at
+                            'sent_at' => $visit->job->start_at,
                         ]);
 
-                        Log::info("Successfully sent text messages :", ['text' => $text]);
-                        
+                        Log::info('Successfully sent text messages :', ['text' => $text]);
+
                     } catch (\Throwable $th) {
-                        Log::error("Sending message is unsuccesfull:", ['error' => $th->getMessage()]);
+                        Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);
                     }
-                   
+
                 }
             }
         }
 
-        Log::info("Number of visit: (".count($visits).") for date: {$scheduled_date->toDateString()}");
+        Log::info('Number of visit: ('.count($visits).") for date: {$scheduled_date->toDateString()}");
     }
 
     protected function formatNumber(string $number): string

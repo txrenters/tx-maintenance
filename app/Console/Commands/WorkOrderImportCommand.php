@@ -44,10 +44,10 @@ class WorkOrderImportCommand extends Command
 
         if (empty($work_orders)) {
             Log::warning('No work orders returned from Propertyware API.');
+
             return;
         }
 
-    
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
 

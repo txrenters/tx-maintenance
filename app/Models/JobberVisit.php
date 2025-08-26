@@ -22,7 +22,7 @@ class JobberVisit extends Model
             $search = $filter['search'];
 
             $query
-                ->whereHas('job',function($q) use ($search){
+                ->whereHas('job', function ($q) use ($search) {
                     $q->where('job_number', $search);
                 })
                 ->orWhereAny([
@@ -38,7 +38,7 @@ class JobberVisit extends Model
         $query->where(function ($q) {
             $q->whereRaw('LOWER(title) LIKE ?', ['%tenant benefit%'])
                 ->orWhereRaw('LOWER(title) LIKE ?', ['%tbp%']);
-        }); 
-        
+        });
+
     }
 }

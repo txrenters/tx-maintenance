@@ -70,10 +70,14 @@ const touchStartX = ref(0);
 const touchEndX = ref(0);
 const isTransitioning = ref(false);
 const weekContainer = ref(null);
+const eventsCache = new Map(); // Cache for week data
+const isLoadingWeek = ref(false);
 
-// Initialize to start of current week (Sunday)
+// Initialize to start of current week (Sunday) in Chicago timezone
 const initializeWeek = () => {
-    const today = new Date();
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     const day = today.getDay();
     const diff = today.getDate() - day;
     currentWeekStart.value = new Date(today.setDate(diff));
@@ -111,9 +115,11 @@ const weekRangeText = computed(() => {
     }
 });
 
-// Check if a date is today
+// Check if a date is today (in Chicago timezone)
 const isToday = (date) => {
-    const today = new Date();
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     return (
         date.getDate() === today.getDate() &&
         date.getMonth() === today.getMonth() &&
@@ -123,7 +129,9 @@ const isToday = (date) => {
 
 // Check if viewing current week
 const isCurrentWeek = computed(() => {
-    const today = new Date();
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     const weekStart = new Date(currentWeekStart.value);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
@@ -131,13 +139,14 @@ const isCurrentWeek = computed(() => {
     return today >= weekStart && today <= weekEnd;
 });
 
-// Navigate weeks with smooth transition
-const navigateWeek = (direction) => {
-    if (isTransitioning.value) return;
+// Navigate weeks with optimized loading
+const navigateWeek = async (direction) => {
+    if (isTransitioning.value || isLoadingWeek.value) return;
 
     isTransitioning.value = true;
     const newDate = new Date(currentWeekStart.value);
     newDate.setDate(newDate.getDate() + direction * 7);
+    const weekKey = newDate.toISOString().split('T')[0];
 
     // Add slide animation class
     if (weekContainer.value) {
@@ -146,6 +155,9 @@ const navigateWeek = (direction) => {
         }%)`;
         weekContainer.value.style.opacity = "0.5";
     }
+
+    // Load week data
+    await loadWeekData(newDate);
 
     setTimeout(() => {
         currentWeekStart.value = newDate;
@@ -158,8 +170,62 @@ const navigateWeek = (direction) => {
 };
 
 // Go to today's week
-const goToToday = () => {
-    initializeWeek();
+const goToToday = async () => {
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
+    const day = today.getDay();
+    const diff = today.getDate() - day;
+    const todayWeekStart = new Date(today.setDate(diff));
+    todayWeekStart.setHours(0, 0, 0, 0);
+    
+    await loadWeekData(todayWeekStart);
+    currentWeekStart.value = todayWeekStart;
+};
+
+// Load week data with caching
+const loadWeekData = async (weekStart) => {
+    const weekKey = weekStart.toISOString().split('T')[0];
+    
+    // Check cache first
+    if (eventsCache.has(weekKey)) {
+        // Skip loading if we have cached data for this week
+        return;
+    }
+
+    isLoadingWeek.value = true;
+
+    try {
+        // Use Inertia to fetch week data
+        router.get(route('visits.weekData'), {
+            week_start: weekKey,
+            search: search.value,
+        }, {
+            only: ['events', 'currentWeekRange'],
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: (page) => {
+                // Cache the loaded data
+                if (page.props.events) {
+                    eventsCache.set(weekKey, page.props.events);
+                }
+            },
+            onError: (errors) => {
+                console.error('Failed to load week data:', errors);
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to load week data. Please try again.",
+                });
+            },
+            onFinish: () => {
+                isLoadingWeek.value = false;
+            }
+        });
+    } catch (error) {
+        console.error('Error loading week data:', error);
+        isLoadingWeek.value = false;
+    }
 };
 
 // Touch handlers for swipe navigation
@@ -189,7 +255,7 @@ const handleTouchEnd = () => {
     touchEndX.value = 0;
 };
 
-// Group events by date
+// Group events by date (using Chicago timezone)
 const eventsByDate = computed(() => {
     const grouped = {};
 
@@ -201,7 +267,19 @@ const eventsByDate = computed(() => {
     if (props.events) {
         props.events.forEach((event) => {
             const eventDate = new Date(event.start || event.date);
-            const dateStr = eventDate.toISOString().split("T")[0];
+            // Convert to Chicago timezone for proper day grouping
+            const chicagoDate = new Date(
+                eventDate.toLocaleString("en-US", {
+                    timeZone: "America/Chicago",
+                })
+            );
+            const dateStr = new Date(
+                chicagoDate.getFullYear(),
+                chicagoDate.getMonth(),
+                chicagoDate.getDate()
+            )
+                .toISOString()
+                .split("T")[0];
 
             if (grouped[dateStr]) {
                 grouped[dateStr].push({
@@ -210,6 +288,7 @@ const eventsByDate = computed(() => {
                         hour: "numeric",
                         minute: "2-digit",
                         hour12: true,
+                        timeZone: "America/Chicago",
                     }),
                 });
             }
@@ -235,13 +314,18 @@ const getStatusColor = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const today = new Date();
+    const eventChicago = new Date(
+        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
+    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventDate < today) {
+    if (eventChicago < today) {
         return "bg-red-50 border-red-200 hover:bg-red-100";
-    } else if (eventDate.getTime() === today.getTime()) {
+    } else if (eventChicago.getTime() === today.getTime()) {
         return "bg-blue-50 border-blue-200 hover:bg-blue-100";
     } else {
         return "bg-gray-50 border-gray-200 hover:bg-gray-100";
@@ -255,11 +339,16 @@ const getStatusIcon = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const today = new Date();
+    const eventChicago = new Date(
+        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
+    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventDate < today) {
+    if (eventChicago < today) {
         return AlertCircle;
     } else {
         return Clock;
@@ -273,16 +362,21 @@ const getStatusIconColor = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const today = new Date();
+    const eventChicago = new Date(
+        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
+    const today = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    );
     today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
+    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventDate < today) {
+    if (eventChicago < today) {
         return "text-red-600";
-    } else if (eventDate.getTime() === today.getTime()) {
+    } else if (eventChicago.getTime() === today.getTime()) {
         return "text-blue-600";
     } else {
-        return "text-gray-600";
+        return "text-green-600";
     }
 };
 
@@ -571,10 +665,30 @@ const openEventModal = async (event) => {
     activeTab.value = "details";
     selectedEvent.value = event;
     isModalOpen.value = true;
-
-    if (event?.job?.id) {
-        await nextTick();
-        fetchMessages();
+    
+    // Load full event details including messages on demand
+    if (event?.id) {
+        try {
+            const response = await fetch(route('visits.details', event.id));
+            const fullEventData = await response.json();
+            
+            // Merge full data with current event
+            selectedEvent.value = {
+                ...event,
+                ...fullEventData,
+                job: {
+                    ...event.job,
+                    ...fullEventData.job,
+                }
+            };
+            
+            // Update text messages
+            if (fullEventData.text_messages) {
+                jobMessages.value = fullEventData.text_messages;
+            }
+        } catch (error) {
+            console.error('Failed to load event details:', error);
+        }
     }
 };
 
@@ -604,9 +718,20 @@ useEchoPublic("visits", "VisitUpdated", (e) => {
     router.reload({ only: ["events"] });
 });
 
-// Initialize on mount
+// Cache initial events data
 onMounted(() => {
     initializeWeek();
+    
+    // Cache the initial events data
+    const weekKey = currentWeekStart.value.toISOString().split('T')[0];
+    if (props.events && props.events.length > 0) {
+        eventsCache.set(weekKey, props.events);
+    }
+});
+
+// Watch for search changes and clear cache
+watch(search, () => {
+    eventsCache.clear(); // Clear cache when search changes
 });
 </script>
 
@@ -665,11 +790,21 @@ onMounted(() => {
     <!-- Week View Container -->
     <div
         ref="weekContainer"
-        class="bg-background border rounded-lg overflow-hidden transition-all duration-300"
+        class="bg-background border rounded-lg overflow-hidden transition-all duration-300 relative"
         @touchstart="handleTouchStart"
         @touchmove="handleTouchMove"
         @touchend="handleTouchEnd"
     >
+        <!-- Loading indicator -->
+        <div
+            v-if="isLoadingWeek"
+            class="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center"
+        >
+            <div class="flex flex-col items-center gap-3">
+                <Loader2 class="animate-spin h-8 w-8" />
+                <span class="text-muted-foreground text-sm">Loading week...</span>
+            </div>
+        </div>
         <!-- Days Header -->
         <div class="grid grid-cols-7 border-b bg-muted/30">
             <div

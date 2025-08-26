@@ -83,6 +83,8 @@ Route::middleware([
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
+    Route::get('/visits/week-data', [InspectionVisitController::class, 'weekData'])->name('visits.weekData');
+    Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
@@ -220,55 +222,55 @@ Route::get('lofty', function () {
 
     $response = Http::withHeaders([
         'Authorization' => 'token eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjMzMTg2Nzg1Mjk2OTMsInVzZXJfaWQiOjg0NDc2NzIwMDg5NjI3OCwic2NvcGUiOiI1IiwiaWF0IjoxNzQxODc4NTI5NjkzfQ.CwelU10RiIOmcd3NaRX2r83oMuKMBurfx6wwKV2XIYM',
-        'Content-Type'  => 'application/json',
+        'Content-Type' => 'application/json',
     ])->post('https://api.lofty.com/v1.0/leads', [
-            'firstName' => 'Test 2',
-            'lastName' => 'Li',
-            'emails' => [
-                'sample@gmail.com',
-                'sample@gmail.com'
-            ],
-            'phones' => [
-                '123456789',
-                '987654321'
-            ],
-            'leadTypes' => [
-                1,
-                2
-            ],
-            'streetAddress' => 'The White House,1600 Pennsylvania Avenue NW',
-            'city' => 'Washington DC',
-            'state' => 'Washington DC',
-            'zipCode' => '20500',
-            'referredBy' => 'Jeremy Kelly',
-            'stage' => 'Pending',
-  
-            'property' => [
-                'price' => 100000,
-                'state' => 'California',
-                'city' => 'New York',
-                'streetAddress' => '22348 Regnart RD',
-                'zipCode' => '25401',
-                'propertyType' => 'Single Family Home',
-                'bedrooms' => 3,
-                'bathrooms' => 2,
-                'squareFeet' => 100,
-                'lotSize' => 26.33,
-                'parkingSpace' => 1,
-                'floors' => 1,
-                'priceMax' => 10000000,
-                'priceMin' => 100000
-            ],
-            
-            ]);
+        'firstName' => 'Test 2',
+        'lastName' => 'Li',
+        'emails' => [
+            'sample@gmail.com',
+            'sample@gmail.com',
+        ],
+        'phones' => [
+            '123456789',
+            '987654321',
+        ],
+        'leadTypes' => [
+            1,
+            2,
+        ],
+        'streetAddress' => 'The White House,1600 Pennsylvania Avenue NW',
+        'city' => 'Washington DC',
+        'state' => 'Washington DC',
+        'zipCode' => '20500',
+        'referredBy' => 'Jeremy Kelly',
+        'stage' => 'Pending',
+
+        'property' => [
+            'price' => 100000,
+            'state' => 'California',
+            'city' => 'New York',
+            'streetAddress' => '22348 Regnart RD',
+            'zipCode' => '25401',
+            'propertyType' => 'Single Family Home',
+            'bedrooms' => 3,
+            'bathrooms' => 2,
+            'squareFeet' => 100,
+            'lotSize' => 26.33,
+            'parkingSpace' => 1,
+            'floors' => 1,
+            'priceMax' => 10000000,
+            'priceMin' => 100000,
+        ],
+
+    ]);
 
     $response->json();
 
     dd($response->json());
 });
 
-Route::get('register-asana', function (){
-            $token = env('ASANA_ACCESS_TOKEN');
+Route::get('register-asana', function () {
+    $token = env('ASANA_ACCESS_TOKEN');
 
     // $response = Http::withToken($token)
     //         ->withHeaders([
@@ -283,7 +285,7 @@ Route::get('register-asana', function (){
     //         ]);
     //     if (!$response->successful()) {
     //          echo('Webhook registered for project');
-    //     }   
+    //     }
 
     //     $res = Http::withToken($token)
     //         ->withHeaders([
@@ -299,20 +301,19 @@ Route::get('register-asana', function (){
 
     // if (!$res->successful()) {
     //          echo('Webhook registered for project');
-    //     }   
+    //     }
 
     $response = Http::withToken($token)->get('https://app.asana.com/api/1.0/webhooks', [
         'resource' => '1207374645683175',
-        'workspace' => env('ASANA_WORKSPACE_ID')
+        'workspace' => env('ASANA_WORKSPACE_ID'),
 
     ]);
-     print_r($response->json());
+    print_r($response->json());
     $res = Http::withToken($token)->get('https://app.asana.com/api/1.0/webhooks', [
         'resource' => '1207535257037786',
-        'workspace' => env('ASANA_WORKSPACE_ID')
+        'workspace' => env('ASANA_WORKSPACE_ID'),
     ]);
 
-   
     print_r($res->json());
 
 });

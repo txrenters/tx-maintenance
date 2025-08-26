@@ -82,7 +82,7 @@ class PropertyWareService
     {
         try {
 
-            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders',[
+            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
                 'limit' => 500,
             ]);
 
@@ -212,7 +212,8 @@ class PropertyWareService
             // return []; // Return empty array if no result
 
         } catch (\Exception $e) {
-            Log::error('SOAP request failed: ' . $e->getMessage());
+            Log::error('SOAP request failed: '.$e->getMessage());
+
             return [];
         }
     }
