@@ -75,7 +75,6 @@ class SendJobReminders extends Command
 
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
-            ->where($notifiedField, false)
             ->whereNull('completed_at')
             ->get();
 
