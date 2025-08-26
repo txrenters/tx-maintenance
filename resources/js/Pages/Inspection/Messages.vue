@@ -232,9 +232,7 @@ const truncateMessage = (message, length = 100) => {
                             <TableCell>
                                 <div class="max-w-md flex-col gap-2">
                                     <p class="text-sm">
-                                        {{
-                                            formatDate(conversation?.created_at)
-                                        }}
+                                        {{ conversation?.created_at }}
                                     </p>
                                 </div>
                             </TableCell>
