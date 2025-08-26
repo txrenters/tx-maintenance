@@ -24,20 +24,16 @@ class InspectionVisitController extends Controller
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SATURDAY);
 
         // Load only this week's visits with minimal relationships
-        $visits = JobberVisit::query()
-            ->with(['job.client', 'job.property']) // Removed textMessages from eager loading
-            ->addSelect([
-                'message_count' => JobberTextMessage::selectRaw('count(*)')
-                    ->where('jobber_job_id', 'jobber_visits.jobber_job_id')
-            ])
-            ->filter(request(['search']))
-            ->whereHas('job', function ($q) {
-                $q->where('job_status', '!=', 'archived');
-            })
-            ->whereBetween('start_at', [$weekStart, $weekEnd])
-            ->whereNotNull('start_at')
-            ->whereNotNull('end_at')
-            ->get();
+            $visits = JobberVisit::query()
+                ->with(['job.client', 'job.property'])
+                ->filter(request(['search']))
+                ->whereHas('job', function ($q) {
+                    $q->where('job_status', '!=', 'archived');
+                })
+                ->whereBetween('start_at', [$weekStart, $weekEnd])
+                ->whereNotNull('start_at')
+                ->whereNotNull('end_at')
+                ->get();
 
         // Create minimal event objects for performance
         $events = $visits->map(function ($visit) {
