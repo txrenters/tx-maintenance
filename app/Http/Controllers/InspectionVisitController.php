@@ -24,16 +24,16 @@ class InspectionVisitController extends Controller
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SATURDAY);
 
         // Load only this week's visits with minimal relationships
-            $visits = JobberVisit::query()
-                ->with(['job.client', 'job.property'])
-                ->filter(request(['search']))
-                ->whereHas('job', function ($q) {
-                    $q->where('job_status', '!=', 'archived');
-                })
-                ->whereBetween('start_at', [$weekStart, $weekEnd])
-                ->whereNotNull('start_at')
-                ->whereNotNull('end_at')
-                ->get();
+        $visits = JobberVisit::query()
+            ->with(['job.client', 'job.property'])
+            ->filter(request(['search']))
+            ->whereHas('job', function ($q) {
+                $q->where('job_status', '!=', 'archived');
+            })
+            ->whereBetween('start_at', [$weekStart, $weekEnd])
+            ->whereNotNull('start_at')
+            ->whereNotNull('end_at')
+            ->get();
 
         // Create minimal event objects for performance
         $events = $visits->map(function ($visit) {
@@ -47,6 +47,8 @@ class InspectionVisitController extends Controller
                 'end' => $endDate->format('Y-m-d H:i:s'),
                 'description' => $visit->instructions,
                 'is_complete' => $visit->is_complete,
+                'notified_7_days' => $visit->notified_7_days,
+                'notified_3_days' => $visit->notified_3_days,
                 'job' => [
                     'id' => $visit->job->id,
                     'job_number' => $visit->job->job_number,
