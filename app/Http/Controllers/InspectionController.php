@@ -11,6 +11,7 @@ use App\Models\Owner;
 use App\Models\Tenants;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use InvalidArgumentException;
@@ -154,6 +155,7 @@ class InspectionController extends Controller
             ->paginate(50)
             ->withQueryString()
             ->through(function ($convo) {
+
                 return [
                     'id' => $convo->id,
                     'job_number' => $convo->jobber->job_number,
@@ -162,7 +164,7 @@ class InspectionController extends Controller
                     'sender' => $convo->sender_number,
                     'receiver' => $convo->receiver_number,
                     'messages' => $convo->messages,
-                    'created_at' => $convo->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
+                    'created_at' => $convo->created_at->format('F d, y h:i A'),
                 ];
             });
 

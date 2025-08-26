@@ -205,7 +205,7 @@ const truncateMessage = (message, length = 100) => {
                             <TableCell>
                                 <div class="flex flex-col">
                                     <p>{{ conversation.job_number }}</p>
-                                    <p>{{ conversation.job_title }}</p>
+                                    <!-- <p>{{ conversation.job_title }}</p> -->
                                 </div>
                             </TableCell>
                             <TableCell>
