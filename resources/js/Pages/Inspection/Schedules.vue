@@ -869,7 +869,7 @@ onMounted(() => {
                             <!-- Time and Status -->
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-xs font-semibold">
-                                    {{ event.time }}
+                                    Job #{{ event.job?.job_number }}
                                 </span>
                                 <component
                                     :is="getStatusIcon(event)"
@@ -880,41 +880,18 @@ onMounted(() => {
                                 />
                             </div>
 
-                            <!-- Job Number -->
-                            <div
-                                class="font-medium text-sm text-muted-foreground mb-1"
-                            >
-                                Job #{{ event.job?.job_number }}
-                            </div>
-
                             <!-- Title -->
                             <div class="font-medium text-sm line-clamp-2 mb-2">
                                 {{ event.title || event.summary }}
                             </div>
 
                             <!-- Location -->
-                            <div
-                                v-if="event.location || event.address"
-                                class="flex items-start gap-1"
-                            >
+                            <div class="flex items-start gap-1">
                                 <MapPin
                                     class="h-3 w-3 text-muted-foreground mt-0.5"
                                 />
                                 <span
                                     class="text-xs text-muted-foreground line-clamp-2"
-                                >
-                                    {{ event.location || event.address }}
-                                </span>
-                            </div>
-
-                            <!-- Team Member -->
-                            <div
-                                v-if="event.teamMember || event.assignedTo"
-                                class="flex items-center gap-1 mt-1"
-                            >
-                                <User class="h-3 w-3 text-muted-foreground" />
-                                <span
-                                    class="text-xs text-muted-foreground truncate"
                                 >
                                     {{ event.teamMember || event.assignedTo }}
                                 </span>
@@ -1036,26 +1013,10 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <div
-                    v-if="selectedEvent.location || selectedEvent.address"
-                    class="space-y-2"
-                >
+                <div class="space-y-1">
                     <div class="flex items-center gap-2">
                         <MapPin class="h-4 w-4 text-muted-foreground" />
                         <span class="font-medium">Location</span>
-                    </div>
-                    <p class="text-sm pl-6">
-                        {{ selectedEvent.location || selectedEvent.address }}
-                    </p>
-                </div>
-
-                <div
-                    v-if="selectedEvent.teamMember || selectedEvent.assignedTo"
-                    class="space-y-2"
-                >
-                    <div class="flex items-center gap-2">
-                        <User class="h-4 w-4 text-muted-foreground" />
-                        <span class="font-medium">Team Member</span>
                     </div>
                     <p class="text-sm pl-6">
                         {{
