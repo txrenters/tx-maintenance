@@ -25,6 +25,11 @@ class InspectionVisitController extends Controller
         // Load only this week's visits with minimal relationships
         $visits = JobberVisit::query()
             ->with(['job.client', 'job.property']) // Removed textMessages from eager loading
+           ->withCount([
+                'job as message_count' => function ($q) {
+                    $q->withCount('textMessages');
+                }
+            ])
             ->filter(request(['search']))
             ->whereHas('job', function ($q) {
                 $q->where('job_status', '!=', 'archived');
