@@ -5,18 +5,33 @@ namespace App\Http\Controllers;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 class InspectionVisitController extends Controller
 {
     public function index(Request $request)
     {
-        // Get week range from request or use current week
-        $weekStart = $request->has('week_start')
-            ? Carbon::parse($request->week_start)->timezone('America/Chicago')->startOfDay()
-            : Carbon::now('America/Chicago')->startOfWeek(Carbon::SUNDAY);
+        // Debug logging
+        \Log::info('Visits index called', [
+            'has_week_start' => $request->has('week_start'),
+            'week_start' => $request->get('week_start'),
+            'search' => $request->get('search'),
+        ]);
+
+        // Get week range from request or use current week (always in Chicago timezone)
+        if ($request->has('week_start') && $request->week_start) {
+            // Parse the date as if it's already in Chicago timezone (don't convert)
+            // Frontend already sends the correct Sunday, so don't recalculate startOfWeek
+            $weekStart = Carbon::parse($request->week_start, 'America/Chicago');
+        } else {
+            $weekStart = Carbon::now('America/Chicago')->startOfWeek(Carbon::SUNDAY);
+        }
 
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SATURDAY);
+
+        \Log::info('Week range calculated', [
+            'week_start' => $weekStart->toDateString(),
+            'week_end' => $weekEnd->toDateString(),
+        ]);
 
         // Load only this week's visits with minimal relationships
         $visits = JobberVisit::query()
@@ -67,70 +82,8 @@ class InspectionVisitController extends Controller
                 'start' => $weekStart->format('Y-m-d'),
                 'end' => $weekEnd->format('Y-m-d'),
             ],
+            'weekStart' => $weekStart->format('Y-m-d'), // Add this for frontend initialization
             'filters' => request(['search']),
-        ]);
-    }
-
-    /**
-     * Load events for a specific week range
-     */
-    public function weekData(Request $request)
-    {
-        $request->validate([
-            'week_start' => 'required|date',
-        ]);
-
-        $weekStart = Carbon::parse($request->week_start)->timezone('America/Chicago')->startOfDay();
-        $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
-
-        $visits = JobberVisit::query()
-            ->with(['job.client', 'job.property'])
-            ->filter($request->only(['search']))
-            ->whereHas('job', function ($q) {
-                $q->where('job_status', '!=', 'archived');
-            })
-            ->whereBetween('start_at', [$weekStart, $weekEnd])
-            ->whereNotNull('start_at')
-            ->whereNotNull('end_at')
-            ->get();
-
-        $events = $visits->map(function ($visit) {
-            $startDate = Carbon::parse($visit->start_at);
-            $endDate = Carbon::parse($visit->end_at);
-
-            return [
-                'id' => $visit->id,
-                'title' => $visit->title,
-                'start' => $startDate->format('Y-m-d H:i:s'),
-                'end' => $endDate->format('Y-m-d H:i:s'),
-                'description' => $visit->instructions,
-                'is_complete' => $visit->is_complete,
-                'job' => [
-                    'id' => $visit->job->id,
-                    'job_number' => $visit->job->job_number,
-                    'title' => $visit->job->title,
-                    'jobber_web_uri' => $visit->job->jobber_web_uri,
-                ],
-                'location' => optional($visit->job->property)->full_address ?? 'No Property',
-                'address' => optional($visit->job->property)->full_address ?? 'No Property',
-                'teamMember' => optional($visit->job->client)->name ?? 'No Client',
-                'text_messages_count' => 0,
-                'calendarId' => 'main',
-                '_options' => [
-                    'additionalClasses' => 'event_class',
-                ],
-            ];
-        });
-
-        // Return Inertia response instead of JSON
-        return inertia('Inspection/Schedules', [
-            'title' => 'Job Schedules',
-            'events' => $events,
-            'currentWeekRange' => [
-                'start' => $weekStart->format('Y-m-d'),
-                'end' => $weekEnd->format('Y-m-d'),
-            ],
-            'filters' => $request->only(['search']),
         ]);
     }
 

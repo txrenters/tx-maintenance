@@ -19,18 +19,18 @@ const props = defineProps({
             "
             as-child
         >
-            <a :href="route('inspections.index')" prefetch>
+            <Link :href="route('inspections.index')" prefetch>
                 <Hammer class="w-4 h-4" />
-            </a>
+            </Link>
         </Button>
         <Button
             class="rounded"
             :variant="$page.url.startsWith('/visits') ? 'default' : 'outline'"
             as-child
         >
-            <a :href="route('visits.index')" prefetch>
+            <Link :href="route('visits.index')" prefetch>
                 <Calendar class="w-4 h-4" />
-            </a>
+            </Link>
         </Button>
         <Button
             class="rounded"

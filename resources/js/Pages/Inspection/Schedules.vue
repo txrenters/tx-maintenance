@@ -62,6 +62,7 @@ const props = defineProps({
     title: String,
     events: Array,
     filters: Object,
+    weekStart: String, // Backend provides the current week start
 });
 
 // Week Navigation State
@@ -70,28 +71,50 @@ const touchStartX = ref(0);
 const touchEndX = ref(0);
 const isTransitioning = ref(false);
 const weekContainer = ref(null);
-const eventsCache = new Map(); // Cache for week data
-const isLoadingWeek = ref(false);
 
-// Initialize to start of current week (Sunday) in Chicago timezone
+// Initialize week from backend prop
 const initializeWeek = () => {
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    const day = today.getDay();
-    const diff = today.getDate() - day;
-    currentWeekStart.value = new Date(today.setDate(diff));
+    if (props.weekStart) {
+        // Use the week start provided by backend (already a Sunday in Chicago timezone)
+        // Parse as UTC to avoid timezone issues, then treat as local date
+        currentWeekStart.value = new Date(props.weekStart + 'T00:00:00');
+        console.log(
+            "Initialized week from backend prop:",
+            props.weekStart,
+            currentWeekStart.value,
+            "Day of week:",
+            currentWeekStart.value.getDay() // Should be 0 (Sunday)
+        );
+    } else {
+        // Fallback to current week in Chicago timezone
+        const today = new Date();
+        const chicagoTime = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Chicago",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(today);
+
+        const chicagoDate = new Date(chicagoTime + 'T00:00:00');
+        const dayOfWeek = chicagoDate.getDay();
+        const diff = dayOfWeek; // Days to subtract to get to Sunday
+        currentWeekStart.value = new Date(chicagoDate);
+        currentWeekStart.value.setDate(chicagoDate.getDate() - diff);
+        console.log("Fallback to current week:", currentWeekStart.value);
+    }
+
     currentWeekStart.value.setHours(0, 0, 0, 0);
 };
 
-// Get week dates
+// Get week dates - use UTC calculations to avoid timezone issues
 const weekDates = computed(() => {
     const dates = [];
     const start = new Date(currentWeekStart.value);
-
+    const startTime = start.getTime();
+    
+    // Add exactly 24 hours * i days to avoid DST issues
     for (let i = 0; i < 7; i++) {
-        const date = new Date(start);
-        date.setDate(start.getDate() + i);
+        const date = new Date(startTime + (i * 24 * 60 * 60 * 1000));
         dates.push(date);
     }
 
@@ -117,115 +140,107 @@ const weekRangeText = computed(() => {
 
 // Check if a date is today (in Chicago timezone)
 const isToday = (date) => {
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
+    const today = new Date();
+    const chicagoTime = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(today);
+
+    const [year, month, day] = chicagoTime.split("-");
+    const chicagoToday = new Date(year, month - 1, day);
+
     return (
-        date.getDate() === today.getDate() &&
-        date.getMonth() === today.getMonth() &&
-        date.getFullYear() === today.getFullYear()
+        date.getDate() === chicagoToday.getDate() &&
+        date.getMonth() === chicagoToday.getMonth() &&
+        date.getFullYear() === chicagoToday.getFullYear()
     );
 };
 
 // Check if viewing current week
 const isCurrentWeek = computed(() => {
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
+    const today = new Date();
+    const chicagoTime = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(today);
+
+    const [year, month, day] = chicagoTime.split("-");
+    const chicagoToday = new Date(year, month - 1, day);
+
     const weekStart = new Date(currentWeekStart.value);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
 
-    return today >= weekStart && today <= weekEnd;
+    return chicagoToday >= weekStart && chicagoToday <= weekEnd;
 });
 
-// Navigate weeks with optimized loading
-const navigateWeek = async (direction) => {
-    if (isTransitioning.value || isLoadingWeek.value) return;
+// Navigate weeks - use millisecond arithmetic to avoid timezone issues
+const navigateWeek = (direction) => {
+    if (isTransitioning.value) return;
 
     isTransitioning.value = true;
-    const newDate = new Date(currentWeekStart.value);
-    newDate.setDate(newDate.getDate() + direction * 7);
-    const weekKey = newDate.toISOString().split('T')[0];
 
-    // Add slide animation class
-    if (weekContainer.value) {
-        weekContainer.value.style.transform = `translateX(${
-            direction * -100
-        }%)`;
-        weekContainer.value.style.opacity = "0.5";
-    }
+    // Calculate new date using millisecond arithmetic (exactly 7 days)
+    const currentTime = currentWeekStart.value.getTime();
+    const newTime = currentTime + (direction * 7 * 24 * 60 * 60 * 1000);
+    const newDate = new Date(newTime);
+    
+    // Format as YYYY-MM-DD in local timezone
+    const year = newDate.getFullYear();
+    const month = String(newDate.getMonth() + 1).padStart(2, '0');
+    const day = String(newDate.getDate()).padStart(2, '0');
+    const weekKey = `${year}-${month}-${day}`;
 
-    // Load week data
-    await loadWeekData(newDate);
-
-    setTimeout(() => {
-        currentWeekStart.value = newDate;
-        if (weekContainer.value) {
-            weekContainer.value.style.transform = "";
-            weekContainer.value.style.opacity = "1";
-        }
-        isTransitioning.value = false;
-    }, 300);
-};
-
-// Go to today's week
-const goToToday = async () => {
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+    console.log(
+        "Navigating:",
+        direction > 0 ? "forward" : "back",
+        "from:",
+        currentWeekStart.value.toISOString().split("T")[0],
+        "to:",
+        weekKey
     );
-    const day = today.getDay();
-    const diff = today.getDate() - day;
-    const todayWeekStart = new Date(today.setDate(diff));
-    todayWeekStart.setHours(0, 0, 0, 0);
-    
-    await loadWeekData(todayWeekStart);
-    currentWeekStart.value = todayWeekStart;
-};
 
-// Load week data with caching
-const loadWeekData = async (weekStart) => {
-    const weekKey = weekStart.toISOString().split('T')[0];
-    
-    // Check cache first
-    if (eventsCache.has(weekKey)) {
-        // Skip loading if we have cached data for this week
-        return;
-    }
-
-    isLoadingWeek.value = true;
-
-    try {
-        // Use Inertia to fetch week data
-        router.get(route('visits.weekData'), {
+    // Simple page reload with new week parameter
+    router.visit(route("visits.index"), {
+        method: "get",
+        data: {
             week_start: weekKey,
             search: search.value,
-        }, {
-            only: ['events', 'currentWeekRange'],
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: (page) => {
-                // Cache the loaded data
-                if (page.props.events) {
-                    eventsCache.set(weekKey, page.props.events);
-                }
-            },
-            onError: (errors) => {
-                console.error('Failed to load week data:', errors);
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: "Failed to load week data. Please try again.",
-                });
-            },
-            onFinish: () => {
-                isLoadingWeek.value = false;
-            }
-        });
-    } catch (error) {
-        console.error('Error loading week data:', error);
-        isLoadingWeek.value = false;
-    }
+        },
+        preserveState: false,
+        preserveScroll: false,
+        onStart: () => {
+            console.log("Navigation started");
+        },
+        onError: (errors) => {
+            console.error("Navigation failed:", errors);
+            isTransitioning.value = false;
+        },
+        onFinish: () => {
+            // Reset transitioning state when navigation completes
+            isTransitioning.value = false;
+        },
+    });
+};
+
+// Go to today's week - simplified
+const goToToday = () => {
+    console.log("Going to today");
+
+    // Simple page reload without week parameter
+    router.visit(route("visits.index"), {
+        method: "get",
+        data: {
+            search: search.value,
+            // No week_start = current week
+        },
+        preserveState: false,
+        preserveScroll: false,
+    });
 };
 
 // Touch handlers for swipe navigation
@@ -267,22 +282,17 @@ const eventsByDate = computed(() => {
     if (props.events) {
         props.events.forEach((event) => {
             const eventDate = new Date(event.start || event.date);
-            // Convert to Chicago timezone for proper day grouping
-            const chicagoDate = new Date(
-                eventDate.toLocaleString("en-US", {
-                    timeZone: "America/Chicago",
-                })
-            );
-            const dateStr = new Date(
-                chicagoDate.getFullYear(),
-                chicagoDate.getMonth(),
-                chicagoDate.getDate()
-            )
-                .toISOString()
-                .split("T")[0];
 
-            if (grouped[dateStr]) {
-                grouped[dateStr].push({
+            // Get the date in Chicago timezone for proper day grouping
+            const chicagoDateStr = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "America/Chicago",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            }).format(eventDate);
+
+            if (grouped[chicagoDateStr]) {
+                grouped[chicagoDateStr].push({
                     ...event,
                     time: eventDate.toLocaleTimeString("en-US", {
                         hour: "numeric",
@@ -314,18 +324,26 @@ const getStatusColor = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const eventChicago = new Date(
-        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    today.setHours(0, 0, 0, 0);
-    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventChicago < today) {
+    // Get event date in Chicago timezone
+    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(eventDate);
+
+    // Get today in Chicago timezone
+    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+
+    if (eventChicagoStr < todayChicagoStr) {
         return "bg-red-50 border-red-200 hover:bg-red-100";
-    } else if (eventChicago.getTime() === today.getTime()) {
+    } else if (eventChicagoStr === todayChicagoStr) {
         return "bg-blue-50 border-blue-200 hover:bg-blue-100";
     } else {
         return "bg-gray-50 border-gray-200 hover:bg-gray-100";
@@ -339,16 +357,24 @@ const getStatusIcon = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const eventChicago = new Date(
-        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    today.setHours(0, 0, 0, 0);
-    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventChicago < today) {
+    // Get event date in Chicago timezone
+    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(eventDate);
+
+    // Get today in Chicago timezone
+    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+
+    if (eventChicagoStr < todayChicagoStr) {
         return AlertCircle;
     } else {
         return Clock;
@@ -362,21 +388,29 @@ const getStatusIconColor = (event) => {
     }
 
     const eventDate = new Date(event.start || event.date);
-    const eventChicago = new Date(
-        eventDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    const today = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-    );
-    today.setHours(0, 0, 0, 0);
-    eventChicago.setHours(0, 0, 0, 0);
 
-    if (eventChicago < today) {
+    // Get event date in Chicago timezone
+    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(eventDate);
+
+    // Get today in Chicago timezone
+    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+
+    if (eventChicagoStr < todayChicagoStr) {
         return "text-red-600";
-    } else if (eventChicago.getTime() === today.getTime()) {
+    } else if (eventChicagoStr === todayChicagoStr) {
         return "text-blue-600";
     } else {
-        return "text-green-600";
+        return "text-gray-600";
     }
 };
 
@@ -665,13 +699,13 @@ const openEventModal = async (event) => {
     activeTab.value = "details";
     selectedEvent.value = event;
     isModalOpen.value = true;
-    
+
     // Load full event details including messages on demand
     if (event?.id) {
         try {
-            const response = await fetch(route('visits.details', event.id));
+            const response = await fetch(route("visits.details", event.id));
             const fullEventData = await response.json();
-            
+
             // Merge full data with current event
             selectedEvent.value = {
                 ...event,
@@ -679,15 +713,15 @@ const openEventModal = async (event) => {
                 job: {
                     ...event.job,
                     ...fullEventData.job,
-                }
+                },
             };
-            
+
             // Update text messages
             if (fullEventData.text_messages) {
                 jobMessages.value = fullEventData.text_messages;
             }
         } catch (error) {
-            console.error('Failed to load event details:', error);
+            console.error("Failed to load event details:", error);
         }
     }
 };
@@ -718,20 +752,9 @@ useEchoPublic("visits", "VisitUpdated", (e) => {
     router.reload({ only: ["events"] });
 });
 
-// Cache initial events data
+// Initialize on mount
 onMounted(() => {
     initializeWeek();
-    
-    // Cache the initial events data
-    const weekKey = currentWeekStart.value.toISOString().split('T')[0];
-    if (props.events && props.events.length > 0) {
-        eventsCache.set(weekKey, props.events);
-    }
-});
-
-// Watch for search changes and clear cache
-watch(search, () => {
-    eventsCache.clear(); // Clear cache when search changes
 });
 </script>
 
@@ -739,15 +762,13 @@ watch(search, () => {
     <Head :title="title" />
 
     <!-- Search and Navigation -->
-    <div
-        class="flex gap-3 flex-col sm:flex-row items-center justify-between mb-4"
-    >
+    <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
         <SearchBar :url="url" v-model="search" class="w-full" />
         <Navigation />
     </div>
 
     <!-- Week Navigation Header -->
-    <div class="bg-background border rounded-lg p-4 mb-4">
+    <div class="bg-background border rounded-lg p-4">
         <div class="flex items-center justify-between">
             <!-- Previous Week Button -->
             <Button
@@ -765,7 +786,6 @@ watch(search, () => {
                 <h2 class="text-lg font-semibold">{{ weekRangeText }}</h2>
                 <Button
                     v-if="!isCurrentWeek"
-                    variant="outline"
                     size="sm"
                     @click="goToToday"
                     class="text-xs"
@@ -795,16 +815,6 @@ watch(search, () => {
         @touchmove="handleTouchMove"
         @touchend="handleTouchEnd"
     >
-        <!-- Loading indicator -->
-        <div
-            v-if="isLoadingWeek"
-            class="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center"
-        >
-            <div class="flex flex-col items-center gap-3">
-                <Loader2 class="animate-spin h-8 w-8" />
-                <span class="text-muted-foreground text-sm">Loading week...</span>
-            </div>
-        </div>
         <!-- Days Header -->
         <div class="grid grid-cols-7 border-b bg-muted/30">
             <div

@@ -83,7 +83,6 @@ Route::middleware([
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
-    Route::get('/visits/week-data', [InspectionVisitController::class, 'weekData'])->name('visits.weekData');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
