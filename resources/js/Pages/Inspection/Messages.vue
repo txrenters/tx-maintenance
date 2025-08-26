@@ -261,10 +261,7 @@ const truncateMessage = (message, length = 100) => {
                                 <div class="max-w-md flex-col gap-2">
                                     <p class="text-sm">
                                         {{
-                                            formatDate(
-                                                conversation.messages[0]
-                                                    ?.created_at ?? ""
-                                            )
+                                            formatDate(conversation?.created_at)
                                         }}
                                     </p>
                                 </div>

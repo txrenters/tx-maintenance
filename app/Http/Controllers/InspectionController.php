@@ -122,11 +122,12 @@ class InspectionController extends Controller
         $visits = JobberVisit::query()
             ->with(['job.client', 'job.property', 'job.textMessages'])
             ->tbp()
+            ->latest()
             ->filter(request(['search']))
             ->whereHas('job', function ($q) {
                 $q->where('job_status', '!=', 'archived');
             })
-            ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
+            // ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
             ->paginate(50)
             ->withQueryString()
             ->through(function ($visit) {
@@ -138,6 +139,7 @@ class InspectionController extends Controller
                     'start_at' => $visit->start_at,
                     'client' => $visit->job->client->title,
                     'messages' => $visit->job?->textMessages,
+                    'created_at' => $visit->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
                 ];
             });
             
