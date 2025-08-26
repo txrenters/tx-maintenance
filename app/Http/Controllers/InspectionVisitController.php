@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -25,10 +26,9 @@ class InspectionVisitController extends Controller
         // Load only this week's visits with minimal relationships
         $visits = JobberVisit::query()
             ->with(['job.client', 'job.property']) // Removed textMessages from eager loading
-           ->withCount([
-                'job as message_count' => function ($q) {
-                    $q->withCount('textMessages');
-                }
+            ->addSelect([
+                'message_count' => JobberTextMessage::selectRaw('count(*)')
+                    ->where('jobber_job_id', 'jobber_visits.jobber_job_id')
             ])
             ->filter(request(['search']))
             ->whereHas('job', function ($q) {

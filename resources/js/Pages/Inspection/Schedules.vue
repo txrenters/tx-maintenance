@@ -861,10 +861,9 @@ onMounted(() => {
                         :key="event.id"
                         :class="[
                             'cursor-pointer transition-all hover:shadow-md',
-                            getStatusColor(event),
                             event.job.message_count > 0
                                 ? 'bg-green-50 border-green-200 hover:bg-green-100'
-                                : null,
+                                : getStatusColor(event),
                         ]"
                         @click="openEventModal(event)"
                     >
@@ -882,7 +881,6 @@ onMounted(() => {
                                     ]"
                                 />
                             </div>
-
                             <!-- Title -->
                             <div class="font-medium text-sm line-clamp-2 mb-2">
                                 {{ event.title || event.summary }}

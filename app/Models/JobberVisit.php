@@ -15,7 +15,6 @@ class JobberVisit extends Model
     {
         return $this->belongsTo(Jobber::class, 'jobber_job_id');
     }
-
     public function scopeFilter($query, array $filter): void
     {
         if (! empty($filter['search'])) {
