@@ -187,7 +187,7 @@ const truncateMessage = (message, length = 100) => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Job Number</TableHead>
-                            <TableHead>Scheduled Date</TableHead>
+                            <TableHead>Scheduled Visits</TableHead>
                             <TableHead>Sender</TableHead>
                             <TableHead>Receiver</TableHead>
                             <TableHead>Message</TableHead>
@@ -209,53 +209,25 @@ const truncateMessage = (message, length = 100) => {
                                 </div>
                             </TableCell>
                             <TableCell>
-                                <div class="flex flex-col">
-                                    <p>{{ conversation.visit_title }}</p>
-                                    <p>
-                                        {{
-                                            conversation.start_at
-                                                ? formatDate(
-                                                      conversation.start_at
-                                                  )
-                                                : ""
-                                        }}
-                                    </p>
-                                </div>
+                                <ul>
+                                    <li
+                                        v-for="visit in conversation.visits"
+                                        :key="visit.id"
+                                    >
+                                        {{ visit.title || "Unknown" }}
+                                    </li>
+                                </ul>
                             </TableCell>
                             <TableCell>
-                                <div
-                                    class="flex items-center gap-2 mb-1"
-                                    v-for="message in conversation.messages"
-                                    :key="message.id"
-                                >
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        message.sender_number || "Unknown"
-                                    }}</span>
-                                </div>
+                                <p>{{ conversation.sender }}</p>
                             </TableCell>
                             <TableCell>
-                                <div
-                                    class="flex items-center gap-2 mb-1"
-                                    v-for="message in conversation.messages"
-                                    :key="message.id"
-                                >
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        message.receiver_number || "Unknown"
-                                    }}</span>
-                                </div>
+                                <p>{{ conversation.receiver }}</p>
                             </TableCell>
                             <TableCell>
-                                <div
-                                    class="max-w-md flex-col border mb-1"
-                                    v-for="message in conversation.messages"
-                                    :key="message.id"
-                                >
-                                    <p class="text-sm truncate">
-                                        {{ message.messages }}
-                                    </p>
-                                </div>
+                                <p class="line-clamp-2">
+                                    {{ conversation.messages }}
+                                </p>
                             </TableCell>
                             <TableCell>
                                 <div class="max-w-md flex-col gap-2">

@@ -19,4 +19,21 @@ class JobberTextMessage extends Model
     {
         return $this->belongsTo(Jobber::class);
     }
+
+     public function scopeFilter($query, array $filter): void
+    {
+        if (! empty($filter['search'])) {
+            $search = $filter['search'];
+
+            $query
+                ->whereHas('jobber',function($q) use ($search){
+                    $q->where('job_number', $search);
+                })
+                ->orWhereAny([
+                    'title',
+                    'visit_status',
+                    'instructions',
+                ], 'LIKE', "%{$search}%");
+        }
+    }
 }

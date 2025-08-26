@@ -119,33 +119,56 @@ class InspectionController extends Controller
 
     public function messages(Request $request)
     {
-        $visits = JobberVisit::query()
-            ->with(['job.client', 'job.property', 'job.textMessages'])
-            ->tbp()
+        // $visits = JobberVisit::query()
+        //     ->with(['job.client', 'job.property', 'job.textMessages'])
+        //     ->tbp()
+        //     ->latest()
+        //     ->filter(request(['search']))
+        //     ->whereHas('job', function ($q) {
+        //         $q->where('job_status', '!=', 'archived');
+        //     })
+        //     // ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
+        //     ->paginate(50)
+        //     ->withQueryString()
+        //     ->through(function ($visit) {
+        //         return [
+        //             'id' => $visit->id,
+        //             'job_number' => $visit->job->job_number,
+        //             'job_title' => $visit->job->title,
+        //             'visit_title' => $visit->title,
+        //             'start_at' => $visit->start_at,
+        //             'client' => $visit->job->client->title,
+        //             'messages' => $visit->job?->textMessages,
+        //             'created_at' => $visit->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
+        //         ];
+        //     });
+
+        $convos = JobberTextMessage::query()
+            ->with(['jobber.client', 'jobber.property', 'jobber.visits'])
             ->latest()
             ->filter(request(['search']))
-            ->whereHas('job', function ($q) {
+            ->whereHas('jobber', function ($q) {
                 $q->where('job_status', '!=', 'archived');
             })
             // ->orderByRaw('ABS(DATEDIFF(jobber_visits.start_at, CURDATE())) ASC') // closest to today
             ->paginate(50)
             ->withQueryString()
-            ->through(function ($visit) {
+            ->through(function ($convo) {
                 return [
-                    'id' => $visit->id,
-                    'job_number' => $visit->job->job_number,
-                    'job_title' => $visit->job->title,
-                    'visit_title' => $visit->title,
-                    'start_at' => $visit->start_at,
-                    'client' => $visit->job->client->title,
-                    'messages' => $visit->job?->textMessages,
-                    'created_at' => $visit->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
+                    'id' => $convo->id,
+                    'job_number' => $convo->jobber->job_number,
+                    'job_title' => $convo->jobber->title,
+                    'visits' => $convo->jobber->visits,
+                    'sender' => $convo->sender_number,
+                    'receiver' => $convo->receiver_number,
+                    'messages' => $convo->messages,
+                    'created_at' => $convo->created_at->timezone('America/Chicago')->format('F d, y h:i A'),
                 ];
             });
-            
+
         return inertia('Inspection/Messages', [
             'title' => 'Jobber Messages',
-            'conversations' => $visits,
+            'conversations' => $convos,
         ]);
     }
 
