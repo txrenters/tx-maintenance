@@ -20,15 +20,13 @@ class DashboardController extends Controller
         $workOrders = WorkOrder::whereYear('created_date', $year)->get();
         $tasks = WorkOrderTask::whereYear('created_at', $year)->get();
         
-        // Get inspection jobs and visits data
+        // Get ALL inspection jobs to show accurate totals
         $inspections = Jobber::with(['client', 'visits'])
-            ->whereNotIn('job_status', ['archived', 'closed'])
             ->get();
             
+        // Get all inspection visits for the year
         $inspectionVisits = JobberVisit::with(['job.client', 'job.property'])
-            ->whereHas('job', function ($q) {
-                $q->whereNotIn('job_status', ['archived', 'closed']);
-            })
+            ->whereYear('start_at', $year)
             ->orderBy('start_at', 'desc')
             ->get();
 

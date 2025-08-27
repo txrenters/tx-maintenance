@@ -63,7 +63,13 @@ const upcomingInspections = computed(() => {
 });
 
 const completedInspections = computed(() => {
-    return props.inspectionVisits.filter((visit) => visit.is_complete);
+    if (!props.inspectionVisits) return [];
+    return props.inspectionVisits.filter((visit) => {
+        return visit.is_complete === true || 
+               visit.is_complete === 1 || 
+               visit.visit_status === 'completed' ||
+               visit.status === 'completed';
+    });
 });
 
 const overdueInspections = computed(() => {
@@ -93,12 +99,27 @@ const completedTasks = computed(() => {
 });
 
 const totalInspectionJobs = computed(() => {
-    return props.inspections.length;
+    return props.inspections ? props.inspections.length : 0;
 });
 
 const activeInspectionJobs = computed(() => {
+    if (!props.inspections) return [];
     return props.inspections.filter(
-        (job) => !["archived", "closed"].includes(job.job_status)
+        (job) => {
+            const status = job.job_status?.toLowerCase();
+            // Only count as inactive if explicitly closed, archived, completed, or cancelled
+            return !['archived', 'closed', 'completed', 'cancelled', 'done'].includes(status);
+        }
+    );
+});
+
+const completedInspectionJobs = computed(() => {
+    if (!props.inspections) return [];
+    return props.inspections.filter(
+        (job) => {
+            const status = job.job_status?.toLowerCase();
+            return ['completed', 'done', 'closed'].includes(status);
+        }
     );
 });
 
@@ -147,7 +168,8 @@ const workOrdersThisMonth = computed(() => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     return props.workOrders.filter((order) => {
-        const orderDate = new Date(order.created_at);
+        // Use created_date instead of created_at to match the controller and graph
+        const orderDate = new Date(order.created_date || order.created_at);
         return (
             orderDate.getMonth() === currentMonth &&
             orderDate.getFullYear() === currentYear
@@ -161,7 +183,8 @@ const workOrdersLastMonth = computed(() => {
         lastMonth < 0 ? new Date().getFullYear() - 1 : new Date().getFullYear();
     const month = lastMonth < 0 ? 11 : lastMonth;
     return props.workOrders.filter((order) => {
-        const orderDate = new Date(order.created_at);
+        // Use created_date to match the controller
+        const orderDate = new Date(order.created_date || order.created_at);
         return (
             orderDate.getMonth() === month && orderDate.getFullYear() === year
         );
@@ -301,13 +324,52 @@ const inspectionsByType = computed(() => {
 });
 
 const inspectionCompletionRate = computed(() => {
-    if (props.inspectionVisits.length === 0) return 0;
+    if (!props.inspectionVisits || props.inspectionVisits.length === 0) return 0;
+    
     const completedVisits = props.inspectionVisits.filter(
-        (visit) => visit.is_complete
+        (visit) => {
+            // Check multiple possible fields for completion status
+            return visit.is_complete === true || 
+                   visit.is_complete === 1 || 
+                   visit.visit_status === 'completed' ||
+                   visit.status === 'completed';
+        }
     );
-    return Math.round(
-        (completedVisits.length / props.inspectionVisits.length) * 100
+    
+    const rate = (completedVisits.length / props.inspectionVisits.length) * 100;
+    return Math.round(rate);
+});
+
+// Add back monthlyGrowthRate for work orders
+const monthlyGrowthRate = computed(() => {
+    if (workOrdersLastMonth.value.length === 0) return 100;
+    return ((workOrdersThisMonth.value.length - workOrdersLastMonth.value.length) / workOrdersLastMonth.value.length * 100);
+});
+
+// Add averageCompletionTime for the hero section
+const averageCompletionTime = computed(() => {
+    const completedOrders = props.workOrders.filter(order => 
+        order.status === 'Closed' && 
+        (order.completed_at || order.completed_date || order.closed_date)
     );
+    
+    if (completedOrders.length === 0) return 0;
+    
+    const totalDays = completedOrders.reduce((sum, order) => {
+        // Use created_date and check multiple possible completion date fields
+        const created = new Date(order.created_date || order.created_at);
+        const completed = new Date(order.completed_at || order.completed_date || order.closed_date);
+        
+        // Calculate difference in days
+        const diffTime = completed - created;
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+        
+        // Only count valid positive differences
+        return diffDays >= 0 ? sum + diffDays : sum;
+    }, 0);
+    
+    const avg = completedOrders.length > 0 ? totalDays / completedOrders.length : 0;
+    return Math.round(avg);
 });
 
 const urgentWorkOrders = computed(() => {
@@ -655,7 +717,7 @@ const workOrderStatusDistribution = computed(() => {
                         <span
                             class="text-xs font-medium text-teal-700 dark:text-teal-300"
                         >
-                            {{ completedTasks.length }}/{{ tasks.length }}
+                            {{ completedTasks.length.toLocaleString() }}/{{ tasks.length.toLocaleString() }}
                         </span>
                     </div>
                     <Progress
@@ -700,16 +762,14 @@ const workOrderStatusDistribution = computed(() => {
                     {{ totalInspectionJobs }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
-                    <Badge
-                        :variant="
-                            activeInspectionJobs.length > 0
-                                ? 'secondary'
-                                : 'outline'
-                        "
-                        class="text-xs"
-                    >
-                        {{ activeInspectionJobs.length }} active
-                    </Badge>
+                    <div class="flex gap-2">
+                        <Badge variant="secondary" class="text-xs">
+                            {{ activeInspectionJobs.length }} active
+                        </Badge>
+                        <Badge variant="outline" class="text-xs">
+                            {{ completedInspectionJobs.length }} completed
+                        </Badge>
+                    </div>
                     <span class="text-xs text-muted-foreground"
                         >total jobs</span
                     >
