@@ -88,12 +88,7 @@ const initializeWeek = () => {
     } else {
         // Fallback to current week in Chicago timezone
         const today = new Date();
-        const chicagoTime = new Intl.DateTimeFormat("en-CA", {
-            timeZone: "America/Chicago",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-        }).format(today);
+        const chicagoTime = chicagoFormatter.format(today);
 
         const chicagoDate = new Date(chicagoTime + "T00:00:00");
         const dayOfWeek = chicagoDate.getDay();
@@ -141,12 +136,7 @@ const weekRangeText = computed(() => {
 // Check if a date is today (in Chicago timezone)
 const isToday = (date) => {
     const today = new Date();
-    const chicagoTime = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(today);
+    const chicagoTime = chicagoFormatter.format(today);
 
     const [year, month, day] = chicagoTime.split("-");
     const chicagoToday = new Date(year, month - 1, day);
@@ -161,12 +151,7 @@ const isToday = (date) => {
 // Check if viewing current week
 const isCurrentWeek = computed(() => {
     const today = new Date();
-    const chicagoTime = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(today);
+    const chicagoTime = chicagoFormatter.format(today);
 
     const [year, month, day] = chicagoTime.split("-");
     const chicagoToday = new Date(year, month - 1, day);
@@ -318,28 +303,20 @@ const eventsByDate = computed(() => {
 });
 
 // Get status color classes
+const chicagoFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+});
+
 const getStatusColor = (event) => {
     if (event.is_complete) {
         return "bg-green-50 border-green-200 hover:bg-green-100";
     }
 
-    const eventDate = new Date(event.start || event.date);
-
-    // Get event date in Chicago timezone
-    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(eventDate);
-
-    // Get today in Chicago timezone
-    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(new Date());
+    const eventChicagoStr = chicagoFormatter.format(new Date(event.start));
+    const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
         return "bg-red-50 border-red-200 hover:bg-red-100";
@@ -359,20 +336,10 @@ const getStatusIcon = (event) => {
     const eventDate = new Date(event.start || event.date);
 
     // Get event date in Chicago timezone
-    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(eventDate);
+    const eventChicagoStr = chicagoFormatter.format(eventDate);
 
     // Get today in Chicago timezone
-    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(new Date());
+    const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
         return AlertCircle;
@@ -390,20 +357,10 @@ const getStatusIconColor = (event) => {
     const eventDate = new Date(event.start || event.date);
 
     // Get event date in Chicago timezone
-    const eventChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(eventDate);
+    const eventChicagoStr = chicagoFormatter.format(eventDate);
 
     // Get today in Chicago timezone
-    const todayChicagoStr = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Chicago",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).format(new Date());
+    const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
         return "text-red-600";

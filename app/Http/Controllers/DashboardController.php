@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Invoice;
+use App\Models\Jobber;
+use App\Models\JobberVisit;
 use App\Models\ServiceStatus;
-use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Carbon\Carbon;
@@ -19,7 +19,18 @@ class DashboardController extends Controller
 
         $workOrders = WorkOrder::whereYear('created_date', $year)->get();
         $tasks = WorkOrderTask::whereYear('created_at', $year)->get();
-        $invoices = Invoice::all();
+        
+        // Get inspection jobs and visits data
+        $inspections = Jobber::with(['client', 'visits'])
+            ->whereNotIn('job_status', ['archived', 'closed'])
+            ->get();
+            
+        $inspectionVisits = JobberVisit::with(['job.client', 'job.property'])
+            ->whereHas('job', function ($q) {
+                $q->whereNotIn('job_status', ['archived', 'closed']);
+            })
+            ->orderBy('start_at', 'desc')
+            ->get();
 
         $serviceStatus = ServiceStatus::withCount([
             'work_orders as work_orders_count' => function ($query) use ($year) {
@@ -64,14 +75,14 @@ class DashboardController extends Controller
             ];
         });
 
-        $vendors = Vendor::select('id', 'is_active')->get();
+        // Remove vendors data as we're replacing with inspection data
 
         return inertia('Dashboard', [
             'title' => 'Dashboard',
             'workOrders' => $workOrders,
             'tasks' => $tasks,
-            'invoices' => $invoices,
-            'vendors' => $vendors,
+            'inspections' => $inspections,
+            'inspectionVisits' => $inspectionVisits,
             'serviceStatus' => $serviceStatus,
             'workOrderChart' => $workOrderChart,
             'filter' => $request->only(['year']),
