@@ -10,80 +10,200 @@ use App\Models\WorkOrderTask;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
     public function __invoke(Request $request)
     {
         $year = $request->input('year', Carbon::now()->year);
+        $cacheKey = "dashboard_data_year_{$year}";
 
-        $workOrders = WorkOrder::whereYear('created_date', $year)->get();
-        $tasks = WorkOrderTask::whereYear('created_at', $year)->get();
+        // Get essential stats immediately (fast queries)
+        $stats = Cache::remember("{$cacheKey}_stats", 300, function () use ($year) {
+            return $this->getEssentialStats($year);
+        });
+
+        // Load all data immediately for now - remove lazy loading
+        $workOrderChart = Cache::remember("{$cacheKey}_chart", 600, fn () => $this->getWorkOrderChart($year));
+        $serviceStatus = Cache::remember("{$cacheKey}_service_status", 300, fn () => $this->getServiceStatus($year));
+        $inspectionAnalytics = Cache::remember("{$cacheKey}_inspection_analytics", 300, fn () => $this->getInspectionAnalytics($year));
         
-        // Get ALL inspection jobs to show accurate totals
-        $inspections = Jobber::with(['client', 'visits'])
-            ->get();
-            
-        // Get all inspection visits for the year
-        $inspectionVisits = JobberVisit::with(['job.client', 'job.property'])
+        return Inertia::render('Dashboard', [
+            'title' => 'Dashboard',
+            'stats' => $stats,
+            'filter' => $request->only(['year']),
+            'workOrderChart' => $workOrderChart,
+            'serviceStatus' => $serviceStatus,
+            'inspectionAnalytics' => $inspectionAnalytics,
+        ]);
+    }
+
+    private function getEssentialStats($year)
+    {
+        // Use efficient aggregate queries instead of loading full collections
+        $workOrderStats = WorkOrder::selectRaw('
+                COUNT(*) as total_work_orders,
+                COUNT(CASE WHEN status = "Closed" THEN 1 END) as completed_work_orders,
+                COUNT(CASE WHEN status = "Open" AND service_status_id = 1 THEN 1 END) as pending_work_orders,
+                COUNT(CASE WHEN status = "Open" AND service_status_id != 1 THEN 1 END) as process_work_orders,
+                COUNT(CASE WHEN priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
+            ')
+            ->whereYear('created_date', $year)
+            ->first();
+
+        $taskStats = WorkOrderTask::selectRaw('
+                COUNT(*) as total_tasks,
+                COUNT(CASE WHEN status = "completed" THEN 1 END) as completed_tasks
+            ')
+            ->whereYear('created_at', $year)
+            ->first();
+
+        $inspectionStats = Jobber::selectRaw('
+                COUNT(*) as total_inspections,
+                COUNT(CASE WHEN job_status NOT IN ("archived", "closed", "completed", "cancelled", "done") THEN 1 END) as active_inspections
+            ')
+            ->whereYear('created_at', $year)
+            ->first();
+
+        $visitStats = JobberVisit::selectRaw('
+                COUNT(CASE WHEN is_complete = 1 THEN 1 END) as completed_inspection_visits,
+                COUNT(CASE WHEN is_complete = 0 AND start_at < NOW() THEN 1 END) as overdue_inspections,
+                COUNT(CASE WHEN is_complete = 0 AND start_at >= NOW() THEN 1 END) as upcoming_inspections
+            ')
             ->whereYear('start_at', $year)
-            ->orderBy('start_at', 'desc')
-            ->get();
+            ->first();
 
-        $serviceStatus = ServiceStatus::withCount([
-            'work_orders as work_orders_count' => function ($query) use ($year) {
-                $query->whereYear('created_date', $year)
-                    ->where('status', 'Open');
-            },
-        ])
-            ->having('work_orders_count', '>', 0) // only get statuses with matching work orders
-            ->where('name', '!=', 'Closed') // exclude closed statuses
-            ->where('name', '!=', 'Not Changed')
-            ->get()
-            ->map(fn ($status) => [
-                'name' => $status->name,
-                'total' => $status->work_orders_count,
-            ]);
+        // Calculate monthly growth rate efficiently
+        $currentMonth = now()->month;
+        $lastMonth = $currentMonth > 1 ? $currentMonth - 1 : 12;
+        $currentYear = now()->year;
+        $lastMonthYear = $currentMonth > 1 ? $currentYear : $currentYear - 1;
 
-        // Generate an array of all months (Jan to Dec)
+        $thisMonthOrders = WorkOrder::whereMonth('created_date', $currentMonth)
+            ->whereYear('created_date', $currentYear)
+            ->count();
+
+        $lastMonthOrders = WorkOrder::whereMonth('created_date', $lastMonth)
+            ->whereYear('created_date', $lastMonthYear)
+            ->count();
+
+        $monthlyGrowthRate = $lastMonthOrders > 0 ?
+            (($thisMonthOrders - $lastMonthOrders) / $lastMonthOrders) * 100 : 100;
+
+        // Calculate average completion time efficiently
+        $completionStats = WorkOrder::selectRaw('
+                AVG(DATEDIFF(completed_date, created_date)) as avg_completion_days
+            ')
+            ->whereYear('created_date', $year)
+            ->whereNotNull('completed_date')
+            ->where('completed_date', '>', DB::raw('created_date'))
+            ->first();
+
+        return [
+            'total_work_orders' => $workOrderStats->total_work_orders,
+            'completed_work_orders' => $workOrderStats->completed_work_orders,
+            'pending_work_orders' => $workOrderStats->pending_work_orders,
+            'process_work_orders' => $workOrderStats->process_work_orders,
+            'urgent_work_orders' => $workOrderStats->urgent_work_orders,
+            'completed_tasks' => $taskStats->completed_tasks,
+            'total_tasks' => $taskStats->total_tasks,
+            'total_inspections' => $inspectionStats->total_inspections,
+            'active_inspections' => $inspectionStats->active_inspections,
+            'completed_inspection_visits' => $visitStats->completed_inspection_visits,
+            'overdue_inspections' => $visitStats->overdue_inspections,
+            'upcoming_inspections' => $visitStats->upcoming_inspections,
+            'monthly_growth_rate' => round($monthlyGrowthRate, 1),
+            'average_completion_time' => round($completionStats->avg_completion_days ?? 0),
+        ];
+    }
+
+    private function getWorkOrderChart($year)
+    {
         $months = collect([
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December',
         ]);
 
-        // Query the database for work orders grouped by month
-        $workOrderData = WorkOrder::select(
-            DB::raw('MONTHNAME(created_date) as name'), // Month name
-            DB::raw("SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as Completed"), // Completed count
-            DB::raw('COUNT(id) as Created') // Created count
-        )
-            ->whereYear('created_date', $year) // Filter for the selected year
-            ->groupBy(DB::raw('MONTHNAME(created_date), MONTH(created_date)')) // Group by both month name and month number
-            ->orderBy(DB::raw('MONTH(created_date)')) // Order by month number
-            ->get();
+        $workOrderData = WorkOrder::selectRaw('
+                MONTHNAME(created_date) as name,
+                SUM(CASE WHEN status = "Closed" THEN 1 ELSE 0 END) as Completed,
+                COUNT(id) as Created
+            ')
+            ->whereYear('created_date', $year)
+            ->groupByRaw('MONTHNAME(created_date), MONTH(created_date)')
+            ->orderByRaw('MONTH(created_date)')
+            ->get()
+            ->keyBy('name');
 
-        // Merge the results with the full list of months
-        $workOrderChart = $months->map(function ($month) use ($workOrderData) {
-            $data = $workOrderData->firstWhere('name', $month);
-
+        return $months->map(function ($month) use ($workOrderData) {
+            $data = $workOrderData->get($month);
             return [
-                'name' => $month, // Month name
-                'Created' => $data->Created ?? 0, // Created work orders (default to 0 if no data)
-                'Completed' => $data->Completed ?? 0, // Completed work orders (default to 0 if no data)
+                'name' => $month,
+                'Created' => $data?->Created ?? 0,
+                'Completed' => $data?->Completed ?? 0,
+            ];
+        });
+    }
+
+    private function getServiceStatus($year)
+    {
+        return ServiceStatus::selectRaw('
+                name,
+                (SELECT COUNT(*) FROM work_orders 
+                 WHERE work_orders.service_status_id = service_status.id 
+                 AND YEAR(work_orders.created_date) = ? 
+                 AND work_orders.status = "Open") as total
+            ', [$year])
+            ->havingRaw('total > 0')
+            ->where('name', '!=', 'Closed')
+            ->where('name', '!=', 'Not Changed')
+            ->get()
+            ->map(fn ($status) => [
+                'name' => $status->name,
+                'total' => $status->total,
+            ]);
+    }
+
+    private function getInspectionAnalytics($year)
+    {
+        // Return minimal inspection analytics for charts
+        $inspectionsByDayOfWeek = JobberVisit::selectRaw('
+                DAYOFWEEK(start_at) - 1 as day_of_week,
+                COUNT(*) as count
+            ')
+            ->whereYear('start_at', $year)
+            ->groupBy('day_of_week')
+            ->get()
+            ->keyBy('day_of_week');
+
+        $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        $inspectionsByDay = collect($days)->map(function ($day, $index) use ($inspectionsByDayOfWeek) {
+            return [
+                'name' => substr($day, 0, 3),
+                'inspections' => $inspectionsByDayOfWeek->get($index)?->count ?? 0,
             ];
         });
 
-        // Remove vendors data as we're replacing with inspection data
+        return [
+            'inspectionsByDayOfWeek' => $inspectionsByDay,
+            'completionRate' => $this->getInspectionCompletionRate($year),
+        ];
+    }
 
-        return inertia('Dashboard', [
-            'title' => 'Dashboard',
-            'workOrders' => $workOrders,
-            'tasks' => $tasks,
-            'inspections' => $inspections,
-            'inspectionVisits' => $inspectionVisits,
-            'serviceStatus' => $serviceStatus,
-            'workOrderChart' => $workOrderChart,
-            'filter' => $request->only(['year']),
-        ]);
+    private function getInspectionCompletionRate($year)
+    {
+        $stats = JobberVisit::selectRaw('
+                COUNT(*) as total_visits,
+                COUNT(CASE WHEN is_complete = 1 THEN 1 END) as completed_visits
+            ')
+            ->whereYear('start_at', $year)
+            ->first();
+
+        if ($stats->total_visits == 0) return 0;
+        
+        return round(($stats->completed_visits / $stats->total_visits) * 100);
     }
 }

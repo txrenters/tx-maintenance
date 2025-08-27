@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
+import { Head } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { usePoll, router } from "@inertiajs/vue3";
 import {
@@ -35,6 +36,7 @@ import {
 } from "@/Components/ui/card";
 import { Badge } from "@/Components/ui/badge";
 import { Progress } from "@/Components/ui/progress";
+import { Skeleton } from "@/Components/ui/skeleton";
 import {
     Select,
     SelectContent,
@@ -47,107 +49,30 @@ import { string } from "zod";
 
 const props = defineProps({
     title: String,
-    workOrders: Object,
-    tasks: Object,
-    inspections: Object,
-    serviceStatus: Object,
-    inspectionVisits: Object,
-    workOrderChart: Object,
+    stats: Object, // Essential stats loaded immediately
+    workOrderChart: Object, // Lazy loaded
+    serviceStatus: Object, // Lazy loaded  
+    inspectionAnalytics: Object, // Lazy loaded
     filter: Object,
 });
 
-const upcomingInspections = computed(() => {
-    return props.inspectionVisits.filter(
-        (visit) => !visit.is_complete && new Date(visit.start_at) >= new Date()
-    );
-});
+// Use pre-calculated stats for better performance  
+const upcomingInspections = computed(() => props.stats?.upcoming_inspections || 0);
+const overdueInspections = computed(() => props.stats?.overdue_inspections || 0);
 
-const completedInspections = computed(() => {
-    if (!props.inspectionVisits) return [];
-    return props.inspectionVisits.filter((visit) => {
-        return (
-            visit.is_complete === true ||
-            visit.is_complete === 1 ||
-            visit.visit_status === "completed" ||
-            visit.status === "completed"
-        );
-    });
-});
+// All data is loaded immediately, no need for loading states
+const isChartLoading = computed(() => false);
+const isServiceStatusLoading = computed(() => false);
+const isInspectionAnalyticsLoading = computed(() => false);
 
-const overdueInspections = computed(() => {
-    return props.inspectionVisits.filter(
-        (visit) => !visit.is_complete && new Date(visit.start_at) < new Date()
-    );
-});
-
-const completedWorkOrders = computed(() => {
-    return props.workOrders.filter((order) => order.status === "Closed");
-});
-
-const pendingWorkOrders = computed(() => {
-    return props.workOrders.filter(
-        (order) => order.status === "Open" && order.service_status_id === 1
-    );
-});
-
-const processWorkOrders = computed(() => {
-    return props.workOrders.filter(
-        (order) => order.status === "Open" && order.service_status_id !== 1
-    );
-});
-
-const completedTasks = computed(() => {
-    return props.tasks.filter((task) => task.status === "completed");
-});
-
-const totalInspectionJobs = computed(() => {
-    return props.inspections ? props.inspections.length : 0;
-});
-
-const activeInspectionJobs = computed(() => {
-    if (!props.inspections) return [];
-    return props.inspections.filter((job) => {
-        const status = job.job_status?.toLowerCase();
-        // Only count as inactive if explicitly closed, archived, completed, or cancelled
-        return ![
-            "archived",
-            "closed",
-            "completed",
-            "cancelled",
-            "done",
-        ].includes(status);
-    });
-});
-
-const completedInspectionJobs = computed(() => {
-    if (!props.inspections) return [];
-    return props.inspections.filter((job) => {
-        const status = job.job_status?.toLowerCase();
-        return ["completed", "done", "closed"].includes(status);
-    });
-});
-
-const thisWeekInspections = computed(() => {
-    const startOfWeek = new Date();
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-    const endOfWeek = new Date();
-    endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
-
-    return props.inspectionVisits.filter((visit) => {
-        const visitDate = new Date(visit.start_at);
-        return visitDate >= startOfWeek && visitDate <= endOfWeek;
-    });
+// Get inspection completion rate from analytics or stats
+const inspectionCompletionRate = computed(() => {
+    return props.inspectionAnalytics?.completionRate || 0;
 });
 
 function getCompletionPercentage(completed, total) {
-    if (
-        !Array.isArray(completed) ||
-        !Array.isArray(total) ||
-        total.length === 0
-    ) {
-        return "0.00";
-    }
-    return ((completed.length / total.length) * 100).toFixed(2);
+    if (total === 0) return "0.00";
+    return ((completed / total) * 100).toFixed(2);
 }
 
 const currentYear = new Date().getFullYear();
@@ -159,248 +84,31 @@ const years = Array.from(
 const selectedYear = ref(props.filter.year ?? currentYear);
 
 watch(selectedYear, (newYear) => {
-    router.visit(route("dashboard", { year: newYear }), {
+    router.visit(`/dashboard?year=${newYear}`, {
         preserveState: true,
         preserveScroll: true,
     });
 });
-const show = ref(true);
-usePoll(5000);
+// Optimized polling - only essential stats, longer interval
+const isVisible = ref(true);
 
-// Analytics computations
-const workOrdersThisMonth = computed(() => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    return props.workOrders.filter((order) => {
-        // Use created_date instead of created_at to match the controller and graph
-        const orderDate = new Date(order.created_date || order.created_at);
-        return (
-            orderDate.getMonth() === currentMonth &&
-            orderDate.getFullYear() === currentYear
-        );
+// Only poll when page is visible to reduce server load
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        isVisible.value = !document.hidden;
     });
+}
+
+// More conservative polling - only refresh critical stats
+usePoll(30000, { 
+    preserveState: true,
+    preserveScroll: true,
+    only: ['stats'] // Only refresh essential statistics
 });
 
-const workOrdersLastMonth = computed(() => {
-    const lastMonth = new Date().getMonth() - 1;
-    const year =
-        lastMonth < 0 ? new Date().getFullYear() - 1 : new Date().getFullYear();
-    const month = lastMonth < 0 ? 11 : lastMonth;
-    return props.workOrders.filter((order) => {
-        // Use created_date to match the controller
-        const orderDate = new Date(order.created_date || order.created_at);
-        return (
-            orderDate.getMonth() === month && orderDate.getFullYear() === year
-        );
-    });
-});
-
-const upcomingInspectionsCount = computed(() => {
-    const today = new Date();
-    const nextWeek = new Date();
-    nextWeek.setDate(today.getDate() + 7);
-
-    return props.inspectionVisits.filter((visit) => {
-        if (visit.is_complete) return false;
-        const visitDate = new Date(visit.start_at);
-        return visitDate >= today && visitDate <= nextWeek;
-    }).length;
-});
-
-// Inspection status distribution for pie chart
-const inspectionStatusDistribution = computed(() => {
-    const statusCounts = {};
-    props.inspections.forEach((job) => {
-        const status = job.job_status || "unknown";
-        statusCounts[status] = (statusCounts[status] || 0) + 1;
-    });
-
-    return Object.entries(statusCounts).map(([status, count]) => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1),
-        value: count,
-        total: count,
-    }));
-});
-
-// Inspections by day of week
-const inspectionsByDayOfWeek = computed(() => {
-    const days = [
-        "Sunday",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-    ];
-    const dayCounts = new Array(7).fill(0);
-
-    props.inspectionVisits.forEach((visit) => {
-        const date = new Date(visit.start_at);
-        dayCounts[date.getDay()]++;
-    });
-
-    return days.map((day, index) => ({
-        name: day.slice(0, 3),
-        inspections: dayCounts[index],
-    }));
-});
-
-// Monthly inspection trend
-const monthlyInspectionTrend = computed(() => {
-    const monthData = {};
-    const currentYear = new Date().getFullYear();
-
-    props.inspectionVisits.forEach((visit) => {
-        const date = new Date(visit.start_at);
-        if (date.getFullYear() === currentYear) {
-            const monthKey = date.toLocaleString("en-US", { month: "short" });
-            if (!monthData[monthKey]) {
-                monthData[monthKey] = {
-                    scheduled: 0,
-                    completed: 0,
-                };
-            }
-            monthData[monthKey].scheduled++;
-            if (visit.is_complete) {
-                monthData[monthKey].completed++;
-            }
-        }
-    });
-
-    const months = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-    ];
-    return months.map((month) => ({
-        name: month,
-        Scheduled: monthData[month]?.scheduled || 0,
-        Completed: monthData[month]?.completed || 0,
-    }));
-});
-
-// Inspection completion by job type
-const inspectionsByType = computed(() => {
-    const typeData = {};
-
-    props.inspections.forEach((job) => {
-        const type = job.job_type || "Other";
-        if (!typeData[type]) {
-            typeData[type] = {
-                name: type,
-                total: 0,
-                completed: 0,
-            };
-        }
-        typeData[type].total++;
-
-        const completedVisits = props.inspectionVisits.filter(
-            (visit) => visit.job_id === job.id && visit.is_complete
-        ).length;
-        const totalVisits = props.inspectionVisits.filter(
-            (visit) => visit.job_id === job.id
-        ).length;
-
-        if (totalVisits > 0 && completedVisits === totalVisits) {
-            typeData[type].completed++;
-        }
-    });
-
-    return Object.values(typeData).map((type) => ({
-        name: type.name,
-        Total: type.total,
-        Completed: type.completed,
-        completionRate:
-            type.total > 0
-                ? Math.round((type.completed / type.total) * 100)
-                : 0,
-    }));
-});
-
-const inspectionCompletionRate = computed(() => {
-    if (!props.inspectionVisits || props.inspectionVisits.length === 0)
-        return 0;
-
-    const completedVisits = props.inspectionVisits.filter((visit) => {
-        // Check multiple possible fields for completion status
-        return (
-            visit.is_complete === true ||
-            visit.is_complete === 1 ||
-            visit.visit_status === "completed" ||
-            visit.status === "completed"
-        );
-    });
-
-    const rate = (completedVisits.length / props.inspectionVisits.length) * 100;
-    return Math.round(rate);
-});
-
-// Add back monthlyGrowthRate for work orders
-const monthlyGrowthRate = computed(() => {
-    if (workOrdersLastMonth.value.length === 0) return 100;
-    return (
-        ((workOrdersThisMonth.value.length - workOrdersLastMonth.value.length) /
-            workOrdersLastMonth.value.length) *
-        100
-    );
-});
-
-// Add averageCompletionTime for the hero section
-const averageCompletionTime = computed(() => {
-    const completedOrders = props.workOrders.filter(
-        (order) =>
-            order.status === "Closed" &&
-            (order.completed_at || order.completed_date || order.closed_date)
-    );
-
-    if (completedOrders.length === 0) return 0;
-
-    const totalDays = completedOrders.reduce((sum, order) => {
-        // Use created_date and check multiple possible completion date fields
-        const created = new Date(order.created_date || order.created_at);
-        const completed = new Date(
-            order.completed_at || order.completed_date || order.closed_date
-        );
-
-        // Calculate difference in days
-        const diffTime = completed - created;
-        const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-        // Only count valid positive differences
-        return diffDays >= 0 ? sum + diffDays : sum;
-    }, 0);
-
-    const avg =
-        completedOrders.length > 0 ? totalDays / completedOrders.length : 0;
-    return Math.round(avg);
-});
-
-const urgentWorkOrders = computed(() => {
-    return props.workOrders.filter(
-        (order) => order.priority === "urgent" || order.priority === "high"
-    );
-});
-
-const workOrderStatusDistribution = computed(() => {
-    const statuses = props.workOrders.reduce((acc, order) => {
-        acc[order.status] = (acc[order.status] || 0) + 1;
-        return acc;
-    }, {});
-    return Object.entries(statuses).map(([status, count]) => ({
-        status,
-        count,
-    }));
-});
+// Use pre-calculated values from server
+const monthlyGrowthRate = computed(() => props.stats?.monthly_growth_rate || 0);
+const averageCompletionTime = computed(() => props.stats?.average_completion_time || 0);
 
 const formattedCount = (number) => {
     return number.toLocaleString();
@@ -412,7 +120,6 @@ const formattedCount = (number) => {
     <!-- Modern Hero Section -->
     <div class="mb-8">
         <div
-            v-motion-fade-visible
             class="relative overflow-hidden bg-gradient-to-br from-blue-500 via-indigo-700 to-blue-700 text-white rounded-xl shadow-2xl p-6 md:p-8"
         >
             <!-- Content -->
@@ -438,8 +145,7 @@ const formattedCount = (number) => {
                         >
                             <TrendingUp class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ workOrdersThisMonth.length }} this
-                                month</span
+                                >{{ monthlyGrowthRate >= 0 ? '+' : '' }}{{ monthlyGrowthRate }}% work orders this month</span
                             >
                         </div>
                         <div
@@ -447,16 +153,16 @@ const formattedCount = (number) => {
                         >
                             <Clock class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ averageCompletionTime }} days avg</span
+                                >{{ averageCompletionTime }} days avg completion time</span
                             >
                         </div>
                         <div
-                            v-if="urgentWorkOrders.length > 0"
+                            v-if="stats?.urgent_work_orders > 0"
                             class="flex items-center gap-2 bg-red-500/20 backdrop-blur rounded-lg px-3 py-2"
                         >
                             <AlertTriangle class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ urgentWorkOrders.length }} urgent</span
+                                >{{ stats.urgent_work_orders }} urgent work {{ stats.urgent_work_orders === 1 ? 'order' : 'orders' }}</span
                             >
                         </div>
                     </div>
@@ -499,7 +205,7 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-blue-900 dark:text-blue-100"
                 >
-                    {{ formattedCount(workOrders.length) }}
+                    {{ formattedCount(stats?.total_work_orders || 0) }}
                 </div>
                 <div class="flex items-center gap-2 mt-2">
                     <div
@@ -554,7 +260,7 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-green-900 dark:text-green-100"
                 >
-                    {{ formattedCount(completedWorkOrders.length) }}
+                    {{ formattedCount(stats?.completed_work_orders || 0) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">
@@ -566,8 +272,8 @@ const formattedCount = (number) => {
                         >
                             {{
                                 getCompletionPercentage(
-                                    completedWorkOrders,
-                                    workOrders
+                                    stats?.completed_work_orders || 0,
+                                    stats?.total_work_orders || 1
                                 )
                             }}%
                         </span>
@@ -576,8 +282,8 @@ const formattedCount = (number) => {
                         :model-value="
                             parseFloat(
                                 getCompletionPercentage(
-                                    completedWorkOrders,
-                                    workOrders
+                                    stats?.completed_work_orders || 0,
+                                    stats?.total_work_orders || 1
                                 )
                             )
                         "
@@ -612,24 +318,24 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-amber-900 dark:text-amber-100"
                 >
-                    {{ formattedCount(pendingWorkOrders.length) }}
+                    {{ formattedCount(stats?.pending_work_orders || 0) }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <Badge
                         :variant="
-                            urgentWorkOrders.length > 0
+                            (stats?.urgent_work_orders || 0) > 0
                                 ? 'destructive'
                                 : 'secondary'
                         "
                         class="text-xs"
                     >
-                        {{ urgentWorkOrders.length }} urgent
+                        {{ stats?.urgent_work_orders || 0 }} urgent
                     </Badge>
                     <span class="text-xs text-muted-foreground"
                         >{{
                             getCompletionPercentage(
-                                pendingWorkOrders,
-                                workOrders
+                                stats?.pending_work_orders || 0,
+                                stats?.total_work_orders || 1
                             )
                         }}% of total</span
                     >
@@ -664,7 +370,7 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-purple-900 dark:text-purple-100"
                 >
-                    {{ formattedCount(processWorkOrders.length) }}
+                    {{ formattedCount(stats?.process_work_orders || 0) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">
@@ -676,8 +382,8 @@ const formattedCount = (number) => {
                         >
                             {{
                                 getCompletionPercentage(
-                                    processWorkOrders,
-                                    workOrders
+                                    stats?.process_work_orders || 0,
+                                    stats?.total_work_orders || 1
                                 )
                             }}%
                         </span>
@@ -686,8 +392,8 @@ const formattedCount = (number) => {
                         :model-value="
                             parseFloat(
                                 getCompletionPercentage(
-                                    processWorkOrders,
-                                    workOrders
+                                    stats?.process_work_orders || 0,
+                                    stats?.total_work_orders || 1
                                 )
                             )
                         "
@@ -724,7 +430,7 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-teal-900 dark:text-teal-100"
                 >
-                    {{ tasks.length }}
+                    {{ formattedCount(stats?.total_tasks || 0) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">
@@ -734,15 +440,15 @@ const formattedCount = (number) => {
                         <span
                             class="text-xs font-medium text-teal-700 dark:text-teal-300"
                         >
-                            {{ completedTasks.length.toLocaleString() }}/{{
-                                tasks.length.toLocaleString()
+                            {{ formattedCount(stats?.completed_tasks || 0) }}/{{
+                                formattedCount(stats?.total_tasks || 0)
                             }}
                         </span>
                     </div>
                     <Progress
                         :model-value="
                             parseFloat(
-                                getCompletionPercentage(completedTasks, tasks)
+                                getCompletionPercentage(stats?.completed_tasks || 0, stats?.total_tasks || 1)
                             )
                         "
                         class="h-2 bg-teal-200 dark:bg-teal-800"
@@ -778,16 +484,16 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-emerald-900 dark:text-emerald-100"
                 >
-                    {{ totalInspectionJobs }}
+                    {{ formattedCount(stats?.total_inspections || 0) }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <div class="flex gap-2">
                         <Badge variant="secondary" class="text-xs">
-                            {{ formattedCount(activeInspectionJobs.length) }}
+                            {{ formattedCount(stats?.active_inspections || 0) }}
                             active
                         </Badge>
                         <Badge variant="outline" class="text-xs">
-                            {{ formattedCount(completedInspectionJobs.length) }}
+                            {{ formattedCount(Math.max(0, (stats?.total_inspections || 0) - (stats?.active_inspections || 0))) }}
                             completed
                         </Badge>
                     </div>
@@ -825,18 +531,18 @@ const formattedCount = (number) => {
                 <div
                     class="text-3xl font-bold text-orange-900 dark:text-orange-100"
                 >
-                    {{ formattedCount(thisWeekInspections.length) }}
+                    {{ formattedCount(upcomingInspections) }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <Badge
                         :variant="
-                            overdueInspections.length > 0
+                            overdueInspections > 0
                                 ? 'destructive'
                                 : 'outline'
                         "
                         class="text-xs"
                     >
-                        {{ formattedCount(overdueInspections.length) }} overdue
+                        {{ formattedCount(overdueInspections) }} overdue
                     </Badge>
                     <span class="text-xs text-muted-foreground"
                         >inspections</span
@@ -886,7 +592,71 @@ const formattedCount = (number) => {
                 </Select>
             </CardHeader>
             <CardContent>
-                <BarChart :data="workOrderChart" />
+                <div v-if="isChartLoading" class="space-y-4">
+                    <!-- Chart legend skeleton -->
+                    <div class="flex gap-6 justify-center">
+                        <div class="flex items-center gap-2">
+                            <Skeleton class="h-3 w-3 rounded-full" />
+                            <Skeleton class="h-3 w-12" />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <Skeleton class="h-3 w-3 rounded-full" />
+                            <Skeleton class="h-3 w-16" />
+                        </div>
+                    </div>
+                    <!-- Chart bars skeleton -->
+                    <div class="h-64 flex items-end justify-between gap-2 px-4">
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-32 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-24 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-40 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-28 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-36 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-20 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-44 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-16 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-32 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-24 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-28 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <Skeleton class="h-20 w-full" />
+                            <Skeleton class="h-3 w-8 mx-auto" />
+                        </div>
+                    </div>
+                </div>
+                <BarChart v-else :data="workOrderChart" />
             </CardContent>
         </Card>
 
@@ -910,14 +680,20 @@ const formattedCount = (number) => {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div
-                        class="text-2xl font-bold text-indigo-900 dark:text-indigo-100"
-                    >
-                        {{ inspectionCompletionRate }}%
+                    <div v-if="isInspectionAnalyticsLoading" class="space-y-3">
+                        <Skeleton class="h-8 w-16" />
+                        <Skeleton class="h-3 w-28" />
                     </div>
-                    <p class="text-xs text-muted-foreground mt-1">
-                        inspections completed
-                    </p>
+                    <div v-else>
+                        <div
+                            class="text-2xl font-bold text-indigo-900 dark:text-indigo-100"
+                        >
+                            {{ inspectionCompletionRate }}%
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1">
+                            inspections completed
+                        </p>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -942,7 +718,7 @@ const formattedCount = (number) => {
                     <div
                         class="text-2xl font-bold text-pink-900 dark:text-pink-100"
                     >
-                        {{ formattedCount(upcomingInspectionsCount) }}
+                        {{ formattedCount(upcomingInspections) }}
                     </div>
                     <p class="text-xs text-muted-foreground mt-1">
                         upcoming inspections
@@ -970,7 +746,17 @@ const formattedCount = (number) => {
                     </div>
                 </CardHeader>
                 <CardContent class="pt-2">
+                    <div v-if="isServiceStatusLoading" class="h-48 flex items-center justify-center">
+                        <div class="space-y-3 w-full">
+                            <Skeleton class="h-32 w-32 rounded-full mx-auto" />
+                            <div class="space-y-2">
+                                <Skeleton class="h-3 w-24 mx-auto" />
+                                <Skeleton class="h-3 w-16 mx-auto" />
+                            </div>
+                        </div>
+                    </div>
                     <DonutChart
+                        v-else
                         class="h-48 w-full"
                         index="name"
                         :category="'total'"

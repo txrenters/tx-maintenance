@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class InspectionVisitController extends Controller
 {
