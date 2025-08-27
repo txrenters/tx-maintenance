@@ -114,6 +114,7 @@ class DashboardController extends Controller
             'completed_inspection_visits' => $visitStats->completed_inspection_visits,
             'overdue_inspections' => $visitStats->overdue_inspections,
             'upcoming_inspections' => $visitStats->upcoming_inspections,
+            'monthly_work_orders' => $thisMonthOrders,
             'monthly_growth_rate' => round($monthlyGrowthRate, 1),
             'average_completion_time' => round($completionStats->avg_completion_days ?? 0),
         ];

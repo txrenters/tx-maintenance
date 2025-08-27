@@ -24,7 +24,6 @@ import {
 
 defineOptions({ layout: AppLayout });
 
-import { DonutChart } from "@/Components/ui/chart-donut";
 import BarChart from "@/chart/BarChart.vue";
 import {
     Card,
@@ -51,14 +50,18 @@ const props = defineProps({
     title: String,
     stats: Object, // Essential stats loaded immediately
     workOrderChart: Object, // Lazy loaded
-    serviceStatus: Object, // Lazy loaded  
+    serviceStatus: Object, // Lazy loaded
     inspectionAnalytics: Object, // Lazy loaded
     filter: Object,
 });
 
-// Use pre-calculated stats for better performance  
-const upcomingInspections = computed(() => props.stats?.upcoming_inspections || 0);
-const overdueInspections = computed(() => props.stats?.overdue_inspections || 0);
+// Use pre-calculated stats for better performance
+const upcomingInspections = computed(
+    () => props.stats?.upcoming_inspections || 0
+);
+const overdueInspections = computed(
+    () => props.stats?.overdue_inspections || 0
+);
 
 // All data is loaded immediately, no need for loading states
 const isChartLoading = computed(() => false);
@@ -93,25 +96,58 @@ watch(selectedYear, (newYear) => {
 const isVisible = ref(true);
 
 // Only poll when page is visible to reduce server load
-if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
+if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
         isVisible.value = !document.hidden;
     });
 }
 
 // More conservative polling - only refresh critical stats
-usePoll(30000, { 
+usePoll(30000, {
     preserveState: true,
     preserveScroll: true,
-    only: ['stats'] // Only refresh essential statistics
+    only: ["stats"], // Only refresh essential statistics
 });
 
 // Use pre-calculated values from server
 const monthlyGrowthRate = computed(() => props.stats?.monthly_growth_rate || 0);
-const averageCompletionTime = computed(() => props.stats?.average_completion_time || 0);
+const averageCompletionTime = computed(
+    () => props.stats?.average_completion_time || 0
+);
 
 const formattedCount = (number) => {
     return number.toLocaleString();
+};
+
+// Service status computed property
+const serviceStatus = computed(() => props.serviceStatus || []);
+
+// Helper functions for service status progress bars
+const getStatusPercentage = (total) => {
+    if (!serviceStatus.value || serviceStatus.value.length === 0) return 0;
+
+    const maxTotal = Math.max(...serviceStatus.value.map((s) => s.total || 0));
+    if (maxTotal === 0) return 0;
+
+    // Always show at least a small bar (5%) if there's any value, max 100%
+    return total === 0
+        ? 0
+        : Math.max(5, Math.min(100, (total / maxTotal) * 100));
+};
+
+const getStatusColor = (index) => {
+    const colors = [
+        "from-blue-500 to-blue-600", // Blue
+        "from-green-500 to-green-600", // Green
+        "from-yellow-500 to-yellow-600", // Yellow
+        "from-purple-500 to-purple-600", // Purple
+        "from-red-500 to-red-600", // Red
+        "from-indigo-500 to-indigo-600", // Indigo
+        "from-pink-500 to-pink-600", // Pink
+        "from-teal-500 to-teal-600", // Teal
+    ];
+
+    return colors[index % colors.length];
 };
 </script>
 
@@ -143,9 +179,9 @@ const formattedCount = (number) => {
                         <div
                             class="flex items-center gap-2 bg-white/10 backdrop-blur rounded-lg px-3 py-2"
                         >
-                            <TrendingUp class="h-4 w-4" />
+                            <Wrench class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ monthlyGrowthRate >= 0 ? '+' : '' }}{{ monthlyGrowthRate }}% work orders this month</span
+                                >{{ formattedCount(stats?.monthly_work_orders || 0) }} work orders this month</span
                             >
                         </div>
                         <div
@@ -153,7 +189,8 @@ const formattedCount = (number) => {
                         >
                             <Clock class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ averageCompletionTime }} days avg completion time</span
+                                >{{ averageCompletionTime }} days avg completion
+                                time</span
                             >
                         </div>
                         <div
@@ -162,7 +199,12 @@ const formattedCount = (number) => {
                         >
                             <AlertTriangle class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ stats.urgent_work_orders }} urgent work {{ stats.urgent_work_orders === 1 ? 'order' : 'orders' }}</span
+                                >{{ stats.urgent_work_orders }} urgent work
+                                {{
+                                    stats.urgent_work_orders === 1
+                                        ? "order"
+                                        : "orders"
+                                }}</span
                             >
                         </div>
                     </div>
@@ -448,7 +490,10 @@ const formattedCount = (number) => {
                     <Progress
                         :model-value="
                             parseFloat(
-                                getCompletionPercentage(stats?.completed_tasks || 0, stats?.total_tasks || 1)
+                                getCompletionPercentage(
+                                    stats?.completed_tasks || 0,
+                                    stats?.total_tasks || 1
+                                )
                             )
                         "
                         class="h-2 bg-teal-200 dark:bg-teal-800"
@@ -493,7 +538,15 @@ const formattedCount = (number) => {
                             active
                         </Badge>
                         <Badge variant="outline" class="text-xs">
-                            {{ formattedCount(Math.max(0, (stats?.total_inspections || 0) - (stats?.active_inspections || 0))) }}
+                            {{
+                                formattedCount(
+                                    Math.max(
+                                        0,
+                                        (stats?.total_inspections || 0) -
+                                            (stats?.active_inspections || 0)
+                                    )
+                                )
+                            }}
                             completed
                         </Badge>
                     </div>
@@ -536,9 +589,7 @@ const formattedCount = (number) => {
                 <div class="mt-2 flex items-center justify-between">
                     <Badge
                         :variant="
-                            overdueInspections > 0
-                                ? 'destructive'
-                                : 'outline'
+                            overdueInspections > 0 ? 'destructive' : 'outline'
                         "
                         class="text-xs"
                     >
@@ -662,70 +713,6 @@ const formattedCount = (number) => {
 
         <!-- Additional Analytics Cards -->
         <div class="space-y-6">
-            <!-- Inspection Completion Rate -->
-            <Card
-                class="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-950 dark:to-purple-900"
-            >
-                <CardHeader class="pb-2">
-                    <div class="flex items-center justify-between">
-                        <CardTitle
-                            class="text-sm font-medium text-indigo-700 dark:text-indigo-300"
-                            >Completion Rate</CardTitle
-                        >
-                        <div class="p-2 bg-indigo-500/10 rounded-lg">
-                            <CheckCircle2
-                                class="h-4 w-4 text-indigo-600 dark:text-indigo-400"
-                            />
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div v-if="isInspectionAnalyticsLoading" class="space-y-3">
-                        <Skeleton class="h-8 w-16" />
-                        <Skeleton class="h-3 w-28" />
-                    </div>
-                    <div v-else>
-                        <div
-                            class="text-2xl font-bold text-indigo-900 dark:text-indigo-100"
-                        >
-                            {{ inspectionCompletionRate }}%
-                        </div>
-                        <p class="text-xs text-muted-foreground mt-1">
-                            inspections completed
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Upcoming Inspections -->
-            <Card
-                class="border-0 shadow-lg bg-gradient-to-br from-pink-50 to-rose-100 dark:from-pink-950 dark:to-rose-900"
-            >
-                <CardHeader class="pb-2">
-                    <div class="flex items-center justify-between">
-                        <CardTitle
-                            class="text-sm font-medium text-pink-700 dark:text-pink-300"
-                            >Next 7 Days</CardTitle
-                        >
-                        <div class="p-2 bg-pink-500/10 rounded-lg">
-                            <Clock
-                                class="h-4 w-4 text-pink-600 dark:text-pink-400"
-                            />
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div
-                        class="text-2xl font-bold text-pink-900 dark:text-pink-100"
-                    >
-                        {{ formattedCount(upcomingInspections) }}
-                    </div>
-                    <p class="text-xs text-muted-foreground mt-1">
-                        upcoming inspections
-                    </p>
-                </CardContent>
-            </Card>
-
             <!-- Service Status Donut Chart -->
             <Card class="border-0 shadow-lg">
                 <CardHeader class="pb-2">
@@ -746,22 +733,61 @@ const formattedCount = (number) => {
                     </div>
                 </CardHeader>
                 <CardContent class="pt-2">
-                    <div v-if="isServiceStatusLoading" class="h-48 flex items-center justify-center">
-                        <div class="space-y-3 w-full">
-                            <Skeleton class="h-32 w-32 rounded-full mx-auto" />
-                            <div class="space-y-2">
-                                <Skeleton class="h-3 w-24 mx-auto" />
-                                <Skeleton class="h-3 w-16 mx-auto" />
+                    <div v-if="isServiceStatusLoading" class="space-y-4">
+                        <!-- Skeleton for progress bars -->
+                        <div v-for="i in 4" :key="i" class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <Skeleton class="h-3 w-20" />
+                                <Skeleton class="h-3 w-8" />
                             </div>
+                            <Skeleton class="h-2 w-full rounded-full" />
                         </div>
                     </div>
-                    <DonutChart
-                        v-else
-                        class="h-48 w-full"
-                        index="name"
-                        :category="'total'"
-                        :data="serviceStatus"
-                    />
+                    <div v-else class="space-y-4">
+                        <!-- Progress bars for each service status -->
+                        <div
+                            v-for="(status, index) in serviceStatus"
+                            :key="status.name"
+                            class="space-y-2"
+                        >
+                            <div class="flex justify-between items-center">
+                                <span
+                                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
+                                    {{ status.name }}
+                                </span>
+                                <span
+                                    class="text-sm font-semibold text-gray-900 dark:text-gray-100"
+                                >
+                                    {{ formattedCount(status.total || 0) }}
+                                </span>
+                            </div>
+                            <div
+                                class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"
+                            >
+                                <div
+                                    class="h-2 rounded-full transition-all duration-500 ease-in-out"
+                                    :class="`bg-gradient-to-r ${getStatusColor(
+                                        index
+                                    )}`"
+                                    :style="{
+                                        width: `${getStatusPercentage(
+                                            status.total || 0
+                                        )}%`,
+                                    }"
+                                ></div>
+                            </div>
+                        </div>
+                        <!-- Show message if no service status data -->
+                        <div
+                            v-if="!serviceStatus || serviceStatus.length === 0"
+                            class="text-center py-6"
+                        >
+                            <p class="text-sm text-muted-foreground">
+                                No service status data available
+                            </p>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
         </div>
