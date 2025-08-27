@@ -65,10 +65,12 @@ const upcomingInspections = computed(() => {
 const completedInspections = computed(() => {
     if (!props.inspectionVisits) return [];
     return props.inspectionVisits.filter((visit) => {
-        return visit.is_complete === true || 
-               visit.is_complete === 1 || 
-               visit.visit_status === 'completed' ||
-               visit.status === 'completed';
+        return (
+            visit.is_complete === true ||
+            visit.is_complete === 1 ||
+            visit.visit_status === "completed" ||
+            visit.status === "completed"
+        );
     });
 });
 
@@ -104,23 +106,25 @@ const totalInspectionJobs = computed(() => {
 
 const activeInspectionJobs = computed(() => {
     if (!props.inspections) return [];
-    return props.inspections.filter(
-        (job) => {
-            const status = job.job_status?.toLowerCase();
-            // Only count as inactive if explicitly closed, archived, completed, or cancelled
-            return !['archived', 'closed', 'completed', 'cancelled', 'done'].includes(status);
-        }
-    );
+    return props.inspections.filter((job) => {
+        const status = job.job_status?.toLowerCase();
+        // Only count as inactive if explicitly closed, archived, completed, or cancelled
+        return ![
+            "archived",
+            "closed",
+            "completed",
+            "cancelled",
+            "done",
+        ].includes(status);
+    });
 });
 
 const completedInspectionJobs = computed(() => {
     if (!props.inspections) return [];
-    return props.inspections.filter(
-        (job) => {
-            const status = job.job_status?.toLowerCase();
-            return ['completed', 'done', 'closed'].includes(status);
-        }
-    );
+    return props.inspections.filter((job) => {
+        const status = job.job_status?.toLowerCase();
+        return ["completed", "done", "closed"].includes(status);
+    });
 });
 
 const thisWeekInspections = computed(() => {
@@ -324,18 +328,19 @@ const inspectionsByType = computed(() => {
 });
 
 const inspectionCompletionRate = computed(() => {
-    if (!props.inspectionVisits || props.inspectionVisits.length === 0) return 0;
-    
-    const completedVisits = props.inspectionVisits.filter(
-        (visit) => {
-            // Check multiple possible fields for completion status
-            return visit.is_complete === true || 
-                   visit.is_complete === 1 || 
-                   visit.visit_status === 'completed' ||
-                   visit.status === 'completed';
-        }
-    );
-    
+    if (!props.inspectionVisits || props.inspectionVisits.length === 0)
+        return 0;
+
+    const completedVisits = props.inspectionVisits.filter((visit) => {
+        // Check multiple possible fields for completion status
+        return (
+            visit.is_complete === true ||
+            visit.is_complete === 1 ||
+            visit.visit_status === "completed" ||
+            visit.status === "completed"
+        );
+    });
+
     const rate = (completedVisits.length / props.inspectionVisits.length) * 100;
     return Math.round(rate);
 });
@@ -343,32 +348,40 @@ const inspectionCompletionRate = computed(() => {
 // Add back monthlyGrowthRate for work orders
 const monthlyGrowthRate = computed(() => {
     if (workOrdersLastMonth.value.length === 0) return 100;
-    return ((workOrdersThisMonth.value.length - workOrdersLastMonth.value.length) / workOrdersLastMonth.value.length * 100);
+    return (
+        ((workOrdersThisMonth.value.length - workOrdersLastMonth.value.length) /
+            workOrdersLastMonth.value.length) *
+        100
+    );
 });
 
 // Add averageCompletionTime for the hero section
 const averageCompletionTime = computed(() => {
-    const completedOrders = props.workOrders.filter(order => 
-        order.status === 'Closed' && 
-        (order.completed_at || order.completed_date || order.closed_date)
+    const completedOrders = props.workOrders.filter(
+        (order) =>
+            order.status === "Closed" &&
+            (order.completed_at || order.completed_date || order.closed_date)
     );
-    
+
     if (completedOrders.length === 0) return 0;
-    
+
     const totalDays = completedOrders.reduce((sum, order) => {
         // Use created_date and check multiple possible completion date fields
         const created = new Date(order.created_date || order.created_at);
-        const completed = new Date(order.completed_at || order.completed_date || order.closed_date);
-        
+        const completed = new Date(
+            order.completed_at || order.completed_date || order.closed_date
+        );
+
         // Calculate difference in days
         const diffTime = completed - created;
         const diffDays = diffTime / (1000 * 60 * 60 * 24);
-        
+
         // Only count valid positive differences
         return diffDays >= 0 ? sum + diffDays : sum;
     }, 0);
-    
-    const avg = completedOrders.length > 0 ? totalDays / completedOrders.length : 0;
+
+    const avg =
+        completedOrders.length > 0 ? totalDays / completedOrders.length : 0;
     return Math.round(avg);
 });
 
@@ -388,6 +401,10 @@ const workOrderStatusDistribution = computed(() => {
         count,
     }));
 });
+
+const formattedCount = (number) => {
+    return number.toLocaleString();
+};
 </script>
 
 <template>
@@ -482,7 +499,7 @@ const workOrderStatusDistribution = computed(() => {
                 <div
                     class="text-3xl font-bold text-blue-900 dark:text-blue-100"
                 >
-                    {{ workOrders.length }}
+                    {{ formattedCount(workOrders.length) }}
                 </div>
                 <div class="flex items-center gap-2 mt-2">
                     <div
@@ -537,7 +554,7 @@ const workOrderStatusDistribution = computed(() => {
                 <div
                     class="text-3xl font-bold text-green-900 dark:text-green-100"
                 >
-                    {{ completedWorkOrders.length }}
+                    {{ formattedCount(completedWorkOrders.length) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">
@@ -595,7 +612,7 @@ const workOrderStatusDistribution = computed(() => {
                 <div
                     class="text-3xl font-bold text-amber-900 dark:text-amber-100"
                 >
-                    {{ pendingWorkOrders.length }}
+                    {{ formattedCount(pendingWorkOrders.length) }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <Badge
@@ -647,7 +664,7 @@ const workOrderStatusDistribution = computed(() => {
                 <div
                     class="text-3xl font-bold text-purple-900 dark:text-purple-100"
                 >
-                    {{ processWorkOrders.length }}
+                    {{ formattedCount(processWorkOrders.length) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">
@@ -717,7 +734,9 @@ const workOrderStatusDistribution = computed(() => {
                         <span
                             class="text-xs font-medium text-teal-700 dark:text-teal-300"
                         >
-                            {{ completedTasks.length.toLocaleString() }}/{{ tasks.length.toLocaleString() }}
+                            {{ completedTasks.length.toLocaleString() }}/{{
+                                tasks.length.toLocaleString()
+                            }}
                         </span>
                     </div>
                     <Progress
@@ -764,10 +783,12 @@ const workOrderStatusDistribution = computed(() => {
                 <div class="mt-2 flex items-center justify-between">
                     <div class="flex gap-2">
                         <Badge variant="secondary" class="text-xs">
-                            {{ activeInspectionJobs.length }} active
+                            {{ formattedCount(activeInspectionJobs.length) }}
+                            active
                         </Badge>
                         <Badge variant="outline" class="text-xs">
-                            {{ completedInspectionJobs.length }} completed
+                            {{ formattedCount(completedInspectionJobs.length) }}
+                            completed
                         </Badge>
                     </div>
                     <span class="text-xs text-muted-foreground"
@@ -804,7 +825,7 @@ const workOrderStatusDistribution = computed(() => {
                 <div
                     class="text-3xl font-bold text-orange-900 dark:text-orange-100"
                 >
-                    {{ thisWeekInspections.length }}
+                    {{ formattedCount(thisWeekInspections.length) }}
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <Badge
@@ -815,7 +836,7 @@ const workOrderStatusDistribution = computed(() => {
                         "
                         class="text-xs"
                     >
-                        {{ overdueInspections.length }} overdue
+                        {{ formattedCount(overdueInspections.length) }} overdue
                     </Badge>
                     <span class="text-xs text-muted-foreground"
                         >inspections</span
@@ -921,7 +942,7 @@ const workOrderStatusDistribution = computed(() => {
                     <div
                         class="text-2xl font-bold text-pink-900 dark:text-pink-100"
                     >
-                        {{ upcomingInspectionsCount }}
+                        {{ formattedCount(upcomingInspectionsCount) }}
                     </div>
                     <p class="text-xs text-muted-foreground mt-1">
                         upcoming inspections
