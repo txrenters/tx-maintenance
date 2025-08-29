@@ -70,7 +70,8 @@ const fullName = ref("");
 const contactNumber = ref("");
 const propertyName = ref("");
 const showThankYou = ref(false);
-const redirectCountdown = ref(5);
+const redirectCountdown = ref(10);
+let countdownTimer = null;
 
 const form = useForm({
     paint: "",
@@ -254,48 +255,222 @@ onMounted(() => {
 
     onUnmounted(() => {
         window.removeEventListener("resize", handleResize);
+        // Clean up countdown timer on component unmount
+        if (countdownTimer) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+        }
     });
 
-    // Restore form data from localStorage
+    const immediateCheck = localStorage.getItem("buildingOnboardingForm");
+    console.log("buildingOnboardingForm exists on load:", !!immediateCheck);
+    if (immediateCheck) {
+        console.log(
+            "Data found on page load:",
+            immediateCheck.substring(0, 100) + "..."
+        );
+
+        // Try to restore building ID from localStorage
+        try {
+            const savedData = JSON.parse(immediateCheck);
+            if (savedData.buildingId) {
+                console.log(
+                    "🏗️ Setting buildingInfo.id from localStorage:",
+                    savedData.buildingId
+                );
+                buildingInfo.id = savedData.buildingId;
+
+                // Also restore search fields if they exist
+                if (savedData.savedSearchData) {
+                    console.log("🔍 Restoring search fields from localStorage");
+                    const searchData = savedData.savedSearchData;
+
+                    fullName.value = searchData.fullName || "";
+                    contactNumber.value = searchData.contactNumber || "";
+                    propertyName.value = searchData.propertyName || "";
+                    selectedBuildingId.value =
+                        searchData.selectedBuildingId || "";
+
+                    // Restore buildings search results
+                    if (
+                        searchData.buildings &&
+                        Array.isArray(searchData.buildings)
+                    ) {
+                        buildings.value = searchData.buildings;
+                        console.log(
+                            "🏢 Restored",
+                            searchData.buildings.length,
+                            "buildings from localStorage"
+                        );
+                    }
+
+                    // Restore buildingInfo details
+                    if (searchData.buildingInfo) {
+                        buildingInfo.name = searchData.buildingInfo.name || "";
+                        buildingInfo.abbreviation =
+                            searchData.buildingInfo.abbreviation || "";
+                        if (searchData.buildingInfo.address) {
+                            buildingInfo.address = {
+                                ...buildingInfo.address,
+                                ...searchData.buildingInfo.address,
+                            };
+                        }
+                    }
+
+                    // Restore building data including custom fields map
+                    if (
+                        searchData.buildings &&
+                        searchData.buildings.length > 0
+                    ) {
+                        const savedBuilding = searchData.buildings.find(
+                            (b) => b.id === savedData.buildingId
+                        );
+                        if (savedBuilding) {
+                            console.log(
+                                "🔧 Restoring building data and populating customFieldsMap"
+                            );
+                            building.value = savedBuilding;
+                            loadBuildingData();
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Error parsing saved data:", error);
+        }
+    }
+
+    // Note: localStorage restoration moved to a watcher that triggers when buildingInfo becomes available
+});
+
+// Restore form data from localStorage when buildingInfo becomes available
+const restoreFromLocalStorage = () => {
     const savedFormData = localStorage.getItem("buildingOnboardingForm");
-    if (savedFormData) {
+
+    // DEBUG: Log localStorage restoration process
+    console.log("🔍 localStorage Restoration Attempt:");
+    console.log("buildingInfo:", buildingInfo);
+    console.log("buildingInfo?.id:", buildingInfo?.id);
+    console.log("savedFormData exists:", !!savedFormData);
+
+    // DEBUG: Check all localStorage data
+    console.log("🗂️ All localStorage keys:", Object.keys(localStorage));
+    console.log("📄 Raw savedFormData:", savedFormData);
+
+    if (savedFormData && buildingInfo?.id) {
         try {
             const parsedData = JSON.parse(savedFormData);
-            // Only restore data if building ID matches (to avoid restoring wrong building data)
-            if (
-                parsedData.buildingId &&
+            console.log("parsedData.buildingId:", parsedData.buildingId);
+            console.log(
+                "ID match check:",
                 parsedData.buildingId === buildingInfo?.id
-            ) {
+            );
+
+            // Only restore data if building ID matches
+            if (parsedData.buildingId === buildingInfo.id) {
+                console.log("✅ Restoring form data from localStorage");
+                let restoredFields = 0;
+
                 Object.keys(parsedData).forEach((key) => {
                     if (key !== "buildingId" && form.hasOwnProperty(key)) {
                         form[key] = parsedData[key];
+                        restoredFields++;
                     }
                 });
+
+                console.log("📝 Restored", restoredFields, "form fields");
 
                 // Show notification that data was restored
                 toast({
                     title: "Form Restored",
                     description: "Your previous progress has been restored.",
                 });
+
+                return true; // Restoration successful
+            } else {
+                console.log(
+                    "❌ Building ID mismatch - saved:",
+                    parsedData.buildingId,
+                    "current:",
+                    buildingInfo.id
+                );
             }
         } catch (error) {
-            console.error("Error restoring form data:", error);
+            console.error("❌ Error restoring form data:", error);
+        }
+    } else {
+        if (!savedFormData) {
+            console.log("📭 No localStorage data found");
+        }
+        if (!buildingInfo?.id) {
+            console.log("⏳ buildingInfo not ready yet");
         }
     }
-});
+    return false; // Restoration failed or not ready
+};
+
+// Watch for buildingInfo to become available and restore localStorage
+watch(
+    () => buildingInfo?.id,
+    (newId) => {
+        if (newId) {
+            console.log("🏢 buildingInfo loaded with ID:", newId);
+            restoreFromLocalStorage();
+        }
+    },
+    { immediate: true }
+);
 
 // Auto-save form data to localStorage
 const saveFormToLocalStorage = () => {
+    console.log("💾 Attempting to save to localStorage:");
+    console.log("buildingInfo?.id:", buildingInfo?.id);
+
     if (buildingInfo?.id) {
-        // Extract only the data from the Inertia form object
+        // Extract only the data from the Inertia form object + search fields
         const formData = {
             buildingId: buildingInfo.id,
+            // Save search/building info for restoration
+            savedSearchData: {
+                fullName: fullName.value,
+                contactNumber: contactNumber.value,
+                propertyName: propertyName.value,
+                selectedBuildingId: selectedBuildingId.value,
+                buildings: buildings.value, // Save the search results
+                buildingInfo: {
+                    id: buildingInfo.id,
+                    name: buildingInfo.name,
+                    abbreviation: buildingInfo.abbreviation,
+                    address: buildingInfo.address,
+                },
+            },
             ...form.data(),
         };
+
+        console.log("✅ Saving form data:", {
+            buildingId: formData.buildingId,
+            fieldsCount: Object.keys(formData).length - 1, // -1 for buildingId
+        });
+
         localStorage.setItem(
             "buildingOnboardingForm",
             JSON.stringify(formData)
         );
+
+        // Immediately verify the save worked
+        const verification = localStorage.getItem("buildingOnboardingForm");
+        if (verification) {
+            console.log("📁 localStorage save verified - data exists");
+        } else {
+            console.log(
+                "🚨 localStorage save FAILED - data missing immediately after save!"
+            );
+        }
+
+        console.log("📁 localStorage updated successfully");
+    } else {
+        console.log("❌ Cannot save: buildingInfo?.id is not available");
+        console.log("buildingInfo:", buildingInfo);
     }
 };
 
@@ -784,6 +959,10 @@ const populateFormFromCustomFields = () => {
     // Debris Removal mapping
     if (customFieldsMap.value["Debris Removal"]?.value === "By Management") {
         form.goingOnTheMarketDebrisRemoval = "Management";
+    } else if (
+        customFieldsMap.value["Debris Removal"]?.value === "Not Required"
+    ) {
+        form.goingOnTheMarketDebrisRemoval = "Owner";
     }
 
     // Lawn Care During Marketing mapping
@@ -867,8 +1046,13 @@ const populateFormFromCustomFields = () => {
             form.catsAllowed = "No";
         }
 
-        // Store any other pet restrictions
-        if (!petPrefs.includes("no pet")) {
+        // Store any other pet restrictions only if we couldn't parse specific pet info
+        // and it's not just the default generated text
+        if (
+            !petPrefs.includes("no pet") &&
+            !petPrefs.includes("dog") &&
+            !petPrefs.includes("cat")
+        ) {
             form.otherPetsRestriction =
                 customFieldsMap.value["Owner Pet Prefences"].value;
         }
@@ -1110,10 +1294,28 @@ const prepareCustomFieldsForUpdate = () => {
                 return;
             }
 
+            // Map Owner to "By Owner " (with trailing space) for Debris Removal
+            // PropertyWare API requires the trailing space for this field to work correctly
+            if (customFieldName === "Debris Removal" && formValue === "Owner") {
+                fieldsToUpdate[customFieldName] = "By Owner ";
+                return; // Skip the normal mapping logic below
+            }
+
             // Skip empty fields - don't update them
             if (!formValue || formValue === "") {
                 return;
             }
+
+            // Debug logging for change detection
+            console.log(`🔍 Checking field: ${customFieldName}`);
+            console.log(`  Form value: "${formValue}"`);
+            console.log(`  PropertyWare value: "${customField?.value}"`);
+            console.log(`  Values match: ${formValue === customField?.value}`);
+            console.log(
+                `  Will include: ${
+                    customField && formValue && formValue !== customField?.value
+                }`
+            );
 
             // Only include if:
             // 1. The custom field exists in Propertyware
@@ -1172,11 +1374,17 @@ const prepareCustomFieldsForUpdate = () => {
         }
 
         // Add any other pet restrictions (but don't duplicate existing data)
+        // Only add if it's genuinely new content, not just the existing stored value
         if (
             form.otherPetsRestriction &&
             form.otherPetsRestriction !== "Not Completed" &&
             form.otherPetsRestriction !==
-                customFieldsMap.value["Owner Pet Prefences"].value
+                customFieldsMap.value["Owner Pet Prefences"]?.value &&
+            !petPrefs.some(
+                (pref) =>
+                    form.otherPetsRestriction.includes(pref) ||
+                    pref.includes(form.otherPetsRestriction)
+            )
         ) {
             petPrefs.push(form.otherPetsRestriction);
         }
@@ -1417,7 +1625,8 @@ const prepareCustomFieldsForUpdate = () => {
                 mappedValue = "By Management";
             }
 
-            // Map "Owner" to "By Owner" for marketing and pre-move-in fields (except Debris Removal)
+            // Map "Owner" to "By Owner" for marketing and pre-move-in fields
+            // Exception: Debris Removal needs "By Owner " (with trailing space)
             if (
                 (marketingFields.includes(fieldName) ||
                     preMoveInFields.includes(fieldName)) &&
@@ -1425,15 +1634,6 @@ const prepareCustomFieldsForUpdate = () => {
                 fieldName !== "Debris Removal"
             ) {
                 mappedValue = "By Owner";
-            }
-
-            // Special handling for Debris Removal field
-            if (fieldName === "Debris Removal") {
-                if (value === "Management") {
-                    mappedValue = "By Management";
-                } else if (value === "Owner") {
-                    mappedValue = "Owner"; // Using simple "Owner" instead of "By Owner"
-                }
             }
 
             if (fieldName === "Utilities") {
@@ -1501,14 +1701,9 @@ const submitForm = async () => {
     const { fieldSetDTOS, maintenanceNoticeValue } =
         prepareCustomFieldsForUpdate();
 
-    if (fieldSetDTOS.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "No Changes",
-            description: "Please make changes to the form before submitting.",
-        });
-        return;
-    }
+    console.log("🔍 Submission Debug:");
+    console.log("fieldSetDTOS length:", fieldSetDTOS.length);
+    console.log("fieldSetDTOS:", fieldSetDTOS);
 
     loading.value = true;
 
@@ -1545,16 +1740,25 @@ const submitForm = async () => {
         localStorage.removeItem("buildingOnboardingForm");
 
         // Show thank you overlay and start countdown
+        redirectCountdown.value = 10; // Reset countdown
         showThankYou.value = true;
         startCountdown();
     } catch (error) {
+        console.error("Submission error:", error);
+
+        // Log detailed error information
+        if (error.response) {
+            console.error("Error response:", error.response.data);
+            console.error("Error status:", error.response.status);
+        }
+
         toast({
             variant: "destructive",
             title: "Submission Failed",
             description:
+                error.response?.data?.message ||
                 "Unable to update building information. Please try again.",
         });
-        console.error("Submission error:", error);
     } finally {
         loading.value = false;
     }
@@ -1562,19 +1766,33 @@ const submitForm = async () => {
 
 // Countdown timer function
 const startCountdown = () => {
-    const timer = setInterval(() => {
+    // Clear any existing timer first
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+    }
+
+    countdownTimer = setInterval(() => {
         redirectCountdown.value--;
         if (redirectCountdown.value <= 0) {
-            clearInterval(timer);
-            redirectToHandbook();
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+            // Only redirect if the thank you modal is still showing
+            if (showThankYou.value) {
+                redirectToHandbook();
+            }
         }
-    }, 4000);
+    }, 1000);
 };
 
 // Redirect to owner handbook
 const redirectToHandbook = () => {
+    // Clean up timer before redirect
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
     // Replace this URL with your actual owner handbook URL
-    window.location.href = "https://heyzine.com/flip-book/30dc55160e.html"; // UPDATE THIS URL
+    window.location.href = "https://heyzine.com/flip-book/30dc55160e.html";
 };
 </script>
 
@@ -2052,7 +2270,7 @@ const redirectToHandbook = () => {
 
         <!-- Content -->
         <div
-            class="relative bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all duration-500 scale-100"
+            class="relative bg-white p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all duration-500 scale-100"
         >
             <div class="text-center">
                 <!-- Success Icon -->
@@ -2073,7 +2291,7 @@ const redirectToHandbook = () => {
                 </p>
 
                 <!-- Countdown Message -->
-                <!-- <div class="bg-blue-50 rounded-lg p-4 mb-6">
+                <div class="bg-blue-50 rounded-lg p-4 mb-6">
                     <p class="text-sm text-blue-900">
                         Redirecting to your Owner Handbook in
                         <span class="font-bold text-2xl mx-1">{{
@@ -2081,15 +2299,30 @@ const redirectToHandbook = () => {
                         }}</span>
                         seconds...
                     </p>
-                </div> -->
-
-                <!-- Manual Redirect Button -->
-                <!-- <Button @click="redirectToHandbook" class="w-full" size="lg">
-                    Go to Owner Handbook Now
-                </Button> -->
-                <Button @click="showThankYou = false" class="w-full" size="lg">
-                    Okay
-                </Button>
+                </div>
+                <div class="flex gap-3">
+                    <Button
+                        @click="
+                            showThankYou = false;
+                            if (countdownTimer) {
+                                window.clearInterval(countdownTimer);
+                                countdownTimer = null;
+                            }
+                        "
+                        class="w-full"
+                        size="lg"
+                        variant="secondary"
+                    >
+                        Close
+                    </Button>
+                    <Button
+                        @click="redirectToHandbook"
+                        class="w-full"
+                        size="lg"
+                    >
+                        Go to Owner Handbook Now
+                    </Button>
+                </div>
             </div>
         </div>
     </div>

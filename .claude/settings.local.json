@@ -18,7 +18,12 @@
       "mcp__laravel-boost__database-query",
       "mcp__laravel-boost__tinker",
       "mcp__laravel-boost__database-connections",
-      "WebFetch(domain:127.0.0.1)"
+      "WebFetch(domain:127.0.0.1)",
+      "mcp__laravel-boost__read-log-entries",
+      "Bash(Get-Content \"C:\\Projects\\tx_work_order\\storage\\logs\\laravel-2025-08-29.log\" -Tail 10)",
+      "mcp__laravel-boost__get-config",
+      "Bash(npm run dev:*)",
+      "mcp__laravel-boost__search-docs"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -61,7 +61,7 @@ class BuildingController extends Controller
 
         foreach ($filtered as $record) {
             $buildingId = $record[5]; // Get building ID from index 5
-            Log::info('Searching Building:', ['building' => $buildingId]);
+            Log::info('Searching Building:', ['building' => $buildingId ]);
 
             $response = $this->getBuilding($buildingId);
 

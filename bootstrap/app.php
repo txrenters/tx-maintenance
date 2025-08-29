@@ -29,6 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->trustProxies(at: '*');
 
+        // Disable string trimming for building custom fields API to preserve trailing spaces
+        // (needed for PropertyWare API compatibility, e.g., "By Owner " for Debris Removal)
+        $middleware->trimStrings(except: [
+            fn (Request $request) => $request->is('api/buildings/*/update-custom-fields'),
+        ]);
+
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -73,10 +73,12 @@ class GenerateOnboardingPdfJob implements ShouldQueue
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $buildingId);
 
-                DB::table('onboarding_clients')->create([
+                DB::table('onboarding_clients')->insert([
                     'name' => $this->ownerName,
                     'building_name' => $this->buildingData['name'] ?? 'Unknown',
                     'filename' => $fileName,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
