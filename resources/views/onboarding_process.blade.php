@@ -693,7 +693,7 @@
                 @if(isset($formData['hvacFilterLocation1']) && $formData['hvacFilterLocation1'])
                 <tr>
                     <td>HVAC Filter Location 1</td>
-                    <td>{{ $formData['hvacFilterLocation'] }}</td>
+                    <td>{{ $formData['hvacFilterLocation1'] }}</td>
                 </tr>
                 @endif
                 @if(isset($formData['hvacFilterSize1']) && $formData['hvacFilterSize1'])
