@@ -799,15 +799,7 @@ class PropertyWareService
 
                 return true;
             }
-
-            Log::error('Error uploading work order invoice', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-                'error' => $response->json(),
-            ]);
-
-            return false;
-
+            
         } catch (\Exception $e) {
             Log::error('Error uploading work order invoice: '.$e->getMessage());
 
