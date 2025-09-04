@@ -755,6 +755,12 @@ class PropertyWareService
 
     public function uploadVendorInvoice($workOrderId, $invoice)
     {
+        $headers = [
+                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            ];
+
         try {
             $workOrder = WorkOrder::find($workOrderId);
 
@@ -775,7 +781,7 @@ class PropertyWareService
             $fileContents = file_get_contents($absolutePath);
             $fileName = $cleanTitle.'.'.pathinfo(basename($invoice->filename), PATHINFO_EXTENSION);
 
-            $response = Http::withHeaders($this->headers)
+            $response = Http::withHeaders($headers)
                 ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
@@ -784,7 +790,7 @@ class PropertyWareService
 
                 $postData = $response->json();
 
-                Http::withHeaders($this->headers)
+                Http::withHeaders($headers)
                     ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
                         'fileName' => $fileName,
                         'description' => $invoice->title,
@@ -799,7 +805,15 @@ class PropertyWareService
 
                 return true;
             }
-            
+
+            Log::error('Error uploading work order invoice', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'error' => $response->json(),
+            ]);
+
+            return false;
+
         } catch (\Exception $e) {
             Log::error('Error uploading work order invoice: '.$e->getMessage());
 
