@@ -60,7 +60,7 @@ class GenerateOnboardingPdfJob implements ShouldQueue
 
             // Create filename with building ID and timestamp
             $buildingId = $this->buildingData['id'] ?? 'unknown';
-            $fileName = 'property_onboarding_'.$buildingId.'_'.date('YmdHis').'.pdf';
+            $fileName = 'Management_Onboarding_Information_Form_'.date('YmdHis').'.pdf';
 
             // Save to storage directory
             $storagePath = storage_path('app/public/'.$fileName);

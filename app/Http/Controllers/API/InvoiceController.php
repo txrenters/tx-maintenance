@@ -30,8 +30,8 @@ class InvoiceController extends Controller
             'filename' => 'required|mimes:jpg,jpeg,png,pdf|max:2048',
             'amount' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
-            'tenant_portal' => 'required',
-            'owner_portal' => 'required',
+            'is_publish_to_owner_portal' => 'required',
+            'is_publish_to_tenant_portal' => 'required',
         ]);
 
         $user = User::with('vendor')->find(auth()->id());

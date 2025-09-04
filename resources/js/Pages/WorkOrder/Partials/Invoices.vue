@@ -21,8 +21,8 @@ const attachmentForm = useForm({
     title: "",
     amount: "",
     filename: "",
-    owner_portal: "No",
-    tenant_portal: "No",
+    is_publish_to_owner_portal: "No",
+    is_publish_to_tenant_portal: "No",
     work_order_id: props.workOrder.id,
 });
 
@@ -192,7 +192,7 @@ const handleFetchInvoices = () => {
                     <RadioGroup
                         default-value="comfortable"
                         class="flex gap-5 mt-2"
-                        v-model="attachmentForm.tenant_portal"
+                        v-model="attachmentForm.is_publish_to_tenant_portal"
                     >
                         <div class="flex items-center space-x-2">
                             <RadioGroupItem id="r2" value="Yes" />
@@ -209,7 +209,7 @@ const handleFetchInvoices = () => {
                     <RadioGroup
                         default-value="comfortable"
                         class="flex gap-5 mt-2"
-                        v-model="attachmentForm.owner_portal"
+                        v-model="attachmentForm.is_publish_to_owner_portal"
                     >
                         <div class="flex items-center space-x-2">
                             <RadioGroupItem id="r2" value="Yes" />
