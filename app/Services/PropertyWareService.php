@@ -771,10 +771,12 @@ class PropertyWareService
                 'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
             ];
 
+            $cleanTitle = str_replace(' ', '_', $invoice->title);
             $fileContents = file_get_contents($absolutePath);
+            $fileName = $cleanTitle.'.'.pathinfo(basename($invoice->filename), PATHINFO_EXTENSION);
 
             $response = Http::withHeaders($this->headers)
-                ->attach('file', $fileContents, $invoice->filename)
+                ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             // Handle the response
@@ -784,7 +786,7 @@ class PropertyWareService
 
                 Http::withHeaders($this->headers)
                     ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
-                        'fileName' => $invoice->filename,
+                        'fileName' => $fileName,
                         'description' => $invoice->title,
                         'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
                         'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
