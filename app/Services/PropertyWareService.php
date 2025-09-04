@@ -768,7 +768,7 @@ class PropertyWareService
                 'entityId' => $workOrder->propertyware_id,
                 'entityType' => 'Work Order',
                 'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
-                'publishToTenantPortal' => (bool) $invoice->is_publish_to_owner_portal,
+                'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
             ];
 
             $fileContents = file_get_contents($absolutePath);
@@ -787,7 +787,7 @@ class PropertyWareService
                         'fileName' => $invoice->filename,
                         'description' => $invoice->title,
                         'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
-                        'publishToTenantPortal' => (bool) $invoice->is_publish_to_owner_portal,
+                        'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
                     ]);
 
                 Log::info('Work order invoice has been uploaded successfully!', [

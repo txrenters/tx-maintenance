@@ -50,11 +50,7 @@ class InvoiceController extends Controller
             $validatedData['is_publish_to_tenant_portal'] = (bool) $request->is_publish_to_tenant_portal === 'Yes';
 
             $invoice = Invoice::create($validatedData);
-
-            $propertyware = new PropertyWareService;
-
-            $propertyware->uploadVendorInvoice($request->work_order_id, $invoice);
-
+           
             DB::commit();
 
             return redirect()->back()->with('Success uploading invoices');
@@ -74,6 +70,11 @@ class InvoiceController extends Controller
         $invoice->update([
             'status' => $request->status,
         ]);
+
+        if($request->status == 'approved'){
+            $propertyware = new PropertyWareService;
+            $propertyware->uploadVendorInvoice($invoice->work_order_id, $invoice);
+        }
 
         return redirect()->back();
     }
