@@ -756,70 +756,78 @@ class PropertyWareService
     public function uploadVendorInvoice($workOrderId, $invoice)
     {
         $headers = [
-                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            ];
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+        ];
 
         try {
             $workOrder = WorkOrder::find($workOrderId);
+            if (! $workOrder) {
+                throw new \Exception("Work order not found: $workOrderId");
+            }
 
-            $absolutePath = public_path('storage/'.$invoice->filename);
-
+            $absolutePath = storage_path('app/public/'.$invoice->filename);
             if (! file_exists($absolutePath)) {
-                throw new \Exception('File does not exist: '.$absolutePath);
+                throw new \Exception("File does not exist: $absolutePath");
             }
 
             $formFields = [
                 'entityId' => $workOrder->propertyware_id,
                 'entityType' => 'Work Order',
-                'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
-                'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
+                'publishToOwnerPortal' => $invoice->is_publish_to_owner_portal ? 'true' : 'false',
+                'publishToTenantPortal' => $invoice->is_publish_to_tenant_portal ? 'true' : 'false',
             ];
 
-            $cleanTitle = str_replace(' ', '_', $invoice->title);
+            $cleanTitle = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->title);
             $fileContents = file_get_contents($absolutePath);
-            $fileName = $cleanTitle.'.'.pathinfo(basename($invoice->filename), PATHINFO_EXTENSION);
+            $fileName = $cleanTitle.'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
 
             $response = Http::withHeaders($headers)
                 ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
-            // Handle the response
             if ($response->successful()) {
-
                 $postData = $response->json();
 
-                Http::withHeaders($headers)
-                    ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
+                $putResponse = Http::withHeaders($headers)
+                    ->put("https://api.propertyware.com/pw/api/rest/v1/docs/{$postData['id']}", [
                         'fileName' => $fileName,
                         'description' => $invoice->title,
-                        'publishToOwnerPortal' => (bool) $invoice->is_publish_to_owner_portal,
-                        'publishToTenantPortal' => (bool) $invoice->is_publish_to_tenant_portal,
+                        'publishToOwnerPortal' => $invoice->is_publish_to_owner_portal ? 'true' : 'false',
+                        'publishToTenantPortal' => $invoice->is_publish_to_tenant_portal ? 'true' : 'false',
                     ]);
 
-                Log::info('Work order invoice has been uploaded successfully!', [
-                    'Work order no' => $workOrder->work_order_no,
-                    'filename' => $invoice->filename,
+                if (! $putResponse->successful()) {
+                    Log::error("Failed to update invoice metadata", [
+                        'doc_id' => $postData['id'],
+                        'status' => $putResponse->status(),
+                        'body' => $putResponse->body(),
+                    ]);
+                    return false;
+                }
+
+                Log::info("Invoice uploaded successfully", [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'doc_id' => $postData['id'],
+                    'filename' => $fileName,
                 ]);
 
                 return true;
             }
 
-            Log::error('Error uploading work order invoice', [
+            Log::error("Error uploading invoice", [
                 'status' => $response->status(),
                 'body' => $response->body(),
-                'error' => $response->json(),
             ]);
-
             return false;
 
         } catch (\Exception $e) {
-            Log::error('Error uploading work order invoice: '.$e->getMessage());
-
+            Log::error("Exception uploading invoice: ".$e->getMessage());
             return false;
         }
     }
+
 
     public function updateWorkOrderDetails($workOrder)
     {
