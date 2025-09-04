@@ -2,58 +2,39 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Conversation;
-use App\Models\JobberTextMessage;
+use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
 {
     public function fetchNotification()
     {
-        // Get latest 10 conversations (both read and unread)
-        $workOrderText = Conversation::with('work_order:id,work_order_no') // select only needed fields
-            ->orderBy('created_at', 'desc')
-            ->limit(30)
+        $activities = Activity::latest()
+            ->take(50)
             ->get()
-            ->map(function ($item) {
+            ->map(function ($activity) {
                 return [
-                    'id' => $item->id,
-                    'title' => 'Work Order #'.$item->work_order->work_order_no.' - New Text Message',
-                    'message' => $item->message,
-                    'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
-                    'timestamp' => $item->created_at->timestamp, // raw for sorting
-                    'read' => (bool) $item->is_read, // Include read status
+                    'id' => $activity->id,
+                    'title' => $activity->description,
+                    'message' => $activity->properties['message']
+                         ?? $activity->properties['filename']
+                         ?? $activity->description,
+                    'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
+                    'timestamp' => $activity->created_at->timestamp,
+                    'read' => $activity->properties['read'] ?? false,
                 ];
-            })->toArray();
+            });
 
-        $jobberText = JobberTextMessage::with('jobber.clientContacts') // select only needed fields
-            ->orderBy('created_at', 'desc')
-            ->limit(30)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'title' => 'Job #'.$item->jobber->job_number.' - New Text Message',
-                    'message' => $item->messages,
-                    'time' => $item->created_at->timezone('America/Chicago')->diffForHumans(),
-                    'timestamp' => $item->created_at->timestamp, // raw for sorting
-                    'read' => false,
-                ];
-            })->toArray();
-
-        $notifications = array_merge($workOrderText, $jobberText);
-
-        usort($notifications, function ($a, $b) {
-            return $b['timestamp'] <=> $a['timestamp']; // latest first
-        });
-
-        return response()->json($notifications);
+        return response()->json($activities);
 
     }
 
-    public function markAsRead(Conversation $message)
+    public function markAsRead(Activity $activity)
     {
-        $message->update([
-            'is_read' => true,
+        $props = $activity->properties ?? [];
+        $props['read'] = true;
+
+        $activity->update([
+            'properties' => $props,
         ]);
 
         return response()->json(['message' => 'Notification marked as read']);

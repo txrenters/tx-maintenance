@@ -9,8 +9,8 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -29,7 +29,7 @@ class DashboardController extends Controller
         $workOrderChart = Cache::remember("{$cacheKey}_chart", 600, fn () => $this->getWorkOrderChart($year));
         $serviceStatus = Cache::remember("{$cacheKey}_service_status", 300, fn () => $this->getServiceStatus($year));
         $inspectionAnalytics = Cache::remember("{$cacheKey}_inspection_analytics", 300, fn () => $this->getInspectionAnalytics($year));
-        
+
         return Inertia::render('Dashboard', [
             'title' => 'Dashboard',
             'stats' => $stats,
@@ -140,6 +140,7 @@ class DashboardController extends Controller
 
         return $months->map(function ($month) use ($workOrderData) {
             $data = $workOrderData->get($month);
+
             return [
                 'name' => $month,
                 'Created' => $data?->Created ?? 0,
@@ -180,7 +181,7 @@ class DashboardController extends Controller
             ->keyBy('day_of_week');
 
         $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        
+
         $inspectionsByDay = collect($days)->map(function ($day, $index) use ($inspectionsByDayOfWeek) {
             return [
                 'name' => substr($day, 0, 3),
@@ -203,8 +204,10 @@ class DashboardController extends Controller
             ->whereYear('start_at', $year)
             ->first();
 
-        if ($stats->total_visits == 0) return 0;
-        
+        if ($stats->total_visits == 0) {
+            return 0;
+        }
+
         return round(($stats->completed_visits / $stats->total_visits) * 100);
     }
 }

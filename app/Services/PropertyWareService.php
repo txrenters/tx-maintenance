@@ -799,35 +799,48 @@ class PropertyWareService
                     ]);
 
                 if (! $putResponse->successful()) {
-                    Log::error("Failed to update invoice metadata", [
+                    Log::error('Failed to update invoice metadata', [
                         'doc_id' => $postData['id'],
                         'status' => $putResponse->status(),
                         'body' => $putResponse->body(),
                     ]);
+
                     return false;
                 }
 
-                Log::info("Invoice uploaded successfully", [
+                Log::info('Invoice uploaded successfully', [
                     'work_order_no' => $workOrder->work_order_no,
                     'doc_id' => $postData['id'],
                     'filename' => $fileName,
                 ]);
 
+                $workOrder = WorkOrder::find($workOrderId);
+
+                activity()
+                    ->performedOn($invoice)
+                    ->causedBy(auth()->user()) // so we know who uploaded
+                    ->event('uploaded')
+                    ->withProperties([
+                        'filename' => $invoice->title,
+                    ])
+                    ->log('Work Order #'.$workOrder->work_order_no.' - Invoice uploaded');
+
                 return true;
             }
 
-            Log::error("Error uploading invoice", [
+            Log::error('Error uploading invoice', [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
+
             return false;
 
         } catch (\Exception $e) {
-            Log::error("Exception uploading invoice: ".$e->getMessage());
+            Log::error('Exception uploading invoice: '.$e->getMessage());
+
             return false;
         }
     }
-
 
     public function updateWorkOrderDetails($workOrder)
     {

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\API\AsanaWebhookController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
@@ -41,9 +40,7 @@ Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
     ->middleware('throttle:60,1'); // 60 requests per minute;
 
 Route::get('/notifications', [NotificationController::class, 'fetchNotification']);
-Route::put('/notifications/{message}/mark-as-read', [NotificationController::class, 'markAsRead']);
-
-Route::post('/asana/webhook', [AsanaWebhookController::class, 'handleWebhook']);
+Route::put('/notifications/{activity}/mark-as-read', [NotificationController::class, 'markAsRead']);
 
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
 Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);

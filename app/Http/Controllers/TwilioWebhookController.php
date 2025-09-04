@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
+use App\Models\WorkOrder;
 use App\Services\MediaService;
 use Exception;
 use Illuminate\Http\Request;
@@ -56,6 +57,18 @@ class TwilioWebhookController extends Controller
                         $this->processMediaAttachments($conversation, $data);
                     }
                     Log::info('Message saved successfully into the database.', ['data' => $conversation]);
+
+                    $workOrder = WorkOrder::find($workOrderId);
+
+                    activity()
+                        ->performedOn($conversation)
+                        ->event('work_order_sent')
+                        ->withProperties([
+                            'senderNumber' => $from,
+                            'receiverNumber' => $to,
+                            'message' => $body,
+                        ])
+                        ->log('Work Order #'.$workOrder->work_order_no.' - New Text Message');
 
                     return response()->noContent(); // HTTP 204
 

@@ -24,7 +24,7 @@ class GenerateOnboardingPdfJob implements ShouldQueue
     public $ownerName;
 
     public $tries = 3;
-    
+
     public $backoff = 60; // retry after 60s
 
     /**
