@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\WorkOrder;
 use App\Services\MediaService;
@@ -92,7 +93,7 @@ class TwilioWebhookController extends Controller
             $numMedia = (int) $request->input('NumMedia');
 
             $textMessage = JobberTextMessage::create([
-                'message' => $body,
+                'messages' => $body,
                 'sender_number' => $from,
                 'receiver_number' => $to,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
@@ -118,6 +119,19 @@ class TwilioWebhookController extends Controller
 
                 DB::table('jobber_text_messages')->insert($mediaWithTextMessage);
             }
+
+            $jobber = Jobber::find($jobberMessage->jobber_job_id);
+
+            activity()
+                ->performedOn($textMessage)
+                ->event('work_order_sent')
+                ->withProperties([
+                    'senderNumber' => $from,
+                    'receiverNumber' => $to,
+                    'message' => $body,
+                ])
+                ->log('Job #'.$jobber->job_number.' - New Text Message');
+
 
             Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);
 
