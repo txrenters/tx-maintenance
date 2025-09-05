@@ -77,7 +77,11 @@ import {
     Handshake,
     Hammer,
     BookOpen,
+    PaperclipIcon,
+    SendIcon,
+    Loader2Icon,
 } from "lucide-vue-next";
+import MessageCard from "@/Components/MessageCard.vue";
 
 const page = usePage();
 
@@ -310,16 +314,89 @@ const markAsRead = async (notificationId) => {
     }
 };
 
-onMounted(() => {
-    fetchNotifications(); // initial load
+const openModal = ref(false);
+const isLoading = ref(false);
+const newMessage = ref("");
+const conversations = ref([]);
+const receiver_number = ref("");
+const sender_number = ref("");
+const conversation_type = ref("");
+const reference_id = ref("");
+const notif = ref(null);
 
-    // Set interval for every 5 minutes (300,000 ms)
-    intervalId = setInterval(fetchNotifications, 5000);
-});
+const handleChatModal = async (model) => {
+    console.log(model);
+    const response = await axios.post("/api/notification/messages", {
+        data: model,
+    });
 
-onUnmounted(() => {
-    if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
-});
+    conversations.value = response.data;
+    sender_number.value = model.receiver_number; // since this is a text message from a client we need to reverse
+    receiver_number.value = model.sender_number; // since this is a text message from a client we need to reverse
+    conversation_type.value = model?.conversation_type ?? "job";
+    reference_id.value = model?.work_order_id ?? model?.jobber_job_id;
+    notif.value = model;
+    openModal.value = true;
+};
+const loading = ref(false);
+const sendMessage = () => {
+    loading.value = true;
+    if (!receiver_number.value) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+                "There was a problem with your request. Please select a receiver!",
+        });
+        loading.value = false;
+
+        return;
+    }
+
+    if (!newMessage.value) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "Please type a message!",
+        });
+        loading.value = false;
+
+        return;
+    }
+
+    if (newMessage.value.trim() !== "") {
+        const formData = new FormData();
+        formData.append("text", newMessage.value || "");
+        formData.append("sender_phone_number", sender.value);
+        formData.append("receiver_phone_number", receiver_number.value);
+        formData.append("work_order_id", reference_id.value);
+        formData.append("conversation_type", conversation_type.value);
+
+        router.post(route("work_order.vendor.conversation.send"), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Message has been sent successfully!",
+                });
+                newMessage.value = "";
+                handleChatModal(notif.value);
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                loading.value = false;
+            },
+        });
+    }
+};
 
 const mode = useColorMode({ disableTransition: false });
 
@@ -329,6 +406,16 @@ const showBanner = ref(true);
 const closeBanner = () => {
     showBanner.value = false;
 };
+
+onMounted(() => {
+    fetchNotifications(); // initial load
+    // Set interval for every 5 minutes (300,000 ms)
+    intervalId = setInterval(fetchNotifications, 5000);
+});
+
+onUnmounted(() => {
+    if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
+});
 </script>
 
 <template>
@@ -689,37 +776,60 @@ const closeBanner = () => {
                                                             }}
                                                         </p>
                                                         <div
-                                                            class="text-xs mt-2 flex justify-between items-center"
+                                                            class="text-xs flex justify-between items-center"
                                                         >
                                                             <p class="mr-2">
                                                                 {{
                                                                     notification.time
                                                                 }}
                                                             </p>
-                                                            <button
-                                                                v-if="
-                                                                    !notification.read
-                                                                "
-                                                                @click.stop="
-                                                                    markAsRead(
-                                                                        notification.id
-                                                                    )
-                                                                "
-                                                                :disabled="
-                                                                    markingAsRead.has(
-                                                                        notification.id
-                                                                    )
-                                                                "
-                                                                class="text-blue-600 hover:text-blue-700 font-medium py-1 px-2 rounded-md transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            >
-                                                                {{
-                                                                    markingAsRead.has(
-                                                                        notification.id
-                                                                    )
-                                                                        ? "Marking..."
-                                                                        : "Mark as read"
-                                                                }}
-                                                            </button>
+                                                            <div>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="link"
+                                                                    class="text-xs"
+                                                                    as="button"
+                                                                    v-if="
+                                                                        !notification.read
+                                                                    "
+                                                                    @click.prevent="
+                                                                        markAsRead(
+                                                                            notification.id
+                                                                        )
+                                                                    "
+                                                                    :disabled="
+                                                                        markingAsRead.has(
+                                                                            notification.id
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    {{
+                                                                        markingAsRead.has(
+                                                                            notification.id
+                                                                        )
+                                                                            ? "Marking..."
+                                                                            : "Mark as read"
+                                                                    }}
+                                                                </Button>
+                                                                <Button
+                                                                    v-if="
+                                                                        notification
+                                                                            .subject
+                                                                            .conversation_type
+                                                                    "
+                                                                    as="button"
+                                                                    size="sm"
+                                                                    variant="link"
+                                                                    class="text-xs"
+                                                                    @click.prevent="
+                                                                        handleChatModal(
+                                                                            notification.subject
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    Reply
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -820,4 +930,70 @@ const closeBanner = () => {
             </div>
         </SidebarInset>
     </SidebarProvider>
+
+    <Dialog v-model:open="openModal">
+        <DialogContent
+            class="flex max-h-[90dvh] w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
+        >
+            <DialogHeader class="p-6 pb-0 text-left">
+                <DialogTitle class="text-2xl text-primary">
+                    <p v-if="!isLoading">Quick Message Response</p>
+                </DialogTitle>
+                <DialogDescription> </DialogDescription>
+            </DialogHeader>
+            <Separator />
+            <div class="grid gap-3 overflow-y-auto px-6">
+                <div class="flex justify-between gap-2 mb-2">
+                    <div class="flex flex-col text-left">
+                        <p>Receiver:</p>
+                        {{ receiver_number }}
+                    </div>
+
+                    <div class="flex flex-col text-left">
+                        <p>Sender:</p>
+                        {{ sender_number }}
+                    </div>
+                </div>
+                <div
+                    class="flex flex-col gap-4 overflow-y-auto"
+                    ref="chatContainer"
+                >
+                    <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
+                        <div class="flex justify-center" v-if="isLoading">
+                            <Loader2Icon
+                                class="w-12 h-12 animate-spin text-primary"
+                            />
+                        </div>
+                        <MessageCard
+                            v-else
+                            :messages="conversations"
+                            :sender="sender_number"
+                        />
+                    </ScrollArea>
+                </div>
+
+                <!-- Message Input -->
+                <div class="relative w-full mt-4 mb-6">
+                    <Textarea
+                        v-model="newMessage"
+                        placeholder="Type your message..."
+                        class="w-full resize-y rounded-2xl border py-3 pr-24"
+                        rows="1"
+                    />
+                    <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                        <!-- Send Button -->
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            @click.prevent="sendMessage"
+                            :disabled="isLoading"
+                        >
+                            <SendIcon v-if="!isLoading" class="h-4 w-4" />
+                            <Loader2Icon v-else class="w-4 h-4 animate-spin" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </DialogContent>
+    </Dialog>
 </template>

@@ -48,6 +48,7 @@ class InvoiceController extends Controller
         try {
             $validatedData['is_publish_to_owner_portal'] = (bool) $request->is_publish_to_owner_portal === 'Yes';
             $validatedData['is_publish_to_tenant_portal'] = (bool) $request->is_publish_to_tenant_portal === 'Yes';
+            $validatedData['status'] = 'approved';
 
             $invoice = Invoice::create($validatedData);
 

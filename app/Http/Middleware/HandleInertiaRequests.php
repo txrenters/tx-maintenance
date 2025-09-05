@@ -41,6 +41,8 @@ class HandleInertiaRequests extends Middleware
         $userData = null;
 
         $twilio_phone_number = env('TWILIO_PHONE_NUMBER');
+        $maintenance_twilio_phone_number = env('MAINTENANC_TWILIO_PHONE_NUMBER');
+        $jobber_twilio_phone_number = env('TWILIO_PHONE_NUMBER');
 
         if ($request->user()) {
             $userData = $request->user()->only('id', 'name', 'email', 'phone', 'company', 'address', 'website', 'profile_photo_url') + [
@@ -60,6 +62,8 @@ class HandleInertiaRequests extends Middleware
         return array_merge($sharedData, [
             'auth.user' => $userData,
             'twilio_phone_number' => $twilio_phone_number,
+            'maintenance_twilio_phone_number' => $maintenance_twilio_phone_number,
+            'jobber_twilio_phone_number' => $jobber_twilio_phone_number,
             'logo' => asset('tx-logo.webp'),
             'app_url' => env('APP_URL'),
         ]);

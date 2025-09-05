@@ -162,18 +162,7 @@ class SendJobReminders extends Command
                             'jobber_id' => $visit->job->id,
                             'sent_at' => $visit->job->start_at,
                         ]);
-
-                        activity()
-                            ->performedOn($text)
-                            ->event('job_message_sent')
-                            ->withProperties([
-                                'senderNumber' => $senderNumber,
-                                'receiverNumber' => $workingPhoneNumber,
-                                'message' => $message2,
-                                'job_id' => $visit->job->job_number,
-                            ])
-                            ->log('Job #'.$visit->job->job_number.' - Text Message Sent');
-
+                        
                         Log::info('Successfully sent text messages :', ['text' => $text]);
 
                     } catch (\Throwable $th) {

@@ -49,3 +49,5 @@ Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController:
 Route::get('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'index'])->name('client-contacts.index');
 Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'store'])->name('client-contacts.store');
 Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');
+
+Route::post('/notification/messages', [ConversationController::class, 'get_conversation']);

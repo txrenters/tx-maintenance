@@ -48,6 +48,7 @@ import {
 import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
+import SearchBar from "@/Components/SearchBar.vue";
 
 const props = defineProps({
     title: String,
@@ -581,17 +582,10 @@ const date_range = ref({
     end: "",
 });
 
-const { start, stop } = usePoll(5000, {
-    only: ["service_status"],
-    onStart: () => console.log("Polling started..."),
-});
-
 const formatDate = (d) => (d ? d.toString() : null);
 
 const filterVendor = debounce(() => {
     const newQuery = { vendor: filter_vendor.value || null };
-
-    filter_vendor.value ? stop() : start();
 
     router.visit(url.value, {
         method: "get",
@@ -599,6 +593,7 @@ const filterVendor = debounce(() => {
         preserveState: true,
         preserveScroll: true,
         replace: true,
+        only: ["service_status"],
     });
 }, 2000);
 
@@ -608,56 +603,23 @@ const fetchFilteredData = debounce(() => {
 
     const newQuery = { start_date: startDate, end_date: endDate };
 
-    startDate || endDate ? stop() : start();
-
     router.visit(url.value, {
         method: "get",
         data: newQuery,
         preserveState: true,
         preserveScroll: true,
         replace: true,
+        only: ["service_status"],
     });
 }, 2000);
-
-const doSearch = debounce((value) => {
-    value ? stop() : start();
-
-    router.visit(url.value, {
-        method: "get",
-        data: { search: value || null },
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-    });
-}, 500);
-
 watch(date_range, fetchFilteredData, { deep: true });
 watch(filter_vendor, filterVendor);
-watch(search, (value) => doSearch(value));
-
-onBeforeUnmount(() => {
-    stop();
-    filterVendor.cancel();
-    fetchFilteredData.cancel();
-    doSearch.cancel();
-});
 </script>
 <template>
     <Head :title="title" />
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <div class="relative flex items-center flex-1 md:grow-0">
-            <Search
-                class="absolute left-2.5 top-2.8 h-4 w-4 text-muted-foreground"
-            />
-            <Input
-                type="search"
-                placeholder="Search..."
-                v-model="search"
-                @keydown.enter.prevent
-                class="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
-            />
-        </div>
+        <SearchBar :url="url" v-model="search" />
         <div class="flex gap-2 items-center w-full">
             <Select
                 :modelValue="String(filter_vendor)"
@@ -677,14 +639,6 @@ onBeforeUnmount(() => {
                     </SelectGroup>
                 </SelectContent>
             </Select>
-            <Link
-                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
-                size="icon"
-                title="Refresh"
-                :href="url"
-                v-if="filter_vendor || search || date_range.start"
-                ><RefreshCw class="w-4 h-4" />
-            </Link>
         </div>
 
         <div class="flex gap-2 w-full justify-end">
@@ -768,6 +722,16 @@ onBeforeUnmount(() => {
                 @click="openImportWorkOrder = true"
                 ><ScanSearch class="w-4 h-4" />
             </Button>
+            <Link
+                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+                size="icon"
+                title="Refresh"
+                :href="url"
+                preserve-scroll
+                :only="['service_status']"
+            >
+                <RefreshCw class="w-4 h-4" />
+            </Link>
         </div>
     </div>
     <ScrollArea

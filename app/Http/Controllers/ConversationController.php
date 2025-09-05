@@ -52,6 +52,24 @@ class ConversationController extends Controller
         return response()->json($workOrder, 200);
     }
 
+    public function get_conversation(Request $request)
+    {
+        $message = [];
+
+        if($request->data['work_order_id']){
+            $message = Conversation::with(['work_order','media'])
+                ->where('work_order_id', $request->data['work_order_id'])
+                ->where('conversation_type', $request->data['conversation_type'])
+                ->get();
+        }else if($request?->data['job_id']){
+            $message = Conversation::where('work_order_id', $request->work_order_id)
+                ->where('conversation_type', $request->conversation_type)
+                ->get();
+        }
+
+        return response()->json($message, 200);
+    }
+
     public function SendMessage(Request $request)
     {
         $validatedData = $request->validate([
@@ -63,30 +81,26 @@ class ConversationController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
         ]);
 
-        // Validate that either text or image is provided
         if (empty($validatedData['text']) && ! $request->hasFile('image')) {
             return redirect()->back()->with('error', 'Please provide either a message or an image.');
         }
 
-        // Format phone numbers ensuring proper + prefix
         $senderNumber = $validatedData['sender_phone_number'];
         $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
 
         DB::beginTransaction();
 
         try {
-            // Save the message to the database
             $conversation = Conversation::create([
                 'message' => $validatedData['text'] ?? '',
                 'sender_number' => $senderNumber,
-                'receiver_number' => $receiverNumber,
+                'receiver_number' => $receiverNumber, 
                 'work_order_id' => $validatedData['work_order_id'],
                 'conversation_type' => $validatedData['conversation_type'],
                 'is_read' => true,
                 'is_mms' => $request->hasFile('image'), // Set MMS flag if image is present
             ]);
 
-            // Handle image upload if present
             $imagePath = null;
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
@@ -108,37 +122,28 @@ class ConversationController extends Controller
 
             $twilio = new TwilioService;
 
-            // Prepare message content for Twilio
             $messageContent = $validatedData['text'] ?? '';
 
-            // If there's an image, add a note about it in the SMS
             if ($imagePath) {
                 $imageNote = $messageContent ? "\n\n📷 Image attached" : '📷 Image sent';
                 $messageContent = $messageContent.$imageNote;
             }
 
-            // Only send SMS if there's content (text or image note)
-            if (! empty($messageContent)) {
-                $twilio->sendMessage(
-                    $receiverNumber,
-                    $senderNumber,
-                    $messageContent
-                );
-            }
-
-            // Commit the transaction if both operations succeed
+            // if (! empty($messageContent)) {
+            //     $twilio->sendMessage(
+            //         $receiverNumber,
+            //         $senderNumber,
+            //         $messageContent
+            //     );
+            // }
+            
             DB::commit();
-
-            // Return a success response
             return redirect()->back()->with('success', 'Message sent successfully!');
         } catch (\Exception $e) {
-            // Roll back the transaction in case of an error
             DB::rollBack();
 
-            // Log the error
             Log::error('Failed to send message: '.$e->getMessage());
 
-            // Return an error response
             return redirect()->back()->with('error', 'Failed to send the message. Please try again.');
         }
     }

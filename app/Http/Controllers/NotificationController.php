@@ -18,6 +18,7 @@ class NotificationController extends Controller
                     'message' => $activity->properties['message']
                          ?? $activity->properties['filename']
                          ?? $activity->description,
+                    'subject' => $activity->subject,
                     'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
                     'timestamp' => $activity->created_at->timestamp,
                     'read' => $activity->properties['read'] ?? false,

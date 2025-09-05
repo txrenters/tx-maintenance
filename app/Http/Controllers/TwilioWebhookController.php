@@ -94,9 +94,9 @@ class TwilioWebhookController extends Controller
             $numMedia = (int) $request->input('NumMedia');
 
             $textMessage = JobberTextMessage::create([
-                'messages' => $body,
-                'sender_number' => $from,
-                'receiver_number' => $to,
+                'senderNumber' => $to,
+                'receiverNumber' => $from,
+                'message' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
                 'jobber_job_id' => $jobberMessage->jobber_job_id,
             ]);
