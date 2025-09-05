@@ -39,7 +39,6 @@ Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute;
 
-Route::get('/notifications', [NotificationController::class, 'fetchNotification']);
 Route::put('/notifications/{activity}/mark-as-read', [NotificationController::class, 'markAsRead']);
 
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);

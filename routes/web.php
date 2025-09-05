@@ -16,6 +16,7 @@ use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberTextMessageController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ServiceStatusController;
@@ -117,6 +118,8 @@ Route::middleware([
     Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
+
+    Route::get('/notifications', [NotificationController::class, 'fetchNotification']);
 
     // Guide routes
     Route::get('/guide/vendor', function () {

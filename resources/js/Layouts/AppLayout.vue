@@ -262,7 +262,7 @@ const unreadCount = computed(() => {
 
 const fetchNotifications = async () => {
     try {
-        const response = await axios.get("/api/notifications");
+        const response = await axios.get("/notifications");
         notifications.value = response.data;
     } catch (error) {
         console.error("Failed to fetch notifications:", error);
