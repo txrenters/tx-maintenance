@@ -63,13 +63,14 @@ class TwilioWebhookController extends Controller
 
                     activity()
                         ->performedOn($conversation)
-                        ->event('work_order_sent')
+                        ->event('work_order_received')
                         ->withProperties([
                             'senderNumber' => $from,
                             'receiverNumber' => $to,
                             'message' => $body,
+                            'work_order_id' => $workOrder->id
                         ])
-                        ->log('Work Order #'.$workOrder->work_order_no.' - New Text Message');
+                        ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
 
                     return response()->noContent(); // HTTP 204
 
@@ -124,13 +125,14 @@ class TwilioWebhookController extends Controller
 
             activity()
                 ->performedOn($textMessage)
-                ->event('work_order_sent')
+                ->event('job_message_received')
                 ->withProperties([
                     'senderNumber' => $from,
                     'receiverNumber' => $to,
                     'message' => $body,
+                    'job_id' => $jobber->id
                 ])
-                ->log('Job #'.$jobber->job_number.' - New Text Message');
+                ->log('Job #'.$jobber->job_number.' - New Message Received');
 
 
             Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);

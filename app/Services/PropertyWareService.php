@@ -822,6 +822,7 @@ class PropertyWareService
                     ->event('uploaded')
                     ->withProperties([
                         'filename' => $invoice->title,
+                        'work_order_id' => $workOrder->id,
                     ])
                     ->log('Work Order #'.$workOrder->work_order_no.' - Invoice uploaded');
 

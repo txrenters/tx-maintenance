@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
+import { ref, watch, onMounted, computed, onBeforeUnmount } from "vue";
 import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -34,6 +34,7 @@ import {
     Download,
     RefreshCw,
     ScanSearch,
+    Search,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -580,42 +581,83 @@ const date_range = ref({
     end: "",
 });
 
-watch(
-    filter_vendor,
-    debounce(function (value) {
-        const newQuery = { vendor: value }; //maintain url params
-        router.visit(url.value, {
-            method: "get",
-            data: newQuery,
-        });
-    }, 1000)
-);
+const { start, stop } = usePoll(5000, {
+    only: ["service_status"],
+    onStart: () => console.log("Polling started..."),
+});
 
-const fetchFilteredData = debounce(() => {
-    const newQuery = {
-        start_date: date_range.value.start.toString(), // Convert to string format
-        end_date: date_range.value.end.toString(),
-    };
+const formatDate = (d) => (d ? d.toString() : null);
+
+const filterVendor = debounce(() => {
+    const newQuery = { vendor: filter_vendor.value || null };
+
+    filter_vendor.value ? stop() : start();
 
     router.visit(url.value, {
         method: "get",
         data: newQuery,
         preserveState: true,
         preserveScroll: true,
+        replace: true,
     });
 }, 2000);
 
-watch(date_range, fetchFilteredData, { deep: true });
+const fetchFilteredData = debounce(() => {
+    const startDate = formatDate(date_range.value?.start);
+    const endDate = formatDate(date_range.value?.end);
 
-usePoll(10000, {
-    only: ["service_status"],
+    const newQuery = { start_date: startDate, end_date: endDate };
+
+    startDate || endDate ? stop() : start();
+
+    router.visit(url.value, {
+        method: "get",
+        data: newQuery,
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+}, 2000);
+
+const doSearch = debounce((value) => {
+    value ? stop() : start();
+
+    router.visit(url.value, {
+        method: "get",
+        data: { search: value || null },
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+}, 500);
+
+watch(date_range, fetchFilteredData, { deep: true });
+watch(filter_vendor, filterVendor);
+watch(search, (value) => doSearch(value));
+
+onBeforeUnmount(() => {
+    stop();
+    filterVendor.cancel();
+    fetchFilteredData.cancel();
+    doSearch.cancel();
 });
 </script>
 <template>
     <Head :title="title" />
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <SearchBar :url="url" v-model="search" class="w-full" />
+        <div class="relative flex items-center flex-1 md:grow-0">
+            <Search
+                class="absolute left-2.5 top-2.8 h-4 w-4 text-muted-foreground"
+            />
+            <Input
+                type="search"
+                placeholder="Search..."
+                v-model="search"
+                @keydown.enter.prevent
+                class="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
+            />
+        </div>
         <div class="flex gap-2 items-center w-full">
             <Select
                 :modelValue="String(filter_vendor)"
@@ -635,6 +677,14 @@ usePoll(10000, {
                     </SelectGroup>
                 </SelectContent>
             </Select>
+            <Link
+                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
+                size="icon"
+                title="Refresh"
+                :href="url"
+                v-if="filter_vendor || search || date_range.start"
+                ><RefreshCw class="w-4 h-4" />
+            </Link>
         </div>
 
         <div class="flex gap-2 w-full justify-end">
@@ -718,14 +768,6 @@ usePoll(10000, {
                 @click="openImportWorkOrder = true"
                 ><ScanSearch class="w-4 h-4" />
             </Button>
-            <Link
-                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
-                size="icon"
-                title="Refresh"
-                :href="url"
-                v-if="filter_vendor || search || date_range"
-                ><RefreshCw class="w-4 h-4" />
-            </Link>
         </div>
     </div>
     <ScrollArea
