@@ -8,22 +8,27 @@ class NotificationController extends Controller
 {
     public function fetchNotification()
     {
-        $activities = Activity::latest()
-            ->take(50)
-            ->get()
-            ->map(function ($activity) {
-                return [
-                    'id' => $activity->id,
-                    'title' => $activity->description,
-                    'message' => $activity->properties['message']
-                         ?? $activity->properties['filename']
-                         ?? $activity->description,
-                    'subject' => $activity->subject,
-                    'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
-                    'timestamp' => $activity->created_at->timestamp,
-                    'read' => $activity->properties['read'] ?? false,
-                ];
-            });
+        $user = auth()->user();
+
+        $query = Activity::latest();
+
+        if ($user->role === 'vendor' || $user->role === 'tenant' || $user->role === 'owner') {
+            $query->where('causer_id', $user->id);
+        }
+
+        $activities = $query->take(50)->get()->map(function ($activity) {
+            return [
+                'id' => $activity->id,
+                'title' => $activity->description,
+                'message' => $activity->properties['message']
+                    ?? $activity->properties['filename']
+                    ?? $activity->description,
+                'subject' => $activity->subject,
+                'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
+                'timestamp' => $activity->created_at->timestamp,
+                'read' => $activity->properties['read'] ?? false,
+            ];
+        });
 
         return response()->json($activities);
 
