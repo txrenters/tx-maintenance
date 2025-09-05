@@ -12,7 +12,7 @@ class NotificationController extends Controller
 
         $query = Activity::latest();
 
-        if ($user->role === 'vendor' || $user->role === 'tenant' || $user->role === 'owner') {
+        if ($user->hasAnyRole(['vendor', 'tenant', 'owner'])) {
             $query->where('causer_id', $user->id);
         }
 
