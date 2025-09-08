@@ -817,7 +817,7 @@ onMounted(() => {
                         ]"
                         :key="event.id"
                         :class="[
-                            'cursor-pointer transition-all hover:shadow-md',
+                            'cursor-pointer transition-all hover:shadow-md text-black',
                             event.notified_7_days || event.notified_3_days
                                 ? 'bg-green-50 border-green-200 hover:bg-green-100'
                                 : getStatusColor(event),

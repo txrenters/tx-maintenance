@@ -196,6 +196,26 @@ const closeJobModal = () => {
     });
 };
 
+const deleteJob = (jobId) => {
+    router.delete(route("inspections.destroy", $jobId), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: (page) => {
+            toast({
+                title: "Success",
+                description: "Job has been deleted successfully!",
+            });
+            isModalOpen.value = false;
+        },
+        onError: (error) => {
+            toast({
+                title: "Error",
+                description: "Error deleting job.",
+            });
+        },
+    });
+};
+
 // Function to switch tabs
 const switchTab = (tabName) => {
     activeTab.value = tabName;
@@ -1548,6 +1568,12 @@ usePoll(15000, {
                 class="flex gap-2 justify-end p-4"
                 v-if="activeTab !== 'messages' && selectedJob"
             >
+                <Button
+                    variant="destructive"
+                    @click="deleteJob(selectedJob?.id)"
+                >
+                    Delete
+                </Button>
                 <Button variant="outline" @click="closeJobModal">
                     Close
                 </Button>

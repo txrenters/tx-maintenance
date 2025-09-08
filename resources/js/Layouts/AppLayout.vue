@@ -367,7 +367,7 @@ const sendMessage = () => {
     if (newMessage.value.trim() !== "") {
         const formData = new FormData();
         formData.append("text", newMessage.value || "");
-        formData.append("sender_phone_number", sender.value);
+        formData.append("sender_phone_number", sender_number.value);
         formData.append("receiver_phone_number", receiver_number.value);
         formData.append("work_order_id", reference_id.value);
         formData.append("conversation_type", conversation_type.value);

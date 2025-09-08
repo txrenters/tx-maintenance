@@ -74,6 +74,12 @@ class InspectionController extends Controller
         ]);
     }
 
+    public function destroy(Jobber $job){
+        $job->delete();
+
+        return redirect()->back()->with('success', 'Deleted successfully!');
+    }
+
     public function jobDetails(Jobber $job)
     {
         $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts']);
