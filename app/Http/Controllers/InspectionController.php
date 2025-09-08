@@ -74,8 +74,8 @@ class InspectionController extends Controller
         ]);
     }
 
-    public function destroy(Jobber $job){
-        $job->delete();
+    public function destroy(Jobber $inspection){
+        $inspection->delete();
 
         return redirect()->back()->with('success', 'Deleted successfully!');
     }

@@ -197,7 +197,7 @@ const closeJobModal = () => {
 };
 
 const deleteJob = (jobId) => {
-    router.delete(route("inspections.destroy", $jobId), {
+    router.delete(route("inspections.destroy", jobId), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: (page) => {
