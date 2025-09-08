@@ -20,8 +20,10 @@ class NotificationController extends Controller
             return [
                 'id' => $activity->id,
                 'title' => $activity->description,
+                'event' => $activity->event,
                 'message' => $activity->properties['message']
                     ?? $activity->properties['filename']
+                    ?? $activity->properties['jobber_error_message']
                     ?? $activity->description,
                 'subject' => $activity->subject,
                 'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),

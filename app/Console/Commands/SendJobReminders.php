@@ -135,6 +135,14 @@ class SendJobReminders extends Command
                         if (empty($workingPhoneNumber)) {
                             Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
 
+                            activity()
+                                ->performedOn($visit)
+                                ->event('jobber_not_sent')
+                                ->withProperties([
+                                    'jobber_error_message' => "We could not find the phone number for tenant: ".$clientName,
+                                ])
+                                ->log('Job #'.$visit->job->job_number.' - Text Message Failed');
+
                             continue;
                         }
 

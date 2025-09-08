@@ -819,7 +819,7 @@ class PropertyWareService
                 activity()
                     ->performedOn($invoice)
                     ->causedBy(auth()->user()) // so we know who uploaded
-                    ->event('uploaded')
+                    ->event('invoice_uploaded')
                     ->withProperties([
                         'filename' => $invoice->title,
                         'work_order_id' => $workOrder->id,
