@@ -766,7 +766,9 @@ onUnmounted(() => {
                                                                 'jobber_not_sent',
                                                             'bg-yellow-500':
                                                                 notification.event ===
-                                                                'invoice_uploaded',
+                                                                    'invoice_uploaded' ||
+                                                                notification.event ===
+                                                                    'uploaded',
                                                         }"
                                                     ></div>
 
@@ -785,7 +787,9 @@ onUnmounted(() => {
                                                                 'jobber_not_sent',
                                                             'bg-yellow-100 text-yellow-600':
                                                                 notification.event ===
-                                                                'invoice_uploaded',
+                                                                    'invoice_uploaded' ||
+                                                                notification.event ===
+                                                                    'uploaded',
                                                         }"
                                                     >
                                                         <WrenchIcon
@@ -797,7 +801,7 @@ onUnmounted(() => {
                                                         />
                                                         <HammerIcon
                                                             class="w-4 h-4"
-                                                            v-if="
+                                                            v-else-if="
                                                                 notification.event ===
                                                                     'job_message_received' ||
                                                                 notification.event ===
@@ -806,10 +810,16 @@ onUnmounted(() => {
                                                         />
                                                         <FileIcon
                                                             class="w-4 h-4"
-                                                            v-if="
+                                                            v-else-if="
                                                                 notification.event ===
-                                                                'invoice_uploaded'
+                                                                    'invoice_uploaded' ||
+                                                                notification.event ===
+                                                                    'uploaded'
                                                             "
+                                                        />
+                                                        <Bell
+                                                            v-else
+                                                            class="w-4 h-4"
                                                         />
                                                     </div>
 
