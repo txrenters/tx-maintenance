@@ -205,12 +205,6 @@ class PropertyWareService
 
             return json_encode($response);
 
-            // if (!empty($response)) {
-            //     return json_decode(json_encode($response), true);
-            // }
-
-            // return []; // Return empty array if no result
-
         } catch (\Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
 

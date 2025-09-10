@@ -796,7 +796,7 @@ onUnmounted(() => {
                                                             class="w-4 h-4"
                                                             v-if="
                                                                 notification.event ===
-                                                                'work_order_received'
+                                                                'work_order_message_received'
                                                             "
                                                         />
                                                         <HammerIcon

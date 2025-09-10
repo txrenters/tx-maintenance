@@ -63,7 +63,7 @@ class TwilioWebhookController extends Controller
 
                     activity()
                         ->performedOn($conversation)
-                        ->event('work_order_received')
+                        ->event('work_order_message_received')
                         ->withProperties([
                             'senderNumber' => $from,
                             'receiverNumber' => $to,
@@ -94,9 +94,9 @@ class TwilioWebhookController extends Controller
             $numMedia = (int) $request->input('NumMedia');
 
             $textMessage = JobberTextMessage::create([
-                'senderNumber' => $to,
-                'receiverNumber' => $from,
-                'message' => $body,
+                'sender_number' => $to,
+                'receiver_number' => $from,
+                'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
                 'jobber_job_id' => $jobberMessage->jobber_job_id,
             ]);
