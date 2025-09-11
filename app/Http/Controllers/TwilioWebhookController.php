@@ -98,7 +98,7 @@ class TwilioWebhookController extends Controller
                 'receiver_number' => $from,
                 'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
-                'jobber_job_id' => $jobberMessage->jobber_job_id,
+                'jobber_id' => $jobberMessage->jobber_job_id,
             ]);
 
             if ($numMedia > 1) {
