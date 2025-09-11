@@ -98,7 +98,7 @@ class TwilioWebhookController extends Controller
                 'receiver_number' => $from,
                 'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
-                'jobber_id' => $jobberMessage->jobber_job_id,
+                'jobber_id' => $jobberMessage->jobber_id,
             ]);
 
             if ($numMedia > 1) {
@@ -121,7 +121,7 @@ class TwilioWebhookController extends Controller
                 DB::table('jobber_text_messages')->insert($mediaWithTextMessage);
             }
 
-            $jobber = Jobber::find($jobberMessage->jobber_job_id);
+            $jobber = Jobber::find($jobberMessage->jobber_id);
 
             activity()
                 ->performedOn($textMessage)
