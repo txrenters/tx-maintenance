@@ -94,8 +94,8 @@ class TwilioWebhookController extends Controller
             $numMedia = (int) $request->input('NumMedia');
 
             $textMessage = JobberTextMessage::create([
-                'sender_number' => $to,
-                'receiver_number' => $from,
+                'sender_number' => $from,
+                'receiver_number' => $to,
                 'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
                 'jobber_id' => $jobberMessage->jobber_id,
@@ -110,7 +110,7 @@ class TwilioWebhookController extends Controller
                     $mediaWithTextMessage[] = [
                         'sender_number' => $from,
                         'receiver_number' => $to,
-                        'message' => '',
+                        'messages' => '',
                         'image' => $mediaUrl,
                         'jobber_job_id' => $jobberMessage->jobber_job_id,
                         'created_at' => now(),
@@ -206,11 +206,11 @@ class TwilioWebhookController extends Controller
     {
         return JobberTextMessage::where(function ($query) use ($from, $to) {
             $query->where('receiver_number', $from)
-                ->where('sender_number', $to);
-        })->orWhere(function ($query) use ($to, $from) {
-            $query->where('receiver_number', $to)
-                ->where('sender_number', $from);
-        })->first(); // fetch the latest conversation
+                    ->where('sender_number', $to);
+                })->orWhere(function ($query) use ($to, $from) {
+                    $query->where('receiver_number', $to)
+                        ->where('sender_number', $from);
+                })->first(); // fetch the latest conversation
     }
 
     protected function getMessageType(string $from, string $to): string
