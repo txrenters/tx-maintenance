@@ -32,6 +32,7 @@ import {
     Check,
     Calendar1,
     Plus,
+    RefreshCw,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -58,7 +59,6 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import axios from "axios";
 import { Button } from "@/Components/ui/button";
-import { RefreshCw } from "lucide-vue-next";
 import { Badge } from "@/Components/ui/badge";
 import {
     Dialog,
@@ -590,6 +590,7 @@ const selectedClient = ref(null);
 
 // Manual sync state
 const isSyncing = ref(false);
+const needsReconnect = ref(false);
 
 // Manual sync function
 const manualSync = async () => {
@@ -614,14 +615,30 @@ const manualSync = async () => {
         }
     } catch (error) {
         console.error("Sync error:", error);
-        toast({
-            title: "Sync Failed",
-            description: error.response?.data?.message || "Failed to sync with Jobber",
-            variant: "destructive",
-        });
+        
+        // Check if we need to reconnect
+        if (error.response?.data?.needs_reconnect) {
+            needsReconnect.value = true;
+            toast({
+                title: "Authentication Required",
+                description: "Please reconnect to Jobber to continue syncing",
+                variant: "destructive",
+            });
+        } else {
+            toast({
+                title: "Sync Failed",
+                description: error.response?.data?.message || "Failed to sync with Jobber",
+                variant: "destructive",
+            });
+        }
     } finally {
         isSyncing.value = false;
     }
+};
+
+// Reconnect to Jobber
+const reconnectJobber = () => {
+    window.location.href = route("jobber.connect");
 };
 
 // Optimized client fetching with increased debounce
@@ -767,20 +784,33 @@ usePoll(15000, {
                     />
                 </PopoverContent>
             </Popover>
-            <!-- Manual Sync Button for Admins -->
-            <Button
-                v-if="$page.props.auth.user.roles.includes('admin')"
-                @click="manualSync"
-                :disabled="isSyncing"
-                variant="outline"
-                class="flex items-center gap-2"
-            >
-                <RefreshCw 
-                    class="h-4 w-4"
-                    :class="{ 'animate-spin': isSyncing }"
-                />
-                {{ isSyncing ? 'Syncing...' : 'Sync Jobber' }}
-            </Button>
+            <!-- Jobber Admin Controls -->
+            <template v-if="$page.props.auth.user.roles.includes('admin')">
+                <!-- Reconnect Button (shows when token is expired) -->
+                <Button
+                    v-if="needsReconnect || !access_token_exist"
+                    @click="reconnectJobber"
+                    variant="destructive"
+                    class="flex items-center gap-2"
+                >
+                    <RefreshCw class="h-4 w-4" />
+                    Connect to Jobber
+                </Button>
+                <!-- Manual Sync Button (shows when connected) -->
+                <Button
+                    v-else
+                    @click="manualSync"
+                    :disabled="isSyncing"
+                    variant="outline"
+                    class="flex items-center gap-2"
+                >
+                    <RefreshCw 
+                        class="h-4 w-4"
+                        :class="{ 'animate-spin': isSyncing }"
+                    />
+                    {{ isSyncing ? 'Syncing...' : 'Sync Jobber' }}
+                </Button>
+            </template>
             <Navigation />
         </div>
     </div>

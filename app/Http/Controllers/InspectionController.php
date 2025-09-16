@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\JobberAuthController;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
@@ -10,6 +11,7 @@ use App\Models\Owner;
 use App\Models\Tenants;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -283,10 +285,34 @@ class InspectionController extends Controller
         }
 
         try {
-            // Execute the Artisan command
-            \Artisan::call('jobber:import-jobs');
+            // First check if we have a valid token
+            $token = JobberToken::first();
             
-            $output = \Artisan::output();
+            if (!$token || !$token->access_token) {
+                return response()->json([
+                    'error' => 'No Jobber connection',
+                    'message' => 'Please connect to Jobber first',
+                    'needs_reconnect' => true,
+                ], 400);
+            }
+            
+            // Try to validate the token by attempting a refresh if needed
+            $authController = new JobberAuthController();
+            try {
+                $authController->ensureValidToken();
+            } catch (\Exception $tokenException) {
+                // Token is invalid or expired
+                return response()->json([
+                    'error' => 'Invalid token',
+                    'message' => 'Jobber connection expired. Please reconnect.',
+                    'needs_reconnect' => true,
+                ], 401);
+            }
+            
+            // Execute the Artisan command
+            Artisan::call('jobber:import-jobs');
+            
+            $output = Artisan::output();
             
             return response()->json([
                 'success' => true,
@@ -294,6 +320,15 @@ class InspectionController extends Controller
                 'output' => $output,
             ]);
         } catch (\Exception $e) {
+            // Check if it's a token-related error
+            if (str_contains($e->getMessage(), 'token') || str_contains($e->getMessage(), 'reconnect')) {
+                return response()->json([
+                    'error' => 'Authentication failed',
+                    'message' => 'Please reconnect to Jobber',
+                    'needs_reconnect' => true,
+                ], 401);
+            }
+            
             return response()->json([
                 'error' => 'Failed to sync with Jobber',
                 'message' => $e->getMessage(),
