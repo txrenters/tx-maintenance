@@ -58,6 +58,7 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import axios from "axios";
 import { Button } from "@/Components/ui/button";
+import { RefreshCw } from "lucide-vue-next";
 import { Badge } from "@/Components/ui/badge";
 import {
     Dialog,
@@ -587,6 +588,42 @@ const isSavingLoading = ref(false);
 const searchQuery = ref("");
 const selectedClient = ref(null);
 
+// Manual sync state
+const isSyncing = ref(false);
+
+// Manual sync function
+const manualSync = async () => {
+    if (isSyncing.value) return;
+    
+    isSyncing.value = true;
+    try {
+        const response = await axios.post(route("jobber.sync"));
+        
+        if (response.data.success) {
+            toast({
+                title: "Sync Successful",
+                description: "Jobber data has been synced successfully",
+                variant: "default",
+            });
+            
+            // Reload the page to show updated data
+            router.reload({
+                preserveState: false,
+                preserveScroll: true,
+            });
+        }
+    } catch (error) {
+        console.error("Sync error:", error);
+        toast({
+            title: "Sync Failed",
+            description: error.response?.data?.message || "Failed to sync with Jobber",
+            variant: "destructive",
+        });
+    } finally {
+        isSyncing.value = false;
+    }
+};
+
 // Optimized client fetching with increased debounce
 const fetchClients = async (query) => {
     if (!query) {
@@ -730,6 +767,20 @@ usePoll(15000, {
                     />
                 </PopoverContent>
             </Popover>
+            <!-- Manual Sync Button for Admins -->
+            <Button
+                v-if="$page.props.auth.user.roles.includes('admin')"
+                @click="manualSync"
+                :disabled="isSyncing"
+                variant="outline"
+                class="flex items-center gap-2"
+            >
+                <RefreshCw 
+                    class="h-4 w-4"
+                    :class="{ 'animate-spin': isSyncing }"
+                />
+                {{ isSyncing ? 'Syncing...' : 'Sync Jobber' }}
+            </Button>
             <Navigation />
         </div>
     </div>

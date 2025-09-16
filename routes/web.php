@@ -80,6 +80,7 @@ Route::middleware([
 
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
+    Route::post('/jobber-sync', [InspectionController::class, 'manualSyncJobber'])->name('jobber.sync');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');

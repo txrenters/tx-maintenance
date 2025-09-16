@@ -332,13 +332,13 @@ class ImportJobberJobs extends Command
                                 visitStatus
                                 duration
                                 instructions
-                                startAt
+                                startAt...................................................................
                                 endAt
                                 completedAt
                             }
                         }
                     }
-                }
+                }..................................
             }';
 
         $response = Http::withHeaders($headers)

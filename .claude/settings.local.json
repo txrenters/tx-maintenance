@@ -23,7 +23,8 @@
       "Bash(Get-Content \"C:\\Projects\\tx_work_order\\storage\\logs\\laravel-2025-08-29.log\" -Tail 10)",
       "mcp__laravel-boost__get-config",
       "Bash(npm run dev:*)",
-      "mcp__laravel-boost__search-docs"
+      "mcp__laravel-boost__search-docs",
+      "Bash(whereis:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -274,4 +274,30 @@ class InspectionController extends Controller
 
         return redirect("https://api.getjobber.com/api/oauth/authorize?$query");
     }
+
+    public function manualSyncJobber(Request $request)
+    {
+        // Check if user is admin
+        if (! $request->user()->hasRole('admin')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            // Execute the Artisan command
+            \Artisan::call('jobber:import-jobs');
+            
+            $output = \Artisan::output();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Jobber sync initiated successfully',
+                'output' => $output,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to sync with Jobber',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
