@@ -16,7 +16,7 @@ class NotificationController extends Controller
             $query->where('causer_id', $user->id);
         }
 
-        $activities = $query->take(50)->get()->map(function ($activity) {
+        $activities = $query->take(100)->get()->map(function ($activity) {
             return [
                 'id' => $activity->id,
                 'title' => $activity->description,
