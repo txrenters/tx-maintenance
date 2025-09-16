@@ -129,13 +129,13 @@ class ConversationController extends Controller
                 $messageContent = $messageContent.$imageNote;
             }
 
-            // if (! empty($messageContent)) {
-            //     $twilio->sendMessage(
-            //         $receiverNumber,
-            //         $senderNumber,
-            //         $messageContent
-            //     );
-            // }
+            if (! empty($messageContent)) {
+                $twilio->sendMessage(
+                    $receiverNumber,
+                    $senderNumber,
+                    $messageContent
+                );
+            }
             
             DB::commit();
             return redirect()->back()->with('success', 'Message sent successfully!');
