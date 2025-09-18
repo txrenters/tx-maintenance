@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -290,7 +292,7 @@ class PropertyWareService
             ],
         ]);
 
-        $this->approveWorkOrder($workOrder);
+        $this->approvedWorkOrder($workOrder);
 
         if ($res->status() == 200) {
             Log::info('Success in updating work order', [
@@ -443,7 +445,7 @@ class PropertyWareService
 
             $response = $this->execute($xmlPayload);
 
-            $this->approveWorkOrder($workOrder);
+            $this->approvedWorkOrder($workOrder);
 
             // Log and return response status
             if ($response) {
@@ -607,22 +609,22 @@ class PropertyWareService
         // Execute SOAP request
         $res = $this->execute($xmlPayload);
 
-        $this->approveWorkOrder($workOrder);
+        $this->approvedWorkOrder($workOrder);
 
-        // Log and return response status
-        if ($res) {
-            Log::info('Work order vendor has been added successfully!', [
-                'Work order no' => $workOrder->work_order_no,
+        $vendor = DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->first();
+        $vendorName = Vendor::find($vendor->vendor_id);
+
+        if($vendorName->name == 'Texas Home Maintenance Pros'){
+            Http::post('https://n8n.srv902502.hstgr.cloud/webhook/create-job', [
+                'work_order_no' => $workOrder->work_order_no,
             ]);
-
-            return true;
         }
-
-        Log::error('Work order vendor added failed!', [
+        
+        Log::info('Work order vendor has been added successfully!', [
             'Work order no' => $workOrder->work_order_no,
         ]);
 
-        return false;
+        return true;
     }
 
     public function addVendorNotes($notes)
@@ -895,7 +897,7 @@ class PropertyWareService
             // Execute SOAP request
             $res = $this->execute($xmlPayload);
 
-            $this->approveWorkOrder($workOrder);
+            $this->approvedWorkOrder($workOrder);
 
             // Log and return response status
             if ($res) {
@@ -920,7 +922,7 @@ class PropertyWareService
         }
     }
 
-    public function approveWorkOrder($workOrder): void
+    public function approvedWorkOrder($workOrder): void
     {
         $client = $this->initiate();
 

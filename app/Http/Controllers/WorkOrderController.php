@@ -183,7 +183,6 @@ class WorkOrderController extends Controller
 
             // Broadcast the work order update
             $workOrder->load('service_status');
-            event(new WorkOrderUpdated($workOrder));
 
             Log::info('Work Order Update Dispatched', ['work_order_no' => $workOrder->work_order_no]);
 
@@ -245,7 +244,6 @@ class WorkOrderController extends Controller
         DB::beginTransaction();
 
         try {
-
             $vendorIDsXml = '';
             $vendorIds = [];
 
@@ -257,28 +255,29 @@ class WorkOrderController extends Controller
                 $vendorData = Vendor::whereLike('name', "%{$vendor}%")->first();
                 $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
                 $vendorIds[] = $vendorData->id;
+
+                DB::table('work_order_vendors')->insert([
+                    'work_order_id' => $workOrder->id,
+                    'vendor_id' => $vendorData->id,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
             }
 
             $vendorIDsXml .= '</vendorIDs>';
 
             $this->propertyWareServices->changeWorkOrderVendors($workOrder, $vendorIDsXml);
 
-            $workOrder->vendors()->sync($vendorIds);
-
             $workOrder->update([
                 'local_status' => 'Updated',
             ]);
 
             DB::commit();
-
             return redirect()->back()->with('success', 'Work order vendors updated successfully.');
-
         } catch (\Throwable $th) {
             DB::rollBack();
-
             return redirect()->back()->with('error', 'Work order vendors failed.'.$th->getMessage());
         }
-
     }
 
     public function emergency_change(Request $request, WorkOrder $workOrder)
