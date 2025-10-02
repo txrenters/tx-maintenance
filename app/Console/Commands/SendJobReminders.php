@@ -50,7 +50,7 @@ class SendJobReminders extends Command
             TexasRenters.com, LLC";
 
         $notifyMessageFor3days = "Dear {CLIENT_NAME},\n
-            This is a friendly reminder of the scheduled visit on {SCHEDULED_DATE}.\n
+            This is a friendly reminder of the scheduled visit on {SCHEDULED_DATE} for the * Pest control treatment * Air filter replacement * Occupied inspection.\n
             Please note:\n 
                 * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
                 * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
