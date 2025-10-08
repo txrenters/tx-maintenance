@@ -112,6 +112,60 @@ class PropertyWareService
 
     }
 
+    public function getBuilding($buildingId)
+    {
+        try {
+
+            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/buildings/'.$buildingId);
+
+            if ($response->status() == 200) {
+                return $response->json();
+            } else {
+                Log::error('Error retrieving building', [
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                    ],
+                ]);
+
+                return false;
+            }
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
+    public function getPortfolio($portfolioId)
+    {
+        try {
+
+            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/portfolios/'.$portfolioId);
+
+            if ($response->status() == 200) {
+                return $response->json();
+            } else {
+                Log::error('Error retrieving portfolio', [
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                    ],
+                ]);
+
+                return false;
+            }
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
     public function getOwners()
     {
         try {

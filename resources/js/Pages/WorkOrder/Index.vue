@@ -712,10 +712,7 @@ watch(filter_vendor, filterVendor);
                 <Download class="w-4 h-4" />
             </a>
             <Button
-                v-if="
-                    $page.props.auth.user.roles.includes('admin') ||
-                    $page.props.auth.user.roles.includes('woc')
-                "
+                v-if="$page.props.auth.user.roles.includes('admin')"
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
                 title="Import Work Order"
