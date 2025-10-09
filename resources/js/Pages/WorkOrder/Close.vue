@@ -4,7 +4,7 @@ import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import WorkOrderCard from "./Partials/WorkOrderCard.vue";
+import WorkOrderClosedCard from "./Partials/WorkOrderClosedCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
@@ -59,7 +59,7 @@ const props = defineProps({
     filter: Object,
 });
 
-const url = ref(route("work_orders.index"));
+const url = ref(route("work_orders.closed_work_orders"));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 
@@ -697,28 +697,6 @@ watch(filter_vendor, filterVendor);
                     />
                 </PopoverContent>
             </Popover>
-            <a
-                :href="
-                    route('work_orders.export', {
-                        vendor: filter_vendor,
-                        search: search,
-                        start_date: date_range.start.toString(),
-                        end_date: date_range.end.toString(),
-                    })
-                "
-                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
-                title="Download work orders"
-            >
-                <Download class="w-4 h-4" />
-            </a>
-            <Button
-                v-if="$page.props.auth.user.roles.includes('admin')"
-                class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
-                size="icon"
-                title="Import Work Order"
-                @click="openImportWorkOrder = true"
-                ><ScanSearch class="w-4 h-4" />
-            </Button>
             <Link
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
                 size="icon"
@@ -731,20 +709,19 @@ watch(filter_vendor, filterVendor);
             </Link>
         </div>
     </div>
-    <ScrollArea
-        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-    >
-        <WorkOrderCard
+    <div>
+        <WorkOrderClosedCard
             :service_status="service_status"
             @showWorkOrder="handleWorkOrder"
         />
-        <ScrollBar orientation="horizontal" />
-    </ScrollArea>
-
-    <div class="">
-        <span class="text-gray-600">Drag/swipe the scrollbar →</span>
     </div>
 
+    <!-- <ScrollArea
+        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
+    >
+        
+        <ScrollBar orientation="horizontal" />
+    </ScrollArea> -->
     <Dialog v-model:open="openWorkOrder">
         <DialogContent
             class="flex max-h-[90dvh] w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
