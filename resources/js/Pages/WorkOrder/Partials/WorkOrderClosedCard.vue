@@ -71,13 +71,8 @@ const checkDueTask = (tasks) => {
                 v-motion-slide-visible-once-right
                 v-for="work_order in status.work_orders"
                 :key="work_order.id"
-                class="rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
-                :class="{
-                    'bg-destructive': checkDueTask(work_order.tasks) === 'red',
-                    'bg-primary': checkDueTask(work_order.tasks) === 'blue',
-                    'bg-green-500': checkDueTask(work_order.tasks) === 'green',
-                    'bg-secondary': work_order.status === 'Closed',
-                }"
+                class="rounded-lg bg-outline p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
+
             >
                 <!-- Work Order Number & Date -->
                 <div
