@@ -57,15 +57,17 @@ class WorkOrder extends Model
         return $this->belongsToMany(Tenants::class, 'work_order_tenants', 'work_order_id', 'tenant_id');
     }
 
-    public function vendor(): HasOne
+    public function vendor()
     {
-        return $this->hasOne(Vendor::class, 'work_order_vendors');
+        return $this->vendors()->first();
     }
+
 
     public function vendors(): BelongsToMany
     {
-        return $this->belongsToMany(Vendor::class, 'work_order_vendors')
-            ->withPivot('cost_estimate', 'time_estimate', 'scheduled_end_date', 'vendor_id')->withTimestamps();
+        return $this->belongsToMany(Vendor::class, 'work_order_vendors', 'work_order_id', 'vendor_id')
+            ->using(WorkOrderVendor::class)
+            ->withTimestamps();
     }
 
     public function vendor_notes(): HasMany

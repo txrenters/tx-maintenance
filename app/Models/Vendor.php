@@ -18,9 +18,10 @@ class Vendor extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function work_orders(): BelongsToMany
+    public function workOrders(): BelongsToMany
     {
-        return $this->belongsToMany(WorkOrder::class, 'work_order_vendors');
+        return $this->belongsToMany(WorkOrder::class, 'work_order_vendors', 'vendor_id', 'work_order_id')
+            ->withTimestamps();
     }
 
     public function invoices(): HasMany

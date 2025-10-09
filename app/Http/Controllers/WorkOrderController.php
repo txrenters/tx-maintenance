@@ -40,8 +40,8 @@ class WorkOrderController extends Controller
             'work_order.owners',
             'work_orders' => function ($query) {
                 $query->when(request('search'), function ($q, $search) {
-                    $q->where('work_order_no', $search);
-                })
+                        $q->where('work_order_no', $search);
+                    })
                     ->when(request('vendor'), function ($q, $vendorId) {
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
@@ -53,8 +53,7 @@ class WorkOrderController extends Controller
                         $end_date = Carbon::parse($date['end_date'])->endOfDay();
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
-                    })
-                    ->where('status', 'Open');
+                    });
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -63,7 +62,6 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->whereNot('name', 'Closed')
             ->whereNot('name', 'Not Changed')
             ->get();
 
@@ -99,9 +97,9 @@ class WorkOrderController extends Controller
 
     public function details(WorkOrder $workOrder)
     {
+        //  dd($workOrder);
         $workOrder->load([
             'service_status',
-            'vendors',
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
@@ -129,6 +127,7 @@ class WorkOrderController extends Controller
 
         // Get vendors for potential assignments
         $vendors = Vendor::where('is_active', true)->get();
+
 
         return inertia('WorkOrder/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
@@ -160,7 +159,7 @@ class WorkOrderController extends Controller
             'owner_conversation',
             'vendor_conversation',
             'vendor_tenant_conversation',
-        ])->first();
+        ]);
 
         return inertia('WorkOrder/Report', [
             'title' => 'Report Summary',
@@ -353,7 +352,6 @@ class WorkOrderController extends Controller
 
             // Broadcast the work order update
             $workOrder->load('service_status');
-            event(new WorkOrderUpdated($workOrder));
         }
 
         return redirect()->back();

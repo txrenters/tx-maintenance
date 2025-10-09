@@ -240,8 +240,9 @@ const handleDeleteSubmit = () => {
                         v-if="loadingVendor"
                         class="w-4 h-4 animate-spin"
                     />
-                    Assign vendor</Button
-                >
+
+                    Assign vendor
+                </Button>
                 <template v-if="workOrder.local_status === 'Updated'">
                     <p v-for="vendor in workOrder.vendors" :key="vendor">
                         <span v-if="vendor.id"> {{ vendor.name }}</span>

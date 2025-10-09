@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class ImportWorkOrderAPI extends Command
+class ImportWorkOrdersAPI extends Command
 {
     /**
      * The name and signature of the console command.

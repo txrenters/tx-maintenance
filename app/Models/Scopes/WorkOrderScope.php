@@ -31,8 +31,10 @@ class WorkOrderScope implements Scope
         // }
 
         if ($user->hasRole('vendor') && $user->vendor) {
-            $builder->where(function ($query) use ($user) {
-                $query->whereHas('vendors', fn ($q) => $q->where('vendor_id', $user->vendor->id))
+            $vendorId = $user->vendor->id;
+
+            $builder->where(function ($query) use ($user, $vendorId) {
+                $query->whereHas('vendors', fn ($q) => $q->where('vendor_id', $vendorId))
                     ->orWhereHas('tasks', fn ($q) => $q->where('assigned_user_id', $user->id))
                     ->orWhereHas('attachments', fn ($q) => $q->where('user_id', $user->id));
             });
