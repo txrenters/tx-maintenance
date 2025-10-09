@@ -715,13 +715,6 @@ watch(filter_vendor, filterVendor);
             @showWorkOrder="handleWorkOrder"
         />
     </div>
-
-    <!-- <ScrollArea
-        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-    >
-        
-        <ScrollBar orientation="horizontal" />
-    </ScrollArea> -->
     <Dialog v-model:open="openWorkOrder">
         <DialogContent
             class="flex max-h-[90dvh] w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
