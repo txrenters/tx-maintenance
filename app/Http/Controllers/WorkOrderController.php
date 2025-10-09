@@ -53,7 +53,8 @@ class WorkOrderController extends Controller
                         $end_date = Carbon::parse($date['end_date'])->endOfDay();
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
-                    });
+                    })
+                    ->whereNot('status', 'Closed');
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -62,6 +63,7 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
+            ->whereNot('status', 'Closed')
             ->whereNot('name', 'Not Changed')
             ->get();
 
