@@ -53,7 +53,7 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->whereNot('status', 'Closed');
+                    ->where('status', 'Open');
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -200,40 +200,6 @@ class WorkOrderController extends Controller
 
     }
 
-    // public function closed_work_orders(Request $request)
-    // {
-    //     $perPage = $request->per_page
-    //      ? ($request->per_page == 'All' ? WorkOrder::count() : $request->per_page)
-    //      : 10;
-
-    //     $work_orders = WorkOrder::with([
-    //         'service_status', 'requested_by',
-    //     ])
-    //         ->whereHas('service_status', function ($q) {
-    //             $q->where('name', 'Closed');
-    //         })
-    //         ->filter(request(['search']))
-    //         ->orderBy('completed_date', 'DESC')
-    //         ->paginate($perPage)
-    //         ->withQueryString()
-    //         ->through(function ($work_order) {
-    //             return [
-    //                 'id' => $work_order->id,
-    //                 'work_order_no' => $work_order->work_order_no,
-    //                 'location' => $work_order->location,
-    //                 'completed_at' => $work_order->completed_date ? Carbon::parse($work_order->completed_date)->format('F d, Y') : null,
-    //                 'requested_by' => $work_order->requested_by?->first_name.' '.$work_order->requested_by?->last_name,
-    //                 'status' => $work_order->service_status->name == 'Closed' ? true : false,
-    //             ];
-    //         });
-
-    //     return inertia('WorkOrder/Close', [
-    //         'title' => 'Closed Work Orders',
-    //         'work_orders' => $work_orders,
-    //         'filter' => $request->only(['search', 'per_page']),
-    //     ]);
-    // }
-
       public function closed_work_orders(Request $request)
     {
         $service_status = ServiceStatus::with([
@@ -265,7 +231,7 @@ class WorkOrderController extends Controller
             'work_orders.owners',
         ])
             ->where('name', 'Closed')
-            ->whereNot('name', 'Not Changed')
+            ->limit(1)
             ->get();
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -275,7 +241,7 @@ class WorkOrderController extends Controller
         $users = User::role(['woc', 'admin'])->get();
 
         return inertia('WorkOrder/Close', [
-            'title' => 'Work Orders',
+            'title' => 'Closed Work Orders',
             'service_status' => $service_status,
             'vendors' => $vendors,
             'categories' => $categories,

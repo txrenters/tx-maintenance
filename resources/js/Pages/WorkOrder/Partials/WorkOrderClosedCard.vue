@@ -64,108 +64,377 @@ const checkDueTask = (tasks) => {
 </script>
 
 <template>
-    <div class="flex flex-row flex-wrap space-x-2">
+    <div class="flex flex-row flex-wrap gap-2">
         <template v-for="status in service_status" :key="status.id">
-            <div v-if="status.work_orders.length !== 0" class="overflow-hidden">
-                <div class="text-center font-semibol">
-                    <div
-                        @click="handleWorkOrder(work_order)"
-                        v-motion-slide-visible-once-right
-                        v-for="work_order in status.work_orders"
-                        :key="work_order.id"
-                        class="mb-2 rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
-                        :class="{
-                            'bg-destructive':
-                                checkDueTask(work_order.tasks) === 'red',
-                            'bg-primary':
-                                checkDueTask(work_order.tasks) === 'blue',
-                            'bg-green-500':
-                                checkDueTask(work_order.tasks) === 'green',
-                            'bg-secondary': work_order.status === 'Closed',
-                        }"
+            <div
+                @click="handleWorkOrder(work_order)"
+                v-motion-slide-visible-once-right
+                v-for="work_order in status.work_orders"
+                :key="work_order.id"
+                class="rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
+                :class="{
+                    'bg-destructive': checkDueTask(work_order.tasks) === 'red',
+                    'bg-primary': checkDueTask(work_order.tasks) === 'blue',
+                    'bg-green-500': checkDueTask(work_order.tasks) === 'green',
+                    'bg-secondary': work_order.status === 'Closed',
+                }"
+            >
+                <!-- Work Order Number & Date -->
+                <div
+                    class="flex justify-between items-center border-b pb-2 mb-2"
+                >
+                    <h1 class="text-lg font-semibold">
+                        {{ work_order.work_order_no }}
+                    </h1>
+                    <p class="text-xs text-gray-200">
+                        📅 {{ formatDate(work_order.created_date) }}
+                    </p>
+                </div>
+
+                <!-- Location -->
+                <p class="text-sm text-gray-100 font-semibold">
+                    {{ work_order.location }}
+                </p>
+                <div class="flex gap-2 justify-center">
+                    <p
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
                     >
-                        <!-- Work Order Number & Date -->
-                        <div
-                            class="flex justify-between items-center border-b pb-2 mb-2"
-                        >
-                            <h1 class="text-lg font-semibold">
-                                {{ work_order.work_order_no }}
-                            </h1>
-                            <p class="text-xs text-gray-200">
-                                📅 {{ formatDate(work_order.created_date) }}
-                            </p>
-                        </div>
+                        <Tag class="w-3 h-3" />{{ work_order.category }}
+                    </p>
+                    <p
+                        v-if="work_order.is_approved"
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <CircleCheckBig class="w-3 h-3" />Approved
+                    </p>
+                </div>
 
-                        <!-- Location -->
-                        <p class="text-sm text-gray-100 font-semibold">
-                            {{ work_order.location }}
+                <div
+                    v-if="work_order.requested_by"
+                    class="flex text-left gap-1 mb-1 mt-2"
+                >
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.requested_by?.first_name }}
+                        {{ work_order.requested_by?.last_name }}
+                    </p>
+                </div>
+                <div v-else class="flex text-left mb-1 mt-2">
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.owners[0].first_name }}
+                        {{ work_order.owners[0].last_name }}
+                    </p>
+                </div>
+                <p
+                    class="text-xs text-gray-100"
+                    v-for="vendor in work_order.vendors"
+                    :key="vendor.id"
+                >
+                    <span class="flex gap-1 text-left uppercase">
+                        <Truck class="w-4 h-4" />{{ vendor.name }}</span
+                    >
+                </p>
+
+                <!-- Requested Info -->
+                <div class="flex justify-between items-center mt-1">
+                    <div class="flex gap-1 items-center">
+                        <p class="text-xs" v-if="work_order.tasks.length > 0">
+                            {{ countCompletedTask(work_order.tasks) }}/{{
+                                work_order.tasks.length
+                            }}
+                            tasks
                         </p>
-                        <div class="flex gap-2 justify-center">
-                            <p
-                                class="text-xs text-gray-100 flex items-center gap-1 justify-center"
-                            >
-                                <Tag class="w-3 h-3" />{{ work_order.category }}
-                            </p>
-                            <p
-                                v-if="work_order.is_approved"
-                                class="text-xs text-gray-100 flex items-center gap-1 justify-center"
-                            >
-                                <CircleCheckBig class="w-3 h-3" />Approved
-                            </p>
-                        </div>
+                    </div>
+                    <div>
+                        <span
+                            class="text-[10px] px-1 uppercase rounded border"
+                            :class="
+                                work_order.priority === 'High'
+                                    ? 'bg-destructive'
+                                    : 'bg-primary'
+                            "
+                            >Priority: {{ work_order.priority }}</span
+                        >
+                    </div>
+                </div>
+            </div>
+            <div
+                @click="handleWorkOrder(work_order)"
+                v-motion-slide-visible-once-right
+                v-for="work_order in status.work_orders"
+                :key="work_order.id"
+                class="rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
+                :class="{
+                    'bg-destructive': checkDueTask(work_order.tasks) === 'red',
+                    'bg-primary': checkDueTask(work_order.tasks) === 'blue',
+                    'bg-green-500': checkDueTask(work_order.tasks) === 'green',
+                    'bg-secondary': work_order.status === 'Closed',
+                }"
+            >
+                <!-- Work Order Number & Date -->
+                <div
+                    class="flex justify-between items-center border-b pb-2 mb-2"
+                >
+                    <h1 class="text-lg font-semibold">
+                        {{ work_order.work_order_no }}
+                    </h1>
+                    <p class="text-xs text-gray-200">
+                        📅 {{ formatDate(work_order.created_date) }}
+                    </p>
+                </div>
 
-                        <div
-                            v-if="work_order.requested_by"
-                            class="flex text-left gap-1 mb-1 mt-2"
-                        >
-                            <UserRoundPen class="w-4 h-4" />
-                            <p class="text-xs text-gray-100 uppercase">
-                                {{ work_order.requested_by?.first_name }}
-                                {{ work_order.requested_by?.last_name }}
-                            </p>
-                        </div>
-                        <div v-else class="flex text-left mb-1 mt-2">
-                            <UserRoundPen class="w-4 h-4" />
-                            <p class="text-xs text-gray-100 uppercase">
-                                {{ work_order.owners[0].first_name }}
-                                {{ work_order.owners[0].last_name }}
-                            </p>
-                        </div>
-                        <p
-                            class="text-xs text-gray-100"
-                            v-for="vendor in work_order.vendors"
-                            :key="vendor.id"
-                        >
-                            <span class="flex gap-1 text-left uppercase">
-                                <Truck class="w-4 h-4" />{{ vendor.name }}</span
-                            >
+                <!-- Location -->
+                <p class="text-sm text-gray-100 font-semibold">
+                    {{ work_order.location }}
+                </p>
+                <div class="flex gap-2 justify-center">
+                    <p
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <Tag class="w-3 h-3" />{{ work_order.category }}
+                    </p>
+                    <p
+                        v-if="work_order.is_approved"
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <CircleCheckBig class="w-3 h-3" />Approved
+                    </p>
+                </div>
+
+                <div
+                    v-if="work_order.requested_by"
+                    class="flex text-left gap-1 mb-1 mt-2"
+                >
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.requested_by?.first_name }}
+                        {{ work_order.requested_by?.last_name }}
+                    </p>
+                </div>
+                <div v-else class="flex text-left mb-1 mt-2">
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.owners[0].first_name }}
+                        {{ work_order.owners[0].last_name }}
+                    </p>
+                </div>
+                <p
+                    class="text-xs text-gray-100"
+                    v-for="vendor in work_order.vendors"
+                    :key="vendor.id"
+                >
+                    <span class="flex gap-1 text-left uppercase">
+                        <Truck class="w-4 h-4" />{{ vendor.name }}</span
+                    >
+                </p>
+
+                <!-- Requested Info -->
+                <div class="flex justify-between items-center mt-1">
+                    <div class="flex gap-1 items-center">
+                        <p class="text-xs" v-if="work_order.tasks.length > 0">
+                            {{ countCompletedTask(work_order.tasks) }}/{{
+                                work_order.tasks.length
+                            }}
+                            tasks
                         </p>
+                    </div>
+                    <div>
+                        <span
+                            class="text-[10px] px-1 uppercase rounded border"
+                            :class="
+                                work_order.priority === 'High'
+                                    ? 'bg-destructive'
+                                    : 'bg-primary'
+                            "
+                            >Priority: {{ work_order.priority }}</span
+                        >
+                    </div>
+                </div>
+            </div>
+            <div
+                @click="handleWorkOrder(work_order)"
+                v-motion-slide-visible-once-right
+                v-for="work_order in status.work_orders"
+                :key="work_order.id"
+                class="rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
+                :class="{
+                    'bg-destructive': checkDueTask(work_order.tasks) === 'red',
+                    'bg-primary': checkDueTask(work_order.tasks) === 'blue',
+                    'bg-green-500': checkDueTask(work_order.tasks) === 'green',
+                    'bg-secondary': work_order.status === 'Closed',
+                }"
+            >
+                <!-- Work Order Number & Date -->
+                <div
+                    class="flex justify-between items-center border-b pb-2 mb-2"
+                >
+                    <h1 class="text-lg font-semibold">
+                        {{ work_order.work_order_no }}
+                    </h1>
+                    <p class="text-xs text-gray-200">
+                        📅 {{ formatDate(work_order.created_date) }}
+                    </p>
+                </div>
 
-                        <!-- Requested Info -->
-                        <div class="flex justify-between items-center mt-1">
-                            <div class="flex gap-1 items-center">
-                                <p
-                                    class="text-xs"
-                                    v-if="work_order.tasks.length > 0"
-                                >
-                                    {{
-                                        countCompletedTask(work_order.tasks)
-                                    }}/{{ work_order.tasks.length }}
-                                    tasks
-                                </p>
-                            </div>
-                            <div>
-                                <span
-                                    class="text-[10px] px-1 uppercase rounded border"
-                                    :class="
-                                        work_order.priority === 'High'
-                                            ? 'bg-destructive'
-                                            : 'bg-primary'
-                                    "
-                                    >Priority: {{ work_order.priority }}</span
-                                >
-                            </div>
-                        </div>
+                <!-- Location -->
+                <p class="text-sm text-gray-100 font-semibold">
+                    {{ work_order.location }}
+                </p>
+                <div class="flex gap-2 justify-center">
+                    <p
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <Tag class="w-3 h-3" />{{ work_order.category }}
+                    </p>
+                    <p
+                        v-if="work_order.is_approved"
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <CircleCheckBig class="w-3 h-3" />Approved
+                    </p>
+                </div>
+
+                <div
+                    v-if="work_order.requested_by"
+                    class="flex text-left gap-1 mb-1 mt-2"
+                >
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.requested_by?.first_name }}
+                        {{ work_order.requested_by?.last_name }}
+                    </p>
+                </div>
+                <div v-else class="flex text-left mb-1 mt-2">
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.owners[0].first_name }}
+                        {{ work_order.owners[0].last_name }}
+                    </p>
+                </div>
+                <p
+                    class="text-xs text-gray-100"
+                    v-for="vendor in work_order.vendors"
+                    :key="vendor.id"
+                >
+                    <span class="flex gap-1 text-left uppercase">
+                        <Truck class="w-4 h-4" />{{ vendor.name }}</span
+                    >
+                </p>
+
+                <!-- Requested Info -->
+                <div class="flex justify-between items-center mt-1">
+                    <div class="flex gap-1 items-center">
+                        <p class="text-xs" v-if="work_order.tasks.length > 0">
+                            {{ countCompletedTask(work_order.tasks) }}/{{
+                                work_order.tasks.length
+                            }}
+                            tasks
+                        </p>
+                    </div>
+                    <div>
+                        <span
+                            class="text-[10px] px-1 uppercase rounded border"
+                            :class="
+                                work_order.priority === 'High'
+                                    ? 'bg-destructive'
+                                    : 'bg-primary'
+                            "
+                            >Priority: {{ work_order.priority }}</span
+                        >
+                    </div>
+                </div>
+            </div>
+            <div
+                @click="handleWorkOrder(work_order)"
+                v-motion-slide-visible-once-right
+                v-for="work_order in status.work_orders"
+                :key="work_order.id"
+                class="rounded-lg p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
+                :class="{
+                    'bg-destructive': checkDueTask(work_order.tasks) === 'red',
+                    'bg-primary': checkDueTask(work_order.tasks) === 'blue',
+                    'bg-green-500': checkDueTask(work_order.tasks) === 'green',
+                    'bg-secondary': work_order.status === 'Closed',
+                }"
+            >
+                <!-- Work Order Number & Date -->
+                <div
+                    class="flex justify-between items-center border-b pb-2 mb-2"
+                >
+                    <h1 class="text-lg font-semibold">
+                        {{ work_order.work_order_no }}
+                    </h1>
+                    <p class="text-xs text-gray-200">
+                        📅 {{ formatDate(work_order.created_date) }}
+                    </p>
+                </div>
+
+                <!-- Location -->
+                <p class="text-sm text-gray-100 font-semibold">
+                    {{ work_order.location }}
+                </p>
+                <div class="flex gap-2 justify-center">
+                    <p
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <Tag class="w-3 h-3" />{{ work_order.category }}
+                    </p>
+                    <p
+                        v-if="work_order.is_approved"
+                        class="text-xs text-gray-100 flex items-center gap-1 justify-center"
+                    >
+                        <CircleCheckBig class="w-3 h-3" />Approved
+                    </p>
+                </div>
+
+                <div
+                    v-if="work_order.requested_by"
+                    class="flex text-left gap-1 mb-1 mt-2"
+                >
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.requested_by?.first_name }}
+                        {{ work_order.requested_by?.last_name }}
+                    </p>
+                </div>
+                <div v-else class="flex text-left mb-1 mt-2">
+                    <UserRoundPen class="w-4 h-4" />
+                    <p class="text-xs text-gray-100 uppercase">
+                        {{ work_order.owners[0].first_name }}
+                        {{ work_order.owners[0].last_name }}
+                    </p>
+                </div>
+                <p
+                    class="text-xs text-gray-100"
+                    v-for="vendor in work_order.vendors"
+                    :key="vendor.id"
+                >
+                    <span class="flex gap-1 text-left uppercase">
+                        <Truck class="w-4 h-4" />{{ vendor.name }}</span
+                    >
+                </p>
+
+                <!-- Requested Info -->
+                <div class="flex justify-between items-center mt-1">
+                    <div class="flex gap-1 items-center">
+                        <p class="text-xs" v-if="work_order.tasks.length > 0">
+                            {{ countCompletedTask(work_order.tasks) }}/{{
+                                work_order.tasks.length
+                            }}
+                            tasks
+                        </p>
+                    </div>
+                    <div>
+                        <span
+                            class="text-[10px] px-1 uppercase rounded border"
+                            :class="
+                                work_order.priority === 'High'
+                                    ? 'bg-destructive'
+                                    : 'bg-primary'
+                            "
+                            >Priority: {{ work_order.priority }}</span
+                        >
                     </div>
                 </div>
             </div>
