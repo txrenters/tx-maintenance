@@ -200,7 +200,7 @@ class WorkOrderController extends Controller
 
     }
 
-      public function closed_work_orders(Request $request)
+    public function closed_work_orders(Request $request)
     {
         $service_status = ServiceStatus::with([
             'work_order',
@@ -221,7 +221,8 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->where('status', 'Closed');
+                    ->where('status', 'Closed')
+                    ->limit(24);
             },
             'work_orders.service_status',
             'work_orders.vendors',
