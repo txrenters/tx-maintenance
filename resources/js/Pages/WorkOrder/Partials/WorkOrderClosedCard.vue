@@ -71,8 +71,7 @@ const checkDueTask = (tasks) => {
                 v-motion-slide-visible-once-right
                 v-for="work_order in status.work_orders"
                 :key="work_order.id"
-                class="rounded-lg bg-outline p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
-
+                class="rounded-lg bg-gray-700 p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
             >
                 <!-- Work Order Number & Date -->
                 <div
