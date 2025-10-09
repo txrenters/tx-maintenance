@@ -159,7 +159,6 @@ class DashboardController extends Controller
                  AND work_orders.status = "Open") as total
             ', [$year])
             ->havingRaw('total > 0')
-            ->where('name', '!=', 'Closed')
             ->where('name', '!=', 'Not Changed')
             ->get()
             ->map(fn ($status) => [
