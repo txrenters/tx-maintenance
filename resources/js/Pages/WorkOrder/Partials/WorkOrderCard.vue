@@ -68,7 +68,10 @@ const checkDueTask = (tasks) => {
         class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
     >
         <template v-for="status in service_status" :key="status.id">
-            <div v-if="status.work_orders.length !== 0" class="min-w-[240px]">
+            <div
+                v-if="status.work_orders.length !== 0"
+                class="overflow-hidden min-w-[240px]"
+            >
                 <div class="text-center font-semibol">
                     <!-- Status Name -->
                     <div

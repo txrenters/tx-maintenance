@@ -34,7 +34,6 @@ class WorkOrderController extends Controller
      */
     public function index(Request $request)
     {
-
         $service_status = ServiceStatus::with([
             'work_order',
             'work_order.owners',
@@ -63,7 +62,7 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->whereNot('status', 'Closed')
+            ->whereNot('name', 'Closed')
             ->whereNot('name', 'Not Changed')
             ->get();
 
@@ -99,7 +98,6 @@ class WorkOrderController extends Controller
 
     public function details(WorkOrder $workOrder)
     {
-        //  dd($workOrder);
         $workOrder->load([
             'service_status',
             'requested_by',
@@ -202,37 +200,87 @@ class WorkOrderController extends Controller
 
     }
 
-    public function closed_work_orders(Request $request)
-    {
-        $perPage = $request->per_page
-         ? ($request->per_page == 'All' ? WorkOrder::count() : $request->per_page)
-         : 10;
+    // public function closed_work_orders(Request $request)
+    // {
+    //     $perPage = $request->per_page
+    //      ? ($request->per_page == 'All' ? WorkOrder::count() : $request->per_page)
+    //      : 10;
 
-        $work_orders = WorkOrder::with([
-            'service_status', 'requested_by',
+    //     $work_orders = WorkOrder::with([
+    //         'service_status', 'requested_by',
+    //     ])
+    //         ->whereHas('service_status', function ($q) {
+    //             $q->where('name', 'Closed');
+    //         })
+    //         ->filter(request(['search']))
+    //         ->orderBy('completed_date', 'DESC')
+    //         ->paginate($perPage)
+    //         ->withQueryString()
+    //         ->through(function ($work_order) {
+    //             return [
+    //                 'id' => $work_order->id,
+    //                 'work_order_no' => $work_order->work_order_no,
+    //                 'location' => $work_order->location,
+    //                 'completed_at' => $work_order->completed_date ? Carbon::parse($work_order->completed_date)->format('F d, Y') : null,
+    //                 'requested_by' => $work_order->requested_by?->first_name.' '.$work_order->requested_by?->last_name,
+    //                 'status' => $work_order->service_status->name == 'Closed' ? true : false,
+    //             ];
+    //         });
+
+    //     return inertia('WorkOrder/Close', [
+    //         'title' => 'Closed Work Orders',
+    //         'work_orders' => $work_orders,
+    //         'filter' => $request->only(['search', 'per_page']),
+    //     ]);
+    // }
+
+      public function closed_work_orders(Request $request)
+    {
+        $service_status = ServiceStatus::with([
+            'work_order',
+            'work_order.owners',
+            'work_orders' => function ($query) {
+                $query->when(request('search'), function ($q, $search) {
+                        $q->where('work_order_no', $search);
+                    })
+                    ->when(request('vendor'), function ($q, $vendorId) {
+                        $q->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                        $date = request()->only(['start_date', 'end_date']);
+                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                        $q->whereBetween('created_date', [$start_date, $end_date]);
+                    })
+                    ->where('status', 'Closed');
+            },
+            'work_orders.service_status',
+            'work_orders.vendors',
+            'work_orders.requested_by',
+            'work_orders.managed_by',
+            'work_orders.tasks',
+            'work_orders.owners',
         ])
-            ->whereHas('service_status', function ($q) {
-                $q->where('name', 'Closed');
-            })
-            ->filter(request(['search']))
-            ->orderBy('completed_date', 'DESC')
-            ->paginate($perPage)
-            ->withQueryString()
-            ->through(function ($work_order) {
-                return [
-                    'id' => $work_order->id,
-                    'work_order_no' => $work_order->work_order_no,
-                    'location' => $work_order->location,
-                    'completed_at' => $work_order->completed_date ? Carbon::parse($work_order->completed_date)->format('F d, Y') : null,
-                    'requested_by' => $work_order->requested_by?->first_name.' '.$work_order->requested_by?->last_name,
-                    'status' => $work_order->service_status->name == 'Closed' ? true : false,
-                ];
-            });
+            ->where('name', 'Closed')
+            ->whereNot('name', 'Not Changed')
+            ->get();
+
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+
+        $vendors = DB::table('vendors')->select('id', 'name')->where('is_active', true)->orderBy('name')->get();
+
+        $users = User::role(['woc', 'admin'])->get();
 
         return inertia('WorkOrder/Close', [
-            'title' => 'Closed Work Orders',
-            'work_orders' => $work_orders,
-            'filter' => $request->only(['search', 'per_page']),
+            'title' => 'Work Orders',
+            'service_status' => $service_status,
+            'vendors' => $vendors,
+            'categories' => $categories,
+            'users' => $users,
+            'filter' => $request->only(['search', 'per_page', 'vendor']),
         ]);
     }
 
