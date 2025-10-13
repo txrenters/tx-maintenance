@@ -231,7 +231,6 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->whereIn('name', ['Closed'])
             ->limit(1)
             ->get();
 
