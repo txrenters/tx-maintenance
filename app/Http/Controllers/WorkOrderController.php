@@ -221,7 +221,7 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->whereIn('status', ['Closed', 'Canceled By Tenant'])
+                    ->where('status', ['Closed', 'Canceled By Tenant'])
                     ->limit(24);
             },
             'work_orders.service_status',
@@ -231,7 +231,6 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->limit(1)
             ->get();
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
