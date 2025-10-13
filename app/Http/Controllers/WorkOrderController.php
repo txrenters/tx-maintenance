@@ -221,6 +221,7 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
+                    ->orderBy('work_order_no' 'ASC')
                     ->where('status', 'Closed')
                     ->OrWhere('status', 'Canceled By Tenant')
                     ->limit(50);
