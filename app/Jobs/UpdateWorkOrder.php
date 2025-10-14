@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;

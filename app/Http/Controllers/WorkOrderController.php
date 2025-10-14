@@ -221,8 +221,12 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->where('status', 'Closed')
-                    ->limit(24);
+                   ->where(function ($q) {
+                        $q->where('status', 'Closed')
+                          ->orWhere('status', 'Canceled By Tenant');
+                    })
+                    ->orderBy('work_order_no', 'ASC')
+                    ->limit(50);
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -231,8 +235,6 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->where('name', 'Closed')
-            ->limit(1)
             ->get();
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
