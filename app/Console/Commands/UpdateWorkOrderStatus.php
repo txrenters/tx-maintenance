@@ -65,7 +65,7 @@ class UpdateWorkOrderStatus extends Command
                             $customFieldData = [];
                             
                             foreach ($data['customFields'] as $customField) {
-                                if ($data['fieldName'] == 'Service Status') {
+                                if ($customField['fieldName'] == 'Service Status') {
 
                                     $service_status_id = DB::table('service_status')
                                         ->whereLike('name', '%'.($customField['value'] ?? '').'%')
