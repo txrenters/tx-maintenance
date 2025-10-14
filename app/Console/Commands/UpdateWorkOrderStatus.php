@@ -90,7 +90,7 @@ class UpdateWorkOrderStatus extends Command
                 }
             }
 
-            Log::info('Work order updated successfully!');
+            Log::info('Work order updating status are successfully! Work Order: '. count($work_orders));
         } catch (\Throwable $th) {
             Log::error('Work order updated failed: '. $th->getMessage());
         }

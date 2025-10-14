@@ -320,7 +320,7 @@ class WorkOrderController extends Controller
 
         // Broadcast the work order update
         $workOrder->load('service_status');
-        event(new WorkOrderUpdated($workOrder));
+        // event(new WorkOrderUpdated($workOrder));
 
         return redirect()->back()->with('success', 'Work order emergency status updated successfully.');
     }
