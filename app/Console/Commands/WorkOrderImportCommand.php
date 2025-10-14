@@ -57,10 +57,7 @@ class WorkOrderImportCommand extends Command
 
                 $ID = $data['ID'] ?? null;
 
-                // $workOrder = $this->propertyWareService->getWorkOrderById($ID);
                 if ($ID) {
-                    // $this->info('ID: '.$ID ?? '');
-                    // $this->info('Work order: '.$workOrder ?? '');
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
 

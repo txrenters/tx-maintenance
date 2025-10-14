@@ -48,27 +48,51 @@ class UpdateWorkOrderStatus extends Command
         }
        
         Log::info('Work Orders updates are running.');
+        
+        try {
+            foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
+                foreach ($workOrderChunk as $order) {
+                    $data = (array) $order;
 
-        foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
-            foreach ($workOrderChunk as $order) {
-                $data = (array) $order;
+                    $ID = $data['id'] ?? null;
 
-                dd($data);
+                    if ($ID) {
 
-                $ID = $data['id'] ?? null;
+                        $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
-                if ($ID) {
+                        if($workOrder){
+                            $workOrder->update(['status' => $data['status']]);
+                            $customFieldData = [];
+                            
+                            foreach ($data['customFields'] as $customField) {
+                                if ($data['fieldName'] == 'Service Status') {
 
-                    WorkOrder::update([
-                        'status' => $data['status']
-                    ])
-                    ->where('propertyware_id', $data['id']);
+                                    $service_status_id = DB::table('service_status')
+                                        ->whereLike('name', '%'.($customField['value'] ?? '').'%')
+                                        ->value('id');
 
+                                    $work_order_data['service_status_id'] = $service_status_id ?? 1;
+
+                                } elseif ($customField['fieldName'] == 'Zone') {
+                                    $work_order_data['zone'] = $customField['value'] ?? '';
+                                } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
+                                    $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
+                                } elseif ($customField['fieldName'] == 'Management Plan') {
+                                    $work_order_data['management_plan'] = $customField['value'] ?? '';
+                                }
+                            }
+
+                            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
+                            DB::table('work_order_custom_fields')->insert($customFieldData);
+
+                        }
+                    }
                 }
-
             }
-        }
 
-        Log::info('Work order updated successfully!');
+            Log::info('Work order updated successfully!');
+        } catch (\Throwable $th) {
+            Log::error('Work order updated failed: ', $th->getMessage());
+        }
     }
 }

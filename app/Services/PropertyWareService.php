@@ -85,6 +85,8 @@ class PropertyWareService
         try {
 
             $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
+                'includeCustomFields' => 'true',
+                'orderby' => 'createddate DESC',
                 'limit' => 500,
             ]);
 
