@@ -1033,37 +1033,35 @@
     </div>
 
     <!-- Additional Information -->
-    @if (isset($formData['otherComments']) && $formData['otherComments'])
-        <div class="section page-break">
-            <div class="section-title">Additional Information</div>
-            <div class="alert alert-info">
-                <strong>Additional Information:</strong> If there is anything not Covered above, please let us know in
-                the space below. This would also include any repairs or bids that you would like us to have completed
-                for you.
-            </div>
-            <div class="form-group">
-                <label>Additional Comments:</label>
-                <div class="value">{{ $formData['otherComments'] }}</div>
-            </div>
-            <div class="form-group">
-                <label>Owner Preferred Communication:</label>
-                <div class="value">{{ $formData['preferredCommunication'] }}</div>
-            </div>
-            <div>
-                <input type="checkbox" id="terms"
-                    {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }}
-                    style="margin: 0" />
-                <label for="terms">
-                    I hereby consent to receive my IRS Form
-                    1099 electronically via the email
-                    address provided to TexasRenters.com,
-                    LLC. I understand that no paper copy
-                    will be mailed unless I revoke this
-                    consent in writing.
-                </label>
-            </div>
+    <div class="section page-break">
+        <div class="section-title">Additional Information</div>
+        <div class="alert alert-info">
+            <strong>Additional Information:</strong> If there is anything not Covered above, please let us know in
+            the space below. This would also include any repairs or bids that you would like us to have completed
+            for you.
         </div>
-    @endif
+        <div class="form-group">
+            <label>Additional Comments:</label>
+            <div class="value">{{ $formData['otherComments'] ?? '' }}</div>
+        </div>
+        <div class="form-group">
+            <label>Owner Preferred Communication:</label>
+            <div class="value">{{ $formData['preferredCommunication'] ?? '' }}</div>
+        </div>
+        <div>
+            <input type="checkbox" id="terms"
+                {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }}
+                style="margin: 0" />
+            <label for="terms">
+                I hereby consent to receive my IRS Form
+                1099 electronically via the email
+                address provided to TexasRenters.com,
+                LLC. I understand that no paper copy
+                will be mailed unless I revoke this
+                consent in writing.
+            </label>
+        </div>
+    </div>
 
     <!-- Final Details & Signature -->
     <div class="section">
