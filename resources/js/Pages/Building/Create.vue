@@ -42,6 +42,7 @@ import {
     Users2,
     Dog,
     AppWindow,
+    CoinsIcon,
 } from "lucide-vue-next";
 import {
     Card,
@@ -63,6 +64,7 @@ import HVACMaintenance from "./partial/HVACMaintenance.vue";
 import Vendors from "./partial/Vendors.vue";
 import FloodHistory from "./partial/FloodHistory.vue";
 import Footer from "./partial/Footer.vue";
+import W9Form from "./partial/W9Form.vue";
 
 const { toast } = useToast();
 
@@ -182,6 +184,21 @@ const form = useForm({
     hvacFilterSize2: "",
     hvacFilterSize3: "",
     hvacFilterSize4: "",
+
+    w9_entity_name: "",
+    w9_ssn: "",
+    w9_ein: "",
+    w9_business_name: "",
+    w9_tax_class: "",
+    w9_tax_class1: "",
+    w9_llc_tax_class: "",
+    w9_other_tax_class: "",
+    w9_exempt_payee_code: "",
+    w9_exempt_reporting_code: "",
+    w9_address: "",
+    w9_address2: "",
+    w9_account_list: "",
+    w9_requester_name_and_address: "",
 });
 
 const buildingInfo = reactive({
@@ -202,7 +219,7 @@ const state = reactive({
     count: 0,
     option: {
         penColor: "rgb(0, 0, 0)",
-        backgroundColor: "rgb(255,255,255)",
+        backgroundColor: "rgb(0,0,0,0)",
     },
     disabled: false,
 });
@@ -346,16 +363,6 @@ onMounted(() => {
 // Restore form data from localStorage when buildingInfo becomes available
 const restoreFromLocalStorage = () => {
     const savedFormData = localStorage.getItem("buildingOnboardingForm");
-
-    // DEBUG: Log localStorage restoration process
-    console.log("🔍 localStorage Restoration Attempt:");
-    console.log("buildingInfo:", buildingInfo);
-    console.log("buildingInfo?.id:", buildingInfo?.id);
-    console.log("savedFormData exists:", !!savedFormData);
-
-    // DEBUG: Check all localStorage data
-    console.log("🗂️ All localStorage keys:", Object.keys(localStorage));
-    console.log("📄 Raw savedFormData:", savedFormData);
 
     if (savedFormData && buildingInfo?.id) {
         try {
@@ -513,6 +520,7 @@ const sections = [
     { id: "hvac_maintenance", title: "HVAC & Home Warranty", icon: AppWindow },
     { id: "vendors", title: "Preferred Vendors", icon: Users },
     { id: "history", title: "Property History", icon: Home },
+    { id: "w9", title: "W-9 Form", icon: CoinsIcon },
     { id: "signature", title: "Signature & Submit", icon: CheckCircle },
 ];
 
@@ -1683,7 +1691,7 @@ const prepareCustomFieldsForUpdate = () => {
 // Submit function
 const submitForm = async () => {
     // Validate signature
-    const signatureData = signature1.value?.save();
+    const signatureData = signature1.value?.save("image/png");
     if (
         !signatureData ||
         signatureData ===
@@ -2120,6 +2128,13 @@ const redirectToHandbook = () => {
 
                     <!-- Preferred Vendors Section -->
 
+                    <W9Form
+                        v-model:form="form"
+                        v-if="buildingInfo.id"
+                        :completedSections="completedSections"
+                        @sectionComplete="markSectionCompleted"
+                    />
+
                     <!-- Final Submit Section -->
                     <section id="signature" v-if="buildingInfo.id">
                         <Card>
@@ -2206,7 +2221,10 @@ const redirectToHandbook = () => {
                                             :h="'250px'"
                                             :sigOption="state.option"
                                             :disabled="state.disabled"
-                                            class="w-full bg-gray-50"
+                                            class="w-full"
+                                            style="
+                                                background-color: transparent;
+                                            "
                                         />
                                     </div>
 
