@@ -152,7 +152,6 @@ class GenerateW9PdfJob implements ShouldQueue
             // Add to PDF
             $pdf->Image($signaturePath, 35, 201, 40 , 0, 'PNG'); // (x, y, width)
 
-
             // === 4️⃣ Save to storage ===
             $fileName = "form_w9_" . time() . ".pdf";
             $storagePath = storage_path("app/public/{$fileName}");
@@ -168,6 +167,9 @@ class GenerateW9PdfJob implements ShouldQueue
             // Optional: Upload to Propertyware (if needed)
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $this->buildingData['id']);
+
+                unlink($signatureData);
+                unlink($storagePath);
             }
 
         } catch (\Exception $e) {
