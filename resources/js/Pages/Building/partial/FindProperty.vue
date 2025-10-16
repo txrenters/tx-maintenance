@@ -6,6 +6,7 @@ import {
     Info,
     Loader,
     MapIcon,
+    SearchIcon,
 } from "lucide-vue-next";
 import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
@@ -108,7 +109,7 @@ const searchProperty = () => {
                     class="w-full sm:w-auto"
                 >
                     <Loader class="w-4 h-4 mr-2 animate-spin" v-if="loading" />
-                    <Building class="w-4 h-4 mr-2" v-else />
+                    <SearchIcon class="w-4 h-4 mr-2" v-else />
                     {{ loading ? "Searching..." : "Search Property" }}
                 </Button>
 

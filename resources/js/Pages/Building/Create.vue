@@ -43,6 +43,7 @@ import {
     Dog,
     AppWindow,
     CoinsIcon,
+    FileIcon,
 } from "lucide-vue-next";
 import {
     Card,
@@ -172,6 +173,7 @@ const form = useForm({
 
     otherComments: "",
     preferredCommunication: "",
+    e_1099_consent: "",
 
     // New location fields
     gasShutoffValveLocation: "",
@@ -520,7 +522,7 @@ const sections = [
     { id: "hvac_maintenance", title: "HVAC & Home Warranty", icon: AppWindow },
     { id: "vendors", title: "Preferred Vendors", icon: Users },
     { id: "history", title: "Property History", icon: Home },
-    { id: "w9", title: "W-9 Form", icon: CoinsIcon },
+    { id: "w9", title: "W-9 Form", icon: FileIcon },
     { id: "signature", title: "Signature & Submit", icon: CheckCircle },
 ];
 
@@ -2202,6 +2204,26 @@ const redirectToHandbook = () => {
                                             >
                                         </SelectContent>
                                     </Select>
+                                </div>
+
+                                <div class="flex gap-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="terms"
+                                        class="p-2"
+                                        v-model="form.e_1099_consent"
+                                    />
+                                    <label
+                                        for="terms"
+                                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                        I hereby consent to receive my IRS Form
+                                        1099 electronically via the email
+                                        address provided to TexasRenters.com,
+                                        LLC. I understand that no paper copy
+                                        will be mailed unless I revoke this
+                                        consent in writing.
+                                    </label>
                                 </div>
 
                                 <div class="border-t pt-6">

@@ -171,7 +171,6 @@
         <h1 style="color: #007bff; text-transform:uppercase">Management Onboarding Information Form</h1>
         <p style="font-size: 14px; margin: 15px auto; max-width: 600px;">We'll guide you through a simple process to set
             up your property for management. Your responses help us provide the best service for your investment.</p>
-        <p>Generated on: {{ $generated_at }}</p>
     </div>
 
     <!-- Property Information -->
@@ -1050,17 +1049,28 @@
                 <label>Owner Preferred Communication:</label>
                 <div class="value">{{ $formData['preferredCommunication'] }}</div>
             </div>
+            <div>
+                <input type="checkbox" id="terms"
+                    {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }}
+                    style="margin: 0" />
+                <label for="terms">
+                    I hereby consent to receive my IRS Form
+                    1099 electronically via the email
+                    address provided to TexasRenters.com,
+                    LLC. I understand that no paper copy
+                    will be mailed unless I revoke this
+                    consent in writing.
+                </label>
+            </div>
         </div>
     @endif
 
     <!-- Final Details & Signature -->
     <div class="section">
         <div class="section-title">Final Details & Signature</div>
-        <p style="color: #666; margin-bottom: 20px;">Almost done! Add any additional information and sign</p>
         <div class="signature-section">
             <p><strong>Electronic Signature</strong></p>
             <p>Please sign below to authorize and verify the information provided.</p>
-
             @if ($signature)
                 <div class="form-group">
                     <label>Electronic Signature:</label>
@@ -1084,6 +1094,8 @@
         <p>This document was generated electronically by TexasRenters.com Onboarding Portal.</p>
         <p>For questions about this onboarding process form, please contact us at 281-248-8018.</p>
         <p>Developed and maintained by Texas Renters IT Department.</p>
+        <p>Generated on: {{ $generated_at }}</p>
+
     </div>
 </body>
 

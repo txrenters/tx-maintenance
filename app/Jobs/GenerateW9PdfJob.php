@@ -168,8 +168,8 @@ class GenerateW9PdfJob implements ShouldQueue
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $this->buildingData['id']);
 
-                unlink($signatureData);
-                unlink($storagePath);
+                if (file_exists($signaturePath)) unlink($signaturePath);
+                if (file_exists($storagePath)) unlink($storagePath);
             }
 
         } catch (\Exception $e) {
