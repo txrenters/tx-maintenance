@@ -160,6 +160,7 @@ class DashboardController extends Controller
             ', [$year])
             ->havingRaw('total > 0')
             ->where('name', '!=', 'Not Changed')
+            ->where('name', '!=', 'Closed')
             ->get()
             ->map(fn ($status) => [
                 'name' => $status->name,
