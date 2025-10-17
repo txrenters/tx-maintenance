@@ -73,7 +73,6 @@ class GenerateOnboardingPdfJob implements ShouldQueue
                 'File Path' => $storagePath,
             ]);
 
-            // Optional: Upload to Propertyware (if needed)
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $buildingId);
 

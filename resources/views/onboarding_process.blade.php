@@ -1048,18 +1048,20 @@
             <label>Owner Preferred Communication:</label>
             <div class="value">{{ $formData['preferredCommunication'] ?? '' }}</div>
         </div>
-        <div>
-            <input type="checkbox" id="terms"
-                {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }}
-                style="margin: 0" />
-            <label for="terms">
+        <div style="margin-bottom: 15px">
+            <div for="terms" style="display: inline-block; padding: 5px">
+                <input type="checkbox" id="terms"
+                    style="
+                display: inline-block;
+                width: 20px;"
+                    {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }} />
                 I hereby consent to receive my IRS Form
                 1099 electronically via the email
                 address provided to TexasRenters.com,
                 LLC. I understand that no paper copy
                 will be mailed unless I revoke this
                 consent in writing.
-            </label>
+            </div>
         </div>
     </div>
 
@@ -1067,7 +1069,6 @@
     <div class="section">
         <div class="section-title">Final Details & Signature</div>
         <div class="signature-section">
-            <p><strong>Electronic Signature</strong></p>
             <p>Please sign below to authorize and verify the information provided.</p>
             @if ($signature)
                 <div class="form-group">
@@ -1076,14 +1077,15 @@
                     <img src="{{ $signature }}" alt="Property Owner Signature" class="signature-image">
                     <br>
                     @if (isset($ownerName))
-                        <span class="value" style="font-weight: 900; font-size: 14px">{{ $ownerName }}</span>
+                        <span style="font-weight: 900; font-size: 14px; margin-top: 5px">{{ $ownerName }}</span>
                     @endif
+                    <div class="form-group">
+                        <label>Date Signed: {{ $generated_at }}</label>
+                    </div>
                 </div>
             @endif
 
-            <div class="form-group">
-                <label>Date Signed: {{ $generated_at }}</label>
-            </div>
+
         </div>
     </div>
 
