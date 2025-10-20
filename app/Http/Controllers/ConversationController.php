@@ -124,18 +124,18 @@ class ConversationController extends Controller
 
             $messageContent = $validatedData['text'] ?? '';
 
+            $imageFullPath = '';
+
             if ($imagePath) {
-                $imageNote = $messageContent ? "\n\n📷 Image attached" : '📷 Image sent';
-                $messageContent = $messageContent.$imageNote;
+                $imageFullPath = asset('storage/'.$imagePath);
             }
 
-            if (! empty($messageContent)) {
-                $twilio->sendMessage(
-                    $receiverNumber,
-                    $senderNumber,
-                    $messageContent
-                );
-            }
+            $twilio->sendMessage(
+                $receiverNumber,
+                $senderNumber,
+                $messageContent,
+                $imageFullPath
+            );
             
             DB::commit();
             return redirect()->back()->with('success', 'Message sent successfully!');
