@@ -247,11 +247,10 @@ class WorkOrderImportCommand extends Command
             'user_id' => $user->id,
         ];
 
-        $tenantExists = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->exists();
-
-        if (! $tenantExists) {
-            DB::table('tenants')->insert($tenantData);
-        }
+        DB::table('tenants')->updateOrInsert(
+            ['propertyware_id' => $tenant_propertyware_id],
+            $tenantData
+        );
 
         return DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
     }
@@ -307,12 +306,11 @@ class WorkOrderImportCommand extends Command
             'org_id' => $data['owner']['orgId'] ?? null,
             'user_id' => $user->id,
         ];
-
-        $ownerExists = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->exists();
-
-        if (! $ownerExists) {
-            DB::table('owners')->insert($ownerData);
-        }
+        
+        DB::table('owners')->updateOrInsert(
+            ['propertyware_id', $owner_propertyware_id],
+            $ownerData
+        );
 
         return DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
     }
