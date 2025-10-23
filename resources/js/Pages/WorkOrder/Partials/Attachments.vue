@@ -176,7 +176,13 @@ function handleFiles(event) {
 
 <template>
     <div class="grid gap-3 overflow-y-auto px-6">
-        <div class="flex justify-end gap-2 items-center mb-3">
+        <div
+            class="flex justify-end gap-2 items-center mb-3"
+            v-if="
+                $page.props.auth.user.roles.includes('admin') ||
+                $page.props.auth.user.roles.includes('woc')
+            "
+        >
             <Button
                 :disabled="isLoading"
                 size="icon"

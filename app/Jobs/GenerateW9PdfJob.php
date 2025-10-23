@@ -7,7 +7,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use mikehaertl\pdftk\Pdf as PdftkPdf;
 use setasign\Fpdi\Fpdi;
 
 class GenerateW9PdfJob implements ShouldQueue
@@ -50,7 +49,7 @@ class GenerateW9PdfJob implements ShouldQueue
             $templatePath = public_path('w9_form.pdf');
 
             // === 2️⃣ Create a new filled PDF ===
-            $pdf = new Fpdi();
+            $pdf = new Fpdi;
             $pdf->AddPage();
             $pdf->setSourceFile($templatePath);
             $template = $pdf->importPage(1);
@@ -62,13 +61,13 @@ class GenerateW9PdfJob implements ShouldQueue
 
             // === 3️⃣ Fill text fields ===
             $pdf->SetXY(25, 41);
-            $pdf->Write(5, $this->formData['w9_entity_name'] ?? "");
+            $pdf->Write(5, $this->formData['w9_entity_name'] ?? '');
 
             $pdf->SetXY(25, 50);
-            $pdf->Write(5, $this->formData['w9_business_name'] ?? "");
+            $pdf->Write(5, $this->formData['w9_business_name'] ?? '');
 
-           //3a
-            [$x, $y] = match($this->formData['w9_tax_class'] ?? null) {
+            // 3a
+            [$x, $y] = match ($this->formData['w9_tax_class'] ?? null) {
                 'r1' => [25, 62],
                 'r2' => [63, 62],
                 'r3' => [89, 62],
@@ -84,15 +83,15 @@ class GenerateW9PdfJob implements ShouldQueue
                 $pdf->Write(5, '4');
             }
 
-            if($this->formData['w9_tax_class1']){
-                $pdf->SetXY(155, 91); //3b
-                $pdf->Write(5, '4'); 
+            if ($this->formData['w9_tax_class1']) {
+                $pdf->SetXY(155, 91); // 3b
+                $pdf->Write(5, '4');
             }
-          
+
             $pdf->SetFont('Helvetica', 'B', 10);
             $pdf->SetXY(150, 67);
-            $pdf->Write(5, $this->formData['w9_llc_tax_class'] ?? ''); 
-          
+            $pdf->Write(5, $this->formData['w9_llc_tax_class'] ?? '');
+
             $pdf->SetXY(57, 80);
             $pdf->Write(5, $this->formData['w9_other_tax_class'] ?? '');
 
@@ -115,7 +114,7 @@ class GenerateW9PdfJob implements ShouldQueue
             $pdf->MultiCell(60, 5, $this->formData['w9_requester_name_and_address'] ?? '', 0, 'L');
 
             $pdf->SetXY(142, 207);
-            $pdf->Write(5,  now()->tz('America/Chicago')->format('F d, Y'));
+            $pdf->Write(5, now()->tz('America/Chicago')->format('F d, Y'));
 
             $pdf->SetFont('Helvetica', 'B', 12);
 
@@ -150,10 +149,10 @@ class GenerateW9PdfJob implements ShouldQueue
             file_put_contents($signaturePath, base64_decode($signatureData));
 
             // Add to PDF
-            $pdf->Image($signaturePath, 35, 201, 40 , 0, 'PNG'); // (x, y, width)
+            $pdf->Image($signaturePath, 35, 201, 40, 0, 'PNG'); // (x, y, width)
 
             // === 4️⃣ Save to storage ===
-            $fileName = "form_w9_" . time() . ".pdf";
+            $fileName = 'form_w9_'.time().'.pdf';
             $storagePath = storage_path("app/public/{$fileName}");
 
             $pdf->Output($storagePath, 'F'); // “F” = file save
@@ -168,8 +167,12 @@ class GenerateW9PdfJob implements ShouldQueue
             if (file_exists($storagePath)) {
                 $this->uploadToPropertyware($storagePath, $fileName, $this->buildingData['id']);
 
-                if (file_exists($signaturePath)) unlink($signaturePath);
-                if (file_exists($storagePath)) unlink($storagePath);
+                if (file_exists($signaturePath)) {
+                    unlink($signaturePath);
+                }
+                if (file_exists($storagePath)) {
+                    unlink($storagePath);
+                }
             }
 
         } catch (\Exception $e) {

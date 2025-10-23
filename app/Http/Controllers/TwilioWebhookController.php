@@ -68,7 +68,7 @@ class TwilioWebhookController extends Controller
                             'senderNumber' => $from,
                             'receiverNumber' => $to,
                             'message' => $body,
-                            'work_order_id' => $workOrder->id
+                            'work_order_id' => $workOrder->id,
                         ])
                         ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
 
@@ -130,10 +130,9 @@ class TwilioWebhookController extends Controller
                     'senderNumber' => $from,
                     'receiverNumber' => $to,
                     'message' => $body,
-                    'job_id' => $jobber->id
+                    'job_id' => $jobber->id,
                 ])
                 ->log('Job #'.$jobber->job_number.' - New Message Received');
-
 
             Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);
 
@@ -206,11 +205,11 @@ class TwilioWebhookController extends Controller
     {
         return JobberTextMessage::where(function ($query) use ($from, $to) {
             $query->where('receiver_number', $from)
-                    ->where('sender_number', $to);
-                })->orWhere(function ($query) use ($to, $from) {
-                    $query->where('receiver_number', $to)
-                        ->where('sender_number', $from);
-                })->first(); // fetch the latest conversation
+                ->where('sender_number', $to);
+        })->orWhere(function ($query) use ($to, $from) {
+            $query->where('receiver_number', $to)
+                ->where('sender_number', $from);
+        })->first(); // fetch the latest conversation
     }
 
     protected function getMessageType(string $from, string $to): string

@@ -84,7 +84,9 @@ class GenerateOnboardingPdfJob implements ShouldQueue
                     'updated_at' => now(),
                 ]);
 
-                if (file_exists($storagePath)) unlink($storagePath);
+                if (file_exists($storagePath)) {
+                    unlink($storagePath);
+                }
             }
 
         } catch (\Exception $e) {

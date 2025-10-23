@@ -6,7 +6,6 @@ use App\Models\Conversation;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CheckAndResendFailedMessages extends Command
@@ -37,13 +36,14 @@ class CheckAndResendFailedMessages extends Command
             $startDate = $endDate->copy()->subHours($hours);
         } catch (\Exception $e) {
             $this->error('Invalid date format. Please use YYYY-MM-DD');
+
             return 1;
         }
 
         $this->info("Checking messages from {$startDate->format('Y-m-d H:i:s')} to {$endDate->format('Y-m-d H:i:s')}");
-        
+
         if ($dryRun) {
-            $this->warn("DRY RUN MODE - No messages will actually be sent");
+            $this->warn('DRY RUN MODE - No messages will actually be sent');
         }
 
         // Get messages created after 5 PM or before 9 AM
@@ -54,7 +54,7 @@ class CheckAndResendFailedMessages extends Command
             ->where('receiver_number', '!=', '')
             ->where(function ($query) {
                 $query->whereTime('created_at', '>=', '17:00:00')  // After 5 PM
-                      ->orWhereTime('created_at', '<', '09:00:00'); // Before 9 AM
+                    ->orWhereTime('created_at', '<', '09:00:00'); // Before 9 AM
             })
             ->with(['work_order', 'media'])
             ->orderBy('created_at', 'asc')
@@ -63,7 +63,8 @@ class CheckAndResendFailedMessages extends Command
         $this->info("Found {$messages->count()} messages created after business hours");
 
         if ($messages->isEmpty()) {
-            $this->info("No after-hours messages found");
+            $this->info('No after-hours messages found');
+
             return 0;
         }
 
@@ -78,7 +79,7 @@ class CheckAndResendFailedMessages extends Command
 
         foreach ($messagesByWorkOrder as $workOrderId => $workOrderMessages) {
             $workOrder = $workOrderMessages->first()->work_order;
-            
+
             $this->info("Work Order #{$workOrderId}:");
             $this->line("  Location: {$workOrder->location}");
             $this->line("  Created: {$workOrder->created_at->format('Y-m-d H:i:s')}");
@@ -90,13 +91,13 @@ class CheckAndResendFailedMessages extends Command
                 $this->line("  [{$time}] {$message->conversation_type}");
                 $this->line("  From: {$message->sender_number}");
                 $this->line("  To: {$message->receiver_number}");
-                $this->line("  Message: " . substr($message->message, 0, 100) . (strlen($message->message) > 100 ? '...' : ''));
-                
+                $this->line('  Message: '.substr($message->message, 0, 100).(strlen($message->message) > 100 ? '...' : ''));
+
                 if ($message->is_mms && $message->media->isNotEmpty()) {
-                    $this->line("  Has MMS attachment");
+                    $this->line('  Has MMS attachment');
                 }
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     try {
                         // Get media URL if exists
                         $mediaUrl = null;
@@ -111,20 +112,20 @@ class CheckAndResendFailedMessages extends Command
                             $message->message,
                             $mediaUrl
                         );
-                        
-                        $this->info("  ✓ Resent successfully");
+
+                        $this->info('  ✓ Resent successfully');
                         $totalResent++;
-                        
+
                         Log::info('After-hours message resent', [
                             'work_order_id' => $workOrderId,
                             'conversation_id' => $message->id,
                             'original_time' => $message->created_at,
                         ]);
-                        
+
                     } catch (\Exception $e) {
-                        $this->error("  ✗ Failed to resend: " . $e->getMessage());
+                        $this->error('  ✗ Failed to resend: '.$e->getMessage());
                         $totalFailed++;
-                        
+
                         Log::error('Failed to resend after-hours message', [
                             'work_order_id' => $workOrderId,
                             'conversation_id' => $message->id,
@@ -132,22 +133,22 @@ class CheckAndResendFailedMessages extends Command
                         ]);
                     }
                 } else {
-                    $this->warn("  ⚠ Would resend (dry run mode)");
+                    $this->warn('  ⚠ Would resend (dry run mode)');
                     $totalResent++;
                 }
-                
+
                 $this->newLine();
             }
-            
+
             $this->line(str_repeat('-', 60));
             $this->newLine();
         }
 
         // Summary
-        $this->info("Summary:");
+        $this->info('Summary:');
         $this->info("Total messages found: {$messages->count()}");
-        
-        if (!$dryRun) {
+
+        if (! $dryRun) {
             $this->info("Successfully resent: {$totalResent}");
             if ($totalFailed > 0) {
                 $this->error("Failed to resend: {$totalFailed}");

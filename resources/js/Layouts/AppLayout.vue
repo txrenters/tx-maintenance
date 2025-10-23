@@ -162,14 +162,14 @@ const navs = computed(() => ({
             url: route("scheduled_service"),
             isActive: page.url.startsWith("/scheduled_service"),
             icon: CalendarDays,
-            requires: ["admin", "woc", "vendor"],
+            requires: ["admin", "woc", "vendor", "owner"],
         },
         {
             name: "Invoices",
             url: route("invoices.index"),
             isActive: page.url.startsWith("/work_order/invoices"),
             icon: Files,
-            requires: ["admin", "woc", "vendor"],
+            requires: ["admin", "woc", "vendor", "owner"],
         },
         {
             name: "Vendors",
@@ -908,7 +908,14 @@ onUnmounted(() => {
                                     </template>
                                 </PopoverContent>
                             </Popover>
-                            <DropdownMenu>
+                            <DropdownMenu
+                                v-if="
+                                    $page.props.auth.user.roles.includes(
+                                        'admin'
+                                    ) ||
+                                    $page.props.auth.user.roles.includes('woc')
+                                "
+                            >
                                 <DropdownMenuTrigger as-child>
                                     <Button variant="icon">
                                         <BookOpen class="w-4 h-4" />

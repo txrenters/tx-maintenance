@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\JobberAuthController;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberTextMessage;
@@ -76,7 +75,8 @@ class InspectionController extends Controller
         ]);
     }
 
-    public function destroy(Jobber $inspection){
+    public function destroy(Jobber $inspection)
+    {
         $inspection->delete();
 
         return redirect()->back()->with('success', 'Deleted successfully!');
@@ -287,17 +287,17 @@ class InspectionController extends Controller
         try {
             // First check if we have a valid token
             $token = JobberToken::first();
-            
-            if (!$token || !$token->access_token) {
+
+            if (! $token || ! $token->access_token) {
                 return response()->json([
                     'error' => 'No Jobber connection',
                     'message' => 'Please connect to Jobber first',
                     'needs_reconnect' => true,
                 ], 400);
             }
-            
+
             // Try to validate the token by attempting a refresh if needed
-            $authController = new JobberAuthController();
+            $authController = new JobberAuthController;
             try {
                 $authController->ensureValidToken();
             } catch (\Exception $tokenException) {
@@ -308,12 +308,12 @@ class InspectionController extends Controller
                     'needs_reconnect' => true,
                 ], 401);
             }
-            
+
             // Execute the Artisan command
             Artisan::call('jobber:import-jobs');
-            
+
             $output = Artisan::output();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Jobber sync initiated successfully',
@@ -328,7 +328,7 @@ class InspectionController extends Controller
                     'needs_reconnect' => true,
                 ], 401);
             }
-            
+
             return response()->json([
                 'error' => 'Failed to sync with Jobber',
                 'message' => $e->getMessage(),

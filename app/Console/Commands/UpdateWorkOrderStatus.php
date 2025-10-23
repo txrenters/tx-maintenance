@@ -2,13 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class UpdateWorkOrderStatus extends Command
@@ -44,11 +41,12 @@ class UpdateWorkOrderStatus extends Command
 
         if (empty($work_orders)) {
             Log::warning('No work orders returned from Propertyware API.');
+
             return;
         }
-       
+
         Log::info('Work Orders updates are running.');
-        
+
         try {
             foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
                 foreach ($workOrderChunk as $order) {
@@ -60,10 +58,10 @@ class UpdateWorkOrderStatus extends Command
 
                         $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
-                        if($workOrder){
+                        if ($workOrder) {
                             $workOrder->update(['status' => $data['status']]);
                             $customFieldData = [];
-                            
+
                             foreach ($data['customFields'] as $customField) {
                                 if ($customField['fieldName'] == 'Service Status') {
 
@@ -89,9 +87,9 @@ class UpdateWorkOrderStatus extends Command
                 }
             }
 
-            Log::info('Successfully updated Work order status! Work Order Count: '. count($work_orders));
+            Log::info('Successfully updated Work order status! Work Order Count: '.count($work_orders));
         } catch (\Throwable $th) {
-            Log::error('Updating Work order failed: '. $th->getMessage());
+            Log::error('Updating Work order failed: '.$th->getMessage());
         }
     }
 }

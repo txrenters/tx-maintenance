@@ -25,11 +25,6 @@ class WorkOrderScope implements Scope
             return;
         }
 
-        // Apply role-based filters
-        // if ($user->hasRole('woc')) {
-        //     $builder->where('user_id', $user->id);
-        // }
-
         if ($user->hasRole('vendor') && $user->vendor) {
             $vendorId = $user->vendor->id;
 
@@ -37,6 +32,14 @@ class WorkOrderScope implements Scope
                 $query->whereHas('vendors', fn ($q) => $q->where('vendor_id', $vendorId))
                     ->orWhereHas('tasks', fn ($q) => $q->where('assigned_user_id', $user->id))
                     ->orWhereHas('attachments', fn ($q) => $q->where('user_id', $user->id));
+            });
+        }
+
+        if ($user->hasRole('owner') && $user->owner) {
+            $ownerId = $user->owner->id;
+
+            $builder->where(function ($query) use ($ownerId) {
+                $query->whereHas('owners', fn ($q) => $q->where('owner_id', $ownerId));
             });
         }
 

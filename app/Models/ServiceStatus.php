@@ -18,7 +18,7 @@ class ServiceStatus extends Model
 
     public function work_orders(): HasMany
     {
-        return $this->hasMany(WorkOrder::class)->latest('created_date');
+        return $this->hasMany(WorkOrder::class, 'service_status_id', 'id')->latest('created_date');
     }
 
     public function work_order(): HasOne

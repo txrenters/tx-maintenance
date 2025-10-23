@@ -49,6 +49,8 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
+import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
+import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 
 const props = defineProps({
     title: String,
@@ -156,13 +158,31 @@ const tabButtons = [
         name: "owner_conversation",
         tooltip: "Owner Conversation",
         icon: "O",
-        requires: ["admin", "woc", "owner"],
+        requires: ["admin", "woc"],
     },
     {
         name: "tenant_conversation",
         tooltip: "Tenant Conversation",
         icon: "T",
-        requires: ["admin", "woc", "tenant"],
+        requires: ["admin", "woc"],
+    },
+    {
+        name: "owner_woc_conversation",
+        tooltip: "Work Order Coordinator Conversation",
+        icon: "W",
+        requires: ["owner"],
+    },
+    {
+        name: "tenant_woc_conversation",
+        tooltip: "Work Order Coordinator Conversation",
+        icon: "W",
+        requires: ["tenant"],
+    },
+    {
+        name: "tenant_vendor_conversation",
+        tooltip: "Vendor Conversation",
+        icon: "V",
+        requires: ["tenant"],
     },
     {
         name: "service_schedule",
@@ -219,6 +239,10 @@ const switchTab = (tabName) => {
     }
 
     if (activeTab.value === "owner_conversation" && workOrderForm.id) {
+        fetchOwnerConversation(workOrderForm.id);
+    }
+
+    if (activeTab.value === "owner_woc_conversation" && workOrderForm.id) {
         fetchOwnerConversation(workOrderForm.id);
     }
 
@@ -470,7 +494,6 @@ const handleCloseOrderSubmit = () => {
         only: ["service_status"],
     });
 };
-console.log("Fetching work order:", props.service_status);
 
 const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
@@ -620,11 +643,16 @@ watch(filter_vendor, filterVendor);
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
         <SearchBar :url="url" v-model="search" />
-        <div class="flex gap-2 items-center w-full">
+        <div
+            class="flex gap-2 items-center w-full"
+            v-if="
+                $page.props.auth.user.roles.includes('admin') ||
+                $page.props.auth.user.roles.includes('woc')
+            "
+        >
             <Select
                 :modelValue="String(filter_vendor)"
                 @update:modelValue="(value) => (filter_vendor = value)"
-                v-if="!$page.props.auth.user.roles.includes('vendor')"
             >
                 <SelectTrigger class="w-full sm:w-[250px]">
                     <SelectValue placeholder="Select a vendor" />
@@ -872,6 +900,24 @@ watch(filter_vendor, filterVendor);
                 @update-tenant-convo="fetchTenantConversation(workOrderForm.id)"
                 :isLoading="isLoading"
                 v-if="activeTab === 'tenant_conversation'"
+            />
+
+            <OwnerWocConversation
+                :ownerConversation="ownerConversation"
+                :workOrder="workOrderForm"
+                @update-owner-convo="fetchOwnerConversation(workOrderForm.id)"
+                :isLoading="isLoading"
+                v-if="activeTab === 'owner_woc_conversation'"
+            />
+
+            <OwnerVendorConversation
+                :ownerVendorConversation="ownerVendorConversation"
+                :workOrder="workOrderForm"
+                @update-owner-vendor-convo="
+                    fetchOwnerVendorConversation(workOrderForm.id)
+                "
+                :isLoading="isLoading"
+                v-if="activeTab === 'owner_vendor_conversation'"
             />
 
             <ServiceSchedule

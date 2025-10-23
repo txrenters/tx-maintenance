@@ -8,8 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use mikehaertl\pdftk\Pdf;
-use setasign\Fpdi\Fpdi;
-use setasign\Fpdi\Tfpdf\Fpdi as TfpdfFpdi;
 
 class BuildingController extends Controller
 {
@@ -108,10 +106,6 @@ class BuildingController extends Controller
                 }, $propertywareData['fieldSetDTOS']),
             ]);
 
-
-
-
-
             // Make API call to Propertyware for custom fields
             $response = $this->updatePropertywareCustomFields($propertywareData);
 
@@ -140,7 +134,7 @@ class BuildingController extends Controller
                     // Dispatch PDF generation job
                     GenerateOnboardingPdfJob::dispatch($signature, $formData, $buildingData, $propertywareData, $ownerName)->delay(now()->addSeconds(5));
 
-                    if(!empty($formData['w9_entity_name']) || !empty($formData['w9_business_name'])){
+                    if (! empty($formData['w9_entity_name']) || ! empty($formData['w9_business_name'])) {
                         GenerateW9PdfJob::dispatch($signature, $formData, $buildingData, $propertywareData, $ownerName)->delay(now()->addSeconds(5));
                     }
 

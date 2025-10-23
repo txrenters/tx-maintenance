@@ -670,12 +670,12 @@ class PropertyWareService
         $vendor = DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->first();
         $vendorName = Vendor::find($vendor->vendor_id);
 
-        if($vendorName->name == 'Texas Home Maintenance Pros'){
+        if ($vendorName->name == 'Texas Home Maintenance Pros') {
             Http::post('https://n8n.srv902502.hstgr.cloud/webhook/create-job', [
                 'work_order_no' => $workOrder->work_order_no,
             ]);
         }
-        
+
         Log::info('Work order vendor has been added successfully!', [
             'Work order no' => $workOrder->work_order_no,
         ]);

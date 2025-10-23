@@ -222,7 +222,12 @@ const handleDeleteSubmit = () => {
     </div>
     <div class="grid gap-3 overflow-y-auto px-6" v-else>
         <div class="grid grid-cols-2 gap-3">
-            <div>
+            <div
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc')
+                "
+            >
                 <Label for="message">Vendors:</Label>
                 <Button
                     size="small"
@@ -319,6 +324,13 @@ const handleDeleteSubmit = () => {
                     </ComboboxAnchor>
                 </Combobox>
             </div>
+            <div>
+                <Label for="message">Vendors:</Label>
+                <p v-for="vendor in workOrder.vendors" :key="vendor">
+                    <span v-if="vendor.id"> {{ vendor.name }}</span>
+                    <span v-else> {{ vendor }}</span>
+                </p>
+            </div>
             <div
                 v-if="
                     (workOrder.is_emergency === null &&
@@ -349,6 +361,15 @@ const handleDeleteSubmit = () => {
                 <p>{{ workOrder.is_emergency ?? "" }}</p>
             </div>
             <div>
+                <Label for="message">Category:</Label>
+                <p>{{ workOrder.category }}</p>
+            </div>
+            <div
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc')
+                "
+            >
                 <Label for="message">Category:</Label>
                 <Select
                     v-model="workOrder.category"

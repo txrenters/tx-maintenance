@@ -41,27 +41,28 @@ class ResendUnsentMessages extends Command
             if (strlen($toDate) === 10) {
                 $toDate .= ' 23:59:59';
             }
-            
+
             $startDate = Carbon::parse($fromDate);
             $endDate = Carbon::parse($toDate);
         } catch (\Exception $e) {
             $this->error('Invalid date format. Use YYYY-MM-DD HH:MM:SS or YYYY-MM-DD');
+
             return 1;
         }
 
-        $this->info("=" . str_repeat("=", 70));
-        $this->info("RESENDING UNSENT MESSAGES");
-        $this->info("=" . str_repeat("=", 70));
+        $this->info('='.str_repeat('=', 70));
+        $this->info('RESENDING UNSENT MESSAGES');
+        $this->info('='.str_repeat('=', 70));
         $this->info("From: {$startDate->format('Y-m-d H:i:s')}");
         $this->info("To: {$endDate->format('Y-m-d H:i:s')}");
-        
+
         if ($dryRun) {
-            $this->warn("🔍 DRY RUN MODE - No messages will actually be sent");
+            $this->warn('🔍 DRY RUN MODE - No messages will actually be sent');
         }
         if ($limit > 0) {
             $this->info("Limit: {$limit} messages");
         }
-        $this->info("=" . str_repeat("=", 70));
+        $this->info('='.str_repeat('=', 70));
         $this->newLine();
 
         // Get all messages in the date range
@@ -80,7 +81,8 @@ class ResendUnsentMessages extends Command
         $messages = $query->get();
 
         if ($messages->isEmpty()) {
-            $this->warn("No messages found in the specified date range");
+            $this->warn('No messages found in the specified date range');
+
             return 0;
         }
 
@@ -98,34 +100,34 @@ class ResendUnsentMessages extends Command
 
         foreach ($messagesByDate as $date => $dayMessages) {
             $this->info("📅 Date: {$date}");
-            $this->info(str_repeat("-", 50));
-            
+            $this->info(str_repeat('-', 50));
+
             foreach ($dayMessages as $message) {
-                $this->line("");
+                $this->line('');
                 $this->info("Message ID: {$message->id} | Work Order: #{$message->work_order_id}");
                 $this->line("Time: {$message->created_at->format('H:i:s')} | Type: {$message->conversation_type}");
                 $this->line("From: {$message->sender_number}");
                 $this->line("To: {$message->receiver_number}");
-                
+
                 // Show truncated message
-                $messagePreview = strlen($message->message) > 150 
-                    ? substr($message->message, 0, 150) . '...' 
+                $messagePreview = strlen($message->message) > 150
+                    ? substr($message->message, 0, 150).'...'
                     : $message->message;
                 $this->line("Message: {$messagePreview}");
-                
+
                 // Check for media
                 $mediaUrl = null;
                 if ($message->is_mms && $message->media->isNotEmpty()) {
                     $media = $message->media->first();
                     if ($media && $media->media_url) {
                         $mediaUrl = $media->media_url;
-                        $this->line("📎 Has MMS attachment");
+                        $this->line('📎 Has MMS attachment');
                     }
                 }
 
-                if (!$dryRun) {
-                    $this->line("Sending...");
-                    
+                if (! $dryRun) {
+                    $this->line('Sending...');
+
                     try {
                         // Send via Twilio
                         $this->twilioService->sendMessage(
@@ -134,10 +136,10 @@ class ResendUnsentMessages extends Command
                             $message->message,
                             $mediaUrl
                         );
-                        
+
                         $totalSent++;
-                        $this->info("✅ Sent successfully!");
-                        
+                        $this->info('✅ Sent successfully!');
+
                         // Log success
                         Log::info('Unsent message resent successfully', [
                             'conversation_id' => $message->id,
@@ -147,14 +149,14 @@ class ResendUnsentMessages extends Command
                             'original_created_at' => $message->created_at,
                             'resent_at' => now(),
                         ]);
-                        
+
                         // Small delay to avoid rate limiting
                         usleep(500000); // 0.5 second delay
-                        
+
                     } catch (\Exception $e) {
                         $totalFailed++;
-                        $this->error("❌ Failed: " . $e->getMessage());
-                        
+                        $this->error('❌ Failed: '.$e->getMessage());
+
                         Log::error('Failed to resend unsent message', [
                             'conversation_id' => $message->id,
                             'work_order_id' => $message->work_order_id,
@@ -163,24 +165,24 @@ class ResendUnsentMessages extends Command
                         ]);
                     }
                 } else {
-                    $this->warn("⏭️  Would send (dry run mode)");
+                    $this->warn('⏭️  Would send (dry run mode)');
                     $totalSent++;
                 }
-                
-                $this->line(str_repeat("-", 50));
+
+                $this->line(str_repeat('-', 50));
             }
-            
+
             $this->newLine();
         }
 
         // Final Summary
         $this->newLine();
-        $this->info("=" . str_repeat("=", 70));
-        $this->info("SUMMARY");
-        $this->info("=" . str_repeat("=", 70));
+        $this->info('='.str_repeat('=', 70));
+        $this->info('SUMMARY');
+        $this->info('='.str_repeat('=', 70));
         $this->info("Total messages processed: {$messages->count()}");
-        
-        if (!$dryRun) {
+
+        if (! $dryRun) {
             $this->info("✅ Successfully sent: {$totalSent}");
             if ($totalFailed > 0) {
                 $this->error("❌ Failed to send: {$totalFailed}");
@@ -188,7 +190,7 @@ class ResendUnsentMessages extends Command
             if ($totalSkipped > 0) {
                 $this->warn("⏭️  Skipped: {$totalSkipped}");
             }
-            
+
             // Log summary
             Log::info('Resend unsent messages command completed', [
                 'date_range' => "{$startDate} to {$endDate}",

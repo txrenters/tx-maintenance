@@ -124,7 +124,13 @@ const handleFetchNotes = () => {
             <div>
                 <p class="font-semibold uppercase text-xs">Notes</p>
             </div>
-            <div class="flex gap-2">
+            <div
+                class="flex gap-2"
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc')
+                "
+            >
                 <Button
                     :disabled="isLoading"
                     size="icon"

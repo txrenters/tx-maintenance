@@ -620,7 +620,13 @@ watch(filter_vendor, filterVendor);
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
         <SearchBar :url="url" v-model="search" />
-        <div class="flex gap-2 items-center w-full">
+        <div
+            class="flex gap-2 items-center w-full"
+            v-if="
+                $page.props.auth.user.roles.includes('admin') ||
+                $page.props.auth.user.roles.includes('woc')
+            "
+        >
             <Select
                 :modelValue="String(filter_vendor)"
                 @update:modelValue="(value) => (filter_vendor = value)"

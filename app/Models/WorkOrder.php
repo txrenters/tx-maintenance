@@ -49,7 +49,7 @@ class WorkOrder extends Model
 
     public function owner(): HasOne
     {
-        return $this->hasOne(Owner::class, 'work_order_owners');
+        return $this->hasOne(Owner::class, 'work_order_owners', 'work_order_id', 'owner_id');
     }
 
     public function tenants(): BelongsToMany
@@ -61,7 +61,6 @@ class WorkOrder extends Model
     {
         return $this->vendors()->first();
     }
-
 
     public function vendors(): BelongsToMany
     {
@@ -132,6 +131,13 @@ class WorkOrder extends Model
             ->orderBy('created_at', 'desc');
     }
 
+    public function scopeScoped($query)
+    {
+        (new WorkOrderScope)->apply($query, $this);
+
+        return $query;
+    }
+
     public function scopeFilter($query, array $filters)
     {
         $query
@@ -153,5 +159,24 @@ class WorkOrder extends Model
                 $q->whereBetween('created_date', [$start_date, $end_date]);
             });
 
+    }
+
+    public function scopeFiltered($query)
+    {
+        $query->when(request('search'), function ($q, $search) {
+            $q->where('work_order_no', $search);
+        })
+            ->when(request('vendor'), function ($q, $vendorId) {
+                $q->whereHas('vendors', function ($q) use ($vendorId) {
+                    $q->where('work_order_vendors.vendor_id', $vendorId);
+                });
+            })
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $date = request()->only(['start_date', 'end_date']);
+                $start = Carbon::parse($date['start_date'])->startOfDay();
+                $end = Carbon::parse($date['end_date'])->endOfDay();
+                $q->whereBetween('created_date', [$start, $end]);
+            })
+            ->where('status', 'Open');
     }
 }

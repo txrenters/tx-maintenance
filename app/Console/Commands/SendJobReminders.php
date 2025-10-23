@@ -139,7 +139,7 @@ class SendJobReminders extends Command
                                 ->performedOn($visit)
                                 ->event('jobber_not_sent')
                                 ->withProperties([
-                                    'jobber_error_message' => "We could not find the phone number for tenant: ".$clientName,
+                                    'jobber_error_message' => 'We could not find the phone number for tenant: '.$clientName,
                                 ])
                                 ->log('Job #'.$visit->job->job_number.' - Text Message Failed');
 
@@ -170,7 +170,7 @@ class SendJobReminders extends Command
                             'jobber_id' => $visit->job->id,
                             'sent_at' => $visit->job->start_at,
                         ]);
-                        
+
                         Log::info('Successfully sent text messages :', ['text' => $text]);
 
                     } catch (\Throwable $th) {

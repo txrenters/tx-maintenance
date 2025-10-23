@@ -37,24 +37,7 @@ class WorkOrderController extends Controller
         $service_status = ServiceStatus::with([
             'work_order',
             'work_order.owners',
-            'work_orders' => function ($query) {
-                $query->when(request('search'), function ($q, $search) {
-                        $q->where('work_order_no', $search);
-                    })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
-                    ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-                        $date = request()->only(['start_date', 'end_date']);
-                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
-                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
-
-                        $q->whereBetween('created_date', [$start_date, $end_date]);
-                    })
-                    ->where('status', 'Open');
-            },
+            'work_orders' => fn ($q) => $q->filtered()->scoped(),
             'work_orders.service_status',
             'work_orders.vendors',
             'work_orders.requested_by',
@@ -127,7 +110,6 @@ class WorkOrderController extends Controller
 
         // Get vendors for potential assignments
         $vendors = Vendor::where('is_active', true)->get();
-
 
         return inertia('WorkOrder/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
@@ -207,8 +189,8 @@ class WorkOrderController extends Controller
             'work_order.owners',
             'work_orders' => function ($query) {
                 $query->when(request('search'), function ($q, $search) {
-                        $q->where('work_order_no', $search);
-                    })
+                    $q->where('work_order_no', $search);
+                })
                     ->when(request('vendor'), function ($q, $vendorId) {
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
@@ -221,9 +203,9 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                   ->where(function ($q) {
+                    ->where(function ($q) {
                         $q->where('status', 'Closed')
-                          ->orWhere('status', 'Canceled By Tenant');
+                            ->orWhere('status', 'Canceled By Tenant');
                     })
                     ->orderBy('work_order_no', 'ASC')
                     ->limit(50);
@@ -278,7 +260,7 @@ class WorkOrderController extends Controller
                     'work_order_id' => $workOrder->id,
                     'vendor_id' => $vendorData->id,
                     'created_at' => now(),
-                    'updated_at' => now()
+                    'updated_at' => now(),
                 ]);
             }
 
@@ -291,9 +273,11 @@ class WorkOrderController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->back()->with('success', 'Work order vendors updated successfully.');
         } catch (\Throwable $th) {
             DB::rollBack();
+
             return redirect()->back()->with('error', 'Work order vendors failed.'.$th->getMessage());
         }
     }

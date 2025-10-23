@@ -151,16 +151,18 @@ class DashboardController extends Controller
 
     private function getServiceStatus($year)
     {
-        return ServiceStatus::selectRaw('
-                name,
-                (SELECT COUNT(*) FROM work_orders 
-                 WHERE work_orders.service_status_id = service_status.id 
-                 AND YEAR(work_orders.created_date) = ? 
-                 AND work_orders.status = "Open") as total
-            ', [$year])
-            ->havingRaw('total > 0')
-            ->where('name', '!=', 'Not Changed')
-            ->where('name', '!=', 'Closed')
+        return ServiceStatus::withCount([
+            // Count all related work orders for this service status
+            'work_orders as total' => function ($q) use ($year) {
+                // Apply your WorkOrderScope and filters automatically
+                $q->filtered() // If you have a local scope named filtered()
+                    ->scoped()   // If you have a local/global scope named scoped()
+                    ->whereYear('created_date', $year)
+                    ->where('work_orders.status', 'Open');
+            },
+        ])
+            ->whereNotIn('name', ['Not Changed', 'Closed'])
+            ->having('total', '>', 0)
             ->get()
             ->map(fn ($status) => [
                 'name' => $status->name,

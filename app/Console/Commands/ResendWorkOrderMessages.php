@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Conversation;
-use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -36,8 +35,9 @@ class ResendWorkOrderMessages extends Command
         $dryRun = $this->option('dry-run');
         $workOrderId = $this->option('work-order');
 
-        if (!$fromDate) {
+        if (! $fromDate) {
             $this->error('Please provide a from date using --from=YYYY-MM-DD');
+
             return 1;
         }
 
@@ -46,17 +46,18 @@ class ResendWorkOrderMessages extends Command
             $endDate = Carbon::parse($toDate)->endOfDay();
         } catch (\Exception $e) {
             $this->error('Invalid date format. Please use YYYY-MM-DD');
+
             return 1;
         }
 
         $this->info("Resending messages from {$startDate->format('Y-m-d H:i:s')} to {$endDate->format('Y-m-d H:i:s')}");
-        
+
         if ($afterHoursOnly) {
-            $this->info("Filtering for messages created after business hours (5 PM - 9 AM)");
+            $this->info('Filtering for messages created after business hours (5 PM - 9 AM)');
         }
-        
+
         if ($dryRun) {
-            $this->warn("DRY RUN MODE - No messages will actually be sent");
+            $this->warn('DRY RUN MODE - No messages will actually be sent');
         }
 
         // Build the query
@@ -80,6 +81,7 @@ class ResendWorkOrderMessages extends Command
         if ($afterHoursOnly) {
             $messages = $messages->filter(function ($message) {
                 $hour = $message->created_at->hour;
+
                 // After 5 PM (17:00) or before 9 AM (09:00)
                 return $hour >= 17 || $hour < 9;
             });
@@ -88,7 +90,8 @@ class ResendWorkOrderMessages extends Command
         $this->info("Found {$messages->count()} messages to resend");
 
         if ($messages->isEmpty()) {
-            $this->info("No messages found matching the criteria");
+            $this->info('No messages found matching the criteria');
+
             return 0;
         }
 
@@ -99,7 +102,7 @@ class ResendWorkOrderMessages extends Command
             try {
                 // Determine the Twilio phone number based on conversation type
                 $twilioNumber = $this->getTwilioNumber($message);
-                
+
                 // Prepare media URL if message has media
                 $mediaUrl = null;
                 if ($message->is_mms && $message->media->isNotEmpty()) {
@@ -114,12 +117,12 @@ class ResendWorkOrderMessages extends Command
                 $this->line("Work Order #{$message->work_order->id}: {$message->message}");
                 $this->line("From: {$message->sender_number} To: {$message->receiver_number}");
                 $this->line("Type: {$message->conversation_type} | Created: {$message->created_at}");
-                
+
                 if ($mediaUrl) {
                     $this->line("Media: {$mediaUrl}");
                 }
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     // Actually send the message
                     $this->twilioService->sendMessage(
                         $message->receiver_number,
@@ -127,10 +130,10 @@ class ResendWorkOrderMessages extends Command
                         $message->message,
                         $mediaUrl
                     );
-                    
+
                     $successCount++;
-                    $this->info("✓ Message sent successfully");
-                    
+                    $this->info('✓ Message sent successfully');
+
                     // Log the resend
                     Log::info('Work order message resent', [
                         'work_order_id' => $message->work_order_id,
@@ -141,14 +144,14 @@ class ResendWorkOrderMessages extends Command
                         'created_at' => $message->created_at,
                     ]);
                 } else {
-                    $this->info("✓ Would send message (dry run)");
+                    $this->info('✓ Would send message (dry run)');
                     $successCount++;
                 }
-                
+
             } catch (\Exception $e) {
                 $failCount++;
-                $this->error("✗ Failed to send message: " . $e->getMessage());
-                
+                $this->error('✗ Failed to send message: '.$e->getMessage());
+
                 Log::error('Failed to resend work order message', [
                     'work_order_id' => $message->work_order_id,
                     'conversation_id' => $message->id,
@@ -158,7 +161,7 @@ class ResendWorkOrderMessages extends Command
         });
 
         $this->newLine(2);
-        $this->info("Resend Summary:");
+        $this->info('Resend Summary:');
         $this->info("Successfully sent: {$successCount}");
         $this->error("Failed: {$failCount}");
 
@@ -169,7 +172,7 @@ class ResendWorkOrderMessages extends Command
     {
         // Determine which Twilio number to use based on conversation type
         // This should match your existing logic
-        
+
         switch ($message->conversation_type) {
             case 'vendor_woc':
             case 'vendor':
@@ -180,8 +183,9 @@ class ResendWorkOrderMessages extends Command
                         return $wocNumber;
                     }
                 }
+
                 return env('TWILIO_PHONE_NUMBER');
-                
+
             case 'tenant':
             case 'owner':
             case 'vendor_tenant':
