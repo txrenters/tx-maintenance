@@ -208,6 +208,18 @@ class ConversationController extends Controller
                 ]);
             }
 
+            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
+            activity()
+                ->performedOn($conversation)
+                ->event('work_order_message_received')
+                ->withProperties([
+                    'senderNumber' => $senderNumber,
+                    'receiverNumber' => $receiverNumber,
+                    'message' => $validatedData['text'],
+                    'work_order_id' => $validatedData['work_order_id'],
+                ])
+                ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
+
             DB::commit();
 
             return redirect()->back()->with('success', 'Message saved successfully!');
