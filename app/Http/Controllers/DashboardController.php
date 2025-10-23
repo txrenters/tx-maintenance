@@ -26,17 +26,17 @@ class DashboardController extends Controller
         });
 
         // Load all data immediately for now - remove lazy loading
-        $workOrderChart = Cache::remember("{$cacheKey}_chart", 600, fn () => $this->getWorkOrderChart($year));
-        $serviceStatus = Cache::remember("{$cacheKey}_service_status", 300, fn () => $this->getServiceStatus($year));
-        $inspectionAnalytics = Cache::remember("{$cacheKey}_inspection_analytics", 300, fn () => $this->getInspectionAnalytics($year));
+        // $workOrderChart = Cache::remember("{$cacheKey}_chart", 600, fn () => $this->getWorkOrderChart($year));
+        // $serviceStatus = Cache::remember("{$cacheKey}_service_status", 300, fn () => $this->getServiceStatus($year));
+        // $inspectionAnalytics = Cache::remember("{$cacheKey}_inspection_analytics", 300, fn () => $this->getInspectionAnalytics($year));
 
         return Inertia::render('Dashboard', [
             'title' => 'Dashboard',
             'stats' => $stats,
             'filter' => $request->only(['year']),
-            'workOrderChart' => $workOrderChart,
-            'serviceStatus' => $serviceStatus,
-            'inspectionAnalytics' => $inspectionAnalytics,
+            'workOrderChart' =>$this->getWorkOrderChart($year),
+            'serviceStatus' => $this->getServiceStatus($year),
+            'inspectionAnalytics' => $this->getInspectionAnalytics($year),
         ]);
     }
 

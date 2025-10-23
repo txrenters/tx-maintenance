@@ -729,8 +729,8 @@ watch(filter_vendor, filterVendor);
                     route('work_orders.export', {
                         vendor: filter_vendor,
                         search: search,
-                        start_date: date_range.start.toString(),
-                        end_date: date_range.end.toString(),
+                        start_date: date_range?.start?.toString(),
+                        end_date: date_range?.end?.toString(),
                     })
                 "
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80"
