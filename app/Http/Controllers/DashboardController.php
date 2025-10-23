@@ -132,6 +132,7 @@ class DashboardController extends Controller
                 SUM(CASE WHEN status = "Closed" THEN 1 ELSE 0 END) as Completed,
                 COUNT(id) as Created
             ')
+            ->scoped()
             ->whereYear('created_date', $year)
             ->groupByRaw('MONTHNAME(created_date), MONTH(created_date)')
             ->orderByRaw('MONTH(created_date)')

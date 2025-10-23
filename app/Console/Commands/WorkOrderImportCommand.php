@@ -356,16 +356,12 @@ class WorkOrderImportCommand extends Command
         if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
             foreach ($data['vendorIDs'] as $vendor) {
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
-                $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
-
-                if (! $vendorExist && $vendorId) { // don't insert if exists
-                    $vendorsData[] = [
-                        'work_order_id' => $work_order,
-                        'vendor_id' => $vendorId,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
+                $vendorsData[] = [
+                    'work_order_id' => $work_order,
+                    'vendor_id' => $vendorId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
         }
         if ($vendorsData) {
