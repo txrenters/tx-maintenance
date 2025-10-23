@@ -17,6 +17,7 @@ class TenantsController extends Controller
 
         $tenants = Tenants::query()
             ->with('user')
+            ->distinct(['first_name','last_name', 'email'])
             ->filter(request(['search']))
             ->orderBy('first_name', 'ASC')
             ->paginate(100)

@@ -2,6 +2,7 @@
 
 namespace App\Models\Scopes;
 
+use App\Models\Owner;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -36,12 +37,15 @@ class WorkOrderScope implements Scope
         }
 
         if ($user->hasRole('owner') && $user->owner) {
-            $ownerId = $user->owner->id;
+            // Find all owners with the same email as the logged-in user's owner record
+            $ownerEmails = $user->owner->email;
+            $ownerIds = Owner::where('email', $ownerEmails)->pluck('id');
 
-            $builder->where(function ($query) use ($ownerId) {
-                $query->whereHas('owners', fn ($q) => $q->where('owner_id', $ownerId));
+            $builder->where(function ($query) use ($ownerIds) {
+                $query->whereHas('owners', fn ($q) => $q->whereIn('owner_id', $ownerIds));
             });
         }
+
 
         if ($user->hasRole('tenant') && $user->tenant) {
             $builder->where('tenant_id', $user->tenant->id);

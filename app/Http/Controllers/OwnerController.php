@@ -18,6 +18,7 @@ class OwnerController extends Controller
         $owners = Owner::query()
             ->with('user')
             ->filter(request(['search']))
+            ->distinct(['name', 'email', 'phone'])
             ->orderBy('name', 'ASC')
             ->paginate(100)
             ->withQueryString()
