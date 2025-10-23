@@ -50,7 +50,6 @@ import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
 import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
-import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 
 const props = defineProps({
     title: String,
