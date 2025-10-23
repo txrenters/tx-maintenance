@@ -441,23 +441,20 @@ class WorkOrderImportCommand extends Command
                     'updated_at' => $now,
                 ];
 
-                $tenantExists = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->exists();
-
-                if (! $tenantExists) {
-                    DB::table('tenants')->insert($tenantData);
-                }
+                DB::table('tenants')->updateOrInsert(
+                    ['propertyware_id' => $tenant['ID']],
+                    $tenantData
+                );
 
                 $tenantId = DB::table('tenants')->where('propertyware_id', $tenant['ID'])->value('id');
 
-                $work_order_tenant_data[] = [
+                $work_order_tenant_data = [
                     'work_order_id' => $work_order,
                     'tenant_id' => $tenantId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
-            }
 
-            if (! empty($work_order_tenant_data)) {
                 DB::table('work_order_tenants')->insert($work_order_tenant_data);
             }
         }
@@ -518,25 +515,22 @@ class WorkOrderImportCommand extends Command
                     'updated_at' => $now,
                 ];
 
-                $ownerExists = DB::table('owners')->where('propertyware_id', $owner['ID'])->exists();
-
-                if (! $ownerExists) {
-                    DB::table('owners')->insert($ownerData);
-                }
+                DB::table('owners')->updateOrInsert(
+                    ['propertyware_id' => $owner['ID']],
+                    $ownerData
+                );
 
                 $ownerId = DB::table('owners')->where('propertyware_id', $owner['ID'])->value('id');
 
-                $work_order_owner_data[] = [
+                $work_order_owner_data = [
                     'work_order_id' => $work_order,
                     'owner_id' => $ownerId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
 
-            }
-
-            if (! empty($work_order_owner_data)) {
                 DB::table('work_order_owners')->insert($work_order_owner_data);
+
             }
         }
     }

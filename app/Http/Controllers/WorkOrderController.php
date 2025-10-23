@@ -6,6 +6,7 @@ use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Jobs\UpdateWorkOrder;
+use App\Models\Owner;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;

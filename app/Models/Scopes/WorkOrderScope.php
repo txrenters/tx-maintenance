@@ -37,12 +37,14 @@ class WorkOrderScope implements Scope
         }
 
         if ($user->hasRole('owner') && $user->owner) {
-            // Find all owners with the same email as the logged-in user's owner record
-            $ownerEmails = $user->owner->email;
-            $ownerIds = Owner::where('email', $ownerEmails)->pluck('id');
+            $email = strtolower($user->owner->email);
 
-            $builder->where(function ($query) use ($ownerIds) {
-                $query->whereHas('owners', fn ($q) => $q->whereIn('owner_id', $ownerIds));
+            // Find all owners with the same email as the logged-in user's owner record
+            $ownerIds = Owner::whereRaw('LOWER(email) = ?', [$email])->pluck('id');
+
+            // Filter work orders linked to any of those owner IDs
+            $builder->whereHas('owners', function ($q) use ($ownerIds) {
+                $q->whereIn('owners.id', $ownerIds);
             });
         }
 
