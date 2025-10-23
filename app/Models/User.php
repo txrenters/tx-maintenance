@@ -131,21 +131,24 @@ class User extends Authenticatable
     public function getPhoneAttribute($value)
     {
         $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
-        if (strlen($cleaned) == 10) { // If it's a US number without country code
+        if (strlen($cleaned) === 10) { // US number without country code
             $cleaned = '+1'.$cleaned;
+        } elseif (strlen($cleaned) > 10 && strpos($cleaned, '1') === 0) {
+            $cleaned = '+'.$cleaned;
         }
 
-        return $this->attributes['phone'] = $cleaned;
+        return $cleaned;
     }
 
     public function setPhoneAttribute($value)
     {
         $cleaned = preg_replace('/\D+/', '', $value); // Remove non-numeric characters
-        if (strlen($cleaned) == 10) { // If it's a US number without country code
+        if (strlen($cleaned) === 10) { // US number without country code
             $cleaned = '+1'.$cleaned;
+        } elseif (strlen($cleaned) > 10 && strpos($cleaned, '1') === 0) {
+            $cleaned = '+'.$cleaned;
         }
 
-        return $this->attributes['phone'] = $cleaned;
-
+        $this->attributes['phone'] = $cleaned;
     }
 }

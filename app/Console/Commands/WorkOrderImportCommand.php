@@ -205,7 +205,7 @@ class WorkOrderImportCommand extends Command
         $usersData = [
             'email' => $tenantEmail,
             'name' => $data['requestedByContact']['firstName'].' '.$data['requestedByContact']['lastName'],
-            'phone' => $data['requestedByContact']['homePhone'] ?? null,
+            'phone' => $data['requestedByContact']['mobilePhone'] ?? $data['requestedByContact']['homePhone'],
             'company' => $data['requestedByContact']['company'] ?? null,
             'address' => $address,
             'password' => bcrypt($tenantEmail),
@@ -276,7 +276,7 @@ class WorkOrderImportCommand extends Command
         $usersData = [
             'email' => $ownerEmail,
             'name' => $data['owner']['firstName'].' '.$data['owner']['lastName'],
-            'phone' => $data['owner']['homePhone'] ?? null,
+            'phone' => $data['owner']['mobile'] ?? null,
             'company' => $data['owner']['company'] ?? null,
             'address' => $address,
             'password' => bcrypt($ownerEmail),
@@ -396,7 +396,7 @@ class WorkOrderImportCommand extends Command
                 $usersData = [
                     'email' => $tenantEmail,
                     'name' => ($tenant['firstName'] ?? '').' '.($tenant['lastName'] ?? ''),
-                    'phone' => $tenant['homePhone'] ?? null,
+                    'phone' => $tenant['mobile'] ?? $tenant['homePhone'],
                     'company' => $tenant['company'] ?? null,
                     'address' => $address,
                     'password' => bcrypt($tenantEmail),

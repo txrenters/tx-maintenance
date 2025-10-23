@@ -910,16 +910,6 @@ watch(filter_vendor, filterVendor);
                 v-if="activeTab === 'owner_woc_conversation'"
             />
 
-            <OwnerVendorConversation
-                :ownerVendorConversation="ownerVendorConversation"
-                :workOrder="workOrderForm"
-                @update-owner-vendor-convo="
-                    fetchOwnerVendorConversation(workOrderForm.id)
-                "
-                :isLoading="isLoading"
-                v-if="activeTab === 'owner_vendor_conversation'"
-            />
-
             <ServiceSchedule
                 :vendorServiceSchedules="vendorServiceSchedules"
                 :workOrderVendors="workOrderVendors"

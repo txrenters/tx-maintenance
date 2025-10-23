@@ -38,7 +38,7 @@ const selectedImage = ref(null);
 const imagePreview = ref(null);
 const fileInput = ref(null);
 
-const owner_phone_number = "+" + page.props.auth.user.phone;
+const owner_phone_number = page.props.auth.user.phone;
 const woc = ref(props.workOrder.woc);
 const woc_phone_number = ref(
     props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
