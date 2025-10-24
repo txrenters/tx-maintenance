@@ -344,11 +344,6 @@ const getStatusColor = (index) => {
         </Card>
         <!-- Pending Work Orders Card -->
         <Card
-            v-if="
-                $page.props.auth.user.roles.includes('tenant') ||
-                $page.props.auth.user.roles.includes('owner') ||
-                $page.props.auth.user.roles.includes('vendor')
-            "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950 dark:to-orange-900"
         >
             <CardHeader
@@ -395,11 +390,6 @@ const getStatusColor = (index) => {
         </Card>
         <!-- In Progress Work Orders Card -->
         <Card
-            v-if="
-                $page.props.auth.user.roles.includes('tenant') ||
-                $page.props.auth.user.roles.includes('owner') ||
-                $page.props.auth.user.roles.includes('vendor')
-            "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-purple-950 dark:to-indigo-900"
         >
             <CardHeader
@@ -457,7 +447,7 @@ const getStatusColor = (index) => {
         <!-- Tasks Card -->
         <Card
             v-if="
-                !$page.props.auth.user.roles.includes('tenant') &&
+                !$page.props.auth.user.roles.includes('tenant') ||
                 !$page.props.auth.user.roles.includes('owner')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-teal-50 to-cyan-100 dark:from-teal-950 dark:to-cyan-900"
@@ -512,9 +502,9 @@ const getStatusColor = (index) => {
             </div>
         </Card>
         <!-- Inspection Jobs Card -->
-        <Card
+        <!-- <Card
             v-if="
-                $page.props.auth.user.roles.includes('admin') &&
+                $page.props.auth.user.roles.includes('admin') ||
                 $page.props.auth.user.roles.includes('woc')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-950 dark:to-green-900"
@@ -565,11 +555,11 @@ const getStatusColor = (index) => {
             <div class="absolute top-0 right-0 w-20 h-20 opacity-5">
                 <HammerIcon class="w-full h-full" />
             </div>
-        </Card>
+        </Card> -->
         <!-- Inspection Visits Card -->
-        <Card
+        <!-- <Card
             v-if="
-                $page.props.auth.user.roles.includes('admin') &&
+                $page.props.auth.user.roles.includes('admin') ||
                 $page.props.auth.user.roles.includes('woc')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-orange-50 to-red-100 dark:from-orange-950 dark:to-red-900"
@@ -610,7 +600,7 @@ const getStatusColor = (index) => {
             <div class="absolute top-0 right-0 w-20 h-20 opacity-5">
                 <Calendar class="w-full h-full" />
             </div>
-        </Card>
+        </Card> -->
     </div>
     <!-- Enhanced Charts Section -->
     <div class="grid gap-6 lg:grid-cols-3 xl:grid-cols-4">
