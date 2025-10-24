@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Illuminate\Console\Command;
@@ -82,13 +84,30 @@ class UpdateWorkOrderStatus extends Command
 
                             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
                             DB::table('work_order_custom_fields')->insert($customFieldData);
-                        }
 
-                        // if($data['assignedVendors']){
-                        //     dd($data['assignedVendors']);
-                        // }
-;
-                        
+                            if(!empty($data['assignedVendors'])){
+
+                                foreach ($data['assignedVendors'] as $vendor) {
+
+                                    $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
+
+                                    if(!$vendorId){
+                                        $vendorId = $this->createVendor($vendor);
+                                    }
+
+                                    $vendorsData = [
+                                        'work_order_id' => $workOrder->id,
+                                        'vendor_id' => $vendorId,
+                                        'created_at' => now(),
+                                        'updated_at' => now(),
+                                    ];
+
+                                    DB::table('work_order_vendors')->updateOrInsert(
+                                        ['propertyware_id' => $vendor] ,
+                                        $vendorsData);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -97,5 +116,52 @@ class UpdateWorkOrderStatus extends Command
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
+        
+    }
+
+    private function createVendor(array $vendorData): ?int
+    {
+        $address = trim(implode(' ', array_filter([
+            $vendorData['address'] ?? null,
+            $vendorData['address2'] ?? null,
+            $vendorData['city'] ?? null,
+            $vendorData['state'] ?? null,
+            $vendorData['country'] ?? null,
+            $vendorData['zip'] ?? null,
+        ])));
+
+        $vendorEmail = $vendorData['email'] ?? $vendorData['id'].'@texasrenter.com';
+
+        $usersData = [
+            'email' => $vendorEmail,
+            'name' => $vendorData['name'],
+            'phone' => $vendorData['phone'] ?? null,
+            'company' => $vendorData['companyName'] ?? null,
+            'address' => $address,
+            'password' => bcrypt($vendorEmail),
+        ];
+
+        $user = $this->createOrUpdateUser($usersData, 'vendor');
+
+        $vendorsData = [
+            'propertyware_id' => $vendorData['id'],
+            'name' => $vendorData['name'],
+            'name_on_check' => $vendorData['name'],
+            'email' => $vendorEmail,
+            'user_id' => $user->id,
+            'is_active' => $vendorData['active'],
+        ];
+
+        $vendor = Vendor::create($vendorsData);
+
+        return $vendor->id;
+    }
+
+    private function createOrUpdateUser(array $data, string $role): User
+    {
+        $user = User::updateOrCreate(['email' => $data['email']], $data);
+        $user->assignRole($role);
+
+        return $user;
     }
 }

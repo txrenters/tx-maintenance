@@ -179,7 +179,7 @@ class WorkOrderImportCommand extends Command
     {
         // Process custom fields, notes, documents, etc.
         $this->processNotes($data, $work_order, $now);
-        $this->processVendors($data, $work_order, $now);
+        // $this->processVendors($data, $work_order, $now);
         $this->processTenants($data, $work_order, $now);
         $this->processOwners($data, $work_order, $now);
     }
@@ -350,27 +350,27 @@ class WorkOrderImportCommand extends Command
         DB::table('work_order_notes')->insert($notesData);
     }
 
-    private function processVendors(array $data, int $work_order, string $now): void
-    {
-        $vendorsData = [];
-        if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
+    // private function processVendors(array $data, int $work_order, string $now): void
+    // {
+    //     $vendorsData = [];
+    //     if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
 
-            foreach ($data['vendorIDs'] as $vendor) {
-                $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
+    //         foreach ($data['vendorIDs'] as $vendor) {
+    //             $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
                 
-                $vendorsData = [
-                    'work_order_id' => $work_order,
-                    'vendor_id' => $vendorId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+    //             $vendorsData = [
+    //                 'work_order_id' => $work_order,
+    //                 'vendor_id' => $vendorId,
+    //                 'created_at' => $now,
+    //                 'updated_at' => $now,
+    //             ];
 
-                DB::table('work_order_vendors')->updateOrInsert(
-                    ['propertyware_id' => $vendor] ,
-                    $vendorsData);
-            }
-        }
-    }
+    //             DB::table('work_order_vendors')->updateOrInsert(
+    //                 ['propertyware_id' => $vendor] ,
+    //                 $vendorsData);
+    //         }
+    //     }
+    // }
 
     private function processTenants(array $data, int $work_order, string $now): void
     {
