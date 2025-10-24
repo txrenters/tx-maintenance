@@ -83,6 +83,12 @@ class UpdateWorkOrderStatus extends Command
                             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
                             DB::table('work_order_custom_fields')->insert($customFieldData);
                         }
+
+                        // if($data['assignedVendors']){
+                        //     dd($data['assignedVendors']);
+                        // }
+;
+                        
                     }
                 }
             }
