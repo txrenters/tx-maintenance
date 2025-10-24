@@ -24,6 +24,7 @@ class InvoiceController extends Controller
                 return [
                     'id' => $invoice->id,
                     'title' => $invoice->title,
+                    'file' => asset('storage/'.$invoice->filename),
                     'filename' => $invoice->filename,
                     'filetype' => $invoice->filetype,
                     'amount' => Number::currency($invoice->amount),

@@ -222,7 +222,12 @@ const handleDeleteSubmit = () => {
     </div>
     <div class="grid gap-3 overflow-y-auto px-6" v-else>
         <div class="grid grid-cols-2 gap-3">
-            <div v-if="workOrder.vendors.length > 0">
+            <div
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc')
+                "
+            >
                 <Label for="message">Vendors:</Label>
                 <Button
                     size="small"
@@ -325,6 +330,12 @@ const handleDeleteSubmit = () => {
                         </ComboboxList>
                     </ComboboxAnchor>
                 </Combobox>
+            </div>
+            <div v-else>
+                <Label for="message">Vendors:</Label>
+                <p v-for="( vendor_name, index) in workOrder.vendors" :key="index">
+                    <p> {{ vendor_name }}</p>
+                </p>
             </div>
             <div
                 v-if="
