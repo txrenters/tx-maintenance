@@ -8,7 +8,6 @@ import WorkOrderClosedCard from "./Partials/WorkOrderClosedCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
-import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import VendorWocConversation from "./Partials/VendorWocConversation.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
@@ -821,17 +820,6 @@ watch(filter_vendor, filterVendor);
                 :vendorWocConversation="vendorConversation"
                 :isLoading="isLoading"
                 v-if="activeTab === 'conversation'"
-            />
-
-            <VendorTenantConversation
-                :vendorConversation="vendorTenantConversation"
-                :workOrderTenants="workOrderTenants"
-                :workOrder="workOrderForm"
-                @update-vendor-tenant-convo="
-                    fetchVendorTenantConversation(workOrderForm.id)
-                "
-                :isLoading="isLoading"
-                v-if="activeTab === 'vendor_tenant_conversation'"
             />
 
             <VendorWocConversation

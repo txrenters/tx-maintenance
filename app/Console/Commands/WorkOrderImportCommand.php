@@ -305,7 +305,7 @@ class WorkOrderImportCommand extends Command
             'org_id' => $data['owner']['orgId'] ?? null,
             'user_id' => $user->id,
         ];
-        
+
         DB::table('owners')->updateOrInsert(
             ['propertyware_id' => $owner_propertyware_id],
             $ownerData

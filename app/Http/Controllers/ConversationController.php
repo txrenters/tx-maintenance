@@ -134,11 +134,11 @@ class ConversationController extends Controller
             }
 
             $user = auth()->user();
-            
+
             $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
-            if($user->hasRole('vendor')){
-                
+            if ($user->hasRole('vendor')) {
+
                 activity()
                     ->performedOn($conversation)
                     ->event('work_order_message_received')
@@ -148,9 +148,10 @@ class ConversationController extends Controller
                         'message' => $validatedData['text'],
                         'work_order_id' => $validatedData['work_order_id'],
                     ])
-                ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
+                    ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
 
                 DB::commit();
+
                 return redirect()->back()->with('success', 'Message sent successfully!');
             }
 

@@ -48,7 +48,6 @@ class WorkOrderScope implements Scope
             });
         }
 
-
         if ($user->hasRole('tenant') && $user->tenant) {
             $builder->where('tenant_id', $user->tenant->id);
         }

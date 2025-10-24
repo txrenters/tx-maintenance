@@ -9,7 +9,6 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -23,7 +22,7 @@ class DashboardController extends Controller
             'title' => 'Dashboard',
             'stats' => $this->getEssentialStats($year),
             'filter' => $request->only(['year']),
-            'workOrderChart' =>$this->getWorkOrderChart($year),
+            'workOrderChart' => $this->getWorkOrderChart($year),
             'serviceStatus' => $this->getServiceStatus($year),
             'inspectionAnalytics' => $this->getInspectionAnalytics($year),
         ]);

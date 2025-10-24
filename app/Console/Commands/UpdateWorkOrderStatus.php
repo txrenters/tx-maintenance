@@ -85,13 +85,13 @@ class UpdateWorkOrderStatus extends Command
                             DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
                             DB::table('work_order_custom_fields')->insert($customFieldData);
 
-                            if(!empty($data['assignedVendors'])){
+                            if (! empty($data['assignedVendors'])) {
 
                                 foreach ($data['assignedVendors'] as $vendor) {
 
                                     $vendorId = DB::table('vendors')->where('propertyware_id', $vendor['id'])->value('id');
 
-                                    if(!$vendorId){
+                                    if (! $vendorId) {
                                         $vendorId = $this->createVendor($vendor);
                                     }
 
@@ -116,7 +116,7 @@ class UpdateWorkOrderStatus extends Command
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
-        
+
     }
 
     private function createVendor(array $vendorData): ?int

@@ -377,10 +377,7 @@ const handleDeleteSubmit = () => {
                 "
             >
                 <Label for="message">Category:</Label>
-                <Select
-                    v-model="workOrder.category"
-                    v-if="!$page.props.auth.user.roles.includes('vendor')"
-                >
+                <Select v-model="workOrder.category">
                     <SelectTrigger class="w-full">
                         <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
@@ -396,7 +393,6 @@ const handleDeleteSubmit = () => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
-                <p v-else>{{ workOrder.category }}</p>
             </div>
 
             <div v-else>
