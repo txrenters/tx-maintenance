@@ -308,7 +308,7 @@ class WorkOrderImportCommand extends Command
         ];
         
         DB::table('owners')->updateOrInsert(
-            ['propertyware_id', $owner_propertyware_id],
+            ['propertyware_id' => $owner_propertyware_id],
             $ownerData
         );
 
