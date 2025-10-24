@@ -222,12 +222,7 @@ const handleDeleteSubmit = () => {
     </div>
     <div class="grid gap-3 overflow-y-auto px-6" v-else>
         <div class="grid grid-cols-2 gap-3">
-            <div
-                v-if="
-                    $page.props.auth.user.roles.includes('admin') ||
-                    $page.props.auth.user.roles.includes('woc')
-                "
-            >
+            <div v-if="workOrder.vendors.length > 0">
                 <Label for="message">Vendors:</Label>
                 <Button
                     size="small"
@@ -262,7 +257,14 @@ const handleDeleteSubmit = () => {
                     :ignore-filter="true"
                     v-else
                 >
-                    <ComboboxAnchor as-child class="py-2">
+                    <ComboboxAnchor
+                        as-child
+                        class="py-2"
+                        v-if="
+                            $page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc')
+                        "
+                    >
                         <TagsInput
                             v-model="workOrder.vendors"
                             class="gap-2 w-full"
@@ -323,13 +325,6 @@ const handleDeleteSubmit = () => {
                         </ComboboxList>
                     </ComboboxAnchor>
                 </Combobox>
-            </div>
-            <div>
-                <Label for="message">Vendors:</Label>
-                <p v-for="vendor in workOrder.vendors" :key="vendor">
-                    <span v-if="vendor.id"> {{ vendor.name }}</span>
-                    <span v-else> {{ vendor }}</span>
-                </p>
             </div>
             <div
                 v-if="

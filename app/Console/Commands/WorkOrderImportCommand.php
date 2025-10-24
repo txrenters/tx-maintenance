@@ -354,18 +354,21 @@ class WorkOrderImportCommand extends Command
     {
         $vendorsData = [];
         if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
+
+            DB::table('work_order_vendors')->delete(); // to refresh data
+
             foreach ($data['vendorIDs'] as $vendor) {
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
-                $vendorsData[] = [
+                
+                $vendorsData = [
                     'work_order_id' => $work_order,
                     'vendor_id' => $vendorId,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
+                DB::table('work_order_vendors')->insert($vendorsData);
             }
-        }
-        if ($vendorsData) {
-            DB::table('work_order_vendors')->insert($vendorsData);
         }
     }
 

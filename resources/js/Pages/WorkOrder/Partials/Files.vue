@@ -73,6 +73,11 @@ const formatDate = (date) => {
                 >
                     <!-- Delete Icon (Outside the div) -->
                     <button
+                        v-if="
+                            $page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc') ||
+                            $page.props.auth.user.roles.includes('vendor')
+                        "
                         @click.stop="deleteFile(file.id)"
                         class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
                     >
@@ -112,6 +117,11 @@ const formatDate = (date) => {
                     v-if="!loading"
                 >
                     <button
+                        v-if="
+                            $page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc') ||
+                            $page.props.auth.user.roles.includes('vendor')
+                        "
                         @click.stop="deleteFile(file.id)"
                         class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
                     >
