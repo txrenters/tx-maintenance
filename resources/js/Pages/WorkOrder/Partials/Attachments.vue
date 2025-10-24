@@ -180,7 +180,8 @@ function handleFiles(event) {
             class="flex justify-end gap-2 items-center mb-3"
             v-if="
                 $page.props.auth.user.roles.includes('admin') ||
-                $page.props.auth.user.roles.includes('woc')
+                $page.props.auth.user.roles.includes('woc') ||
+                $page.props.auth.user.roles.includes('vendor')
             "
         >
             <Button

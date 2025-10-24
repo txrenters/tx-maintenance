@@ -29,7 +29,7 @@ const props = defineProps({
 const newMessage = ref("");
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
-const emit = defineEmits(["update-vendor-convo"]);
+const emit = defineEmits(["update-vendor-woc-convo"]);
 
 const page = usePage();
 const { toast } = useToast();
@@ -39,7 +39,7 @@ const woc_phone_number = ref(
     props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
 );
 
-const vendor_phone_number = ref(page.props.auth.user.vendor.twilio_number);
+const vendor_phone_number = page.props.auth.user.phone;
 
 const loading = ref(false);
 
@@ -127,7 +127,7 @@ const sendMessage = () => {
         // Create FormData for file upload
         const formData = new FormData();
         formData.append("text", newMessage.value || "");
-        formData.append("sender_phone_number", vendor_phone_number.value);
+        formData.append("sender_phone_number", vendor_phone_number);
         formData.append("receiver_phone_number", woc_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "vendor");
@@ -148,7 +148,7 @@ const sendMessage = () => {
                 newMessage.value = "";
                 removeImage(); // Clear the selected image
                 scrollToBottom();
-                emit("update-vendor-convo");
+                emit("update-vendor-woc-convo");
             },
             onError: () => {
                 toast({
@@ -207,12 +207,9 @@ onMounted(() => {
                             </Avatar>
                             {{ woc.name }}
                         </div>
-                        {{ woc.woc_number.twilio_phone_number.phone_number }}
+                        <!-- {{ woc.woc_number.twilio_phone_number.phone_number }} -->
                     </div>
                 </div>
-                <p class="text-xs text-gray-500">
-                    Please include the country code (e.g. +1)
-                </p>
             </div>
             <div class="flex gap-2">
                 <div class="flex flex-col text-left">
@@ -292,7 +289,7 @@ onMounted(() => {
             <Textarea
                 v-model="newMessage"
                 placeholder="Type your message..."
-                class="w-full resize-y rounded-2xl border py-3 pr-24 pl-12"
+                class="w-full resize-y rounded-2xl border py-3 pr-24"
                 rows="1"
                 :disabled="loading"
             />
@@ -304,7 +301,6 @@ onMounted(() => {
                     variant="ghost"
                     @click="triggerFileInput"
                     :disabled="loading"
-                    class="absolute top-1/2 left-2 -translate-y-1/2"
                     title="Attach image"
                 >
                     <Paperclip class="h-4 w-4" />
@@ -316,7 +312,6 @@ onMounted(() => {
                     variant="ghost"
                     @click.prevent="sendMessage"
                     :disabled="isLoading || loading"
-                    class="absolute top-1/2 right-2 -translate-y-1/2"
                 >
                     <Send v-if="!isLoading || loading" class="h-4 w-4" />
                     <Loader2 v-else class="w-4 h-4 animate-spin" />

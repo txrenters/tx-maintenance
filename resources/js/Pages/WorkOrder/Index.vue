@@ -8,7 +8,6 @@ import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
-import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import VendorWocConversation from "./Partials/VendorWocConversation.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
@@ -133,13 +132,6 @@ const tabButtons = [
         tooltip: "Vendor Edit",
         icon: NotebookPen,
         requires: ["admin", "woc", "vendor"],
-    },
-
-    {
-        name: "vendor_tenant_conversation",
-        tooltip: "Tenant Conversation",
-        icon: "T",
-        requires: ["vendor"],
     },
     {
         name: "vendor_woc_conversation",
@@ -854,21 +846,12 @@ watch(filter_vendor, filterVendor);
                 v-if="activeTab === 'conversation'"
             />
 
-            <VendorTenantConversation
-                :vendorConversation="vendorTenantConversation"
-                :workOrderTenants="workOrderTenants"
-                :workOrder="workOrderForm"
-                @update-vendor-tenant-convo="
-                    fetchVendorTenantConversation(workOrderForm.id)
-                "
-                :isLoading="isLoading"
-                v-if="activeTab === 'vendor_tenant_conversation'"
-            />
-
             <VendorWocConversation
                 :wocConversation="vendorConversation"
                 :workOrderVendors="workOrderVendors"
-                @update-vendor-convo="fetchVendorConversation(workOrderForm.id)"
+                @update-vendor-woc-convo="
+                    fetchVendorConversation(workOrderForm.id)
+                "
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 v-if="activeTab === 'vendor_woc_conversation'"

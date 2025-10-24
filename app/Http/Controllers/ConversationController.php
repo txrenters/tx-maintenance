@@ -81,8 +81,8 @@ class ConversationController extends Controller
     {
         $validatedData = $request->validate([
             'text' => 'nullable|string|max:1600',
-            'sender_phone_number' => 'required',
-            'receiver_phone_number' => 'required',
+            'sender_phone_number' => 'nullable',
+            'receiver_phone_number' => 'nullable',
             'work_order_id' => 'required',
             'conversation_type' => 'required',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
@@ -94,8 +94,6 @@ class ConversationController extends Controller
 
         $senderNumber = $validatedData['sender_phone_number'];
         $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
-
-        DB::beginTransaction();
 
         try {
             $conversation = Conversation::create([
@@ -135,23 +133,37 @@ class ConversationController extends Controller
                 $imageFullPath = asset('storage/'.$imagePath);
             }
 
-            if ($senderNumber) {
-                $twilio = new TwilioService;
+            $user = auth()->user();
+            
+            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
-                $twilio->sendMessage(
-                    $receiverNumber,
-                    $senderNumber,
-                    $messageContent,
-                    $imageFullPath
-                );
+            if($user->hasRole('vendor')){
+                
+                activity()
+                    ->performedOn($conversation)
+                    ->event('work_order_message_received')
+                    ->withProperties([
+                        'senderNumber' => $senderNumber,
+                        'receiverNumber' => $receiverNumber,
+                        'message' => $validatedData['text'],
+                        'work_order_id' => $validatedData['work_order_id'],
+                    ])
+                ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
+
+                DB::commit();
+                return redirect()->back()->with('success', 'Message sent successfully!');
             }
 
-            DB::commit();
+            $twilio = new TwilioService;
+            $twilio->sendMessage(
+                $receiverNumber,
+                $senderNumber,
+                $messageContent,
+                $imageFullPath
+            );
 
             return redirect()->back()->with('success', 'Message sent successfully!');
         } catch (\Exception $e) {
-            DB::rollBack();
-
             Log::error('Failed to send message: '.$e->getMessage());
 
             return redirect()->back()->with('error', 'Failed to send the message. Please try again.');

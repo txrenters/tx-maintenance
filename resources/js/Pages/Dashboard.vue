@@ -181,7 +181,12 @@ const getStatusColor = (index) => {
                         >
                             <Wrench class="h-4 w-4" />
                             <span class="text-sm font-medium"
-                                >{{ formattedCount(stats?.monthly_work_orders || 0) }} work orders this month</span
+                                >{{
+                                    formattedCount(
+                                        stats?.monthly_work_orders || 0
+                                    )
+                                }}
+                                work orders this month</span
                             >
                         </div>
                         <div
@@ -341,7 +346,8 @@ const getStatusColor = (index) => {
         <Card
             v-if="
                 $page.props.auth.user.roles.includes('tenant') ||
-                $page.props.auth.user.roles.includes('owner')
+                $page.props.auth.user.roles.includes('owner') ||
+                $page.props.auth.user.roles.includes('vendor')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950 dark:to-orange-900"
         >
@@ -391,7 +397,8 @@ const getStatusColor = (index) => {
         <Card
             v-if="
                 $page.props.auth.user.roles.includes('tenant') ||
-                $page.props.auth.user.roles.includes('owner')
+                $page.props.auth.user.roles.includes('owner') ||
+                $page.props.auth.user.roles.includes('vendor')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-purple-950 dark:to-indigo-900"
         >
@@ -507,8 +514,8 @@ const getStatusColor = (index) => {
         <!-- Inspection Jobs Card -->
         <Card
             v-if="
-                !$page.props.auth.user.roles.includes('tenant') &&
-                !$page.props.auth.user.roles.includes('owner')
+                $page.props.auth.user.roles.includes('admin') &&
+                $page.props.auth.user.roles.includes('woc')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-950 dark:to-green-900"
         >
@@ -562,8 +569,8 @@ const getStatusColor = (index) => {
         <!-- Inspection Visits Card -->
         <Card
             v-if="
-                !$page.props.auth.user.roles.includes('tenant') &&
-                !$page.props.auth.user.roles.includes('owner')
+                $page.props.auth.user.roles.includes('admin') &&
+                $page.props.auth.user.roles.includes('woc')
             "
             class="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-orange-50 to-red-100 dark:from-orange-950 dark:to-red-900"
         >
