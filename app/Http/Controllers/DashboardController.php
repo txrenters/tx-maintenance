@@ -18,21 +18,10 @@ class DashboardController extends Controller
     public function __invoke(Request $request)
     {
         $year = $request->input('year', Carbon::now()->year);
-        $cacheKey = "dashboard_data_year_{$year}";
-
-        // Get essential stats immediately (fast queries)
-        $stats = Cache::remember("{$cacheKey}_stats", 300, function () use ($year) {
-            return $this->getEssentialStats($year);
-        });
-
-        // Load all data immediately for now - remove lazy loading
-        // $workOrderChart = Cache::remember("{$cacheKey}_chart", 600, fn () => $this->getWorkOrderChart($year));
-        // $serviceStatus = Cache::remember("{$cacheKey}_service_status", 300, fn () => $this->getServiceStatus($year));
-        // $inspectionAnalytics = Cache::remember("{$cacheKey}_inspection_analytics", 300, fn () => $this->getInspectionAnalytics($year));
 
         return Inertia::render('Dashboard', [
             'title' => 'Dashboard',
-            'stats' => $stats,
+            'stats' => $this->getEssentialStats($year),
             'filter' => $request->only(['year']),
             'workOrderChart' =>$this->getWorkOrderChart($year),
             'serviceStatus' => $this->getServiceStatus($year),

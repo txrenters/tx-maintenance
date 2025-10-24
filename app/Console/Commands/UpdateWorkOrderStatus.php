@@ -89,7 +89,7 @@ class UpdateWorkOrderStatus extends Command
 
                                 foreach ($data['assignedVendors'] as $vendor) {
 
-                                    $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
+                                    $vendorId = DB::table('vendors')->where('propertyware_id', $vendor['id'])->value('id');
 
                                     if(!$vendorId){
                                         $vendorId = $this->createVendor($vendor);
@@ -103,7 +103,7 @@ class UpdateWorkOrderStatus extends Command
                                     ];
 
                                     DB::table('work_order_vendors')->updateOrInsert(
-                                        ['propertyware_id' => $vendor] ,
+                                        ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
                                         $vendorsData);
                                 }
                             }
