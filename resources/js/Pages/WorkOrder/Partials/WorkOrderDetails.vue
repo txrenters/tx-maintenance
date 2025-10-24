@@ -369,10 +369,7 @@ const handleDeleteSubmit = () => {
                 </Select>
                 <p>{{ workOrder.is_emergency ?? "" }}</p>
             </div>
-            <div>
-                <Label for="message">Category:</Label>
-                <p>{{ workOrder.category }}</p>
-            </div>
+
             <div
                 v-if="
                     $page.props.auth.user.roles.includes('admin') ||
@@ -400,6 +397,11 @@ const handleDeleteSubmit = () => {
                     </SelectContent>
                 </Select>
                 <p v-else>{{ workOrder.category }}</p>
+            </div>
+
+            <div v-else>
+                <Label for="message">Category:</Label>
+                <p>{{ workOrder.category }}</p>
             </div>
 
             <div>
