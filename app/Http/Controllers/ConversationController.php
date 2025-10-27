@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ConversationStoreRequest;
 use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\WorkOrder;
@@ -77,16 +78,9 @@ class ConversationController extends Controller
         return response()->json($message, 200);
     }
 
-    public function SendMessage(Request $request)
+    public function SendMessage(ConversationStoreRequest $request)
     {
-        $validatedData = $request->validate([
-            'text' => 'nullable|string|max:1600',
-            'sender_phone_number' => 'nullable',
-            'receiver_phone_number' => 'nullable',
-            'work_order_id' => 'required',
-            'conversation_type' => 'required',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
-        ]);
+        $validatedData = $request->validated();
 
         if (empty($validatedData['text']) && ! $request->hasFile('image')) {
             return redirect()->back()->with('error', 'Please provide either a message or an image.');
@@ -137,21 +131,8 @@ class ConversationController extends Controller
 
             $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
-            if ($user->hasRole('vendor')) {
-
-                activity()
-                    ->performedOn($conversation)
-                    ->event('work_order_message_received')
-                    ->withProperties([
-                        'senderNumber' => $senderNumber,
-                        'receiverNumber' => $receiverNumber,
-                        'message' => $validatedData['text'],
-                        'work_order_id' => $validatedData['work_order_id'],
-                    ])
-                    ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
-
-                DB::commit();
-
+            if ($user->hasRole('owner') || $user->hasRole('tenant')) {
+                $this->sendNotification($conversation, $validatedData, $workOrder);
                 return redirect()->back()->with('success', 'Message sent successfully!');
             }
 
@@ -171,16 +152,9 @@ class ConversationController extends Controller
         }
     }
 
-    public function SendMessageByOwner(Request $request)
+    public function SendMessageByOwner(ConversationStoreRequest $request)
     {
-        $validatedData = $request->validate([
-            'text' => 'nullable|string|max:1600',
-            'work_order_id' => 'required',
-            'sender_phone_number' => 'nullable',
-            'receiver_phone_number' => 'nullable',
-            'conversation_type' => 'required',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
-        ]);
+        $validatedData = $request->validated();
 
         if (empty($validatedData['text']) && ! $request->hasFile('image')) {
             return redirect()->back()->with('error', 'Please provide either a message or an image.');
@@ -254,6 +228,20 @@ class ConversationController extends Controller
         }
 
         return '+'.$cleanedNumber;
+    }
+
+    private function sendNotification($conversation, $validatedData, $workOrder): void
+    {
+         activity()
+            ->performedOn($conversation)
+            ->event('work_order_message_received')
+            ->withProperties([
+                'senderNumber' => $validatedData['sender_phone_number'],
+                'receiverNumber' => $this->formatNumber($validatedData['receiver_phone_number']),
+                'message' => $validatedData['text'],
+                'work_order_id' => $validatedData['work_order_id'],
+            ])
+            ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
     }
 
     public function delete(Conversation $conversation)

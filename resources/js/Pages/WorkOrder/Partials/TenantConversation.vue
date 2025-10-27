@@ -141,7 +141,7 @@ const sendMessage = () => {
             formData.append("image", selectedImage.value);
         }
 
-        router.post(route("work_order.vendor.conversation.send"), formData, {
+        router.post(route("work_order.conversation.send"), formData, {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {

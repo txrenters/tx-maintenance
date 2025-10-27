@@ -122,36 +122,32 @@ const sendMessage = () => {
             formData.append("image", selectedImage.value);
         }
 
-        router.post(
-            route("work_order.owner_to_woc.conversation.send"),
-            formData,
-            {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast({
-                        title: "Success",
-                        description: "Message has been sent successfully!",
-                    });
-                    newMessage.value = "";
-                    removeImage(); // Clear the selected image
-                    scrollToBottom();
-                    emit("update-owner-convo");
-                },
-                onError: () => {
-                    toast({
-                        variant: "destructive",
-                        title: "Uh oh! Something went wrong.",
-                        description:
-                            "There was a problem with your request. Please try again!",
-                    });
-                },
-                onFinish: () => {
-                    loading.value = false;
-                    scrollToBottom(); // Scroll to the bottom after sending a message
-                },
-            }
-        );
+        router.post(route("work_order.conversation.send"), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Message has been sent successfully!",
+                });
+                newMessage.value = "";
+                removeImage(); // Clear the selected image
+                scrollToBottom();
+                emit("update-owner-convo");
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                loading.value = false;
+                scrollToBottom(); // Scroll to the bottom after sending a message
+            },
+        });
     }
 };
 
