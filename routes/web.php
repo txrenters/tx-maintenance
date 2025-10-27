@@ -91,7 +91,7 @@ Route::middleware([
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
-    Route::post('/work_orders/convesation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
+    Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
 
     Route::resource('/task_templates', TaskTemplateController::class);
 

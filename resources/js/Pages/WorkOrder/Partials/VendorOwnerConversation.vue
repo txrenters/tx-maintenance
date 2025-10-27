@@ -19,33 +19,38 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 
 const props = defineProps({
-    vendorWocConversation: Array,
-    workOrderTenants: Array,
-    workOrderVendors: Array,
+    vendorOwnerConversations: Array,
+    workOrderOwners: Array,
     isLoading: Boolean,
     workOrder: Object,
 });
 
-const newMessage = ref("");
-const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
-
-const emit = defineEmits(["update-vendor-woc-convo"]);
-
-const page = usePage();
+const emit = defineEmits(["update-owner-convo"]);
 const { toast } = useToast();
+const page = usePage();
 
-const vendor_phone_number = page.props.auth.user.vendor.twilio_number;
-
-const woc_phone_number = ref(
-    props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
-);
-
-const loading = ref(false);
+const newMessage = ref("");
+const selectedOwner = ref("");
+const owner_phone_number = ref("");
+const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
 // Image attachment functionality
 const selectedImage = ref(null);
 const imagePreview = ref(null);
 const fileInput = ref(null);
+
+const vendor_phone_number = page.props.auth.user.vendor.twilio_number;
+
+watch(selectedOwner, (newOwner) => {
+    if (newOwner) {
+        const foundOwner = props.workOrderOwners.find(
+            (owner) => owner.id == newOwner
+        );
+        owner_phone_number.value = foundOwner ? foundOwner.phone : "";
+    }
+});
+
+const loading = ref(false);
 
 // Handle file selection
 const handleImageSelect = (event) => {
@@ -96,10 +101,9 @@ const removeImage = () => {
 const triggerFileInput = () => {
     fileInput.value?.click();
 };
-
 const sendMessage = () => {
     loading.value = true;
-    if (!woc_phone_number.value) {
+    if (!owner_phone_number.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -123,13 +127,15 @@ const sendMessage = () => {
     }
 
     if (newMessage.value.trim() !== "" || selectedImage.value) {
+        console.log(woc_phone_number.value);
+
         // Create FormData for file upload
         const formData = new FormData();
         formData.append("text", newMessage.value || "");
-        formData.append("sender_phone_number", vendor_phone_number);
-        formData.append("receiver_phone_number", woc_phone_number.value);
+        formData.append("sender_phone_number", woc_phone_number.value);
+        formData.append("receiver_phone_number", owner_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
-        formData.append("conversation_type", "vendor");
+        formData.append("conversation_type", "vendor_owner");
 
         // Add image if selected
         if (selectedImage.value) {
@@ -144,10 +150,10 @@ const sendMessage = () => {
                     title: "Success",
                     description: "Message has been sent successfully!",
                 });
+                emit("update-owner-convo");
                 newMessage.value = "";
                 removeImage(); // Clear the selected image
-                scrollToBottom();
-                emit("update-vendor-woc-convo");
+                scrollToBottom(); // Scroll to the bottom after sending a message
             },
             onError: () => {
                 toast({
@@ -173,69 +179,79 @@ const scrollToBottom = () => {
     });
 };
 
+// Scroll to the bottom when the component mounts or when the conversation updates
+onMounted(() => {
+    scrollToBottom();
+});
+
 watch(
-    () => props.vendorWocConversation,
+    () => props.vendorOwnerConversations,
     () => {
         scrollToBottom();
     },
     { deep: true }
 );
-
-onMounted(() => {
-    scrollToBottom();
-});
 </script>
 
 <template>
     <div>
         <div class="grid gap-3 overflow-y-auto px-6">
-            <p class="font-semibold uppercase text-xs mb-3">WOC Conversation</p>
+            <p class="font-semibold uppercase text-xs mb-3">
+                Owner Conversation
+            </p>
+
             <div class="flex justify-between gap-2 mb-2">
                 <div>
                     <div class="flex gap-2">
-                        <div class="flex flex-col text-left">
-                            <div class="flex gap-2 items-center">
-                                <Avatar class="w-5 h-5">
-                                    <AvatarImage
-                                        :src="
-                                            props.workOrder.woc
-                                                ?.profile_photo_url ||
-                                            'default.jpg'
-                                        "
-                                    />
-                                    <AvatarFallback>
-                                        {{
-                                            props.workOrder.woc.name?.charAt(0)
-                                        }}
-                                    </AvatarFallback>
-                                </Avatar>
-                                {{ props.workOrder.woc.name }}
-                            </div>
-                            {{
-                                props.workOrder.woc.woc_number
-                                    .twilio_phone_number.phone_number
-                            }}
-                        </div>
+                        <Select v-model="selectedOwner">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select an owner" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <template
+                                        v-for="owner in workOrderOwners"
+                                        :key="owner.id"
+                                    >
+                                        <SelectItem
+                                            :value="String(owner.id)"
+                                            :selected="owner.phone"
+                                        >
+                                            {{ owner.first_name }}
+                                            {{ owner.last_name }} -
+                                            {{ owner?.phone }}
+                                        </SelectItem>
+                                    </template>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            placeholder="Custom number"
+                            class=""
+                            v-model="owner_phone_number"
+                        />
                     </div>
+                    <p class="text-xs text-gray-500">
+                        Please include the country code (e.g. +1)
+                    </p>
                 </div>
-                <div class="flex gap-2">
-                    <div class="flex flex-col text-left">
-                        <div class="flex gap-2 items-center">
-                            <Avatar class="w-5 h-5">
-                                <AvatarImage
-                                    :src="
-                                        page.props.auth.user
-                                            ?.profile_photo_url || 'default.jpg'
-                                    "
-                                />
-                                <AvatarFallback>
-                                    {{ page.props.auth.user.name?.charAt(0) }}
-                                </AvatarFallback>
-                            </Avatar>
-                            {{ page.props.auth.user.name }}
-                        </div>
-                        {{ page.props.auth.user.vendor.twilio_number }}
+
+                <div class="flex flex-col text-left">
+                    <div class="flex gap-2 items-center">
+                        <Avatar class="w-5 h-5">
+                            <AvatarImage
+                                :src="
+                                    $page.props.auth.user?.profile_photo_url ||
+                                    'default.jpg'
+                                "
+                            />
+                            <AvatarFallback>
+                                {{ $page.props.auth.user?.name?.charAt(0) }}
+                            </AvatarFallback>
+                        </Avatar>
+                        {{ $page.props.auth.user?.name }}
                     </div>
+                    {{ vendor_phone_number }}
                 </div>
             </div>
 
@@ -252,7 +268,7 @@ onMounted(() => {
                     </div>
                     <MessageCard
                         v-else
-                        :messages="vendorWocConversation"
+                        :messages="vendorOwnerConversations"
                         :sender="vendor_phone_number"
                     />
                 </ScrollArea>
@@ -311,7 +327,6 @@ onMounted(() => {
                     rows="1"
                     :disabled="loading"
                 />
-
                 <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
                     <!-- Attachment Button -->
                     <Button

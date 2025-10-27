@@ -194,138 +194,150 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="grid gap-3 overflow-y-auto px-6">
-        <p class="font-semibold uppercase text-xs mb-3">Vendor Conversation</p>
-        <div class="flex justify-between gap-2 mb-2">
-            <div>
-                <div class="flex gap-2">
-                    <Select v-model="selectedVendor">
-                        <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Select a vendor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <template
-                                    v-for="vendor in workOrder.vendors"
-                                    :key="vendor.id"
-                                >
-                                    <SelectItem
-                                        :value="String(vendor.id)"
-                                        :selected="vendor.twilio_number"
+    <div>
+        <div class="grid gap-3 overflow-y-auto px-6">
+            <p class="font-semibold uppercase text-xs mb-3">
+                Vendor Conversation
+            </p>
+            <div class="flex justify-between gap-2 mb-2">
+                <div>
+                    <div class="flex gap-2">
+                        <Select v-model="selectedVendor">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select a vendor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <template
+                                        v-for="vendor in workOrder.vendors"
+                                        :key="vendor.id"
                                     >
-                                        {{ vendor.name }} -
-                                        {{ vendor?.twilio_number }}
-                                    </SelectItem>
-                                </template>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    <Input
-                        placeholder="Custom number"
-                        class=""
-                        v-model="vendor_phone_number"
-                    />
-                </div>
-                <p class="text-xs text-gray-500">
-                    Please include the country code (e.g. +1)
-                </p>
-            </div>
-
-            <div class="flex flex-col text-left">
-                <div class="flex gap-2 items-center">
-                    <Avatar class="w-5 h-5">
-                        <AvatarImage
-                            :src="woc?.profile_photo_url || 'default.jpg'"
+                                        <SelectItem
+                                            :value="String(vendor.id)"
+                                            :selected="vendor.twilio_number"
+                                        >
+                                            {{ vendor.name }} -
+                                            {{ vendor?.twilio_number }}
+                                        </SelectItem>
+                                    </template>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            placeholder="Custom number"
+                            class=""
+                            v-model="vendor_phone_number"
                         />
-                        <AvatarFallback>
-                            {{ woc.name?.charAt(0) }}
-                        </AvatarFallback>
-                    </Avatar>
-                    {{ woc.name }}
+                    </div>
+                    <p class="text-xs text-gray-500">
+                        Please include the country code (e.g. +1)
+                    </p>
                 </div>
-                {{ woc.woc_number.twilio_phone_number.phone_number }}
+
+                <div class="flex flex-col text-left">
+                    <div class="flex gap-2 items-center">
+                        <Avatar class="w-5 h-5">
+                            <AvatarImage
+                                :src="woc?.profile_photo_url || 'default.jpg'"
+                            />
+                            <AvatarFallback>
+                                {{ woc.name?.charAt(0) }}
+                            </AvatarFallback>
+                        </Avatar>
+                        {{ woc.name }}
+                    </div>
+                    {{ woc.woc_number.twilio_phone_number.phone_number }}
+                </div>
             </div>
-        </div>
 
-        <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
-            <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
-                <div class="flex justify-center" v-if="isLoading || loading">
-                    <Loader2 class="w-12 h-12 animate-spin text-primary" />
-                </div>
-                <MessageCard
-                    v-else
-                    :messages="vendorConversation"
-                    :sender="woc_phone_number"
-                />
-            </ScrollArea>
-        </div>
-
-        <!-- Image attachments preview -->
-        <div v-if="attachedImages.length > 0" class="mb-4">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                <div
-                    v-for="(image, index) in attachedImages"
-                    :key="index"
-                    class="relative group"
-                >
-                    <img
-                        :src="image.url"
-                        :alt="image.name"
-                        class="w-full h-20 object-cover rounded-lg border"
+            <div
+                class="flex flex-col gap-4 overflow-y-auto"
+                ref="chatContainer"
+            >
+                <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
+                    <div
+                        class="flex justify-center"
+                        v-if="isLoading || loading"
+                    >
+                        <Loader2 class="w-12 h-12 animate-spin text-primary" />
+                    </div>
+                    <MessageCard
+                        v-else
+                        :messages="vendorConversation"
+                        :sender="woc_phone_number"
                     />
+                </ScrollArea>
+            </div>
+
+            <!-- Image attachments preview -->
+            <div v-if="attachedImages.length > 0" class="mb-4">
+                <div
+                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"
+                >
+                    <div
+                        v-for="(image, index) in attachedImages"
+                        :key="index"
+                        class="relative group"
+                    >
+                        <img
+                            :src="image.url"
+                            :alt="image.name"
+                            class="w-full h-20 object-cover rounded-lg border"
+                        />
+                        <Button
+                            size="icon"
+                            variant="destructive"
+                            class="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            @click="removeImage(index)"
+                        >
+                            <X class="w-3 h-3" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative w-full mt-4 mb-6">
+                <Textarea
+                    v-model="newMessage"
+                    placeholder="Type your message..."
+                    class="w-full resize-y rounded-2xl border py-3 pr-24"
+                    rows="1"
+                    :disabled="loading"
+                />
+                <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                    <!-- Attachment Button -->
                     <Button
                         size="icon"
-                        variant="destructive"
-                        class="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        @click="removeImage(index)"
+                        variant="ghost"
+                        @click="triggerFileInput"
+                        :disabled="loading"
+                        title="Attach image"
                     >
-                        <X class="w-3 h-3" />
+                        <Paperclip class="h-4 w-4" />
+                    </Button>
+
+                    <!-- Send Button -->
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        @click.prevent="sendMessage"
+                        :disabled="isLoading || loading"
+                    >
+                        <Send v-if="!isLoading || loading" class="h-4 w-4" />
+                        <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
+
+                <!-- Hidden file input -->
+                <input
+                    ref="fileInputRef"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    @change="handleFileSelect"
+                    class="hidden"
+                />
             </div>
-        </div>
-
-        <div class="relative w-full mt-4 mb-6">
-            <Textarea
-                v-model="newMessage"
-                placeholder="Type your message..."
-                class="w-full resize-y rounded-2xl border py-3 pr-24"
-                rows="1"
-                :disabled="loading"
-            />
-            <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
-                <!-- Attachment Button -->
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    @click="triggerFileInput"
-                    :disabled="loading"
-                    title="Attach image"
-                >
-                    <Paperclip class="h-4 w-4" />
-                </Button>
-
-                <!-- Send Button -->
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    @click.prevent="sendMessage"
-                    :disabled="isLoading || loading"
-                >
-                    <Send v-if="!isLoading || loading" class="h-4 w-4" />
-                    <Loader2 v-else class="w-4 h-4 animate-spin" />
-                </Button>
-            </div>
-
-            <!-- Hidden file input -->
-            <input
-                ref="fileInputRef"
-                type="file"
-                multiple
-                accept="image/*"
-                @change="handleFileSelect"
-                class="hidden"
-            />
         </div>
     </div>
 </template>

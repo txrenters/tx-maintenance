@@ -12,8 +12,14 @@ class NotificationController extends Controller
 
         $query = Activity::latest();
 
-        if ($user->hasAnyRole(['vendor', 'tenant', 'owner'])) {
-            $query->where('causer_id', $user->id);
+        if ($user->hasAnyRole(['tenant', 'owner'])) {
+            $userNum = $user->phone;
+            $query->where('properties->receiverNumber', $userNum);
+        }
+
+        if ($user->hasRole('vendor') && $user->vendor) {
+            $vendorPhone = $user->vendor->twilio_number;
+            $query->where('properties->receiverNumber', $vendorPhone);
         }
 
         $activities = $query->take(100)->get()->map(function ($activity) {

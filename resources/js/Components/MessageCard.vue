@@ -99,22 +99,14 @@ const openMedia = (mediaUrl) => {
             >
                 To: {{ msg.receiver_number }}
             </p>
-            <!-- <button
-                    class="hover:text-red-500"
-                    title="Delete"
-                    @click.prevent="removeMessage(msg.id)"
-                    v-if="!$page.props.auth.user.roles.includes('vendor')"
-                >
-                    <X class="w-4 h-4" />
-                </button> -->
 
-            <p
-                class="text-md py-1"
+            <span
+                class="text-md py-1 whitespace-pre-line"
                 :class="
                     msg.sender_number === sender ? 'text-white' : 'text-black'
                 "
                 v-html="msg.message"
-            ></p>
+            ></span>
             <!-- Handle both formats: is_mms with media array OR single image property -->
             <div
                 v-if="

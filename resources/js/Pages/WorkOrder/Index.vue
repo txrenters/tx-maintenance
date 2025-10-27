@@ -9,9 +9,11 @@ import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
 import VendorWocConversation from "./Partials/VendorWocConversation.vue";
+import VendorOwnerConversation from "./Partials/VendorOwnerConversation.vue";
 import VendorConversation from "./Partials/VendorConversation.vue";
 import TenantConversation from "./Partials/TenantConversation.vue";
 import OwnerConversation from "./Partials/OwnerConversation.vue";
+import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
 import Conversation from "./Partials/Conversation.vue";
 import ServiceSchedule from "./Partials/ServiceSchedule.vue";
 import Attachments from "./Partials/Attachments.vue";
@@ -48,7 +50,8 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
-import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
+import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
+import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 
 const props = defineProps({
     title: String,
@@ -140,6 +143,18 @@ const tabButtons = [
         requires: ["vendor"],
     },
     {
+        name: "vendor_owner_conversation",
+        tooltip: "Owner Conversation",
+        icon: "O",
+        requires: ["vendor"],
+    },
+    {
+        name: "vendor_tenant_conversation",
+        tooltip: "Tenant Conversation",
+        icon: "T",
+        requires: ["vendor"],
+    },
+    {
         name: "vendor_conversation",
         tooltip: "Vendor Conversation",
         icon: "V",
@@ -161,6 +176,12 @@ const tabButtons = [
         name: "owner_woc_conversation",
         tooltip: "Work Order Coordinator Conversation",
         icon: "W",
+        requires: ["owner"],
+    },
+    {
+        name: "owner_vendor_conversation",
+        tooltip: "Vendor Conversation",
+        icon: "V",
         requires: ["owner"],
     },
     {
@@ -217,11 +238,17 @@ const switchTab = (tabName) => {
         fetchVendorTenantConversation(workOrderForm.id);
     }
 
-    if (activeTab.value === "vendor_woc_conversation" && workOrderForm.id) {
-        fetchVendorConversation(workOrderForm.id);
+    if (
+        (activeTab.value === "vendor_owner_conversation" && workOrderForm.id) ||
+        (activeTab.value === "owner_vendor_conversation" && workOrderForm.id)
+    ) {
+        fetchVendorOwnerConversation(workOrderForm.id);
     }
 
-    if (activeTab.value === "vendor_conversation" && workOrderForm.id) {
+    if (
+        (activeTab.value === "vendor_conversation" && workOrderForm.id) ||
+        (activeTab.value === "vendor_woc_conversation" && workOrderForm.id)
+    ) {
         fetchVendorConversation(workOrderForm.id);
     }
 
@@ -269,6 +296,8 @@ const isLoading = ref(false);
 
 const ownerConversation = ref([]);
 const workOrderOwners = ref([]);
+const workOrderTenants = ref([]);
+const workOrderVendors = ref([]);
 
 const fetchOwnerConversation = async (workOrderId) => {
     try {
@@ -287,7 +316,6 @@ const fetchOwnerConversation = async (workOrderId) => {
 };
 
 const tenantConversation = ref([]);
-const workOrderTenants = ref([]);
 
 const fetchTenantConversation = async (workOrderId) => {
     try {
@@ -308,7 +336,6 @@ const fetchTenantConversation = async (workOrderId) => {
 };
 
 const vendorTenantConversation = ref([]);
-const workOrderVendors = ref([]);
 
 const fetchVendorTenantConversation = async (workOrderId) => {
     try {
@@ -337,6 +364,25 @@ const fetchVendorConversation = async (workOrderId) => {
         );
 
         vendorConversation.value = response.data.vendor_conversation;
+        workOrderVendors.value = response.data.vendors;
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const vendorOwnerConversation = ref([]);
+
+const fetchVendorOwnerConversation = async (workOrderId) => {
+    try {
+        isLoading.value = true;
+        const response = await axios.get(
+            route("work_order.vendor_owner_conversation", workOrderId)
+        );
+
+        vendorOwnerConversation.value = response.data.vendor_owner_conversation;
+        workOrderOwners.value = response.data.owners;
         workOrderVendors.value = response.data.vendors;
     } catch (error) {
         console.error("Error fetching tasks:", error);
@@ -628,6 +674,8 @@ const fetchFilteredData = debounce(() => {
 }, 2000);
 watch(date_range, fetchFilteredData, { deep: true });
 watch(filter_vendor, filterVendor);
+
+const page = usePage();
 </script>
 <template>
     <Head :title="title" />
@@ -765,8 +813,8 @@ watch(filter_vendor, filterVendor);
     </div>
 
     <Dialog v-model:open="openWorkOrder">
-        <DialogContent
-            class="flex max-h-[90dvh] w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
+        <DialogScrollContent
+            class="flex w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"
         >
             <DialogHeader class="p-6 pb-0 text-left">
                 <DialogTitle class="text-2xl text-primary">
@@ -847,7 +895,7 @@ watch(filter_vendor, filterVendor);
             />
 
             <VendorWocConversation
-                :wocConversation="vendorConversation"
+                :vendorWocConversation="vendorConversation"
                 :workOrderVendors="workOrderVendors"
                 @update-vendor-woc-convo="
                     fetchVendorConversation(workOrderForm.id)
@@ -855,6 +903,28 @@ watch(filter_vendor, filterVendor);
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 v-if="activeTab === 'vendor_woc_conversation'"
+            />
+
+            <vendorOwnerConversation
+                :vendorOwnerConversations="vendorOwnerConversation"
+                :workOrderOwners="workOrderOwners"
+                @update-vendor-owner-convo="
+                    fetchVendorOwnerConversation(workOrderForm.id)
+                "
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                v-if="activeTab === 'vendor_owner_conversation'"
+            />
+
+            <VendorTenantConversation
+                :vendorTenantConversations="vendorTenantConversation"
+                :workOrderTenants="workOrderTenants"
+                @update-vendor-tenant-convo="
+                    fetchVendorTenantConversation(workOrderForm.id)
+                "
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                v-if="activeTab === 'vendor_tenant_conversation'"
             />
 
             <VendorConversation
@@ -875,6 +945,25 @@ watch(filter_vendor, filterVendor);
                 v-if="activeTab === 'owner_conversation'"
             />
 
+            <OwnerWocConversation
+                :ownerConversation="ownerConversation"
+                :workOrder="workOrderForm"
+                @update-owner-convo="fetchOwnerConversation(workOrderForm.id)"
+                :isLoading="isLoading"
+                v-if="activeTab === 'owner_woc_conversation'"
+            />
+
+            <OwnerVendorConversation
+                :ownerVendorConversation="vendorOwnerConversation"
+                :workOrder="workOrderForm"
+                :workOrderVendors="workOrderVendors"
+                @update-owner-vendor-convo="
+                    fetchVendorOwnerConversation(workOrderForm.id)
+                "
+                :isLoading="isLoading"
+                v-if="activeTab === 'owner_vendor_conversation'"
+            />
+
             <TenantConversation
                 :tenantConversation="tenantConversation"
                 :workOrderTenants="workOrderTenants"
@@ -882,14 +971,6 @@ watch(filter_vendor, filterVendor);
                 @update-tenant-convo="fetchTenantConversation(workOrderForm.id)"
                 :isLoading="isLoading"
                 v-if="activeTab === 'tenant_conversation'"
-            />
-
-            <OwnerWocConversation
-                :ownerConversation="ownerConversation"
-                :workOrder="workOrderForm"
-                @update-owner-convo="fetchOwnerConversation(workOrderForm.id)"
-                :isLoading="isLoading"
-                v-if="activeTab === 'owner_woc_conversation'"
             />
 
             <ServiceSchedule
@@ -933,7 +1014,7 @@ watch(filter_vendor, filterVendor);
                 @fetch-vendor="fetchVendors(workOrderForm.id)"
                 v-if="activeTab === 'vendor_edit'"
             />
-        </DialogContent>
+        </DialogScrollContent>
     </Dialog>
 
     <Dialog v-model:open="openImportWorkOrder">

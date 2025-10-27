@@ -26,17 +26,8 @@ class TwilioWebhookController extends Controller
         $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
 
         $isMms = isset($data['NumMedia']) && $data['NumMedia'] > 0;
-
-        Log::info('New SMS message received', [
-            'from' => $from,
-            'to' => $to,
-            'message' => $body,
-            'message_length' => strlen($body),
-            'has_media' => (int) $request->input('NumMedia') > 0,
-            'media_count' => (int) $request->input('NumMedia'),
-        ]);
-
-        $workOrderMessage = $this->getWorkOrderMessage($from, $to);
+        
+        $workOrderMessage = $this->getWorkOrderMessage($body, $from, $to);
 
         if ($workOrderMessage) {
 
@@ -189,15 +180,24 @@ class TwilioWebhookController extends Controller
         }
     }
 
-    protected function getWorkOrderMessage(string $from, string $to)
+    protected function getWorkOrderMessage(string $body, string $from, string $to)
     {
+        // "Ref: WO#12345" just in case
+        if (preg_match('/Ref:\s*(WO#\d+)/', $body, $matches)) {
+            $refNo = $matches[1];
+            $workOrder = WorkOrder::where('work_order_no', $refNo)->first();
+
+            return Conversation::where('work_order_id', $workOrder->id)->latest()
+                ->first();
+        } 
+
         return Conversation::where(function ($query) use ($from, $to) {
-            $query->where('receiver_number', $from)
-                ->where('sender_number', $to);
-        })->orWhere(function ($query) use ($to, $from) {
-            $query->where('receiver_number', $to)
-                ->where('sender_number', $from);
-        })->latest()
+                    $query->where('receiver_number', $from)
+                        ->where('sender_number', $to);
+                })->orWhere(function ($query) use ($to, $from) {
+                    $query->where('receiver_number', $to)
+                        ->where('sender_number', $from);
+                })->latest()
             ->first(); // fetch the latest conversation
     }
 

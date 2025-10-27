@@ -32,6 +32,13 @@ class ConversationController extends Controller
         return response()->json($workOrder, 200);
     }
 
+    public function get_vendor_owner_conversation(WorkOrder $workOrder)
+    {
+        $workOrder->load(['owners','vendors', 'vendor_owner_conversation.media']);
+
+        return response()->json($workOrder, 200);
+    }
+
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
         $workOrder->load(['vendor_conversation.media', 'vendors']);
@@ -49,13 +56,6 @@ class ConversationController extends Controller
     public function get_owner_conversation(WorkOrder $workOrder)
     {
         $workOrder->load(['owners', 'owner_conversation.media']);
-
-        return response()->json($workOrder, 200);
-    }
-
-    public function get_owner_vendor_conversation(WorkOrder $workOrder)
-    {
-        $workOrder->load(['owners', 'owner_vendor_conversation.media']);
 
         return response()->json($workOrder, 200);
     }
@@ -90,8 +90,13 @@ class ConversationController extends Controller
         $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
 
         try {
+
+            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
+
+            $messageText = trim(($validatedData['text'] ?? '') . ' (Ref: WO#' . $workOrder->work_order_no.')');
+
             $conversation = Conversation::create([
-                'message' => $validatedData['text'] ?? '',
+                'message' =>$messageText,
                 'sender_number' => $senderNumber,
                 'receiver_number' => $receiverNumber,
                 'work_order_id' => $validatedData['work_order_id'],
@@ -119,8 +124,6 @@ class ConversationController extends Controller
                 ]);
             }
 
-            $messageContent = $validatedData['text'] ?? '';
-
             $imageFullPath = '';
 
             if ($imagePath) {
@@ -128,8 +131,6 @@ class ConversationController extends Controller
             }
 
             $user = auth()->user();
-
-            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
             if ($user->hasRole('owner') || $user->hasRole('tenant')) {
                 $this->sendNotification($conversation, $validatedData, $workOrder);
@@ -140,7 +141,7 @@ class ConversationController extends Controller
             $twilio->sendMessage(
                 $receiverNumber,
                 $senderNumber,
-                $messageContent,
+                $messageText,
                 $imageFullPath
             );
 
@@ -149,73 +150,6 @@ class ConversationController extends Controller
             Log::error('Failed to send message: '.$e->getMessage());
 
             return redirect()->back()->with('error', 'Failed to send the message. Please try again.');
-        }
-    }
-
-    public function SendMessageByOwner(ConversationStoreRequest $request)
-    {
-        $validatedData = $request->validated();
-
-        if (empty($validatedData['text']) && ! $request->hasFile('image')) {
-            return redirect()->back()->with('error', 'Please provide either a message or an image.');
-        }
-
-        $senderNumber = $validatedData['sender_phone_number'];
-        $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
-
-        DB::beginTransaction();
-
-        try {
-            $conversation = Conversation::create([
-                'message' => $validatedData['text'] ?? '',
-                'sender_number' => $senderNumber,
-                'receiver_number' => $receiverNumber,
-                'work_order_id' => $validatedData['work_order_id'],
-                'conversation_type' => $validatedData['conversation_type'],
-                'is_read' => true,
-                'is_mms' => $request->hasFile('image'), // Set MMS flag if image is present
-            ]);
-
-            $imagePath = null;
-            if ($request->hasFile('image')) {
-                $image = $request->file('image');
-                $originalName = $image->getClientOriginalName();
-                $filename = time().'_'.$originalName;
-
-                // Store image in storage/app/public/conversation_images
-                $imagePath = $image->storeAs('conversation_images', $filename, 'public');
-
-                // Save image info to conversation_medias table
-                ConversationMedia::create([
-                    'message_id' => $conversation->id,
-                    'original_url' => '', // We're storing locally, no original URL from external source
-                    'local_path' => $imagePath,
-                    'content_type' => $image->getMimeType(),
-                    'file_name' => $originalName,
-                ]);
-            }
-
-            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
-            activity()
-                ->performedOn($conversation)
-                ->event('work_order_message_received')
-                ->withProperties([
-                    'senderNumber' => $senderNumber,
-                    'receiverNumber' => $receiverNumber,
-                    'message' => $validatedData['text'],
-                    'work_order_id' => $validatedData['work_order_id'],
-                ])
-                ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
-
-            DB::commit();
-
-            return redirect()->back()->with('success', 'Message saved successfully!');
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            Log::error('Failed to send message: '.$e->getMessage());
-
-            return redirect()->back()->with('error', 'Failed to save the message. Please try again.');
         }
     }
 

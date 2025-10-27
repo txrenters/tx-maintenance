@@ -28,7 +28,7 @@ class TwilioService
             // Add media URL if provided for MMS
             if ($mediaUrl) {
                 $messageData['mediaUrl'] = [$mediaUrl];
-                $messageData['body'] = 'File sent!';
+                $messageData['body'] = $message;
             }
 
             $this->client->messages->create($to, $messageData);

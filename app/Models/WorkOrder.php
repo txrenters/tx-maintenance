@@ -94,6 +94,11 @@ class WorkOrder extends Model
         return $this->hasMany(Conversation::class)->where('conversation_type', 'vendor_tenant');
     }
 
+    public function vendor_owner_conversation(): HasMany
+    {
+        return $this->hasMany(Conversation::class)->where('conversation_type', 'vendor_owner');
+    }
+
     public function service_schedules(): HasMany
     {
         return $this->hasMany(ServiceSchedule::class)->orderBy('status', 'ASC');

@@ -195,145 +195,161 @@ console.log(props.workOrderTenants);
 </script>
 
 <template>
-    <div class="grid gap-3 overflow-y-auto px-6">
-        <p class="font-semibold uppercase text-xs mb-3">Tenant Conversation</p>
-        <div class="flex justify-between gap-2 mb-2">
-            <div>
-                <div class="flex gap-2">
-                    <Select v-model="selectedTenant">
-                        <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Select a tenant" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <template
-                                    v-for="tenant in workOrderTenants"
-                                    :key="tenant.id"
-                                >
-                                    <SelectItem
-                                        :value="String(tenant.id)"
-                                        :selected="
-                                            tenant.mobile_phone ===
-                                            workOrder.requested?.mobile_phone
-                                        "
+    <div>
+        <div class="grid gap-3 overflow-y-auto px-6">
+            <p class="font-semibold uppercase text-xs mb-3">
+                Tenant Conversation
+            </p>
+            <div class="flex justify-between gap-2 mb-2">
+                <div>
+                    <div class="flex gap-2">
+                        <Select v-model="selectedTenant">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select a tenant" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <template
+                                        v-for="tenant in workOrderTenants"
+                                        :key="tenant.id"
                                     >
-                                        {{ tenant.first_name }}
-                                        {{ tenant.last_name }} -
-                                        {{ tenant?.mobile_phone }}
-                                    </SelectItem>
-                                </template>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    <Input
-                        placeholder="Custom number"
-                        class=""
-                        v-model="tenant_phone_number"
-                    />
-                </div>
-                <p class="text-xs text-gray-500">
-                    Please include the country code (e.g. +1)
-                </p>
-            </div>
-
-            <div class="flex flex-col text-left">
-                <div class="flex gap-2 items-center">
-                    <Avatar class="w-5 h-5">
-                        <AvatarImage
-                            :src="woc?.profile_photo_url || 'default.jpg'"
+                                        <SelectItem
+                                            :value="String(tenant.id)"
+                                            :selected="
+                                                tenant.mobile_phone ===
+                                                workOrder.requested
+                                                    ?.mobile_phone
+                                            "
+                                        >
+                                            {{ tenant.first_name }}
+                                            {{ tenant.last_name }} -
+                                            {{ tenant?.mobile_phone }}
+                                        </SelectItem>
+                                    </template>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            placeholder="Custom number"
+                            class=""
+                            v-model="tenant_phone_number"
                         />
-                        <AvatarFallback>
-                            {{ woc.name?.charAt(0) }}
-                        </AvatarFallback>
-                    </Avatar>
-                    {{ woc.name }}
+                    </div>
+                    <p class="text-xs text-gray-500">
+                        Please include the country code (e.g. +1)
+                    </p>
                 </div>
-                {{ woc.woc_number.twilio_phone_number.phone_number }}
-            </div>
-        </div>
-        <div class="flex flex-col gap-4 overflow-y-auto" ref="chatContainer">
-            <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
-                <div class="flex justify-center" v-if="isLoading || loading">
-                    <Loader2 class="w-12 h-12 animate-spin text-primary" />
-                </div>
-                <MessageCard
-                    v-else
-                    :messages="tenantConversation"
-                    :sender="woc_phone_number"
-                />
-            </ScrollArea>
-        </div>
 
-        <!-- Image Preview -->
-        <div v-if="imagePreview" class="mb-4 p-3 border rounded-lg bg-muted/20">
-            <div class="flex items-start gap-3">
-                <div class="relative">
-                    <img
-                        :src="imagePreview"
-                        alt="Selected image"
-                        class="w-20 h-20 object-cover rounded-lg border"
+                <div class="flex flex-col text-left">
+                    <div class="flex gap-2 items-center">
+                        <Avatar class="w-5 h-5">
+                            <AvatarImage
+                                :src="woc?.profile_photo_url || 'default.jpg'"
+                            />
+                            <AvatarFallback>
+                                {{ woc.name?.charAt(0) }}
+                            </AvatarFallback>
+                        </Avatar>
+                        {{ woc.name }}
+                    </div>
+                    {{ woc.woc_number.twilio_phone_number.phone_number }}
+                </div>
+            </div>
+            <div
+                class="flex flex-col gap-4 overflow-y-auto"
+                ref="chatContainer"
+            >
+                <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
+                    <div
+                        class="flex justify-center"
+                        v-if="isLoading || loading"
+                    >
+                        <Loader2 class="w-12 h-12 animate-spin text-primary" />
+                    </div>
+                    <MessageCard
+                        v-else
+                        :messages="tenantConversation"
+                        :sender="woc_phone_number"
                     />
+                </ScrollArea>
+            </div>
+
+            <!-- Image Preview -->
+            <div
+                v-if="imagePreview"
+                class="mb-4 p-3 border rounded-lg bg-muted/20"
+            >
+                <div class="flex items-start gap-3">
+                    <div class="relative">
+                        <img
+                            :src="imagePreview"
+                            alt="Selected image"
+                            class="w-20 h-20 object-cover rounded-lg border"
+                        />
+                        <Button
+                            size="icon"
+                            variant="destructive"
+                            class="absolute -top-2 -right-2 h-6 w-6"
+                            @click="removeImage"
+                        >
+                            <X class="h-3 w-3" />
+                        </Button>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium">
+                            {{ selectedImage?.name }}
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                            {{ Math.round(selectedImage?.size / 1024) }}KB
+                        </p>
+                        <p class="text-xs text-muted-foreground mt-1">
+                            Ready to send with your message
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Input -->
+            <div class="relative w-full mt-4 mb-6">
+                <!-- Hidden file input -->
+                <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/*"
+                    @change="handleImageSelect"
+                    class="hidden"
+                />
+                <Textarea
+                    v-model="newMessage"
+                    placeholder="Type your message..."
+                    class="w-full resize-y rounded-2xl border py-3 pr-24"
+                    rows="1"
+                    :disabled="loading"
+                />
+                <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                    <!-- Attachment Button -->
                     <Button
                         size="icon"
-                        variant="destructive"
-                        class="absolute -top-2 -right-2 h-6 w-6"
-                        @click="removeImage"
+                        variant="ghost"
+                        @click="triggerFileInput"
+                        :disabled="loading"
+                        title="Attach image"
                     >
-                        <X class="h-3 w-3" />
+                        <Paperclip class="h-4 w-4" />
+                    </Button>
+
+                    <!-- Send Button -->
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        @click.prevent="sendMessage"
+                        :disabled="isLoading || loading"
+                        class=""
+                    >
+                        <Send v-if="!isLoading || loading" class="h-4 w-4" />
+                        <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
-                <div class="flex-1">
-                    <p class="text-sm font-medium">{{ selectedImage?.name }}</p>
-                    <p class="text-xs text-muted-foreground">
-                        {{ Math.round(selectedImage?.size / 1024) }}KB
-                    </p>
-                    <p class="text-xs text-muted-foreground mt-1">
-                        Ready to send with your message
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Message Input -->
-        <div class="relative w-full mt-4 mb-6">
-            <!-- Hidden file input -->
-            <input
-                ref="fileInput"
-                type="file"
-                accept="image/*"
-                @change="handleImageSelect"
-                class="hidden"
-            />
-            <Textarea
-                v-model="newMessage"
-                placeholder="Type your message..."
-                class="w-full resize-y rounded-2xl border py-3 pr-24"
-                rows="1"
-                :disabled="loading"
-            />
-            <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
-                <!-- Attachment Button -->
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    @click="triggerFileInput"
-                    :disabled="loading"
-                    title="Attach image"
-                >
-                    <Paperclip class="h-4 w-4" />
-                </Button>
-
-                <!-- Send Button -->
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    @click.prevent="sendMessage"
-                    :disabled="isLoading || loading"
-                    class=""
-                >
-                    <Send v-if="!isLoading || loading" class="h-4 w-4" />
-                    <Loader2 v-else class="w-4 h-4 animate-spin" />
-                </Button>
             </div>
         </div>
     </div>
