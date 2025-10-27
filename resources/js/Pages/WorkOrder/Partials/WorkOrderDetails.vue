@@ -340,11 +340,8 @@ const handleDeleteSubmit = () => {
                 </div>
                 <div v-else>
                     <Label for="message">Vendors:</Label>
-                    <div
-                        v-for="(vendor_name, index) in workOrder.vendors"
-                        :key="index"
-                    >
-                        <p>{{ vendor_name }}</p>
+                    <div v-for="vendor in workOrder.vendors" :key="vendor.id">
+                        <p>{{ vendor.name }}</p>
                     </div>
                 </div>
                 <div

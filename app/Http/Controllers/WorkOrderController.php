@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
+use App\Notifications\NewWorkOrderAssignNotification;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\WorkOrderService;
@@ -253,6 +254,7 @@ class WorkOrderController extends Controller
 
             foreach ($request->vendors as $vendor) {
                 $vendorData = Vendor::whereLike('name', "%{$vendor}%")->first();
+
                 $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
                 $vendorIds[] = $vendorData->id;
 
@@ -262,6 +264,11 @@ class WorkOrderController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+
+                if($vendorData->email){
+                    $vendorData->notify(new NewWorkOrderAssignNotification($workOrder));
+                }
+                
             }
 
             $vendorIDsXml .= '</vendorIDs>';
