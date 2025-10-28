@@ -246,30 +246,56 @@ class WorkOrderController extends Controller
 
         try {
             $vendorIDsXml = '';
-            $vendorIds = [];
 
             DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
 
             $vendorIDsXml = '<vendorIDs xsi:type="soapenc:Array" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">';
 
             foreach ($request->vendors as $vendor) {
-                $vendorData = Vendor::whereLike('name', "%{$vendor}%")->first();
+                try {
+                    $vendorData = Vendor::whereLike('name',$vendor)->first();
 
-                $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
-                $vendorIds[] = $vendorData->id;
+                    if (!$vendorData) {
+                        Log::warning("Vendor not found: {$vendor}");
+                        continue;
+                    }
+                    // Add to XML and arrays
+                    $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
 
-                DB::table('work_order_vendors')->insert([
-                    'work_order_id' => $workOrder->id,
-                    'vendor_id' => $vendorData->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                    // Safely insert link to pivot table
+                    DB::table('work_order_vendors')->updateOrInsert(
+                        [
+                            'work_order_id' => $workOrder->id,
+                            'vendor_id' => $vendorData->id,
+                        ],
+                        [
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
 
-                if($vendorData->email){
-                    $vendorData->notify(new NewWorkOrderAssignNotification($workOrder));
+                    // Send notification (optional)
+                    if ($vendorData->email) {
+                        try {
+                            $vendorData->notify(new NewWorkOrderAssignNotification($workOrder));
+                        } catch (\Throwable $notifyError) {
+                            Log::error("Failed to notify vendor {$vendorData->email}", [
+                                'error' => $notifyError->getMessage(),
+                                'vendor_id' => $vendorData->id,
+                                'work_order_id' => $workOrder->id,
+                            ]);
+                        }
+                    }
+
+                } catch (\Throwable $e) {
+                    Log::error("Error processing vendor: {$vendor}", [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    continue; // continue with next vendor no matter what
                 }
-                
             }
+
 
             $vendorIDsXml .= '</vendorIDs>';
 

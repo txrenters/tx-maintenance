@@ -39,14 +39,15 @@ class ImportTwilioNumberController extends Controller
                         'sms_application_sid' => $twilio->smsApplicationSid ?? null,
                         'capabilities' => json_encode($capabilities),
                         'twilio_status' => $twilio->status ?? 'unknown',
-                        'created_at' => now(),
-                        'updated_at' => now(),
                     ];
 
-                TwilioPhoneNumber::updateOrInsert(
-                    ['phone_number' => $twilio->phoneNumber], 
-                    $data
-                );
+                $twilioPhone = TwilioPhoneNumber::where('phone_number', $twilio->phoneNumber)->first();
+ 
+                if($twilioPhone){
+                    $twilioPhone->update($data);
+                }else{
+                    TwilioPhoneNumber::create($data);
+                }
             }
         } catch (\Exception $e) {
             DB::rollBack(); // Rollback on error
