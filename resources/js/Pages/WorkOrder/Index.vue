@@ -54,6 +54,7 @@ import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
+import { Skeleton } from "@/Components/ui/skeleton";
 
 const props = defineProps({
     title: String,
@@ -800,26 +801,40 @@ const page = usePage();
             </Link>
         </div>
     </div>
-    <Deferred data="service_status">
-        <template #fallback>
-            <div
-                class="w-full flex items-center justify-center h-96 flex-col gap-2"
-            >
-                <Loader2 class="animate-spin w-20 h-20" />
-                Loading work orders...
-            </div>
-        </template>
 
-        <ScrollArea
-            class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-        >
+    <ScrollArea
+        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
+    >
+        <Deferred data="service_status">
+            <template #fallback>
+                <div class="mb-5">
+                    <div class="flex gap-3 mb-3">
+                        <Skeleton
+                            v-for="value in 6"
+                            :key="value"
+                            class="h-[80px] w-[240px]"
+                        />
+                    </div>
+                    <div
+                        class="flex gap-3 mb-3"
+                        v-for="value in 3"
+                        :key="value"
+                    >
+                        <Skeleton
+                            v-for="value in 6"
+                            :key="value"
+                            class="h-[180px] w-[240px] rounded-lg"
+                        />
+                    </div>
+                </div>
+            </template>
             <WorkOrderCard
                 :service_status="service_status"
                 @showWorkOrder="handleWorkOrder"
             />
-            <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-    </Deferred>
+        </Deferred>
+        <ScrollBar orientation="horizontal" />
+    </ScrollArea>
 
     <div class="">
         <span class="text-gray-600">Drag/swipe the scrollbar →</span>

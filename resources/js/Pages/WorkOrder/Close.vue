@@ -53,7 +53,7 @@ import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import VendorOwnerConversation from "./Partials/VendorOwnerConversation.vue";
-import WorkOrderCard from "./Partials/WorkOrderCard.vue";
+import { Skeleton } from "@/Components/ui/skeleton";
 
 const props = defineProps({
     title: String,
@@ -776,26 +776,31 @@ watch(filter_vendor, filterVendor);
         </div>
     </div>
     <div>
-        <Deferred data="service_status">
-            <template #fallback>
-                <div
-                    class="w-full flex items-center justify-center h-96 flex-col gap-2"
-                >
-                    <Loader2Icon class="animate-spin w-20 h-20" />
-                    Loading completed work orders...
-                </div>
-            </template>
+        <ScrollArea
+            class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
+        >
+            <Deferred data="service_status">
+                <template #fallback>
+                    <div
+                        class="flex gap-3 mb-3 overflow-hidden"
+                        v-for="value in 3"
+                        :key="value"
+                    >
+                        <Skeleton
+                            v-for="value in 6"
+                            :key="value"
+                            class="h-[180px] w-[240px] rounded-lg"
+                        />
+                    </div>
+                </template>
 
-            <ScrollArea
-                class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-            >
-                <WorkOrderCard
+                <WorkOrderClosedCard
                     :service_status="service_status"
                     @showWorkOrder="handleWorkOrder"
                 />
                 <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-        </Deferred>
+            </Deferred>
+        </ScrollArea>
     </div>
     <Dialog v-model:open="openWorkOrder">
         <DialogScrollContent
