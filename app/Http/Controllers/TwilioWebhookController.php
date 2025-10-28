@@ -181,7 +181,7 @@ class TwilioWebhookController extends Controller
     }
 
     protected function getWorkOrderMessage(string $body, string $from, string $to)
-    {
+    {        
         // "Ref: WO#12345" just in case
         if (preg_match('/Ref:\s*(WO#\d+)/', $body, $matches)) {
             $refNo = $matches[1];
@@ -210,15 +210,6 @@ class TwilioWebhookController extends Controller
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
         })->first(); // fetch the latest conversation
-    }
-
-    protected function getMessageType(string $from, string $to): string
-    {
-        $conversation = Conversation::where('receiver_number', $from)
-            ->where('sender_number', $to)
-            ->first();
-
-        return $conversation->conversation_type ?? ''; // Provide a fallback
     }
 
     protected function getWorkOrderId(string $from, string $to)

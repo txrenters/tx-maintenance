@@ -236,11 +236,9 @@ const handleDeleteSubmit = () => {
                         title="Assign vendor"
                         :disabled="loading"
                         v-if="
-                            (workOrder.local_status === 'Created' &&
-                                $page.props.auth.user.roles.includes(
-                                    'admin'
-                                )) ||
-                            $page.props.auth.user.roles.includes('woc')
+                            workOrder.local_status === 'Created' &&
+                            ($page.props.auth.user.roles.includes('admin') ||
+                                $page.props.auth.user.roles.includes('woc'))
                         "
                         @click.prevent="handleVendorSubmit"
                     >
@@ -346,16 +344,15 @@ const handleDeleteSubmit = () => {
                 </div>
                 <div
                     v-if="
-                        (workOrder.is_emergency === null &&
-                            $page.props.auth.user.roles.includes('admin')) ||
-                        $page.props.auth.user.roles.includes('woc')
+                        workOrder.is_emergency === null &&
+                        ($page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc'))
                     "
                 >
                     <Label for="message">Emergency:</Label>
                     <Select
                         v-model="workOrder.is_emergency"
                         @update:modelValue="handleEmergencySubmit"
-                        v-if="!$page.props.auth.user.roles.includes('vendor')"
                     >
                         <SelectTrigger class="w-full">
                             <SelectValue placeholder="Select an emergency" />
