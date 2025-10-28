@@ -11,7 +11,6 @@ class ImportTwilioNumberController extends Controller
 {
     public function __invoke()
     {
-
         $account_sid = env('TWILIO_SID');
         $auth_token = env('TWILIO_AUTH_TOKEN');
 
@@ -25,8 +24,6 @@ class ImportTwilioNumberController extends Controller
             $data = [];
 
             foreach ($twilioNumbers->read() as $twilio) {
-                $phoneNumber = TwilioPhoneNumber::where('phone_number', $twilio->phoneNumber)->first();
-
                 $capabilities = [
                     'mms' => $twilio->capabilities->mms ? 'Yes' : 'No',
                     'sms' => $twilio->capabilities->sms ? 'Yes' : 'No',
@@ -34,8 +31,7 @@ class ImportTwilioNumberController extends Controller
                     'fax' => $twilio->capabilities->fax ? 'Yes' : 'No',
                 ];
 
-                if (! $phoneNumber) {
-                    $data[] = [
+                $data = [
                         'name' => $twilio->friendlyName,
                         'account_sid' => $twilio->accountSid,
                         'sid' => $twilio->sid,
@@ -46,16 +42,11 @@ class ImportTwilioNumberController extends Controller
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
-                }
-            }
 
-            if (! empty($data)) {
-                TwilioPhoneNumber::insert($data);
-                DB::commit(); // Commit the transaction
-                Log::info('Successfully imported Twilio numbers.');
-            } else {
-                DB::rollBack(); // Rollback transaction (optional, as nothing was inserted)
-                Log::info('No matching Twilio numbers found to insert.');
+                TwilioPhoneNumber::updateOrInsert(
+                    ['phone_number' => $twilio->phoneNumber], 
+                    $data
+                );
             }
         } catch (\Exception $e) {
             DB::rollBack(); // Rollback on error

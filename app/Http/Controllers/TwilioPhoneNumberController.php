@@ -16,8 +16,9 @@ class TwilioPhoneNumberController extends Controller
         Gate::authorize('view_twilio_number', TwilioPhoneNumber::class);
 
         $perPage = $request->per_page
-         ? ($request->per_page == 'All' ? TwilioPhoneNumber::count() : $request->per_page)
-         : 10;
+            ? ($request->per_page == 'All' ? TwilioPhoneNumber::count() : $request->per_page)
+            : 10;
+
         $twilio_numbers = TwilioPhoneNumber::query()
             ->filter(request(['search']))
             ->orderBy('name')
@@ -36,6 +37,7 @@ class TwilioPhoneNumberController extends Controller
                     'twilio_status' => $twilio->twilio_status,
                 ];
             });
+            
         $twilios = TwilioPhoneNumber::orderBy('name')->get();
 
         return inertia('Twilio/Index', [
