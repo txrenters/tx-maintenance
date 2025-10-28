@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, computed, onBeforeUnmount } from "vue";
-import { router, useForm, usePoll, usePage } from "@inertiajs/vue3";
+import { router, useForm, usePoll, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -36,6 +36,8 @@ import {
     RefreshCw,
     ScanSearch,
     Search,
+    Loader2Icon,
+    Loader2,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -798,15 +800,26 @@ const page = usePage();
             </Link>
         </div>
     </div>
-    <ScrollArea
-        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-    >
-        <WorkOrderCard
-            :service_status="service_status"
-            @showWorkOrder="handleWorkOrder"
-        />
-        <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+    <Deferred data="service_status">
+        <template #fallback>
+            <div
+                class="w-full flex items-center justify-center h-96 flex-col gap-2"
+            >
+                <Loader2 class="animate-spin w-20 h-20" />
+                Loading work orders...
+            </div>
+        </template>
+
+        <ScrollArea
+            class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
+        >
+            <WorkOrderCard
+                :service_status="service_status"
+                @showWorkOrder="handleWorkOrder"
+            />
+            <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+    </Deferred>
 
     <div class="">
         <span class="text-gray-600">Drag/swipe the scrollbar →</span>

@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
 class WorkOrderController extends Controller
@@ -58,7 +59,7 @@ class WorkOrderController extends Controller
 
         return inertia('WorkOrder/Index', [
             'title' => 'Work Orders',
-            'service_status' => $service_status,
+            'service_status' => Inertia::defer(fn() => $service_status),
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
@@ -228,7 +229,7 @@ class WorkOrderController extends Controller
 
         return inertia('WorkOrder/Close', [
             'title' => 'Closed Work Orders',
-            'service_status' => $service_status,
+            'service_status' => Inertia::defer(fn() => $service_status),
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
