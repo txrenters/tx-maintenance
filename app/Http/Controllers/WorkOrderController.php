@@ -254,7 +254,7 @@ class WorkOrderController extends Controller
 
             foreach ($request->vendors as $vendor) {
                 try {
-                    $vendorData = Vendor::whereLike('name',$vendor)->first();
+                    $vendorData = Vendor::whereLike('name', $vendor)->first();
 
                     if (!$vendorData) {
                         Log::warning("Vendor not found: {$vendor}");

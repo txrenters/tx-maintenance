@@ -456,6 +456,7 @@ onUnmounted(() => {
                                 <Link
                                     :href="item.url"
                                     prefetch
+                                    view-transition
                                     :class="{
                                         'font-bold border': item.isActive,
                                     }"

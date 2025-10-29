@@ -6,12 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\Notifiable;
 
 class Vendor extends Model
 {
+    use Notifiable;
+
     protected $table = 'vendors';
 
-    protected $guarded = [];
+    protected $fillable = [
+        'propertyware_id','name','email','name_on_check','vendor_type','twilio_number','is_active','user_id '
+    ];
 
     public function user(): BelongsTo
     {
