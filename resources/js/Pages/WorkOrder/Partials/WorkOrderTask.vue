@@ -92,10 +92,7 @@ const handleTaskSubmit = () => {
             <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
             <div
                 class="flex gap-2 items-center"
-                v-if="
-                    $page.props.auth.user.roles.includes('admin') ||
-                    $page.props.auth.user.roles.includes('woc')
-                "
+                v-if="$page.props.auth.user.roles.includes('admin')"
             >
                 <Select
                     :modelValue="String(service_status_id)"
