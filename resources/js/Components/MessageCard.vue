@@ -1,8 +1,10 @@
 <script setup>
 import { DateTime } from "luxon";
-import { X } from "lucide-vue-next";
+import { X, XIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import { router } from "@inertiajs/vue3";
+import { useToast } from "./ui/toast";
+const { toast } = useToast();
 
 const props = defineProps({
     messages: Object,
@@ -51,10 +53,6 @@ const messages = computed(() => {
 });
 
 const removeMessage = (id) => {
-    const index = messages.value.findIndex((msg) => msg.id === id);
-    if (index !== -1) {
-        messages.value.splice(index, 1);
-    }
     router.post(
         route("workorder.message.delete", id),
         {
@@ -63,6 +61,17 @@ const removeMessage = (id) => {
         {
             preserveState: true,
             preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Danger",
+                    description: "Mesasge has been removed!",
+                });
+
+                const index = props.messages.findIndex((msg) => msg.id === id);
+                if (index !== -1) {
+                    props.messages.splice(index, 1);
+                }
+            },
         }
     );
 };
@@ -89,6 +98,13 @@ const openMedia = (mediaUrl) => {
                     : 'bg-primary text-primary-foreground rounded-br-none'
             "
         >
+            <button
+                type="button"
+                class="absolute right-1 top-[-5px] flex items-center justify-center w-4 h-4 rounded-full bg-destructive text-white hover:bg-red-600 transition-colors"
+                @click="removeMessage(msg.id)"
+            >
+                <XIcon class="w-3 h-3" />
+            </button>
             <p
                 class="text-xs"
                 :class="
@@ -136,6 +152,16 @@ const openMedia = (mediaUrl) => {
                 />
             </div>
             <div class="flex gap-20 items-center justify-between">
+                <p
+                    class="text-xs"
+                    :class="
+                        msg.sender_number === sender
+                            ? 'text-white'
+                            : 'text-gray-500'
+                    "
+                >
+                    From: {{ msg.sender_number }}
+                </p>
                 <p
                     class="text-xs"
                     :class="
