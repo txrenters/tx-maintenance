@@ -75,24 +75,27 @@ const weekContainer = ref(null);
 // Initialize week from backend prop
 const initializeWeek = () => {
     if (props.weekStart) {
-        // Use the week start provided by backend (already a Sunday in Chicago timezone)
-        // Parse as UTC to avoid timezone issues, then treat as local date
-        currentWeekStart.value = new Date(props.weekStart + "T00:00:00");
-        console.log(
-            "Initialized week from backend prop:",
-            props.weekStart,
-            currentWeekStart.value,
-            "Day of week:",
-            currentWeekStart.value.getDay() // Should be 0 (Sunday)
-        );
+        // props.weekStart expected to be "YYYY-MM-DD" (Chicago-local calendar day)
+        const parsed = parseYMD(props.weekStart);
+        if (parsed) {
+            currentWeekStart.value = parsed;
+            console.log(
+                "Initialized week from backend prop:",
+                props.weekStart,
+                currentWeekStart.value,
+                "Day of week:",
+                currentWeekStart.value.getDay()
+            );
+        } else {
+            // fallback if parse fails
+            currentWeekStart.value = new Date();
+        }
     } else {
-        // Fallback to current week in Chicago timezone
-        const today = new Date();
-        const chicagoTime = chicagoFormatter.format(today);
-
-        const chicagoDate = new Date(chicagoTime + "T00:00:00");
-        const dayOfWeek = chicagoDate.getDay();
-        const diff = dayOfWeek; // Days to subtract to get to Sunday
+        // Fallback: determine Chicago today via formatter and derive the Sunday
+        const chicagoYMD = chicagoFormatter.format(new Date()); // "YYYY-MM-DD"
+        const chicagoDate = parseYMD(chicagoYMD);
+        const dayOfWeek = chicagoDate.getDay(); // 0..6
+        const diff = dayOfWeek; // days to subtract to get Sunday
         currentWeekStart.value = new Date(chicagoDate);
         currentWeekStart.value.setDate(chicagoDate.getDate() - diff);
         console.log("Fallback to current week:", currentWeekStart.value);
@@ -236,9 +239,9 @@ const handleTouchStart = (e) => {
 const handleTouchMove = (e) => {
     touchEndX.value = e.touches[0].clientX;
 };
-
 const handleTouchEnd = () => {
-    if (!touchStartX.value || !touchEndX.value) return;
+    // allow 0 coordinate; check for null / undefined instead
+    if (touchStartX.value == null || touchEndX.value == null) return;
 
     const distance = touchStartX.value - touchEndX.value;
     const isLeftSwipe = distance > 50;
@@ -259,22 +262,16 @@ const handleTouchEnd = () => {
 const eventsByDate = computed(() => {
     const grouped = {};
 
+    // Use chicagoFormatter to build keys that match how we format events below
     weekDates.value.forEach((date) => {
-        const dateStr = date.toISOString().split("T")[0];
-        grouped[dateStr] = [];
+        const key = chicagoFormatter.format(date); // e.g. "2025-11-02"
+        grouped[key] = [];
     });
 
     if (props.events) {
         props.events.forEach((event) => {
             const eventDate = new Date(event.start || event.date);
-
-            // Get the date in Chicago timezone for proper day grouping
-            const chicagoDateStr = new Intl.DateTimeFormat("en-CA", {
-                timeZone: "America/Chicago",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-            }).format(eventDate);
+            const chicagoDateStr = chicagoFormatter.format(eventDate);
 
             if (grouped[chicagoDateStr]) {
                 grouped[chicagoDateStr].push({
@@ -309,7 +306,15 @@ const chicagoFormatter = new Intl.DateTimeFormat("en-CA", {
     month: "2-digit",
     day: "2-digit",
 });
-
+// Helper: parse "YYYY-MM-DD" into a Date representing that calendar day.
+// We create a Date using local timezone at midnight for the given Y/M/D numbers.
+// This ensures the calendar date parts are preserved regardless of client tz.
+const parseYMD = (ymd) => {
+    if (!ymd) return null;
+    const [year, month, day] = ymd.split("-").map((s) => parseInt(s, 10));
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+};
 const getStatusColor = (event) => {
     if (event.is_complete) {
         return "bg-green-50 border-green-200 hover:bg-green-100";
