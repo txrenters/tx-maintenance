@@ -90,11 +90,9 @@ const handleTaskSubmit = () => {
     <div class="overflow-y-auto px-6 mb-6 w-full min-h-[300px]">
         <div class="flex justify-between items-center my-3">
             <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
-            <div
-                class="flex gap-2 items-center"
-                v-if="$page.props.auth.user.roles.includes('admin')"
-            >
+            <div class="flex gap-2 items-center">
                 <Select
+                    v-if="$page.props.auth.user.roles.includes('admin')"
                     :modelValue="String(service_status_id)"
                     @update:modelValue="handleServiceStatusChange"
                     :disabled="isLoading"
@@ -177,7 +175,9 @@ const handleTaskSubmit = () => {
 
                     <Select v-model="taskForm.assigned_user_id">
                         <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Select an emergency" />
+                            <SelectValue
+                                placeholder="Select an user to assigned"
+                            />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>

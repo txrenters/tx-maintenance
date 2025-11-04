@@ -210,7 +210,7 @@ const checkDueTask = (task) => {
                 <div
                     v-if="
                         task.status !== 'completed' &&
-                        (task.task.is_optional ? task.option : true)
+                        (task.task?.is_optional ? task.option : true)
                     "
                     class="mr-2"
                 >

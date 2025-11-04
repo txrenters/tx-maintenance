@@ -53,16 +53,23 @@ class WorkOrderController extends Controller
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
-        $vendors = DB::table('vendors')->select('id', 'name')->where('is_active', true)->orderBy('name')->get();
+        $vendors = DB::table('vendors')->select('id', 'name','user_id')->where('is_active', true)->orderBy('name')->get();
 
-        $users = User::role(['woc', 'admin'])->get();
+        $vendorUserIds = $vendors->pluck('user_id')->toArray();
+
+        $users = User::whereHas('roles', fn($q) => $q->where('name', 'woc'))
+            ->orWhere(fn($q) =>
+            $q->whereHas('roles', fn($r) => $r->where('name', 'vendor'))
+                ->whereIn('id', $vendorUserIds)
+        )
+        ->get();
 
         return inertia('WorkOrder/Index', [
             'title' => 'Work Orders',
             'service_status' => Inertia::defer(fn() => $service_status),
-            'vendors' => $vendors,
-            'categories' => $categories,
-            'users' => $users,
+            'vendors' => Inertia::defer(fn() => $vendors),
+            'categories' => Inertia::defer(fn() => $categories),
+            'users' => Inertia::defer(fn() => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor']),
         ]);
     }
