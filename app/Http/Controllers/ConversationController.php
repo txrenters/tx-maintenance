@@ -65,7 +65,7 @@ class ConversationController extends Controller
     {
         $message = [];
 
-        if ($request->data['work_order_id']) {
+        if ($request?->data['work_order_id']) {
             $message = Conversation::with(['work_order', 'media'])
                 ->where('work_order_id', $request->data['work_order_id'])
                 ->where('conversation_type', $request->data['conversation_type'])
