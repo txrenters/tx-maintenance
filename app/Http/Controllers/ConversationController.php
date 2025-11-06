@@ -65,14 +65,18 @@ class ConversationController extends Controller
     {
         $message = [];
 
-        if ($request?->data['work_order_id']) {
+        $data = $request->data ?? [];
+
+        if (!empty($data['work_order_id'])) {
             $message = Conversation::with(['work_order', 'media'])
-                ->where('work_order_id', $request->data['work_order_id'])
-                ->where('conversation_type', $request->data['conversation_type'])
+                ->where('work_order_id', $data['work_order_id'])
+                ->where('conversation_type', $data['conversation_type'] ?? null)
                 ->get();
-        } elseif ($request?->data['jobber_id']) {
-            $message = JobberTextMessage::where('jobber_id', $request?->data['jobber_id'])
-                ->get();
+
+        } elseif (!empty($data['jobber_id'])) {
+            $message = JobberTextMessage::where('jobber_id', $data['jobber_id'])->get();
+        } else {
+            $message = collect();
         }
 
         return response()->json($message, 200);
