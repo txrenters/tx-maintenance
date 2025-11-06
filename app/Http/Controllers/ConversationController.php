@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ConversationStoreRequest;
 use App\Models\Conversation;
 use App\Models\ConversationMedia;
+use App\Models\JobberTextMessage;
 use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
@@ -69,9 +70,8 @@ class ConversationController extends Controller
                 ->where('work_order_id', $request->data['work_order_id'])
                 ->where('conversation_type', $request->data['conversation_type'])
                 ->get();
-        } elseif ($request?->data['job_id']) {
-            $message = Conversation::where('work_order_id', $request->work_order_id)
-                ->where('conversation_type', $request->conversation_type)
+        } elseif ($request?->data['jobber_id']) {
+            $message = JobberTextMessage::where('jobber_id', $request?->data['jobber_id'])
                 ->get();
         }
 

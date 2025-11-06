@@ -328,7 +328,6 @@ const reference_id = ref("");
 const notif = ref(null);
 
 const handleChatModal = async (model) => {
-    console.log(model);
     const response = await axios.post("/api/notification/messages", {
         data: model,
     });
@@ -337,7 +336,7 @@ const handleChatModal = async (model) => {
     sender_number.value = model.receiver_number; // since this is a text message from a client we need to reverse
     receiver_number.value = model.sender_number; // since this is a text message from a client we need to reverse
     conversation_type.value = model?.conversation_type ?? "job";
-    reference_id.value = model?.work_order_id ?? model?.jobber_job_id;
+    reference_id.value = model?.work_order_id ?? model?.jobber_id;
     notif.value = model;
     openModal.value = true;
 };

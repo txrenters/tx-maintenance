@@ -5,6 +5,7 @@ use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\ClientContactController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TwilioWebhookController;
@@ -51,3 +52,4 @@ Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class
 Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');
 
 Route::post('/notification/messages', [ConversationController::class, 'get_conversation']);
+Route::post('/notification/jobber/messages', [JobberTextMessageController::class, 'get_conversation']);
