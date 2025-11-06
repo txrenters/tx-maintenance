@@ -104,15 +104,17 @@ const initializeWeek = () => {
     currentWeekStart.value.setHours(0, 0, 0, 0);
 };
 
-// Get week dates - use UTC calculations to avoid timezone issues
+// Get week dates - work with calendar dates to avoid timezone drift
 const weekDates = computed(() => {
     const dates = [];
-    const start = new Date(currentWeekStart.value);
-    const startTime = start.getTime();
 
-    // Add exactly 24 hours * i days to avoid DST issues
+    // Get the Chicago calendar date for the week start
+    const chicagoDateStr = chicagoFormatter.format(currentWeekStart.value);
+    const [year, month, day] = chicagoDateStr.split("-").map(Number);
+
+    // Create 7 consecutive calendar dates
     for (let i = 0; i < 7; i++) {
-        const date = new Date(startTime + i * 24 * 60 * 60 * 1000);
+        const date = new Date(year, month - 1, day + i);
         dates.push(date);
     }
 
@@ -166,26 +168,30 @@ const isCurrentWeek = computed(() => {
     return chicagoToday >= weekStart && chicagoToday <= weekEnd;
 });
 
-// Navigate weeks - use millisecond arithmetic to avoid timezone issues
+// Navigate weeks - work directly with calendar dates to avoid timezone drift
 const navigateWeek = (direction) => {
     if (isTransitioning.value) return;
 
     isTransitioning.value = true;
 
-    // Calculate new date using millisecond arithmetic (exactly 7 days)
-    const currentTime = currentWeekStart.value.getTime();
-    const newTime = currentTime + direction * 7 * 24 * 60 * 60 * 1000;
-    const newDate = new Date(newTime);
+    // Get current week start as Chicago calendar date string (YYYY-MM-DD)
+    const currentChicagoDate = chicagoFormatter.format(currentWeekStart.value);
 
-    // Format as YYYY-MM-DD in Chicago timezone (not local timezone!)
-    // This ensures all users send the same date to the backend regardless of their timezone
-    const weekKey = chicagoFormatter.format(newDate);
+    // Parse the date components
+    const [year, month, day] = currentChicagoDate.split("-").map(Number);
+
+    // Create a Date object representing this calendar day and add 7 days
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + (direction * 7));
+
+    // Format the new date in Chicago timezone
+    const weekKey = chicagoFormatter.format(date);
 
     console.log(
         "Navigating:",
         direction > 0 ? "forward" : "back",
         "from:",
-        chicagoFormatter.format(currentWeekStart.value),
+        currentChicagoDate,
         "to:",
         weekKey
     );
@@ -304,14 +310,16 @@ const chicagoFormatter = new Intl.DateTimeFormat("en-CA", {
     month: "2-digit",
     day: "2-digit",
 });
-// Helper: parse "YYYY-MM-DD" into a Date representing that calendar day.
-// We create a Date using local timezone at midnight for the given Y/M/D numbers.
-// This ensures the calendar date parts are preserved regardless of client tz.
+// Helper: parse "YYYY-MM-DD" Chicago date string into a Date object
+// We interpret the date as Chicago timezone, not local timezone
 const parseYMD = (ymd) => {
     if (!ymd) return null;
+    // Parse the date string as UTC to avoid timezone interpretation issues
+    // Then we'll always format it using chicagoFormatter when needed
     const [year, month, day] = ymd.split("-").map((s) => parseInt(s, 10));
     if (!year || !month || !day) return null;
-    return new Date(year, month - 1, day, 0, 0, 0, 0);
+    // Use UTC date to avoid any timezone shift
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 };
 const getStatusColor = (event) => {
     if (event.is_complete) {
