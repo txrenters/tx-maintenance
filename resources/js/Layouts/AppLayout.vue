@@ -367,7 +367,7 @@ const sendMessage = () => {
         return;
     }
 
-    if (newMessage.value.trim() !== "") {
+    if (newMessage.value.trim() !== "" && conversation_type.value !== "job") {
         const formData = new FormData();
         formData.append("text", newMessage.value || "");
         formData.append("sender_phone_number", sender_number.value);
@@ -376,6 +376,39 @@ const sendMessage = () => {
         formData.append("conversation_type", conversation_type.value);
 
         router.post(route("work_order.conversation.send"), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Message has been sent successfully!",
+                });
+                newMessage.value = "";
+                handleChatModal(notif.value);
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                loading.value = false;
+            },
+        });
+    }
+
+    if (newMessage.value.trim() !== "" && conversation_type.value === "job") {
+        const formData = new FormData();
+        formData.append("messages", newMessage.value || "");
+        formData.append("sender_number", sender_number.value);
+        formData.append("receiver_numbers", [receiver_number.value]);
+        formData.append("jobber_id", reference_id.value);
+        formData.append("conversation_type", conversation_type.value);
+
+        router.post(route("jobber-text-messages.store"), formData, {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -879,7 +912,10 @@ onUnmounted(() => {
                                                                     v-if="
                                                                         notification
                                                                             .subject
-                                                                            .conversation_type
+                                                                            .conversation_type ||
+                                                                        notification
+                                                                            .subject
+                                                                            .jobber_id
                                                                     "
                                                                     as="button"
                                                                     size="sm"
