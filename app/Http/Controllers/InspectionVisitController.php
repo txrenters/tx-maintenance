@@ -35,14 +35,16 @@ class InspectionVisitController extends Controller
 
         // Create minimal event objects for performance
         $events = $visits->map(function ($visit) {
-            $startDate = Carbon::parse($visit->start_at);
-            $endDate = Carbon::parse($visit->end_at);
+            // Database stores dates as Chicago time (from Jobber sync)
+            // Create Carbon instances explicitly in Chicago timezone
+            $startDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->start_at, 'America/Chicago');
+            $endDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->end_at, 'America/Chicago');
 
             return [
                 'id' => $visit->id,
                 'title' => $visit->title,
-                'start' => $startDate->format('Y-m-d H:i:s'), // Keep full datetime for proper timezone handling
-                'end' => $endDate->format('Y-m-d H:i:s'),
+                'start' => $startDate->toIso8601String(), // ISO 8601 with Chicago timezone
+                'end' => $endDate->toIso8601String(),
                 'description' => $visit->instructions,
                 'is_complete' => $visit->is_complete,
                 'notified_7_days' => $visit->notified_7_days,
@@ -85,14 +87,15 @@ class InspectionVisitController extends Controller
         $visit = JobberVisit::with(['job.client', 'job.property', 'job.textMessages', 'job.clientContacts'])
             ->findOrFail($visitId);
 
-        $startDate = Carbon::parse($visit->start_at);
-        $endDate = Carbon::parse($visit->end_at);
+        // Database stores dates as Chicago time - create Carbon instances in Chicago timezone
+        $startDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->start_at, 'America/Chicago');
+        $endDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->end_at, 'America/Chicago');
 
         return response()->json([
             'id' => $visit->id,
             'title' => $visit->title,
-            'start' => $startDate->format('Y-m-d H:i:s'),
-            'end' => $endDate->format('Y-m-d H:i:s'),
+            'start' => $startDate->toIso8601String(),
+            'end' => $endDate->toIso8601String(),
             'description' => $visit->instructions,
             'is_complete' => $visit->is_complete,
             'job' => [

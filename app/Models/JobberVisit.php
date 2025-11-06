@@ -11,6 +11,20 @@ class JobberVisit extends Model
 
     protected $guarded = [];
 
+    /**
+     * Get the attributes that should be cast.
+     */
+    protected function casts(): array
+    {
+        return [
+            'start_at' => 'datetime',
+            'end_at' => 'datetime',
+            'is_complete' => 'boolean',
+            'notified_7_days' => 'boolean',
+            'notified_3_days' => 'boolean',
+        ];
+    }
+
     public function job(): BelongsTo
     {
         return $this->belongsTo(Jobber::class, 'jobber_job_id');

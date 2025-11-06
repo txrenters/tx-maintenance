@@ -112,9 +112,9 @@ const weekDates = computed(() => {
     const chicagoDateStr = chicagoFormatter.format(currentWeekStart.value);
     const [year, month, day] = chicagoDateStr.split("-").map(Number);
 
-    // Create 7 consecutive calendar dates
+    // Create 7 consecutive calendar dates using UTC to avoid timezone shifts
     for (let i = 0; i < 7; i++) {
-        const date = new Date(year, month - 1, day + i);
+        const date = new Date(Date.UTC(year, month - 1, day + i, 12, 0, 0));
         dates.push(date);
     }
 
@@ -318,8 +318,8 @@ const parseYMD = (ymd) => {
     // Then we'll always format it using chicagoFormatter when needed
     const [year, month, day] = ymd.split("-").map((s) => parseInt(s, 10));
     if (!year || !month || !day) return null;
-    // Use UTC date to avoid any timezone shift
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    // Use UTC date at noon to prevent timezone shift when formatting in Chicago
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 };
 const getStatusColor = (event) => {
     if (event.is_complete) {
