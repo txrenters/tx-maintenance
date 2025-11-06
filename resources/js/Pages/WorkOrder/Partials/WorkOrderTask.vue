@@ -113,7 +113,7 @@ const handleTaskSubmit = () => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
-                <div class="flex gap-2">
+                <div class="flex gap-2" v-if="$page.props.auth.user.roles.includes('admin') || $page.props.auth.user.roles.includes('woc')">
                     <Button
                         :disabled="isLoading"
                         size="icon"

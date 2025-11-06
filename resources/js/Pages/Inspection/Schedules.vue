@@ -177,17 +177,15 @@ const navigateWeek = (direction) => {
     const newTime = currentTime + direction * 7 * 24 * 60 * 60 * 1000;
     const newDate = new Date(newTime);
 
-    // Format as YYYY-MM-DD in local timezone
-    const year = newDate.getFullYear();
-    const month = String(newDate.getMonth() + 1).padStart(2, "0");
-    const day = String(newDate.getDate()).padStart(2, "0");
-    const weekKey = `${year}-${month}-${day}`;
+    // Format as YYYY-MM-DD in Chicago timezone (not local timezone!)
+    // This ensures all users send the same date to the backend regardless of their timezone
+    const weekKey = chicagoFormatter.format(newDate);
 
     console.log(
         "Navigating:",
         direction > 0 ? "forward" : "back",
         "from:",
-        currentWeekStart.value.toISOString().split("T")[0],
+        chicagoFormatter.format(currentWeekStart.value),
         "to:",
         weekKey
     );
@@ -818,7 +816,7 @@ onMounted(() => {
                 <div class="space-y-2">
                     <Card
                         v-for="event in eventsByDate[
-                            date.toISOString().split('T')[0]
+                            chicagoFormatter.format(date)
                         ]"
                         :key="event.id"
                         :class="[
@@ -865,7 +863,7 @@ onMounted(() => {
                     <!-- Empty State -->
                     <div
                         v-if="
-                            !eventsByDate[date.toISOString().split('T')[0]]
+                            !eventsByDate[chicagoFormatter.format(date)]
                                 ?.length
                         "
                         class="text-center py-8 text-muted-foreground"

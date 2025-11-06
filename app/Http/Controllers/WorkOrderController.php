@@ -62,6 +62,7 @@ class WorkOrderController extends Controller
             $q->whereHas('roles', fn($r) => $r->where('name', 'vendor'))
                 ->whereIn('id', $vendorUserIds)
         )
+        ->orderBy('name', 'ASC')
         ->get();
 
         return inertia('WorkOrder/Index', [
