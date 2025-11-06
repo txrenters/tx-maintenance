@@ -121,7 +121,7 @@ const openMedia = (mediaUrl) => {
                 :class="
                     msg.sender_number === sender ? 'text-white' : 'text-black'
                 "
-                v-html="msg.message"
+                v-html="msg.message ?? msg.messages"
             ></span>
             <!-- Handle both formats: is_mms with media array OR single image property -->
             <div
