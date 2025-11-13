@@ -22,14 +22,8 @@ class TwilioService
         try {
             $messageData = [
                 'from' => $from,
-                'body' => $message,
+                'body' => $message. ' '.$mediaUrl,
             ];
-
-            // Add media URL if provided for MMS
-            if ($mediaUrl) {
-                $messageData['mediaUrl'] = [$mediaUrl];
-                $messageData['body'] = $message;
-            }
 
             $this->client->messages->create($to, $messageData);
 

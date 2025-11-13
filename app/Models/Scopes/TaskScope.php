@@ -20,7 +20,7 @@ class TaskScope implements Scope
             return;
         }
 
-        if ($user->hasRole('woc') || $user->hasRole('vendor')) {
+        if ($user->hasRole('vendor')) {
             $builder->where('assigned_user_id', $user->id);
         }
     }
