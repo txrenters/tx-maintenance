@@ -829,7 +829,7 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Included Appliances"].value !== "Not Completed"
     ) {
         const appliances =
-            customFieldsMap.value["Included Appliances"].value.toLowerCase();
+            String(customFieldsMap.value["Included Appliances"].value || '').toLowerCase();
 
         if (appliances.includes("refrigerator")) form.refrigerator = "Yes";
         if (appliances.includes("microwave")) form.microwave = "Yes";
@@ -889,9 +889,9 @@ const populateFormFromCustomFields = () => {
             .value !== "Not Completed"
     ) {
         const keyInfo =
-            customFieldsMap.value[
+            String(customFieldsMap.value[
                 "Key Information - anything we need to know"
-            ].value.toLowerCase();
+            ].value || '').toLowerCase();
 
         // Check for alarm system included in price
         if (
@@ -1020,7 +1020,7 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Owner Pet Prefences"].value !== "Not Completed"
     ) {
         const petPrefs =
-            customFieldsMap.value["Owner Pet Prefences"].value.toLowerCase();
+            String(customFieldsMap.value["Owner Pet Prefences"].value || '').toLowerCase();
 
         // Check for dogs
         if (petPrefs.includes("dog")) {
@@ -1166,7 +1166,9 @@ const loadBuildingData = () => {
 
     // Handle amenities data - implode from array to individual form fields
     if (building.value.amenities && Array.isArray(building.value.amenities)) {
-        const amenities = building.value.amenities.map((a) => a.toLowerCase());
+        const amenities = building.value.amenities.map((a) =>
+            String(a || '').toLowerCase()
+        );
 
         // Reset amenity fields
         form.communityPool = "";
@@ -1220,7 +1222,7 @@ const loadBuildingData = () => {
             neighborhoodAmenities?.value &&
             neighborhoodAmenities.value !== "Not Provided"
         ) {
-            const amenitiesText = neighborhoodAmenities.value.toLowerCase();
+            const amenitiesText = String(neighborhoodAmenities.value || '').toLowerCase();
 
             // Reset all amenity fields first
             form.communityPool = "No";

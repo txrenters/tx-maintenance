@@ -32,20 +32,20 @@ class ImportTwilioNumberController extends Controller
                 ];
 
                 $data = [
-                        'name' => $twilio->friendlyName,
-                        'account_sid' => $twilio->accountSid,
-                        'sid' => $twilio->sid,
-                        'phone_number' => $twilio->phoneNumber,
-                        'sms_application_sid' => $twilio->smsApplicationSid ?? null,
-                        'capabilities' => json_encode($capabilities),
-                        'twilio_status' => $twilio->status ?? 'unknown',
-                    ];
+                    'name' => $twilio->friendlyName,
+                    'account_sid' => $twilio->accountSid,
+                    'sid' => $twilio->sid,
+                    'phone_number' => $twilio->phoneNumber,
+                    'sms_application_sid' => $twilio->smsApplicationSid ?? null,
+                    'capabilities' => json_encode($capabilities),
+                    'twilio_status' => $twilio->status ?? 'unknown',
+                ];
 
                 $twilioPhone = TwilioPhoneNumber::where('phone_number', $twilio->phoneNumber)->first();
- 
-                if($twilioPhone){
+
+                if ($twilioPhone) {
                     $twilioPhone->update($data);
-                }else{
+                } else {
                     TwilioPhoneNumber::create($data);
                 }
             }

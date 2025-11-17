@@ -37,7 +37,7 @@ class TwilioPhoneNumberController extends Controller
                     'twilio_status' => $twilio->twilio_status,
                 ];
             });
-            
+
         $twilios = TwilioPhoneNumber::orderBy('name')->get();
 
         return inertia('Twilio/Index', [

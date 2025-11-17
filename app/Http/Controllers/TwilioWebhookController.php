@@ -26,7 +26,7 @@ class TwilioWebhookController extends Controller
         $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
 
         $isMms = isset($data['NumMedia']) && $data['NumMedia'] > 0;
-        
+
         $workOrderMessage = $this->getWorkOrderMessage($body, $from, $to);
 
         if ($workOrderMessage) {
@@ -181,7 +181,7 @@ class TwilioWebhookController extends Controller
     }
 
     protected function getWorkOrderMessage(string $body, string $from, string $to)
-    {        
+    {
         // "Ref: WO#12345" just in case
         if (preg_match('/Ref:\s*(WO#\d+)/', $body, $matches)) {
             $refNo = $matches[1];
@@ -189,15 +189,15 @@ class TwilioWebhookController extends Controller
 
             return Conversation::where('work_order_id', $workOrder->id)->latest()
                 ->first();
-        } 
+        }
 
         return Conversation::where(function ($query) use ($from, $to) {
-                    $query->where('receiver_number', $from)
-                        ->where('sender_number', $to);
-                })->orWhere(function ($query) use ($to, $from) {
-                    $query->where('receiver_number', $to)
-                        ->where('sender_number', $from);
-                })->latest()
+            $query->where('receiver_number', $from)
+                ->where('sender_number', $to);
+        })->orWhere(function ($query) use ($to, $from) {
+            $query->where('receiver_number', $to)
+                ->where('sender_number', $from);
+        })->latest()
             ->first(); // fetch the latest conversation
     }
 

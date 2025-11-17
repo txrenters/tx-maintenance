@@ -22,7 +22,7 @@ class TwilioService
         try {
             $messageData = [
                 'from' => $from,
-                'body' => $message. ' '.$mediaUrl,
+                'body' => $message.' '.$mediaUrl,
             ];
 
             $this->client->messages->create($to, $messageData);

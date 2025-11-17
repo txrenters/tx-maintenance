@@ -9,7 +9,6 @@ use App\Models\JobberTextMessage;
 use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -35,7 +34,7 @@ class ConversationController extends Controller
 
     public function get_vendor_owner_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['owners','vendors', 'vendor_owner_conversation.media']);
+        $workOrder->load(['owners', 'vendors', 'vendor_owner_conversation.media']);
 
         return response()->json($workOrder, 200);
     }
@@ -67,13 +66,13 @@ class ConversationController extends Controller
 
         $data = $request->data ?? [];
 
-        if (!empty($data['work_order_id'])) {
+        if (! empty($data['work_order_id'])) {
             $message = Conversation::with(['work_order', 'media'])
                 ->where('work_order_id', $data['work_order_id'])
                 ->where('conversation_type', $data['conversation_type'] ?? null)
                 ->get();
 
-        } elseif (!empty($data['jobber_id'])) {
+        } elseif (! empty($data['jobber_id'])) {
             $message = JobberTextMessage::where('jobber_id', $data['jobber_id'])->get();
         } else {
             $message = collect();
@@ -97,10 +96,10 @@ class ConversationController extends Controller
 
             $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
-            $messageText = trim(($validatedData['text'] ?? '') . ' (Ref: WO#' . $workOrder->work_order_no.')');
+            $messageText = trim(($validatedData['text'] ?? '').' (Ref: WO#'.$workOrder->work_order_no.')');
 
             $conversation = Conversation::create([
-                'message' =>$messageText,
+                'message' => $messageText,
                 'sender_number' => $senderNumber,
                 'receiver_number' => $receiverNumber,
                 'work_order_id' => $validatedData['work_order_id'],
@@ -138,6 +137,7 @@ class ConversationController extends Controller
 
             if ($user->hasRole('owner') || $user->hasRole('tenant')) {
                 $this->sendNotification($conversation, $validatedData, $workOrder);
+
                 return redirect()->back()->with('success', 'Message sent successfully!');
             }
 
@@ -170,7 +170,7 @@ class ConversationController extends Controller
 
     private function sendNotification($conversation, $validatedData, $workOrder): void
     {
-         activity()
+        activity()
             ->performedOn($conversation)
             ->event('work_order_message_received')
             ->withProperties([

@@ -53,24 +53,23 @@ class WorkOrderController extends Controller
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
-        $vendors = DB::table('vendors')->select('id', 'name','user_id')->where('is_active', true)->orderBy('name')->get();
+        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
 
         $vendorUserIds = $vendors->pluck('user_id')->toArray();
 
-        $users = User::whereHas('roles', fn($q) => $q->where('name', 'woc'))
-            ->orWhere(fn($q) =>
-            $q->whereHas('roles', fn($r) => $r->where('name', 'vendor'))
+        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
+            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
                 ->whereIn('id', $vendorUserIds)
-        )
-        ->orderBy('name', 'ASC')
-        ->get();
+            )
+            ->orderBy('name', 'ASC')
+            ->get();
 
         return inertia('WorkOrder/Index', [
             'title' => 'Work Orders',
-            'service_status' => Inertia::defer(fn() => $service_status),
-            'vendors' => Inertia::defer(fn() => $vendors),
-            'categories' => Inertia::defer(fn() => $categories),
-            'users' => Inertia::defer(fn() => $users),
+            'service_status' => Inertia::defer(fn () => $service_status),
+            'vendors' => Inertia::defer(fn () => $vendors),
+            'categories' => Inertia::defer(fn () => $categories),
+            'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor']),
         ]);
     }
@@ -237,7 +236,7 @@ class WorkOrderController extends Controller
 
         return inertia('WorkOrder/Close', [
             'title' => 'Closed Work Orders',
-            'service_status' => Inertia::defer(fn() => $service_status),
+            'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
@@ -264,8 +263,9 @@ class WorkOrderController extends Controller
                 try {
                     $vendorData = Vendor::whereLike('name', $vendor)->first();
 
-                    if (!$vendorData) {
+                    if (! $vendorData) {
                         Log::warning("Vendor not found: {$vendor}");
+
                         continue;
                     }
                     // Add to XML and arrays
@@ -301,10 +301,10 @@ class WorkOrderController extends Controller
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString(),
                     ]);
+
                     continue; // continue with next vendor no matter what
                 }
             }
-
 
             $vendorIDsXml .= '</vendorIDs>';
 
