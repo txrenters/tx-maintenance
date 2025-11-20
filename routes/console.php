@@ -4,21 +4,19 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('import:work-orders')
     ->everyFiveMinutes()
-    ->timezone('America/Chicago')
     ->weekdays()
     ->withoutOverlapping()
     ->runInBackground();
 
 Schedule::command('update:work-orders-status')
-    ->everyFifteenMinutes()
-    ->timezone('America/Chicago')
+    ->everyTenMinutes()
     ->weekdays()
+    ->withoutOverlapping()
     ->runInBackground();
 
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
-    ->timezone('America/Chicago')
     ->weekdays()
     ->runInBackground();
 
