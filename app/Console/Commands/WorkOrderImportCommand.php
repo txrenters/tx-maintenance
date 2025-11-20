@@ -39,7 +39,6 @@ class WorkOrderImportCommand extends Command
      */
     public function handle(): void
     {
-        // $work_orders = $this->propertyWareService->getWorkOrdersViaRestAPI() ?? [];
         $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
 
         if (empty($work_orders)) {
