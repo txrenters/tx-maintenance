@@ -57,7 +57,7 @@ class PropertyWareService
             $client = $this->initiate();
             $allWorkOrders = [];
 
-            for ($pageNumber = 1; $pageNumber <= 5; $pageNumber++) {
+            for ($pageNumber = 1; $pageNumber <= 3; $pageNumber++) {
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
