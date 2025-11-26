@@ -85,7 +85,7 @@ class PropertyWareService
 
             $allWorkOrders = [];
             $limit = 500; // PropertyWare API max limit per request
-            $totalToFetch = 1000;
+            $totalToFetch = 5000;
             $numberOfRequests = ceil($totalToFetch / $limit);
 
             for ($i = 0; $i < $numberOfRequests; $i++) {
