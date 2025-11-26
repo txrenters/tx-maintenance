@@ -46,7 +46,6 @@ class DashboardController extends Controller
                 COUNT(*) as total_tasks,
                 COUNT(CASE WHEN status = "completed" THEN 1 END) as completed_tasks
             ')
-            ->scoped()
             ->whereYear('created_at', $year)
             ->first();
 
