@@ -38,6 +38,7 @@ class DashboardController extends Controller
                 COUNT(CASE WHEN status = "Open" AND service_status_id != 1 THEN 1 END) as process_work_orders,
                 COUNT(CASE WHEN priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
             ')
+            ->scoped()
             ->whereYear('created_date', $year)
             ->first();
 
@@ -45,6 +46,7 @@ class DashboardController extends Controller
                 COUNT(*) as total_tasks,
                 COUNT(CASE WHEN status = "completed" THEN 1 END) as completed_tasks
             ')
+            ->scoped()
             ->whereYear('created_at', $year)
             ->first();
 
@@ -69,11 +71,13 @@ class DashboardController extends Controller
         $currentYear = now()->year;
         $lastMonthYear = $currentMonth > 1 ? $currentYear : $currentYear - 1;
 
-        $thisMonthOrders = WorkOrder::whereMonth('created_date', $currentMonth)
+        $thisMonthOrders = WorkOrder::scoped()
+            ->whereMonth('created_date', $currentMonth)
             ->whereYear('created_date', $currentYear)
             ->count();
 
-        $lastMonthOrders = WorkOrder::whereMonth('created_date', $lastMonth)
+        $lastMonthOrders = WorkOrder::scoped()
+            ->whereMonth('created_date', $lastMonth)
             ->whereYear('created_date', $lastMonthYear)
             ->count();
 
@@ -84,6 +88,7 @@ class DashboardController extends Controller
         $completionStats = WorkOrder::selectRaw('
                 AVG(DATEDIFF(completed_date, created_date)) as avg_completion_days
             ')
+            ->scoped()
             ->whereYear('created_date', $year)
             ->whereNotNull('completed_date')
             ->where('completed_date', '>', DB::raw('created_date'))
