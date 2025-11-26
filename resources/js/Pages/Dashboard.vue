@@ -469,7 +469,7 @@ const getStatusColor = (index) => {
                 <div
                     class="text-3xl font-bold text-teal-900 dark:text-teal-100"
                 >
-                    {{ formattedCount(stats?.total_tasks || 0) }}
+                    {{ formattedCount(stats?.incomplete_tasks || 0) }}
                 </div>
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-1">

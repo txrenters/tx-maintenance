@@ -102,6 +102,7 @@ class DashboardController extends Controller
             'urgent_work_orders' => $workOrderStats->urgent_work_orders,
             'completed_tasks' => $taskStats->completed_tasks,
             'total_tasks' => $taskStats->total_tasks,
+            'incomplete_tasks' => $taskStats->total_tasks - $taskStats->completed_tasks,
             'total_inspections' => $inspectionStats->total_inspections,
             'active_inspections' => $inspectionStats->active_inspections,
             'completed_inspection_visits' => $visitStats->completed_inspection_visits,
