@@ -26,7 +26,8 @@
       "mcp__laravel-boost__search-docs",
       "Bash(whereis:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
