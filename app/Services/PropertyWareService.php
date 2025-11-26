@@ -83,30 +83,62 @@ class PropertyWareService
     {
         try {
 
-            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
-                'includeCustomFields' => 'true',
-                'orderby' => 'createddate DESC',
-                'limit' => 500,
-            ]);
+            $allWorkOrders = [];
+            $limit = 500; // PropertyWare API max limit per request
+            $totalToFetch = 1000;
+            $numberOfRequests = ceil($totalToFetch / $limit);
 
-            if ($response->status() == 200) {
-                Log::info('Success in retrieving work order');
+            for ($i = 0; $i < $numberOfRequests; $i++) {
+                $offset = $i * $limit;
 
-                return $response->json();
-            } else {
-                Log::error('Error updating Work Order', [
-                    'error' => 'Unable to update work order',
-                    'error_details' => [
-                        'status_code' => $response->status(),
-                        'body' => $response->body(),
-                    ],
+                $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
+                    'includeCustomFields' => 'true',
+                    'orderby' => 'createddate DESC',
+                    'limit' => $limit,
+                    'offset' => $offset,
                 ]);
 
-                return false;
+                if ($response->status() == 200) {
+                    $workOrders = $response->json();
+
+                    if (empty($workOrders)) {
+                        break; // No more results
+                    }
+
+                    $allWorkOrders = array_merge($allWorkOrders, $workOrders);
+
+                    Log::info('Success in retrieving work orders', [
+                        'batch' => $i + 1,
+                        'offset' => $offset,
+                        'count' => count($workOrders),
+                    ]);
+
+                    // If we got fewer results than the limit, we've reached the end
+                    if (count($workOrders) < $limit) {
+                        break;
+                    }
+                } else {
+                    Log::error('Error retrieving Work Orders', [
+                        'error' => 'Unable to retrieve work orders',
+                        'error_details' => [
+                            'status_code' => $response->status(),
+                            'body' => $response->body(),
+                            'offset' => $offset,
+                        ],
+                    ]);
+
+                    return false;
+                }
             }
 
+            Log::info('Total work orders retrieved', [
+                'total' => count($allWorkOrders),
+            ]);
+
+            return $allWorkOrders;
+
         } catch (Exception $e) {
-            Log::error('SOAP request failed: '.$e->getMessage());
+            Log::error('REST API request failed: '.$e->getMessage());
 
             return 'Error: '.$e->getMessage();
         }
