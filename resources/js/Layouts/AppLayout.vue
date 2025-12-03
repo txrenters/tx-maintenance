@@ -355,7 +355,7 @@ const sendMessage = () => {
         return;
     }
 
-    if (!newMessage.value) {
+    if (!newMessage.value || !newMessage.value.trim()) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -368,7 +368,7 @@ const sendMessage = () => {
 
     if (newMessage.value.trim() !== "" && conversation_type.value !== "job") {
         const formData = new FormData();
-        formData.append("text", newMessage.value || "");
+        formData.append("text", newMessage.value.trim());
         formData.append("sender_phone_number", sender_number.value);
         formData.append("receiver_phone_number", receiver_number.value);
         formData.append("work_order_id", reference_id.value);
@@ -401,7 +401,7 @@ const sendMessage = () => {
 
     if (newMessage.value.trim() !== "" && conversation_type.value === "job") {
         const formData = new FormData();
-        formData.append("messages", newMessage.value || "");
+        formData.append("messages", newMessage.value.trim());
         formData.append("sender_number", sender_number.value);
         formData.append("receiver_numbers", [receiver_number.value]);
         formData.append("jobber_id", reference_id.value);
