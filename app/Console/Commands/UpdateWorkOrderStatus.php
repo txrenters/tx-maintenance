@@ -24,7 +24,7 @@ class UpdateWorkOrderStatus extends Command
      *
      * @var string
      */
-    protected $description = 'Retrieve work orders from PropertyWare API and update status';
+    protected $description = 'Retrieve work orders from PropertyWare API and update work order details';
 
     protected PropertyWareService $propertyWareService;
 
@@ -61,29 +61,56 @@ class UpdateWorkOrderStatus extends Command
                         $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
                         if ($workOrder) {
-                            $workOrder->update(['status' => $data['status']]);
+                            $work_order_data = [
+                                'status' => $data['status'] ?? $workOrder->status,
+                                'authorized_to_enter' => $data['authorizedToEnter'] ?? $workOrder->authorized_to_enter,
+                                'category' => $data['category'] ?? $workOrder->category,
+                                'completed_date' => $data['completedDate'] ?? $workOrder->completed_date,
+                                'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
+                                'date_to_enter' => $data['dateToEnter'] ?? $workOrder->date_to_enter,
+                                'description' => $data['description'] ?? $workOrder->description,
+                                'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
+                                'location' => $data['location'] ?? $workOrder->location,
+                                'priority' => $data['priority'] ?? $workOrder->priority,
+                                'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
+                                'scheduled_end_date' => $data['scheduledEndDate'] ?? $workOrder->scheduled_end_date,
+                                'source' => $data['source'] ?? $workOrder->source,
+                                'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
+                                'start_date' => $data['startDate'] ?? $workOrder->start_date,
+                                'type' => $data['type'] ?? $workOrder->type,
+                                'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
+                                'is_approved' => $data['approved'] ?? $workOrder->is_approved,
+                                'approved_date' => $data['approvedDate'] ?? $workOrder->approved_date,
+                            ];
+
                             $customFieldData = [];
 
-                            foreach ($data['customFields'] as $customField) {
-                                if ($customField['fieldName'] == 'Service Status') {
+                            if (isset($data['customFields']) && is_array($data['customFields'])) {
+                                foreach ($data['customFields'] as $customField) {
+                                    if ($customField['fieldName'] == 'Service Status') {
 
-                                    $service_status_id = DB::table('service_status')
-                                        ->whereLike('name', '%'.($customField['value'] ?? '').'%')
-                                        ->value('id');
+                                        $service_status_id = DB::table('service_status')
+                                            ->whereLike('name', '%'.($customField['value'] ?? '').'%')
+                                            ->value('id');
 
-                                    $work_order_data['service_status_id'] = $service_status_id ?? 1;
+                                        $work_order_data['service_status_id'] = $service_status_id ?? 1;
 
-                                } elseif ($customField['fieldName'] == 'Zone') {
-                                    $work_order_data['zone'] = $customField['value'] ?? '';
-                                } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
-                                    $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
-                                } elseif ($customField['fieldName'] == 'Management Plan') {
-                                    $work_order_data['management_plan'] = $customField['value'] ?? '';
+                                    } elseif ($customField['fieldName'] == 'Zone') {
+                                        $work_order_data['zone'] = $customField['value'] ?? '';
+                                    } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
+                                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
+                                    } elseif ($customField['fieldName'] == 'Management Plan') {
+                                        $work_order_data['management_plan'] = $customField['value'] ?? '';
+                                    }
                                 }
                             }
 
-                            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
-                            DB::table('work_order_custom_fields')->insert($customFieldData);
+                            $workOrder->update($work_order_data);
+
+                            if (! empty($customFieldData)) {
+                                DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
+                                DB::table('work_order_custom_fields')->insert($customFieldData);
+                            }
 
                             if (! empty($data['assignedVendors'])) {
 
@@ -112,7 +139,7 @@ class UpdateWorkOrderStatus extends Command
                 }
             }
 
-            Log::info('Successfully updated Work order status! Work Order Count: '.count($work_orders));
+            Log::info('Successfully updated Work order details! Work Order Count: '.count($work_orders));
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
