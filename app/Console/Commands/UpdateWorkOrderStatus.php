@@ -67,20 +67,15 @@ class UpdateWorkOrderStatus extends Command
                                 'category' => $data['category'] ?? $workOrder->category,
                                 'completed_date' => $data['completedDate'] ?? $workOrder->completed_date,
                                 'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
-                                'date_to_enter' => $data['dateToEnter'] ?? $workOrder->date_to_enter,
                                 'description' => $data['description'] ?? $workOrder->description,
                                 'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
                                 'location' => $data['location'] ?? $workOrder->location,
                                 'priority' => $data['priority'] ?? $workOrder->priority,
                                 'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
-                                'scheduled_end_date' => $data['scheduledEndDate'] ?? $workOrder->scheduled_end_date,
                                 'source' => $data['source'] ?? $workOrder->source,
                                 'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
-                                'start_date' => $data['startDate'] ?? $workOrder->start_date,
                                 'type' => $data['type'] ?? $workOrder->type,
                                 'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
-                                'is_approved' => $data['approved'] ?? $workOrder->is_approved,
-                                'approved_date' => $data['approvedDate'] ?? $workOrder->approved_date,
                             ];
 
                             $customFieldData = [];
