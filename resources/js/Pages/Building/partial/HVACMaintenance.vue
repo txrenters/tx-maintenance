@@ -1,7 +1,8 @@
 <script setup>
-import { AppWindow, CheckCircle } from "lucide-vue-next";
-
+import { AppWindow, CheckCircle, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -9,7 +10,71 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validateHVACSection = () => {
+    const errors = [];
+
+    // HVAC Maintenance Plan - Required
+    if (!form.value.hvacMaintenancePlan || form.value.hvacMaintenancePlan.trim() === "") {
+        errors.push("HVAC Maintenance Plan selection is required");
+    }
+
+    // Install Float Switch - Required
+    if (!form.value.installFloatSwitch || form.value.installFloatSwitch.trim() === "") {
+        errors.push("Install Float Switch selection is required");
+    }
+
+    // Critical Location Information - Required fields
+    if (!form.value.gasShutoffValveLocation || form.value.gasShutoffValveLocation.trim() === "") {
+        errors.push("Gas Shut Off Valve Location is required");
+    }
+
+    if (!form.value.breakerBoxLocation || form.value.breakerBoxLocation.trim() === "") {
+        errors.push("Breaker Box Location is required");
+    }
+
+    if (!form.value.hvacFilterLocation1 || form.value.hvacFilterLocation1.trim() === "") {
+        errors.push("HVAC Filter Location Information 1 is required");
+    }
+
+    if (!form.value.hvacFilterSize1 || form.value.hvacFilterSize1.trim() === "") {
+        errors.push("HVAC Filter Size 1 is required");
+    }
+
+    // Home Warranty - Required
+    if (!form.value.homeWarranty || form.value.homeWarranty.trim() === "") {
+        errors.push("Home Warranty selection is required");
+    }
+
+    // If Home Warranty is Yes, additional fields are required
+    if (form.value.homeWarranty === "Yes") {
+        if (!form.value.homeWarrantyCompanyName || form.value.homeWarrantyCompanyName.trim() === "") {
+            errors.push("Warranty Company is required when you have a warranty");
+        }
+        if (!form.value.homeWarrantyServiceNumber || form.value.homeWarrantyServiceNumber.trim() === "") {
+            errors.push("Service Number is required when you have a warranty");
+        }
+        if (!form.value.homeWarrantyContactNumber || form.value.homeWarrantyContactNumber.trim() === "") {
+            errors.push("Contact Number is required when you have a warranty");
+        }
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validateHVACSection()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -32,6 +97,26 @@ const markSectionCompleted = (value) => {
             </CardHeader>
             <CardContent class="space-y-6">
                 <div class="space-y-4">
+                    <!-- Validation Errors Display -->
+                    <div
+                        v-if="validationErrors.length > 0"
+                        class="bg-red-50 border border-red-200 rounded-lg p-4"
+                    >
+                        <div class="flex items-start gap-2">
+                            <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                    Please correct the following errors:
+                                </h4>
+                                <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                    <li v-for="error in validationErrors" :key="error">
+                                        {{ error }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <Alert class="mb-4">
                         <Info class="h-4 w-4" />
                         <AlertDescription>
@@ -72,6 +157,8 @@ const markSectionCompleted = (value) => {
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
                                 >Participate in HVAC Maintenance Plan?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
                             </label>
                             <Select v-model="form.hvacMaintenancePlan">
                                 <SelectTrigger>
@@ -86,9 +173,12 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Install Float Switch? <br />
-                                (Automatically Completed)</label
-                            >
+                                >Install Float Switch?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                                <br />
+                                <span class="text-xs text-gray-600">(Automatically Completed)</span>
+                            </label>
                             <Select v-model="form.installFloatSwitch">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -109,8 +199,10 @@ const markSectionCompleted = (value) => {
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >Gas Shut Off Valve Location</label
-                                >
+                                    >Gas Shut Off Valve Location
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </label>
                                 <Input
                                     v-model="form.gasShutoffValveLocation"
                                     placeholder="e.g. Left side of house near meter"
@@ -118,8 +210,10 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >Breaker Box Location</label
-                                >
+                                    >Breaker Box Location
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </label>
                                 <Input
                                     v-model="form.breakerBoxLocation"
                                     placeholder="e.g. Garage wall near entrance"
@@ -127,8 +221,10 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Location Information 1</label
-                                >
+                                    >HVAC Filter Location Information 1
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterLocation1"
                                     placeholder="e.g. Return air grille in hallway ceiling"
@@ -136,8 +232,10 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Size 1</label
-                                >
+                                    >HVAC Filter Size 1
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterSize1"
                                     placeholder="e.g. 20x25x1"
@@ -145,8 +243,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Location Information 2</label
-                                >
+                                    >HVAC Filter Location Information 2
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterLocation2"
                                     placeholder="e.g. Return air grille in hallway ceiling"
@@ -154,8 +253,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Size 2</label
-                                >
+                                    >HVAC Filter Size 2
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterSize2"
                                     placeholder="e.g. 20x25x1"
@@ -163,8 +263,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Location Information 3</label
-                                >
+                                    >HVAC Filter Location Information 3
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterLocation3"
                                     placeholder="e.g. Return air grille in hallway ceiling"
@@ -172,8 +273,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Size 3</label
-                                >
+                                    >HVAC Filter Size 3
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterSize3"
                                     placeholder="e.g. 20x25x1"
@@ -181,8 +283,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Location Information 4</label
-                                >
+                                    >HVAC Filter Location Information 4
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterLocation4"
                                     placeholder="e.g. Return air grille in hallway ceiling"
@@ -190,8 +293,9 @@ const markSectionCompleted = (value) => {
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >HVAC Filter Size 4</label
-                                >
+                                    >HVAC Filter Size 4
+                                    <span class="text-xs text-gray-500">(Optional)</span>
+                                </label>
                                 <Input
                                     v-model="form.hvacFilterSize4"
                                     placeholder="e.g. 20x25x1"
@@ -241,8 +345,10 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Home Warranty?</label
-                            >
+                                >Home Warranty?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Select v-model="form.homeWarranty">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -263,11 +369,13 @@ const markSectionCompleted = (value) => {
                             v-if="form.homeWarranty === 'Yes'"
                         >
                             <label class="text-sm font-medium"
-                                >Warranty Company</label
-                            >
+                                >Warranty Company
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Input
                                 v-model="form.homeWarrantyCompanyName"
-                                placeholder="Company name"
+                                placeholder="e.g. Choice Home Warranty"
                             />
                         </div>
 
@@ -276,8 +384,10 @@ const markSectionCompleted = (value) => {
                             v-if="form.homeWarranty === 'Yes'"
                         >
                             <label class="text-sm font-medium"
-                                >Service Number</label
-                            >
+                                >Service Number
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Input
                                 v-model="form.homeWarrantyServiceNumber"
                                 placeholder="Service request number"
@@ -289,11 +399,13 @@ const markSectionCompleted = (value) => {
                             v-if="form.homeWarranty === 'Yes'"
                         >
                             <label class="text-sm font-medium"
-                                >Contact Number</label
-                            >
+                                >Contact Number
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Input
                                 v-model="form.homeWarrantyContactNumber"
-                                placeholder="Warranty contact number"
+                                placeholder="e.g. 1(888)373-8045"
                             />
                         </div>
                     </div>

@@ -1,7 +1,8 @@
 <script setup>
-import { CheckCircle, Key, User2, Users2 } from "lucide-vue-next";
-
+import { CheckCircle, Key, User2, Users2, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -9,7 +10,30 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validateTenantServiceRequest = () => {
+    const errors = [];
+
+    if (!form.value.tenantServiceRequest || form.value.tenantServiceRequest.trim() === "") {
+        errors.push("Tenant Service Request Handling is required");
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validateTenantServiceRequest()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please select a tenant service request handling option.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -31,6 +55,26 @@ const markSectionCompleted = (value) => {
             </CardHeader>
             <CardContent class="space-y-6">
                 <div>
+                    <!-- Validation Errors Display -->
+                    <div
+                        v-if="validationErrors.length > 0"
+                        class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+                    >
+                        <div class="flex items-start gap-2">
+                            <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                    Please correct the following errors:
+                                </h4>
+                                <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                    <li v-for="error in validationErrors" :key="error">
+                                        {{ error }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <Alert class="mb-4">
                         <AlertDescription>
                             <div class="space-y-2">
@@ -81,11 +125,14 @@ const markSectionCompleted = (value) => {
                         <h3 class="font-semibold mb-4">
                             How Would You Like Us to Handle Tenant Service
                             Request?
+                            <span class="text-red-600">*</span>
+                            <span class="text-xs text-gray-500 font-normal">(Required)</span>
                         </h3>
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Tenant Service Request Handling</label
-                            >
+                                >Tenant Service Request Handling
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.tenantServiceRequest">
                                 <SelectTrigger>
                                     <SelectValue

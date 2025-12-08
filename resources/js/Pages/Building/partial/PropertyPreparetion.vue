@@ -1,6 +1,8 @@
 <script setup>
-import { CheckCircle, Info, PaintBucket, Sparkle } from "lucide-vue-next";
+import { CheckCircle, Info, PaintBucket, Sparkle, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -8,7 +10,38 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validatePropertyPreparation = () => {
+    const errors = [];
+
+    // Paint selection is required
+    if (!form.value.paint || form.value.paint.trim() === "") {
+        errors.push("Please select whether you know the paint color of your house");
+    }
+
+    // If paint is Yes, color name is required
+    if (form.value.paint === "Yes") {
+        if (!form.value.paintColor || form.value.paintColor.trim() === "") {
+            errors.push("Paint color name is required when you know the paint color");
+        }
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validatePropertyPreparation()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -30,6 +63,26 @@ const markSectionCompleted = (value) => {
                 </div>
             </CardHeader>
             <CardContent class="space-y-6">
+                <!-- Validation Errors Display -->
+                <div
+                    v-if="validationErrors.length > 0"
+                    class="bg-red-50 border border-red-200 rounded-lg p-4"
+                >
+                    <div class="flex items-start gap-2">
+                        <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                Please correct the following errors:
+                            </h4>
+                            <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                <li v-for="error in validationErrors" :key="error">
+                                    {{ error }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="prose prose-sm max-w-none text-gray-600">
                     <p>
                         We want to make sure that your home is presentable
@@ -100,9 +153,10 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <Label class="text-sm font-medium"
-                                >Do you know the paint color of your
-                                house?</Label
-                            >
+                                >Do you know the paint color of your house?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </Label>
                             <Select v-model="form.paint">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -115,13 +169,18 @@ const markSectionCompleted = (value) => {
                         </div>
 
                         <div class="flex gap-3 space-y-2 items-end">
-                            <div v-if="form.paint === 'Yes'" class="">
-                                <Label> Color Name</Label>
+                            <div v-if="form.paint === 'Yes'" class="w-full">
+                                <Label class="text-sm font-medium">
+                                    Color Name
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </Label>
                                 <div class="flex items-center gap-3">
                                     <Input
                                         type="text"
                                         v-model="form.paintColor"
                                         class="w-full"
+                                        placeholder="e.g. Eggshell White, Beige, etc."
                                     />
                                 </div>
                             </div>

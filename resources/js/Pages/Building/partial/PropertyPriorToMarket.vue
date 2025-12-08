@@ -1,6 +1,8 @@
 <script setup>
-import { CheckCircle, Info, Wrench } from "lucide-vue-next";
+import { CheckCircle, Info, Wrench, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -8,7 +10,73 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validatePropertyPriorToMarket = () => {
+    const errors = [];
+
+    // Prior to property photos
+    if (!form.value.goingOnTheMarketLawnCare || form.value.goingOnTheMarketLawnCare.trim() === "") {
+        errors.push("Lawn Care (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketCleaning || form.value.goingOnTheMarketCleaning.trim() === "") {
+        errors.push("Professional Cleaning (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketDebrisRemoval || form.value.goingOnTheMarketDebrisRemoval.trim() === "") {
+        errors.push("Debris Removal (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketPaint || form.value.goingOnTheMarketPaint.trim() === "") {
+        errors.push("Paint (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketCarpetCleaning || form.value.goingOnTheMarketCarpetCleaning.trim() === "") {
+        errors.push("Carpet Cleaning (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketCarpetReplacement || form.value.goingOnTheMarketCarpetReplacement.trim() === "") {
+        errors.push("Carpet Replacement (Prior to property photos) is required");
+    }
+    if (!form.value.goingOnTheMarketUtilities || form.value.goingOnTheMarketUtilities.trim() === "") {
+        errors.push("Utilities (Prior to property photos) is required");
+    }
+
+    // While the home is on the Market
+    if (!form.value.homeOnTheMarketLawnCare || form.value.homeOnTheMarketLawnCare.trim() === "") {
+        errors.push("Lawn Care (While home is on the market) is required");
+    }
+    if (!form.value.homeOnTheMarketCleaning || form.value.homeOnTheMarketCleaning.trim() === "") {
+        errors.push("Cleaning (While home is on the market) is required");
+    }
+    if (!form.value.homeOnTheMarketUtilities || form.value.homeOnTheMarketUtilities.trim() === "") {
+        errors.push("Utilities (While home is on the market) is required");
+    }
+
+    // Just Before Tenant Move-in
+    if (!form.value.beforeTenantMoveInLawnCare || form.value.beforeTenantMoveInLawnCare.trim() === "") {
+        errors.push("Final Lawn Care (Before tenant move-in) is required");
+    }
+    if (!form.value.beforeTenantMoveInPestControl || form.value.beforeTenantMoveInPestControl.trim() === "") {
+        errors.push("Pest Control (Before tenant move-in) is required");
+    }
+
+    // After tenant move in
+    if (!form.value.afterTenantMoveInLawnCare || form.value.afterTenantMoveInLawnCare.trim() === "") {
+        errors.push("Ongoing Lawn Care (After tenant move-in) is required");
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validatePropertyPriorToMarket()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -33,6 +101,26 @@ const markSectionCompleted = (value) => {
             </CardHeader>
             <CardContent class="space-y-6">
                 <div>
+                    <!-- Validation Errors Display -->
+                    <div
+                        v-if="validationErrors.length > 0"
+                        class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+                    >
+                        <div class="flex items-start gap-2">
+                            <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                    Please correct the following errors:
+                                </h4>
+                                <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                    <li v-for="error in validationErrors" :key="error">
+                                        {{ error }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <Alert class="mb-4">
                         <AlertDescription>
                             The following items are only for the initial lease
@@ -40,7 +128,7 @@ const markSectionCompleted = (value) => {
                             TexasRenters.com is still managing the property,
                             will handle utilities, lawn care, carpet clearning
                             and cleaning unless otherwise instructed at that
-                            tme, per the property management agreement.
+                            tme, per the property management agreement. <strong>All fields are required.</strong>
                         </AlertDescription>
                     </Alert>
 
@@ -316,8 +404,8 @@ const markSectionCompleted = (value) => {
                             <Alert class="mb-4">
                                 <AlertDescription>
                                     <div class="space-y-2">
-                                        <p>
-                                            <span class="font-bold underline"
+                                        <p class="font-bold">
+                                            <span class="underline"
                                                 >Final Touches before Tenant
                                                 Move in:</span
                                             >
@@ -348,7 +436,7 @@ const markSectionCompleted = (value) => {
                                             If you arrange the service, please
                                             provide receipts for our records.
                                         </p>
-                                        <p>
+                                        <p class="font-bold">
                                             <a
                                                 href="https://www.texasrenters.com/"
                                                 class="text-primary font-bold"
@@ -362,7 +450,7 @@ const markSectionCompleted = (value) => {
                                             standard treatment of roaches and
                                             bugs (excluding rodents and bee
                                             hives) the charge is $60.00 for pest
-                                            control
+                                            control.
                                         </p>
                                     </div>
                                 </AlertDescription>

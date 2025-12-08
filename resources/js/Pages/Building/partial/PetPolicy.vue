@@ -1,7 +1,8 @@
 <script setup>
-import { CheckCircle, Dog, Key, User2, Users2 } from "lucide-vue-next";
-
+import { CheckCircle, Dog, Key, User2, Users2, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -9,7 +10,55 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validatePetPolicy = () => {
+    const errors = [];
+
+    // Dogs Allowed is required
+    if (!form.value.dogsAllowed || form.value.dogsAllowed.trim() === "") {
+        errors.push("Dogs Allowed selection is required");
+    }
+
+    // If dogs allowed, max weight is required
+    if (form.value.dogsAllowed === "Yes") {
+        if (!form.value.dogsMaxWeight || form.value.dogsMaxWeight.toString().trim() === "") {
+            errors.push("Maximum Dog Weight is required when dogs are allowed");
+        }
+    }
+
+    // Cats Allowed is required
+    if (!form.value.catsAllowed || form.value.catsAllowed.trim() === "") {
+        errors.push("Cats Allowed selection is required");
+    }
+
+    // If cats allowed, restrictions is required
+    if (form.value.catsAllowed === "Yes") {
+        if (!form.value.catRestrictions || form.value.catRestrictions.trim() === "") {
+            errors.push("Cat Restrictions is required when cats are allowed");
+        }
+    }
+
+    // Other Pet Restrictions is required
+    if (!form.value.otherPetsRestriction || form.value.otherPetsRestriction.trim() === "") {
+        errors.push("Other Pet Restrictions is required");
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validatePetPolicy()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -31,6 +80,26 @@ const markSectionCompleted = (value) => {
             </CardHeader>
             <CardContent class="space-y-6">
                 <div>
+                    <!-- Validation Errors Display -->
+                    <div
+                        v-if="validationErrors.length > 0"
+                        class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+                    >
+                        <div class="flex items-start gap-2">
+                            <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                    Please correct the following errors:
+                                </h4>
+                                <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                    <li v-for="error in validationErrors" :key="error">
+                                        {{ error }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <Alert variant="secondary" class="mb-4">
                         <AlertDescription>
                             <p>
@@ -49,8 +118,10 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Dogs Allowed?</label
-                            >
+                                >Dogs Allowed?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Select v-model="form.dogsAllowed">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -66,8 +137,10 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Cats Allowed?</label
-                            >
+                                >Cats Allowed?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Select v-model="form.catsAllowed">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -86,8 +159,10 @@ const markSectionCompleted = (value) => {
                             v-if="form.dogsAllowed === 'Yes'"
                         >
                             <label class="text-sm font-medium"
-                                >Maximum Dog Weight (lbs)</label
-                            >
+                                >Maximum Dog Weight (lbs)
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Input
                                 type="number"
                                 v-model="form.dogsMaxWeight"
@@ -100,22 +175,26 @@ const markSectionCompleted = (value) => {
                             v-if="form.catsAllowed === 'Yes'"
                         >
                             <label class="text-sm font-medium"
-                                >Cat Restrictions</label
-                            >
+                                >Cat Restrictions
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
                             <Input
                                 v-model="form.catRestrictions"
-                                placeholder="Any specific restrictions"
+                                placeholder="Any specific restrictions (e.g., 'No declawed cats', 'Indoor only', or 'None')"
                             />
                         </div>
                     </div>
 
                     <div class="space-y-2 mt-4">
                         <label class="text-sm font-medium"
-                            >Other Pet Restrictions</label
-                        >
+                            >Other Pet Restrictions
+                            <span class="text-red-600">*</span>
+                            <span class="text-xs text-gray-500">(Required)</span>
+                        </label>
                         <Textarea
                             v-model="form.otherPetsRestriction"
-                            placeholder="Any other pet-related restrictions or policies"
+                            placeholder="Any other pet-related restrictions or policies (e.g., 'No exotic pets', 'Max 2 pets', or 'None')"
                             rows="2"
                         />
                     </div>

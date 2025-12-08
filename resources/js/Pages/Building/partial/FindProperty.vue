@@ -7,9 +7,11 @@ import {
     Loader,
     MapIcon,
     SearchIcon,
+    AlertCircle,
 } from "lucide-vue-next";
 import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const fullName = defineModel("fullName");
 const contactNumber = defineModel("contactNumber");
@@ -24,8 +26,60 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["search"]);
+const { toast } = useToast();
+
+const errors = ref({
+    fullName: "",
+    contactNumber: "",
+    propertyName: "",
+});
+
+const validateSearchForm = () => {
+    errors.value = {
+        fullName: "",
+        contactNumber: "",
+        propertyName: "",
+    };
+
+    let isValid = true;
+
+    // Validate Full Name
+    if (!fullName.value || fullName.value.trim() === "") {
+        errors.value.fullName = "Full name is required";
+        isValid = false;
+    }
+
+    // Validate Contact Number
+    if (!contactNumber.value || contactNumber.value.trim() === "") {
+        errors.value.contactNumber = "Contact number is required";
+        isValid = false;
+    } else {
+        // Remove all non-digit characters for validation
+        const digits = contactNumber.value.replace(/\D/g, "");
+        if (digits.length !== 10) {
+            errors.value.contactNumber = "Contact number must be exactly 10 digits";
+            isValid = false;
+        }
+    }
+
+    // Validate Property Name
+    if (!propertyName.value || propertyName.value.trim() === "") {
+        errors.value.propertyName = "Building address is required";
+        isValid = false;
+    }
+
+    return isValid;
+};
 
 const searchProperty = () => {
+    if (!validateSearchForm()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields correctly.",
+        });
+        return;
+    }
     emit("search", loading.value);
 };
 </script>
@@ -52,7 +106,7 @@ const searchProperty = () => {
                     <AlertTitle>Important</AlertTitle>
                     <AlertDescription>
                         Please ensure the information matches exactly with your
-                        Propertyware records.
+                        Propertyware records. All fields are required.
                     </AlertDescription>
                 </Alert>
 
@@ -60,14 +114,25 @@ const searchProperty = () => {
                     <div class="space-y-2">
                         <label class="text-sm font-medium">
                             Full Name
-                            <span class="text-red-500">*</span>
+                            <span class="text-red-600">*</span>
+                            <span class="text-xs text-gray-500">(Required)</span>
                         </label>
                         <Input
                             v-model="fullName"
                             placeholder="John Doe"
-                            class="w-full"
+                            :class="[
+                                'w-full',
+                                errors.fullName ? 'border-red-500' : '',
+                            ]"
                         />
-                        <p class="text-xs text-gray-500">
+                        <p
+                            v-if="errors.fullName"
+                            class="text-xs text-red-600 flex items-center gap-1"
+                        >
+                            <AlertCircle class="h-3 w-3" />
+                            {{ errors.fullName }}
+                        </p>
+                        <p v-else class="text-xs text-gray-500">
                             As registered in Propertyware
                         </p>
                     </div>
@@ -75,14 +140,25 @@ const searchProperty = () => {
                     <div class="space-y-2">
                         <label class="text-sm font-medium">
                             Contact Number
-                            <span class="text-red-500">*</span>
+                            <span class="text-red-600">*</span>
+                            <span class="text-xs text-gray-500">(Required)</span>
                         </label>
                         <Input
                             v-model="contactNumber"
                             placeholder="1234567890"
-                            class="w-full"
+                            :class="[
+                                'w-full',
+                                errors.contactNumber ? 'border-red-500' : '',
+                            ]"
                         />
-                        <p class="text-xs text-gray-500">
+                        <p
+                            v-if="errors.contactNumber"
+                            class="text-xs text-red-600 flex items-center gap-1"
+                        >
+                            <AlertCircle class="h-3 w-3" />
+                            {{ errors.contactNumber }}
+                        </p>
+                        <p v-else class="text-xs text-gray-500">
                             10-digit phone number
                         </p>
                     </div>
@@ -90,14 +166,25 @@ const searchProperty = () => {
                     <div class="space-y-2 md:col-span-2">
                         <label class="text-sm font-medium">
                             Building Address
-                            <span class="text-red-500">*</span>
+                            <span class="text-red-600">*</span>
+                            <span class="text-xs text-gray-500">(Required)</span>
                         </label>
                         <Input
                             v-model="propertyName"
                             placeholder="123 Main Street"
-                            class="w-full"
+                            :class="[
+                                'w-full',
+                                errors.propertyName ? 'border-red-500' : '',
+                            ]"
                         />
-                        <p class="text-xs text-gray-500">
+                        <p
+                            v-if="errors.propertyName"
+                            class="text-xs text-red-600 flex items-center gap-1"
+                        >
+                            <AlertCircle class="h-3 w-3" />
+                            {{ errors.propertyName }}
+                        </p>
+                        <p v-else class="text-xs text-gray-500">
                             Exact building name or address
                         </p>
                     </div>

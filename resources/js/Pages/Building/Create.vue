@@ -97,7 +97,7 @@ const form = useForm({
     //Who will do lawn care After Tenant Move In?
     afterTenantMoveInLawnCare: "",
     //Re-Key and Code Work?
-    reKey: "",
+    reKey: "Management",
     //How would you like Us to Handle Tenant Service Request?
     tenantServiceRequest: "",
     //Pets
@@ -828,8 +828,9 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Included Appliances"]?.value &&
         customFieldsMap.value["Included Appliances"].value !== "Not Completed"
     ) {
-        const appliances =
-            String(customFieldsMap.value["Included Appliances"].value || '').toLowerCase();
+        const appliances = String(
+            customFieldsMap.value["Included Appliances"].value || ""
+        ).toLowerCase();
 
         if (appliances.includes("refrigerator")) form.refrigerator = "Yes";
         if (appliances.includes("microwave")) form.microwave = "Yes";
@@ -888,10 +889,10 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Key Information - anything we need to know"]
             .value !== "Not Completed"
     ) {
-        const keyInfo =
-            String(customFieldsMap.value[
-                "Key Information - anything we need to know"
-            ].value || '').toLowerCase();
+        const keyInfo = String(
+            customFieldsMap.value["Key Information - anything we need to know"]
+                .value || ""
+        ).toLowerCase();
 
         // Check for alarm system included in price
         if (
@@ -1019,8 +1020,9 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Owner Pet Prefences"]?.value &&
         customFieldsMap.value["Owner Pet Prefences"].value !== "Not Completed"
     ) {
-        const petPrefs =
-            String(customFieldsMap.value["Owner Pet Prefences"].value || '').toLowerCase();
+        const petPrefs = String(
+            customFieldsMap.value["Owner Pet Prefences"].value || ""
+        ).toLowerCase();
 
         // Check for dogs
         if (petPrefs.includes("dog")) {
@@ -1167,7 +1169,7 @@ const loadBuildingData = () => {
     // Handle amenities data - implode from array to individual form fields
     if (building.value.amenities && Array.isArray(building.value.amenities)) {
         const amenities = building.value.amenities.map((a) =>
-            String(a || '').toLowerCase()
+            String(a || "").toLowerCase()
         );
 
         // Reset amenity fields
@@ -1222,7 +1224,9 @@ const loadBuildingData = () => {
             neighborhoodAmenities?.value &&
             neighborhoodAmenities.value !== "Not Provided"
         ) {
-            const amenitiesText = String(neighborhoodAmenities.value || '').toLowerCase();
+            const amenitiesText = String(
+                neighborhoodAmenities.value || ""
+            ).toLowerCase();
 
             // Reset all amenity fields first
             form.communityPool = "No";

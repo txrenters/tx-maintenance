@@ -35,14 +35,14 @@ const markSectionCompleted = (value) => {
                         <AlertDescription>
                             <div class="space-y-2">
                                 <p>
-                                    <span class="font-bold underline"
-                                        >Re-Key & Code Work:</span
-                                    >
-                                    State law requires a working smoke detector
-                                    in each bedroom and each hallway servicing a
-                                    bedroom along with a peep hole and keyless
-                                    locking device on each exterior door. Homes
-                                    must be re-keyed between each tenant.
+                                    All Homes will be brought up to the
+                                    standards required by Texas Property Code at
+                                    the owner's expense (smoke detectors, locks,
+                                    and peep holes). All properties will also be
+                                    re-keyed to the TexasRenters.com key system
+                                    so that in the event of an emergency we can
+                                    more quickly protect the value of your
+                                    property.
                                 </p>
                                 <p>
                                     <span class="font-bold underline"
@@ -71,7 +71,6 @@ const markSectionCompleted = (value) => {
                                 <SelectItem value="Management"
                                     >Management</SelectItem
                                 >
-                                <SelectItem value="Owner">Owner</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

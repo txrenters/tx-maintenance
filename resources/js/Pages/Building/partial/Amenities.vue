@@ -1,7 +1,8 @@
 <script setup>
-import { CheckCircle, Sparkles } from "lucide-vue-next";
-
+import { CheckCircle, Sparkles, AlertCircle } from "lucide-vue-next";
+import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -9,7 +10,116 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validateAmenities = () => {
+    const errors = [];
+
+    // Swimming Pool
+    if (!form.value.swimmingPool || form.value.swimmingPool.trim() === "") {
+        errors.push("Swimming Pool selection is required");
+    }
+
+    // Alarm System
+    if (!form.value.alarmSystem || form.value.alarmSystem.trim() === "") {
+        errors.push("Alarm System selection is required");
+    }
+
+    // Neighborhood Amenities
+    if (!form.value.communityPool || form.value.communityPool.trim() === "") {
+        errors.push("Community Pool selection is required");
+    }
+    if (!form.value.park || form.value.park.trim() === "") {
+        errors.push("Nearby Park selection is required");
+    }
+    if (!form.value.playGround || form.value.playGround.trim() === "") {
+        errors.push("Playground selection is required");
+    }
+    if (!form.value.tennisCourt || form.value.tennisCourt.trim() === "") {
+        errors.push("Tennis Court selection is required");
+    }
+    if (!form.value.tenantToContactNeighborhoodAmenities || form.value.tenantToContactNeighborhoodAmenities.trim() === "") {
+        errors.push("Contact for Neighborhood Amenities is required");
+    }
+
+    // Garage Access & Mailbox
+    if (!form.value.garageDoorOpener || form.value.garageDoorOpener.trim() === "") {
+        errors.push("Garage Door Opener selection is required");
+    }
+    if (!form.value.garageDoorRemote || form.value.garageDoorRemote.toString().trim() === "") {
+        errors.push("Number of Garage Remotes is required");
+    }
+    if (!form.value.lockboxCode || form.value.lockboxCode.trim() === "") {
+        errors.push("Lockbox Code is required");
+    }
+    if (!form.value.mailboxKeyNo || form.value.mailboxKeyNo.toString().trim() === "") {
+        errors.push("Number of Mailbox Keys is required");
+    }
+    if (!form.value.mailboxLocation || form.value.mailboxLocation.trim() === "") {
+        errors.push("Mailbox Location is required");
+    }
+
+    // Appliances
+    if (!form.value.refrigerator || form.value.refrigerator.trim() === "") {
+        errors.push("Refrigerator Included selection is required");
+    }
+    if (!form.value.microwave || form.value.microwave.trim() === "") {
+        errors.push("Microwave Included selection is required");
+    }
+    if (!form.value.washingMachine || form.value.washingMachine.trim() === "") {
+        errors.push("Washing Machine Included selection is required");
+    }
+    if (!form.value.washingMachineHookups || form.value.washingMachineHookups.trim() === "") {
+        errors.push("Washing Machine Hookups selection is required");
+    }
+    if (!form.value.dryer || form.value.dryer.trim() === "") {
+        errors.push("Dryer Included selection is required");
+    }
+    if (!form.value.dryerHookups || form.value.dryerHookups.trim() === "") {
+        errors.push("Dryer Hookups selection is required");
+    }
+    if (!form.value.waterSoftener || form.value.waterSoftener.trim() === "") {
+        errors.push("Water Softener selection is required");
+    }
+    if (!form.value.waterHeaterModelYear || form.value.waterHeaterModelYear.trim() === "") {
+        errors.push("Water Heater Model Year is required");
+    }
+    if (!form.value.dishWasherModelYear || form.value.dishWasherModelYear.trim() === "") {
+        errors.push("Dishwasher Model Year is required");
+    }
+    if (!form.value.hvacModelYear || form.value.hvacModelYear.trim() === "") {
+        errors.push("HVAC Model Year is required");
+    }
+
+    // Utilities & Services
+    if (!form.value.waterProvider || form.value.waterProvider.trim() === "") {
+        errors.push("Water Provider is required");
+    }
+    if (!form.value.gasProvider || form.value.gasProvider.trim() === "") {
+        errors.push("Gas Provider is required");
+    }
+    if (!form.value.trashProvider || form.value.trashProvider.trim() === "") {
+        errors.push("Trash Provider is required");
+    }
+    if (!form.value.trashPickupDays || form.value.trashPickupDays.trim() === "") {
+        errors.push("Trash Pickup Days is required");
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validateAmenities()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 </script>
@@ -30,6 +140,26 @@ const markSectionCompleted = (value) => {
                 </div>
             </CardHeader>
             <CardContent class="space-y-6">
+                <!-- Validation Errors Display -->
+                <div
+                    v-if="validationErrors.length > 0"
+                    class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+                >
+                    <div class="flex items-start gap-2">
+                        <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                Please correct the following errors:
+                            </h4>
+                            <ul class="text-sm text-red-700 space-y-1 list-disc list-inside max-h-60 overflow-y-auto">
+                                <li v-for="error in validationErrors" :key="error">
+                                    {{ error }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <Alert>
                     <AlertDescription>
                         <p>
@@ -37,7 +167,7 @@ const markSectionCompleted = (value) => {
                                 >We need to know more about your home so that we
                                 can properly market the home and give the new
                                 tenant information on how to take care of the
-                                home.</span
+                                home. <strong class="text-red-600">All fields in this section are required.</strong></span
                             >
                         </p>
                     </AlertDescription>
@@ -47,8 +177,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Swimming Pool Present?</label
-                            >
+                                >Swimming Pool Present?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.swimmingPool">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -117,8 +248,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Is there an Alarm System?</label
-                            >
+                                >Is there an Alarm System?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.alarmSystem">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -206,8 +338,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Community Pool?</label
-                            >
+                                >Community Pool?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.communityPool">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -221,8 +354,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Nearby Park?</label
-                            >
+                                >Nearby Park?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.park">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -236,8 +370,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Playground?</label
-                            >
+                                >Playground?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.playGround">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -251,8 +386,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Tennis Court?</label
-                            >
+                                >Tennis Court?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.tennisCourt">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -267,11 +403,13 @@ const markSectionCompleted = (value) => {
                     <div class="space-y-2">
                         <label class="text-sm font-medium"
                             >Who the tenant should contact to access
-                            Neighborhood Amenities</label
-                        >
+                            Neighborhood Amenities
+                            <span class="text-red-600">*</span>
+                        </label>
                         <Input
                             type="text"
                             v-model="form.tenantToContactNeighborhoodAmenities"
+                            placeholder="HOA contact, management company, etc."
                         />
                     </div>
                 </div>
@@ -281,8 +419,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Garage Door Opener?</label
-                            >
+                                >Garage Door Opener?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.garageDoorOpener">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -296,8 +435,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Number of Remotes?</label
-                            >
+                                >Number of Remotes?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 type="number"
                                 v-model="form.garageDoorRemote"
@@ -307,8 +447,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Lockbox Code</label
-                            >
+                                >Lockbox Code
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.lockboxCode"
                                 placeholder="Enter lockbox code"
@@ -317,8 +458,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Number of Mailbox Keys?</label
-                            >
+                                >Number of Mailbox Keys?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 type="number"
                                 v-model="form.mailboxKeyNo"
@@ -328,8 +470,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Location of Mailbox?</label
-                            >
+                                >Location of Mailbox?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.mailboxLocation"
                                 placeholder="e.g. Front door, End of driveway"
@@ -343,8 +486,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Refrigerator Included?</label
-                            >
+                                >Refrigerator Included?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.refrigerator">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -358,8 +502,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Microwave Included?</label
-                            >
+                                >Microwave Included?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.microwave">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -373,8 +518,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Washing Machine Included?</label
-                            >
+                                >Washing Machine Included?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.washingMachine">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -388,8 +534,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Washing Machine Hookups?</label
-                            >
+                                >Washing Machine Hookups?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.washingMachineHookups">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -405,8 +552,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Dryer Included?</label
-                            >
+                                >Dryer Included?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.dryer">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -420,8 +568,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Dryer Hookups?</label
-                            >
+                                >Dryer Hookups?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Select v-model="form.dryerHookups">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -437,7 +586,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Water Softener?</label
+                                >Water Softener?
+                                <span class="text-red-600">*</span>
+                            </label
                             >
                             <Select v-model="form.waterSoftener">
                                 <SelectTrigger>
@@ -452,8 +603,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Water Heater Model Year?</label
-                            >
+                                >Water Heater Model Year?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.waterHeaterModelYear"
                                 placeholder="e.g. 2018"
@@ -462,8 +614,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Dishwasher Model Year?</label
-                            >
+                                >Dishwasher Model Year?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.dishWasherModelYear"
                                 placeholder="e.g. 2019"
@@ -472,8 +625,9 @@ const markSectionCompleted = (value) => {
 
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >HVAC Model Year?</label
-                            >
+                                >HVAC Model Year?
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.hvacModelYear"
                                 placeholder="e.g. 2020"
@@ -487,8 +641,9 @@ const markSectionCompleted = (value) => {
                     <div class="grid gap-4 md:grid-cols-2">
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Water Provider</label
-                            >
+                                >Water Provider
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.waterProvider"
                                 placeholder="Water company name"
@@ -496,8 +651,9 @@ const markSectionCompleted = (value) => {
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Gas Provider</label
-                            >
+                                >Gas Provider
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.gasProvider"
                                 placeholder="Gas company name"
@@ -505,8 +661,9 @@ const markSectionCompleted = (value) => {
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Trash Provider</label
-                            >
+                                >Trash Provider
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.trashProvider"
                                 placeholder="Trash service company"
@@ -514,8 +671,9 @@ const markSectionCompleted = (value) => {
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
-                                >Trash Pickup Days</label
-                            >
+                                >Trash Pickup Days
+                                <span class="text-red-600">*</span>
+                            </label>
                             <Input
                                 v-model="form.trashPickupDays"
                                 placeholder="e.g. Monday, Thursday"

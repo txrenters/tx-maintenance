@@ -4,8 +4,9 @@ import PinInputGroup from "@/Components/ui/pin-input/PinInputGroup.vue";
 import PinInputSeparator from "@/Components/ui/pin-input/PinInputSeparator.vue";
 import PinInputSlot from "@/Components/ui/pin-input/PinInputSlot.vue";
 import { RadioGroup, RadioGroupItem } from "@/Components/ui/radio-group";
-import { CheckCircle, CoinsIcon, Home } from "lucide-vue-next";
-import { onMounted, ref, watch } from "vue";
+import { CheckCircle, CoinsIcon, Home, AlertCircle } from "lucide-vue-next";
+import { onMounted, ref, watch, computed } from "vue";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -13,7 +14,64 @@ const props = defineProps({
     completedSections: Array,
 });
 
+const { toast } = useToast();
+const validationErrors = ref([]);
+
+const validateW9Form = () => {
+    const errors = [];
+
+    // Field 1: Entity name (required)
+    if (!form.value.w9_entity_name || form.value.w9_entity_name.trim() === "") {
+        errors.push("Entity/Individual name is required (Field 1)");
+    }
+
+    // Field 3a: Tax classification (required)
+    if (!form.value.w9_tax_class || form.value.w9_tax_class.trim() === "") {
+        errors.push("Tax classification is required (Field 3a)");
+    }
+
+    // Field 5: Address (required)
+    if (!form.value.w9_address || form.value.w9_address.trim() === "") {
+        errors.push("Address is required (Field 5)");
+    }
+
+    // Field 6: City, state, ZIP (required)
+    if (!form.value.w9_address2 || form.value.w9_address2.trim() === "") {
+        errors.push("City, state, and ZIP code are required (Field 6)");
+    }
+
+    // Either SSN or EIN is required
+    const hasSSN = form.value.w9_ssn && form.value.w9_ssn.trim() !== "";
+    const hasEIN = form.value.w9_ein && form.value.w9_ein.trim() !== "";
+
+    if (!hasSSN && !hasEIN) {
+        errors.push("Either Social Security Number or Employer Identification Number is required");
+    }
+
+    // Validate SSN length if provided
+    if (hasSSN && form.value.w9_ssn.length !== 9) {
+        errors.push("Social Security Number must be exactly 9 digits");
+    }
+
+    // Validate EIN length if provided
+    if (hasEIN && form.value.w9_ein.length !== 9) {
+        errors.push("Employer Identification Number must be exactly 9 digits");
+    }
+
+    validationErrors.value = errors;
+    return errors.length === 0;
+};
+
 const markSectionCompleted = (value) => {
+    if (!validateW9Form()) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please fill in all required fields before completing this section.",
+        });
+        return;
+    }
+    validationErrors.value = [];
     emit("sectionComplete", value);
 };
 
@@ -68,13 +126,38 @@ watch(ein, (newVal) => {
                 </div>
             </CardHeader>
             <CardContent class="space-y-6">
+                <!-- Validation Errors Display -->
+                <div
+                    v-if="validationErrors.length > 0"
+                    class="bg-red-50 border border-red-200 rounded-lg p-4"
+                >
+                    <div class="flex items-start gap-2">
+                        <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <h4 class="text-sm font-semibold text-red-800 mb-2">
+                                Please correct the following errors:
+                            </h4>
+                            <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                                <li v-for="error in validationErrors" :key="error">
+                                    {{ error }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="space-y-2">
                     <label class="text-sm font-medium"
-                        >1. Name of entity/individual. An entry is required.
-                        (For a sole proprietor or disregarded entity, enter the
-                        owner’s name on line 1, and enter the
-                        business/disregarded entity’s name on line 2.)</label
-                    >
+                        >1. Name of entity/individual.
+                        <span class="text-red-600">*</span>
+                        <span class="text-xs text-gray-500">(Required)</span>
+                        <br>
+                        <span class="font-normal text-xs text-gray-600">
+                            For a sole proprietor or disregarded entity, enter the
+                            owner's name on line 1, and enter the
+                            business/disregarded entity's name on line 2.
+                        </span>
+                    </label>
                     <Input
                         type="text"
                         placeholder="Entity name..."
@@ -86,6 +169,7 @@ watch(ein, (newVal) => {
                     <label class="text-sm font-medium"
                         >2. Business name/disregarded entity name, if different
                         from above.
+                        <span class="text-xs text-gray-500">(Optional)</span>
                     </label>
                     <Input
                         type="text"
@@ -101,6 +185,8 @@ watch(ein, (newVal) => {
                         entity/individual whose name is entered on line 1. Check
                         only <span class="font-medium">one</span> of the
                         following seven boxes.
+                        <span class="text-red-600">*</span>
+                        <span class="text-xs text-gray-500">(Required)</span>
                     </label>
                     <div class="space-y-3 mt-3">
                         <RadioGroup v-model="form.w9_tax_class">
@@ -179,12 +265,13 @@ watch(ein, (newVal) => {
                         <p
                             class="text-sm font-medium flex flex-wrap items-center"
                         >
-                            3b. If on line 3a you checked “Partnership” or
-                            “Trust/estate,” or checked “LLC” and entered “P” as
+                            3b. If on line 3a you checked "Partnership" or
+                            "Trust/estate," or checked "LLC" and entered "P" as
                             its tax classification, and you are providing this
                             form to a partnership, trust, or estate in which you
                             have an ownership interest, check this box if you
                             have any foreign partners, owners, or beneficiaries.
+                            <span class="text-xs text-gray-500 ml-2">(Optional)</span>
                         </p>
                         <RadioGroup v-model="form.w9_tax_class1">
                             <p
@@ -205,7 +292,8 @@ watch(ein, (newVal) => {
                 <div class="space-y-2">
                     <label class="text-sm font-medium block"
                         >4. Exemptions (codes apply only to certain entities,
-                        not individuals; see instructions on page 3):
+                        not individuals; see instructions on page 3)
+                        <span class="text-xs text-gray-500">(Optional)</span>
                     </label>
                     <label class="text-sm font-medium"
                         >Exempt payee code (if any)
@@ -214,6 +302,7 @@ watch(ein, (newVal) => {
                         type="text"
                         v-model="form.w9_exempt_payee_code"
                         class="w-full"
+                        placeholder="Optional"
                     />
                     <label class="text-sm font-medium"
                         >Exemption from Foreign Account Tax Compliance Act
@@ -223,6 +312,7 @@ watch(ein, (newVal) => {
                         type="text"
                         v-model="form.w9_exempt_reporting_code"
                         class="w-full"
+                        placeholder="Optional"
                     />
                 </div>
 
@@ -230,31 +320,39 @@ watch(ein, (newVal) => {
                     <label class="text-sm font-medium block"
                         >5. Address (number, street, and apt. or suite no.). See
                         instructions.
+                        <span class="text-red-600">*</span>
+                        <span class="text-xs text-gray-500">(Required)</span>
                     </label>
                     <Input
                         type="text"
                         v-model="form.w9_address"
                         class="w-full"
+                        placeholder="Street address..."
                     />
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium block"
                         >6. City, state, and ZIP code
+                        <span class="text-red-600">*</span>
+                        <span class="text-xs text-gray-500">(Required)</span>
                     </label>
                     <Input
                         type="text"
                         v-model="form.w9_address2"
                         class="w-full"
+                        placeholder="City, State ZIP..."
                     />
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium block"
-                        >7. List account number(s) here (optional)
+                        >7. List account number(s) here
+                        <span class="text-xs text-gray-500">(Optional)</span>
                     </label>
                     <Input
                         type="text"
                         v-model="form.w9_account_list"
                         class="w-full"
+                        placeholder="Optional"
                     />
                 </div>
 
@@ -272,6 +370,8 @@ watch(ein, (newVal) => {
                 <div class="space-y-2">
                     <h3 class="font-bold mb-0">
                         Part I: Taxpayer Identification Number (TIN)
+                        <span class="text-red-600">*</span>
+                        <span class="text-xs text-gray-500 font-normal">(Required - provide either SSN or EIN)</span>
                     </h3>
 
                     <label class="text-sm block"
@@ -290,6 +390,11 @@ watch(ein, (newVal) => {
                         1. See also What Name and Number To Give the Requester
                         for guidelines on whose number to enter.
                     </label>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 my-3">
+                        <p class="text-sm text-blue-800 font-medium">
+                            <span class="text-red-600">*</span> You must provide either a Social Security Number OR an Employer Identification Number
+                        </p>
+                    </div>
                     <label class="text-sm font-medium block"
                         >Social security number
                     </label>

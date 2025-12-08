@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateBuildingCustomFieldsRequest;
 use App\Jobs\GenerateOnboardingPdfJob;
 use App\Jobs\GenerateW9PdfJob;
 use Illuminate\Http\Request;
@@ -82,18 +83,9 @@ class BuildingController extends Controller
 
     }
 
-    public function updateCustomFields(Request $request, $buildingId)
+    public function updateCustomFields(UpdateBuildingCustomFieldsRequest $request, $buildingId)
     {
-        $request->validate([
-            'propertywareData' => 'required|array',
-            'propertywareData.entityId' => 'required|integer',
-            'propertywareData.fieldSetDTOS' => 'required|array',
-            'propertywareData.fieldSetDTOS.*.name' => 'required|string',
-            'propertywareData.fieldSetDTOS.*.value' => 'required|string',
-            'formData' => 'required|array',
-            'signature' => 'required|string',
-            'maintenanceNotice' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         try {
             $propertywareData = $request->input('propertywareData');

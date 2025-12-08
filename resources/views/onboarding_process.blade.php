@@ -301,18 +301,24 @@
         </div>
 
         <div class="alert alert-info">
-            <strong>Final Touches before Tenant Move in:</strong> We require that all homes be profesionally cleaned,
-            and carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control
-            prior to move in. We expect that when a tenant moves out of the home, they will also have the home
-            professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being able
-            to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after
-            tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If the
-            carpets were not professionally cleaned prior to putting the home on the market, this is the time to do it.
-            We do however, allow you to choose between us providing the service, and you arranging the service on your
-            own. If you arrange the service, please provide receipts for our records. TexasRenters.com, LLC will arrange
-            for and pay for, at the owner's expense, a final cleaning just prior to tenant move in. You may have the
-            lawn and pest control done at your discretion. For standard treatment of roaches and bugs (excluding rodents
-            and bee hives) the charge is $60.00 for pest control.
+            <strong>Final Touches before Tenant Move in: We require that all homes be profesionally cleaned,
+                and carpets thermostat are not new be professionally cleaned, a final lawn cut be done and pest control
+                prior to move in. We expect that when a tenant moves out of the home, they will also have the home
+                professionally cleaned and carpets steam cleaned. By having the home professionally cleaned, and being
+                able
+                to provide receipts, we can help assure that as the home owner, you will not be paying to clean up after
+                tenants in the future. In most cases, this will be the only time that you need to pay for cleaning. If
+                the
+                carpets were not professionally cleaned prior to putting the home on the market, this is the time to do
+                it.
+                We do however, allow you to choose between us providing the service, and you arranging the service on
+                your
+                own. If you arrange the service, please provide receipts for our records. TexasRenters.com, LLC will
+                arrange
+                for and pay for, at the owner's expense, a final cleaning just prior to tenant move in. You may have the
+                lawn and pest control done at your discretion. For standard treatment of roaches and bugs (excluding
+                rodents
+                and bee hives) the charge is $60.00 for pest control.</strong>
         </div>
 
         <h4>Prior to property photos the following items need to be completed.</h4>
@@ -421,9 +427,9 @@
         <div class="section-title">Re-Key and Code Work</div>
 
         <div class="alert alert-warning">
-            <strong>Re-Key & Code Work:</strong> State law requires a working smoke detector in each bedroom and each
-            hallway servicing a bedroom along with a peep hole and keyless locking device on each exterior door. Homes
-            must be re-keyed between each tenant.
+            All Homes will be brought up to the standards required by Texas Property Code at the owner's expense (smoke
+            detectors, locks, and peep holes). All properties will also be re-keyed to the TexasRenters.com key system
+            so that in the event of an emergency we can more quickly protect the value of your property.
         </div>
 
         <div class="alert alert-warning">
