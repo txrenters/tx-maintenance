@@ -76,6 +76,7 @@ class UpdateWorkOrderStatus extends Command
                                 'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
                                 'type' => $data['type'] ?? $workOrder->type,
                                 'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
+                                'is_approved' => $data['approved'] ?? $workOrder->is_approved,
                             ];
 
                             $customFieldData = [];
