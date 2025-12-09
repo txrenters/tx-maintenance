@@ -141,8 +141,10 @@ const markSectionCompleted = (value) => {
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Lawn Care</label
-                                    >
+                                        >Lawn Care
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.goingOnTheMarketLawnCare"
                                     >
@@ -164,8 +166,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Professional Cleaning</label
-                                    >
+                                        >Professional Cleaning
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.goingOnTheMarketCleaning"
                                     >
@@ -187,8 +191,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Debris Removal</label
-                                    >
+                                        >Debris Removal
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="
                                             form.goingOnTheMarketDebrisRemoval
@@ -212,8 +218,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Paint</label
-                                    >
+                                        >Paint
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.goingOnTheMarketPaint"
                                     >
@@ -235,8 +243,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Carpet Cleaning</label
-                                    >
+                                        >Carpet Cleaning
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="
                                             form.goingOnTheMarketCarpetCleaning
@@ -260,8 +270,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Carpet Replacement</label
-                                    >
+                                        >Carpet Replacement
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="
                                             form.goingOnTheMarketCarpetReplacement
@@ -285,8 +297,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Utilities</label
-                                    >
+                                        >Utilities
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.goingOnTheMarketUtilities"
                                     >
@@ -331,8 +345,10 @@ const markSectionCompleted = (value) => {
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Lawn Care</label
-                                    >
+                                        >Lawn Care
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.homeOnTheMarketLawnCare"
                                     >
@@ -354,8 +370,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Cleaning</label
-                                    >
+                                        >Cleaning
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.homeOnTheMarketCleaning"
                                     >
@@ -377,8 +395,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Utilities</label
-                                    >
+                                        >Utilities
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="form.homeOnTheMarketUtilities"
                                     >
@@ -461,8 +481,10 @@ const markSectionCompleted = (value) => {
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Final Lawn Care</label
-                                    >
+                                        >Final Lawn Care
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="
                                             form.beforeTenantMoveInLawnCare
@@ -486,8 +508,10 @@ const markSectionCompleted = (value) => {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium"
-                                        >Pest Control</label
-                                    >
+                                        >Pest Control
+                                        <span class="text-red-600">*</span>
+                                        <span class="text-xs text-gray-500">(Required)</span>
+                                    </label>
                                     <Select
                                         v-model="
                                             form.beforeTenantMoveInPestControl
@@ -517,8 +541,10 @@ const markSectionCompleted = (value) => {
                             </h4>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium"
-                                    >Ongoing Lawn Care</label
-                                >
+                                    >Ongoing Lawn Care
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500">(Required)</span>
+                                </label>
                                 <Select
                                     v-model="form.afterTenantMoveInLawnCare"
                                 >
