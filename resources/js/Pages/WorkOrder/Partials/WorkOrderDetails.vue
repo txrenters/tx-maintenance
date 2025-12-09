@@ -36,6 +36,8 @@ const props = defineProps({
 const emit = defineEmits(["save", "close", "delete", "update-workOrder"]);
 
 const open = ref(false);
+const isDeleteDialogOpen = ref(false);
+const isCompleteDialogOpen = ref(false);
 
 const searchTerm = ref("");
 
@@ -203,6 +205,7 @@ const handleDeleteSubmit = () => {
             });
             emit("delete"); // Emit event to parent
             loading.value = false;
+            isDeleteDialogOpen.value = false;
         })
         .catch((error) => {
             toast({
@@ -212,7 +215,21 @@ const handleDeleteSubmit = () => {
                     "There was a problem with your request. Please try again!",
             });
             loading.value = false;
+            isDeleteDialogOpen.value = false;
         });
+};
+
+const confirmDelete = () => {
+    isDeleteDialogOpen.value = true;
+};
+
+const confirmComplete = () => {
+    isCompleteDialogOpen.value = true;
+};
+
+const handleCompleteSubmit = () => {
+    handleCloseOrderSubmit();
+    isCompleteDialogOpen.value = false;
 };
 </script>
 
@@ -589,7 +606,7 @@ const handleDeleteSubmit = () => {
                         type="submit"
                         variant="destructive"
                         :disabled="loading"
-                        @click.prevent="handleDeleteSubmit"
+                        @click.prevent="confirmDelete"
                     >
                         <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
                         Delete
@@ -597,7 +614,7 @@ const handleDeleteSubmit = () => {
                     <Button
                         type="submit"
                         :disabled="closeWorkOrderForm.processing"
-                        @click.prevent="handleCloseOrderSubmit"
+                        @click.prevent="confirmComplete"
                     >
                         <Loader2
                             v-if="closeWorkOrderForm.processing"
@@ -621,4 +638,55 @@ const handleDeleteSubmit = () => {
             </div>
         </DialogFooter>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog v-model:open="isDeleteDialogOpen">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete this work order and remove all associated data from the system.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    :disabled="loading"
+                    @click.prevent="handleDeleteSubmit"
+                >
+                    <Loader2
+                        v-if="loading"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- Complete Confirmation Dialog -->
+    <AlertDialog v-model:open="isCompleteDialogOpen">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Mark Work Order as Completed?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Are you sure you want to mark this work order as completed? This will close the work order and update its status.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    :disabled="closeWorkOrderForm.processing"
+                    @click.prevent="handleCompleteSubmit"
+                >
+                    <Loader2
+                        v-if="closeWorkOrderForm.processing"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    Complete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 </template>
