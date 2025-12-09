@@ -34,7 +34,7 @@ const markSectionCompleted = (value) => {
                     <Alert class="mb-4">
                         <AlertDescription>
                             <div class="space-y-2">
-                                <p>
+                                <p class="font-bold">
                                     All Homes will be brought up to the
                                     standards required by Texas Property Code at
                                     the owner's expense (smoke detectors, locks,
@@ -68,7 +68,7 @@ const markSectionCompleted = (value) => {
                                 />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Management"
+                                <SelectItem value="Management" selected
                                     >Management</SelectItem
                                 >
                             </SelectContent>

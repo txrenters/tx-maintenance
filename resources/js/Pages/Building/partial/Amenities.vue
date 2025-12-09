@@ -39,24 +39,39 @@ const validateAmenities = () => {
     if (!form.value.tennisCourt || form.value.tennisCourt.trim() === "") {
         errors.push("Tennis Court selection is required");
     }
-    if (!form.value.tenantToContactNeighborhoodAmenities || form.value.tenantToContactNeighborhoodAmenities.trim() === "") {
+    if (
+        !form.value.tenantToContactNeighborhoodAmenities ||
+        form.value.tenantToContactNeighborhoodAmenities.trim() === ""
+    ) {
         errors.push("Contact for Neighborhood Amenities is required");
     }
 
     // Garage Access & Mailbox
-    if (!form.value.garageDoorOpener || form.value.garageDoorOpener.trim() === "") {
+    if (
+        !form.value.garageDoorOpener ||
+        form.value.garageDoorOpener.trim() === ""
+    ) {
         errors.push("Garage Door Opener selection is required");
     }
-    if (!form.value.garageDoorRemote || form.value.garageDoorRemote.toString().trim() === "") {
+    if (
+        !form.value.garageDoorRemote ||
+        form.value.garageDoorRemote.toString().trim() === ""
+    ) {
         errors.push("Number of Garage Remotes is required");
     }
     if (!form.value.lockboxCode || form.value.lockboxCode.trim() === "") {
         errors.push("Lockbox Code is required");
     }
-    if (!form.value.mailboxKeyNo || form.value.mailboxKeyNo.toString().trim() === "") {
+    if (
+        !form.value.mailboxKeyNo ||
+        form.value.mailboxKeyNo.toString().trim() === ""
+    ) {
         errors.push("Number of Mailbox Keys is required");
     }
-    if (!form.value.mailboxLocation || form.value.mailboxLocation.trim() === "") {
+    if (
+        !form.value.mailboxLocation ||
+        form.value.mailboxLocation.trim() === ""
+    ) {
         errors.push("Mailbox Location is required");
     }
 
@@ -70,7 +85,10 @@ const validateAmenities = () => {
     if (!form.value.washingMachine || form.value.washingMachine.trim() === "") {
         errors.push("Washing Machine Included selection is required");
     }
-    if (!form.value.washingMachineHookups || form.value.washingMachineHookups.trim() === "") {
+    if (
+        !form.value.washingMachineHookups ||
+        form.value.washingMachineHookups.trim() === ""
+    ) {
         errors.push("Washing Machine Hookups selection is required");
     }
     if (!form.value.dryer || form.value.dryer.trim() === "") {
@@ -82,10 +100,16 @@ const validateAmenities = () => {
     if (!form.value.waterSoftener || form.value.waterSoftener.trim() === "") {
         errors.push("Water Softener selection is required");
     }
-    if (!form.value.waterHeaterModelYear || form.value.waterHeaterModelYear.trim() === "") {
+    if (
+        !form.value.waterHeaterModelYear ||
+        form.value.waterHeaterModelYear.trim() === ""
+    ) {
         errors.push("Water Heater Model Year is required");
     }
-    if (!form.value.dishWasherModelYear || form.value.dishWasherModelYear.trim() === "") {
+    if (
+        !form.value.dishWasherModelYear ||
+        form.value.dishWasherModelYear.trim() === ""
+    ) {
         errors.push("Dishwasher Model Year is required");
     }
     if (!form.value.hvacModelYear || form.value.hvacModelYear.trim() === "") {
@@ -102,7 +126,10 @@ const validateAmenities = () => {
     if (!form.value.trashProvider || form.value.trashProvider.trim() === "") {
         errors.push("Trash Provider is required");
     }
-    if (!form.value.trashPickupDays || form.value.trashPickupDays.trim() === "") {
+    if (
+        !form.value.trashPickupDays ||
+        form.value.trashPickupDays.trim() === ""
+    ) {
         errors.push("Trash Pickup Days is required");
     }
 
@@ -115,7 +142,8 @@ const markSectionCompleted = (value) => {
         toast({
             variant: "destructive",
             title: "Validation Error",
-            description: "Please fill in all required fields before completing this section.",
+            description:
+                "Please fill in all required fields before completing this section.",
         });
         return;
     }
@@ -146,13 +174,20 @@ const markSectionCompleted = (value) => {
                     class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
                 >
                     <div class="flex items-start gap-2">
-                        <AlertCircle class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <AlertCircle
+                            class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5"
+                        />
                         <div>
                             <h4 class="text-sm font-semibold text-red-800 mb-2">
                                 Please correct the following errors:
                             </h4>
-                            <ul class="text-sm text-red-700 space-y-1 list-disc list-inside max-h-60 overflow-y-auto">
-                                <li v-for="error in validationErrors" :key="error">
+                            <ul
+                                class="text-sm text-red-700 space-y-1 list-disc list-inside max-h-60 overflow-y-auto"
+                            >
+                                <li
+                                    v-for="error in validationErrors"
+                                    :key="error"
+                                >
                                     {{ error }}
                                 </li>
                             </ul>
@@ -167,7 +202,11 @@ const markSectionCompleted = (value) => {
                                 >We need to know more about your home so that we
                                 can properly market the home and give the new
                                 tenant information on how to take care of the
-                                home. <strong class="text-red-600">All fields in this section are required.</strong></span
+                                home.
+                                <strong class="text-red-600"
+                                    >All fields in this section are
+                                    required.</strong
+                                ></span
                             >
                         </p>
                     </AlertDescription>
@@ -179,7 +218,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Swimming Pool Present?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.swimmingPool">
                                 <SelectTrigger>
@@ -251,7 +292,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Is there an Alarm System?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.alarmSystem">
                                 <SelectTrigger>
@@ -342,7 +385,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Community Pool?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.communityPool">
                                 <SelectTrigger>
@@ -359,7 +404,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Nearby Park?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.park">
                                 <SelectTrigger>
@@ -376,7 +423,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Playground?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.playGround">
                                 <SelectTrigger>
@@ -393,7 +442,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Tennis Court?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.tennisCourt">
                                 <SelectTrigger>
@@ -406,12 +457,14 @@ const markSectionCompleted = (value) => {
                             </Select>
                         </div>
                     </div>
-                    <div class="space-y-2">
+                    <div class="space-y-2 mt-2">
                         <label class="text-sm font-medium"
                             >Who the tenant should contact to access
                             Neighborhood Amenities
                             <span class="text-red-600">*</span>
-                            <span class="text-xs text-gray-500">(Required)</span>
+                            <span class="text-xs text-gray-500"
+                                >(Required)</span
+                            >
                         </label>
                         <Input
                             type="text"
@@ -428,7 +481,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Garage Door Opener?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.garageDoorOpener">
                                 <SelectTrigger>
@@ -445,7 +500,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Number of Remotes?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 type="number"
@@ -458,7 +515,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Lockbox Code
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.lockboxCode"
@@ -470,7 +529,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Number of Mailbox Keys?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 type="number"
@@ -483,7 +544,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Location of Mailbox?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.mailboxLocation"
@@ -500,7 +563,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Refrigerator Included?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.refrigerator">
                                 <SelectTrigger>
@@ -517,7 +582,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Microwave Included?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.microwave">
                                 <SelectTrigger>
@@ -534,7 +601,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Washing Machine Included?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.washingMachine">
                                 <SelectTrigger>
@@ -551,7 +620,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Washing Machine Hookups?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.washingMachineHookups">
                                 <SelectTrigger>
@@ -570,7 +641,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Dryer Included?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.dryer">
                                 <SelectTrigger>
@@ -587,7 +660,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Dryer Hookups?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Select v-model="form.dryerHookups">
                                 <SelectTrigger>
@@ -606,9 +681,10 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Water Softener?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
-                            </label
-                            >
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
+                            </label>
                             <Select v-model="form.waterSoftener">
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select option" />
@@ -624,7 +700,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Water Heater Model Year?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.waterHeaterModelYear"
@@ -636,7 +714,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Dishwasher Model Year?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.dishWasherModelYear"
@@ -648,7 +728,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >HVAC Model Year?
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.hvacModelYear"
@@ -665,7 +747,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Water Provider
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.waterProvider"
@@ -676,7 +760,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Gas Provider
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.gasProvider"
@@ -687,7 +773,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Trash Provider
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.trashProvider"
@@ -698,7 +786,9 @@ const markSectionCompleted = (value) => {
                             <label class="text-sm font-medium"
                                 >Trash Pickup Days
                                 <span class="text-red-600">*</span>
-                                <span class="text-xs text-gray-500">(Required)</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
                             </label>
                             <Input
                                 v-model="form.trashPickupDays"
