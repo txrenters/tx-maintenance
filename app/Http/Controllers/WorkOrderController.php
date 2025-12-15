@@ -36,10 +36,37 @@ class WorkOrderController extends Controller
      */
     public function index(Request $request)
     {
-        $service_status = ServiceStatus::with([
+        $query = ServiceStatus::with([
             'work_order',
             'work_order.owners',
-            'work_orders' => fn ($q) => $q->filtered()->scoped(),
+            'work_orders' => function ($q) {
+                $q->scoped()
+                    // Apply search filter
+                    ->when(request('search'), function ($query, $search) {
+                        $query->where('work_order_no', $search);
+                    })
+                    // Apply vendor filter
+                    ->when(request('vendor'), function ($query, $vendorId) {
+                        $query->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    // Apply date range filter
+                    ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                        $date = request()->only(['start_date', 'end_date']);
+                        $start = Carbon::parse($date['start_date'])->startOfDay();
+                        $end = Carbon::parse($date['end_date'])->endOfDay();
+                        $query->whereBetween('created_date', [$start, $end]);
+                    })
+                    // Show open work orders OR closed work orders within 30 days
+                    ->where(function ($query) {
+                        $query->where('status', 'Open')
+                            ->orWhere(function ($subQuery) {
+                                $subQuery->where('status', 'Closed')
+                                    ->where('completed_date', '>=', now()->subDays(30));
+                            });
+                    });
+            },
             'work_orders.service_status',
             'work_orders.vendors',
             'work_orders.requested_by',
@@ -47,9 +74,55 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->whereNot('name', 'Closed')
-            ->whereNot('name', 'Not Changed')
-            ->get();
+            ->whereNot('name', 'Not Changed');
+
+        // Hide specific statuses from vendors
+        if ($request->user()->hasRole('vendor')) {
+            $query->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Closed',
+            ]);
+        }
+
+        $service_status = $query->get();
+
+        // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
+        $paidStatus = ServiceStatus::where('name', 'Paid')->first();
+        if ($paidStatus) {
+            $paidWorkOrders = WorkOrder::query()
+                ->scoped()
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                // Apply search filter
+                ->when(request('search'), function ($query, $search) {
+                    $query->where('work_order_no', $search);
+                })
+                // Apply vendor filter
+                ->when(request('vendor'), function ($query, $vendorId) {
+                    $query->whereHas('vendors', function ($q) use ($vendorId) {
+                        $q->where('work_order_vendors.vendor_id', $vendorId);
+                    });
+                })
+                // Apply date range filter
+                ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                    $date = request()->only(['start_date', 'end_date']);
+                    $start = Carbon::parse($date['start_date'])->startOfDay();
+                    $end = Carbon::parse($date['end_date'])->endOfDay();
+                    $query->whereBetween('created_date', [$start, $end]);
+                })
+                // Work orders with non-zero total_cost completed within 30 days
+                ->whereNotNull('total_cost')
+                ->where('total_cost', '>', 0)
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(30))
+                ->latest('completed_date')
+                ->get();
+
+            // Add the paid work orders to the Paid status
+            $paidStatus->setRelation('work_orders', $paidWorkOrders);
+            $service_status->push($paidStatus);
+        }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
@@ -115,7 +188,21 @@ class WorkOrderController extends Controller
             ->sortByDesc('created_at');
 
         // Get service statuses for potential updates
-        $serviceStatuses = ServiceStatus::all();
+        $serviceStatusesQuery = ServiceStatus::query();
+
+        // Hide specific statuses from vendors
+        if (request()->user()->hasRole('vendor')) {
+            $serviceStatusesQuery->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Completed within 30 days',
+                'Completed, Verified, Waiting on Bill',
+                'Approved, Waiting on Payment',
+            ]);
+        }
+
+        $serviceStatuses = $serviceStatusesQuery->get();
 
         // Get vendors for potential assignments
         $vendors = Vendor::where('is_active', true)->get();
@@ -193,7 +280,7 @@ class WorkOrderController extends Controller
 
     public function closed_work_orders(Request $request)
     {
-        $service_status = ServiceStatus::with([
+        $query = ServiceStatus::with([
             'work_order',
             'work_order.owners',
             'work_orders' => function ($query) {
@@ -225,8 +312,19 @@ class WorkOrderController extends Controller
             'work_orders.managed_by',
             'work_orders.tasks',
             'work_orders.owners',
-        ])
-            ->get();
+        ]);
+
+        // Hide specific statuses from vendors
+        if ($request->user()->hasRole('vendor')) {
+            $query->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Closed',
+            ]);
+        }
+
+        $service_status = $query->get();
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 

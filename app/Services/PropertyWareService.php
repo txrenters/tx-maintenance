@@ -50,6 +50,34 @@ class PropertyWareService
         }
     }
 
+    public function getWorkOrder($workOrderId)
+    {
+
+        try {
+
+            $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrderId);
+
+            if ($response->status() == 200) {
+                return $response->json();
+            } else {
+                Log::error('Error retrieving workorder', [
+                    'error_details' => [
+                        'status_code' => $response->status(),
+                        'body' => $response->body(),
+                    ],
+                ]);
+
+                return false;
+            }
+
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+
+            return 'Error: '.$e->getMessage();
+        }
+
+    }
+
     public function getWorkOrders()
     {
         try {
@@ -777,7 +805,7 @@ class PropertyWareService
 
             $workOrder = WorkOrder::find($workOrderId);
 
-            $absolutePath = public_path('storage/'.$attachment['filename']);
+            $absolutePath = storage_path('app/public/'.$attachment['filename']);
 
             if (! file_exists($absolutePath)) {
                 throw new \Exception('File does not exist: '.$absolutePath);
@@ -789,10 +817,10 @@ class PropertyWareService
             $fileContents = file_get_contents($absolutePath);
 
             $formFields = [
-                'entityId' => (int) $workOrder->propertyware_id,
+                'entityId' => $workOrder->propertyware_id,
                 'entityType' => 'Work Order',
-                'publishToOwnerPortal' => (bool) $attachment['is_publish_to_owner_portal'],
-                'publishToTenantPortal' => (bool) $attachment['is_publish_to_tenant_portal'],
+                'publishToOwnerPortal' => $attachment['is_publish_to_owner_portal'] ? 'true' : 'false',
+                'publishToTenantPortal' => $attachment['is_publish_to_tenant_portal'] ? 'true' : 'false',
             ];
 
             $response = Http::withHeaders($headers)
@@ -804,17 +832,28 @@ class PropertyWareService
 
                 $postData = $response->json();
 
-                Http::withHeaders($headers)
+                $putResponse = Http::withHeaders($headers)
                     ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
                         'fileName' => $fileName,
                         'description' => $attachment['title'],
-                        'publishToOwnerPortal' => (bool) $attachment['is_publish_to_owner_portal'],
-                        'publishToTenantPortal' => (bool) $attachment['is_publish_to_tenant_portal'],
+                        'publishToOwnerPortal' => $attachment['is_publish_to_owner_portal'] ? 'true' : 'false',
+                        'publishToTenantPortal' => $attachment['is_publish_to_tenant_portal'] ? 'true' : 'false',
                     ]);
+
+                if (! $putResponse->successful()) {
+                    Log::error('Failed to update attachment metadata', [
+                        'doc_id' => $postData['id'],
+                        'status' => $putResponse->status(),
+                        'body' => $putResponse->body(),
+                    ]);
+
+                    return false;
+                }
 
                 Log::info('Work order attachment has been uploaded successfully!', [
                     'Work order no' => (int) $workOrder->work_order_no,
                     'filename' => $fileName,
+                    'doc_id' => $postData['id'],
                 ]);
 
                 return true;
