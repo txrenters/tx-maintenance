@@ -143,6 +143,7 @@ class WorkOrderController extends Controller
                 ->where('status', 'Closed')
                 ->whereNotNull('completed_date')
                 ->where('completed_date', '>=', now()->subDays(30))
+                ->latest('completed_date')
                 ->get();
 
             // Add the closed work orders to the Paid status
