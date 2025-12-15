@@ -6,11 +6,30 @@ use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TaskService
 {
+    /**
+     * Categories that should skip automated task creation
+     */
+    private const CATEGORIES_WITHOUT_TASKS = [
+        'Lawn service',
+    ];
+
     public static function createTasksForWorkOrder(WorkOrder $workOrder, bool $isEmergency, $serviceStatus_Id)
     {
+        // Skip task creation for certain categories
+        if (in_array($workOrder->category, self::CATEGORIES_WITHOUT_TASKS, true)) {
+            Log::info('Skipping automated task creation for work order category', [
+                'work_order_no' => $workOrder->work_order_no,
+                'category' => $workOrder->category,
+            ]);
+
+            $workOrder->update(['service_status_id' => $serviceStatus_Id]);
+
+            return;
+        }
 
         $workOrder->update(['service_status_id' => $serviceStatus_Id]);
 
