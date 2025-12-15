@@ -15,15 +15,22 @@ class CalendarController extends Controller
         $service_schedules = ServiceSchedule::with(['work_order', 'tenant', 'vendor'])->get();
 
         $events = $service_schedules->map(function ($schedule) {
+            $tenantInfo = $schedule->tenant
+                ? 'Tenant: '.$schedule->tenant->first_name.' '.$schedule->tenant->last_name
+                : 'No tenant assigned';
+
+            // Since scheduled_date is now a date only, set default time to 9:00 AM
+            $startDateTime = Carbon::parse($schedule->scheduled_date)->setTime(9, 0);
+
             return [
                 'title' => $schedule->title.' - '.'#'.$schedule->work_order->work_order_no,
-                'with' => 'Tenant: '.$schedule->tenant->first_name.' '.$schedule->tenant->last_name,
+                'with' => $tenantInfo,
                 'time' => [
-                    'start' => Carbon::parse($schedule->scheduled_date)->format('Y-m-d H:i'),
-                    'end' => Carbon::parse($schedule->scheduled_date)->addHours(2)->format('Y-m-d H:i'),
+                    'start' => $startDateTime->format('Y-m-d H:i'),
+                    'end' => $startDateTime->copy()->addHours(2)->format('Y-m-d H:i'),
                 ],
                 'id' => $schedule->id,
-                'description' => 'Vendor: '.$schedule->vendor->name.' - '.$schedule->description ?? null,
+                'description' => 'Vendor: '.$schedule->vendor->name.($schedule->description ? ' - '.$schedule->description : ''),
             ];
         });
 

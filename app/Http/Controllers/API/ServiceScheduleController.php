@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
+use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 
 class ServiceScheduleController extends Controller
@@ -24,26 +25,57 @@ class ServiceScheduleController extends Controller
         $validatedData = $request->validate([
             'title' => 'required|string|max:255',
             'date' => 'required|date',
-            'time' => 'required',
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
-            'tenant_id' => 'required|exists:tenants,id',
+            'tenant_id' => 'nullable|exists:tenants,id',
             'work_order_id' => 'required|exists:work_orders,id',
         ]);
 
         try {
-            ServiceSchedule::create([
+            $serviceSchedule = ServiceSchedule::create([
                 'title' => $validatedData['title'],
-                'scheduled_date' => $validatedData['date'].' '.$validatedData['time'],
+                'scheduled_date' => $validatedData['date'],
                 'description' => $validatedData['description'] ?? null,
                 'work_order_id' => $validatedData['work_order_id'],
                 'vendor_id' => $validatedData['vendor_id'],
-                'tenant_id' => $validatedData['tenant_id'],
+                'tenant_id' => $validatedData['tenant_id'] ?? null,
             ]);
+
+            // Sync to PropertyWare
+            $this->syncScheduleToPropertyWare($serviceSchedule);
 
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Failed to set service schedule. Please try again.');
+        }
+    }
+
+    /**
+     * Sync service schedule to PropertyWare
+     */
+    private function syncScheduleToPropertyWare(ServiceSchedule $serviceSchedule): void
+    {
+        try {
+            $workOrder = WorkOrder::with('vendors')->find($serviceSchedule->work_order_id);
+
+            if (! $workOrder) {
+                return;
+            }
+
+            // Update the vendor's scheduled_end_date in the pivot table
+            $workOrder->vendors()->updateExistingPivot($serviceSchedule->vendor_id, [
+                'scheduled_end_date' => $serviceSchedule->scheduled_date,
+            ]);
+
+            // Trigger PropertyWare sync
+            $propertyWareService = new PropertyWareService;
+            $propertyWareService->updateWorkOrderDetails($workOrder);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to sync service schedule to PropertyWare', [
+                'service_schedule_id' => $serviceSchedule->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

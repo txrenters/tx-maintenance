@@ -20,7 +20,6 @@ const serviceScheduleForm = useForm({
     title: "",
     description: "",
     date: "",
-    time: "",
     vendor_id: "",
     tenant_id: "",
     work_order_id: props.workOrder.id,
@@ -35,7 +34,7 @@ const formatDate = (date) => {
     if (typeof date === "string") {
         parsedDate = DateTime.fromISO(date, { zone: "utc" }).isValid
             ? DateTime.fromISO(date, { zone: "utc" })
-            : DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", { zone: "utc" });
+            : DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
     } else if (date instanceof Date) {
         parsedDate = DateTime.fromJSDate(date);
     } else {
@@ -43,7 +42,7 @@ const formatDate = (date) => {
     }
 
     return parsedDate.isValid
-        ? parsedDate.toFormat("EEE, MMMM d, yyyy hh:mm a")
+        ? parsedDate.toFormat("EEE, MMMM d, yyyy")
         : "Invalid Date";
 };
 
@@ -77,16 +76,14 @@ const handleMeetingSubmit = () => {
     if (
         !serviceScheduleForm.title ||
         !serviceScheduleForm.date ||
-        !serviceScheduleForm.time ||
         !serviceScheduleForm.work_order_id ||
-        !serviceScheduleForm.vendor_id ||
-        !serviceScheduleForm.tenant_id
+        !serviceScheduleForm.vendor_id
     ) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
             description:
-                "There was a problem with your request. Please try again!",
+                "Please fill in all required fields (Title, Date, Vendor).",
         });
         return;
     }
@@ -259,113 +256,120 @@ const handleMeetingSubmit = () => {
 
     <Dialog v-model:open="openService">
         <DialogContent
-            class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+            class="sm:max-w-[550px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[90dvh]"
         >
-            <DialogHeader class="p-6 pb-0 text-left">
-                <DialogTitle> Service Schedule </DialogTitle>
-                <DialogDescription>
-                    Fill-in the required fields and click
-                    submit.</DialogDescription
-                >
+            <DialogHeader class="p-6 pb-4">
+                <DialogTitle class="text-xl font-semibold">
+                    Service Schedule
+                </DialogTitle>
+                <DialogDescription class="text-sm text-muted-foreground">
+                    Schedule a service appointment for this work order.
+                </DialogDescription>
             </DialogHeader>
             <Separator />
-            <div
-                class="flex flex-col flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-4"
-            >
-                <div class="flex gap-4 mb-4">
-                    <div class="w-full">
-                        <Label>Tenant</Label>
-                        <Select
-                            v-model="serviceScheduleForm.tenant_id"
-                            class="w-full"
-                        >
-                            <SelectTrigger class="w-full">
-                                <SelectValue placeholder="Select a tenant" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <template
-                                        v-for="tenant in workOrderTenants"
-                                        :key="tenant.id"
-                                    >
-                                        <SelectItem :value="String(tenant.id)">
-                                            {{ tenant.first_name }}
-                                            {{ tenant.last_name }}
-                                        </SelectItem>
-                                    </template>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div class="w-full">
-                        <Label>Vendor</Label>
-
-                        <Select v-model="serviceScheduleForm.vendor_id">
-                            <SelectTrigger class="w-full">
-                                <SelectValue placeholder="Select a tenant" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <template
-                                        v-for="vendor in workOrderVendors"
-                                        :key="vendor.id"
-                                    >
-                                        <SelectItem
-                                            :value="String(vendor.id)"
-                                            :selected="vendor.id"
+            <div class="px-6 py-4 overflow-y-auto">
+                <div class="space-y-4">
+                    <!-- Vendor and Tenant Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <Label class="text-sm font-medium">
+                                Vendor
+                                <span class="text-red-500 ml-0.5">*</span>
+                            </Label>
+                            <Select v-model="serviceScheduleForm.vendor_id">
+                                <SelectTrigger class="w-full">
+                                    <SelectValue placeholder="Select a vendor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <template
+                                            v-for="vendor in workOrderVendors"
+                                            :key="vendor.id"
                                         >
-                                            {{ vendor.name }}
-                                        </SelectItem>
-                                    </template>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
+                                            <SelectItem :value="String(vendor.id)">
+                                                {{ vendor.name }}
+                                            </SelectItem>
+                                        </template>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label class="text-sm font-medium">
+                                Tenant
+                                <span class="text-xs text-muted-foreground ml-1">
+                                    (Optional)
+                                </span>
+                            </Label>
+                            <Select v-model="serviceScheduleForm.tenant_id">
+                                <SelectTrigger class="w-full">
+                                    <SelectValue placeholder="Select a tenant" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <template
+                                            v-for="tenant in workOrderTenants"
+                                            :key="tenant.id"
+                                        >
+                                            <SelectItem :value="String(tenant.id)">
+                                                {{ tenant.first_name }}
+                                                {{ tenant.last_name }}
+                                            </SelectItem>
+                                        </template>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                </div>
-                <div class="mb-4">
-                    <Label>Title</Label>
-                    <Input
-                        type="text"
-                        class="mt-1"
-                        placeholder="Title"
-                        v-model="serviceScheduleForm.title"
-                    />
-                </div>
-                <div class="flex gap-4 mb-4">
-                    <div>
-                        <Label>Select Date</Label>
+
+                    <!-- Title -->
+                    <div class="space-y-2">
+                        <Label class="text-sm font-medium">
+                            Title
+                            <span class="text-red-500 ml-0.5">*</span>
+                        </Label>
+                        <Input
+                            type="text"
+                            placeholder="Enter schedule title"
+                            v-model="serviceScheduleForm.title"
+                        />
+                    </div>
+
+                    <!-- Scheduled Date -->
+                    <div class="space-y-2">
+                        <Label class="text-sm font-medium">
+                            Scheduled Date
+                            <span class="text-red-500 ml-0.5">*</span>
+                        </Label>
                         <Input
                             type="date"
-                            class="mt-1"
-                            placeholder="Type the title"
                             v-model="serviceScheduleForm.date"
                         />
                     </div>
-                    <div>
-                        <Label>Select Time</Label>
-                        <Input
-                            type="time"
-                            class="mt-1"
-                            placeholder="Type the title"
-                            v-model="serviceScheduleForm.time"
+
+                    <!-- Description -->
+                    <div class="space-y-2">
+                        <Label class="text-sm font-medium">
+                            Description
+                        </Label>
+                        <Textarea
+                            placeholder="Enter additional details about this service schedule..."
+                            v-model="serviceScheduleForm.description"
+                            rows="3"
                         />
                     </div>
                 </div>
-                <div class="mb-4">
-                    <Label>Description</Label>
-                    <Textarea
-                        type="text"
-                        class="mt-1"
-                        placeholder="Type the purpose..."
-                        v-model="serviceScheduleForm.description"
-                    />
-                </div>
             </div>
-            <DialogFooter class="p-6 pt-0">
-                <Button @click="openService = false" variant="destructive"
-                    >Cancel</Button
+            <Separator />
+            <DialogFooter class="p-6 pt-4">
+                <Button
+                    @click="openService = false"
+                    variant="outline"
+                    type="button"
                 >
-
+                    Cancel
+                </Button>
                 <Button
                     type="submit"
                     :disabled="serviceScheduleForm.processing"
@@ -373,9 +377,9 @@ const handleMeetingSubmit = () => {
                 >
                     <Loader2
                         v-if="serviceScheduleForm.processing"
-                        class="w-4 h-4 animate-spin"
+                        class="w-4 h-4 mr-2 animate-spin"
                     />
-                    Submit
+                    {{ serviceScheduleForm.processing ? "Creating..." : "Create Schedule" }}
                 </Button>
             </DialogFooter>
         </DialogContent>
