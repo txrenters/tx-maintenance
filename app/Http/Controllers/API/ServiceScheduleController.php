@@ -59,6 +59,22 @@ class ServiceScheduleController extends Controller
             $workOrder = WorkOrder::with('vendors')->find($serviceSchedule->work_order_id);
 
             if (! $workOrder) {
+                \Log::warning('Work order not found for service schedule PropertyWare sync', [
+                    'service_schedule_id' => $serviceSchedule->id,
+                    'work_order_id' => $serviceSchedule->work_order_id,
+                ]);
+
+                return;
+            }
+
+            // Validate work order has required data for PropertyWare
+            if (! $workOrder->location || trim($workOrder->location) === '') {
+                \Log::warning('Work order missing required location for PropertyWare sync', [
+                    'service_schedule_id' => $serviceSchedule->id,
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+
                 return;
             }
 
@@ -69,12 +85,26 @@ class ServiceScheduleController extends Controller
 
             // Trigger PropertyWare sync
             $propertyWareService = new PropertyWareService;
-            $propertyWareService->updateWorkOrderDetails($workOrder);
+            $syncResult = $propertyWareService->updateWorkOrderDetails($workOrder);
+
+            if ($syncResult) {
+                \Log::info('Service schedule synced to PropertyWare successfully', [
+                    'service_schedule_id' => $serviceSchedule->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+            } else {
+                \Log::warning('PropertyWare sync returned false for service schedule', [
+                    'service_schedule_id' => $serviceSchedule->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+            }
 
         } catch (\Exception $e) {
             \Log::error('Failed to sync service schedule to PropertyWare', [
                 'service_schedule_id' => $serviceSchedule->id,
+                'work_order_id' => $serviceSchedule->work_order_id ?? null,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
