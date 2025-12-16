@@ -202,8 +202,55 @@ const handleMeetingSubmit = () => {
                         </DropdownMenu>
                     </div>
                 </div>
-                <!-- Remove for easy creation of schedules -->
-                <!-- <div cla -->
+                <div class="flex justify-between mt-2 items-center">
+                    <div class="flex gap-3">
+                        <!-- Remove for easy creation of schedules -->
+                        <!-- <div class="flex flex-col text-xs gap-1">
+                            <p>Tenant</p>
+                            <p class="flex gap-1 items-center">
+                                <Avatar class="w-5 h-5">
+                                    <AvatarImage
+                                        :src="
+                                            schedule.tenant.user
+                                                ?.profile_photo_url ||
+                                            'default.jpg'
+                                        "
+                                    />
+                                    <AvatarFallback></AvatarFallback>
+                                </Avatar>
+                                {{ schedule.tenant.first_name }}
+                                {{ schedule.tenant.last_name }}
+                            </p>
+                        </div> -->
+                        <div class="flex flex-col text-xs gap-1">
+                            <p>Vendor</p>
+                            <p class="flex gap-1 items-center">
+                                <Avatar class="w-5 h-5">
+                                    <AvatarImage
+                                        :src="
+                                            schedule.vendor.user
+                                                ?.profile_photo_url ||
+                                            'default.jpg'
+                                        "
+                                    />
+                                    <AvatarFallback></AvatarFallback>
+                                </Avatar>
+                                {{ schedule.vendor.name }}
+                            </p>
+                        </div>
+                    </div>
+                    <div>
+                        <Badge
+                            :class="
+                                schedule.status === 'cancelled'
+                                    ? 'bg-red-500'
+                                    : 'bg-green-500'
+                            "
+                        >
+                            {{ schedule.status }}
+                        </Badge>
+                    </div>
+                </div>
             </Card>
         </div>
     </div>
@@ -252,21 +299,18 @@ const handleMeetingSubmit = () => {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <!-- Remove for easy creation of schedules -->
 
-                        <div class="space-y-2">
+                        <!-- <div class="space-y-2">
                             <Label class="text-sm font-medium">
                                 Tenant
-                                <span
-                                    class="text-xs text-muted-foreground ml-1"
-                                >
+                                <span class="text-xs text-muted-foreground ml-1">
                                     (Optional)
                                 </span>
                             </Label>
                             <Select v-model="serviceScheduleForm.tenant_id">
                                 <SelectTrigger class="w-full">
-                                    <SelectValue
-                                        placeholder="Select a tenant"
-                                    />
+                                    <SelectValue placeholder="Select a tenant" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
@@ -274,9 +318,7 @@ const handleMeetingSubmit = () => {
                                             v-for="tenant in workOrderTenants"
                                             :key="tenant.id"
                                         >
-                                            <SelectItem
-                                                :value="String(tenant.id)"
-                                            >
+                                            <SelectItem :value="String(tenant.id)">
                                                 {{ tenant.first_name }}
                                                 {{ tenant.last_name }}
                                             </SelectItem>
@@ -284,7 +326,7 @@ const handleMeetingSubmit = () => {
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
-                        </div>
+                        </div> -->
                     </div>
 
                     <!-- Title -->
