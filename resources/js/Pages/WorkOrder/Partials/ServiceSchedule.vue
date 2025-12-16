@@ -202,54 +202,8 @@ const handleMeetingSubmit = () => {
                         </DropdownMenu>
                     </div>
                 </div>
-                <div class="flex justify-between mt-2 items-center">
-                    <div class="flex gap-3">
-                        <div class="flex flex-col text-xs gap-1">
-                            <p>Tenant</p>
-                            <p class="flex gap-1 items-center">
-                                <Avatar class="w-5 h-5">
-                                    <AvatarImage
-                                        :src="
-                                            schedule.tenant.user
-                                                ?.profile_photo_url ||
-                                            'default.jpg'
-                                        "
-                                    />
-                                    <AvatarFallback></AvatarFallback>
-                                </Avatar>
-                                {{ schedule.tenant.first_name }}
-                                {{ schedule.tenant.last_name }}
-                            </p>
-                        </div>
-                        <div class="flex flex-col text-xs gap-1">
-                            <p>Vendor</p>
-                            <p class="flex gap-1 items-center">
-                                <Avatar class="w-5 h-5">
-                                    <AvatarImage
-                                        :src="
-                                            schedule.vendor.user
-                                                ?.profile_photo_url ||
-                                            'default.jpg'
-                                        "
-                                    />
-                                    <AvatarFallback></AvatarFallback>
-                                </Avatar>
-                                {{ schedule.vendor.name }}
-                            </p>
-                        </div>
-                    </div>
-                    <div>
-                        <Badge
-                            :class="
-                                schedule.status === 'cancelled'
-                                    ? 'bg-red-500'
-                                    : 'bg-green-500'
-                            "
-                        >
-                            {{ schedule.status }}
-                        </Badge>
-                    </div>
-                </div>
+                <!-- Remove for easy creation of schedules -->
+                <!-- <div cla -->
             </Card>
         </div>
     </div>
@@ -278,7 +232,9 @@ const handleMeetingSubmit = () => {
                             </Label>
                             <Select v-model="serviceScheduleForm.vendor_id">
                                 <SelectTrigger class="w-full">
-                                    <SelectValue placeholder="Select a vendor" />
+                                    <SelectValue
+                                        placeholder="Select a vendor"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
@@ -286,7 +242,9 @@ const handleMeetingSubmit = () => {
                                             v-for="vendor in workOrderVendors"
                                             :key="vendor.id"
                                         >
-                                            <SelectItem :value="String(vendor.id)">
+                                            <SelectItem
+                                                :value="String(vendor.id)"
+                                            >
                                                 {{ vendor.name }}
                                             </SelectItem>
                                         </template>
@@ -298,13 +256,17 @@ const handleMeetingSubmit = () => {
                         <div class="space-y-2">
                             <Label class="text-sm font-medium">
                                 Tenant
-                                <span class="text-xs text-muted-foreground ml-1">
+                                <span
+                                    class="text-xs text-muted-foreground ml-1"
+                                >
                                     (Optional)
                                 </span>
                             </Label>
                             <Select v-model="serviceScheduleForm.tenant_id">
                                 <SelectTrigger class="w-full">
-                                    <SelectValue placeholder="Select a tenant" />
+                                    <SelectValue
+                                        placeholder="Select a tenant"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
@@ -312,7 +274,9 @@ const handleMeetingSubmit = () => {
                                             v-for="tenant in workOrderTenants"
                                             :key="tenant.id"
                                         >
-                                            <SelectItem :value="String(tenant.id)">
+                                            <SelectItem
+                                                :value="String(tenant.id)"
+                                            >
                                                 {{ tenant.first_name }}
                                                 {{ tenant.last_name }}
                                             </SelectItem>
@@ -342,17 +306,12 @@ const handleMeetingSubmit = () => {
                             Scheduled Date
                             <span class="text-red-500 ml-0.5">*</span>
                         </Label>
-                        <Input
-                            type="date"
-                            v-model="serviceScheduleForm.date"
-                        />
+                        <Input type="date" v-model="serviceScheduleForm.date" />
                     </div>
 
                     <!-- Description -->
                     <div class="space-y-2">
-                        <Label class="text-sm font-medium">
-                            Description
-                        </Label>
+                        <Label class="text-sm font-medium"> Description </Label>
                         <Textarea
                             placeholder="Enter additional details about this service schedule..."
                             v-model="serviceScheduleForm.description"
@@ -379,7 +338,11 @@ const handleMeetingSubmit = () => {
                         v-if="serviceScheduleForm.processing"
                         class="w-4 h-4 mr-2 animate-spin"
                     />
-                    {{ serviceScheduleForm.processing ? "Creating..." : "Create Schedule" }}
+                    {{
+                        serviceScheduleForm.processing
+                            ? "Creating..."
+                            : "Create Schedule"
+                    }}
                 </Button>
             </DialogFooter>
         </DialogContent>
