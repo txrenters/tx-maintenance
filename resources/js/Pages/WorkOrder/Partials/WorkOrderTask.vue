@@ -1,9 +1,37 @@
 <script setup>
 import { ref } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
-import { Plus } from "lucide-vue-next";
+import { Plus, Loader2, ListChecks } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import TaskCard from "@/Components/TaskCard.vue";
+import { Button } from "@/Components/ui/button";
+import { Switch } from "@/Components/ui/switch";
+import { Label } from "@/Components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/Components/ui/dialog";
+import { Input } from "@/Components/ui/input";
+import { Textarea } from "@/Components/ui/textarea";
+import { Separator } from "@/Components/ui/separator";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/Components/ui/tooltip";
 
 const props = defineProps({
     workOrderTasks: Array,
@@ -19,6 +47,7 @@ const { toast } = useToast();
 const emit = defineEmits(["update-task-status"]);
 
 const service_status_id = ref(props.workOrder.service_status_id);
+const skip_automated_tasks = ref(props.workOrder.skip_automated_tasks);
 
 const openModal = ref(false);
 
@@ -62,6 +91,34 @@ const handleServiceStatusChange = async (newValue) => {
     );
 };
 
+const handleSkipAutomatedTasksToggle = (newValue) => {
+    router.patch(
+        route("work_orders.update", props.workOrder.id),
+        { skip_automated_tasks: newValue },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: newValue
+                        ? "Automated tasks disabled for this work order"
+                        : "Automated tasks enabled for this work order",
+                });
+                skip_automated_tasks.value = newValue;
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem updating the task settings. Please try again!",
+                });
+            },
+        }
+    );
+};
+
 const handleTaskSubmit = () => {
     taskForm.post(route("tasks.store"), {
         preserveState: true,
@@ -90,7 +147,40 @@ const handleTaskSubmit = () => {
     <div class="overflow-y-auto px-6 mb-6 w-full min-h-[300px]">
         <div class="flex justify-between items-center my-3">
             <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
-            <div class="flex gap-2 items-center">
+            <div class="flex gap-3 items-center">
+                <TooltipProvider
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
+                >
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <div class="flex gap-2 items-center">
+                                <Label
+                                    for="skip-tasks-toggle"
+                                    class="text-xs cursor-pointer whitespace-nowrap"
+                                >
+                                    Vacant
+                                </Label>
+                                <Switch
+                                    id="skip-tasks-toggle"
+                                    :checked="skip_automated_tasks"
+                                    @update:checked="
+                                        handleSkipAutomatedTasksToggle
+                                    "
+                                    :disabled="isLoading"
+                                />
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>
+                                Toggle to disable automated task creation for
+                                vacant units
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
                 <Select
                     v-if="$page.props.auth.user.roles.includes('admin')"
                     :modelValue="String(service_status_id)"
@@ -113,7 +203,13 @@ const handleTaskSubmit = () => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
-                <div class="flex gap-2" v-if="$page.props.auth.user.roles.includes('admin') || $page.props.auth.user.roles.includes('woc')">
+                <div
+                    class="flex gap-2"
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
+                >
                     <Button
                         :disabled="isLoading"
                         size="icon"
@@ -124,6 +220,23 @@ const handleTaskSubmit = () => {
                         <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
+                <!-- <div
+                    class="flex gap-2"
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
+                >
+                    <Button
+                        :disabled="isLoading"
+                        size="icon"
+                        @click="openModal = true"
+                        title="Generate Task"
+                    >
+                        <ListChecks v-if="!isLoading" class="" />
+                        <Loader2 v-else class="w-4 h-4 animate-spin" />
+                    </Button>
+                </div> -->
             </div>
         </div>
         <div class="flex justify-center" v-if="isLoading">

@@ -36,9 +36,10 @@ class VendorNotesController extends Controller
                 'scheduled_end_date' => $validatedData['scheduled_end_date'],
             ]);
 
-            $note = $propertywareServices->updateWorkOrderDetails($workOrder);
+            // Sync to PropertyWare with full details and approval status
+            $syncResult = $propertywareServices->updateWorkOrderInPropertyWare($workOrder, true, true);
 
-            if ($note) {
+            if ($syncResult) {
                 DB::commit();
                 Log::info('Work order updated successfully!');
             }

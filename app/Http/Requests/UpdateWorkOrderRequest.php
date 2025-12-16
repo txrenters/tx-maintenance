@@ -30,6 +30,7 @@ class UpdateWorkOrderRequest extends FormRequest
             'latest_update_comments' => 'nullable|string',
             'additional_work_needed_reschedule' => 'nullable|string',
             'description' => 'nullable|string',
+            'skip_automated_tasks' => 'nullable|boolean',
         ];
     }
 }

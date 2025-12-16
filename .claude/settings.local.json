@@ -27,7 +27,10 @@
       "Bash(whereis:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(for file in \"VendorConversation.vue\" \"OwnerConversation.vue\" \"VendorTenantConversation.vue\" \"VendorOwnerConversation.vue\" \"VendorWocConversation.vue\" \"OwnerWocConversation.vue\" \"OwnerVendorConversation.vue\")",
+      "Bash(do grep -n \"const loading = ref\" \"resources/js/Pages/WorkOrder/Partials/$file\")",
+      "Bash(done)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

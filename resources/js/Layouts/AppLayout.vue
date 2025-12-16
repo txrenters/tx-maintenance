@@ -341,6 +341,12 @@ const handleChatModal = async (model) => {
     openModal.value = true;
 };
 const loading = ref(false);
+const autoResize = (event) => {
+    const textarea = event.target;
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
+};
+
 const sendMessage = () => {
     loading.value = true;
     if (!receiver_number.value) {
@@ -383,6 +389,11 @@ const sendMessage = () => {
                     description: "Message has been sent successfully!",
                 });
                 newMessage.value = "";
+                // Reset textarea height
+                const textarea = document.querySelector(
+                    'textarea[placeholder="Type your message..."]'
+                );
+                if (textarea) textarea.style.height = "auto";
                 handleChatModal(notif.value);
             },
             onError: () => {
@@ -416,6 +427,11 @@ const sendMessage = () => {
                     description: "Message has been sent successfully!",
                 });
                 newMessage.value = "";
+                // Reset textarea height
+                const textarea = document.querySelector(
+                    'textarea[placeholder="Type your message..."]'
+                );
+                if (textarea) textarea.style.height = "auto";
                 handleChatModal(notif.value);
             },
             onError: () => {
@@ -910,11 +926,11 @@ onUnmounted(() => {
                                                                 <Button
                                                                     v-if="
                                                                         notification
-                                                                            .subject?.
-                                                                            conversation_type ||
+                                                                            .subject
+                                                                            ?.conversation_type ||
                                                                         notification
-                                                                            .subject?.
-                                                                            jobber_id
+                                                                            .subject
+                                                                            ?.jobber_id
                                                                     "
                                                                     as="button"
                                                                     size="sm"
@@ -1064,7 +1080,9 @@ onUnmounted(() => {
                     class="flex flex-col gap-4 overflow-y-auto"
                     ref="chatContainer"
                 >
-                    <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
+                    <ScrollArea
+                        class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3"
+                    >
                         <div class="flex justify-center" v-if="isLoading">
                             <Loader2Icon
                                 class="w-12 h-12 animate-spin text-primary"
@@ -1083,10 +1101,11 @@ onUnmounted(() => {
                     <Textarea
                         v-model="newMessage"
                         placeholder="Type your message..."
-                        class="w-full resize-y rounded-2xl border py-3 pr-24"
-                        rows="1"
+                        class="w-full resize-none rounded-2xl border py-3 pr-24 min-h-[44px] max-h-[200px] overflow-y-auto"
+                        rows="3"
+                        @input="autoResize"
                     />
-                    <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                    <div class="flex absolute top-3 right-2">
                         <!-- Send Button -->
                         <Button
                             size="icon"

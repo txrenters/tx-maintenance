@@ -7,6 +7,7 @@ use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ServiceScheduleController extends Controller
 {
@@ -59,7 +60,7 @@ class ServiceScheduleController extends Controller
             $workOrder = WorkOrder::with('vendors')->find($serviceSchedule->work_order_id);
 
             if (! $workOrder) {
-                \Log::warning('Work order not found for service schedule PropertyWare sync', [
+                Log::warning('Work order not found for service schedule PropertyWare sync', [
                     'service_schedule_id' => $serviceSchedule->id,
                     'work_order_id' => $serviceSchedule->work_order_id,
                 ]);
@@ -69,7 +70,7 @@ class ServiceScheduleController extends Controller
 
             // Validate work order has required data for PropertyWare
             if (! $workOrder->location || trim($workOrder->location) === '') {
-                \Log::warning('Work order missing required location for PropertyWare sync', [
+                Log::warning('Work order missing required location for PropertyWare sync', [
                     'service_schedule_id' => $serviceSchedule->id,
                     'work_order_id' => $workOrder->id,
                     'work_order_no' => $workOrder->work_order_no,
@@ -83,24 +84,29 @@ class ServiceScheduleController extends Controller
                 'scheduled_end_date' => $serviceSchedule->scheduled_date,
             ]);
 
-            // Trigger PropertyWare sync
+            // Update the work order's scheduled_end_date field
+            $workOrder->update([
+                'scheduled_end_date' => $serviceSchedule->scheduled_date,
+            ]);
+
+            // Trigger PropertyWare sync (only cost, time, and scheduled_end_date)
             $propertyWareService = new PropertyWareService;
-            $syncResult = $propertyWareService->updateWorkOrderDetails($workOrder);
+            $syncResult = $propertyWareService->updateWorkOrderInPropertyWare($workOrder);
 
             if ($syncResult) {
-                \Log::info('Service schedule synced to PropertyWare successfully', [
+                Log::info('Service schedule synced to PropertyWare successfully', [
                     'service_schedule_id' => $serviceSchedule->id,
                     'work_order_no' => $workOrder->work_order_no,
                 ]);
             } else {
-                \Log::warning('PropertyWare sync returned false for service schedule', [
+                Log::warning('PropertyWare sync returned false for service schedule', [
                     'service_schedule_id' => $serviceSchedule->id,
                     'work_order_no' => $workOrder->work_order_no,
                 ]);
             }
 
         } catch (\Exception $e) {
-            \Log::error('Failed to sync service schedule to PropertyWare', [
+            Log::error('Failed to sync service schedule to PropertyWare', [
                 'service_schedule_id' => $serviceSchedule->id,
                 'work_order_id' => $serviceSchedule->work_order_id ?? null,
                 'error' => $e->getMessage(),

@@ -45,6 +45,13 @@ const woc_phone_number = ref(
 
 const loading = ref(false);
 
+// Auto-resize textarea
+const autoResize = (event) => {
+    const textarea = event.target;
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
+};
+
 const triggerFileInput = () => {
     if (fileInputRef.value) {
         fileInputRef.value.click();
@@ -141,6 +148,9 @@ const sendMessage = () => {
                     description: "Message has been sent successfully!",
                 });
                 newMessage.value = "";
+                // Reset textarea height
+                const textarea = document.querySelector('textarea[placeholder="Type your message..."]');
+                if (textarea) textarea.style.height = "auto";
                 attachedImages.value = [];
                 scrollToBottom();
                 emit("update-vendor-convo");
@@ -254,7 +264,7 @@ onMounted(() => {
                 class="flex flex-col gap-4 overflow-y-auto"
                 ref="chatContainer"
             >
-                <ScrollArea class="bg-secondary h-[520px] rounded-md p-3">
+                <ScrollArea class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3">
                     <div
                         class="flex justify-center"
                         v-if="isLoading || loading"
@@ -300,11 +310,12 @@ onMounted(() => {
                 <Textarea
                     v-model="newMessage"
                     placeholder="Type your message..."
-                    class="w-full resize-y rounded-2xl border py-3 pr-24"
-                    rows="1"
+                    class="w-full resize-none rounded-2xl border py-3 pr-24 min-h-[44px] max-h-[200px] overflow-y-auto"
+                    rows="3"
+                    @input="autoResize"
                     :disabled="loading"
                 />
-                <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
+                <div class="flex absolute top-3 right-2">
                     <!-- Attachment Button -->
                     <Button
                         size="icon"

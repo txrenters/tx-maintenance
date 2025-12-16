@@ -797,12 +797,6 @@ class PropertyWareService
     {
         try {
 
-            $headers = [
-                'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-                'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-                'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            ];
-
             $workOrder = WorkOrder::find($workOrderId);
 
             $absolutePath = storage_path('app/public/'.$attachment['filename']);
@@ -823,7 +817,7 @@ class PropertyWareService
                 'publishToTenantPortal' => $attachment['is_publish_to_tenant_portal'] ? 'true' : 'false',
             ];
 
-            $response = Http::withHeaders($headers)
+            $response = Http::withHeaders($this->headers)
                 ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
@@ -832,7 +826,7 @@ class PropertyWareService
 
                 $postData = $response->json();
 
-                $putResponse = Http::withHeaders($headers)
+                $putResponse = Http::withHeaders($this->headers)
                     ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$postData['id'], [
                         'fileName' => $fileName,
                         'description' => $attachment['title'],
@@ -877,12 +871,6 @@ class PropertyWareService
 
     public function uploadVendorInvoice($workOrderId, $invoice)
     {
-        $headers = [
-            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-        ];
-
         try {
             $workOrder = WorkOrder::find($workOrderId);
             if (! $workOrder) {
@@ -905,14 +893,14 @@ class PropertyWareService
             $fileContents = file_get_contents($absolutePath);
             $fileName = $cleanTitle.'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
 
-            $response = Http::withHeaders($headers)
+            $response = Http::withHeaders($this->headers)
                 ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             if ($response->successful()) {
                 $postData = $response->json();
 
-                $putResponse = Http::withHeaders($headers)
+                $putResponse = Http::withHeaders($this->headers)
                     ->put("https://api.propertyware.com/pw/api/rest/v1/docs/{$postData['id']}", [
                         'fileName' => $fileName,
                         'description' => $invoice->title,
@@ -965,7 +953,15 @@ class PropertyWareService
         }
     }
 
-    public function updateWorkOrderDetails($workOrder)
+    /**
+     * Update work order details in PropertyWare using REST API
+     *
+     * @param  WorkOrder  $workOrder  Work order to update
+     * @param  bool  $includeFullDetails  Include additional fields like location, category, description
+     * @param  bool  $syncApproval  Call approvedWorkOrder after sync
+     * @return bool Success status
+     */
+    public function updateWorkOrderInPropertyWare($workOrder, $includeFullDetails = false, $syncApproval = false)
     {
         $cost_etimate = 0;
         $time_estimate = 0;
@@ -975,12 +971,14 @@ class PropertyWareService
             if (! $workOrder) {
                 throw new \Exception('Work order not found.');
             }
-            $workOrder = WorkOrder::with('vendors')->find($workOrder->id);
 
-            $workorderId = $workOrder->propertyware_id;
+            // Reload with vendors if not already loaded
+            if (! $workOrder->relationLoaded('vendors')) {
+                $workOrder->load('vendors');
+            }
 
             // Validate required fields before sending to PropertyWare
-            if (! $workOrder->location || trim($workOrder->location) === '') {
+            if ($includeFullDetails && (! $workOrder->location || trim($workOrder->location) === '')) {
                 Log::warning('Work order location is empty, skipping PropertyWare sync', [
                     'work_order_no' => $workOrder->work_order_no,
                     'work_order_id' => $workOrder->id,
@@ -989,9 +987,10 @@ class PropertyWareService
                 return false;
             }
 
+            // Calculate aggregated vendor data
             foreach ($workOrder->vendors as $vendor) {
-                $cost_etimate += $vendor->pivot->cost_estimate;
-                $time_estimate += $vendor->pivot->time_estimate;
+                $cost_etimate += $vendor->pivot->cost_estimate ?? 0;
+                $time_estimate += $vendor->pivot->time_estimate ?? 0;
 
                 if ($vendor->pivot->scheduled_end_date) {
                     $current_date = Carbon::parse($vendor->pivot->scheduled_end_date);
@@ -1002,68 +1001,72 @@ class PropertyWareService
                 }
             }
 
-            $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
-            $category = htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8');
-            $description = htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8');
-            $type = htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8');
+            // Build payload
+            $payload = [
+                'costEstimate' => $cost_etimate,
+                'hourEstimate' => $time_estimate,
+                'scheduledEndDate' => $scheduled_end_date ? $scheduled_end_date->format('Y-m-d') : null,
+            ];
 
-            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                <soapenv:Body>
-                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                        <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.(int) $workOrder->building_id.'</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                            <ID xsi:type="xsd:long">'.(int) $workOrder->portfolio_id.'</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">'.$location.'</location>
-                        <costEstimate xsi:type="xsd:double">'.(float) ($cost_etimate ?? 0).'</costEstimate>
-                        <hourEstimate xsi:type="xsd:double">'.(float) ($time_estimate ?? 0).'</hourEstimate>
-                        <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
-                        <category xsi:type="xsd:string">'.$category.'</category>
-                        <description xsi:type="xsd:string">'.$description.'</description>
-                        <type xsi:type="xsd:string">'.$type.'</type>
-                    </workOrder>
-                </ser:updateWorkOrder>
-                </soapenv:Body>
-                </soapenv:Envelope>';
+            // Include full details if requested
+            if ($includeFullDetails) {
+                $payload['location'] = $workOrder->location;
+                $payload['category'] = $workOrder->category;
+                $payload['description'] = $workOrder->description;
+                $payload['type'] = $workOrder->type;
+                $payload['buildingID'] = $workOrder->building_id;
+            }
 
-            // Execute SOAP request
-            $res = $this->execute($xmlPayload);
+            // Send PATCH request to PropertyWare REST API
+            $response = Http::withHeaders($this->headers)
+                ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, $payload);
 
-            $this->approvedWorkOrder($workOrder);
+            // Sync approval status if requested
+            if ($syncApproval) {
+                $this->approvedWorkOrder($workOrder);
+            }
 
-            // Log and return response status
-            if ($res && isset($res['success']) && $res['success']) {
-                Log::info('Vendor updating work order details has been successfully!', [
-                    'work_order_no' => $workOrder->work_order_no,
+            if ($response->status() == 200) {
+                Log::info('Work order synced to PropertyWare successfully', [
+                    'work order' => $workOrder->work_order_no,
+                    'status_code' => $response->status(),
                 ]);
 
                 return true;
             }
 
-            Log::error('Vendor updating work order failed!', [
-                'work_order_no' => $workOrder->work_order_no,
-                'response' => $res,
+            Log::warning('Failed to sync work order to PropertyWare', [
+                'work order' => $workOrder->work_order_no,
+                'status_code' => $response->status(),
+                'response' => $response->body(),
             ]);
 
             return false;
         } catch (\Exception $e) {
-            Log::error('Error in updating work order: '.$e->getMessage(), [
-                'workOrderId' => $workorderId ?? null,
+            Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
+                'work_order_id' => $workOrder->propertyware_id ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,
                 'trace' => $e->getTraceAsString(),
             ]);
 
             return false;
         }
+    }
+
+    /**
+     * @deprecated Use updateWorkOrderInPropertyWare instead
+     */
+    public function updateWorkOrderDetails($workOrder)
+    {
+        return $this->updateWorkOrderInPropertyWare($workOrder, true, true);
+    }
+
+    /**
+     * @deprecated Use updateWorkOrderInPropertyWare instead
+     */
+    public function updateWorkOrderServiceSchedule($workOrder)
+    {
+        return $this->updateWorkOrderInPropertyWare($workOrder, false, false);
     }
 
     public function approvedWorkOrder($workOrder): void

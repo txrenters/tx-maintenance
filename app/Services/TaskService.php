@@ -5,25 +5,19 @@ namespace App\Services;
 use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Models\WorkOrder;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class TaskService
 {
-    /**
-     * Categories that should skip automated task creation
-     */
-    private const CATEGORIES_WITHOUT_TASKS = [
-        'Lawn service',
-    ];
-
     public static function createTasksForWorkOrder(WorkOrder $workOrder, bool $isEmergency, $serviceStatus_Id)
     {
-        // Skip task creation for certain categories
-        if (in_array($workOrder->category, self::CATEGORIES_WITHOUT_TASKS, true)) {
-            Log::info('Skipping automated task creation for work order category', [
+        // Skip task creation if automated tasks are disabled
+        if ($workOrder->skip_automated_tasks) {
+            Log::info('Skipping automated task creation for work order', [
                 'work_order_no' => $workOrder->work_order_no,
-                'category' => $workOrder->category,
+                'skip_automated_tasks' => true,
             ]);
 
             $workOrder->update(['service_status_id' => $serviceStatus_Id]);
@@ -34,6 +28,9 @@ class TaskService
         $workOrder->update(['service_status_id' => $serviceStatus_Id]);
 
         $now = now();
+
+        // Check if work order has a scheduled date
+        $hasScheduledDate = ! empty($workOrder->scheduled_end_date);
 
         // Fetch the task template based on emergency status and service status ID
         $taskTemplate = TaskTemplate::with(['currentServiceStatus', 'tasks'])
@@ -53,14 +50,19 @@ class TaskService
         $vendors = $workOrder->vendors; // Assuming a relationship exists between WorkOrder and Vendor
 
         foreach ($taskTemplate->tasks as $task) {
-            $taskDueDate = $now;
+            // If scheduled_end_date exists, use it directly; otherwise calculate from current date
+            if ($hasScheduledDate) {
+                $taskDueDate = Carbon::parse($workOrder->scheduled_end_date);
+            } else {
+                $taskDueDate = $now;
 
-            // Calculate due date based on task's due_date field
-            if ($task->due_date !== 'same day') {
-                preg_match('/\d+/', $task->due_date, $matches);
-                if (! empty($matches)) {
-                    $days = (int) $matches[0];
-                    $taskDueDate = $taskDueDate->addDays($days);
+                // Calculate due date based on task's due_date field
+                if ($task->due_date !== 'same day') {
+                    preg_match('/\d+/', $task->due_date, $matches);
+                    if (! empty($matches)) {
+                        $days = (int) $matches[0];
+                        $taskDueDate = $taskDueDate->addDays($days);
+                    }
                 }
             }
 

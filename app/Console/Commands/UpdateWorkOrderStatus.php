@@ -10,6 +10,8 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+use function Symfony\Component\Clock\now;
+
 class UpdateWorkOrderStatus extends Command
 {
     /**
@@ -103,6 +105,8 @@ class UpdateWorkOrderStatus extends Command
 
                             $workOrder->update($work_order_data);
 
+                            $this->processNotes($data, $workOrder->id);
+
                             if (! empty($customFieldData)) {
                                 DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
                                 DB::table('work_order_custom_fields')->insert($customFieldData);
@@ -178,6 +182,31 @@ class UpdateWorkOrderStatus extends Command
         $vendor = Vendor::create($vendorsData);
 
         return $vendor->id;
+    }
+
+    private function processNotes(array $data, int $work_order): void
+    {
+        $now = now();
+
+        $notesData = [];
+        if (! empty($data['notes']) && is_array($data['notes'])) {
+            foreach ($data['notes'] as $note) {
+                $notesData[] = [
+                    'propertyware_id' => $note['id'] ?? null,
+                    'client_data' => $note['clientData'] ?? null,
+                    'subject' => $note['subject'] ?? null,
+                    'body' => $note['body'] ?? null,
+                    'is_private' => $note['private'] ?? null,
+                    'date' => $note['date'] ?? '',
+                    'is_default' => $note['default'] ?? false,
+                    'work_order_id' => $work_order,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+        DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
+        DB::table('work_order_notes')->insert($notesData);
     }
 
     private function createOrUpdateUser(array $data, string $role): User
