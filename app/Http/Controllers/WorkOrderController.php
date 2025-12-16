@@ -71,9 +71,14 @@ class WorkOrderController extends Controller
 
         $service_status = $query->get();
 
-        // Remove "Closed" status from the collection to add it at the end
-        $closedStatus = $service_status->firstWhere('name', 'Closed');
-        $service_status = $service_status->reject(fn ($status) => $status->name === 'Closed');
+        // Remove statuses that should be at the end
+        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed, Verified, Waiting on Bill');
+        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved, Waiting on Payment');
+
+        $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+            'Closed, Verified, Waiting on Bill',
+            'Approved, Waiting on Payment',
+        ]));
 
         // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
@@ -111,9 +116,12 @@ class WorkOrderController extends Controller
             $service_status->push($paidStatus);
         }
 
-        // Add "Closed" status at the end
-        if ($closedStatus) {
-            $service_status->push($closedStatus);
+        // Add the last 2 statuses at the end
+        if ($waitingOnBillStatus) {
+            $service_status->push($waitingOnBillStatus);
+        }
+        if ($waitingOnPaymentStatus) {
+            $service_status->push($waitingOnPaymentStatus);
         }
 
         // Hide specific statuses from vendors
