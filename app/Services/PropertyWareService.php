@@ -462,14 +462,47 @@ class PropertyWareService
     public function closeWorkOrder(object $workOrder, $url)
     {
         try {
-            $this->buildCloseWorkOrderPayload($workOrder);
+            // Use REST API PATCH to update only the status - cleaner than SOAP
+            $response = Http::withHeaders($this->headers)
+                ->patch("https://api.propertyware.com/pw/api/rest/v1/workorders/{$workOrder->propertyware_id}", [
+                    'status' => 'Closed',
+                ]);
 
+            if (! $response->successful()) {
+                Log::error('Failed to close work order via REST API', [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return false;
+            }
+
+            // Update the custom field "Service Status" to "Closed"
+            Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+                'entityId' => $workOrder->propertyware_id,
+                'fieldSetDTOS' => [
+                    [
+                        'name' => 'Service Status',
+                        'value' => 'Closed',
+                    ],
+                ],
+            ]);
+
+            // Attach conversation URL to work order
             $this->buildAttachDocumentPayload($workOrder, $url);
+
+            Log::info('Work order closed successfully', [
+                'work_order_no' => $workOrder->work_order_no,
+            ]);
 
             return true;
 
         } catch (\Exception $exception) {
-            Log::error('Closing work order failed: '.$exception);
+            Log::error('Closing work order failed: '.$exception->getMessage(), [
+                'work_order_no' => $workOrder->work_order_no,
+                'trace' => $exception->getTraceAsString(),
+            ]);
 
             return false;
         }
@@ -522,6 +555,9 @@ class PropertyWareService
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
 
+            // Ensure location has a valid value - PropertyWare doesn't accept empty locations
+            $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
+
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -539,7 +575,7 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Closed</status>
@@ -591,6 +627,9 @@ class PropertyWareService
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
 
+            // Ensure location has a valid value - PropertyWare doesn't accept empty locations
+            $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
+
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -608,7 +647,7 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                            <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Open</status>
@@ -690,7 +729,9 @@ class PropertyWareService
         $workorderId = $workOrder->propertyware_id;
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
-        $location = $workOrder->location;
+
+        // Ensure location has a valid value - PropertyWare doesn't accept empty locations
+        $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -709,8 +750,7 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
-                        <location xsi:type="xsd:string">'.$location.'</location>
-                        <location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>
+                        <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -818,7 +858,7 @@ class PropertyWareService
             ];
 
             $response = Http::withHeaders($this->headers)
-                ->attach('file', $fileContents, $fileName)
+                ->attach('file', $fileContents, $fileName, ['Content-Type' => $attachment['filetype'] ?? 'application/octet-stream'])
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             // Handle the response
@@ -894,7 +934,7 @@ class PropertyWareService
             $fileName = $cleanTitle.'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
 
             $response = Http::withHeaders($this->headers)
-                ->attach('file', $fileContents, $fileName)
+                ->attach('file', $fileContents, $fileName, ['Content-Type' => $invoice->filetype ?? 'application/octet-stream'])
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             if ($response->successful()) {
@@ -1052,6 +1092,7 @@ class PropertyWareService
             return false;
         }
     }
+
     public function updateWorkOrderDetails($workOrder)
     {
         $cost_etimate = 0;

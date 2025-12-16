@@ -38,6 +38,7 @@ class UploadAttachment implements ShouldQueue
             'title' => $this->data->title,
             'type' => $this->data->type,
             'filename' => $this->data->filename,
+            'filetype' => $this->data->filetype,
             'is_publish_to_tenant_portal' => $this->data->is_publish_to_tenant_portal,
             'is_publish_to_owner_portal' => $this->data->is_publish_to_owner_portal,
         ];
