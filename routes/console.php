@@ -1,16 +1,23 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('import:work-orders')
     ->everyFiveMinutes()
     ->withoutOverlapping()
-    ->runInBackground();
+    ->runInBackground()
+    ->then(function () {
+        Artisan::call('update:work-orders-status');
+    });
 
 Schedule::command('update:work-orders-status')
     ->everyTenMinutes()
     ->withoutOverlapping()
-    ->runInBackground();
+    ->runInBackground()
+    ->then(function () {
+        Artisan::call('import:work-orders');
+    });
 
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
