@@ -11,14 +11,6 @@ Schedule::command('import:work-orders')
         Artisan::call('update:work-orders-status');
     });
 
-Schedule::command('update:work-orders-status')
-    ->everyTenMinutes()
-    ->withoutOverlapping()
-    ->runInBackground()
-    ->then(function () {
-        Artisan::call('import:work-orders');
-    });
-
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
