@@ -72,12 +72,14 @@ class WorkOrderController extends Controller
         $service_status = $query->get();
 
         // Remove statuses that should be at the end
-        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed, Verified, Waiting on Bill');
-        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved, Waiting on Payment');
+        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
+        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
+        $closedStatus = $service_status->firstWhere('name', 'Closed');
 
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-            'Closed, Verified, Waiting on Bill',
-            'Approved, Waiting on Payment',
+            'Completed - Verified - Waiting on Bill',
+            'Approved - Waiting on Payment',
+            'Closed',
         ]));
 
         // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
@@ -113,15 +115,20 @@ class WorkOrderController extends Controller
 
             // Add the paid work orders to the Paid status
             $paidStatus->setRelation('work_orders', $paidWorkOrders);
-            $service_status->push($paidStatus);
         }
 
-        // Add the last 2 statuses at the end
+        // Add statuses at the end in specific order: Waiting on Bill → Waiting on Payment → Paid → Closed
         if ($waitingOnBillStatus) {
             $service_status->push($waitingOnBillStatus);
         }
         if ($waitingOnPaymentStatus) {
             $service_status->push($waitingOnPaymentStatus);
+        }
+        if ($paidStatus) {
+            $service_status->push($paidStatus);
+        }
+        if ($closedStatus) {
+            $service_status->push($closedStatus);
         }
 
         // Hide specific statuses from vendors
