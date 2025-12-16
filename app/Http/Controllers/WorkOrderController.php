@@ -67,12 +67,15 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-        ->whereNot('name', 'Not Changed');
-
+            ->whereNot('name', 'Not Changed');
 
         $service_status = $query->get();
 
-            // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
+        // Remove "Closed" status from the collection to add it at the end
+        $closedStatus = $service_status->firstWhere('name', 'Closed');
+        $service_status = $service_status->reject(fn ($status) => $status->name === 'Closed');
+
+        // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
@@ -108,6 +111,11 @@ class WorkOrderController extends Controller
             $service_status->push($paidStatus);
         }
 
+        // Add "Closed" status at the end
+        if ($closedStatus) {
+            $service_status->push($closedStatus);
+        }
+
         // Hide specific statuses from vendors
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
@@ -115,7 +123,7 @@ class WorkOrderController extends Controller
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
-                'Paid'
+                'Paid',
             ]);
         }
 
