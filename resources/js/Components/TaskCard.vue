@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
-import { Loader2, Undo2, Ellipsis } from "lucide-vue-next";
+import { Loader2, Undo2, Ellipsis, Pencil } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
 const { toast } = useToast();
@@ -193,9 +193,8 @@ const checkDueTask = (task) => {
             <div class="flex justify-between">
                 <div
                     class="flex flex-col gap-2 w-full"
-                    @click="handleEditForm(task)"
                 >
-                    <div class="flex text-xs items-center gap-1">
+                    <div class="flex text-xs items-center gap-2">
                         <p class="text-xs">
                             📅 Due
                             {{
@@ -204,8 +203,21 @@ const checkDueTask = (task) => {
                                     : formatDate(task.due_date) ?? "No due date"
                             }}
                         </p>
+                        <button
+                            v-if="
+                                task.status !== 'completed' &&
+                                ($page.props.auth.user.roles.includes('admin') ||
+                                $page.props.auth.user.roles.includes('woc'))
+                            "
+                            @click.stop="handleEditForm(task)"
+                            class="hover:opacity-70 transition-opacity"
+                            title="Edit task"
+                            type="button"
+                        >
+                            <Pencil class="w-3 h-3" />
+                        </button>
                     </div>
-                    <p class="text-sm">{{ task.description }}</p>
+                    <p class="text-sm" @click="handleEditForm(task)">{{ task.description }}</p>
                 </div>
                 <div
                     v-if="
