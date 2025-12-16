@@ -1058,7 +1058,103 @@ class PropertyWareService
      */
     public function updateWorkOrderDetails($workOrder)
     {
-        return $this->updateWorkOrderInPropertyWare($workOrder, true, true);
+        $cost_etimate = 0;
+        $time_estimate = 0;
+        $scheduled_end_date = null;
+
+        try {
+            if (! $workOrder) {
+                throw new \Exception('Work order not found.');
+            }
+            $workOrder = WorkOrder::with('vendors')->find($workOrder->id);
+
+            $workorderId = $workOrder->propertyware_id;
+
+            // Validate required fields before sending to PropertyWare
+            if (! $workOrder->location || trim($workOrder->location) === '') {
+                Log::warning('Work order location is empty, skipping PropertyWare sync', [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'work_order_id' => $workOrder->id,
+                ]);
+
+                return false;
+            }
+
+            foreach ($workOrder->vendors as $vendor) {
+                $cost_etimate += $vendor->pivot->cost_estimate;
+                $time_estimate += $vendor->pivot->time_estimate;
+
+                if ($vendor->pivot->scheduled_end_date) {
+                    $current_date = Carbon::parse($vendor->pivot->scheduled_end_date);
+
+                    if (! $scheduled_end_date || $current_date->gt($scheduled_end_date)) {
+                        $scheduled_end_date = $current_date;
+                    }
+                }
+            }
+
+            $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
+            $category = htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8');
+            $description = htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8');
+            $type = htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8');
+
+            $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                <soapenv:Body>
+                <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <ID xsi:type="xsd:long">'.$workorderId.'</ID>
+                        <building xsi:type="urn:Building">
+                            <ID xsi:type="xsd:long">'.(int) $workOrder->building_id.'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                            <ID xsi:type="xsd:long">'.(int) $workOrder->portfolio_id.'</ID>
+                        </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
+                        <costEstimate xsi:type="xsd:double">'.(float) ($cost_etimate ?? 0).'</costEstimate>
+                        <hourEstimate xsi:type="xsd:double">'.(float) ($time_estimate ?? 0).'</hourEstimate>
+                        <scheduledEndDate xsi:type="xsd:date">'.$scheduled_end_date.'</scheduledEndDate>
+                        <category xsi:type="xsd:string">'.$category.'</category>
+                        <description xsi:type="xsd:string">'.$description.'</description>
+                        <type xsi:type="xsd:string">'.$type.'</type>
+                    </workOrder>
+                </ser:updateWorkOrder>
+                </soapenv:Body>
+                </soapenv:Envelope>';
+
+            // Execute SOAP request
+            $res = $this->execute($xmlPayload);
+
+            $this->approvedWorkOrder($workOrder);
+
+            // Log and return response status
+            if ($res && isset($res['success']) && $res['success']) {
+                Log::info('Vendor updating work order details has been successfully!', [
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+
+                return true;
+            }
+
+            Log::error('Vendor updating work order failed!', [
+                'work_order_no' => $workOrder->work_order_no,
+                'response' => $res,
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error in updating work order: '.$e->getMessage(), [
+                'workOrderId' => $workorderId ?? null,
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return false;
+        }
     }
 
     /**

@@ -182,7 +182,8 @@ const handleTaskSubmit = () => {
                     </Tooltip>
                 </TooltipProvider>
                 <Select
-                    v-if="$page.props.auth.user.roles.includes('admin')"
+                    v-if="$page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')"
                     :modelValue="String(service_status_id)"
                     @update:modelValue="handleServiceStatusChange"
                     :disabled="isLoading"
