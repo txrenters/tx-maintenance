@@ -57,8 +57,7 @@ class WorkOrderController extends Controller
                         $start = Carbon::parse($date['start_date'])->startOfDay();
                         $end = Carbon::parse($date['end_date'])->endOfDay();
                         $query->whereBetween('created_date', [$start, $end]);
-                    })
-                    ->where('status', 'Open');
+                    });
             },
             'work_orders.service_status',
             'work_orders.vendors',
