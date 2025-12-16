@@ -19,6 +19,7 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/work_orders/{task}/task/change', [TaskController::class, 'update'])->name('api.work_order.task.change');
 Route::post('/work_orders/{workOrder}/service_status/change', [TaskController::class, 'service_status_change'])->name('api.work_order.service_status_change');
+Route::post('/work_orders/{workOrder}/generate_tasks', [TaskController::class, 'generate_tasks'])->name('api.work_order.generate_tasks');
 Route::post('/work_orders/tasks/{task}/undo', [TaskController::class, 'undo'])->name('api.task.undo');
 
 Route::get('/work_orders/{workOrder}/conversation/vendors', [ConversationController::class, 'get_vendor_conversation'])->name('work_order.vendor_conversation');

@@ -46,6 +46,36 @@ class TaskController extends Controller
         return redirect()->back();
     }
 
+    public function generate_tasks(Request $request, WorkOrder $workOrder)
+    {
+        $validated = $request->validate([
+            'service_status_id' => 'required|exists:service_statuses,id',
+            'is_emergency' => 'required|string',
+        ]);
+
+        // Delete incomplete tasks before generating new ones
+        WorkOrderTask::where('work_order_id', $workOrder->id)
+            ->where('status', '!=', 'completed')
+            ->delete();
+
+        // Generate tasks based on service status
+        TaskService::createTasksForWorkOrder(
+            $workOrder,
+            $validated['is_emergency'] == 'Emergency',
+            $validated['service_status_id']
+        );
+
+        Log::info('Tasks generated from service status: ', [
+            'work_order_id' => $workOrder->id,
+            'service_status_id' => $validated['service_status_id'],
+            'is_emergency' => $validated['is_emergency'],
+        ]);
+
+        return response()->json([
+            'message' => 'Tasks generated successfully',
+        ], 200);
+    }
+
     /**
      * Update the specified resource in storage.
      */

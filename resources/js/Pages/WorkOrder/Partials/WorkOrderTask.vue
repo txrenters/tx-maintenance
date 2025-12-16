@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
-import { Plus, Loader2, ListChecks } from "lucide-vue-next";
+import { Plus, Loader2, ListChecks, ListRestart } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import TaskCard from "@/Components/TaskCard.vue";
 import { Button } from "@/Components/ui/button";
@@ -141,6 +141,51 @@ const handleTaskSubmit = () => {
         },
     });
 };
+
+const generatingTasks = ref(false);
+
+const handleGenerateTasksFromServiceStatus = () => {
+    if (!service_status_id.value) {
+        toast({
+            variant: "destructive",
+            title: "No Service Status",
+            description:
+                "Please select a service status first before generating tasks.",
+        });
+        return;
+    }
+
+    generatingTasks.value = true;
+
+    router.post(
+        route("api.work_order.generate_tasks", props.workOrder.id),
+        {
+            service_status_id: service_status_id.value,
+            is_emergency: props.isEmergency,
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Tasks generated successfully!",
+                });
+                emit("update-task-status");
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description: "Failed to generate tasks. Please try again!",
+                });
+            },
+            onFinish: () => {
+                generatingTasks.value = false;
+            },
+        }
+    );
+};
 </script>
 
 <template>
@@ -182,8 +227,10 @@ const handleTaskSubmit = () => {
                     </Tooltip>
                 </TooltipProvider>
                 <Select
-                    v-if="$page.props.auth.user.roles.includes('admin') ||
-                        $page.props.auth.user.roles.includes('woc')"
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
                     :modelValue="String(service_status_id)"
                     @update:modelValue="handleServiceStatusChange"
                     :disabled="isLoading"
@@ -221,23 +268,34 @@ const handleTaskSubmit = () => {
                         <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
-                <!-- <div
-                    class="flex gap-2"
+                <TooltipProvider
                     v-if="
                         $page.props.auth.user.roles.includes('admin') ||
                         $page.props.auth.user.roles.includes('woc')
                     "
                 >
-                    <Button
-                        :disabled="isLoading"
-                        size="icon"
-                        @click="openModal = true"
-                        title="Generate Task"
-                    >
-                        <ListChecks v-if="!isLoading" class="" />
-                        <Loader2 v-else class="w-4 h-4 animate-spin" />
-                    </Button>
-                </div> -->
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button
+                                :disabled="isLoading || generatingTasks"
+                                size="icon"
+                                @click="handleGenerateTasksFromServiceStatus"
+                            >
+                                <ListRestart
+                                    v-if="!generatingTasks"
+                                    class="w-4 h-4"
+                                />
+                                <Loader2 v-else class="w-4 h-4 animate-spin" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>
+                                Generate tasks based on the selected service
+                                status
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             </div>
         </div>
         <div class="flex justify-center" v-if="isLoading">
