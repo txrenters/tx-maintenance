@@ -910,11 +910,11 @@ onUnmounted(() => {
                                                                 <Button
                                                                     v-if="
                                                                         notification
-                                                                            .subject
-                                                                            .conversation_type ||
+                                                                            .subject?.
+                                                                            conversation_type ||
                                                                         notification
-                                                                            .subject
-                                                                            .jobber_id
+                                                                            .subject?.
+                                                                            jobber_id
                                                                     "
                                                                     as="button"
                                                                     size="sm"
