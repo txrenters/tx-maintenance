@@ -99,7 +99,7 @@ const checkDueTask = (tasks) => {
                                     checkDueTask(work_order.tasks) === 'blue',
                                 'bg-green-500':
                                     checkDueTask(work_order.tasks) === 'green',
-                                'bg-secondary': work_order.status === 'Closed',
+                                'bg-gray-600': work_order.status === 'Closed',
                             }"
                         >
                             <!-- Work Order Number & Date -->

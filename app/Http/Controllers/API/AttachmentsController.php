@@ -37,7 +37,7 @@ class AttachmentsController extends Controller
 
             $attachment = Attachments::create($validatedData);
 
-            UploadAttachment::dispatch($attachment)->delay(now()->addSeconds(5));
+            UploadAttachment::dispatch($attachment)->delay(now()->addSeconds(2));
 
             return redirect()->back()->with('success', 'Attachment uploaded successfully.');
         } catch (\Illuminate\Validation\ValidationException $e) {

@@ -85,7 +85,7 @@ class PropertyWareService
             $client = $this->initiate();
             $allWorkOrders = [];
 
-            for ($pageNumber = 1; $pageNumber <= 3; $pageNumber++) {
+            for ($pageNumber = 1; $pageNumber <= 20; $pageNumber++) {
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
@@ -1052,10 +1052,6 @@ class PropertyWareService
             return false;
         }
     }
-
-    /**
-     * @deprecated Use updateWorkOrderInPropertyWare instead
-     */
     public function updateWorkOrderDetails($workOrder)
     {
         $cost_etimate = 0;

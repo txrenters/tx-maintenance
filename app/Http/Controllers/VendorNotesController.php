@@ -37,7 +37,7 @@ class VendorNotesController extends Controller
             ]);
 
             // Sync to PropertyWare with full details and approval status
-            $syncResult = $propertywareServices->updateWorkOrderInPropertyWare($workOrder, true, true);
+            $syncResult = $propertywareServices->updateWorkOrderDetails($workOrder);
 
             if ($syncResult) {
                 DB::commit();
