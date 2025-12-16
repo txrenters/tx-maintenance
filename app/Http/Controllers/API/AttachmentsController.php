@@ -27,8 +27,8 @@ class AttachmentsController extends Controller
 
             $validatedData['user_id'] = auth()->id();
             $validatedData['created_at'] = $request->date ?? now();
-            $validatedData['is_publish_to_owner_portal'] = $request->owner_portal == 'Yes';
-            $validatedData['is_publish_to_tenant_portal'] = $request->tenant_portal == 'Yes';
+            $validatedData['is_publish_to_owner_portal'] = $request->owner_portal == 'Yes' ? true : false;
+            $validatedData['is_publish_to_tenant_portal'] = $request->tenant_portal == 'Yes' ? true : false;
 
             // Process the validated file
             $file = $request->file('filename');
@@ -37,7 +37,7 @@ class AttachmentsController extends Controller
 
             $attachment = Attachments::create($validatedData);
 
-            UploadAttachment::dispatch($attachment)->delay(now()->addSeconds(2));
+            UploadAttachment::dispatch($attachment);
 
             return redirect()->back()->with('success', 'Attachment uploaded successfully.');
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -76,7 +76,7 @@ class AttachmentsController extends Controller
                 'owner_portal' => 'required|in:Yes,No',
             ]);
 
-            foreach ($validatedData['files'] as $index => $fileData) {
+            foreach ($validatedData['files'] as $fileData) {
                 $file = $fileData['file'];
                 $mimeType = $fileData['type'];
 
@@ -88,15 +88,15 @@ class AttachmentsController extends Controller
                     'filetype' => $mimeType,
                     'type' => $validatedData['type'],
                     'work_order_id' => $validatedData['work_order_id'],
-                    'is_publish_to_owner_portal' => $validatedData['owner_portal'] == 'Yes',
-                    'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes',
+                    'is_publish_to_owner_portal' => $validatedData['owner_portal'] == 'Yes' ? true : false,
+                    'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes' ? true : false,
                     'user_id' => auth()->id(),
                     'created_at' => $request->date ?? now(),
                 ];
 
                 $attachment = Attachments::create($files);
 
-                UploadAttachment::dispatch($attachment)->delay(now()->addSeconds($index * 5));
+                UploadAttachment::dispatch($attachment);
             }
 
             return redirect()->back()->with('success', 'Attachment uploaded successfully.');

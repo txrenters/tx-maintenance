@@ -67,21 +67,12 @@ class WorkOrderController extends Controller
             'work_orders.tasks',
             'work_orders.owners',
         ])
-            ->whereNot('name', 'Not Changed');
+        ->whereNot('name', 'Not Changed');
 
-        // Hide specific statuses from vendors
-        if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-            ]);
-        }
 
         $service_status = $query->get();
 
-        // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
+            // Add "Paid" service status with work orders that have payment (total_cost not 0) within 30 days
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
@@ -117,38 +108,16 @@ class WorkOrderController extends Controller
             $service_status->push($paidStatus);
         }
 
-        // $closedStatus = ServiceStatus::where('name', 'Closed')->first();
-        // if ($closedStatus) {
-        //     $closedWorkOrders = WorkOrder::query()
-        //         ->scoped()
-        //         ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
-        //         // Apply search filter
-        //         ->when(request('search'), function ($query, $search) {
-        //             $query->where('work_order_no', $search);
-        //         })
-        //         // Apply vendor filter
-        //         ->when(request('vendor'), function ($query, $vendorId) {
-        //             $query->whereHas('vendors', function ($q) use ($vendorId) {
-        //                 $q->where('work_order_vendors.vendor_id', $vendorId);
-        //             });
-        //         })
-        //         // Apply date range filter
-        //         ->when(request()->filled(['start_date', 'end_date']), function ($query) {
-        //             $date = request()->only(['start_date', 'end_date']);
-        //             $start = Carbon::parse($date['start_date'])->startOfDay();
-        //             $end = Carbon::parse($date['end_date'])->endOfDay();
-        //             $query->whereBetween('created_date', [$start, $end]);
-        //         })
-        //         ->where('status', 'Closed')
-        //         ->whereNotNull('completed_date')
-        //         ->where('completed_date', '>=', now()->subDays(30))
-        //         ->latest('completed_date')
-        //         ->get();
-
-        //     // Add the closed work orders to the Paid status
-        //     $closedStatus->setRelation('work_orders', $closedWorkOrders);
-        //     $service_status->push($closedStatus);
-        // }
+        // Hide specific statuses from vendors
+        if ($request->user()->hasRole('vendor')) {
+            $query->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Closed',
+                'Paid'
+            ]);
+        }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 

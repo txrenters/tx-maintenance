@@ -192,7 +192,7 @@ const handleGenerateTasksFromServiceStatus = () => {
     <div class="overflow-y-auto px-6 mb-6 w-full min-h-[300px]">
         <div class="flex justify-between items-center my-3">
             <p class="font-semibold uppercase text-xs mb-3">Task Details</p>
-            <div class="flex gap-3 items-center">
+            <div class="flex gap-2 items-center">
                 <TooltipProvider
                     v-if="
                         $page.props.auth.user.roles.includes('admin') ||
@@ -268,34 +268,41 @@ const handleGenerateTasksFromServiceStatus = () => {
                         <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
-                <TooltipProvider
+                <div
                     v-if="
                         $page.props.auth.user.roles.includes('admin') ||
                         $page.props.auth.user.roles.includes('woc')
                     "
                 >
-                    <Tooltip>
-                        <TooltipTrigger as-child>
-                            <Button
-                                :disabled="isLoading || generatingTasks"
-                                size="icon"
-                                @click="handleGenerateTasksFromServiceStatus"
-                            >
-                                <ListRestart
-                                    v-if="!generatingTasks"
-                                    class="w-4 h-4"
-                                />
-                                <Loader2 v-else class="w-4 h-4 animate-spin" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            <p>
-                                Generate tasks based on the selected service
-                                status
-                            </p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger as-child>
+                                <Button
+                                    :disabled="isLoading || generatingTasks"
+                                    size="icon"
+                                    @click="
+                                        handleGenerateTasksFromServiceStatus
+                                    "
+                                >
+                                    <ListRestart
+                                        v-if="!generatingTasks"
+                                        class="w-4 h-4"
+                                    />
+                                    <Loader2
+                                        v-else
+                                        class="w-4 h-4 animate-spin"
+                                    />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>
+                                    Generate tasks based on the selected service
+                                    status
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
             </div>
         </div>
         <div class="flex justify-center" v-if="isLoading">
