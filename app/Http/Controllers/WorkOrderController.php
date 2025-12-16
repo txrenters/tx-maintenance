@@ -73,7 +73,6 @@ class WorkOrderController extends Controller
         // Remove statuses that should be at the end
         $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
         $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
-        $closedStatus = $service_status->firstWhere('name', 'Closed');
 
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
             'Completed - Verified - Waiting on Bill',
@@ -114,6 +113,39 @@ class WorkOrderController extends Controller
 
             // Add the paid work orders to the Paid status
             $paidStatus->setRelation('work_orders', $paidWorkOrders);
+        }
+
+        // Add "Closed" service status with all closed work orders within 30 days
+        $closedStatus = ServiceStatus::where('name', 'Closed')->first();
+        if ($closedStatus) {
+            $closedWorkOrders = WorkOrder::query()
+                ->scoped()
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                // Apply search filter
+                ->when(request('search'), function ($query, $search) {
+                    $query->where('work_order_no', $search);
+                })
+                // Apply vendor filter
+                ->when(request('vendor'), function ($query, $vendorId) {
+                    $query->whereHas('vendors', function ($q) use ($vendorId) {
+                        $q->where('work_order_vendors.vendor_id', $vendorId);
+                    });
+                })
+                // Apply date range filter
+                ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                    $date = request()->only(['start_date', 'end_date']);
+                    $start = Carbon::parse($date['start_date'])->startOfDay();
+                    $end = Carbon::parse($date['end_date'])->endOfDay();
+                    $query->whereBetween('created_date', [$start, $end]);
+                })
+                ->where('status', 'Closed')
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(30))
+                ->latest('completed_date')
+                ->get();
+
+            // Add the closed work orders to the Closed status
+            $closedStatus->setRelation('work_orders', $closedWorkOrders);
         }
 
         // Add statuses at the end in specific order: Waiting on Bill → Waiting on Payment → Paid → Closed
