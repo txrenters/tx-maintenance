@@ -57,7 +57,8 @@ class WorkOrderController extends Controller
                         $start = Carbon::parse($date['start_date'])->startOfDay();
                         $end = Carbon::parse($date['end_date'])->endOfDay();
                         $query->whereBetween('created_date', [$start, $end]);
-                    });
+                    })
+                    ->where('status', 'Open');
             },
             'work_orders.service_status',
             'work_orders.vendors',
@@ -73,6 +74,7 @@ class WorkOrderController extends Controller
         // Remove statuses that should be at the end
         $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
         $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
+        $closedStatus = $service_status->firstWhere('name', 'Closed');
 
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
             'Completed - Verified - Waiting on Bill',
