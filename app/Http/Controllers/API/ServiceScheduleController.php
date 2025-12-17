@@ -89,7 +89,6 @@ class ServiceScheduleController extends Controller
                 'scheduled_end_date' => $serviceSchedule->scheduled_date,
             ]);
 
-            // Trigger PropertyWare sync (only cost, time, and scheduled_end_date)
             $propertyWareService = new PropertyWareService;
             $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
 
@@ -130,5 +129,101 @@ class ServiceScheduleController extends Controller
         $this->syncScheduleToPropertyWare($serviceSchedule);
 
         return redirect()->back();
+    }
+
+    /**
+     * Delete a service schedule.
+     */
+    public function destroy(ServiceSchedule $serviceSchedule)
+    {
+        try {
+            $workOrderId = $serviceSchedule->work_order_id;
+            $vendorId = $serviceSchedule->vendor_id;
+
+            // Delete the service schedule
+            $serviceSchedule->delete();
+
+            // Sync to PropertyWare after deletion
+            $this->syncAfterDeletion($workOrderId, $vendorId);
+
+            return redirect()->back()->with('success', 'Service schedule deleted successfully!');
+        } catch (\Exception $e) {
+            Log::error('Failed to delete service schedule', [
+                'service_schedule_id' => $serviceSchedule->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to delete service schedule. Please try again.');
+        }
+    }
+
+    /**
+     * Sync work order to PropertyWare after schedule deletion
+     */
+    private function syncAfterDeletion(int $workOrderId, int $vendorId): void
+    {
+        try {
+            $workOrder = WorkOrder::with('vendors', 'service_schedules')->find($workOrderId);
+
+            if (! $workOrder) {
+                Log::warning('Work order not found after service schedule deletion', [
+                    'work_order_id' => $workOrderId,
+                ]);
+
+                return;
+            }
+
+            // Find the latest remaining schedule for this vendor
+            $latestSchedule = $workOrder->service_schedules()
+                ->where('vendor_id', $vendorId)
+                ->orderBy('scheduled_date', 'desc')
+                ->first();
+
+            // Update the vendor's scheduled_end_date in pivot table
+            if ($latestSchedule) {
+                $workOrder->vendors()->updateExistingPivot($vendorId, [
+                    'scheduled_end_date' => $latestSchedule->scheduled_date,
+                ]);
+            } else {
+                // No more schedules for this vendor, clear the scheduled_end_date
+                $workOrder->vendors()->updateExistingPivot($vendorId, [
+                    'scheduled_end_date' => null,
+                ]);
+            }
+
+            // Find the latest schedule across all vendors to update work order
+            $latestOverallSchedule = $workOrder->service_schedules()
+                ->orderBy('scheduled_date', 'desc')
+                ->first();
+
+            // Update the work order's scheduled_end_date
+            $workOrder->update([
+                'scheduled_end_date' => $latestOverallSchedule ? $latestOverallSchedule->scheduled_date : null,
+            ]);
+
+            // Trigger PropertyWare sync
+            $propertyWareService = new PropertyWareService;
+            $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
+
+            if ($syncResult) {
+                Log::info('Work order synced to PropertyWare after schedule deletion', [
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+            } else {
+                Log::warning('PropertyWare sync failed after schedule deletion', [
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to sync to PropertyWare after schedule deletion', [
+                'work_order_id' => $workOrderId,
+                'vendor_id' => $vendorId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 }

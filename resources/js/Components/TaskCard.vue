@@ -158,8 +158,10 @@ const EditFormSubmit = () => {
     });
 };
 
-const checkDueTask = (task, scheduled_end_date) => {
+const checkDueTask = (task) => {
     const today = new Date().toISOString().split("T")[0];
+
+    const scheduled_end_date = props.workorder.scheduled_end_date;
 
     // Completed tasks take priority
     if (task.status === "completed") return "completed";

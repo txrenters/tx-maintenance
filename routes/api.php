@@ -33,6 +33,7 @@ Route::delete('/work_orders/convesation/{conversation}', [ConversationController
 Route::get('/service_schedule/{workOrder}/vendor', [ServiceScheduleController::class, 'get_schedules'])->name('work_order.service_schedules');
 Route::post('/service_schedule/submit', [ServiceScheduleController::class, 'store'])->name('work_order.service_schedule.create');
 Route::post('/service_schedule/{serviceSchedule}/complete', [ServiceScheduleController::class, 'update_status'])->name('service_schedule.status.completed');
+Route::delete('/service_schedule/{serviceSchedule}', [ServiceScheduleController::class, 'destroy'])->name('service_schedule.destroy');
 
 Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
