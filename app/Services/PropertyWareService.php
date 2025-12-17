@@ -839,7 +839,7 @@ class PropertyWareService
 
             $workOrder = WorkOrder::find($workOrderId);
 
-            $absolutePath = storage_path('storage/attachments/'.$attachment['filename']);
+            $absolutePath = storage_path('storage/'.$attachment['filename']);
 
             if (! file_exists($absolutePath)) {
                 throw new \Exception('File does not exist: '.$absolutePath);
@@ -917,7 +917,7 @@ class PropertyWareService
                 throw new \Exception("Work order not found: $workOrderId");
             }
 
-            $absolutePath = public_path('storage/invoices/'.$invoice->filename);
+            $absolutePath = public_path('storage/'.$invoice->filename);
             if (! file_exists($absolutePath)) {
                 throw new \Exception("File does not exist: $absolutePath");
             }
