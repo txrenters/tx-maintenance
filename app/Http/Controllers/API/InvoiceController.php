@@ -39,14 +39,24 @@ class InvoiceController extends Controller
             'work_order_id' => 'required|exists:work_orders,id',
             'is_publish_to_owner_portal' => 'required',
             'is_publish_to_tenant_portal' => 'required',
+            'vendor_id' => 'nullable|exists:vendors,id',
         ]);
 
         // Determine vendor_id based on user role
         if ($user->vendor) {
             // If user is a vendor, use their vendor_id
             $validatedData['vendor_id'] = $user->vendor->id;
+        } elseif (! empty($validatedData['vendor_id'])) {
+            // Admin/WOC selected a vendor from dropdown
+            // Verify the selected vendor is actually assigned to this work order
+            $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
+            $vendorExists = $workOrder?->vendors()->where('vendors.id', $validatedData['vendor_id'])->exists();
+
+            if (! $vendorExists) {
+                return redirect()->back()->withErrors('Selected vendor is not assigned to this work order.');
+            }
         } else {
-            // For admin/WOC, use the first vendor from the work order
+            // No vendor_id provided, check if work order has vendors
             $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
             $firstVendor = $workOrder?->vendors()->first();
 
@@ -95,5 +105,41 @@ class InvoiceController extends Controller
         ]);
 
         return redirect()->back();
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Invoice $invoice)
+    {
+        $user = User::with('vendor')->find(auth()->id());
+
+        // Only admin, WOC, and the invoice's vendor can delete
+        if (! $user->hasRole('admin') && ! $user->hasRole('woc')) {
+            // If not admin/WOC, check if it's the vendor who owns this invoice
+            if (! $user->vendor || $user->vendor->id !== $invoice->vendor_id) {
+                abort(403, 'Unauthorized to delete this invoice.');
+            }
+        }
+
+        try {
+            // Delete the file from storage
+            if ($invoice->filename && \Storage::disk('public')->exists($invoice->filename)) {
+                \Storage::disk('public')->delete($invoice->filename);
+            }
+
+            $invoice->delete();
+
+            Log::info('Invoice deleted successfully', [
+                'invoice_id' => $invoice->id,
+                'deleted_by' => $user->id,
+            ]);
+
+            return redirect()->back();
+        } catch (\Throwable $th) {
+            Log::error('Error deleting invoice:', ['error' => $th->getMessage()]);
+
+            return redirect()->back()->withErrors('Error deleting invoice');
+        }
     }
 }

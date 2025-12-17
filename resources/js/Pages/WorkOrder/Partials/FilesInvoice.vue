@@ -7,7 +7,7 @@ const props = defineProps({
   loading: Boolean,
 });
 
-const emit = defineEmits(["expandImage", "deleteImage", "updateInvoice"]);
+const emit = defineEmits(["expandImage", "deleteImage", "updateInvoice", "deleteInvoice"]);
 
 const openImageModal = (image) => {
   emit("expandImage", image);
@@ -157,18 +157,25 @@ const formatDate = (date) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Mark as</DropdownMenuLabel>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
               class="cursor-pointer hover:bg-secondary"
               @click="() => updateInvoice(file, 'approved')"
             >
-              Approved
+              Mark as Approved
             </DropdownMenuItem>
             <DropdownMenuItem
               class="cursor-pointer hover:bg-secondary"
               @click="() => updateInvoice(file, 'decline')"
             >
-              Declined
+              Mark as Declined
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              class="cursor-pointer hover:bg-destructive text-destructive"
+              @click="() => emit('deleteInvoice', file)"
+            >
+              Delete Invoice
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

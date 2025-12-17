@@ -114,6 +114,7 @@ Route::middleware([
 
     Route::post('/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
     Route::post('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');
+    Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('api.invoices.destroy');
 
     Route::get('/notes/{workOrder}/show', [WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
     Route::post('/notes', [WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');

@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from "vue";
-import { useForm } from "@inertiajs/vue3";
+import { router, useForm } from "@inertiajs/vue3";
 import { Loader2, File } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilesInvoice from "./FilesInvoice.vue";
@@ -21,6 +21,7 @@ const attachmentForm = useForm({
     title: "",
     amount: "",
     filename: "",
+    vendor_id: "",
     is_publish_to_owner_portal: "No",
     is_publish_to_tenant_portal: "No",
     work_order_id: props.workOrder.id,
@@ -108,6 +109,32 @@ const handleFormSubmit = () => {
 const handleFetchInvoices = () => {
     emit("fetch-invoices");
 };
+
+const handleDeleteInvoice = (invoice) => {
+    if (!confirm(`Are you sure you want to delete invoice "${invoice.title}"?`)) {
+        return;
+    }
+
+    router.delete(route("api.invoices.destroy", invoice.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Invoice has been deleted successfully!",
+            });
+            handleFetchInvoices();
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem deleting the invoice. Please try again!",
+            });
+        },
+    });
+};
 </script>
 
 <template>
@@ -140,6 +167,7 @@ const handleFetchInvoices = () => {
                 :loading="isLoading"
                 @expandImage="handleExpandImage"
                 @updateInvoice="handleUpdateInvoice"
+                @deleteInvoice="handleDeleteInvoice"
             />
         </div>
     </div>
@@ -183,6 +211,33 @@ const handleFetchInvoices = () => {
                             attachmentForm.filename = $event.target.files[0]
                         "
                     />
+                </div>
+                <div
+                    class="mb-3"
+                    v-if="
+                        ($page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc')) &&
+                        workOrder.vendors &&
+                        workOrder.vendors.length > 0
+                    "
+                >
+                    <Label>Vendor</Label>
+                    <Select v-model="attachmentForm.vendor_id">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select a vendor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem
+                                    v-for="vendor in workOrder.vendors"
+                                    :key="vendor.id"
+                                    :value="String(vendor.id)"
+                                >
+                                    {{ vendor.name }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <Progress
                     v-if="attachmentForm.progress"
