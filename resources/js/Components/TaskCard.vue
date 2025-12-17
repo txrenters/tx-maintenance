@@ -8,6 +8,7 @@ const { toast } = useToast();
 
 const props = defineProps({
     tasks: Object,
+    workorder: Object,
 });
 const page = usePage();
 
@@ -157,22 +158,28 @@ const EditFormSubmit = () => {
     });
 };
 
-const checkDueTask = (task) => {
+const checkDueTask = (task, scheduled_end_date) => {
     const today = new Date().toISOString().split("T")[0];
 
-    let bgColor = "green"; // Default color if all tasks are upcoming
+    // Completed tasks take priority
+    if (task.status === "completed") return "completed";
 
-    if (task.due_date === today) {
-        bgColor = "blue";
-    } else if (task.due_date < today) {
-        bgColor = "red";
+    // Determine based on scheduled_end_date if available
+    if (scheduled_end_date) {
+        if (scheduled_end_date === today) return "blue"; // Due today
+        if (scheduled_end_date < today) return "red"; // Overdue
+        if (scheduled_end_date > today) return "green"; // Upcoming
     }
 
-    if (task.status === "completed") {
-        bgColor = "completed";
+    // Fallback to task's due_date if scheduled_end_date is missing
+    if (task.due_date) {
+        if (task.due_date === today) return "blue";
+        if (task.due_date < today) return "red";
+        if (task.due_date > today) return "green";
     }
 
-    return bgColor;
+    // Default color
+    return "green";
 };
 </script>
 
@@ -191,9 +198,7 @@ const checkDueTask = (task) => {
             <Separator class="mb-2" v-if="task.work_order_no" />
 
             <div class="flex justify-between">
-                <div
-                    class="flex flex-col gap-2 w-full"
-                >
+                <div class="flex flex-col gap-2 w-full">
                     <div class="flex text-xs items-center gap-2">
                         <p class="text-xs">
                             📅 Due
@@ -206,8 +211,10 @@ const checkDueTask = (task) => {
                         <button
                             v-if="
                                 task.status !== 'completed' &&
-                                ($page.props.auth.user.roles.includes('admin') ||
-                                $page.props.auth.user.roles.includes('woc'))
+                                ($page.props.auth.user.roles.includes(
+                                    'admin'
+                                ) ||
+                                    $page.props.auth.user.roles.includes('woc'))
                             "
                             @click.stop="handleEditForm(task)"
                             class="hover:opacity-70 transition-opacity"
@@ -217,7 +224,9 @@ const checkDueTask = (task) => {
                             <Pencil class="w-3 h-3" />
                         </button>
                     </div>
-                    <p class="text-sm" @click="handleEditForm(task)">{{ task.description }}</p>
+                    <p class="text-sm" @click="handleEditForm(task)">
+                        {{ task.description }}
+                    </p>
                 </div>
                 <div
                     v-if="

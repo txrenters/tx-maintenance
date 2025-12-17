@@ -517,7 +517,10 @@ const handleCompleteSubmit = () => {
                     </div>
                     <div>
                         <Label for="message">Scheduled End Date:</Label>
-                        <p>{{ formatDate(latestScheduledEndDate) }}</p>
+                        <p>
+                            {{ formatDate(latestScheduledEndDate) }} -
+                            {{ formatDate(workOrder.scheduled_end_date) }}
+                        </p>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4 items-center mt-5">
@@ -645,7 +648,9 @@ const handleCompleteSubmit = () => {
             <AlertDialogHeader>
                 <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete this work order and remove all associated data from the system.
+                    This action cannot be undone. This will permanently delete
+                    this work order and remove all associated data from the
+                    system.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -655,10 +660,7 @@ const handleCompleteSubmit = () => {
                     :disabled="loading"
                     @click.prevent="handleDeleteSubmit"
                 >
-                    <Loader2
-                        v-if="loading"
-                        class="w-4 h-4 animate-spin"
-                    />
+                    <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
                     Delete
                 </AlertDialogAction>
             </AlertDialogFooter>
@@ -669,9 +671,12 @@ const handleCompleteSubmit = () => {
     <AlertDialog v-model:open="isCompleteDialogOpen">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Mark Work Order as Completed?</AlertDialogTitle>
+                <AlertDialogTitle
+                    >Mark Work Order as Completed?</AlertDialogTitle
+                >
                 <AlertDialogDescription>
-                    Are you sure you want to mark this work order as completed? This will close the work order and update its status.
+                    Are you sure you want to mark this work order as completed?
+                    This will close the work order and update its status.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

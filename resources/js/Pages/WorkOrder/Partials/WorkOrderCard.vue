@@ -43,20 +43,25 @@ const countCompletedTask = (tasks) => {
     return completedTasks.length;
 };
 
-const checkDueTask = (tasks) => {
+const checkDueTask = (tasks, scheduled_end_date) => {
     const today = new Date().toISOString().split("T")[0];
 
     let bgColor = "green"; // Default color if all tasks are upcoming
 
     const pendingTasks = tasks.filter((task) => task.status === "pending");
 
-    // Check for past due tasks first (highest priority)
-    if (pendingTasks.some((task) => task.due_date < today)) {
-        bgColor = "red";
+    // Check scheduled_end_date first (highest priority)
+    if (scheduled_end_date) {
+        if (scheduled_end_date < today) return "red"; // Overdue
+        if (scheduled_end_date === today) return "blue"; // Due today
+        // If scheduled_end_date > today, keep checking tasks
     }
-    // Check for tasks due today (next priority)
-    else if (pendingTasks.some((task) => task.due_date === today)) {
-        bgColor = "blue";
+
+    // Check pending tasks
+    if (pendingTasks.some((task) => task.due_date < today)) {
+        bgColor = "red"; // Any overdue task
+    } else if (pendingTasks.some((task) => task.due_date === today)) {
+        bgColor = "blue"; // Any task due today
     }
 
     return bgColor;

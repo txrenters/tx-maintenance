@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -78,6 +79,7 @@ class UpdateWorkOrderStatus extends Command
                                 'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
                                 'type' => $data['type'] ?? $workOrder->type,
                                 'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
+                                'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
                                 'is_approved' => $data['approved'] ?? $workOrder->is_approved,
                             ];
 

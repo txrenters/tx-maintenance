@@ -317,6 +317,7 @@ const handleGenerateTasksFromServiceStatus = () => {
         <div v-else>
             <TaskCard
                 :tasks="workOrderTasks"
+                :workorder="workOrder"
                 @update-task-status="handleEmits"
             />
         </div>

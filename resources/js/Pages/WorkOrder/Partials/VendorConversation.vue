@@ -149,7 +149,9 @@ const sendMessage = () => {
                 });
                 newMessage.value = "";
                 // Reset textarea height
-                const textarea = document.querySelector('textarea[placeholder="Type your message..."]');
+                const textarea = document.querySelector(
+                    'textarea[placeholder="Type your message..."]'
+                );
                 if (textarea) textarea.style.height = "auto";
                 attachedImages.value = [];
                 scrollToBottom();
@@ -224,10 +226,10 @@ onMounted(() => {
                                     >
                                         <SelectItem
                                             :value="String(vendor.id)"
-                                            :selected="vendor.twilio_number"
+                                            :selected="vendor.phone_number"
                                         >
                                             {{ vendor.name }} -
-                                            {{ vendor?.twilio_number }}
+                                            {{ vendor?.phone_number }}
                                         </SelectItem>
                                     </template>
                                 </SelectGroup>
@@ -264,7 +266,9 @@ onMounted(() => {
                 class="flex flex-col gap-4 overflow-y-auto"
                 ref="chatContainer"
             >
-                <ScrollArea class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3">
+                <ScrollArea
+                    class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3"
+                >
                     <div
                         class="flex justify-center"
                         v-if="isLoading || loading"

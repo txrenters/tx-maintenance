@@ -78,14 +78,5 @@ const search = ref("");
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
         </div>
-        <!-- <div class="flex-1">
-            <h2 class="text-xl font-bold mb-2 p-2 border">
-                Completed ({{ completedTasks.length }})
-            </h2>
-            <ScrollArea class="h-auto md:h-[85vh] mb-5">
-                <TaskCard :tasks="completedTasks" />
-                <ScrollBar orientation="vertical" />
-            </ScrollArea>
-        </div> -->
     </div>
 </template>
