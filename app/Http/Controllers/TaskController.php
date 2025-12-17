@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateTaskRequest;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\TaskService;
@@ -111,12 +112,9 @@ class TaskController extends Controller
         return redirect()->back();
     }
 
-    public function update(Request $request, WorkOrderTask $task)
+    public function update(UpdateTaskRequest $request, WorkOrderTask $task)
     {
-        $task->update([
-            'description' => $request->description,
-            'due_date' => $request->due_date,
-        ]);
+        $task->update($request->validated());
 
         return redirect()->back();
     }

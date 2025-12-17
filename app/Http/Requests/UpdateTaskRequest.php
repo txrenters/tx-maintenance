@@ -11,7 +11,10 @@ class UpdateTaskRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        $user = $this->user();
+
+        // Allow admins and WOC users to update tasks
+        return $user && ($user->hasRole('admin') || $user->hasRole('woc'));
     }
 
     /**
@@ -22,7 +25,8 @@ class UpdateTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'description' => 'required|string|max:1000',
+            'due_date' => 'required|date',
         ];
     }
 }

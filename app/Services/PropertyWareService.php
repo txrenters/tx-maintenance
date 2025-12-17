@@ -845,7 +845,7 @@ class PropertyWareService
                 throw new \Exception('File does not exist: '.$absolutePath);
             }
 
-            $cleanTitle = str_replace(' ', '_', $attachment['title']);
+            $cleanTitle = preg_replace('/[^A-Za-z0-9_\-]/', '_', $attachment['title']);
 
             $fileName = $cleanTitle.'.'.pathinfo(basename($attachment['filename']), PATHINFO_EXTENSION);
             $fileContents = file_get_contents($absolutePath);
@@ -858,7 +858,7 @@ class PropertyWareService
             ];
 
             $response = Http::withHeaders($this->headers)
-                ->attach('file', $fileContents, $fileName, ['Content-Type' => $attachment['filetype'] ?? 'application/octet-stream'])
+                ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             // Handle the response
@@ -934,7 +934,7 @@ class PropertyWareService
             $fileName = $cleanTitle.'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
 
             $response = Http::withHeaders($this->headers)
-                ->attach('file', $fileContents, $fileName, ['Content-Type' => $invoice->filetype ?? 'application/octet-stream'])
+                ->attach('file', $fileContents, $fileName)
                 ->post('https://api.propertyware.com/pw/api/rest/v1/docs', $formFields);
 
             if ($response->successful()) {
