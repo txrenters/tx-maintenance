@@ -220,9 +220,4 @@ class TwilioWebhookController extends Controller
 
         return $conversation->work_order_id ?? null;
     }
-
-    protected function formatNumber(string $number): string
-    {
-        return '+1'.preg_replace('/[^0-9]/', '', $number);
-    }
 }

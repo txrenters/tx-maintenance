@@ -845,9 +845,22 @@ class PropertyWareService
                 throw new \Exception('File does not exist: '.$absolutePath);
             }
 
-            $cleanTitle = preg_replace('/[^A-Za-z0-9_\-]/', '_', $attachment['title']);
+            $fileContents = file_get_contents($absolutePath);
 
-            $fileName = $cleanTitle.'.'.pathinfo(basename($attachment['filename']), PATHINFO_EXTENSION);
+            $title = $attachment['title'] ?? 'Invoice';
+
+            // Replace spaces with underscores
+            $cleaned = str_replace(' ', '_', strtolower($title));
+
+            // Replace slashes and other unsafe characters with dashes or remove them
+            $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
+
+            // Optional: remove anything that's not alphanumeric, underscore, or dash
+            $sanitized = preg_replace('/[^a-z0-9_\-]/', '', $cleaned);
+
+            // Ensure filename is always unique
+            $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($attachment['filename'], PATHINFO_EXTENSION);
+
             $fileContents = file_get_contents($absolutePath);
 
             $formFields = [
@@ -925,9 +938,21 @@ class PropertyWareService
                 'entityType' => 'Work Order',
             ];
 
-            $cleanTitle = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->title);
+            $title = $invoice->title ?? 'Invoice';
+
+            // Replace spaces with underscores
+            $cleaned = str_replace(' ', '_', strtolower($title));
+
+            // Replace slashes and other unsafe characters with dashes or remove them
+            $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
+
+            // Optional: remove anything that's not alphanumeric, underscore, or dash
+            $sanitized = preg_replace('/[^a-z0-9_\-]/', '', $cleaned);
+
+            // Ensure filename is always unique
+            $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
+
             $fileContents = file_get_contents($absolutePath);
-            $fileName = $cleanTitle.'.'.pathinfo($invoice->filename, PATHINFO_EXTENSION);
 
             $response = Http::withHeaders($this->headers)
                 ->attach('file', $fileContents, $fileName)
