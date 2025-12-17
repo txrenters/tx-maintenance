@@ -91,7 +91,7 @@ class ServiceScheduleController extends Controller
 
             // Trigger PropertyWare sync (only cost, time, and scheduled_end_date)
             $propertyWareService = new PropertyWareService;
-            $syncResult = $propertyWareService->updateWorkOrderInPropertyWare($workOrder);
+            $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
 
             if ($syncResult) {
                 Log::info('Service schedule synced to PropertyWare successfully', [
@@ -125,6 +125,9 @@ class ServiceScheduleController extends Controller
         ]);
 
         $serviceSchedule->update($validatedData);
+
+        // Sync to PropertyWare after status update
+        $this->syncScheduleToPropertyWare($serviceSchedule);
 
         return redirect()->back();
     }

@@ -1017,106 +1017,6 @@ class PropertyWareService
         }
     }
 
-    /**
-     * Update work order details in PropertyWare using REST API
-     *
-     * @param  WorkOrder  $workOrder  Work order to update
-     * @param  bool  $includeFullDetails  Include additional fields like location, category, description
-     * @param  bool  $syncApproval  Call approvedWorkOrder after sync
-     * @return bool Success status
-     */
-    public function updateWorkOrderInPropertyWare($workOrder, $includeFullDetails = false, $syncApproval = false)
-    {
-        $cost_etimate = 0;
-        $time_estimate = 0;
-        $scheduled_end_date = null;
-
-        try {
-            if (! $workOrder) {
-                throw new \Exception('Work order not found.');
-            }
-
-            // Reload with vendors if not already loaded
-            if (! $workOrder->relationLoaded('vendors')) {
-                $workOrder->load('vendors');
-            }
-
-            // Validate required fields before sending to PropertyWare
-            if ($includeFullDetails && (! $workOrder->location || trim($workOrder->location) === '')) {
-                Log::warning('Work order location is empty, skipping PropertyWare sync', [
-                    'work_order_no' => $workOrder->work_order_no,
-                    'work_order_id' => $workOrder->id,
-                ]);
-
-                return false;
-            }
-
-            // Calculate aggregated vendor data
-            foreach ($workOrder->vendors as $vendor) {
-                $cost_etimate += $vendor->pivot->cost_estimate ?? 0;
-                $time_estimate += $vendor->pivot->time_estimate ?? 0;
-
-                if ($vendor->pivot->scheduled_end_date) {
-                    $current_date = Carbon::parse($vendor->pivot->scheduled_end_date);
-
-                    if (! $scheduled_end_date || $current_date->gt($scheduled_end_date)) {
-                        $scheduled_end_date = $current_date;
-                    }
-                }
-            }
-
-            // Build payload
-            $payload = [
-                'costEstimate' => $cost_etimate,
-                'hourEstimate' => $time_estimate,
-                'scheduledEndDate' => $scheduled_end_date ? $scheduled_end_date->format('Y-m-d') : null,
-            ];
-
-            // Include full details if requested
-            if ($includeFullDetails) {
-                $payload['location'] = $workOrder->location;
-                $payload['category'] = $workOrder->category;
-                $payload['description'] = $workOrder->description;
-                $payload['type'] = $workOrder->type;
-                $payload['buildingID'] = $workOrder->building_id;
-            }
-
-            // Send PATCH request to PropertyWare REST API
-            $response = Http::withHeaders($this->headers)
-                ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, $payload);
-
-            // Sync approval status if requested
-            if ($syncApproval) {
-                $this->approvedWorkOrder($workOrder);
-            }
-
-            if ($response->status() == 200) {
-                Log::info('Work order synced to PropertyWare successfully', [
-                    'work order' => $workOrder->work_order_no,
-                    'status_code' => $response->status(),
-                ]);
-
-                return true;
-            }
-
-            Log::warning('Failed to sync work order to PropertyWare', [
-                'work order' => $workOrder->work_order_no,
-                'status_code' => $response->status(),
-                'response' => $response->body(),
-            ]);
-
-            return false;
-        } catch (\Exception $e) {
-            Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
-                'work_order_id' => $workOrder->propertyware_id ?? null,
-                'work_order_no' => $workOrder->work_order_no ?? null,
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return false;
-        }
-    }
-
     public function updateWorkOrderDetails($workOrder)
     {
         $cost_etimate = 0;
@@ -1218,12 +1118,115 @@ class PropertyWareService
         }
     }
 
-    /**
-     * @deprecated Use updateWorkOrderInPropertyWare instead
-     */
-    public function updateWorkOrderServiceSchedule($workOrder)
+    public function updateWorkOrderVendorEstimates($workOrder, $syncApproval = false)
     {
-        return $this->updateWorkOrderInPropertyWare($workOrder, false, false);
+        try {
+            if (! $workOrder) {
+                throw new \Exception('Work order not found.');
+            }
+
+            $cost_etimate = 0;
+            $time_estimate = 0;
+            $scheduled_end_date = null;
+
+            foreach ($workOrder->vendors as $vendor) {
+                $cost_etimate += $vendor->pivot->cost_estimate;
+                $time_estimate += $vendor->pivot->time_estimate;
+
+                if ($vendor->pivot->scheduled_end_date) {
+                    $current_date = Carbon::parse($vendor->pivot->scheduled_end_date);
+
+                    if (! $scheduled_end_date || $current_date->gt($scheduled_end_date)) {
+                        $scheduled_end_date = $current_date;
+                    }
+                }
+            }
+
+            // Send PATCH request to PropertyWare REST API
+            $response = Http::withHeaders($this->headers)
+                ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id,
+                [
+                    'costEstimate' => $cost_etimate,
+                    'hourEstimate' => $time_estimate,
+                    'scheduledEndDate' => $scheduled_end_date ? Carbon::parse($scheduled_end_date)->format('Y-m-d') : null,
+                ]);
+
+            // Sync approval status if requested
+            if ($syncApproval) {
+                $this->approvedWorkOrder($workOrder);
+            }
+
+            if ($response->status() == 200) {
+                Log::info('Work order synced to PropertyWare successfully', [
+                    'work order' => $workOrder->work_order_no,
+                    'status_code' => $response->status(),
+                ]);
+
+                return true;
+            }
+
+            Log::warning('Failed to sync work order to PropertyWare', [
+                'work order' => $workOrder->work_order_no,
+                'status_code' => $response->status(),
+                'response' => $response->body(),
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
+                'work_order_id' => $workOrder->propertyware_id ?? null,
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return false;
+        }
+    }
+
+    public function updateWorkOrderServiceSchedule($workOrder, $syncApproval = false)
+    {
+        try {
+            if (! $workOrder) {
+                throw new \Exception('Work order not found.');
+            }
+
+            // Send PATCH request to PropertyWare REST API
+            $response = Http::withHeaders($this->headers)
+                ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id,
+                [
+                    'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : null,
+                ]);
+
+            // Sync approval status if requested
+            if ($syncApproval) {
+                $this->approvedWorkOrder($workOrder);
+            }
+
+            if ($response->status() == 200) {
+                Log::info('Work order synced to PropertyWare successfully', [
+                    'work order' => $workOrder->work_order_no,
+                    'status_code' => $response->status(),
+                ]);
+
+                return true;
+            }
+
+            Log::warning('Failed to sync work order to PropertyWare', [
+                'work order' => $workOrder->work_order_no,
+                'status_code' => $response->status(),
+                'response' => $response->body(),
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
+                'work_order_id' => $workOrder->propertyware_id ?? null,
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return false;
+        }
     }
 
     public function approvedWorkOrder($workOrder): void

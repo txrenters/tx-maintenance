@@ -17,8 +17,8 @@ const props = defineProps({
 const openService = ref(false);
 
 const serviceScheduleForm = useForm({
-    title: "",
-    description: "",
+    title: "Service Schedule for " + props.workOrder.work_order_no,
+    description: props.workOrder.description ?? "",
     date: "",
     vendor_id: "",
     tenant_id: "",
@@ -271,62 +271,28 @@ const handleMeetingSubmit = () => {
             <div class="px-6 py-4 overflow-y-auto">
                 <div class="space-y-4">
                     <!-- Vendor and Tenant Row -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <Label class="text-sm font-medium">
-                                Vendor
-                                <span class="text-red-500 ml-0.5">*</span>
-                            </Label>
-                            <Select v-model="serviceScheduleForm.vendor_id">
-                                <SelectTrigger class="w-full">
-                                    <SelectValue
-                                        placeholder="Select a vendor"
-                                    />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <template
-                                            v-for="vendor in workOrderVendors"
-                                            :key="vendor.id"
-                                        >
-                                            <SelectItem
-                                                :value="String(vendor.id)"
-                                            >
-                                                {{ vendor.name }}
-                                            </SelectItem>
-                                        </template>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <!-- Remove for easy creation of schedules -->
-
-                        <!-- <div class="space-y-2">
-                            <Label class="text-sm font-medium">
-                                Tenant
-                                <span class="text-xs text-muted-foreground ml-1">
-                                    (Optional)
-                                </span>
-                            </Label>
-                            <Select v-model="serviceScheduleForm.tenant_id">
-                                <SelectTrigger class="w-full">
-                                    <SelectValue placeholder="Select a tenant" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <template
-                                            v-for="tenant in workOrderTenants"
-                                            :key="tenant.id"
-                                        >
-                                            <SelectItem :value="String(tenant.id)">
-                                                {{ tenant.first_name }}
-                                                {{ tenant.last_name }}
-                                            </SelectItem>
-                                        </template>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </div> -->
+                    <div class="space-y-2">
+                        <Label class="text-sm font-medium">
+                            Vendor
+                            <span class="text-red-500 ml-0.5">*</span>
+                        </Label>
+                        <Select v-model="serviceScheduleForm.vendor_id">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select a vendor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <template
+                                        v-for="vendor in workOrderVendors"
+                                        :key="vendor.id"
+                                    >
+                                        <SelectItem :value="String(vendor.id)">
+                                            {{ vendor.name }}
+                                        </SelectItem>
+                                    </template>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <!-- Title -->
