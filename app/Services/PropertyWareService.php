@@ -839,7 +839,7 @@ class PropertyWareService
 
             $workOrder = WorkOrder::find($workOrderId);
 
-            $absolutePath = storage_path('storage/'.$attachment['filename']);
+            $absolutePath = storage_path('storage/attachments/'.basename($attachment['filename']));
 
             if (! file_exists($absolutePath)) {
                 throw new \Exception('File does not exist: '.$absolutePath);
@@ -853,8 +853,6 @@ class PropertyWareService
             $formFields = [
                 'entityId' => $workOrder->propertyware_id,
                 'entityType' => 'Work Order',
-                'publishToOwnerPortal' => $attachment['is_publish_to_owner_portal'] ? 'true' : 'false',
-                'publishToTenantPortal' => $attachment['is_publish_to_tenant_portal'] ? 'true' : 'false',
             ];
 
             $response = Http::withHeaders($this->headers)
@@ -917,7 +915,7 @@ class PropertyWareService
                 throw new \Exception("Work order not found: $workOrderId");
             }
 
-            $absolutePath = public_path('storage/'.$invoice->filename);
+            $absolutePath = public_path('storage/invoices/'.basename($invoice->filename));
             if (! file_exists($absolutePath)) {
                 throw new \Exception("File does not exist: $absolutePath");
             }
@@ -925,8 +923,6 @@ class PropertyWareService
             $formFields = [
                 'entityId' => $workOrder->propertyware_id,
                 'entityType' => 'Work Order',
-                'publishToOwnerPortal' => $invoice->is_publish_to_owner_portal ? 'true' : 'false',
-                'publishToTenantPortal' => $invoice->is_publish_to_tenant_portal ? 'true' : 'false',
             ];
 
             $cleanTitle = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->title);
