@@ -25,6 +25,13 @@ class InvoiceController extends Controller
 
     public function store(Request $request)
     {
+        $user = User::with('vendor')->find(auth()->id());
+
+        // Prevent tenants and owners from uploading invoices
+        if ($user->hasRole('tenant') || $user->hasRole('owner')) {
+            abort(403, 'Unauthorized to upload invoices.');
+        }
+
         $validatedData = $request->validate([
             'title' => 'required',
             'filename' => 'required|mimes:jpg,jpeg,png,pdf|max:2048',
@@ -34,9 +41,21 @@ class InvoiceController extends Controller
             'is_publish_to_tenant_portal' => 'required',
         ]);
 
-        $user = User::with('vendor')->find(auth()->id());
-        $validatedData['vendor_id'] = $user->vendor->id;
-        // $validatedData['vendor_id'] = 6; // test only
+        // Determine vendor_id based on user role
+        if ($user->vendor) {
+            // If user is a vendor, use their vendor_id
+            $validatedData['vendor_id'] = $user->vendor->id;
+        } else {
+            // For admin/WOC, use the first vendor from the work order
+            $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
+            $firstVendor = $workOrder?->vendors()->first();
+
+            if (! $firstVendor) {
+                return redirect()->back()->withErrors('No vendor assigned to this work order. Please assign a vendor first.');
+            }
+
+            $validatedData['vendor_id'] = $firstVendor->id;
+        }
 
         if ($request->hasFile('filename')) {
             $file = $request->file('filename');

@@ -118,7 +118,11 @@ const handleFetchInvoices = () => {
             </div>
             <div
                 class="flex gap-2"
-                v-if="$page.props.auth.user.roles.includes('vendor')"
+                v-if="
+                    $page.props.auth.user.roles.includes('admin') ||
+                    $page.props.auth.user.roles.includes('woc') ||
+                    $page.props.auth.user.roles.includes('vendor')
+                "
             >
                 <Button
                     :disabled="isLoading"
