@@ -198,6 +198,18 @@ const handleMeetingSubmit = () => {
                                 >
                                     Cancel
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    class="cursor-pointer hover:bg-secondary"
+                                    @click="
+                                        () =>
+                                            updateScheduleStatus(
+                                                schedule.id,
+                                                'delete'
+                                            )
+                                    "
+                                >
+                                    Delete
+                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>

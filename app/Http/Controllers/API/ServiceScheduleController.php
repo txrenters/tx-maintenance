@@ -123,6 +123,11 @@ class ServiceScheduleController extends Controller
             'status' => 'required',
         ]);
 
+        if($request->status == 'delete'){
+            $serviceSchedule->delete();
+            return redirect()->back();
+        }
+
         $serviceSchedule->update($validatedData);
 
         // Sync to PropertyWare after status update

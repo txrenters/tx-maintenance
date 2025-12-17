@@ -38,7 +38,7 @@ class TaskController extends Controller
                 return $task->status == 'pending' && Carbon::parse($task->due_date)->isToday();
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
-
+                $task->scheduled_end_date = $workOrder->scheduled_end_date;
                 return $task;
             });
         });
@@ -48,7 +48,7 @@ class TaskController extends Controller
                 return $task->status == 'pending' && Carbon::parse($task->due_date)->isAfter($now);
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
-
+                $task->scheduled_end_date = $workOrder->scheduled_end_date;
                 return $task;
             });
         });
@@ -59,7 +59,7 @@ class TaskController extends Controller
 
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
-
+                $task->scheduled_end_date = $workOrder->scheduled_end_date;
                 return $task;
             });
         });
