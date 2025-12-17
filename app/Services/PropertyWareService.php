@@ -40,7 +40,6 @@ class PropertyWareService
             'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
             'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
             'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json',
         ];
 
         if (empty($this->url) || empty($this->username) || empty($this->password)) {
