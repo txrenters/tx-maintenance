@@ -37,12 +37,12 @@ class VendorNotesController extends Controller
             ]);
 
             // Sync to PropertyWare with full details and approval status
-            $syncResult = $propertywareServices->updateWorkOrderVendorEstimates($workOrder, true, true);
+            // $syncResult = $propertywareServices->updateWorkOrderVendorEstimates($workOrder, true, true);
 
-            if ($syncResult) {
-                DB::commit();
-                Log::info('Work order updated successfully!');
-            }
+            // if ($syncResult) {
+            //     DB::commit();
+            //     Log::info('Work order updated successfully!');
+            // }
 
         } catch (\Exception $th) {
             DB::rollBack();

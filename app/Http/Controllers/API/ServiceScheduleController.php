@@ -89,20 +89,20 @@ class ServiceScheduleController extends Controller
                 'scheduled_end_date' => $serviceSchedule->scheduled_date,
             ]);
 
-            $propertyWareService = new PropertyWareService;
-            $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
+            // $propertyWareService = new PropertyWareService;
+            // $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
 
-            if ($syncResult) {
-                Log::info('Service schedule synced to PropertyWare successfully', [
-                    'service_schedule_id' => $serviceSchedule->id,
-                    'work_order_no' => $workOrder->work_order_no,
-                ]);
-            } else {
-                Log::warning('PropertyWare sync returned false for service schedule', [
-                    'service_schedule_id' => $serviceSchedule->id,
-                    'work_order_no' => $workOrder->work_order_no,
-                ]);
-            }
+            // if ($syncResult) {
+            //     Log::info('Service schedule synced to PropertyWare successfully', [
+            //         'service_schedule_id' => $serviceSchedule->id,
+            //         'work_order_no' => $workOrder->work_order_no,
+            //     ]);
+            // } else {
+            //     Log::warning('PropertyWare sync returned false for service schedule', [
+            //         'service_schedule_id' => $serviceSchedule->id,
+            //         'work_order_no' => $workOrder->work_order_no,
+            //     ]);
+            // }
 
         } catch (\Exception $e) {
             Log::error('Failed to sync service schedule to PropertyWare', [

@@ -43,8 +43,9 @@ const countCompletedTask = (tasks) => {
     return completedTasks.length;
 };
 
-const checkDueTask = (tasks, scheduled_end_date) => {
+const checkDueTask = (tasks) => {
     const today = new Date().toISOString().split("T")[0];
+    const scheduled_end_date = props.work_order.scheduled_end_date;
 
     let bgColor = "green"; // Default color if all tasks are upcoming
 
@@ -99,20 +100,11 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"
                             :class="{
                                 'bg-destructive':
-                                    checkDueTask(
-                                        work_order.tasks,
-                                        work_order.scheduled_end_date
-                                    ) === 'red',
+                                    checkDueTask(work_order.tasks) === 'red',
                                 'bg-primary':
-                                    checkDueTask(
-                                        work_order.tasks,
-                                        work_order.scheduled_end_date
-                                    ) === 'blue',
+                                    checkDueTask(work_order.tasks) === 'blue',
                                 'bg-green-500':
-                                    checkDueTask(
-                                        work_order.tasks,
-                                        work_order.scheduled_end_date
-                                    ) === 'green',
+                                    checkDueTask(work_order.tasks) === 'green',
                                 'bg-gray-600': work_order.status === 'Closed',
                             }"
                         >
