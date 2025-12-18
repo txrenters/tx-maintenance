@@ -39,7 +39,7 @@ class AttachmentsController extends Controller
 
             UploadAttachment::dispatch($attachment);
 
-            return redirect()->back()->with('success', 'Attachment uploaded successfully.');
+            return redirect()->back()->with('success', 'Attachment uploaded successfully. PropertyWare sync is processing in the background.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Attachment validation failed', [
                 'errors' => $e->errors(),
@@ -76,6 +76,9 @@ class AttachmentsController extends Controller
                 'owner_portal' => 'required|in:Yes,No',
             ]);
 
+            $uploadJobs = [];
+
+            // Process all files and store them locally (fast operation)
             foreach ($validatedData['files'] as $fileData) {
                 $file = $fileData['file'];
                 $mimeType = $fileData['type'];
@@ -96,10 +99,21 @@ class AttachmentsController extends Controller
 
                 $attachment = Attachments::create($files);
 
-                UploadAttachment::dispatch($attachment);
+                // Collect jobs to dispatch after all files are processed
+                $uploadJobs[] = new UploadAttachment($attachment);
             }
 
-            return redirect()->back()->with('success', 'Attachment uploaded successfully.');
+            // Dispatch all PropertyWare upload jobs at once (happens in background)
+            foreach ($uploadJobs as $job) {
+                dispatch($job);
+            }
+
+            $fileCount = count($validatedData['files']);
+            $message = $fileCount === 1
+                ? 'Attachment uploaded successfully.'
+                : "{$fileCount} attachments uploaded successfully. PropertyWare sync is processing in the background.";
+
+            return redirect()->back()->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Multiple attachments validation failed', [
                 'errors' => $e->errors(),
