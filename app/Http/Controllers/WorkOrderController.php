@@ -61,7 +61,7 @@ class WorkOrderController extends Controller
                     ->where('status', 'Open');
             },
             'work_orders.service_status',
-            'work_orders.vendors',
+            'work_orders.vendors.user',
             'work_orders.requested_by',
             'work_orders.managed_by',
             'work_orders.tasks',
@@ -202,7 +202,7 @@ class WorkOrderController extends Controller
     {
         $workOrder->load([
             'service_status',
-            'vendors',
+            'vendors.user',
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
@@ -216,6 +216,7 @@ class WorkOrderController extends Controller
     {
         $workOrder->load([
             'service_status',
+            'vendors.user',
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
@@ -256,7 +257,7 @@ class WorkOrderController extends Controller
         $serviceStatuses = $serviceStatusesQuery->get();
 
         // Get vendors for potential assignments
-        $vendors = Vendor::where('is_active', true)->get();
+        $vendors = Vendor::with('user')->where('is_active', true)->get();
 
         return inertia('WorkOrder/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
@@ -275,7 +276,7 @@ class WorkOrderController extends Controller
     {
         $workOrder->load([
             'service_status',
-            'vendors',
+            'vendors.user',
             'requested_by',
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
@@ -358,7 +359,7 @@ class WorkOrderController extends Controller
                     ->limit(50);
             },
             'work_orders.service_status',
-            'work_orders.vendors',
+            'work_orders.vendors.user',
             'work_orders.requested_by',
             'work_orders.managed_by',
             'work_orders.tasks',

@@ -62,4 +62,9 @@ class Vendor extends Model
             }
         }
     }
+
+    public function getPhoneAttribute(): ?string
+    {
+        return $this->user?->phone;
+    }
 }

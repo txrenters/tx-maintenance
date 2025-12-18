@@ -193,7 +193,7 @@ watch(selectedVendor, (newVendor) => {
         const foundVendor = props.workOrder.vendors.find(
             (vendor) => vendor.id == newVendor
         );
-        vendor_phone_number.value = foundVendor ? foundVendor.phone : "";
+        vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
     }
 });
 
@@ -222,12 +222,9 @@ onMounted(() => {
                                         v-for="vendor in workOrder.vendors"
                                         :key="vendor.id"
                                     >
-                                        <SelectItem
-                                            :value="String(vendor.id)"
-                                            :selected="vendor.phone"
-                                        >
+                                        <SelectItem :value="String(vendor.id)">
                                             {{ vendor.name }} -
-                                            {{ vendor?.phone }}
+                                            {{ vendor?.user.phone }}
                                         </SelectItem>
                                     </template>
                                 </SelectGroup>
@@ -336,7 +333,7 @@ onMounted(() => {
                         @click.prevent="sendMessage"
                         :disabled="isLoading || loading"
                     >
-                        <Send v-if="!isLoading || loading" class="h-4 w-4" />
+                        <Send v-if="!isLoading && !loading" class="h-4 w-4" />
                         <Loader2 v-else class="w-4 h-4 animate-spin" />
                     </Button>
                 </div>
