@@ -90,7 +90,7 @@ class WorkOrderImportCommand extends Command
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
                 'work_order_no' => $data['number'] ?? null,
-                'approval_comments' => $data['approvalComments'] ?? null,
+                'approval_comments' => $data['approvalComment'] ?? null,
                 'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
                 'approved_by' => ! empty($data['approved']) && $data['approved'] ? $data['approvedBy']['ID'] ?? '' : null,
                 'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
@@ -150,6 +150,8 @@ class WorkOrderImportCommand extends Command
                         $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
                     } elseif ($customField['fieldName'] == 'Management Plan') {
                         $work_order_data['management_plan'] = $customField['value'] ?? '';
+                    } elseif ($customField['fieldName'] == 'closing comment') {
+                        $work_order_data['closing_comments'] = $customField['value'] ?? '';
                     }
                 }
             }

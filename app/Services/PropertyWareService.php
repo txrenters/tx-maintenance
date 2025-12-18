@@ -51,11 +51,8 @@ class PropertyWareService
 
     public function getWorkOrder($workOrderId)
     {
-
         try {
-
             $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrderId);
-
             if ($response->status() == 200) {
                 return $response->json();
             } else {
@@ -65,13 +62,10 @@ class PropertyWareService
                         'body' => $response->body(),
                     ],
                 ]);
-
                 return false;
             }
-
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
-
             return 'Error: '.$e->getMessage();
         }
 
@@ -380,7 +374,6 @@ class PropertyWareService
                 'work order' => $workOrder->work_order_no,
                 'status_code' => $response->status(),
                 'headers' => $response->headers(),
-
             ]);
         }
 

@@ -170,9 +170,6 @@ const handleFetchNotes = () => {
                         <p class="text-xs">
                             Date: {{ formatDate(note.created_at) }}
                         </p>
-                        <p class="text-xs" v-if="note.user?.name">
-                            Created by: {{ note.user?.name }}
-                        </p>
                     </div>
                 </div>
 
