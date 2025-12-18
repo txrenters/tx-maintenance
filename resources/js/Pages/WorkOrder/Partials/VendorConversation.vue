@@ -223,8 +223,10 @@ onMounted(() => {
                                         :key="vendor.id"
                                     >
                                         <SelectItem :value="String(vendor.id)">
-                                            {{ vendor.name }} -
-                                            {{ vendor?.user.phone }}
+                                            {{ vendor.name }}
+                                            <template v-if="vendor?.user?.phone">
+                                                - {{ vendor.user.phone }}
+                                            </template>
                                         </SelectItem>
                                     </template>
                                 </SelectGroup>
