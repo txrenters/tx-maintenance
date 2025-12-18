@@ -193,9 +193,7 @@ watch(selectedVendor, (newVendor) => {
         const foundVendor = props.workOrder.vendors.find(
             (vendor) => vendor.id == newVendor
         );
-        vendor_phone_number.value = foundVendor
-            ? foundVendor.twilio_number
-            : "";
+        vendor_phone_number.value = foundVendor ? foundVendor.phone : "";
     }
 });
 
@@ -226,10 +224,10 @@ onMounted(() => {
                                     >
                                         <SelectItem
                                             :value="String(vendor.id)"
-                                            :selected="vendor.phone_number"
+                                            :selected="vendor.phone"
                                         >
                                             {{ vendor.name }} -
-                                            {{ vendor?.phone_number }}
+                                            {{ vendor?.phone }}
                                         </SelectItem>
                                     </template>
                                 </SelectGroup>
