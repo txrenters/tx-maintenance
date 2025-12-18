@@ -159,14 +159,29 @@ class ConversationController extends Controller
 
     protected function formatNumber(string $number): string
     {
-        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
+        // Strip everything except digits
+        $digits = preg_replace('/\D+/', '', $number);
 
-        if (empty($cleanedNumber)) {
+        if (! $digits) {
             throw new InvalidArgumentException('The provided phone number is invalid.');
         }
 
-        return '+'.$cleanedNumber;
+        /**
+         * Normalize to US format
+         * - 10 digits → assume US
+         * - 11 digits starting with 1 → US
+         */
+        if (strlen($digits) === 10) {
+            return '+1' . $digits;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return '+' . $digits;
+        }
+
+        throw new InvalidArgumentException('The provided phone number must be a valid US number.');
     }
+
 
     private function sendNotification($conversation, $validatedData, $workOrder): void
     {
