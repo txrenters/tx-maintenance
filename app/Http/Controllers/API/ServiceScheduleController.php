@@ -13,7 +13,7 @@ class ServiceScheduleController extends Controller
 {
     public function get_schedules(WorkOrder $workOrder)
     {
-        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'tenants', 'vendors']);
+        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'tenants', 'vendors.user']);
 
         return response()->json($workOrder, 200);
     }
@@ -68,17 +68,6 @@ class ServiceScheduleController extends Controller
                 return;
             }
 
-            // Validate work order has required data for PropertyWare
-            if (! $workOrder->location || trim($workOrder->location) === '') {
-                Log::warning('Work order missing required location for PropertyWare sync', [
-                    'service_schedule_id' => $serviceSchedule->id,
-                    'work_order_id' => $workOrder->id,
-                    'work_order_no' => $workOrder->work_order_no,
-                ]);
-
-                return;
-            }
-
             // Update the vendor's scheduled_end_date in the pivot table
             $workOrder->vendors()->updateExistingPivot($serviceSchedule->vendor_id, [
                 'scheduled_end_date' => $serviceSchedule->scheduled_date,
@@ -88,6 +77,17 @@ class ServiceScheduleController extends Controller
             $workOrder->update([
                 'scheduled_end_date' => $serviceSchedule->scheduled_date,
             ]);
+
+            // Validate work order has required data for PropertyWare sync
+            if (! $workOrder->location || trim($workOrder->location) === '') {
+                Log::warning('Work order missing required location for PropertyWare sync', [
+                    'service_schedule_id' => $serviceSchedule->id,
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                ]);
+
+                return;
+            }
 
             // $propertyWareService = new PropertyWareService;
             // $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
@@ -123,8 +123,9 @@ class ServiceScheduleController extends Controller
             'status' => 'required',
         ]);
 
-        if($request->status == 'delete'){
+        if ($request->status == 'delete') {
             $serviceSchedule->delete();
+
             return redirect()->back();
         }
 

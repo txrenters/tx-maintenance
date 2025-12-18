@@ -403,75 +403,97 @@ class WorkOrderController extends Controller
         DB::beginTransaction();
 
         try {
-            $vendorIDsXml = '';
+            // Normalize vendor names
+            $vendorNames = collect($request->vendors)
+                ->filter()
+                ->map(fn ($v) => trim($v))
+                ->unique();
 
-            DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->delete();
+            // Fetch all vendors in one query
+            $vendors = Vendor::where(function ($q) use ($vendorNames) {
+                foreach ($vendorNames as $name) {
+                    $q->orWhere('name', 'like', "%{$name}%");
+                }
+            })->get();
 
-            $vendorIDsXml = '<vendorIDs xsi:type="soapenc:Array" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">';
+            $vendorIds = [];
+            $vendorIDs = [];
 
-            foreach ($request->vendors as $vendor) {
-                try {
-                    $vendorData = Vendor::whereLike('name', $vendor)->first();
+            foreach ($vendorNames as $vendorName) {
+                $vendor = $vendors->first(fn ($v) => str_contains(strtolower($v->name), strtolower($vendorName))
+                );
 
-                    if (! $vendorData) {
-                        Log::warning("Vendor not found: {$vendor}");
+                if (! $vendor) {
+                    Log::warning("Vendor not found: {$vendorName}");
 
-                        continue;
-                    }
-                    // Add to XML and arrays
-                    $vendorIDsXml .= "<vendorID xsi:type=\"xsd:long\">{$vendorData->propertyware_id}</vendorID>";
+                    continue;
+                }
 
-                    // Safely insert link to pivot table
-                    DB::table('work_order_vendors')->updateOrInsert(
-                        [
-                            'work_order_id' => $workOrder->id,
-                            'vendor_id' => $vendorData->id,
-                        ],
-                        [
-                            'updated_at' => now(),
-                            'created_at' => now(),
-                        ]
-                    );
+                $vendorIds[] = $vendor->id;
 
-                    // Send notification (optional)
-                    if ($vendorData->email) {
+                // PropertyWare XML IDs
+                $vendorIDs[] =
+                    "<vendorID xsi:type=\"xsd:long\">{$vendor->propertyware_id}</vendorID>";
+            }
+
+            // 🔥 Sync vendors (update instead of delete)
+            $changes = $workOrder->vendors()->sync($vendorIds);
+
+            /**
+             * Notify only newly attached vendors
+             */
+            $newVendorIds = $changes['attached'] ?? [];
+
+            if (! empty($newVendorIds)) {
+                Vendor::whereIn('id', $newVendorIds)->each(function ($vendor) use ($workOrder) {
+                    if ($vendor->email) {
                         try {
-                            $vendorData->notify(new NewWorkOrderAssignNotification($workOrder));
-                        } catch (\Throwable $notifyError) {
-                            Log::error("Failed to notify vendor {$vendorData->email}", [
-                                'error' => $notifyError->getMessage(),
-                                'vendor_id' => $vendorData->id,
+                            $vendor->notify(
+                                new NewWorkOrderAssignNotification($workOrder)
+                            );
+                        } catch (\Throwable $e) {
+                            Log::error('Vendor notification failed', [
+                                'vendor_id' => $vendor->id,
                                 'work_order_id' => $workOrder->id,
+                                'error' => $e->getMessage(),
                             ]);
                         }
                     }
-
-                } catch (\Throwable $e) {
-                    Log::error("Error processing vendor: {$vendor}", [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-
-                    continue; // continue with next vendor no matter what
-                }
+                });
             }
 
-            $vendorIDsXml .= '</vendorIDs>';
+            // Build XML once
+            $vendorIDsXml =
+                '<vendorIDs xsi:type="soapenc:Array"
+                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">'
+                .implode('', $vendorIDs)
+                .'</vendorIDs>';
 
-            $this->propertyWareServices->changeWorkOrderVendors($workOrder, $vendorIDsXml);
+            // Sync with PropertyWare
+            $this->propertyWareServices
+                ->changeWorkOrderVendors($workOrder, $vendorIDsXml);
 
+            // Update local status
             $workOrder->update([
                 'local_status' => 'Updated',
             ]);
 
             DB::commit();
 
-            return redirect()->back()->with('success', 'Work order vendors updated successfully.');
-        } catch (\Throwable $th) {
+            return back()->with('success', 'Work order vendors updated successfully.');
+
+        } catch (\Throwable $e) {
             DB::rollBack();
 
-            return redirect()->back()->with('error', 'Work order vendors failed.'.$th->getMessage());
+            Log::error('Failed to update work order vendors', [
+                'work_order_id' => $workOrder->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->with('error', 'Failed to update work order vendors.');
         }
+
     }
 
     public function emergency_change(Request $request, WorkOrder $workOrder)

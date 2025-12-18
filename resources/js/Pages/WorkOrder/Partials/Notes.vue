@@ -129,7 +129,8 @@ const handleFetchNotes = () => {
                     class="flex gap-2"
                     v-if="
                         $page.props.auth.user.roles.includes('admin') ||
-                        $page.props.auth.user.roles.includes('woc')
+                        $page.props.auth.user.roles.includes('woc') ||
+                        $page.props.auth.user.roles.includes('vendor')
                     "
                 >
                     <Button

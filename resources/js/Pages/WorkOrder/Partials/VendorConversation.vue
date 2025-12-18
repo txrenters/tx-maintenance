@@ -190,7 +190,7 @@ watch(
 );
 watch(selectedVendor, (newVendor) => {
     if (newVendor) {
-        const foundVendor = props.workOrder.vendors.find(
+        const foundVendor = props.workOrderVendors.find(
             (vendor) => vendor.id == newVendor
         );
         vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
@@ -219,12 +219,14 @@ onMounted(() => {
                             <SelectContent>
                                 <SelectGroup>
                                     <template
-                                        v-for="vendor in workOrder.vendors"
+                                        v-for="vendor in workOrderVendors"
                                         :key="vendor.id"
                                     >
                                         <SelectItem :value="String(vendor.id)">
                                             {{ vendor.name }}
-                                            <template v-if="vendor?.user?.phone">
+                                            <template
+                                                v-if="vendor?.user?.phone"
+                                            >
                                                 - {{ vendor.user.phone }}
                                             </template>
                                         </SelectItem>

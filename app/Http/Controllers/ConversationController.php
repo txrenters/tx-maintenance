@@ -27,21 +27,21 @@ class ConversationController extends Controller
 
     public function get_vendor_tenant_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['tenants', 'vendor_tenant_conversation.media', 'vendors']);
+        $workOrder->load(['tenants', 'vendor_tenant_conversation.media', 'vendors.user']);
 
         return response()->json($workOrder, 200);
     }
 
     public function get_vendor_owner_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['owners', 'vendors', 'vendor_owner_conversation.media']);
+        $workOrder->load(['owners', 'vendors.user', 'vendor_owner_conversation.media']);
 
         return response()->json($workOrder, 200);
     }
 
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
-        $workOrder->load(['vendor_conversation.media', 'vendors']);
+        $workOrder->load(['vendor_conversation.media', 'vendors.user']);
 
         return response()->json($workOrder, 200);
     }

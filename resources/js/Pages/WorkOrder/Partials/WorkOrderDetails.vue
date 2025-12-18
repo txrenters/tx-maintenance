@@ -518,7 +518,7 @@ const handleCompleteSubmit = () => {
                     <div>
                         <Label for="message">Scheduled End Date:</Label>
                         <p>
-                            {{ formatDate(latestScheduledEndDate) }} -
+                            <!-- {{ formatDate(latestScheduledEndDate) }} - -->
                             {{ formatDate(workOrder.scheduled_end_date) }}
                         </p>
                     </div>
