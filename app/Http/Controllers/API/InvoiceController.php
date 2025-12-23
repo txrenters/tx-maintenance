@@ -86,12 +86,12 @@ class InvoiceController extends Controller
 
             DB::commit();
 
-            return redirect()->back()->with('Success uploading invoices');
+            return redirect()->back()->with('success', 'Success uploading invoices');
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Error uploading invoices:', ['error' => $th->getMessage()]);
 
-            return redirect()->back()->withErrors('Error uploading invoices');
+            return redirect()->back()->withErrors(['error' => 'Error uploading invoices']);
         }
     }
 
