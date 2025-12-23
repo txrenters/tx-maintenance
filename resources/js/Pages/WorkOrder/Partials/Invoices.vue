@@ -58,12 +58,13 @@ const handleUpdateInvoice = (invoice, status) => {
             updateInvoiceForm.reset();
             handleFetchInvoices();
         },
-        onError: () => {
+        onError: (errors) => {
+            console.error('Invoice update error:', errors);
+            const errorMessage = errors.error || Object.values(errors)[0] || "There was a problem updating the invoice. Please try again!";
             toast({
                 variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description:
-                    "There was a problem with your request. Please try again!",
+                title: "Error updating invoice",
+                description: errorMessage,
             });
         },
     });
@@ -95,12 +96,13 @@ const handleFormSubmit = () => {
             attachmentForm.reset();
             handleFetchInvoices();
         },
-        onError: () => {
+        onError: (errors) => {
+            console.error('Invoice upload error:', errors);
+            const errorMessage = errors.error || Object.values(errors)[0] || "There was a problem with your request. Please try again!";
             toast({
                 variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description:
-                    "There was a problem with your request. Please try again!",
+                title: "Error uploading invoice",
+                description: errorMessage,
             });
         },
     });
@@ -125,12 +127,13 @@ const handleDeleteInvoice = (invoice) => {
             });
             handleFetchInvoices();
         },
-        onError: () => {
+        onError: (errors) => {
+            console.error('Invoice delete error:', errors);
+            const errorMessage = errors.error || Object.values(errors)[0] || "There was a problem deleting the invoice. Please try again!";
             toast({
                 variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description:
-                    "There was a problem deleting the invoice. Please try again!",
+                title: "Error deleting invoice",
+                description: errorMessage,
             });
         },
     });

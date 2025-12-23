@@ -33,7 +33,8 @@
       "Bash(done)",
       "WebFetch(domain:app.propertyware.com)",
       "WebSearch",
-      "Bash(composer show:*)"
+      "Bash(composer show:*)",
+      "Bash(Get-Content \"C:\\\\Projects\\\\tx_work_order\\\\storage\\\\logs\\\\laravel.log\" -Tail 50)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

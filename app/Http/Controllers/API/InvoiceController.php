@@ -34,7 +34,7 @@ class InvoiceController extends Controller
 
         $validatedData = $request->validate([
             'title' => 'required',
-            'filename' => 'required|mimes:jpg,jpeg,png,pdf|max:2048',
+            'filename' => 'required|mimes:jpg,jpeg,png,pdf',
             'amount' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
             'is_publish_to_owner_portal' => 'required',
@@ -43,29 +43,29 @@ class InvoiceController extends Controller
         ]);
 
         // Determine vendor_id based on user role
-        if ($user->vendor) {
-            // If user is a vendor, use their vendor_id
-            $validatedData['vendor_id'] = $user->vendor->id;
-        } elseif (! empty($validatedData['vendor_id'])) {
-            // Admin/WOC selected a vendor from dropdown
-            // Verify the selected vendor is actually assigned to this work order
-            $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
-            $vendorExists = $workOrder?->vendors()->where('vendors.id', $validatedData['vendor_id'])->exists();
+        // if ($user->vendor) {
+        //     // If user is a vendor, use their vendor_id
+        //     $validatedData['vendor_id'] = $user->vendor->id;
+        // } elseif (! empty($validatedData['vendor_id'])) {
+        //     // Admin/WOC selected a vendor from dropdown
+        //     // Verify the selected vendor is actually assigned to this work order
+        //     $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
+        //     $vendorExists = $workOrder?->vendors()->where('vendors.id', $validatedData['vendor_id'])->exists();
 
-            if (! $vendorExists) {
-                return redirect()->back()->withErrors('Selected vendor is not assigned to this work order.');
-            }
-        } else {
-            // No vendor_id provided, check if work order has vendors
-            $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
-            $firstVendor = $workOrder?->vendors()->first();
+        //     if (! $vendorExists) {
+        //         return redirect()->back()->withErrors('Selected vendor is not assigned to this work order.');
+        //     }
+        // } else {
+        //     // No vendor_id provided, check if work order has vendors
+        //     $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
+        //     $firstVendor = $workOrder?->vendors()->first();
 
-            if (! $firstVendor) {
-                return redirect()->back()->withErrors('No vendor assigned to this work order. Please assign a vendor first.');
-            }
+        //     if (! $firstVendor) {
+        //         return redirect()->back()->withErrors('No vendor assigned to this work order. Please assign a vendor first.');
+        //     }
 
-            $validatedData['vendor_id'] = $firstVendor->id;
-        }
+        //     $validatedData['vendor_id'] = $firstVendor->id;
+        // }
 
         if ($request->hasFile('filename')) {
             $file = $request->file('filename');
