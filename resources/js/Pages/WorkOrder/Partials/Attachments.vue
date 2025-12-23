@@ -114,7 +114,6 @@ const handleDeleteImageSubmit = () => {
 
 const handleFetchAttachment = () => {
     emit("fetch-attachments");
-    openCameraModal.value = true;
 };
 
 const handleFormSubmit = () => {

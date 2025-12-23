@@ -36,10 +36,11 @@ class DashboardController extends Controller
                 COUNT(CASE WHEN status = "Closed" THEN 1 END) as completed_work_orders,
                 COUNT(CASE WHEN status = "Open" AND service_status_id = 1 THEN 1 END) as pending_work_orders,
                 COUNT(CASE WHEN status = "Open" AND service_status_id != 1 THEN 1 END) as process_work_orders,
-                COUNT(CASE WHEN priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
+                COUNT(CASE WHEN status = "Open" AND priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
             ')
             ->scoped()
             ->whereYear('created_date', $year)
+            ->whereIn('status', ['Open', 'Closed'])
             ->first();
 
         $taskStats = WorkOrderTask::selectRaw('

@@ -172,16 +172,15 @@ class ConversationController extends Controller
          * - 11 digits starting with 1 → US
          */
         if (strlen($digits) === 10) {
-            return '+1' . $digits;
+            return '+1'.$digits;
         }
 
         if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
-            return '+' . $digits;
+            return '+'.$digits;
         }
 
         throw new InvalidArgumentException('The provided phone number must be a valid US number.');
     }
-
 
     private function sendNotification($conversation, $validatedData, $workOrder): void
     {

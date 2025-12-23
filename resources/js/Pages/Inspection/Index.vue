@@ -60,6 +60,7 @@ import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import axios from "axios";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
+import { Skeleton } from "@/Components/ui/skeleton";
 import {
     Dialog,
     DialogContent,
@@ -822,11 +823,26 @@ usePoll(15000, {
         >
             <Deferred data="jobsByStatus">
                 <template #fallback>
-                    <div
-                        class="flex items-center justify-center gap-2 w-full h-[70vh]"
-                    >
-                        <Loader2 class="animate-spin" />
-                        <span class="text-gray-700">Loading...</span>
+                    <div class="flex gap-2">
+                        <!-- Skeleton columns -->
+                        <div
+                            v-for="column in 5"
+                            :key="column"
+                            class="overflow-hidden min-w-[250px] max-w-[250px]"
+                        >
+                            <!-- Column header skeleton -->
+                            <div class="text-center font-semibold">
+                                <Skeleton class="h-16 w-full rounded-none mb-2" />
+                            </div>
+                            <!-- Card skeletons -->
+                            <div class="space-y-2">
+                                <Skeleton
+                                    v-for="card in 4"
+                                    :key="card"
+                                    class="h-[180px] w-full rounded-lg"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </template>
 

@@ -62,10 +62,12 @@ class PropertyWareService
                         'body' => $response->body(),
                     ],
                 ]);
+
                 return false;
             }
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
+
             return 'Error: '.$e->getMessage();
         }
 
@@ -837,12 +839,10 @@ class PropertyWareService
                 throw new \Exception('File does not exist: '.$absolutePath);
             }
 
-            $fileContents = file_get_contents($absolutePath);
-
             $title = $attachment['title'] ?? 'Invoice';
 
             // Replace spaces with underscores
-            $cleaned = str_replace(' ', '_', strtolower($title));
+            $cleaned = str_replace(' ', '_', $title);
 
             // Replace slashes and other unsafe characters with dashes or remove them
             $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
@@ -853,6 +853,7 @@ class PropertyWareService
             // Ensure filename is always unique
             $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($attachment['filename'], PATHINFO_EXTENSION);
 
+            // Read file once (fixed duplicate read)
             $fileContents = file_get_contents($absolutePath);
 
             $formFields = [
@@ -933,7 +934,7 @@ class PropertyWareService
             $title = $invoice->title ?? 'Invoice';
 
             // Replace spaces with underscores
-            $cleaned = str_replace(' ', '_', strtolower($title));
+            $cleaned = str_replace(' ', '_', $title);
             // Replace slashes and other unsafe characters with dashes or remove them
             $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
             // Optional: remove anything that's not alphanumeric, underscore, or dash
@@ -947,7 +948,7 @@ class PropertyWareService
             Log::debug('Invoices data', [
                 'fileName' => $fileName,
                 'formFields' => $formFields,
-                'path' => $absolutePath
+                'path' => $absolutePath,
             ]);
 
             $response = Http::withHeaders($this->headers)
@@ -1138,11 +1139,11 @@ class PropertyWareService
             // Send PATCH request to PropertyWare REST API
             $response = Http::withHeaders($this->headers)
                 ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id,
-                [
-                    'costEstimate' => $cost_etimate,
-                    'hourEstimate' => $time_estimate,
-                    'scheduledEndDate' => $scheduled_end_date ? Carbon::parse($scheduled_end_date)->format('Y-m-d') : null,
-                ]);
+                    [
+                        'costEstimate' => $cost_etimate,
+                        'hourEstimate' => $time_estimate,
+                        'scheduledEndDate' => $scheduled_end_date ? Carbon::parse($scheduled_end_date)->format('Y-m-d') : null,
+                    ]);
 
             // Sync approval status if requested
             if ($syncApproval) {
@@ -1186,9 +1187,9 @@ class PropertyWareService
             // Send PATCH request to PropertyWare REST API
             $response = Http::withHeaders($this->headers)
                 ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id,
-                [
-                    'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : null,
-                ]);
+                    [
+                        'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : null,
+                    ]);
 
             // Sync approval status if requested
             if ($syncApproval) {

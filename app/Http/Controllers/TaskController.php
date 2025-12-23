@@ -39,6 +39,7 @@ class TaskController extends Controller
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
                 $task->scheduled_end_date = $workOrder->scheduled_end_date;
+
                 return $task;
             });
         });
@@ -49,6 +50,7 @@ class TaskController extends Controller
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
                 $task->scheduled_end_date = $workOrder->scheduled_end_date;
+
                 return $task;
             });
         });
@@ -60,6 +62,7 @@ class TaskController extends Controller
             })->map(function ($task) use ($workOrder) {
                 $task->work_order_no = $workOrder->work_order_no; // Add work_order_id to the task
                 $task->scheduled_end_date = $workOrder->scheduled_end_date;
+
                 return $task;
             });
         });

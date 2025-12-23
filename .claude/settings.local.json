@@ -32,7 +32,8 @@
       "Bash(do grep -n \"const loading = ref\" \"resources/js/Pages/WorkOrder/Partials/$file\")",
       "Bash(done)",
       "WebFetch(domain:app.propertyware.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(composer show:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

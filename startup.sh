@@ -10,6 +10,12 @@ apt-get update --allow-releaseinfo-change && apt-get install -y libfreetype6-dev
                 libjpeg62-turbo-dev \
                 libpng-dev \
                 libwebp-dev \
+                jpegoptim \
+                optipng \
+                pngquant \
+                gifsicle \
+                webp \
+                libavif-bin \
         && docker-php-ext-configure gd --with-freetype --with-webp  --with-jpeg
 docker-php-ext-install gd
 
