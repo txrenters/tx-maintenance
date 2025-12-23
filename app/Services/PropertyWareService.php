@@ -848,7 +848,7 @@ class PropertyWareService
             $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
 
             // Optional: remove anything that's not alphanumeric, underscore, or dash
-            $sanitized = preg_replace('/[^a-z0-9_\-]/', '', $cleaned);
+            $sanitized = preg_replace('/[^a-zA-Z0-9_\-]/', '', $cleaned);
 
             // Ensure filename is always unique
             $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($attachment['filename'], PATHINFO_EXTENSION);
