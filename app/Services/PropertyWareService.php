@@ -724,9 +724,6 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
-        // Ensure location has a valid value - PropertyWare doesn't accept empty locations
-        $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
-
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -744,7 +741,6 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
-                        <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -758,7 +754,23 @@ class PropertyWareService
         // Execute SOAP request
         $res = $this->execute($xmlPayload);
 
-        $this->approvedWorkOrder($workOrder);
+        // Check if SOAP request failed
+        if (! $res['success']) {
+            Log::error('Failed to update work order vendors in PropertyWare', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'category' => $workOrder->category,
+                'type' => $workOrder->type,
+                'error' => $res['error'],
+                'message' => $res['message'],
+            ]);
+
+            throw new \Exception('PropertyWare API Error: '.$res['message']);
+        }
+
+        if ($workOrder->is_approved) {
+            $this->approvedWorkOrder($workOrder);
+        }
 
         $vendor = DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->first();
         $vendorName = Vendor::find($vendor->vendor_id);
@@ -1231,8 +1243,8 @@ class PropertyWareService
 
             $work_order_no = $workOrder->work_order_no;
             $approved = $workOrder->is_approved;
-            $approvedDate = $workOrder->approved_date;
-            $approvalComment = $workOrder->approval_comments;
+            $approvedDate = $workOrder->approved_date ?? '';
+            $approvalComment = $workOrder->approval_comments ?? '';
 
             $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
 
