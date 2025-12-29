@@ -724,6 +724,20 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
+        // If location is missing, fetch it from PropertyWare first
+        $location = $workOrder->location;
+        if (empty($location)) {
+            $pwWorkOrder = $this->getWorkOrder($workorderId);
+            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
+                $location = $pwWorkOrder['location'];
+                $workOrder->location = $location;
+                $workOrder->save();
+            } else {
+                // Use specificLocation as fallback, or 'General' as last resort
+                $location = $workOrder->specific_location ?? 'General';
+            }
+        }
+
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -741,6 +755,7 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
+                        <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -759,8 +774,11 @@ class PropertyWareService
             Log::error('Failed to update work order vendors in PropertyWare', [
                 'work_order_id' => $workOrder->id,
                 'work_order_no' => $workOrder->work_order_no,
+                'location' => $location,
                 'category' => $workOrder->category,
                 'type' => $workOrder->type,
+                'building_id' => $buildigId,
+                'portfolio_id' => $portfolioId,
                 'error' => $res['error'],
                 'message' => $res['message'],
             ]);
@@ -1304,8 +1322,6 @@ class PropertyWareService
                 'full_url' => $this->url,
             ]);
 
-            curl_close($curl);
-
             return [
                 'success' => false,
                 'error' => 'CURL_ERROR',
@@ -1318,16 +1334,12 @@ class PropertyWareService
             $faultString = $this->extractFaultString($response);
             Log::error('SOAP Fault: '.$faultString);
 
-            curl_close($curl);
-
             return [
                 'success' => false,
                 'error' => 'SOAP_FAULT',
                 'message' => $faultString,
             ];
         }
-
-        curl_close($curl);
 
         return [
             'success' => true,
