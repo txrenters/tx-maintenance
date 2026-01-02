@@ -156,7 +156,12 @@ class WorkOrderImportCommand extends Command
                 }
             }
 
-            DB::table('work_orders')->updateOrInsert(
+            // DB::table('work_orders')->updateOrInsert(
+            //     ['propertyware_id' => $work_order_propertyware_id],
+            //     $work_order_data
+            // );
+
+            WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
