@@ -72,7 +72,6 @@ class UpdateWorkOrderStatus extends Command
                                 'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
                                 'description' => $data['description'] ?? $workOrder->description,
                                 'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
-                                'location' => ! empty($workOrder->location) ? $workOrder->location : $data['location'],
                                 'priority' => $data['priority'] ?? $workOrder->priority,
                                 'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
                                 'source' => $data['source'] ?? $workOrder->source,
