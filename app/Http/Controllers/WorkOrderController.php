@@ -394,6 +394,160 @@ class WorkOrderController extends Controller
         ]);
     }
 
+    public function inspections_work_orders(Request $request)
+    {
+        $query = ServiceStatus::with([
+            'work_order',
+            'work_order.owners',
+            'work_orders' => function ($query) {
+                $query->scoped()
+                    ->when(request('search'), function ($q, $search) {
+                        $q->where('work_order_no', $search);
+                    })
+                    ->when(request('vendor'), function ($q, $vendorId) {
+                        $q->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                        $date = request()->only(['start_date', 'end_date']);
+                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                        $q->whereBetween('created_date', [$start_date, $end_date]);
+                    })
+                    ->where('category', 'LIKE', '%inspection%')
+                    ->where('status', 'Open');
+            },
+            'work_orders.service_status',
+            'work_orders.vendors.user',
+            'work_orders.requested_by',
+            'work_orders.managed_by',
+            'work_orders.tasks',
+            'work_orders.owners',
+        ])
+            ->whereNot('name', 'Not Changed');
+
+        $service_status = $query->get();
+
+        // Remove statuses that should be at the end
+        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
+        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
+        $closedStatus = $service_status->firstWhere('name', 'Closed');
+
+        $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+            'Completed - Verified - Waiting on Bill',
+            'Approved - Waiting on Payment',
+            'Closed',
+        ]));
+
+        // Add "Paid" service status with inspection work orders that have payment (total_cost not 0) within 30 days
+        $paidStatus = ServiceStatus::where('name', 'Paid')->first();
+        if ($paidStatus) {
+            $paidWorkOrders = WorkOrder::query()
+                ->scoped()
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->when(request('search'), function ($query, $search) {
+                    $query->where('work_order_no', $search);
+                })
+                ->when(request('vendor'), function ($query, $vendorId) {
+                    $query->whereHas('vendors', function ($q) use ($vendorId) {
+                        $q->where('work_order_vendors.vendor_id', $vendorId);
+                    });
+                })
+                ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                    $date = request()->only(['start_date', 'end_date']);
+                    $start = Carbon::parse($date['start_date'])->startOfDay();
+                    $end = Carbon::parse($date['end_date'])->endOfDay();
+                    $query->whereBetween('created_date', [$start, $end]);
+                })
+                ->where('category', 'LIKE', '%inspection%')
+                ->whereNotNull('total_cost')
+                ->where('total_cost', '>', 0)
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(30))
+                ->latest('completed_date')
+                ->get();
+
+            $paidStatus->setRelation('work_orders', $paidWorkOrders);
+        }
+
+        // Add "Closed" service status with inspection work orders within 30 days
+        $closedStatus = ServiceStatus::where('name', 'Closed')->first();
+        if ($closedStatus) {
+            $closedWorkOrders = WorkOrder::query()
+                ->scoped()
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->when(request('search'), function ($query, $search) {
+                    $query->where('work_order_no', $search);
+                })
+                ->when(request('vendor'), function ($query, $vendorId) {
+                    $query->whereHas('vendors', function ($q) use ($vendorId) {
+                        $q->where('work_order_vendors.vendor_id', $vendorId);
+                    });
+                })
+                ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                    $date = request()->only(['start_date', 'end_date']);
+                    $start = Carbon::parse($date['start_date'])->startOfDay();
+                    $end = Carbon::parse($date['end_date'])->endOfDay();
+                    $query->whereBetween('created_date', [$start, $end]);
+                })
+                ->where('category', 'LIKE', '%inspection%')
+                ->where('status', 'Closed')
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(30))
+                ->latest('completed_date')
+                ->get();
+
+            $closedStatus->setRelation('work_orders', $closedWorkOrders);
+        }
+
+        // Add statuses at the end in specific order
+        if ($waitingOnBillStatus) {
+            $service_status->push($waitingOnBillStatus);
+        }
+        if ($waitingOnPaymentStatus) {
+            $service_status->push($waitingOnPaymentStatus);
+        }
+        if ($paidStatus) {
+            $service_status->push($paidStatus);
+        }
+        if ($closedStatus) {
+            $service_status->push($closedStatus);
+        }
+
+        // Hide specific statuses from vendors
+        if ($request->user()->hasRole('vendor')) {
+            $query->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Closed',
+                'Paid',
+            ]);
+        }
+
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
+        $vendorUserIds = $vendors->pluck('user_id')->toArray();
+
+        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
+            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
+                ->whereIn('id', $vendorUserIds)
+            )
+            ->orderBy('name', 'ASC')
+            ->get();
+
+        return inertia('WorkOrder/Inspections', [
+            'title' => 'Inspection Work Orders',
+            'service_status' => Inertia::defer(fn () => $service_status),
+            'vendors' => Inertia::defer(fn () => $vendors),
+            'categories' => Inertia::defer(fn () => $categories),
+            'users' => Inertia::defer(fn () => $users),
+            'filter' => $request->only(['search', 'per_page', 'vendor']),
+        ]);
+    }
+
     public function vendor_change(Request $request, WorkOrder $workOrder)
     {
         $request->validate([

@@ -67,7 +67,7 @@ class InspectionController extends Controller
         ];
 
         return inertia('Inspection/Index', [
-            'title' => 'Inspections',
+            'title' => 'All Jobs',
             'jobsByStatus' => Inertia::defer(fn () => $jobsByStatus),
             'statistics' => $statistics,
             'access_token_exist' => $this->accessTokenExist(),
@@ -150,7 +150,7 @@ class InspectionController extends Controller
             });
 
         return inertia('Inspection/Messages', [
-            'title' => 'Jobber Messages',
+            'title' => 'Jobs Messages',
             'conversations' => $convos,
         ]);
     }

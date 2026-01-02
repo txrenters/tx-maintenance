@@ -83,6 +83,7 @@ import {
     HammerIcon,
     FileIcon,
     WrenchIcon,
+    Briefcase,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
 
@@ -122,6 +123,28 @@ const navs = computed(() => ({
                     isActive: page.component === "WorkOrder/Close",
                 },
             ],
+            requires: ["admin", "woc", "vendor", "tenant", "owner"],
+        },
+        {
+            title: "Jobs (Jobber)",
+            url: "#",
+            icon: Briefcase,
+            isActive:
+                page.url.startsWith("/inspections") ||
+                page.url.startsWith("/visits"),
+            items: [
+                {
+                    title: "All Jobs",
+                    url: route("inspections.index"),
+                    isActive: page.url.startsWith("/inspections"),
+                },
+                {
+                    title: "Visits",
+                    url: route("visits.index"),
+                    isActive: page.url.startsWith("/visits"),
+                },
+            ],
+            requires: ["admin", "woc"],
         },
     ],
     menu: [
@@ -135,10 +158,8 @@ const navs = computed(() => ({
     menu2: [
         {
             name: "Inspections",
-            url: route("inspections.index"),
-            isActive:
-                page.url.startsWith("/inspections") ||
-                page.url.startsWith("/visits"),
+            url: route("work_orders.inspections"),
+            isActive: page.url.startsWith("/work_orders/inspections"),
             icon: Hammer,
             requires: ["admin", "woc"],
         },
@@ -515,7 +536,7 @@ onUnmounted(() => {
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     </SidebarMenu>
-                    <SidebarMenu>
+                    <SidebarMenu class="mb-1">
                         <Collapsible
                             v-for="item in navs.navMain"
                             :key="item.title"
@@ -540,6 +561,7 @@ onUnmounted(() => {
                                         <SidebarMenuSubItem
                                             v-for="subItem in item.items"
                                             :key="subItem.title"
+                                            v-if="canAccess(item.requires)"
                                         >
                                             <SidebarMenuSubButton as-child>
                                                 <Link

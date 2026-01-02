@@ -596,18 +596,18 @@ const needsReconnect = ref(false);
 // Manual sync function
 const manualSync = async () => {
     if (isSyncing.value) return;
-    
+
     isSyncing.value = true;
     try {
         const response = await axios.post(route("jobber.sync"));
-        
+
         if (response.data.success) {
             toast({
                 title: "Sync Successful",
                 description: "Jobber data has been synced successfully",
                 variant: "default",
             });
-            
+
             // Reload the page to show updated data
             router.reload({
                 preserveState: false,
@@ -616,7 +616,7 @@ const manualSync = async () => {
         }
     } catch (error) {
         console.error("Sync error:", error);
-        
+
         // Check if we need to reconnect
         if (error.response?.data?.needs_reconnect) {
             needsReconnect.value = true;
@@ -628,7 +628,9 @@ const manualSync = async () => {
         } else {
             toast({
                 title: "Sync Failed",
-                description: error.response?.data?.message || "Failed to sync with Jobber",
+                description:
+                    error.response?.data?.message ||
+                    "Failed to sync with Jobber",
                 variant: "destructive",
             });
         }
@@ -805,11 +807,11 @@ usePoll(15000, {
                     variant="outline"
                     class="flex items-center gap-2"
                 >
-                    <RefreshCw 
+                    <RefreshCw
                         class="h-4 w-4"
                         :class="{ 'animate-spin': isSyncing }"
                     />
-                    {{ isSyncing ? 'Syncing...' : 'Sync Jobber' }}
+                    {{ isSyncing ? "Syncing..." : "Sync Jobber" }}
                 </Button>
             </template>
             <Navigation />
@@ -832,7 +834,9 @@ usePoll(15000, {
                         >
                             <!-- Column header skeleton -->
                             <div class="text-center font-semibold">
-                                <Skeleton class="h-16 w-full rounded-none mb-2" />
+                                <Skeleton
+                                    class="h-16 w-full rounded-none mb-2"
+                                />
                             </div>
                             <!-- Card skeletons -->
                             <div class="space-y-2">

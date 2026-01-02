@@ -116,10 +116,54 @@ class DashboardController extends Controller
 
     private function getWorkOrderChart($year)
     {
-        $months = collect([
+        $currentYear = Carbon::now()->year;
+        $months = collect();
+
+        // If current year or no filter, show rolling 12 months
+        if ($year == $currentYear) {
+            $startDate = Carbon::now()->subMonths(11)->startOfMonth();
+
+            for ($i = 0; $i < 12; $i++) {
+                $date = $startDate->copy()->addMonths($i);
+                $months->push([
+                    'month' => $date->month,
+                    'year' => $date->year,
+                    'label' => $date->format('M Y'), // e.g., "Feb 2025"
+                ]);
+            }
+
+            // Query work orders for the last 12 months
+            $workOrderData = WorkOrder::selectRaw('
+                    MONTH(created_date) as month,
+                    YEAR(created_date) as year,
+                    SUM(CASE WHEN status = "Closed" THEN 1 ELSE 0 END) as Completed,
+                    COUNT(id) as Created
+                ')
+                ->scoped()
+                ->where('created_date', '>=', $startDate)
+                ->groupByRaw('YEAR(created_date), MONTH(created_date)')
+                ->get()
+                ->keyBy(function ($item) {
+                    return $item->year.'-'.$item->month;
+                });
+
+            return $months->map(function ($monthData) use ($workOrderData) {
+                $key = $monthData['year'].'-'.$monthData['month'];
+                $data = $workOrderData->get($key);
+
+                return [
+                    'name' => $monthData['label'],
+                    'Created' => $data?->Created ?? 0,
+                    'Completed' => $data?->Completed ?? 0,
+                ];
+            });
+        }
+
+        // For past years, show all 12 months of that specific year
+        $monthNames = [
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December',
-        ]);
+        ];
 
         $workOrderData = WorkOrder::selectRaw('
                 MONTHNAME(created_date) as name,
@@ -133,7 +177,7 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('name');
 
-        return $months->map(function ($month) use ($workOrderData) {
+        return collect($monthNames)->map(function ($month) use ($workOrderData) {
             $data = $workOrderData->get($month);
 
             return [

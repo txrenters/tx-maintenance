@@ -66,6 +66,7 @@ Route::middleware([
 
     Route::resource('/work_orders', WorkOrderController::class);
     Route::get('/work_orders/closed/done', [WorkOrderController::class, 'closed_work_orders'])->name('work_orders.closed_work_orders');
+    Route::get('/work_orders/inspections/all', [WorkOrderController::class, 'inspections_work_orders'])->name('work_orders.inspections');
     Route::get('/work_orders/{workOrder}/details', [WorkOrderController::class, 'details'])->name('work_orders.details');
     Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
     Route::put('/work_orders/{workOrder}/close', [WorkOrderController::class, 'close'])->name('work_orders.close');

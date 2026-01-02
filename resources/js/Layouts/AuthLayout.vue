@@ -28,8 +28,7 @@ const currentYear = new Date().getFullYear();
                         class="font-bold text-primary text-decoration-none"
                         >TexasRenters.com</a
                     >
-                    Maintenance Portal – Powered by Propertyware. All rights
-                    reserved.
+                    Maintenance Portal. All rights reserved.
                     <br />
                     <span>
                         Developed and maintained by Texas Renters IT Department.

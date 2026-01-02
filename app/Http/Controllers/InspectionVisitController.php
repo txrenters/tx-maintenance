@@ -68,7 +68,7 @@ class InspectionVisitController extends Controller
         });
 
         return inertia('Inspection/Schedules', [
-            'title' => 'Job Schedules',
+            'title' => 'Scheduled Visits',
             'events' => $events,
             'currentWeekRange' => [
                 'start' => $weekStart->format('Y-m-d'),

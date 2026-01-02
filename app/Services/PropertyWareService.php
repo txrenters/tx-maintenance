@@ -724,18 +724,28 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
-        // If location is missing, fetch it from PropertyWare first
+        // Always fetch the location from PropertyWare to ensure it matches their format
         $location = $workOrder->location;
-        if (empty($location)) {
-            $pwWorkOrder = $this->getWorkOrder($workorderId);
-            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
-                $location = $pwWorkOrder['location'];
+        $pwWorkOrder = $this->getWorkOrder($workorderId);
+
+        if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
+            // Use PropertyWare's location to avoid validation errors
+            $location = $pwWorkOrder['location'];
+
+            // Update local database if it's different
+            if ($workOrder->location !== $location) {
                 $workOrder->location = $location;
                 $workOrder->save();
-            } else {
-                // Use specificLocation as fallback, or 'General' as last resort
-                $location = $workOrder->specific_location ?? 'General';
+
+                Log::info('Updated work order location from PropertyWare', [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'old_location' => $workOrder->location,
+                    'new_location' => $location,
+                ]);
             }
+        } elseif (empty($location)) {
+            // Use specificLocation as fallback, or 'General' as last resort
+            $location = $workOrder->specific_location ?? 'General';
         }
 
         $xmlPayload = '
@@ -766,24 +776,63 @@ class PropertyWareService
                     </soapenv:Body>
                 </soapenv:Envelope>';
 
-        // Execute SOAP request
-        $res = $this->execute($xmlPayload);
+        // Execute SOAP request with retry logic for location errors
+        $maxRetries = 3;
+        $retryDelay = 2; // seconds
 
-        // Check if SOAP request failed
-        if (! $res['success']) {
-            Log::error('Failed to update work order vendors in PropertyWare', [
-                'work_order_id' => $workOrder->id,
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            $res = $this->execute($xmlPayload);
+
+            // Success - break out of retry loop
+            if ($res['success']) {
+                break;
+            }
+
+            // Check if it's a location validation error
+            $isLocationError = $res['error'] === 'SOAP_FAULT' &&
+                               strpos($res['message'], 'Location is invalid') !== false;
+
+            // If it's the last attempt or not a location error, fail immediately
+            if ($attempt === $maxRetries || ! $isLocationError) {
+                Log::error('Failed to update work order vendors in PropertyWare', [
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                    'location' => $location,
+                    'category' => $workOrder->category,
+                    'type' => $workOrder->type,
+                    'building_id' => $buildigId,
+                    'portfolio_id' => $portfolioId,
+                    'error' => $res['error'],
+                    'message' => $res['message'],
+                    'attempts' => $attempt,
+                ]);
+
+                throw new \Exception('PropertyWare API Error: '.$res['message']);
+            }
+
+            // Location error - retry after delay
+            Log::warning('Location validation failed, retrying...', [
                 'work_order_no' => $workOrder->work_order_no,
-                'location' => $location,
-                'category' => $workOrder->category,
-                'type' => $workOrder->type,
-                'building_id' => $buildigId,
-                'portfolio_id' => $portfolioId,
-                'error' => $res['error'],
-                'message' => $res['message'],
+                'attempt' => $attempt,
+                'max_retries' => $maxRetries,
+                'retry_delay' => $retryDelay,
             ]);
 
-            throw new \Exception('PropertyWare API Error: '.$res['message']);
+            sleep($retryDelay);
+            $retryDelay *= 2; // Exponential backoff
+
+            // Refresh location from PropertyWare before retry
+            $pwWorkOrder = $this->getWorkOrder($workorderId);
+            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
+                $location = $pwWorkOrder['location'];
+
+                // Update the XML payload with the refreshed location
+                $xmlPayload = str_replace(
+                    '<location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>',
+                    '<location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>',
+                    $xmlPayload
+                );
+            }
         }
 
         if ($workOrder->is_approved) {
@@ -1055,8 +1104,22 @@ class PropertyWareService
 
             $workorderId = $workOrder->propertyware_id;
 
-            // Validate required fields before sending to PropertyWare
-            if (! $workOrder->location || trim($workOrder->location) === '') {
+            // Fetch current location from PropertyWare to ensure accuracy
+            $pwWorkOrder = $this->getWorkOrder($workorderId);
+            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
+                $location = $pwWorkOrder['location'];
+
+                // Update local database if different
+                if ($workOrder->location !== $location) {
+                    $workOrder->location = $location;
+                    $workOrder->save();
+
+                    Log::info('Synchronized work order location from PropertyWare', [
+                        'work_order_no' => $workOrder->work_order_no,
+                        'location' => $location,
+                    ]);
+                }
+            } elseif (! $workOrder->location || trim($workOrder->location) === '') {
                 Log::warning('Work order location is empty, skipping PropertyWare sync', [
                     'work_order_no' => $workOrder->work_order_no,
                     'work_order_id' => $workOrder->id,
