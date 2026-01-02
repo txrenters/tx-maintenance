@@ -90,7 +90,19 @@ class ConversationController extends Controller
         }
 
         $senderNumber = $validatedData['sender_phone_number'];
-        $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
+
+        // Validate and format receiver number
+        try {
+            $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
+        } catch (InvalidArgumentException $e) {
+            Log::error('Invalid phone number format', [
+                'sender' => $senderNumber,
+                'receiver' => $validatedData['receiver_phone_number'],
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->with('error', 'Invalid phone number. Please check the phone number and try again.');
+        }
 
         try {
 

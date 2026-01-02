@@ -161,7 +161,7 @@ const navs = computed(() => ({
             url: route("work_orders.inspections"),
             isActive: page.url.startsWith("/work_orders/inspections"),
             icon: Hammer,
-            requires: ["admin", "woc"],
+            requires: ["admin", "woc",'vendor'],
         },
         {
             name: "Coordinators",
@@ -265,6 +265,12 @@ const canAccess = (requiredRoles) => {
     // Ensure roles are valid arrays
     const userRoles = page.props.auth.user.roles || []; // Default to an empty array if undefined
     requiredRoles = requiredRoles || []; // Default to an empty array if undefined
+
+    // Special access for specific vendor email
+    const userEmail = page.props.auth.user.email;
+    if (userEmail === 'thmp@texasrenters.com') {
+        return true;
+    }
 
     // Use filter to find matching roles
     const matchingRoles = userRoles.filter((role) =>
