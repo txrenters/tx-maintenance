@@ -754,7 +754,6 @@ class WorkOrderController extends Controller
         $work_order_no = (int) $work_order_no;
         $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
 
-
         $importWorkOrder = new WorkOrderService;
         $importWorkOrder->handle($workOrders);
 
