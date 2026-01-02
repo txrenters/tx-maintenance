@@ -242,7 +242,8 @@ const getStatusColor = (index) => {
             >
                 <CardTitle
                     class="text-sm font-medium text-blue-700 dark:text-blue-300"
-                    >Total Work Orders</CardTitle
+                >
+                    Work Orders</CardTitle
                 >
                 <div class="p-2 bg-blue-500/10 rounded-lg">
                     <Wrench class="h-4 w-4 text-blue-600 dark:text-blue-400" />

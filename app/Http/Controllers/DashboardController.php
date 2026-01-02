@@ -20,15 +20,15 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'title' => 'Dashboard',
-            'stats' => $this->getEssentialStats($year),
+            'stats' => $this->getEssentialStats(),
             'filter' => $request->only(['year']),
             'workOrderChart' => $this->getWorkOrderChart($year),
-            'serviceStatus' => $this->getServiceStatus($year),
-            'inspectionAnalytics' => $this->getInspectionAnalytics($year),
+            'serviceStatus' => $this->getServiceStatus(),
+            'inspectionAnalytics' => $this->getInspectionAnalytics(),
         ]);
     }
 
-    private function getEssentialStats($year)
+    private function getEssentialStats()
     {
         // Use efficient aggregate queries instead of loading full collections
         $workOrderStats = WorkOrder::selectRaw('
@@ -39,7 +39,6 @@ class DashboardController extends Controller
                 COUNT(CASE WHEN status = "Open" AND priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
             ')
             ->scoped()
-            ->whereYear('created_date', $year)
             ->whereIn('status', ['Open', 'Closed'])
             ->first();
 
@@ -47,14 +46,12 @@ class DashboardController extends Controller
                 COUNT(*) as total_tasks,
                 COUNT(CASE WHEN status = "completed" THEN 1 END) as completed_tasks
             ')
-            ->whereYear('created_at', $year)
             ->first();
 
         $inspectionStats = Jobber::selectRaw('
                 COUNT(*) as total_inspections,
                 COUNT(CASE WHEN job_status NOT IN ("archived", "closed", "completed", "cancelled", "done") THEN 1 END) as active_inspections
             ')
-            ->whereYear('created_at', $year)
             ->first();
 
         $visitStats = JobberVisit::selectRaw('
@@ -62,7 +59,6 @@ class DashboardController extends Controller
                 COUNT(CASE WHEN is_complete = 0 AND start_at < NOW() THEN 1 END) as overdue_inspections,
                 COUNT(CASE WHEN is_complete = 0 AND start_at >= NOW() THEN 1 END) as upcoming_inspections
             ')
-            ->whereYear('start_at', $year)
             ->first();
 
         // Calculate monthly growth rate efficiently
@@ -89,7 +85,6 @@ class DashboardController extends Controller
                 AVG(DATEDIFF(completed_date, created_date)) as avg_completion_days
             ')
             ->scoped()
-            ->whereYear('created_date', $year)
             ->whereNotNull('completed_date')
             ->where('completed_date', '>', DB::raw('created_date'))
             ->first();
@@ -188,15 +183,14 @@ class DashboardController extends Controller
         });
     }
 
-    private function getServiceStatus($year)
+    private function getServiceStatus()
     {
         return ServiceStatus::withCount([
             // Count all related work orders for this service status
-            'work_orders as total' => function ($q) use ($year) {
+            'work_orders as total' => function ($q) {
                 // Apply your WorkOrderScope and filters automatically
                 $q->filtered() // If you have a local scope named filtered()
                     ->scoped()   // If you have a local/global scope named scoped()
-                    ->whereYear('created_date', $year)
                     ->where('work_orders.status', 'Open');
             },
         ])
@@ -209,14 +203,13 @@ class DashboardController extends Controller
             ]);
     }
 
-    private function getInspectionAnalytics($year)
+    private function getInspectionAnalytics()
     {
         // Return minimal inspection analytics for charts
         $inspectionsByDayOfWeek = JobberVisit::selectRaw('
                 DAYOFWEEK(start_at) - 1 as day_of_week,
                 COUNT(*) as count
             ')
-            ->whereYear('start_at', $year)
             ->groupBy('day_of_week')
             ->get()
             ->keyBy('day_of_week');
@@ -232,17 +225,16 @@ class DashboardController extends Controller
 
         return [
             'inspectionsByDayOfWeek' => $inspectionsByDay,
-            'completionRate' => $this->getInspectionCompletionRate($year),
+            'completionRate' => $this->getInspectionCompletionRate(),
         ];
     }
 
-    private function getInspectionCompletionRate($year)
+    private function getInspectionCompletionRate()
     {
         $stats = JobberVisit::selectRaw('
                 COUNT(*) as total_visits,
                 COUNT(CASE WHEN is_complete = 1 THEN 1 END) as completed_visits
             ')
-            ->whereYear('start_at', $year)
             ->first();
 
         if ($stats->total_visits == 0) {

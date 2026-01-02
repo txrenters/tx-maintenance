@@ -720,6 +720,9 @@ class PropertyWareService
 
         // Build SOAP payload without location field to avoid validation errors
         // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
+
+        $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
+
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -737,6 +740,7 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
+                        <location xsi:type="xsd:string">'.$location.'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
