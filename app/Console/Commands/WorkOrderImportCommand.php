@@ -103,7 +103,7 @@ class WorkOrderImportCommand extends Command
                 'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
                 'description' => $data['description'] ?? null,
                 'hour_estimate' => $data['hourEstimate'] ?? null,
-                'location' => ! empty($data['location']) ? $data['location'] : $data['building']['portfolio'] . ' | '.$data['building']['abbreviation'],
+                'location' => $data['building']['portfolio'].' | '.$data['building']['abbreviation'],
                 'priority' => ! empty($data['priority']) ? $data['priority'] : false,
                 'priority_as_int' => $data['priorityAsInt'] ?? null,
                 'required_materials' => $data['requiredMaterials'] ?? null,
