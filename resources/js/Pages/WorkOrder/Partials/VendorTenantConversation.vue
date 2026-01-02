@@ -140,7 +140,7 @@ const sendMessage = () => {
         const formData = new FormData();
         formData.append("text", newMessage.value || "");
         formData.append("sender_phone_number", vendor_phone_number);
-        formData.append("receiver_phone_number", selectedTenant.value);
+        formData.append("receiver_phone_number", tenant_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "vendor_tenant");
 
