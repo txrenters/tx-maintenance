@@ -549,9 +549,7 @@ class PropertyWareService
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
 
-            // Ensure location has a valid value - PropertyWare doesn't accept empty locations
-            $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
-
+            // Build SOAP payload without location field to avoid validation errors
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -569,7 +567,6 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Closed</status>
@@ -621,9 +618,7 @@ class PropertyWareService
             $portfolioId = (int) $workOrder->portfolio_id;
             $buildingId = $workOrder->building_id;
 
-            // Ensure location has a valid value - PropertyWare doesn't accept empty locations
-            $location = ! empty($workOrder->location) ? $workOrder->location : 'General';
-
+            // Build SOAP payload without location field to avoid validation errors
             $xmlPayload = '
                     <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -641,7 +636,6 @@ class PropertyWareService
                             <portfolio xsi:type="urn:Portfolio">
                                 <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                             </portfolio>
-                            <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                             <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                             <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                             <status xsi:type="xsd:string">Open</status>
@@ -724,30 +718,8 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
-        // Always fetch the location from PropertyWare to ensure it matches their format
-        $location = $workOrder->location;
-        $pwWorkOrder = $this->getWorkOrder($workorderId);
-
-        if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
-            // Use PropertyWare's location to avoid validation errors
-            $location = $pwWorkOrder['location'];
-
-            // Update local database if it's different
-            if ($workOrder->location !== $location) {
-                $workOrder->location = $location;
-                $workOrder->save();
-
-                Log::info('Updated work order location from PropertyWare', [
-                    'work_order_no' => $workOrder->work_order_no,
-                    'old_location' => $workOrder->location,
-                    'new_location' => $location,
-                ]);
-            }
-        } elseif (empty($location)) {
-            // Use specificLocation as fallback, or 'General' as last resort
-            $location = $workOrder->specific_location ?? 'General';
-        }
-
+        // Build SOAP payload without location field to avoid validation errors
+        // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -765,7 +737,6 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
-                        <location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
@@ -776,63 +747,23 @@ class PropertyWareService
                     </soapenv:Body>
                 </soapenv:Envelope>';
 
-        // Execute SOAP request with retry logic for location errors
-        $maxRetries = 3;
-        $retryDelay = 2; // seconds
+        // Execute SOAP request
+        $res = $this->execute($xmlPayload);
 
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-            $res = $this->execute($xmlPayload);
-
-            // Success - break out of retry loop
-            if ($res['success']) {
-                break;
-            }
-
-            // Check if it's a location validation error
-            $isLocationError = $res['error'] === 'SOAP_FAULT' &&
-                               strpos($res['message'], 'Location is invalid') !== false;
-
-            // If it's the last attempt or not a location error, fail immediately
-            if ($attempt === $maxRetries || ! $isLocationError) {
-                Log::error('Failed to update work order vendors in PropertyWare', [
-                    'work_order_id' => $workOrder->id,
-                    'work_order_no' => $workOrder->work_order_no,
-                    'location' => $location,
-                    'category' => $workOrder->category,
-                    'type' => $workOrder->type,
-                    'building_id' => $buildigId,
-                    'portfolio_id' => $portfolioId,
-                    'error' => $res['error'],
-                    'message' => $res['message'],
-                    'attempts' => $attempt,
-                ]);
-
-                throw new \Exception('PropertyWare API Error: '.$res['message']);
-            }
-
-            // Location error - retry after delay
-            Log::warning('Location validation failed, retrying...', [
+        // Check if SOAP request failed
+        if (! $res['success']) {
+            Log::error('Failed to update work order vendors in PropertyWare', [
+                'work_order_id' => $workOrder->id,
                 'work_order_no' => $workOrder->work_order_no,
-                'attempt' => $attempt,
-                'max_retries' => $maxRetries,
-                'retry_delay' => $retryDelay,
+                'category' => $workOrder->category,
+                'type' => $workOrder->type,
+                'building_id' => $buildigId,
+                'portfolio_id' => $portfolioId,
+                'error' => $res['error'],
+                'message' => $res['message'],
             ]);
 
-            sleep($retryDelay);
-            $retryDelay *= 2; // Exponential backoff
-
-            // Refresh location from PropertyWare before retry
-            $pwWorkOrder = $this->getWorkOrder($workorderId);
-            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
-                $location = $pwWorkOrder['location'];
-
-                // Update the XML payload with the refreshed location
-                $xmlPayload = str_replace(
-                    '<location xsi:type="xsd:string">'.htmlspecialchars($workOrder->location, ENT_XML1, 'UTF-8').'</location>',
-                    '<location xsi:type="xsd:string">'.htmlspecialchars($location, ENT_XML1, 'UTF-8').'</location>',
-                    $xmlPayload
-                );
-            }
+            throw new \Exception('PropertyWare API Error: '.$res['message']);
         }
 
         if ($workOrder->is_approved) {
