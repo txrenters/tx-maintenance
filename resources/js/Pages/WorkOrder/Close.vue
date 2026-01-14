@@ -775,33 +775,26 @@ watch(filter_vendor, filterVendor);
             </Link>
         </div>
     </div>
-    <div>
-        <ScrollArea
-            class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
-        >
-            <Deferred data="service_status">
-                <template #fallback>
-                    <div
-                        class="flex gap-3 mb-3 overflow-hidden"
-                        v-for="value in 3"
-                        :key="value"
-                    >
-                        <Skeleton
-                            v-for="value in 6"
-                            :key="value"
-                            class="h-[180px] w-[240px] rounded-lg"
-                        />
-                    </div>
-                </template>
-
-                <WorkOrderClosedCard
-                    :service_status="service_status"
-                    @showWorkOrder="handleWorkOrder"
+    <Deferred data="service_status">
+        <template #fallback>
+            <div
+                class="flex gap-3 mb-3 overflow-hidden"
+                v-for="value in 3"
+                :key="value"
+            >
+                <Skeleton
+                    v-for="value in 6"
+                    :key="value"
+                    class="h-[180px] w-[240px] rounded-lg"
                 />
-                <ScrollBar orientation="horizontal" />
-            </Deferred>
-        </ScrollArea>
-    </div>
+            </div>
+        </template>
+
+        <WorkOrderClosedCard
+            :service_status="service_status"
+            @showWorkOrder="handleWorkOrder"
+        />
+    </Deferred>
     <Dialog v-model:open="openWorkOrder">
         <DialogScrollContent
             class="flex w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"

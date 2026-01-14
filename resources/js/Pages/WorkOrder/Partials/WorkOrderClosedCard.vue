@@ -64,7 +64,9 @@ const checkDueTask = (tasks) => {
 </script>
 
 <template>
-    <div class="flex flex-row flex-wrap gap-2">
+    <div
+        class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+    >
         <template v-for="status in service_status" :key="status.id">
             <div
                 @click="handleWorkOrder(work_order)"
