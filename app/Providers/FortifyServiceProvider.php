@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -20,7 +21,23 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LoginResponseContract::class, function () {
+            return new class implements LoginResponseContract
+            {
+                public function toResponse($request)
+                {
+                    $user = auth()->user();
+
+                    // Redirect accounting users to waiting on payments page
+                    if ($user->hasRole('accounting')) {
+                        return redirect()->route('work_orders.waiting_on_payment');
+                    }
+
+                    // Default redirect for other users
+                    return redirect()->intended(config('fortify.home'));
+                }
+            };
+        });
     }
 
     /**

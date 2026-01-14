@@ -247,7 +247,7 @@ watch(
                     </p>
                 </div>
 
-                <div class="flex flex-col text-left">
+                <div class="flex flex-col text-left" v-if="woc">
                     <div class="flex gap-2 items-center">
                         <Avatar class="w-5 h-5">
                             <AvatarImage
@@ -259,7 +259,7 @@ watch(
                         </Avatar>
                         {{ woc.name }}
                     </div>
-                    {{ woc.woc_number.twilio_phone_number.phone_number }}
+                    {{ woc.woc_number?.twilio_phone_number?.phone_number }}
                 </div>
             </div>
 

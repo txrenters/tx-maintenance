@@ -78,6 +78,7 @@ import {
     Hammer,
     BookOpen,
     PaperclipIcon,
+    Sprout,
     SendIcon,
     Loader2Icon,
     HammerIcon,
@@ -104,158 +105,198 @@ const data = computed(() => ({
     ],
 }));
 
-const navs = computed(() => ({
-    navMain: [
-        {
-            title: "Work Orders",
-            url: "#",
-            icon: Wrench,
-            isActive: page.url.startsWith("/work_orders"),
-            items: [
-                {
-                    title: "Active",
-                    url: route("work_orders.index"),
-                    isActive: page.component === "WorkOrder/Index",
-                },
-                {
-                    title: "Completed",
-                    url: route("work_orders.closed_work_orders"),
-                    isActive: page.component === "WorkOrder/Close",
-                },
-            ],
-            requires: ["admin", "woc", "vendor", "tenant", "owner"],
-        },
-        {
-            title: "Jobs (Jobber)",
-            url: "#",
-            icon: Briefcase,
-            isActive:
-                page.url.startsWith("/inspections") ||
-                page.url.startsWith("/visits"),
-            items: [
-                {
-                    title: "All Jobs",
-                    url: route("inspections.index"),
-                    isActive: page.url.startsWith("/inspections"),
-                },
-                {
-                    title: "Visits",
-                    url: route("visits.index"),
-                    isActive: page.url.startsWith("/visits"),
-                },
-            ],
-            requires: ["admin", "woc"],
-        },
-    ],
-    menu: [
-        {
-            name: "Dashboard",
-            url: route("dashboard"),
-            isActive: page.url.startsWith("/dashboard"),
-            icon: LayoutDashboard,
-        },
-    ],
-    menu2: [
-        {
-            name: "Inspections",
-            url: route("work_orders.inspections"),
-            isActive: page.url.startsWith("/work_orders/inspections"),
-            icon: Hammer,
-            requires: ["admin", "woc",'vendor'],
-        },
-        {
-            name: "Coordinators",
-            url: route("work_orders.coordinators"),
-            isActive: page.url.startsWith("/WorkOrder/Coordinators"),
-            icon: Users2,
-            requires: ["admin", "woc"],
-        },
-        {
-            name: "Tasks",
-            url: route("tasks.index"),
-            isActive: page.url.startsWith("/tasks"),
-            icon: ClipboardList,
-            requires: ["admin", "woc", "vendor"],
-        },
+const navs = computed(() => {
+    const userRoles = page.props.auth.user.roles || [];
+    const isAccounting = userRoles.includes("accounting");
 
-        {
-            name: "Calendar",
-            url: route("scheduled_service"),
-            isActive: page.url.startsWith("/scheduled_service"),
-            icon: CalendarDays,
-            requires: ["admin", "woc", "vendor", "owner"],
-        },
-        {
-            name: "Invoices",
-            url: route("invoices.index"),
-            isActive: page.url.startsWith("/work_order/invoices"),
-            icon: Files,
-            requires: ["admin", "woc", "vendor", "owner"],
-        },
-        {
-            name: "Vendors",
-            url: route("vendors.index"),
-            isActive: page.url.startsWith("/vendors"),
-            icon: Truck,
-            requires: ["admin", "woc"],
-        },
-        {
-            name: "Owners",
-            url: route("owners.index"),
-            isActive: page.url.startsWith("/owners"),
-            icon: Users,
-            requires: ["admin", "woc"],
-        },
-        {
-            name: "Tenants",
-            url: route("tenants.index"),
-            isActive: page.url.startsWith("/tenants"),
-            icon: Users,
-            requires: ["admin", "woc"],
-        },
-        {
-            name: "Conversations",
-            url: route("conversation_logs.index"),
-            isActive: page.component === "ConversationLogs",
-            icon: Globe,
-            requires: ["admin", "woc"],
-        },
-    ],
-    settings: [
-        {
-            name: "Task Templates",
-            url: route("task_templates.index"),
-            isActive: page.url.startsWith("/task_templates"),
-            icon: LayoutTemplate,
-        },
+    return {
+        navMain: [
+            {
+                title: "Work Orders",
+                url: "#",
+                icon: Wrench,
+                isActive: page.url.startsWith("/work_orders"),
+                items: isAccounting
+                    ? [
+                          {
+                              title: "Waiting on Payment",
+                              url: route("work_orders.waiting_on_payment"),
+                              isActive:
+                                  page.component ===
+                                  "WorkOrder/WaitingOnPayment",
+                          },
+                          {
+                              title: "Paid",
+                              url: route("work_orders.paid"),
+                              isActive: page.component === "WorkOrder/Paid",
+                          },
+                          {
+                              title: "Completed",
+                              url: route("work_orders.closed_work_orders"),
+                              isActive: page.component === "WorkOrder/Close",
+                          },
+                      ]
+                    : [
+                          {
+                              title: "Active",
+                              url: route("work_orders.index"),
+                              isActive: page.component === "WorkOrder/Index",
+                          },
+                          {
+                              title: "Completed",
+                              url: route("work_orders.closed_work_orders"),
+                              isActive: page.component === "WorkOrder/Close",
+                          },
+                      ],
+                requires: [
+                    "admin",
+                    "woc",
+                    "vendor",
+                    "tenant",
+                    "owner",
+                    "accounting",
+                ],
+            },
+            {
+                title: "Jobs (Jobber)",
+                url: "#",
+                icon: Briefcase,
+                isActive:
+                    page.url.startsWith("/inspections") ||
+                    page.url.startsWith("/visits"),
+                items: [
+                    {
+                        title: "All Jobs",
+                        url: route("inspections.index"),
+                        isActive: page.url.startsWith("/inspections"),
+                    },
+                    {
+                        title: "Visits",
+                        url: route("visits.index"),
+                        isActive: page.url.startsWith("/visits"),
+                    },
+                ],
+                requires: ["admin", "woc"],
+            },
+        ],
+        menu: [
+            {
+                name: "Dashboard",
+                url: route("dashboard"),
+                isActive: page.url.startsWith("/dashboard"),
+                icon: LayoutDashboard,
+                requires: ["admin", "woc", "vendor", "owner", "tenant"],
+            },
+        ],
+        menu2: [
+            {
+                name: "Inspections",
+                url: route("work_orders.inspections"),
+                isActive: page.url.startsWith("/work_orders/inspections"),
+                icon: Hammer,
+                requires: ["admin", "woc", "vendor"],
+            },
+            {
+                name: "Lawn Care",
+                url: route("work_orders.lawn_care"),
+                isActive: page.url.startsWith("/work_orders/lawn_care"),
+                icon: Sprout,
+                requires: ["admin", "woc", "vendor"],
+            },
+            {
+                name: "Coordinators",
+                url: route("work_orders.coordinators"),
+                isActive: page.url.startsWith("/WorkOrder/Coordinators"),
+                icon: Users2,
+                requires: ["admin", "woc"],
+            },
+            {
+                name: "Tasks",
+                url: route("tasks.index"),
+                isActive: page.url.startsWith("/tasks"),
+                icon: ClipboardList,
+                requires: ["admin", "woc", "vendor"],
+            },
 
-        {
-            name: "Service Status",
-            url: route("service_status.index"),
-            isActive: page.url.startsWith("/service_status"),
-            icon: Circle,
-        },
-        {
-            name: "WOC Numbers",
-            url: route("woc_numbers.index"),
-            isActive: page.url.startsWith("/woc_numbers"),
-            icon: UserRoundCheck,
-        },
-        {
-            name: "Twilio Numbers",
-            url: route("twilio_numbers.index"),
-            isActive: page.url.startsWith("/twilio_numbers"),
-            icon: Phone,
-        },
+            {
+                name: "Calendar",
+                url: route("scheduled_service"),
+                isActive: page.url.startsWith("/scheduled_service"),
+                icon: CalendarDays,
+                requires: ["admin", "woc", "vendor", "owner"],
+            },
+            {
+                name: "Invoices",
+                url: route("invoices.index"),
+                isActive: page.url.startsWith("/work_order/invoices"),
+                icon: Files,
+                requires: ["admin", "woc", "vendor", "owner"],
+            },
+            {
+                name: "Vendors",
+                url: route("vendors.index"),
+                isActive: page.url.startsWith("/vendors"),
+                icon: Truck,
+                requires: ["admin", "woc"],
+            },
+            {
+                name: "Owners",
+                url: route("owners.index"),
+                isActive: page.url.startsWith("/owners"),
+                icon: Users,
+                requires: ["admin", "woc"],
+            },
+            {
+                name: "Tenants",
+                url: route("tenants.index"),
+                isActive: page.url.startsWith("/tenants"),
+                icon: Users,
+                requires: ["admin", "woc"],
+            },
+            {
+                name: "Conversations",
+                url: route("conversation_logs.index"),
+                isActive: page.component === "ConversationLogs",
+                icon: Globe,
+                requires: ["admin", "woc"],
+            },
+        ],
+        settings: [
+            {
+                name: "Task Templates",
+                url: route("task_templates.index"),
+                isActive: page.url.startsWith("/task_templates"),
+                icon: LayoutTemplate,
+            },
 
-        {
-            name: "Users",
-            url: route("users.index"),
-            isActive: page.url.startsWith("/users"),
-            icon: UserRoundCog,
-        },
-    ],
-}));
+            {
+                name: "Service Status",
+                url: route("service_status.index"),
+                isActive: page.url.startsWith("/service_status"),
+                icon: Circle,
+            },
+            {
+                name: "WOC Numbers",
+                url: route("woc_numbers.index"),
+                isActive: page.url.startsWith("/woc_numbers"),
+                icon: UserRoundCheck,
+            },
+            {
+                name: "Twilio Numbers",
+                url: route("twilio_numbers.index"),
+                isActive: page.url.startsWith("/twilio_numbers"),
+                icon: Phone,
+            },
+
+            {
+                name: "Users",
+                url: route("users.index"),
+                isActive: page.url.startsWith("/users"),
+                icon: UserRoundCog,
+            },
+        ],
+    };
+});
 const activeTeam = ref(data.value.teams[0]);
 const logout = () => {
     router.post(route("logout"));
@@ -268,7 +309,7 @@ const canAccess = (requiredRoles) => {
 
     // Special access for specific vendor email
     const userEmail = page.props.auth.user.email;
-    if (userEmail === 'thmp@texasrenters.com') {
+    if (userEmail === "thmp@texasrenters.com") {
         return true;
     }
 
@@ -525,7 +566,8 @@ onUnmounted(() => {
                     <SidebarMenu>
                         <SidebarMenuItem
                             v-for="item in navs.menu"
-                            :key="item.name"
+                            :key="item?.name"
+                            v-if="item && (!item.requires || canAccess(item.requires))"
                         >
                             <SidebarMenuButton as-child>
                                 <Link
@@ -543,73 +585,82 @@ onUnmounted(() => {
                         </SidebarMenuItem>
                     </SidebarMenu>
                     <SidebarMenu class="mb-1">
-                        <Collapsible
+                        <template
                             v-for="item in navs.navMain"
-                            :key="item.title"
-                            as-child
-                            :default-open="item.isActive"
-                            :data-state="item.isActive"
-                            class="group/collapsible"
+                            :key="item?.title"
                         >
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger as-child>
-                                    <SidebarMenuButton :tooltip="item.title">
-                                        <component :is="item.icon" />
-                                        <span>{{ item.title }}</span>
-                                        <ChevronRight
-                                            v-if="item.items.length > 0"
-                                            class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                                        />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem
-                                            v-for="subItem in item.items"
-                                            :key="subItem.title"
-                                            v-if="canAccess(item.requires)"
+                            <Collapsible
+                                v-if="
+                                    item &&
+                                    (!item.requires || canAccess(item.requires))
+                                "
+                                as-child
+                                :default-open="item.isActive"
+                                :data-state="item.isActive"
+                                class="group/collapsible"
+                            >
+                                <SidebarMenuItem>
+                                    <CollapsibleTrigger as-child>
+                                        <SidebarMenuButton
+                                            :tooltip="item.title"
                                         >
-                                            <SidebarMenuSubButton as-child>
-                                                <Link
-                                                    :href="subItem.url"
-                                                    prefetch
-                                                    :class="{
-                                                        'font-semibold p-2 border':
-                                                            subItem.isActive,
-                                                    }"
-                                                >
-                                                    <span>{{
-                                                        subItem.title
-                                                    }}</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
+                                            <component :is="item.icon" />
+                                            <span>{{ item.title }}</span>
+                                            <ChevronRight
+                                                v-if="item.items.length > 0"
+                                                class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                            />
+                                        </SidebarMenuButton>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <SidebarMenuSub>
+                                            <SidebarMenuSubItem
+                                                v-for="subItem in item.items"
+                                                :key="subItem?.title"
+                                            >
+                                                <SidebarMenuSubButton as-child>
+                                                    <Link
+                                                        :href="subItem.url"
+                                                        prefetch
+                                                        :class="{
+                                                            'font-semibold p-2 border':
+                                                                subItem.isActive,
+                                                        }"
+                                                    >
+                                                        <span>{{
+                                                            subItem.title
+                                                        }}</span>
+                                                    </Link>
+                                                </SidebarMenuSubButton>
+                                            </SidebarMenuSubItem>
+                                        </SidebarMenuSub>
+                                    </CollapsibleContent>
+                                </SidebarMenuItem>
+                            </Collapsible>
+                        </template>
                     </SidebarMenu>
                     <SidebarMenu>
-                        <SidebarMenuItem
-                            v-for="item in navs.menu2"
-                            :key="item.name"
-                        >
-                            <SidebarMenuButton
-                                as-child
-                                v-if="canAccess(item.requires)"
+                        <template v-for="item in navs.menu2" :key="item?.name">
+                            <SidebarMenuItem
+                                v-if="
+                                    item &&
+                                    (!item.requires || canAccess(item.requires))
+                                "
                             >
-                                <Link
-                                    :href="item.url"
-                                    prefetch
-                                    :class="{
-                                        'font-bold border': item.isActive,
-                                    }"
-                                >
-                                    <component :is="item.icon" />
-                                    <span>{{ item.name }}</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                                <SidebarMenuButton as-child>
+                                    <Link
+                                        :href="item.url"
+                                        prefetch
+                                        :class="{
+                                            'font-bold border': item.isActive,
+                                        }"
+                                    >
+                                        <component :is="item.icon" />
+                                        <span>{{ item.name }}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </template>
                     </SidebarMenu>
                 </SidebarGroup>
                 <SidebarGroup

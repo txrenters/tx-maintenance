@@ -16,6 +16,11 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request)
     {
+        // Redirect accounting users to waiting on payments page
+        if (auth()->user()->hasRole('accounting')) {
+            return redirect()->route('work_orders.waiting_on_payment');
+        }
+
         $year = $request->input('year', Carbon::now()->year);
 
         return Inertia::render('Dashboard', [
