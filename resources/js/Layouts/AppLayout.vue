@@ -564,25 +564,28 @@ onUnmounted(() => {
                 <SidebarGroup>
                     <SidebarGroupLabel>Menu</SidebarGroupLabel>
                     <SidebarMenu>
-                        <SidebarMenuItem
-                            v-for="item in navs.menu"
-                            :key="item?.name"
-                            v-if="item && (!item.requires || canAccess(item.requires))"
-                        >
-                            <SidebarMenuButton as-child>
-                                <Link
-                                    :href="item.url"
-                                    prefetch
-                                    view-transition
-                                    :class="{
-                                        'font-bold border': item.isActive,
-                                    }"
-                                >
-                                    <component :is="item.icon" />
-                                    <span>{{ item.name }}</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <template v-for="item in navs.menu" :key="item?.name">
+                            <SidebarMenuItem
+                                v-if="
+                                    item &&
+                                    (!item.requires || canAccess(item.requires))
+                                "
+                            >
+                                <SidebarMenuButton as-child>
+                                    <Link
+                                        :href="item.url"
+                                        prefetch
+                                        view-transition
+                                        :class="{
+                                            'font-bold border': item.isActive,
+                                        }"
+                                    >
+                                        <component :is="item.icon" />
+                                        <span>{{ item.name }}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </template>
                     </SidebarMenu>
                     <SidebarMenu class="mb-1">
                         <template
