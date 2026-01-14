@@ -644,7 +644,7 @@ class WorkOrderController extends Controller
         ]);
     }
 
-    public function lawn_care_work_orders(Request $request)
+    public function lawn_service_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
             'work_order',
