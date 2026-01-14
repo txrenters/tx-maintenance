@@ -65,7 +65,7 @@ const props = defineProps({
     filter: Object,
 });
 
-const url = ref(route("work_orders.lawn_care"));
+const url = ref(route("work_orders.lawn_service"));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 
