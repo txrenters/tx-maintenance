@@ -197,9 +197,9 @@ const navs = computed(() => {
                 requires: ["admin", "woc", "vendor"],
             },
             {
-                name: "Lawn Care",
-                url: route("work_orders.lawn_care"),
-                isActive: page.url.startsWith("/work_orders/lawn_care"),
+                name: "Lawn Service",
+                url: route("work_orders.lawn_service"),
+                isActive: page.url.startsWith("/work_orders/lawn_service"),
                 icon: Sprout,
                 requires: ["admin", "woc", "vendor"],
             },

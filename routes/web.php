@@ -69,7 +69,7 @@ Route::middleware([
     Route::get('/work_orders/waiting_on_payment/all', [WorkOrderController::class, 'waiting_on_payment_work_orders'])->name('work_orders.waiting_on_payment');
     Route::get('/work_orders/paid/all', [WorkOrderController::class, 'paid_work_orders'])->name('work_orders.paid');
     Route::get('/work_orders/inspections/all', [WorkOrderController::class, 'inspections_work_orders'])->name('work_orders.inspections');
-    Route::get('/work_orders/lawn_care/all', [WorkOrderController::class, 'lawn_care_work_orders'])->name('work_orders.lawn_care');
+    Route::get('/work_orders/lawn_service/all', [WorkOrderController::class, 'lawn_service_work_orders'])->name('work_orders.lawn_service');
     Route::get('/work_orders/{workOrder}/details', [WorkOrderController::class, 'details'])->name('work_orders.details');
     Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
     Route::put('/work_orders/{workOrder}/close', [WorkOrderController::class, 'close'])->name('work_orders.close');
