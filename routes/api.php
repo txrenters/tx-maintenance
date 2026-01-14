@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\ConversationController as APIConversationController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
@@ -32,6 +33,7 @@ Route::delete('/work_orders/convesation/{conversation}', [ConversationController
 
 Route::get('/service_schedule/{workOrder}/vendor', [ServiceScheduleController::class, 'get_schedules'])->name('work_order.service_schedules');
 Route::post('/service_schedule/submit', [ServiceScheduleController::class, 'store'])->name('work_order.service_schedule.create');
+Route::put('/service_schedule/{serviceSchedule}', [ServiceScheduleController::class, 'update'])->name('work_order.service_schedule.update');
 Route::post('/service_schedule/{serviceSchedule}/complete', [ServiceScheduleController::class, 'update_status'])->name('service_schedule.status.completed');
 Route::delete('/service_schedule/{serviceSchedule}', [ServiceScheduleController::class, 'destroy'])->name('service_schedule.destroy');
 
@@ -55,3 +57,13 @@ Route::delete('/client-contacts/{clientContact}', [ClientContactController::clas
 
 Route::post('/notification/messages', [ConversationController::class, 'get_conversation']);
 Route::post('/notification/jobber/messages', [JobberTextMessageController::class, 'get_conversation']);
+
+// TEX App API Routes
+Route::prefix('v1')->group(function () {
+    // Get conversations by phone number
+    Route::get('/conversations', [APIConversationController::class, 'index']);
+
+    Route::post('/tex/webhook', [TwilioWebhookController::class, 'handle'])
+        ->withoutMiddleware([VerifyCsrfToken::class])
+        ->middleware('throttle:60,1'); // 60 requests per minute
+});

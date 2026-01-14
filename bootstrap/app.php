@@ -35,7 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/buildings/*/update-custom-fields'),
         ]);
 
-        //
+        $middleware->alias([
+            'api.key' => \App\Http\Middleware\ValidateApiKey::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {

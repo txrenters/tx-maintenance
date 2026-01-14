@@ -599,8 +599,10 @@ const handleCompleteSubmit = () => {
         </div>
         <DialogFooter
             v-if="
-                $page.props.auth.user.roles.includes('admin') ||
-                $page.props.auth.user.roles.includes('woc')
+                (workOrder.status != 'Closed' &&
+                    ($page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc'))) ||
+                $page.props.auth.user.roles.includes('accounting')
             "
         >
             <div class="flex gap-2 justify-between w-full p-6">
@@ -615,6 +617,10 @@ const handleCompleteSubmit = () => {
                         Delete
                     </Button>
                     <Button
+                        v-if="
+                            workOrder.service_status ==
+                            'Approved - Waiting on Payment'
+                        "
                         type="submit"
                         :disabled="closeWorkOrderForm.processing"
                         @click.prevent="confirmComplete"

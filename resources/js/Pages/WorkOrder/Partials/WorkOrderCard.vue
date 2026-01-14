@@ -102,7 +102,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                     checkDueTask(
                                         work_order.tasks,
                                         work_order.scheduled_end_date
-                                    ) == 'red',
+                                    ) == 'red' || work_order.is_emergency,
                                 'bg-primary':
                                     checkDueTask(
                                         work_order.tasks,

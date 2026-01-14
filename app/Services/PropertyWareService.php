@@ -456,17 +456,47 @@ class PropertyWareService
     public function closeWorkOrder(object $workOrder, $url)
     {
         try {
-            // Use REST API PATCH to update only the status - cleaner than SOAP
-            $response = Http::withHeaders($this->headers)
-                ->patch("https://api.propertyware.com/pw/api/rest/v1/workorders/{$workOrder->propertyware_id}", [
-                    'status' => 'Closed',
+            // Load vendors for time card entries
+            $workOrder->load('vendors');
+
+            // Build time card entries for each vendor
+            $timeCardEntries = [];
+            if ($workOrder->vendors->isNotEmpty()) {
+                foreach ($workOrder->vendors as $vendor) {
+                    $timeCardEntries[] = [
+                        'vendorID' => $vendor->propertyware_id ?? $vendor->id,
+                        'comments' => 'Work completed',
+                    ];
+                }
+            } else {
+                // If no vendors assigned, we still need at least one entry for the API
+                // Use a default/placeholder vendor if available
+                Log::warning('No vendors assigned to work order, cannot close properly', [
+                    'work_order_no' => $workOrder->work_order_no,
                 ]);
+
+                return false;
+            }
+
+            // Build the close work order payload according to PropertyWare API spec
+            $payload = [
+                'category' => $workOrder->category,
+                'comments' => $workOrder->closing_comments ?? 'Work order closed',
+                'completedDate' => $workOrder->completed_date ? Carbon::parse($workOrder->completed_date)->format('Y-m-d') : now()->format('Y-m-d'),
+                'startDate' => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : ($workOrder->completed_date ? Carbon::parse($workOrder->completed_date)->format('Y-m-d') : now()->format('Y-m-d')),
+                'timeCardEntryDTOS' => $timeCardEntries,
+            ];
+
+            // Use REST API to close work order with proper payload
+            $response = Http::withHeaders($this->headers)
+                ->put("https://api.propertyware.com/pw/api/rest/v1/workorders/{$workOrder->propertyware_id}", $payload);
 
             if (! $response->successful()) {
                 Log::error('Failed to close work order via REST API', [
                     'work_order_no' => $workOrder->work_order_no,
                     'status' => $response->status(),
                     'body' => $response->body(),
+                    'payload' => $payload,
                 ]);
 
                 return false;
@@ -614,66 +644,45 @@ class PropertyWareService
     public function reOpenWorkOrder(object $workOrder)
     {
         try {
-            $workorderId = $workOrder->propertyware_id;
-            $portfolioId = (int) $workOrder->portfolio_id;
-            $buildingId = $workOrder->building_id;
-
-            // Build SOAP payload without location field to avoid validation errors
-            $xmlPayload = '
-                    <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                    xmlns:ser="http://service.web.propertyware.realpage.com"
-                    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                    <soapenv:Header/>
-                    <soapenv:Body>
-                    <ser:updateWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                        <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                            <ID xsi:type="xsd:long">'.$workorderId.'</ID>
-                            <building xsi:type="urn:Building">
-                            <ID xsi:type="xsd:long">'.$buildingId.'</ID>
-                            </building>
-                            <portfolio xsi:type="urn:Portfolio">
-                                <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
-                            </portfolio>
-                            <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                            <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                            <status xsi:type="xsd:string">Open</status>
-                            <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                            <customFields xsi:type="pws:ArrayOf_tns1_CustomField" soapenc:arrayType="urn:CustomField[0]"
-                                xmlns:pws="https://rcsppwwwweb001.realpage.com/pw/services/PWServices">
-                                <customFields xsi:type="ns2:CustomField">
-                                    <fieldName xsi:type="xsd:string">Service Status</fieldName>
-                                    <value xsi:type="xsd:string">New</value>
-                                    </customFields>
-                            </customFields>
-
-                        </workOrder>
-                    </ser:updateWorkOrder>
-                    </soapenv:Body>
-                    </soapenv:Envelope>
-                ';
-
-            $response = $this->execute($xmlPayload);
-
-            // Log and return response status
-            if ($response) {
-                Log::info('Work order service status has been reopen successfully!', [
-                    'Work order no' => $workOrder->work_order_no,
+            // Use REST API PATCH to update status and clear completion date
+            $response = Http::withHeaders($this->headers)
+                ->patch("https://api.propertyware.com/pw/api/rest/v1/workorders/{$workOrder->propertyware_id}", [
+                    'status' => 'Open',
+                    'completedDate' => null,
                 ]);
 
-                return true;
+            if (! $response->successful()) {
+                Log::error('Failed to reopen work order via REST API', [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return false;
             }
 
-            Log::error('Work order service status has been reopen failed!', [
-                'Work order no' => $workOrder->work_order_no,
-
+            // Update the custom field "Service Status" to "New"
+            Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
+                'entityId' => $workOrder->propertyware_id,
+                'fieldSetDTOS' => [
+                    [
+                        'name' => 'Service Status',
+                        'value' => 'New',
+                    ],
+                ],
             ]);
 
-            return false;
+            Log::info('Work order reopened successfully', [
+                'work_order_no' => $workOrder->work_order_no,
+            ]);
+
+            return true;
 
         } catch (\Exception $exception) {
-            Log::error('Re-opening work order failed: '.$exception);
+            Log::error('Re-opening work order failed: '.$exception->getMessage(), [
+                'work_order_no' => $workOrder->work_order_no,
+                'trace' => $exception->getTraceAsString(),
+            ]);
 
             return false;
         }
@@ -1216,6 +1225,7 @@ class PropertyWareService
             $response = Http::withHeaders($this->headers)
                 ->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id,
                     [
+                        'startDate' => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : null,
                         'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : null,
                     ]);
 

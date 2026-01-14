@@ -22,7 +22,7 @@ class WorkOrderScope implements Scope
         // Only hit the DB once per request
         $user = self::$cachedUser ??= User::with(['vendor', 'tenant', 'roles'])->find(auth()->id());
 
-        if (! $user || $user->hasRole('admin') || $user->hasRole('woc')) {
+        if (! $user || $user->hasRole('admin') || $user->hasRole('woc') || $user->hasRole('accounting')) {
             return;
         }
 

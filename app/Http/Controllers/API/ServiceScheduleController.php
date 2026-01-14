@@ -26,6 +26,7 @@ class ServiceScheduleController extends Controller
         $validatedData = $request->validate([
             'title' => 'required|string|max:255',
             'date' => 'required|date',
+            'end_date' => 'nullable|date|after_or_equal:date',
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
             'tenant_id' => 'nullable|exists:tenants,id',
@@ -36,6 +37,7 @@ class ServiceScheduleController extends Controller
             $serviceSchedule = ServiceSchedule::create([
                 'title' => $validatedData['title'],
                 'scheduled_date' => $validatedData['date'],
+                'scheduled_end_date' => $validatedData['end_date'] ?? null,
                 'description' => $validatedData['description'] ?? null,
                 'work_order_id' => $validatedData['work_order_id'],
                 'vendor_id' => $validatedData['vendor_id'],
@@ -48,6 +50,39 @@ class ServiceScheduleController extends Controller
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Failed to set service schedule. Please try again.');
+        }
+    }
+
+    /**
+     * Update an existing service schedule.
+     */
+    public function update(Request $request, ServiceSchedule $serviceSchedule)
+    {
+        $validatedData = $request->validate([
+            'title' => 'required|string|max:255',
+            'date' => 'required|date',
+            'end_date' => 'nullable|date|after_or_equal:date',
+            'description' => 'nullable|string',
+            'vendor_id' => 'required|exists:vendors,id',
+            'tenant_id' => 'nullable|exists:tenants,id',
+        ]);
+
+        try {
+            $serviceSchedule->update([
+                'title' => $validatedData['title'],
+                'scheduled_date' => $validatedData['date'],
+                'scheduled_end_date' => $validatedData['end_date'] ?? null,
+                'description' => $validatedData['description'] ?? null,
+                'vendor_id' => $validatedData['vendor_id'],
+                'tenant_id' => $validatedData['tenant_id'] ?? null,
+            ]);
+
+            // Sync to PropertyWare
+            $this->syncScheduleToPropertyWare($serviceSchedule);
+
+            return redirect()->back()->with('success', 'Service schedule updated successfully!');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Failed to update service schedule. Please try again.');
         }
     }
 
@@ -70,12 +105,13 @@ class ServiceScheduleController extends Controller
 
             // Update the vendor's scheduled_end_date in the pivot table
             $workOrder->vendors()->updateExistingPivot($serviceSchedule->vendor_id, [
-                'scheduled_end_date' => $serviceSchedule->scheduled_date,
+                'scheduled_end_date' => $serviceSchedule->scheduled_end_date ?? $serviceSchedule->scheduled_date,
             ]);
 
-            // Update the work order's scheduled_end_date field
+            // Update the work order's start_date and scheduled_end_date fields
             $workOrder->update([
-                'scheduled_end_date' => $serviceSchedule->scheduled_date,
+                'start_date' => $serviceSchedule->scheduled_date,
+                'scheduled_end_date' => $serviceSchedule->scheduled_end_date ?? $serviceSchedule->scheduled_date,
             ]);
 
             // Validate work order has required data for PropertyWare sync
@@ -188,7 +224,7 @@ class ServiceScheduleController extends Controller
             // Update the vendor's scheduled_end_date in pivot table
             if ($latestSchedule) {
                 $workOrder->vendors()->updateExistingPivot($vendorId, [
-                    'scheduled_end_date' => $latestSchedule->scheduled_date,
+                    'scheduled_end_date' => $latestSchedule->scheduled_end_date ?? $latestSchedule->scheduled_date,
                 ]);
             } else {
                 // No more schedules for this vendor, clear the scheduled_end_date
@@ -197,14 +233,19 @@ class ServiceScheduleController extends Controller
                 ]);
             }
 
-            // Find the latest schedule across all vendors to update work order
+            // Find the earliest and latest schedules across all vendors to update work order
+            $earliestOverallSchedule = $workOrder->service_schedules()
+                ->orderBy('scheduled_date', 'asc')
+                ->first();
+
             $latestOverallSchedule = $workOrder->service_schedules()
                 ->orderBy('scheduled_date', 'desc')
                 ->first();
 
-            // Update the work order's scheduled_end_date
+            // Update the work order's start_date and scheduled_end_date
             $workOrder->update([
-                'scheduled_end_date' => $latestOverallSchedule ? $latestOverallSchedule->scheduled_date : null,
+                'start_date' => $earliestOverallSchedule ? $earliestOverallSchedule->scheduled_date : null,
+                'scheduled_end_date' => $latestOverallSchedule ? ($latestOverallSchedule->scheduled_end_date ?? $latestOverallSchedule->scheduled_date) : null,
             ]);
 
             // Trigger PropertyWare sync

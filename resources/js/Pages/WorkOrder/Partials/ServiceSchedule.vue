@@ -15,11 +15,14 @@ const props = defineProps({
 });
 
 const openService = ref(false);
+const isEditing = ref(false);
+const editingScheduleId = ref(null);
 
 const serviceScheduleForm = useForm({
     title: "Service Schedule for " + props.workOrder.work_order_no,
     description: props.workOrder.description ?? "",
     date: "",
+    end_date: "",
     vendor_id: "",
     tenant_id: "",
     work_order_id: props.workOrder.id,
@@ -45,6 +48,17 @@ const formatDate = (date) => {
         ? parsedDate.toFormat("EEE, MMMM d, yyyy")
         : "Invalid Date";
 };
+
+// Set default dates when opening the service schedule dialog
+watch(openService, (newValue) => {
+    if (newValue) {
+        const today = DateTime.now().toFormat("yyyy-MM-dd");
+        const tomorrow = DateTime.now().plus({ days: 1 }).toFormat("yyyy-MM-dd");
+
+        serviceScheduleForm.date = today;
+        serviceScheduleForm.end_date = tomorrow;
+    }
+});
 
 const updateScheduleStatus = async (service_schedule_id, status) => {
     router.post(
@@ -72,11 +86,54 @@ const updateScheduleStatus = async (service_schedule_id, status) => {
     );
 };
 
+const formatDateForInput = (date) => {
+    if (!date) return "";
+
+    let parsedDate;
+
+    if (typeof date === "string") {
+        parsedDate = DateTime.fromISO(date, { zone: "utc" }).isValid
+            ? DateTime.fromISO(date, { zone: "utc" })
+            : DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+    } else if (date instanceof Date) {
+        parsedDate = DateTime.fromJSDate(date);
+    } else {
+        return "";
+    }
+
+    return parsedDate.isValid ? parsedDate.toFormat("yyyy-MM-dd") : "";
+};
+
+const openEditMode = (schedule) => {
+    isEditing.value = true;
+    editingScheduleId.value = schedule.id;
+
+    serviceScheduleForm.title = schedule.title;
+    serviceScheduleForm.description = schedule.description ?? "";
+    serviceScheduleForm.date = formatDateForInput(schedule.scheduled_date);
+    serviceScheduleForm.end_date = formatDateForInput(schedule.scheduled_end_date);
+    serviceScheduleForm.vendor_id = String(schedule.vendor_id);
+    serviceScheduleForm.tenant_id = schedule.tenant_id ? String(schedule.tenant_id) : "";
+
+    openService.value = true;
+};
+
+const openCreateMode = () => {
+    isEditing.value = false;
+    editingScheduleId.value = null;
+
+    serviceScheduleForm.reset();
+    serviceScheduleForm.title = "Service Schedule for " + props.workOrder.work_order_no;
+    serviceScheduleForm.description = props.workOrder.description ?? "";
+    serviceScheduleForm.work_order_id = props.workOrder.id;
+
+    openService.value = true;
+};
+
 const handleMeetingSubmit = () => {
     if (
         !serviceScheduleForm.title ||
         !serviceScheduleForm.date ||
-        !serviceScheduleForm.work_order_id ||
         !serviceScheduleForm.vendor_id
     ) {
         toast({
@@ -87,27 +144,66 @@ const handleMeetingSubmit = () => {
         });
         return;
     }
-    serviceScheduleForm.post(route("work_order.service_schedule.create"), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            toast({
-                title: "Success",
-                description: "Service schedule has been set successfully!",
-            });
-            openService.value = false;
-            serviceScheduleForm.reset();
-            emit("fetch-schedule");
-        },
-        onError: () => {
+
+    if (isEditing.value && editingScheduleId.value) {
+        // Update existing schedule
+        serviceScheduleForm.put(route("work_order.service_schedule.update", editingScheduleId.value), {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Service schedule has been updated successfully!",
+                });
+                openService.value = false;
+                serviceScheduleForm.reset();
+                isEditing.value = false;
+                editingScheduleId.value = null;
+                emit("fetch-schedule");
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+        });
+    } else {
+        // Create new schedule
+        if (!serviceScheduleForm.work_order_id) {
             toast({
                 variant: "destructive",
                 title: "Uh oh! Something went wrong.",
                 description:
-                    "There was a problem with your request. Please try again!",
+                    "Work order ID is missing.",
             });
-        },
-    });
+            return;
+        }
+
+        serviceScheduleForm.post(route("work_order.service_schedule.create"), {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast({
+                    title: "Success",
+                    description: "Service schedule has been created successfully!",
+                });
+                openService.value = false;
+                serviceScheduleForm.reset();
+                emit("fetch-schedule");
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+        });
+    }
 };
 </script>
 
@@ -120,7 +216,7 @@ const handleMeetingSubmit = () => {
             <Button
                 :disabled="isLoading"
                 size="icon"
-                @click.prevent="openService = true"
+                @click.prevent="openCreateMode"
                 v-if="
                     $page.props.auth.user.roles.includes('vendor') ||
                     $page.props.auth.user.roles.includes('woc') ||
@@ -146,7 +242,10 @@ const handleMeetingSubmit = () => {
                 <div class="flex justify-between">
                     <div class="flex flex-col w-full">
                         <div class="flex text-xs items-center gap-1">
-                            <p>
+                            <p v-if="schedule.scheduled_end_date">
+                                📅 {{ formatDate(schedule.scheduled_date) }} - {{ formatDate(schedule.scheduled_end_date) }}
+                            </p>
+                            <p v-else>
                                 📅 Due {{ formatDate(schedule.scheduled_date) }}
                             </p>
                         </div>
@@ -173,6 +272,14 @@ const handleMeetingSubmit = () => {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                    class="cursor-pointer hover:bg-secondary"
+                                    @click="() => openEditMode(schedule)"
+                                >
+                                    Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Mark as</DropdownMenuLabel>
                                 <DropdownMenuItem
                                     class="cursor-pointer hover:bg-secondary"
@@ -273,10 +380,10 @@ const handleMeetingSubmit = () => {
         >
             <DialogHeader class="p-6 pb-4">
                 <DialogTitle class="text-xl font-semibold">
-                    Service Schedule
+                    {{ isEditing ? 'Edit Service Schedule' : 'Create Service Schedule' }}
                 </DialogTitle>
                 <DialogDescription class="text-sm text-muted-foreground">
-                    Schedule a service appointment for this work order.
+                    {{ isEditing ? 'Update the service appointment details.' : 'Schedule a service appointment for this work order.' }}
                 </DialogDescription>
             </DialogHeader>
             <Separator />
@@ -323,10 +430,18 @@ const handleMeetingSubmit = () => {
                     <!-- Scheduled Date -->
                     <div class="space-y-2">
                         <Label class="text-sm font-medium">
-                            Scheduled Date
+                            Scheduled Date (Start)
                             <span class="text-red-500 ml-0.5">*</span>
                         </Label>
                         <Input type="date" v-model="serviceScheduleForm.date" />
+                    </div>
+
+                    <!-- Scheduled End Date -->
+                    <div class="space-y-2">
+                        <Label class="text-sm font-medium">
+                            Scheduled End Date
+                        </Label>
+                        <Input type="date" v-model="serviceScheduleForm.end_date" />
                     </div>
 
                     <!-- Description -->
@@ -360,8 +475,8 @@ const handleMeetingSubmit = () => {
                     />
                     {{
                         serviceScheduleForm.processing
-                            ? "Creating..."
-                            : "Create Schedule"
+                            ? (isEditing ? "Updating..." : "Creating...")
+                            : (isEditing ? "Update Schedule" : "Create Schedule")
                     }}
                 </Button>
             </DialogFooter>
