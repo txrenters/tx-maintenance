@@ -9,7 +9,6 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class SendJobReminders extends Command
 {
@@ -108,76 +107,98 @@ class SendJobReminders extends Command
             $client = $visit->job->client->name;
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                return Str::contains($record[4] ?? '', $client ?? '', true); // true = ignore case
+                // Exact case-insensitive match to prevent matching similar names
+                return strtolower(trim($record[4] ?? '')) === strtolower(trim($client ?? ''));
             })->values();
 
             if ($filtered->isEmpty()) {
                 continue;
             }
 
+            // Collect unique phone numbers with their client names to prevent duplicate messages
+            $uniqueRecipients = [];
+
             foreach ($filtered as $record) {
                 $clientStatus = $record[2];
                 $clientName = $record[3];
-                $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
 
-                if (strtolower($clientStatus) === 'active') {
-
-                    try {
-                        $workingPhoneNumber = collect([
-                            $record[11] ?? null,
-                            $record[12] ?? null,
-                            $record[13] ?? null,
-                            $record[14] ?? null,
-                        ])
-                            ->map(fn ($number) => trim((string) $number))
-                            ->first(fn ($number) => $number !== '');
-
-                        if (empty($workingPhoneNumber)) {
-                            Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
-
-                            activity()
-                                ->performedOn($visit)
-                                ->event('jobber_not_sent')
-                                ->withProperties([
-                                    'jobber_error_message' => 'We could not find the phone number for tenant: '.$clientName,
-                                ])
-                                ->log('Job #'.$visit->job->job_number.' - Text Message Failed');
-
-                            continue;
-                        }
-
-                        $workingPhoneNumber = $this->formatNumber($workingPhoneNumber);
-
-                        $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
-                        $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
-
-                        Log::info('Processing text message:', [
-                            'client_name' => $clientName,
-                            'date' => $visitDate,
-                            'to' => $workingPhoneNumber,
-                            'text' => $message2,
-                        ]);
-
-                        $twilio->sendMessage($workingPhoneNumber, $senderNumber, $message2);
-
-                        $visit->{$notifiedField} = true;
-                        $visit->save();
-
-                        $text = JobberTextMessage::create([
-                            'messages' => $message2 ?? '',
-                            'sender_number' => $senderNumber,
-                            'receiver_number' => $workingPhoneNumber,
-                            'jobber_id' => $visit->job->id,
-                            'sent_at' => $visit->job->start_at,
-                        ]);
-
-                        Log::info('Successfully sent text messages :', ['text' => $text]);
-
-                    } catch (\Throwable $th) {
-                        Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);
-                    }
-
+                if (strtolower($clientStatus) !== 'active') {
+                    continue;
                 }
+
+                $workingPhoneNumber = collect([
+                    $record[11] ?? null,
+                    $record[12] ?? null,
+                    $record[13] ?? null,
+                    $record[14] ?? null,
+                ])
+                    ->map(fn ($number) => trim((string) $number))
+                    ->first(fn ($number) => $number !== '');
+
+                if (empty($workingPhoneNumber)) {
+                    Log::warning("Skipped sending message: empty formatted phone number for client {$clientName}");
+
+                    activity()
+                        ->performedOn($visit)
+                        ->event('jobber_not_sent')
+                        ->withProperties([
+                            'jobber_error_message' => 'We could not find the phone number for tenant: '.$clientName,
+                        ])
+                        ->log('Job #'.$visit->job->job_number.' - Text Message Failed');
+
+                    continue;
+                }
+
+                $formattedNumber = $this->formatNumber($workingPhoneNumber);
+
+                // Deduplicate by phone + name combination (allow same phone with different names)
+                $key = $formattedNumber.'|'.$clientName;
+                if (! isset($uniqueRecipients[$key])) {
+                    $uniqueRecipients[$key] = [
+                        'phone' => $formattedNumber,
+                        'name' => $clientName,
+                    ];
+                }
+            }
+
+            // Send messages to unique phone + name combinations
+            $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
+
+            foreach ($uniqueRecipients as $recipient) {
+                $phoneNumber = $recipient['phone'];
+                $clientName = $recipient['name'];
+                try {
+                    $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
+                    $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+
+                    Log::info('Processing text message:', [
+                        'client_name' => $clientName,
+                        'date' => $visitDate,
+                        'to' => $phoneNumber,
+                        'text' => $message2,
+                    ]);
+
+                    $twilio->sendMessage($phoneNumber, $senderNumber, $message2);
+
+                    $text = JobberTextMessage::create([
+                        'messages' => $message2 ?? '',
+                        'sender_number' => $senderNumber,
+                        'receiver_number' => $phoneNumber,
+                        'jobber_id' => $visit->job->id,
+                        'sent_at' => $visit->job->start_at,
+                    ]);
+
+                    Log::info('Successfully sent text messages :', ['text' => $text]);
+
+                } catch (\Throwable $th) {
+                    Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);
+                }
+            }
+
+            // Mark visit as notified after processing all unique recipients
+            if (! empty($uniqueRecipients)) {
+                $visit->{$notifiedField} = true;
+                $visit->save();
             }
         }
 
