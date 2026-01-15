@@ -885,14 +885,14 @@ class WorkOrderController extends Controller
         // Then sync to PropertyWare with the completion date
         $closeWorder = $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
 
-        if ($closeWorder) {
-            $workOrder->tasks()->each(function ($task) {
-                $task->delete();
-            });
+        // if ($closeWorder) {
+        //     $workOrder->tasks()->each(function ($task) {
+        //         $task->delete();
+        //     });
 
-            // Broadcast the work order update
-            $workOrder->load('service_status');
-        }
+        //     // Broadcast the work order update
+        //     $workOrder->load('service_status');
+        // }
 
         return redirect()->back();
     }
