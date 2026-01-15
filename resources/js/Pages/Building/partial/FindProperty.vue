@@ -57,7 +57,8 @@ const validateSearchForm = () => {
         // Remove all non-digit characters for validation
         const digits = contactNumber.value.replace(/\D/g, "");
         if (digits.length !== 10) {
-            errors.value.contactNumber = "Contact number must be exactly 10 digits";
+            errors.value.contactNumber =
+                "Contact number must be exactly 10 digits";
             isValid = false;
         }
     }
@@ -115,7 +116,9 @@ const searchProperty = () => {
                         <label class="text-sm font-medium">
                             Full Name
                             <span class="text-red-600">*</span>
-                            <span class="text-xs text-gray-500">(Required)</span>
+                            <span class="text-xs text-gray-500"
+                                >(Required)</span
+                            >
                         </label>
                         <Input
                             v-model="fullName"
@@ -141,7 +144,9 @@ const searchProperty = () => {
                         <label class="text-sm font-medium">
                             Contact Number
                             <span class="text-red-600">*</span>
-                            <span class="text-xs text-gray-500">(Required)</span>
+                            <span class="text-xs text-gray-500"
+                                >(Required)</span
+                            >
                         </label>
                         <Input
                             v-model="contactNumber"
@@ -165,9 +170,11 @@ const searchProperty = () => {
 
                     <div class="space-y-2 md:col-span-2">
                         <label class="text-sm font-medium">
-                            Building Address
+                            Building Name
                             <span class="text-red-600">*</span>
-                            <span class="text-xs text-gray-500">(Required)</span>
+                            <span class="text-xs text-gray-500"
+                                >(Required)</span
+                            >
                         </label>
                         <Input
                             v-model="propertyName"
@@ -185,7 +192,7 @@ const searchProperty = () => {
                             {{ errors.propertyName }}
                         </p>
                         <p v-else class="text-xs text-gray-500">
-                            Exact building name or address
+                            Exact building name found in propertyware
                         </p>
                     </div>
                 </div>
