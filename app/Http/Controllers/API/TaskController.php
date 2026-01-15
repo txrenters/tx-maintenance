@@ -127,26 +127,7 @@ class TaskController extends Controller
         $statusChanged = ! in_array($service_status->name, ['Not Changed', 'Closed']);
 
         if ($statusChanged) {
-
-            $countPendingTask = WorkOrderTask::with('task')
-                ->where('work_order_id', $work_order->id)
-                ->whereHas('task', function ($q) use ($next_service_id) {
-                    $q->where('next_service_status_id', $next_service_id);
-                })
-                ->where('status', 'pending')
-                ->count();
-
-            if ($countPendingTask > 0) {
-                Log::info('Skipped task creation — pending tasks already lead to this service status', [
-                    'work_order_id' => $work_order->id,
-                    'next_service_status_id' => $next_service_id,
-                    'pending_count' => $countPendingTask,
-                ]);
-
-                return;
-            }
-
-            $work_order->update([   // modify work order emergency base on task
+            $work_order->update([
                 'is_emergency' => $is_emergency,
             ]);
 
@@ -156,7 +137,6 @@ class TaskController extends Controller
 
             $propertyWare->updateServiceStatus($work_order, $service_status);
         }
-
     }
 
     public function undo(Request $request, WorkOrderTask $task)

@@ -117,25 +117,33 @@ class UpdateWorkOrderStatus extends Command
 
                             if (! empty($data['assignedVendors'])) {
 
-                                foreach ($data['assignedVendors'] as $vendor) {
+                                $incomingVendorIds = [];
 
-                                    $vendorId = DB::table('vendors')->where('propertyware_id', $vendor['id'])->value('id');
+                                foreach ($data['assignedVendors'] as $vendor) {
+                                    $vendorId = DB::table('vendors')
+                                        ->where('propertyware_id', $vendor['id'])
+                                        ->value('id');
 
                                     if (! $vendorId) {
                                         $vendorId = $this->createVendor($vendor);
                                     }
 
-                                    $vendorsData = [
-                                        'work_order_id' => $workOrder->id,
-                                        'vendor_id' => $vendorId,
-                                        'created_at' => now(),
-                                        'updated_at' => now(),
-                                    ];
+                                    $incomingVendorIds[] = $vendorId;
 
                                     DB::table('work_order_vendors')->updateOrInsert(
                                         ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
-                                        $vendorsData);
+                                        [
+                                            'created_at' => now(),
+                                            'updated_at' => now(),
+                                        ]
+                                    );
                                 }
+
+                                // REMOVE vendors not in the new list
+                                DB::table('work_order_vendors')
+                                    ->where('work_order_id', $workOrder->id)
+                                    ->whereNotIn('vendor_id', $incomingVendorIds)
+                                    ->delete();
                             }
                         }
                     }
