@@ -649,7 +649,7 @@ class WorkOrderController extends Controller
         $query = ServiceStatus::with([
             'work_order',
             'work_order.owners',
-            'work_orders' => function ($query) {
+            'work_orders' => function ($query) { 
                 $query->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
@@ -667,7 +667,7 @@ class WorkOrderController extends Controller
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
                     ->where('category', 'LIKE', '%lawn service%')
-                    ->where('category', 'LIKE', '%biweekly lawn services%')
+                    ->where('type', 'LIKE', '%biweekly lawn services%')
                     ->where('status', 'Open');
             },
             'work_orders.service_status',
