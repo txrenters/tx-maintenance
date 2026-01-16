@@ -46,6 +46,7 @@ Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
     ->middleware('throttle:60,1'); // 60 requests per minute;
 
 Route::put('/notifications/{activity}/mark-as-read', [NotificationController::class, 'markAsRead']);
+Route::put('/notifications/{activity}/mark-as-unread', [NotificationController::class, 'markAsUnread']);
 
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
 Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);

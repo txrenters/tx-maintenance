@@ -385,6 +385,46 @@ const markAsRead = async (notificationId) => {
     }
 };
 
+// Mark notification as unread
+const markAsUnread = async (notificationId) => {
+    try {
+        const notification = notifications.value.find(
+            (n) => n.id === notificationId
+        );
+        if (
+            !notification ||
+            !notification.read ||
+            markingAsRead.value.has(notificationId)
+        )
+            return; // Already unread, not found, or in progress
+
+        markingAsRead.value.add(notificationId);
+
+        await axios.put(`/api/notifications/${notificationId}/mark-as-unread`);
+
+        const index = notifications.value.findIndex(
+            (n) => n.id === notificationId
+        );
+        if (index !== -1) {
+            notifications.value[index].read = false;
+        }
+
+        toast({
+            title: "Success",
+            description: "Notification marked as unread!",
+        });
+    } catch (error) {
+        console.error("Failed to mark notification as unread:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to mark notification as unread",
+        });
+    } finally {
+        markingAsRead.value.delete(notificationId);
+    }
+};
+
 const openModal = ref(false);
 const isLoading = ref(false);
 const newMessage = ref("");
@@ -1003,6 +1043,33 @@ onUnmounted(() => {
                                                                         )
                                                                             ? "Marking..."
                                                                             : "Mark as read"
+                                                                    }}
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="link"
+                                                                    class="text-xs text-yellow-600"
+                                                                    as="button"
+                                                                    v-if="
+                                                                        notification.read
+                                                                    "
+                                                                    @click.prevent="
+                                                                        markAsUnread(
+                                                                            notification.id
+                                                                        )
+                                                                    "
+                                                                    :disabled="
+                                                                        markingAsRead.has(
+                                                                            notification.id
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    {{
+                                                                        markingAsRead.has(
+                                                                            notification.id
+                                                                        )
+                                                                            ? "Marking..."
+                                                                            : "Mark as unread"
                                                                     }}
                                                                 </Button>
                                                                 <Button

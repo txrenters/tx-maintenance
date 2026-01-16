@@ -52,6 +52,17 @@ class NotificationController extends Controller
         ]);
 
         return response()->json(['message' => 'Notification marked as read']);
+    }
 
+    public function markAsUnread(Activity $activity)
+    {
+        $props = $activity->properties ?? [];
+        $props['read'] = false;
+
+        $activity->update([
+            'properties' => $props,
+        ]);
+
+        return response()->json(['message' => 'Notification marked as unread']);
     }
 }
