@@ -59,7 +59,7 @@ class WorkOrderController extends Controller
                         $query->whereBetween('created_date', [$start, $end]);
                     })
                     ->where('status', 'Open')
-                    ->where('category', 'NOT LIKE', '%inspection%')
+                    ->where('category', 'NOT LIKE', '%move out inspection%')
                     ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%');
             },
             'work_orders.service_status',
@@ -512,7 +512,7 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->where('category', 'LIKE', '%inspection%')
+                    ->where('category', 'LIKE', '%move out inspection%')
                     ->where('status', 'Open');
             },
             'work_orders.service_status',
