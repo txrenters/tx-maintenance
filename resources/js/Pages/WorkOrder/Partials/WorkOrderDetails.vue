@@ -44,7 +44,7 @@ const searchTerm = ref("");
 const { contains } = useFilter({ sensitivity: "base" }); // this is use for vendors dropdown
 const filteredVendors = computed(() => {
     const options = props.vendors.filter(
-        (i) => !props.workOrder.vendors.includes(i.name)
+        (i) => !props.workOrder.vendors.includes(i.name),
     );
 
     console.log(options);
@@ -119,7 +119,7 @@ const handleEmergencySubmit = () => {
                         "There was a problem with your request. Please try again!",
                 });
             },
-        }
+        },
     );
 };
 
@@ -151,7 +151,7 @@ const handleVendorSubmit = () => {
                 });
                 loadingVendor.value = false;
             },
-        }
+        },
     );
 };
 
@@ -293,7 +293,7 @@ const handleCompleteSubmit = () => {
                                 class="gap-2 w-full"
                                 v-if="
                                     !$page.props.auth.user.roles.includes(
-                                        'vendor'
+                                        'vendor',
                                     )
                                 "
                             >
@@ -334,7 +334,7 @@ const handleCompleteSubmit = () => {
                                                 ) {
                                                     searchTerm = '';
                                                     workOrder.vendors.push(
-                                                        ev.detail.value
+                                                        ev.detail.value,
                                                     );
                                                 }
 
@@ -361,9 +361,8 @@ const handleCompleteSubmit = () => {
                 </div>
                 <div
                     v-if="
-                        workOrder.is_emergency === null &&
-                        ($page.props.auth.user.roles.includes('admin') ||
-                            $page.props.auth.user.roles.includes('woc'))
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
                     "
                 >
                     <Label for="message">Emergency:</Label>
@@ -385,7 +384,6 @@ const handleCompleteSubmit = () => {
                             </SelectGroup>
                         </SelectContent>
                     </Select>
-                    <p>{{ workOrder.is_emergency ?? "" }}</p>
                 </div>
 
                 <div
