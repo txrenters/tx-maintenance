@@ -34,7 +34,7 @@ class SendJobReminders extends Command
         $today = Carbon::today();
 
         $notifyMessageFor7days = "Dear {CLIENT_NAME},\n
-            As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}: 
+            As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}:
                 * Pest control treatment
                 * Air filter replacement
                 * Occupied inspection
@@ -50,7 +50,7 @@ class SendJobReminders extends Command
 
         $notifyMessageFor3days = "Dear {CLIENT_NAME},\n
             This is a friendly reminder of the scheduled visit on {SCHEDULED_DATE} for the * Pest control treatment * Air filter replacement * Occupied inspection.\n
-            Please note:\n 
+            Please note:\n
                 * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
                 * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
             Thank you for your cooperation. Should you have any questions, feel free to reach out to us\n
@@ -75,6 +75,7 @@ class SendJobReminders extends Command
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
             ->whereNull('completed_at')
+            ->where(fn ($q) => $q->whereNull($notifiedField)->orWhere($notifiedField, false))
             ->get();
 
         $twilio = new TwilioService;
