@@ -649,7 +649,7 @@ class WorkOrderController extends Controller
         $query = ServiceStatus::with([
             'work_order',
             'work_order.owners',
-            'work_orders' => function ($query) { 
+            'work_orders' => function ($query) {
                 $query->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
@@ -825,15 +825,15 @@ class WorkOrderController extends Controller
 
         $workOrder->update(['is_emergency' => $isEmergency]);
 
-        $serviceStatusId =  $workOrder->service_status_id; // actual ID for 'New'
+        $serviceStatusId = $workOrder->service_status_id; // actual ID for 'New'
         $service_status = ServiceStatus::find($serviceStatusId);
 
         WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', 'pending')->delete();
 
         TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $serviceStatusId);
 
-        $propertyWare = new PropertyWareService;
-        $propertyWare->updateServiceStatus($workOrder, $service_status);
+        // $propertyWare = new PropertyWareService;
+        // $propertyWare->updateServiceStatus($workOrder, $service_status);
 
         // Broadcast the work order update
         $workOrder->load('service_status');
