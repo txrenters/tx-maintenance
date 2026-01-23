@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
-import { Loader2, Undo2, Ellipsis, Pencil } from "lucide-vue-next";
+import { Loader2, Undo2, Ellipsis, Pencil, Trash2 } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
 const { toast } = useToast();
@@ -134,6 +134,46 @@ const handleUndoTask = (taskId) => {
     );
 };
 
+const deletingTaskId = ref(null);
+const openDeleteModal = ref(false);
+const taskToDelete = ref(null);
+
+const handleDeleteTask = (taskId) => {
+    taskToDelete.value = taskId;
+    openDeleteModal.value = true;
+};
+
+const confirmDeleteTask = () => {
+    if (!taskToDelete.value) return;
+
+    deletingTaskId.value = taskToDelete.value;
+
+    router.delete(route("api.task.destroy", taskToDelete.value), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Task has been deleted successfully!",
+            });
+            emit("update-task-status");
+            openDeleteModal.value = false;
+            taskToDelete.value = null;
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem with your request. Please try again!",
+            });
+        },
+        onFinish: () => {
+            deletingTaskId.value = null;
+        },
+    });
+};
+
 const EditFormSubmit = () => {
     editTaskForm.patch(route("tasks.update", editTaskForm.id), {
         preserveState: true,
@@ -225,6 +265,24 @@ const checkDueTask = (task) => {
                             type="button"
                         >
                             <Pencil class="w-3 h-3" />
+                        </button>
+                        <button
+                            v-if="
+                                $page.props.auth.user.roles.includes('admin') ||
+                                $page.props.auth.user.roles.includes('superadmin') ||
+                                $page.props.auth.user.roles.includes('woc')
+                            "
+                            @click.stop="handleDeleteTask(task.id)"
+                            class="hover:opacity-70 transition-opacity"
+                            title="Delete task"
+                            type="button"
+                            :disabled="deletingTaskId === task.id"
+                        >
+                            <Loader2
+                                v-if="deletingTaskId === task.id"
+                                class="w-3 h-3 animate-spin"
+                            />
+                            <Trash2 v-else class="w-3 h-3" />
                         </button>
                     </div>
                     <p class="text-sm" @click="handleEditForm(task)">
@@ -386,6 +444,38 @@ const checkDueTask = (task) => {
                         class="w-4 h-4 animate-spin"
                     />
                     Save Changes
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="openDeleteModal">
+        <DialogContent class="sm:max-w-[400px]">
+            <DialogHeader>
+                <DialogTitle>Delete Task</DialogTitle>
+                <DialogDescription>
+                    Are you sure you want to delete this task? This action
+                    cannot be undone.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <Button
+                    variant="outline"
+                    @click="openDeleteModal = false"
+                    :disabled="deletingTaskId !== null"
+                >
+                    Cancel
+                </Button>
+                <Button
+                    variant="destructive"
+                    @click="confirmDeleteTask"
+                    :disabled="deletingTaskId !== null"
+                >
+                    <Loader2
+                        v-if="deletingTaskId !== null"
+                        class="w-4 h-4 mr-2 animate-spin"
+                    />
+                    Delete
                 </Button>
             </DialogFooter>
         </DialogContent>

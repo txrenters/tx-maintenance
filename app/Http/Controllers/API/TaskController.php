@@ -141,4 +141,13 @@ class TaskController extends Controller
 
         return redirect()->back();
     }
+
+    public function destroy(WorkOrderTask $task)
+    {
+        $task->delete();
+
+        Log::info('Task deleted successfully: ', ['task_id' => $task->id]);
+
+        return redirect()->back();
+    }
 }
