@@ -209,7 +209,9 @@ class TwilioWebhookController extends Controller
         })->orWhere(function ($query) use ($to, $from) {
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
-        })->first(); // fetch the latest conversation
+        })
+        ->latest()
+        ->first();
     }
 
     protected function getWorkOrderId(string $from, string $to)
