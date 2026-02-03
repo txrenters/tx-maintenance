@@ -204,7 +204,10 @@ class SendJobReminders extends Command
         }
 
         Log::info('Number of visit: ('.count($visits).") for date: {$scheduled_date->toDateString()}");
-    }
+    }   
+
+
+    
 
     protected function formatNumber(string $number): string
     {
