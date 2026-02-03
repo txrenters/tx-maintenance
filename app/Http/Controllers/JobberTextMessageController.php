@@ -82,14 +82,19 @@ class JobberTextMessageController extends Controller
             // Send message to each recipient
             foreach ($receiverNumbers as $receiverNumber) {
                 try {
-                    // Save the message to the database
-                    $jobberTextMessage = JobberTextMessage::create([
-                        'messages' => $validatedData['messages'] ?? '',
-                        'sender_number' => $senderNumber,
-                        'receiver_number' => $receiverNumber,
-                        'jobber_id' => $validatedData['jobber_id'],
-                        'image' => $imagePath,
-                    ]);
+                    // Check for duplicate messages sent within the last 1 minute to prevent double-submission
+                    $recentMessage = JobberTextMessage::where('receiver_number', $receiverNumber)
+                        ->where('jobber_id', $validatedData['jobber_id'])
+                        ->where('messages', $validatedData['messages'] ?? '')
+                        ->where('created_at', '>=', now()->subMinutes(1))
+                        ->first();
+
+                    if ($recentMessage) {
+                        Log::warning("Duplicate message prevented for {$receiverNumber} (jobber_id: {$validatedData['jobber_id']})");
+                        $failedRecipients[] = $receiverNumber.' (duplicate)';
+
+                        continue;
+                    }
 
                     // Only send SMS if there's content (text or image note)
                     if (! empty($messageContent)) {
@@ -100,6 +105,15 @@ class JobberTextMessageController extends Controller
                             $mediaUrl
                         );
                     }
+
+                    // Save the message to the database AFTER successful send
+                    $jobberTextMessage = JobberTextMessage::create([
+                        'messages' => $validatedData['messages'] ?? '',
+                        'sender_number' => $senderNumber,
+                        'receiver_number' => $receiverNumber,
+                        'jobber_id' => $validatedData['jobber_id'],
+                        'image' => $imagePath,
+                    ]);
 
                     $sentMessages[] = $jobberTextMessage;
                 } catch (\Exception $e) {

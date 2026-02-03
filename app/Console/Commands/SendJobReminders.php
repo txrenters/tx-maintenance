@@ -75,7 +75,7 @@ class SendJobReminders extends Command
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
             ->whereNull('completed_at')
-            ->where(fn ($q) => $q->whereNull($notifiedField)->orWhere($notifiedField, false))
+            ->where($notifiedField, false)
             ->get();
 
         $twilio = new TwilioService;
@@ -107,12 +107,37 @@ class SendJobReminders extends Command
 
             $client = $visit->job->client->name;
 
+            // Log the first record structure for debugging (only log once per run)
+            static $loggedSample = false;
+            if (! $loggedSample && ! empty($records)) {
+                Log::info('PropertyWare Tenant API Sample Record:', [
+                    'record_indices' => [
+                        '0' => $records[0][0] ?? 'N/A',
+                        '1' => $records[0][1] ?? 'N/A',
+                        '2' => $records[0][2] ?? 'N/A',
+                        '3' => $records[0][3] ?? 'N/A',
+                        '4' => $records[0][4] ?? 'N/A',
+                        '5' => $records[0][5] ?? 'N/A',
+                        '11' => $records[0][11] ?? 'N/A',
+                        '12' => $records[0][12] ?? 'N/A',
+                        '13' => $records[0][13] ?? 'N/A',
+                        '14' => $records[0][14] ?? 'N/A',
+                    ],
+                ]);
+                $loggedSample = true;
+            }
+
             $filtered = collect($records)->filter(function ($record) use ($client) {
                 // Exact case-insensitive match to prevent matching similar names
                 return strtolower(trim($record[4] ?? '')) === strtolower(trim($client ?? ''));
             })->values();
 
             if ($filtered->isEmpty()) {
+                Log::warning('No PropertyWare tenant found for Jobber client', [
+                    'jobber_client_name' => $client,
+                    'visit_id' => $visit->id,
+                ]);
+
                 continue;
             }
 
@@ -123,7 +148,16 @@ class SendJobReminders extends Command
                 $clientStatus = $record[2];
                 $clientName = $record[3];
 
+                Log::info('Processing PropertyWare tenant record', [
+                    'jobber_client_name' => $client,
+                    'propertyware_status' => $clientStatus,
+                    'propertyware_tenant_name' => $clientName,
+                    'propertyware_property_match' => $record[4] ?? 'N/A',
+                ]);
+
                 if (strtolower($clientStatus) !== 'active') {
+                    Log::info('Skipping inactive tenant', ['tenant_name' => $clientName, 'status' => $clientStatus]);
+
                     continue;
                 }
 
@@ -165,6 +199,10 @@ class SendJobReminders extends Command
             // Send messages to unique phone + name combinations
             $visitDate = Carbon::parse($visit->start_at)->format('l, F d, Y');
 
+            // Mark visit as notified BEFORE sending to prevent duplicates if script crashes mid-send
+            $visit->{$notifiedField} = true;
+            $visit->save();
+
             foreach ($uniqueRecipients as $recipient) {
                 $phoneNumber = $recipient['phone'];
                 $clientName = $recipient['name'];
@@ -195,16 +233,10 @@ class SendJobReminders extends Command
                     Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);
                 }
             }
-
-            // Mark visit as notified after processing all unique recipients
-            if (! empty($uniqueRecipients)) {
-                $visit->{$notifiedField} = true;
-                $visit->save();
-            }
         }
 
         Log::info('Number of visit: ('.count($visits).") for date: {$scheduled_date->toDateString()}");
-    }   
+    }
 
     protected function formatNumber(string $number): string
     {
