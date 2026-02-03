@@ -210,8 +210,11 @@ class TwilioWebhookController extends Controller
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
         })
-        ->latest()
-        ->first();
+            ->whereHas('jobber')
+            ->with('jobber')
+            ->get()
+            ->sortByDesc(fn ($message) => $message->jobber->start_at)
+            ->first();
     }
 
     protected function getWorkOrderId(string $from, string $to)
