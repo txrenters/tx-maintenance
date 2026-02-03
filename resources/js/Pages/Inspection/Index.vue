@@ -406,7 +406,7 @@ const addRecipientFromClient = () => {
         searchQuery.value = "";
     }
 };
-const customePhoneNumber = ref("");
+const customPhoneNumber = ref("");
 // Optimized send message function
 const sendMessage = () => {
     if (!newMessage.value.trim() && !selectedImage.value) {
@@ -430,10 +430,10 @@ const sendMessage = () => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
 
-    if (customePhoneNumber.value.trim() !== "") {
+    if (customPhoneNumber.value.trim() !== "") {
         formData.append(
             `receiver_numbers[${selectedRecipients.value.length}]`,
-            customePhoneNumber.value.trim()
+            customPhoneNumber.value.trim()
         );
     }
 
