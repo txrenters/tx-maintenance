@@ -286,7 +286,7 @@ onMounted(() => {
     if (immediateCheck) {
         console.log(
             "Data found on page load:",
-            immediateCheck.substring(0, 100) + "..."
+            immediateCheck.substring(0, 100) + "...",
         );
 
         // Try to restore building ID from localStorage
@@ -295,7 +295,7 @@ onMounted(() => {
             if (savedData.buildingId) {
                 console.log(
                     "🏗️ Setting buildingInfo.id from localStorage:",
-                    savedData.buildingId
+                    savedData.buildingId,
                 );
                 buildingInfo.id = savedData.buildingId;
 
@@ -319,7 +319,7 @@ onMounted(() => {
                         console.log(
                             "🏢 Restored",
                             searchData.buildings.length,
-                            "buildings from localStorage"
+                            "buildings from localStorage",
                         );
                     }
 
@@ -342,11 +342,11 @@ onMounted(() => {
                         searchData.buildings.length > 0
                     ) {
                         const savedBuilding = searchData.buildings.find(
-                            (b) => b.id === savedData.buildingId
+                            (b) => b.id === savedData.buildingId,
                         );
                         if (savedBuilding) {
                             console.log(
-                                "🔧 Restoring building data and populating customFieldsMap"
+                                "🔧 Restoring building data and populating customFieldsMap",
                             );
                             building.value = savedBuilding;
                             loadBuildingData();
@@ -372,7 +372,7 @@ const restoreFromLocalStorage = () => {
             console.log("parsedData.buildingId:", parsedData.buildingId);
             console.log(
                 "ID match check:",
-                parsedData.buildingId === buildingInfo?.id
+                parsedData.buildingId === buildingInfo?.id,
             );
 
             // Only restore data if building ID matches
@@ -401,7 +401,7 @@ const restoreFromLocalStorage = () => {
                     "❌ Building ID mismatch - saved:",
                     parsedData.buildingId,
                     "current:",
-                    buildingInfo.id
+                    buildingInfo.id,
                 );
             }
         } catch (error) {
@@ -427,7 +427,7 @@ watch(
             restoreFromLocalStorage();
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 // Auto-save form data to localStorage
@@ -463,7 +463,7 @@ const saveFormToLocalStorage = () => {
 
         localStorage.setItem(
             "buildingOnboardingForm",
-            JSON.stringify(formData)
+            JSON.stringify(formData),
         );
 
         // Immediately verify the save worked
@@ -472,7 +472,7 @@ const saveFormToLocalStorage = () => {
             console.log("📁 localStorage save verified - data exists");
         } else {
             console.log(
-                "🚨 localStorage save FAILED - data missing immediately after save!"
+                "🚨 localStorage save FAILED - data missing immediately after save!",
             );
         }
 
@@ -503,7 +503,7 @@ watch(
     () => {
         debouncedSave();
     },
-    { deep: true }
+    { deep: true },
 );
 
 // Define sections for navigation
@@ -545,7 +545,7 @@ watch(
         ) {
             form.alarmSystem = "Yes";
         }
-    }
+    },
 );
 
 // Watch for changes in reKey field based on Property Re-Key custom field
@@ -554,7 +554,7 @@ watch(
     (newValue) => {
         // This watcher is for when form.reKey is directly modified
         // The logic in populateFormFromBuilding handles the initial mapping
-    }
+    },
 );
 
 // Navigate to section
@@ -742,7 +742,7 @@ const populateFormFromCustomFields = () => {
                     form[formField] = customField.value;
                 }
             }
-        }
+        },
     );
 
     // Handle special field mappings that require transformation
@@ -829,7 +829,7 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Included Appliances"].value !== "Not Completed"
     ) {
         const appliances = String(
-            customFieldsMap.value["Included Appliances"].value || ""
+            customFieldsMap.value["Included Appliances"].value || "",
         ).toLowerCase();
 
         if (appliances.includes("refrigerator")) form.refrigerator = "Yes";
@@ -891,7 +891,7 @@ const populateFormFromCustomFields = () => {
     ) {
         const keyInfo = String(
             customFieldsMap.value["Key Information - anything we need to know"]
-                .value || ""
+                .value || "",
         ).toLowerCase();
 
         // Check for alarm system included in price
@@ -1021,7 +1021,7 @@ const populateFormFromCustomFields = () => {
         customFieldsMap.value["Owner Pet Prefences"].value !== "Not Completed"
     ) {
         const petPrefs = String(
-            customFieldsMap.value["Owner Pet Prefences"].value || ""
+            customFieldsMap.value["Owner Pet Prefences"].value || "",
         ).toLowerCase();
 
         // Check for dogs
@@ -1043,7 +1043,7 @@ const populateFormFromCustomFields = () => {
 
             // Extract cat restrictions if any
             const catMatch = petPrefs.match(
-                /cat[s]?\s*[-:]?\s*(.+?)(?:,|;|$)/i
+                /cat[s]?\s*[-:]?\s*(.+?)(?:,|;|$)/i,
             );
             if (catMatch && catMatch[1]) {
                 form.catRestrictions = catMatch[1].trim();
@@ -1103,7 +1103,7 @@ const parseMaintenanceNotice = (maintenanceNotice) => {
             // Parse vendor/warranty info to separate name and phone
             // Assume phone number is the last part that matches a phone pattern
             const phoneMatch = entryInfo.match(
-                /(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})$/
+                /(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})$/,
             );
 
             if (phoneMatch) {
@@ -1169,7 +1169,7 @@ const loadBuildingData = () => {
     // Handle amenities data - implode from array to individual form fields
     if (building.value.amenities && Array.isArray(building.value.amenities)) {
         const amenities = building.value.amenities.map((a) =>
-            String(a || "").toLowerCase()
+            String(a || "").toLowerCase(),
         );
 
         // Reset amenity fields
@@ -1188,7 +1188,7 @@ const loadBuildingData = () => {
         }
         if (
             amenities.some(
-                (a) => a.includes("playground") || a.includes("play ground")
+                (a) => a.includes("playground") || a.includes("play ground"),
             )
         ) {
             form.playGround = "Yes";
@@ -1201,13 +1201,13 @@ const loadBuildingData = () => {
     } else if (building.value.customFields) {
         // Check if amenities are stored in custom fields like "Neighborhood Ammenity Access"
         const neighborhoodAmenities = building.value.customFields.find(
-            (field) => field.fieldName === "Neighborhood Ammenity Access"
+            (field) => field.fieldName === "Neighborhood Ammenity Access",
         );
         const tenantToContactNeighborhoodAmenities =
             building.value.customFields.find(
                 (field) =>
                     field.fieldName ===
-                    "Contact Info for Neighborhood Amenities"
+                    "Contact Info for Neighborhood Amenities",
             );
 
         // Populate the contact info field if it exists
@@ -1225,7 +1225,7 @@ const loadBuildingData = () => {
             neighborhoodAmenities.value !== "Not Provided"
         ) {
             const amenitiesText = String(
-                neighborhoodAmenities.value || ""
+                neighborhoodAmenities.value || "",
             ).toLowerCase();
 
             // Reset all amenity fields first
@@ -1330,7 +1330,7 @@ const prepareCustomFieldsForUpdate = () => {
             console.log(
                 `  Will include: ${
                     customField && formValue && formValue !== customField?.value
-                }`
+                }`,
             );
 
             // Only include if:
@@ -1340,7 +1340,7 @@ const prepareCustomFieldsForUpdate = () => {
             if (customField && formValue && formValue !== customField.value) {
                 fieldsToUpdate[customFieldName] = formValue;
             }
-        }
+        },
     );
 
     // Special handling for complex fields
@@ -1399,7 +1399,7 @@ const prepareCustomFieldsForUpdate = () => {
             !petPrefs.some(
                 (pref) =>
                     form.otherPetsRestriction.includes(pref) ||
-                    pref.includes(form.otherPetsRestriction)
+                    pref.includes(form.otherPetsRestriction),
             )
         ) {
             petPrefs.push(form.otherPetsRestriction);
@@ -1501,8 +1501,8 @@ const prepareCustomFieldsForUpdate = () => {
             form.swimmingPool === "No"
                 ? "No Pool"
                 : form.poolService === "Yes"
-                ? "Required Contract"
-                : "Cared By Owner";
+                  ? "Required Contract"
+                  : "Cared By Owner";
         fieldsToUpdate["Pool Service"] = poolValue;
     }
 
@@ -1538,7 +1538,7 @@ const prepareCustomFieldsForUpdate = () => {
         form.homeWarrantyContactNumber
     ) {
         notices.push(
-            `Warranty: ${form.homeWarrantyCompanyName} ${form.homeWarrantyContactNumber}`
+            `Warranty: ${form.homeWarrantyCompanyName} ${form.homeWarrantyContactNumber}`,
         );
     }
 
@@ -1548,27 +1548,27 @@ const prepareCustomFieldsForUpdate = () => {
     }
     if (form.electricVendorName && form.electricVendorNumber) {
         notices.push(
-            `Electric: ${form.electricVendorName} ${form.electricVendorNumber}`
+            `Electric: ${form.electricVendorName} ${form.electricVendorNumber}`,
         );
     }
     if (form.plumbingVendorName && form.plumbingVendorNumber) {
         notices.push(
-            `Plumbing: ${form.plumbingVendorName} ${form.plumbingVendorNumber}`
+            `Plumbing: ${form.plumbingVendorName} ${form.plumbingVendorNumber}`,
         );
     }
     if (form.pestControlVendorName && form.pestControlVendorNumber) {
         notices.push(
-            `Pest Control: ${form.pestControlVendorName} ${form.pestControlVendorNumber}`
+            `Pest Control: ${form.pestControlVendorName} ${form.pestControlVendorNumber}`,
         );
     }
     if (form.lawnCareVendorName && form.lawnCareVendorNumber) {
         notices.push(
-            `Lawn Care: ${form.lawnCareVendorName} ${form.lawnCareVendorNumber}`
+            `Lawn Care: ${form.lawnCareVendorName} ${form.lawnCareVendorNumber}`,
         );
     }
     if (form.otherVendorName && form.otherVendorNumber) {
         notices.push(
-            `Other: ${form.otherVendorName} ${form.otherVendorNumber}`
+            `Other: ${form.otherVendorName} ${form.otherVendorNumber}`,
         );
     }
 
@@ -1739,7 +1739,7 @@ const submitForm = async () => {
                 signature: signatureData,
                 ownerName: fullName.value,
                 maintenanceNotice: maintenanceNoticeValue,
-            }
+            },
         );
 
         toast({
@@ -1755,7 +1755,6 @@ const submitForm = async () => {
         // Clear localStorage after successful submission
         localStorage.removeItem("buildingOnboardingForm");
 
-        // Show thank you overlay and start countdown
         redirectCountdown.value = 10; // Reset countdown
         showThankYou.value = true;
         startCountdown();
@@ -1780,7 +1779,6 @@ const submitForm = async () => {
     }
 };
 
-// Countdown timer function
 const startCountdown = () => {
     // Clear any existing timer first
     if (countdownTimer) {
@@ -1800,7 +1798,6 @@ const startCountdown = () => {
     }, 1000);
 };
 
-// Redirect to owner handbook
 const redirectToHandbook = () => {
     // Clean up timer before redirect
     if (countdownTimer) {
@@ -1935,8 +1932,8 @@ const redirectToHandbook = () => {
                                     currentSection === section.id
                                         ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-500'
                                         : completedSections.includes(section.id)
-                                        ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                                        : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                          ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                                          : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                                 ]"
                             >
                                 <div class="flex items-center">
@@ -1946,16 +1943,16 @@ const redirectToHandbook = () => {
                                             currentSection === section.id
                                                 ? 'bg-blue-200'
                                                 : completedSections.includes(
-                                                      section.id
-                                                  )
-                                                ? 'bg-green-200'
-                                                : 'bg-gray-200',
+                                                        section.id,
+                                                    )
+                                                  ? 'bg-green-200'
+                                                  : 'bg-gray-200',
                                         ]"
                                     >
                                         <CheckCircle
                                             v-if="
                                                 completedSections.includes(
-                                                    section.id
+                                                    section.id,
                                                 )
                                             "
                                             class="h-5 w-5 text-green-600"
@@ -1984,7 +1981,7 @@ const redirectToHandbook = () => {
                                         <div
                                             v-else-if="
                                                 completedSections.includes(
-                                                    section.id
+                                                    section.id,
                                                 )
                                             "
                                             class="text-xs text-green-600 mt-0.5"
@@ -1999,10 +1996,10 @@ const redirectToHandbook = () => {
                                         currentSection === section.id
                                             ? 'text-blue-500'
                                             : completedSections.includes(
-                                                  section.id
-                                              )
-                                            ? 'text-green-500'
-                                            : 'text-gray-400',
+                                                    section.id,
+                                                )
+                                              ? 'text-green-500'
+                                              : 'text-gray-400',
                                     ]"
                                 />
                             </button>
