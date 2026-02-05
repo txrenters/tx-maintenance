@@ -108,7 +108,7 @@ class UpdateWorkOrderStatus extends Command
 
                             $workOrder->update($work_order_data);
 
-                            $this->processNotes($data, $workOrder->id);
+                            // $this->processNotes($data, $workOrder->id);
 
                             if (! empty($customFieldData)) {
                                 DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
