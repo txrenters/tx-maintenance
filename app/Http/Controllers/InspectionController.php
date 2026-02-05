@@ -129,6 +129,9 @@ class InspectionController extends Controller
             ->with(['jobber.client', 'jobber.property', 'jobber.visits'])
             ->latest()
             ->filter(request(['search']))
+            ->when($request->filled('jobber_id'), function ($q) use ($request) {
+                $q->where('jobber_id', $request->jobber_id);
+            })
             ->whereHas('jobber', function ($q) {
                 $q->where('job_status', '!=', 'archived');
             })
@@ -149,9 +152,19 @@ class InspectionController extends Controller
                 ];
             });
 
+        // Get list of jobs that have messages for the filter dropdown
+        $jobs = Jobber::query()
+            ->whereHas('textMessages')
+            ->where('job_status', '!=', 'archived')
+            ->select('id', 'job_number', 'title')
+            ->orderBy('job_number', 'desc')
+            ->get();
+
         return inertia('Inspection/Messages', [
             'title' => 'Jobs Messages',
             'conversations' => $convos,
+            'jobs' => $jobs,
+            'filters' => $request->only(['search', 'jobber_id']),
         ]);
     }
 

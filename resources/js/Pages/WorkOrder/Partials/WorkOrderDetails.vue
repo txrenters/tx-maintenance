@@ -563,7 +563,7 @@ const handleCompleteSubmit = () => {
                         v-model="workOrder.additional_work_needed_reschedule"
                     />
                 </div>
-                <div class="grid gap-1.5 mt-5">
+                <!-- <div class="grid gap-1.5 mt-5">
                     <Label for="message">Closing Comments</Label>
                     <Textarea
                         placeholder="Type your message here."
@@ -581,7 +581,7 @@ const handleCompleteSubmit = () => {
                         v-model="workOrder.latest_update_comments"
                         rows="1"
                     />
-                </div>
+                </div> -->
                 <div class="grid gap-1.5 mt-5 pb-12">
                     <Label>Description:</Label>
                     <Textarea

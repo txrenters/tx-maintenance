@@ -37,17 +37,29 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/Components/ui/dialog";
-import { Head } from "@inertiajs/vue3";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    SelectGroup,
+} from "@/Components/ui/select";
+import { Head, router } from "@inertiajs/vue3";
 import Pagination from "@/Components/Pagination.vue";
 import PaginationResultRange from "@/Components/PaginationResultRange.vue";
+import SearchBar from "@/Components/SearchBar.vue";
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     title: String,
     conversations: Array,
+    jobs: Array,
+    filters: Object,
 });
 
+const search = ref(props.filters?.search || "");
 const searchTerm = ref("");
 const statusFilter = ref("all");
 const workOrderFilter = ref("all");
@@ -56,6 +68,7 @@ const isViewModalOpen = ref(false);
 const isLoading = ref(false);
 const visibleItems = ref(50); // Virtual scrolling - show 50 items initially
 const itemHeight = 64; // Approximate height of each table row in pixels
+const selectedJobId = ref(props.filters?.jobber_id || "all");
 
 const openViewModal = async (conversation) => {
     isLoading.value = true;
@@ -156,6 +169,26 @@ const truncateMessage = (message, length = 100) => {
     return message.substring(0, length) + "...";
 };
 const url = route("jobber.messages");
+
+// Handle job filter change
+const handleJobFilterChange = (value) => {
+    selectedJobId.value = value;
+
+    const query = new URLSearchParams(window.location.search);
+
+    if (value && value !== "all") {
+        query.set("jobber_id", value);
+    } else {
+        query.delete("jobber_id");
+    }
+
+    router.visit(`${url}?${query.toString()}`, {
+        method: "get",
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+};
 </script>
 
 <template>
@@ -166,6 +199,34 @@ const url = route("jobber.messages");
     </div>
     <div class="space-y-6">
         <Card>
+            <CardHeader>
+                <div class="flex gap-3 items-center">
+                    <Filter class="w-4 h-4" />
+                    <span class="text-sm font-medium">Filter by Job:</span>
+                    <Select
+                        :modelValue="String(selectedJobId)"
+                        @update:modelValue="handleJobFilterChange"
+                    >
+                        <SelectTrigger class="w-full sm:w-[280px]">
+                            <SelectValue placeholder="All Jobs" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem value="all">
+                                    All Jobs
+                                </SelectItem>
+                                <SelectItem
+                                    v-for="job in jobs"
+                                    :key="job.id"
+                                    :value="job.id.toString()"
+                                >
+                                    {{ job.job_number }} - {{ job.title }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>

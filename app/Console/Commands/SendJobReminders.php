@@ -210,11 +210,11 @@ class SendJobReminders extends Command
                     $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
                     $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
-                    Log::info('Processing text message:', [
+                    Log::info('Sending job reminder SMS', [
                         'client_name' => $clientName,
-                        'date' => $visitDate,
+                        'visit_date' => $visitDate,
                         'to' => $phoneNumber,
-                        'text' => $message2,
+                        'notification_type' => $notifiedField,
                     ]);
 
                     $twilio->sendMessage($phoneNumber, $senderNumber, $message2);
@@ -227,7 +227,11 @@ class SendJobReminders extends Command
                         'sent_at' => $visit->job->start_at,
                     ]);
 
-                    Log::info('Successfully sent text messages :', ['text' => $text]);
+                    Log::info('Job reminder SMS sent successfully', [
+                        'message_id' => $text->id,
+                        'client_name' => $clientName,
+                        'to' => $phoneNumber,
+                    ]);
 
                 } catch (\Throwable $th) {
                     Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);

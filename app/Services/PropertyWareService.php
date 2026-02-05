@@ -394,10 +394,6 @@ class PropertyWareService
                     'name' => 'Zone',
                     'value' => $workOrder?->zone,
                 ],
-                [
-                    'name' => 'closing comment',
-                    'value' => $workOrder?->closing_comments,
-                ],
             ],
         ]);
 
@@ -754,7 +750,6 @@ class PropertyWareService
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
                         '.$vendorIDsXml.'
-                        <closingComments xsi:type="xsd:string">'.htmlspecialchars($workOrder->closing_comments ?? '', ENT_XML1, 'UTF-8').'</closingComments>
                     </workOrder>
                     </ser:updateWorkOrder>
                     </soapenv:Body>
