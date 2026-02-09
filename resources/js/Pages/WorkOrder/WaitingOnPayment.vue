@@ -530,7 +530,7 @@ const handleUpdateSubmit = () => {
 };
 
 const handleCloseOrderSubmit = () => {
-    closeWorkOrderForm.put(route("work_orders.close", closeWorkOrderForm.id), {
+    closeWorkOrderForm.put(route("work_orders.close", workOrderForm.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {

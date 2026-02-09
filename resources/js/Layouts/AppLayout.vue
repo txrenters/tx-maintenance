@@ -176,7 +176,7 @@ const navs = computed(() => {
                         isActive: page.url.startsWith("/visits"),
                     },
                 ],
-                requires: ["admin", "woc"],
+                requires: ["admin", "woc", "vendor"],
             },
         ],
         menu: [
@@ -309,13 +309,13 @@ const canAccess = (requiredRoles) => {
 
     // Special access for specific vendor email
     const userEmail = page.props.auth.user.email;
-    if (userEmail === "thmp@texasrenters.com") {
+    if (userEmail === "service@txhomemp.com") {
         return true;
     }
 
     // Use filter to find matching roles
     const matchingRoles = userRoles.filter((role) =>
-        requiredRoles.includes(role)
+        requiredRoles.includes(role),
     );
 
     // Return true if there are any matches, otherwise false
@@ -345,7 +345,7 @@ const markAsRead = async (notificationId) => {
     try {
         // Find the notification
         const notification = notifications.value.find(
-            (n) => n.id === notificationId
+            (n) => n.id === notificationId,
         );
         if (
             !notification ||
@@ -362,7 +362,7 @@ const markAsRead = async (notificationId) => {
 
         // Update the notification's read status instead of removing it
         const index = notifications.value.findIndex(
-            (n) => n.id === notificationId
+            (n) => n.id === notificationId,
         );
         if (index !== -1) {
             notifications.value[index].read = true;
@@ -389,7 +389,7 @@ const markAsRead = async (notificationId) => {
 const markAsUnread = async (notificationId) => {
     try {
         const notification = notifications.value.find(
-            (n) => n.id === notificationId
+            (n) => n.id === notificationId,
         );
         if (
             !notification ||
@@ -403,7 +403,7 @@ const markAsUnread = async (notificationId) => {
         await axios.put(`/api/notifications/${notificationId}/mark-as-unread`);
 
         const index = notifications.value.findIndex(
-            (n) => n.id === notificationId
+            (n) => n.id === notificationId,
         );
         if (index !== -1) {
             notifications.value[index].read = false;
@@ -499,7 +499,7 @@ const sendMessage = () => {
                 newMessage.value = "";
                 // Reset textarea height
                 const textarea = document.querySelector(
-                    'textarea[placeholder="Type your message..."]'
+                    'textarea[placeholder="Type your message..."]',
                 );
                 if (textarea) textarea.style.height = "auto";
                 handleChatModal(notif.value);
@@ -537,7 +537,7 @@ const sendMessage = () => {
                 newMessage.value = "";
                 // Reset textarea height
                 const textarea = document.querySelector(
-                    'textarea[placeholder="Type your message..."]'
+                    'textarea[placeholder="Type your message..."]',
                 );
                 if (textarea) textarea.style.height = "auto";
                 handleChatModal(notif.value);
@@ -903,19 +903,19 @@ onUnmounted(() => {
                                                         'border-blue-400 shadow ':
                                                             !notification.read &&
                                                             !markingAsRead.has(
-                                                                notification.id
+                                                                notification.id,
                                                             ),
                                                         ' ': notification.read,
                                                         'opacity-50 cursor-wait':
                                                             markingAsRead.has(
-                                                                notification.id
+                                                                notification.id,
                                                             ),
                                                     }"
                                                     @click="
                                                         !notification.read &&
-                                                            markAsRead(
-                                                                notification.id
-                                                            )
+                                                        markAsRead(
+                                                            notification.id,
+                                                        )
                                                     "
                                                 >
                                                     <!-- Unread indicator (optional) -->
@@ -1028,18 +1028,18 @@ onUnmounted(() => {
                                                                     "
                                                                     @click.prevent="
                                                                         markAsRead(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                     "
                                                                     :disabled="
                                                                         markingAsRead.has(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                     "
                                                                 >
                                                                     {{
                                                                         markingAsRead.has(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                             ? "Marking..."
                                                                             : "Mark as read"
@@ -1055,18 +1055,18 @@ onUnmounted(() => {
                                                                     "
                                                                     @click.prevent="
                                                                         markAsUnread(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                     "
                                                                     :disabled="
                                                                         markingAsRead.has(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                     "
                                                                 >
                                                                     {{
                                                                         markingAsRead.has(
-                                                                            notification.id
+                                                                            notification.id,
                                                                         )
                                                                             ? "Marking..."
                                                                             : "Mark as unread"
@@ -1087,7 +1087,7 @@ onUnmounted(() => {
                                                                     class="text-xs"
                                                                     @click.prevent="
                                                                         handleChatModal(
-                                                                            notification.subject
+                                                                            notification.subject,
                                                                         )
                                                                     "
                                                                 >
@@ -1112,7 +1112,7 @@ onUnmounted(() => {
                             <DropdownMenu
                                 v-if="
                                     $page.props.auth.user.roles.includes(
-                                        'admin'
+                                        'admin',
                                     ) ||
                                     $page.props.auth.user.roles.includes('woc')
                                 "
@@ -1127,7 +1127,7 @@ onUnmounted(() => {
                                     <DropdownMenuItem
                                         v-if="
                                             page.props.auth.user.roles.includes(
-                                                'vendor'
+                                                'vendor',
                                             )
                                         "
                                         @click="
@@ -1139,7 +1139,7 @@ onUnmounted(() => {
                                     <DropdownMenuItem
                                         v-if="
                                             page.props.auth.user.roles.includes(
-                                                'woc'
+                                                'woc',
                                             )
                                         "
                                         @click="
@@ -1151,7 +1151,7 @@ onUnmounted(() => {
                                     <DropdownMenuItem
                                         v-if="
                                             page.props.auth.user.roles.includes(
-                                                'admin'
+                                                'admin',
                                             )
                                         "
                                         @click="

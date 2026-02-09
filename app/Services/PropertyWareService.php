@@ -462,6 +462,8 @@ class PropertyWareService
                     $timeCardEntries[] = [
                         'vendorID' => $vendor->propertyware_id ?? $vendor->id,
                         'comments' => 'Work completed',
+                        'hours' => 1.0,
+                        'hourlyRate' => 1.00,
                     ];
                 }
             } else {
@@ -485,7 +487,7 @@ class PropertyWareService
 
             // Use REST API to close work order with proper payload
             $response = Http::withHeaders($this->headers)
-                ->put("https://api.propertyware.com/pw/api/rest/v1/workorders/{$workOrder->propertyware_id}", $payload);
+                ->put("https://api.propertyware.com/pw/api/rest/v1/workorders/closeworkorder/{$workOrder->propertyware_id}", $payload);
 
             if (! $response->successful()) {
                 Log::error('Failed to close work order via REST API', [

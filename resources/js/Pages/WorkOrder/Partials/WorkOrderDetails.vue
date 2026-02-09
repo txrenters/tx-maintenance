@@ -615,10 +615,6 @@ const handleCompleteSubmit = () => {
                         Delete
                     </Button>
                     <Button
-                        v-if="
-                            workOrder.service_status ==
-                            'Approved - Waiting on Payment'
-                        "
                         type="submit"
                         :disabled="closeWorkOrderForm.processing"
                         @click.prevent="confirmComplete"
