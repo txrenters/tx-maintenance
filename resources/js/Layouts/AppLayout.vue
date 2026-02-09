@@ -522,7 +522,7 @@ const sendMessage = () => {
         const formData = new FormData();
         formData.append("messages", newMessage.value.trim());
         formData.append("sender_number", sender_number.value);
-        formData.append("receiver_numbers", [receiver_number.value]);
+        formData.append("receiver_numbers[]", receiver_number.value);
         formData.append("jobber_id", reference_id.value);
         formData.append("conversation_type", conversation_type.value);
 
@@ -1260,9 +1260,9 @@ onUnmounted(() => {
                             size="icon"
                             variant="ghost"
                             @click.prevent="sendMessage"
-                            :disabled="isLoading"
+                            :disabled="loading"
                         >
-                            <SendIcon v-if="!isLoading" class="h-4 w-4" />
+                            <SendIcon v-if="!loading" class="h-4 w-4" />
                             <Loader2Icon v-else class="w-4 h-4 animate-spin" />
                         </Button>
                     </div>
