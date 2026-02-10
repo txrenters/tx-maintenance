@@ -309,7 +309,7 @@ const canAccess = (requiredRoles) => {
 
     // Special access for specific vendor email
     const userEmail = page.props.auth.user.email;
-    if (userEmail === "service@txhomemp.com") {
+    if (userEmail === "thmp@texasrenters.com") {
         return true;
     }
 
