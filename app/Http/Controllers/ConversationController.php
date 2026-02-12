@@ -73,7 +73,21 @@ class ConversationController extends Controller
                 ->get();
 
         } elseif (! empty($data['jobber_id'])) {
-            $message = JobberTextMessage::where('jobber_id', $data['jobber_id'])->get();
+            $query = JobberTextMessage::where('jobber_id', $data['jobber_id']);
+
+            if (! empty($data['sender_number']) && ! empty($data['receiver_number'])) {
+                $query->where(function ($q) use ($data) {
+                    $q->where(function ($q2) use ($data) {
+                        $q2->where('sender_number', $data['sender_number'])
+                            ->where('receiver_number', $data['receiver_number']);
+                    })->orWhere(function ($q2) use ($data) {
+                        $q2->where('sender_number', $data['receiver_number'])
+                            ->where('receiver_number', $data['sender_number']);
+                    });
+                });
+            }
+
+            $message = $query->get();
         } else {
             $message = collect();
         }

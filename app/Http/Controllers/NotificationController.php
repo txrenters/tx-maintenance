@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JobberTextMessage;
 use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
@@ -10,7 +11,7 @@ class NotificationController extends Controller
     {
         $user = auth()->user();
 
-        $query = Activity::latest();
+        $query = Activity::with('subject')->latest();
 
         if ($user->hasAnyRole(['tenant', 'owner'])) {
             $userNum = $user->phone;
@@ -22,7 +23,13 @@ class NotificationController extends Controller
             $query->where('properties->receiverNumber', $vendorPhone);
         }
 
-        $activities = $query->take(100)->get()->map(function ($activity) {
+        $activities = $query->take(100)->get();
+
+        $activities->loadMorph('subject', [
+            JobberTextMessage::class => ['jobber'],
+        ]);
+
+        $result = $activities->map(function ($activity) {
             return [
                 'id' => $activity->id,
                 'title' => $activity->description,
@@ -38,7 +45,7 @@ class NotificationController extends Controller
             ];
         });
 
-        return response()->json($activities);
+        return response()->json($result);
 
     }
 

@@ -557,6 +557,20 @@ const sendMessage = () => {
     }
 };
 
+const closedJobStatuses = [
+    "archived",
+    "closed",
+    "completed",
+    "cancelled",
+    "done",
+];
+
+const isJobClosed = (notification) => {
+    if (!notification.subject?.jobber_id) return false;
+    const status = notification.subject?.jobber?.job_status;
+    return status ? closedJobStatuses.includes(status.toLowerCase()) : false;
+};
+
 const mode = useColorMode({ disableTransition: false });
 
 const showBanner = ref(true);
@@ -1074,12 +1088,15 @@ onUnmounted(() => {
                                                                 </Button>
                                                                 <Button
                                                                     v-if="
-                                                                        notification
+                                                                        (notification
                                                                             .subject
                                                                             ?.conversation_type ||
-                                                                        notification
-                                                                            .subject
-                                                                            ?.jobber_id
+                                                                            notification
+                                                                                .subject
+                                                                                ?.jobber_id) &&
+                                                                        !isJobClosed(
+                                                                            notification,
+                                                                        )
                                                                     "
                                                                     as="button"
                                                                     size="sm"
