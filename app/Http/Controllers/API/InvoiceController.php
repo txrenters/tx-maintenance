@@ -10,6 +10,7 @@ use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -69,7 +70,10 @@ class InvoiceController extends Controller
 
         if ($request->hasFile('filename')) {
             $file = $request->file('filename');
-            $validatedData['filename'] = $file->store('invoices', 'public');
+            $extension = $file->getClientOriginalExtension();
+            $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $request->title);
+            $uniqueName = $safeName.'_'.uniqid().'.'.$extension;
+            $validatedData['filename'] = $file->storeAs('invoices', $uniqueName, 'public');
             $validatedData['filetype'] = $file->getMimeType();
         }
 
@@ -124,8 +128,8 @@ class InvoiceController extends Controller
 
         try {
             // Delete the file from storage
-            if ($invoice->filename && \Storage::disk('public')->exists($invoice->filename)) {
-                \Storage::disk('public')->delete($invoice->filename);
+            if ($invoice->filename && Storage::disk('public')->exists($invoice->filename)) {
+                Storage::disk('public')->delete($invoice->filename);
             }
 
             $invoice->delete();
