@@ -331,16 +331,6 @@ const unreadCount = computed(() => {
     return notifications.value.filter((n) => !n.read).length;
 });
 
-// Unread notifications always appear first, then sorted by newest
-const sortedNotifications = computed(() => {
-    return [...notifications.value].sort((a, b) => {
-        if (a.read !== b.read) {
-            return a.read ? 1 : -1;
-        }
-        return b.timestamp - a.timestamp;
-    });
-});
-
 const fetchNotifications = async () => {
     try {
         const response = await axios.get("/notifications");
@@ -920,7 +910,7 @@ onUnmounted(() => {
                                                 "
                                             >
                                                 <div
-                                                    v-for="notification in sortedNotifications"
+                                                    v-for="notification in notifications"
                                                     :key="notification.id"
                                                     class="flex items-start border gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
