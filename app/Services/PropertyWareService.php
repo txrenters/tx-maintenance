@@ -144,20 +144,29 @@ class PropertyWareService
 
     public function getWorkOrdersViaRestAPI()
     {
+        return $this->getWorkOrdersViaRestAPIWithTotalCap();
+    }
+
+    public function getWorkOrdersViaRestAPIWithTotalCap(int $totalToFetch = 5000, int $limit = 500)
+    {
         try {
 
             $allWorkOrders = [];
-            $limit = 500; // PropertyWare API max limit per request
-            $totalToFetch = 5000;
-            $numberOfRequests = ceil($totalToFetch / $limit);
+            $numberOfRequests = (int) ceil($totalToFetch / $limit);
 
             for ($i = 0; $i < $numberOfRequests; $i++) {
                 $offset = $i * $limit;
+                $remaining = $totalToFetch - count($allWorkOrders);
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                $requestLimit = min($limit, $remaining);
 
                 $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
                     'includeCustomFields' => 'true',
                     'orderby' => 'createddate DESC',
-                    'limit' => $limit,
+                    'limit' => $requestLimit,
                     'offset' => $offset,
                 ]);
 
@@ -166,6 +175,11 @@ class PropertyWareService
 
                     if (empty($workOrders)) {
                         break; // No more results
+                    }
+
+                    // Keep total strictly capped at $totalToFetch.
+                    if (count($workOrders) > $remaining) {
+                        $workOrders = array_slice($workOrders, 0, $remaining);
                     }
 
                     $allWorkOrders = array_merge($allWorkOrders, $workOrders);
@@ -177,7 +191,7 @@ class PropertyWareService
                     ]);
 
                     // If we got fewer results than the limit, we've reached the end
-                    if (count($workOrders) < $limit) {
+                    if (count($workOrders) < $requestLimit) {
                         break;
                     }
                 } else {
@@ -198,7 +212,7 @@ class PropertyWareService
                 'total' => count($allWorkOrders),
             ]);
 
-            return $allWorkOrders;
+            return array_slice($allWorkOrders, 0, $totalToFetch);
 
         } catch (Exception $e) {
             Log::error('REST API request failed: '.$e->getMessage());
