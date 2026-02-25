@@ -51,113 +51,118 @@ class UpdateWorkOrderStatus extends Command
         $processedCount = 0;
 
         try {
-            $this->propertyWareService->streamWorkOrdersViaRestAPI(function (array $workOrders) use (&$processedCount) {
-                foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
-                    foreach ($workOrderChunk as $order) {
-                        $data = (array) $order;
+            $workOrders = $this->propertyWareService->getWorkOrdersViaRestAPIWithTotalCap(5000, 500);
+            if (! is_array($workOrders)) {
+                Log::error('Unable to retrieve work orders via REST API.', ['response' => $workOrders]);
 
-                        $ID = $data['id'] ?? null;
-                        if (! $ID) {
-                            continue;
-                        }
+                return;
+            }
 
-                        $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
+            foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
+                foreach ($workOrderChunk as $order) {
+                    $data = (array) $order;
 
-                        if (! $workOrder) {
-                            continue;
-                        }
+                    $ID = $data['id'] ?? null;
+                    if (! $ID) {
+                        continue;
+                    }
 
-                        $work_order_data = [
-                            'status' => $data['status'] ?? $workOrder->status,
-                            'authorized_to_enter' => $data['authorizedToEnter'] ?? $workOrder->authorized_to_enter,
-                            'category' => $data['category'] ?? $workOrder->category,
-                            'completed_date' => $data['completedDate'] ?? $workOrder->completed_date,
-                            'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
-                            'description' => $data['description'] ?? $workOrder->description,
-                            'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
-                            'priority' => $data['priority'] ?? $workOrder->priority,
-                            'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
-                            'source' => $data['source'] ?? $workOrder->source,
-                            'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
-                            'type' => $data['type'] ?? $workOrder->type,
-                            'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
-                            'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
-                            'is_approved' => $data['approved'] ?? $workOrder->is_approved,
-                            'building_id' => isset($data['buildingID']) ? $this->findOrCreateBuilding($data['buildingID']) : $workOrder->building_id,
-                        ];
+                    $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
-                        $customFieldData = [];
+                    if (! $workOrder) {
+                        continue;
+                    }
 
-                        if (isset($data['customFields']) && is_array($data['customFields'])) {
-                            foreach ($data['customFields'] as $customField) {
-                                if ($customField['fieldName'] == 'Service Status') {
+                    $work_order_data = [
+                        'status' => $data['status'] ?? $workOrder->status,
+                        'authorized_to_enter' => $data['authorizedToEnter'] ?? $workOrder->authorized_to_enter,
+                        'category' => $data['category'] ?? $workOrder->category,
+                        'completed_date' => $data['completedDate'] ?? $workOrder->completed_date,
+                        'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
+                        'description' => $data['description'] ?? $workOrder->description,
+                        'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
+                        'priority' => $data['priority'] ?? $workOrder->priority,
+                        'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
+                        'source' => $data['source'] ?? $workOrder->source,
+                        'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
+                        'type' => $data['type'] ?? $workOrder->type,
+                        'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
+                        'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
+                        'is_approved' => $data['approved'] ?? $workOrder->is_approved,
+                        'building_id' => isset($data['buildingID']) ? $this->findOrCreateBuilding($data['buildingID']) : $workOrder->building_id,
+                    ];
 
-                                    $service_status_id = DB::table('service_status')
-                                        ->whereLike('name', '%'.($customField['value'] ?? '').'%')
-                                        ->value('id');
+                    $customFieldData = [];
 
-                                    $work_order_data['service_status_id'] = $service_status_id ?? 1;
+                    if (isset($data['customFields']) && is_array($data['customFields'])) {
+                        foreach ($data['customFields'] as $customField) {
+                            if ($customField['fieldName'] == 'Service Status') {
 
-                                } elseif ($customField['fieldName'] == 'Zone') {
-                                    $work_order_data['zone'] = $customField['value'] ?? '';
-                                } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
-                                    $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
-                                } elseif ($customField['fieldName'] == 'Management Plan') {
-                                    $work_order_data['management_plan'] = $customField['value'] ?? '';
-                                } elseif ($customField['fieldName'] == 'closing comment') {
-                                    $work_order_data['closing_comments'] = $customField['value'] ?? '';
-                                }
-                            }
-                        }
-
-                        $workOrder->update($work_order_data);
-
-                        // $this->processNotes($data, $workOrder->id);
-
-                        if (! empty($customFieldData)) {
-                            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
-                            DB::table('work_order_custom_fields')->insert($customFieldData);
-                        }
-
-                        if (! empty($data['assignedVendors'])) {
-                            $incomingVendorIds = [];
-
-                            foreach ($data['assignedVendors'] as $vendor) {
-                                $vendorId = DB::table('vendors')
-                                    ->where('propertyware_id', $vendor['id'])
+                                $service_status_id = DB::table('service_status')
+                                    ->whereLike('name', '%'.($customField['value'] ?? '').'%')
                                     ->value('id');
 
-                                if (! $vendorId) {
-                                    $vendorId = $this->createVendor($vendor);
-                                }
+                                $work_order_data['service_status_id'] = $service_status_id ?? 1;
 
-                                $incomingVendorIds[] = $vendorId;
+                            } elseif ($customField['fieldName'] == 'Zone') {
+                                $work_order_data['zone'] = $customField['value'] ?? '';
+                            } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
+                                $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
+                            } elseif ($customField['fieldName'] == 'Management Plan') {
+                                $work_order_data['management_plan'] = $customField['value'] ?? '';
+                            } elseif ($customField['fieldName'] == 'closing comment') {
+                                $work_order_data['closing_comments'] = $customField['value'] ?? '';
+                            }
+                        }
+                    }
 
-                                DB::table('work_order_vendors')->updateOrInsert(
-                                    ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
-                                    [
-                                        'created_at' => now(),
-                                        'updated_at' => now(),
-                                    ]
-                                );
+                    $workOrder->update($work_order_data);
+
+                    // $this->processNotes($data, $workOrder->id);
+
+                    if (! empty($customFieldData)) {
+                        DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
+                        DB::table('work_order_custom_fields')->insert($customFieldData);
+                    }
+
+                    if (! empty($data['assignedVendors'])) {
+                        $incomingVendorIds = [];
+
+                        foreach ($data['assignedVendors'] as $vendor) {
+                            $vendorId = DB::table('vendors')
+                                ->where('propertyware_id', $vendor['id'])
+                                ->value('id');
+
+                            if (! $vendorId) {
+                                $vendorId = $this->createVendor($vendor);
                             }
 
-                            // REMOVE vendors not in the new list
-                            DB::table('work_order_vendors')
-                                ->where('work_order_id', $workOrder->id)
-                                ->whereNotIn('vendor_id', $incomingVendorIds)
-                                ->delete();
+                            $incomingVendorIds[] = $vendorId;
+
+                            DB::table('work_order_vendors')->updateOrInsert(
+                                ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
+                                [
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]
+                            );
                         }
 
-                        $processedCount++;
+                        // REMOVE vendors not in the new list
+                        DB::table('work_order_vendors')
+                            ->where('work_order_id', $workOrder->id)
+                            ->whereNotIn('vendor_id', $incomingVendorIds)
+                            ->delete();
                     }
 
-                    unset($workOrderChunk);
-                    if (function_exists('gc_collect_cycles')) {
-                        gc_collect_cycles();
-                    }
+                    $processedCount++;
                 }
-            });
+
+                unset($workOrderChunk);
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
 
             if ($processedCount === 0) {
                 Log::warning('No work orders returned from Propertyware API.');
