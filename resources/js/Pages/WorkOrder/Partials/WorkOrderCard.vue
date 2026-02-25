@@ -158,11 +158,11 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                     {{ work_order.requested_by?.last_name }}
                                 </p>
                             </div>
-                            <div v-else class="flex text-left mb-1 mt-2">
+                            <div v-else-if="work_order.owners?.length" class="flex text-left mb-1 mt-2">
                                 <UserRoundPen class="w-4 h-4" />
                                 <p class="text-xs text-gray-100 uppercase">
-                                    {{ work_order.owners[0].first_name }}
-                                    {{ work_order.owners[0].last_name }}
+                                    {{ work_order.owners[0]?.first_name }}
+                                    {{ work_order.owners[0]?.last_name }}
                                 </p>
                             </div>
                             <p

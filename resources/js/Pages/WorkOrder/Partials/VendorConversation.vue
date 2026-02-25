@@ -40,7 +40,8 @@ const { toast } = useToast();
 
 const woc = ref(props.workOrder.woc);
 const woc_phone_number = ref(
-    props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
+    props.workOrder.woc?.woc_number?.twilio_phone_number?.phone_number
+        ?? page.props.maintenance_twilio_phone_number
 );
 
 const loading = ref(false);
@@ -257,7 +258,7 @@ onMounted(() => {
                         </Avatar>
                         {{ woc.name }}
                     </div>
-                    {{ woc.woc_number.twilio_phone_number.phone_number }}
+                    {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>
             </div>
 

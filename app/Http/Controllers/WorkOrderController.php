@@ -243,6 +243,8 @@ class WorkOrderController extends Controller
             ->merge($workOrder->vendor_tenant_conversation)
             ->sortByDesc('created_at');
 
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+
         // Get service statuses for potential updates
         $serviceStatusesQuery = ServiceStatus::query();
 
@@ -272,6 +274,7 @@ class WorkOrderController extends Controller
             'notes' => $workOrder->notes,
             'attachments' => $workOrder->attachments,
             'vendors' => $vendors,
+            'categories' => $categories,
             'serviceStatuses' => $serviceStatuses,
         ]);
     }

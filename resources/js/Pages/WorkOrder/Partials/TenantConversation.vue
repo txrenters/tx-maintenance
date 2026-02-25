@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, nextTick } from "vue";
-import { router } from "@inertiajs/vue3";
+import { router, usePage } from "@inertiajs/vue3";
 import { Loader2, Send, Paperclip, X, Image } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 const { toast } = useToast();
@@ -32,9 +32,11 @@ const selectedTenant = ref("");
 const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
+const page = usePage();
 const woc = ref(props.workOrder.woc);
 const woc_phone_number = ref(
-    props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
+    props.workOrder.woc?.woc_number?.twilio_phone_number?.phone_number
+        ?? page.props.maintenance_twilio_phone_number
 );
 
 const loading = ref(false);
@@ -262,7 +264,7 @@ console.log(props.workOrderTenants);
                         </Avatar>
                         {{ woc.name }}
                     </div>
-                    {{ woc.woc_number.twilio_phone_number.phone_number }}
+                    {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>
             </div>
             <div

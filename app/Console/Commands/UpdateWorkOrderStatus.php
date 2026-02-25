@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Building;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -9,6 +10,7 @@ use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 use function Symfony\Component\Clock\now;
@@ -30,6 +32,9 @@ class UpdateWorkOrderStatus extends Command
     protected $description = 'Retrieve work orders from PropertyWare API and update work order details';
 
     protected PropertyWareService $propertyWareService;
+
+    /** @var array<int, int> Cache of propertyware_id => local building propertyware_id */
+    private array $buildingCache = [];
 
     public function __construct(PropertyWareService $propertyWareService)
     {
@@ -80,6 +85,7 @@ class UpdateWorkOrderStatus extends Command
                                 'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
                                 'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
                                 'is_approved' => $data['approved'] ?? $workOrder->is_approved,
+                                'building_id' => isset($data['buildingID']) ? $this->findOrCreateBuilding($data['buildingID']) : $workOrder->building_id,
                             ];
 
                             $customFieldData = [];
@@ -155,6 +161,51 @@ class UpdateWorkOrderStatus extends Command
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
 
+    }
+
+    private function findOrCreateBuilding(int $propertywareId): int
+    {
+        if (isset($this->buildingCache[$propertywareId])) {
+            return $this->buildingCache[$propertywareId];
+        }
+
+        $existing = Building::where('propertyware_id', $propertywareId)->first();
+
+        if ($existing) {
+            return $this->buildingCache[$propertywareId] = $existing->propertyware_id;
+        }
+
+        $headers = [
+            'x-propertyware-client-id' => config('services.propertyware.client_id'),
+            'x-propertyware-client-secret' => config('services.propertyware.client_secret_key'),
+            'x-propertyware-system-id' => config('services.propertyware.system_id'),
+        ];
+
+        $response = Http::withHeaders($headers)
+            ->get("https://api.propertyware.com/pw/api/rest/v1/buildings/{$propertywareId}");
+
+        if (! $response->successful()) {
+            Log::warning('Could not fetch building from PropertyWare', ['propertyware_id' => $propertywareId]);
+
+            return $propertywareId;
+        }
+
+        $data = $response->json();
+
+        Building::create([
+            'propertyware_id' => $propertywareId,
+            'name' => $data['name'] ?? null,
+            'address' => $data['address']['address'] ?? null,
+            'address_cont' => $data['address']['addressCont'] ?? null,
+            'city' => $data['address']['city'] ?? null,
+            'state_region' => $data['address']['stateRegion'] ?? null,
+            'postal_code' => $data['address']['postalCode'] ?? null,
+            'country' => $data['address']['country'] ?? null,
+            'portfolio_id' => $data['portfolioID'] ?? null,
+            'active' => $data['active'] ?? true,
+        ]);
+
+        return $this->buildingCache[$propertywareId] = $propertywareId;
     }
 
     private function createVendor(array $vendorData): ?int

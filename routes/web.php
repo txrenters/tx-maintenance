@@ -19,6 +19,7 @@ use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
@@ -116,6 +117,12 @@ Route::middleware([
     Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
 
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
+
+    Route::get('/buildings', [BuildingController::class, 'index'])->name('buildings.index');
+    Route::get('/buildings/{building}', [BuildingController::class, 'show'])->name('buildings.show');
+
+    Route::get('/search', [SearchController::class, 'search'])->name('search');
+    Route::get('/search/buildings', [SearchController::class, 'buildings'])->name('search.buildings');
 
     Route::post('/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
     Route::post('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');

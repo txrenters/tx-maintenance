@@ -1,83 +1,37 @@
 <script setup>
-import { computed, ref } from "vue";
+import { ref } from "vue";
+import { router, useForm } from "@inertiajs/vue3";
+import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import { Head, Link, router } from "@inertiajs/vue3";
-import {
-    Wrench,
-    Calendar,
-    User,
-    Phone,
-    MapPin,
-    Clock,
-    CheckCircle,
-    Circle,
-    AlertCircle,
-    Building,
-    DollarSign,
-    FileText,
-    MessageSquare,
-    Paperclip,
-    Truck,
-    Edit,
-    ArrowLeft,
-    UserCheck,
-    AlertTriangle,
-    CalendarDays,
-    Settings,
-    CreditCard,
-    Phone as PhoneIcon,
-    Mail,
-    MapPinIcon,
-    Activity,
-    List,
-    Package,
-    Timer,
-    Star,
-    Eye,
-    Download,
-    Plus,
-    X,
-    Save,
-    Trash2,
-} from "lucide-vue-next";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/Components/ui/card";
-import { Badge } from "@/Components/ui/badge";
-import { Button } from "@/Components/ui/button";
-import { Input } from "@/Components/ui/input";
-import { Textarea } from "@/Components/ui/textarea";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/Components/ui/select";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/Components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/Components/ui/tabs";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/Components/ui/dialog";
-import { Alert, AlertDescription } from "@/Components/ui/alert";
-import { Separator } from "@/Components/ui/separator";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import TabSwitcher from "./Partials/TabSwitcher.vue";
+import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
+import WorkOrderTask from "./Partials/WorkOrderTask.vue";
+import VendorWocConversation from "./Partials/VendorWocConversation.vue";
+import VendorOwnerConversation from "./Partials/VendorOwnerConversation.vue";
+import VendorConversation from "./Partials/VendorConversation.vue";
+import TenantConversation from "./Partials/TenantConversation.vue";
+import OwnerConversation from "./Partials/OwnerConversation.vue";
+import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
+import Conversation from "./Partials/Conversation.vue";
+import ServiceSchedule from "./Partials/ServiceSchedule.vue";
+import Attachments from "./Partials/Attachments.vue";
+import Invoices from "./Partials/Invoices.vue";
+import Notes from "./Partials/Notes.vue";
+import VendorEdit from "./Partials/VendorEdit.vue";
+import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
+import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
+import {
+    ClipboardList,
+    ListChecks,
+    Calendar,
+    Paperclip,
+    FileText,
+    NotebookPen,
+    Notebook,
+    MessagesSquare,
+    ArrowLeft,
+} from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -90,855 +44,648 @@ const props = defineProps({
     notes: Array,
     attachments: Array,
     vendors: Array,
+    categories: Array,
     serviceStatuses: Array,
 });
 
 const { toast } = useToast();
 
-const activeTab = ref("overview");
+// ── Tab configuration (mirrors Index.vue modal) ──────────────────────────────
+const activeTab = ref("details");
+const tabButtons = [
+    {
+        name: "details",
+        tooltip: "Details",
+        icon: ClipboardList,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
+    {
+        name: "tasks",
+        tooltip: "Tasks",
+        icon: ListChecks,
+        requires: ["admin", "woc", "vendor"],
+    },
+    {
+        name: "notes",
+        tooltip: "Notes",
+        icon: Notebook,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
+    {
+        name: "vendor_edit",
+        tooltip: "Vendor Edit",
+        icon: NotebookPen,
+        requires: ["admin", "woc", "vendor"],
+    },
+    {
+        name: "vendor_woc_conversation",
+        tooltip: "WOC Conversation",
+        icon: "W",
+        requires: ["vendor"],
+    },
+    {
+        name: "vendor_owner_conversation",
+        tooltip: "Owner Conversation",
+        icon: "O",
+        requires: ["vendor"],
+    },
+    {
+        name: "vendor_tenant_conversation",
+        tooltip: "Tenant Conversation",
+        icon: "T",
+        requires: ["vendor"],
+    },
+    {
+        name: "vendor_conversation",
+        tooltip: "Vendor Conversation",
+        icon: "V",
+        requires: ["admin", "woc"],
+    },
+    {
+        name: "owner_conversation",
+        tooltip: "Owner Conversation",
+        icon: "O",
+        requires: ["admin", "woc"],
+    },
+    {
+        name: "tenant_conversation",
+        tooltip: "Tenant Conversation",
+        icon: "T",
+        requires: ["admin", "woc"],
+    },
+    {
+        name: "owner_woc_conversation",
+        tooltip: "Work Order Coordinator Conversation",
+        icon: "W",
+        requires: ["owner"],
+    },
+    {
+        name: "owner_vendor_conversation",
+        tooltip: "Vendor Conversation",
+        icon: "V",
+        requires: ["owner"],
+    },
+    {
+        name: "tenant_woc_conversation",
+        tooltip: "Work Order Coordinator Conversation",
+        icon: "W",
+        requires: ["tenant"],
+    },
+    {
+        name: "tenant_vendor_conversation",
+        tooltip: "Vendor Conversation",
+        icon: "V",
+        requires: ["tenant"],
+    },
+    {
+        name: "service_schedule",
+        tooltip: "Service Schedule",
+        icon: Calendar,
+        requires: ["admin", "woc", "vendor"],
+    },
+    {
+        name: "attachments",
+        tooltip: "Attachments",
+        icon: Paperclip,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
+    {
+        name: "invoices",
+        tooltip: "Invoice",
+        icon: FileText,
+        requires: ["admin", "woc", "vendor"],
+    },
+    {
+        name: "conversation",
+        tooltip: "Conversation",
+        icon: MessagesSquare,
+        requires: ["admin", "woc"],
+    },
+];
 
-// Status variants for badges
-const getStatusVariant = (status) => {
-    switch (status?.toLowerCase()) {
-        case "open":
-            return "default";
-        case "closed":
-            return "secondary";
-        case "pending":
-            return "destructive";
-        case "completed":
-            return "success";
-        case "in_progress":
-            return "warning";
-        default:
-            return "outline";
+// ── Work order form (same shape as Index.vue) ─────────────────────────────────
+const order = props.workOrder;
+
+const workOrderForm = useForm({
+    id: order.id,
+    work_order_no: order.work_order_no,
+    description: order.description,
+    location: order.location,
+    managed_by: order.managed_by,
+    requested: order.requested_by,
+    vendors:
+        order.local_status === "Created"
+            ? Object.values(order.vendors ?? {}).map((v) => v.name)
+            : (order.vendors ?? []),
+    is_approved: order.is_approved,
+    approved_date: order.approved_date,
+    approval_comments: order.approval_comments,
+    owners: order.owners ?? [],
+    management_plan: order.management_plan,
+    priority: order.priority,
+    status: order.status,
+    is_emergency:
+        order.is_emergency === null
+            ? null
+            : order.is_emergency
+              ? "Emergency"
+              : "Non-emergency",
+    local_status: order.local_status,
+    total_cost: order.total_cost ?? "0",
+    total_hour_work: order.total_hour_work ?? "0",
+    cost_estimate: order.cost_estimate ?? "0",
+    hour_estimate: order.hour_estimate ?? "0",
+    type: order.type,
+    closing_comments: order.closing_comments,
+    latest_update_comments: order.latest_update_comments,
+    source: order.source,
+    service_status: order.service_status?.name,
+    service_status_id: order.service_status?.id,
+    category: order.category,
+    created_date: order.created_date ?? "",
+    scheduled_end_date: order.scheduled_end_date ?? "",
+    end_date: order.end_date ? new Date(order.end_date) : "",
+    authorized_to_enter: order.authorized_to_enter,
+    additional_work_needed_reschedule: order.additional_work_needed_reschedule,
+    zone: order.zone,
+    vendor_notes: order.vendor_notes,
+    woc: order.woc,
+});
+
+const closeWorkOrderForm = useForm({ id: order.id });
+
+// ── Reactive data for tab content ─────────────────────────────────────────────
+const isLoading = ref(false);
+const workOrderTasks = ref(props.tasks ?? []);
+const workOrderNotes = ref(props.notes ?? []);
+const workOrderAttachments = ref(props.attachments ?? []);
+const workOrderInvoices = ref(props.invoices ?? []);
+const workOrderVendorData = ref([]);
+
+const ownerConversation = ref([]);
+const tenantConversation = ref([]);
+const vendorConversation = ref([]);
+const vendorOwnerConversation = ref([]);
+const vendorTenantConversation = ref([]);
+const workOrderOwners = ref([]);
+const workOrderTenants = ref([]);
+const workOrderVendors = ref([]);
+
+// ── Fetch helpers (same as Index.vue) ─────────────────────────────────────────
+const fetchOwnerConversation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.owner_conversation", workOrderForm.id),
+        );
+        ownerConversation.value = res.data.owner_conversation;
+        workOrderOwners.value = res.data.owners;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
     }
 };
 
-const getPriorityVariant = (priority) => {
-    switch (priority?.toLowerCase()) {
-        case "high":
-        case "emergency":
-            return "destructive";
-        case "medium":
-            return "default";
-        case "low":
-            return "secondary";
-        default:
-            return "outline";
+const fetchTenantConversation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.tenant_conversation", workOrderForm.id),
+        );
+        tenantConversation.value = res.data.tenant_conversation;
+        workOrderTenants.value = res.data.tenants;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
     }
 };
 
-const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    return (
-        date.toLocaleDateString("en-US", {
-            timeZone: "America/Chicago",
-        }) +
-        " " +
-        date.toLocaleTimeString("en-US", {
-            timeZone: "America/Chicago",
-        })
-    );
-};
-
-const formatCurrency = (amount) => {
-    if (!amount) return "$0.00";
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-    }).format(amount);
-};
-
-const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return "Unknown size";
-
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
-};
-
-const getFileName = (attachment) => {
-    // Extract filename from path or use the stored filename
-    if (attachment.filename) {
-        return attachment.filename;
+const fetchVendorTenantConversation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.vendor_tenant_conversation", workOrderForm.id),
+        );
+        vendorTenantConversation.value = res.data.vendor_tenant_conversation;
+        workOrderTenants.value = res.data.tenants;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
     }
+};
 
-    // If no filename, extract from path
-    if (attachment.file_path) {
-        const parts = attachment.file_path.split("/");
-        return parts[parts.length - 1];
+const fetchVendorConversation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.vendor_conversation", workOrderForm.id),
+        );
+        vendorConversation.value = res.data.vendor_conversation;
+        workOrderVendors.value = res.data.vendors;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
     }
-
-    return "Unknown file";
 };
 
-const isImageFile = (attachment) => {
-    const filename = getFileName(attachment);
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
-    return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+const fetchVendorOwnerConversation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.vendor_owner_conversation", workOrderForm.id),
+        );
+        vendorOwnerConversation.value = res.data.vendor_owner_conversation;
+        workOrderOwners.value = res.data.owners;
+        workOrderVendors.value = res.data.vendors;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
 };
 
-const getImageUrl = (attachment) => {
-    return `/storage/${attachment.file_path || attachment.filename}`;
+const fetchWorkOrderTask = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("api.work_order.tasks", workOrderForm.id),
+        );
+        workOrderTasks.value = res.data.tasks;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
 };
 
-const downloadFile = (attachment) => {
-    // Create download link
-    const downloadUrl = `/storage/${
-        attachment.file_path || attachment.filename
-    }`;
-
-    // Create temporary link element
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = getFileName(attachment);
-    link.target = "_blank";
-
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+const vendorServiceSchedules = ref([]);
+const fetchVendorServiceSchedules = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_order.service_schedules", workOrderForm.id),
+        );
+        vendorServiceSchedules.value = res.data.service_schedules;
+        workOrderVendors.value = res.data.vendors;
+        workOrderTenants.value = res.data.tenants;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
 };
 
-// Computed properties
-const totalInvoiceAmount = computed(() => {
-    return (
-        props.invoices?.reduce(
-            (sum, invoice) => sum + parseFloat(invoice.amount || 0),
-            0
-        ) || 0
-    );
-});
+const fetchAttachments = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("api.attachments.show", workOrderForm.id),
+        );
+        workOrderAttachments.value = res.data.attachments;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
 
-const unreadConversations = computed(() => {
-    return props.conversations?.filter((conv) => !conv.is_read) || [];
-});
+const fetchInvoices = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("api.invoices.index", workOrderForm.id),
+        );
+        workOrderInvoices.value = res.data.invoices;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
 
-const completedTasks = computed(() => {
-    return props.tasks?.filter((task) => task.status === "completed") || [];
-});
+const fetchNotes = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("api.work_order_notes.show", workOrderForm.id),
+        );
+        workOrderNotes.value = res.data.notes;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
 
-const pendingTasks = computed(() => {
-    return props.tasks?.filter((task) => task.status === "pending") || [];
-});
+const fetchVendors = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("api.work_order_notes.show", workOrderForm.id),
+        );
+        workOrderVendorData.value = res.data.vendors;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
 
-// Modal states
-const showAddNoteModal = ref(false);
-const showAddTaskModal = ref(false);
-const newNote = ref("");
-const newTask = ref({
-    title: "",
-    description: "",
-    assigned_to: "",
-    due_date: "",
-});
+// ── Tab switching (mirrors Index.vue switchTab) ───────────────────────────────
+const switchTab = (tabName) => {
+    activeTab.value = tabName;
 
-// Functions
-const addNote = () => {
-    if (!newNote.value.trim()) return;
+    if (tabName === "tasks") fetchWorkOrderTask();
+    if (tabName === "notes") fetchNotes();
+    if (tabName === "attachments") fetchAttachments();
+    if (tabName === "invoices") fetchInvoices();
+    if (tabName === "service_schedule") fetchVendorServiceSchedules();
+    if (tabName === "vendor_edit") fetchVendors();
+    if (
+        tabName === "vendor_conversation" ||
+        tabName === "vendor_woc_conversation"
+    )
+        fetchVendorConversation();
+    if (
+        tabName === "vendor_owner_conversation" ||
+        tabName === "owner_vendor_conversation"
+    )
+        fetchVendorOwnerConversation();
+    if (tabName === "vendor_tenant_conversation")
+        fetchVendorTenantConversation();
+    if (
+        tabName === "owner_conversation" ||
+        tabName === "owner_woc_conversation"
+    )
+        fetchOwnerConversation();
+    if (
+        tabName === "tenant_conversation" ||
+        tabName === "tenant_woc_conversation"
+    )
+        fetchTenantConversation();
+    if (tabName === "tenant_vendor_conversation")
+        fetchVendorTenantConversation();
+    if (tabName === "conversation") {
+        fetchVendorTenantConversation();
+        fetchVendorConversation();
+        fetchTenantConversation();
+        fetchOwnerConversation();
+    }
+};
 
-    router.post(
-        route("work_order_notes.store"),
-        {
-            work_order_id: props.workOrder.id,
-            note: newNote.value,
+// ── Save / close / delete ────────────────────────────────────────────────────
+const handleUpdateSubmit = () => {
+    workOrderForm.put(route("work_orders.update", workOrderForm.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () =>
+            toast({ title: "Success", description: "Work order updated!" }),
+        onError: () =>
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to update work order.",
+            }),
+        only: ["service_status"],
+    });
+};
+
+const handleCloseOrderSubmit = () => {
+    closeWorkOrderForm.put(route("work_orders.close", workOrderForm.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Work order closed!",
+            });
+            router.visit(route("work_orders.index"));
         },
-        {
-            onSuccess: () => {
-                newNote.value = "";
-                showAddNoteModal.value = false;
-                toast({
-                    title: "Note Added",
-                    description: "The note has been successfully added.",
-                });
-            },
-        }
-    );
-};
-
-const addTask = () => {
-    if (!newTask.value.title.trim()) return;
-
-    router.post(
-        route("work_order_tasks.store"),
-        {
-            work_order_id: props.workOrder.id,
-            ...newTask.value,
-        },
-        {
-            onSuccess: () => {
-                newTask.value = {
-                    title: "",
-                    description: "",
-                    assigned_to: "",
-                    due_date: "",
-                };
-                showAddTaskModal.value = false;
-                toast({
-                    title: "Task Added",
-                    description: "The task has been successfully added.",
-                });
-            },
-        }
-    );
-};
-
-const updateWorkOrderStatus = (status) => {
-    router.put(
-        route("work_orders.update", props.workOrder.id),
-        {
-            status: status,
-        },
-        {
-            onSuccess: () => {
-                toast({
-                    title: "Status Updated",
-                    description: `Work order status updated to ${status}.`,
-                });
-            },
-        }
-    );
+        onError: () =>
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to close work order.",
+            }),
+        only: ["service_status"],
+    });
 };
 </script>
 
 <template>
     <Head :title="title" />
 
-    <div class="space-y-6">
-        <!-- Header -->
-        <div class="flex justify-between items-start">
-            <div class="flex items-center gap-4">
-                <div>
-                    <h1 class="text-3xl font-bold flex items-center gap-2">
-                        <Wrench class="w-8 h-8" />
-                        {{ workOrder.work_order_no }}
-                    </h1>
-                    <p class="text-gray-600 mt-1">
-                        Created {{ formatDate(workOrder.created_date) }}
-                    </p>
-                </div>
+    <Card>
+        <CardHeader>
+            <div class="flex items-center gap-3">
+                <CardTitle class="text-primary text-xl">
+                    #{{ workOrderForm.work_order_no }}
+                </CardTitle>
             </div>
+            <div class="flex gap-2 flex-wrap mt-2">
+                <Badge
+                    :variant="
+                        workOrderForm.priority === 'High'
+                            ? 'destructive'
+                            : 'outline'
+                    "
+                >
+                    Priority: {{ workOrderForm.priority }}
+                </Badge>
+                <Badge variant="outline">
+                    Status: {{ workOrderForm.status }}
+                </Badge>
+                <Badge
+                    v-if="workOrderForm.is_emergency !== null"
+                    :variant="
+                        workOrderForm.is_emergency === 'Non-emergency'
+                            ? 'outline'
+                            : 'destructive'
+                    "
+                >
+                    {{ workOrderForm.is_emergency }}
+                </Badge>
+                <Badge v-if="workOrderForm.is_approved" variant="outline">
+                    Approved
+                </Badge>
+            </div>
+        </CardHeader>
+
+        <!-- Centered tab switcher -->
+        <div class="flex justify-center px-6 pb-4 gap-3">
+            <TabSwitcher
+                :buttons="tabButtons"
+                :activeTab="activeTab"
+                @switchTab="switchTab"
+            />
         </div>
 
-        <!-- Status Cards -->
-        <div class="grid gap-4 md:grid-cols-4">
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium">Status</CardTitle>
-                    <Activity class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <Badge
-                        :variant="getStatusVariant(workOrder.status)"
-                        class="text-lg"
-                    >
-                        {{ workOrder.status || "Unknown" }}
-                    </Badge>
-                    <p class="text-xs text-muted-foreground mt-2">
-                        Service: {{ workOrder.service_status?.name || "N/A" }}
-                    </p>
-                </CardContent>
-            </Card>
+        <Separator />
 
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium">Priority</CardTitle>
-                    <AlertTriangle class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <Badge
-                        :variant="getPriorityVariant(workOrder.priority)"
-                        class="text-lg"
-                    >
-                        {{ workOrder.priority || "Normal" }}
-                    </Badge>
-                    <p class="text-xs text-muted-foreground mt-2">
-                        {{ workOrder.emergency ? "Emergency" : "Standard" }}
-                    </p>
-                </CardContent>
-            </Card>
+        <CardContent class="pt-4">
+            <WorkOrderDetails
+                v-if="activeTab === 'details'"
+                :workOrder="workOrderForm"
+                :categories="categories ?? []"
+                :vendors="vendors"
+                :closeWorkOrderForm="closeWorkOrderForm"
+                :isLoading="isLoading"
+                @save="handleUpdateSubmit"
+                @close="handleCloseOrderSubmit"
+                @delete="router.visit(route('work_orders.index'))"
+                @update-workOrder="router.reload({ only: ['workOrder'] })"
+            />
 
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium"
-                        >Total Cost</CardTitle
-                    >
-                    <DollarSign class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">
-                        {{ formatCurrency(totalInvoiceAmount) }}
-                    </div>
-                    <p class="text-xs text-muted-foreground mt-2">
-                        {{ invoices?.length || 0 }} invoice(s)
-                    </p>
-                </CardContent>
-            </Card>
+            <WorkOrderTask
+                v-if="activeTab === 'tasks'"
+                :workOrderTasks="workOrderTasks"
+                :service_status="[]"
+                :isEmergency="workOrderForm.is_emergency"
+                :workOrder="workOrderForm"
+                :users="[]"
+                :isLoading="isLoading"
+                @update-task-status="fetchWorkOrderTask"
+            />
 
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium">Tasks</CardTitle>
-                    <List class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">
-                        {{ completedTasks.length }}/{{ tasks?.length || 0 }}
-                    </div>
-                    <p class="text-xs text-muted-foreground mt-2">
-                        {{ pendingTasks.length }} pending
-                    </p>
-                </CardContent>
-            </Card>
-        </div>
+            <Conversation
+                v-if="activeTab === 'conversation'"
+                :workOrder="workOrderForm"
+                :vendorConversation="vendorConversation"
+                :ownerConversation="ownerConversation"
+                :tenantConversation="tenantConversation"
+                :vendorTenantConversation="vendorTenantConversation"
+                :vendorWocConversation="vendorConversation"
+                :isLoading="isLoading"
+            />
 
-        <!-- Main Content Tabs -->
-        <Tabs v-model="activeTab" class="w-full">
-            <TabsList class="grid w-full grid-cols-6">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="conversations">Messages</TabsTrigger>
-                <TabsTrigger value="tasks">Tasks</TabsTrigger>
-                <TabsTrigger value="invoices">Invoices</TabsTrigger>
-                <TabsTrigger value="attachments">Files</TabsTrigger>
-                <TabsTrigger value="notes">Notes</TabsTrigger>
-            </TabsList>
+            <VendorWocConversation
+                v-if="activeTab === 'vendor_woc_conversation'"
+                :vendorWocConversation="vendorConversation"
+                :workOrderVendors="workOrderVendors"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-vendor-woc-convo="fetchVendorConversation"
+            />
 
-            <!-- Overview Tab -->
-            <TabsContent value="overview" class="space-y-6">
-                <div class="grid gap-6 md:grid-cols-2">
-                    <!-- Work Order Details -->
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <FileText class="w-5 h-5" />
-                                Work Order Details
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
-                            <div class="grid gap-3">
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-gray-600"
-                                        >Work Order Number</label
-                                    >
-                                    <p class="font-mono">
-                                        {{ workOrder.work_order_no }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-gray-600"
-                                        >Description</label
-                                    >
-                                    <p class="text-sm">
-                                        {{
-                                            workOrder.description ||
-                                            "No description provided"
-                                        }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-gray-600"
-                                        >Location</label
-                                    >
-                                    <p class="text-sm flex items-center gap-2">
-                                        <MapPin class="w-4 h-4 text-gray-500" />
-                                        {{
-                                            workOrder.location ||
-                                            "No location specified"
-                                        }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-gray-600"
-                                        >Created Date</label
-                                    >
-                                    <p class="text-sm">
-                                        {{ formatDate(workOrder.created_date) }}
-                                    </p>
-                                </div>
-                                <div v-if="workOrder.due_date">
-                                    <label
-                                        class="text-sm font-medium text-gray-600"
-                                        >Due Date</label
-                                    >
-                                    <p class="text-sm">
-                                        {{ formatDate(workOrder.due_date) }}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+            <VendorOwnerConversation
+                v-if="activeTab === 'vendor_owner_conversation'"
+                :vendorOwnerConversations="vendorOwnerConversation"
+                :workOrderOwners="workOrderOwners"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-vendor-owner-convo="fetchVendorOwnerConversation"
+            />
 
-                    <!-- People Involved -->
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <User class="w-5 h-5" />
-                                People Involved
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
-                            <div v-if="workOrder.requested_by">
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Requested By</label
-                                >
-                                <div class="flex items-center gap-2 mt-1">
-                                    <User class="w-4 h-4 text-gray-500" />
-                                    <span>
-                                        {{ workOrder.requested_by.first_name }}
-                                        {{ workOrder.requested_by.last_name }}
-                                    </span>
-                                </div>
-                                <div
-                                    class="flex items-center gap-2 mt-1 text-sm text-gray-600"
-                                >
-                                    <Phone class="w-4 h-4" />
-                                    <span>{{
-                                        workOrder.requested_by.mobile_phone ||
-                                        workOrder.requested_by.home_phone ||
-                                        "N/A"
-                                    }}</span>
-                                </div>
-                            </div>
+            <VendorTenantConversation
+                v-if="activeTab === 'vendor_tenant_conversation'"
+                :vendorTenantConversations="vendorTenantConversation"
+                :workOrderTenants="workOrderTenants"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-vendor-tenant-convo="fetchVendorTenantConversation"
+            />
 
-                            <div v-if="workOrder.managed_by">
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Managed By</label
-                                >
-                                <div class="flex items-center gap-2 mt-1">
-                                    <UserCheck class="w-4 h-4 text-gray-500" />
-                                    <span>
-                                        {{ workOrder.managed_by.first_name }}
-                                        {{ workOrder.managed_by.last_name }}
-                                    </span>
-                                </div>
-                                <div
-                                    class="flex items-center gap-2 mt-1 text-sm text-gray-600"
-                                >
-                                    <Phone class="w-4 h-4" />
-                                    <span>{{
-                                        workOrder.managed_by.mobile ||
-                                        workOrder.managed_by.phone ||
-                                        "N/A"
-                                    }}</span>
-                                </div>
-                            </div>
+            <VendorConversation
+                v-if="activeTab === 'vendor_conversation'"
+                :vendorConversation="vendorConversation"
+                :workOrderVendors="workOrderVendors"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-vendor-convo="fetchVendorConversation"
+            />
 
-                            <div v-if="workOrder.woc">
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Work Order Coordinator</label
-                                >
-                                <div class="flex items-center gap-2 mt-1">
-                                    <Settings class="w-4 h-4 text-gray-500" />
-                                    <span>{{ workOrder.woc.name }}</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+            <OwnerConversation
+                v-if="activeTab === 'owner_conversation'"
+                :ownerConversation="ownerConversation"
+                :workOrderOwners="workOrderOwners"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-owner-convo="fetchOwnerConversation"
+            />
 
-                <!-- Vendors -->
-                <Card v-if="workOrder.vendors && workOrder.vendors.length > 0">
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <Truck class="w-5 h-5" />
-                            Assigned Vendors
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <div
-                                v-for="vendor in workOrder.vendors"
-                                :key="vendor.id"
-                                class="border rounded-lg p-4"
-                            >
-                                <div class="flex items-center gap-2 mb-2">
-                                    <Truck class="w-4 h-4 text-gray-500" />
-                                    <span class="font-medium">{{
-                                        vendor.name
-                                    }}</span>
-                                </div>
-                                <div class="space-y-1 text-sm text-gray-600">
-                                    <div v-if="vendor.pivot?.cost_estimate">
-                                        <span class="font-medium"
-                                            >Cost Estimate:</span
-                                        >
-                                        {{
-                                            formatCurrency(
-                                                vendor.pivot.cost_estimate
-                                            )
-                                        }}
-                                    </div>
-                                    <div v-if="vendor.pivot?.time_estimate">
-                                        <span class="font-medium"
-                                            >Time Estimate:</span
-                                        >
-                                        {{ vendor.pivot.time_estimate }}
-                                    </div>
-                                    <div
-                                        v-if="vendor.pivot?.scheduled_end_date"
-                                    >
-                                        <span class="font-medium"
-                                            >Scheduled End:</span
-                                        >
-                                        {{
-                                            formatDate(
-                                                vendor.pivot.scheduled_end_date
-                                            )
-                                        }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            </TabsContent>
+            <OwnerWocConversation
+                v-if="activeTab === 'owner_woc_conversation'"
+                :ownerConversation="ownerConversation"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-owner-convo="fetchOwnerConversation"
+            />
 
-            <!-- Conversations Tab -->
-            <TabsContent value="conversations" class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold">
-                            Messages & Conversations
-                        </h3>
-                        <p class="text-sm text-gray-600">
-                            {{ unreadConversations.length }} unread of
-                            {{ conversations?.length || 0 }} total
-                        </p>
-                    </div>
-                </div>
+            <OwnerVendorConversation
+                v-if="activeTab === 'owner_vendor_conversation'"
+                :ownerVendorConversation="vendorOwnerConversation"
+                :workOrder="workOrderForm"
+                :workOrderVendors="workOrderVendors"
+                :isLoading="isLoading"
+                @update-owner-vendor-convo="fetchVendorOwnerConversation"
+            />
 
-                <div
-                    v-if="conversations && conversations.length > 0"
-                    class="space-y-4"
-                >
-                    <Card
-                        v-for="conversation in conversations"
-                        :key="conversation.id"
-                    >
-                        <CardContent class="pt-6">
-                            <div class="flex items-start gap-4">
-                                <div
-                                    class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"
-                                >
-                                    <MessageSquare
-                                        class="w-4 h-4 text-blue-600"
-                                    />
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="font-medium">{{
-                                            conversation.sender_number ||
-                                            "Unknown"
-                                        }}</span>
-                                        <Badge
-                                            :variant="
-                                                conversation.is_read
-                                                    ? 'secondary'
-                                                    : 'default'
-                                            "
-                                            class="text-xs"
-                                        >
-                                            {{
-                                                conversation.is_read
-                                                    ? "Read"
-                                                    : "Unread"
-                                            }}
-                                        </Badge>
-                                        <span class="text-xs text-gray-500">{{
-                                            formatDate(conversation.created_at)
-                                        }}</span>
-                                    </div>
-                                    <p class="text-sm">
-                                        {{ conversation.message }}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <div v-else class="text-center py-8 text-gray-500">
-                    <MessageSquare
-                        class="w-12 h-12 mx-auto mb-4 text-gray-400"
-                    />
-                    <p>No conversations found for this work order.</p>
-                </div>
-            </TabsContent>
+            <TenantConversation
+                v-if="
+                    activeTab === 'tenant_conversation' ||
+                    activeTab === 'tenant_woc_conversation'
+                "
+                :tenantConversation="tenantConversation"
+                :workOrderTenants="workOrderTenants"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-tenant-convo="fetchTenantConversation"
+            />
 
-            <!-- Tasks Tab -->
-            <TabsContent value="tasks" class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold">Tasks</h3>
-                        <p class="text-sm text-gray-600">
-                            {{ completedTasks.length }} completed of
-                            {{ tasks?.length || 0 }} total
-                        </p>
-                    </div>
-                </div>
+            <VendorTenantConversation
+                v-if="activeTab === 'tenant_vendor_conversation'"
+                :vendorTenantConversations="vendorTenantConversation"
+                :workOrderTenants="workOrderTenants"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @update-vendor-tenant-convo="fetchVendorTenantConversation"
+            />
 
-                <div v-if="tasks && tasks.length > 0" class="space-y-4">
-                    <Card v-for="task in tasks" :key="task.id">
-                        <CardContent class="pt-6">
-                            <div class="flex items-start gap-4">
-                                <div class="flex-shrink-0 mt-1">
-                                    <CheckCircle
-                                        v-if="task.status === 'completed'"
-                                        class="w-5 h-5 text-green-600"
-                                    />
-                                    <Circle
-                                        v-else
-                                        class="w-5 h-5 text-gray-400"
-                                    />
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="font-medium">{{
-                                            task.title
-                                        }}</span>
-                                        <Badge
-                                            :variant="
-                                                getStatusVariant(task.status)
-                                            "
-                                            class="text-xs"
-                                        >
-                                            {{ task.status }}
-                                        </Badge>
-                                    </div>
-                                    <p class="text-sm text-gray-600 mb-2">
-                                        {{ task.description }}
-                                    </p>
-                                    <div
-                                        class="flex items-center gap-4 text-xs text-gray-500"
-                                    >
-                                        <span
-                                            >Created:
-                                            {{
-                                                formatDate(task.created_at)
-                                            }}</span
-                                        >
-                                        <span v-if="task.due_date"
-                                            >Due:
-                                            {{
-                                                formatDate(task.due_date)
-                                            }}</span
-                                        >
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <div v-else class="text-center py-8 text-gray-500">
-                    <List class="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>No tasks found for this work order.</p>
-                </div>
-            </TabsContent>
+            <ServiceSchedule
+                v-if="activeTab === 'service_schedule'"
+                :vendorServiceSchedules="vendorServiceSchedules"
+                :workOrderVendors="workOrderVendors"
+                :workOrderTenants="workOrderTenants"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @fetch-schedule="fetchVendorServiceSchedules"
+            />
 
-            <!-- Invoices Tab -->
-            <TabsContent value="invoices" class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold">Invoices</h3>
-                        <p class="text-sm text-gray-600">
-                            Total: {{ formatCurrency(totalInvoiceAmount) }}
-                        </p>
-                    </div>
-                </div>
+            <Attachments
+                v-if="activeTab === 'attachments'"
+                :workOrderAttachments="workOrderAttachments"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @fetch-attachments="fetchAttachments"
+            />
 
-                <div v-if="invoices && invoices.length > 0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Invoice #</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow
-                                v-for="invoice in invoices"
-                                :key="invoice.id"
-                            >
-                                <TableCell class="font-mono">{{
-                                    invoice.invoice_number
-                                }}</TableCell>
-                                <TableCell>{{
-                                    formatCurrency(invoice.amount)
-                                }}</TableCell>
-                                <TableCell>
-                                    <Badge
-                                        :variant="
-                                            getStatusVariant(invoice.status)
-                                        "
-                                    >
-                                        {{ invoice.status }}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>{{
-                                    formatDate(invoice.created_at)
-                                }}</TableCell>
-                                <TableCell>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="gap-1"
-                                    >
-                                        <Eye class="w-4 h-4" />
-                                        View
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
-                <div v-else class="text-center py-8 text-gray-500">
-                    <CreditCard class="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>No invoices found for this work order.</p>
-                </div>
-            </TabsContent>
+            <Invoices
+                v-if="activeTab === 'invoices'"
+                :workOrderInvoices="workOrderInvoices"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @fetch-invoices="fetchInvoices"
+            />
 
-            <!-- Attachments Tab -->
-            <TabsContent value="attachments" class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold">
-                            Files & Attachments
-                        </h3>
-                        <p class="text-sm text-gray-600">
-                            {{ attachments?.length || 0 }} file(s)
-                        </p>
-                    </div>
-                </div>
+            <Notes
+                v-if="activeTab === 'notes'"
+                :workOrderNotes="workOrderNotes"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @fetch-notes="fetchNotes"
+            />
 
-                <div
-                    v-if="attachments && attachments.length > 0"
-                    class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
-                >
-                    <Card
-                        v-for="attachment in attachments"
-                        :key="attachment.id"
-                    >
-                        <CardContent class="pt-6">
-                            <div v-if="isImageFile(attachment)" class="space-y-3">
-                                <img 
-                                    :src="getImageUrl(attachment)" 
-                                    :alt="getFileName(attachment)"
-                                    class="w-full h-48 object-cover rounded-lg"
-                                    @error="$event.target.style.display = 'none'"
-                                />
-                                <div class="space-y-2">
-                                    <p class="text-sm text-gray-600">
-                                        {{ formatFileSize(attachment.file_size) }}
-                                    </p>
-                                    <p class="text-xs text-gray-500">
-                                        {{ formatDate(attachment.created_at) }}
-                                    </p>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="gap-1 w-full"
-                                        @click="downloadFile(attachment)"
-                                    >
-                                        <Download class="w-4 h-4" />
-                                        Download
-                                    </Button>
-                                </div>
-                            </div>
-                            <div v-else class="flex items-start gap-3">
-                                <Paperclip class="w-5 h-5 text-gray-500 mt-1" />
-                                <div class="flex-1">
-                                    <p
-                                        class="font-medium truncate"
-                                        :title="getFileName(attachment)"
-                                    >
-                                        {{ getFileName(attachment) }}
-                                    </p>
-                                    <p class="text-sm text-gray-600">
-                                        {{
-                                            formatFileSize(attachment.file_size)
-                                        }}
-                                    </p>
-                                    <p class="text-xs text-gray-500 mt-1">
-                                        {{ formatDate(attachment.created_at) }}
-                                    </p>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="mt-2 gap-1"
-                                        @click="downloadFile(attachment)"
-                                    >
-                                        <Download class="w-4 h-4" />
-                                        Download
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <div v-else class="text-center py-8 text-gray-500">
-                    <Paperclip class="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>No attachments found for this work order.</p>
-                </div>
-            </TabsContent>
-
-            <!-- Notes Tab -->
-            <TabsContent value="notes" class="space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold">Notes</h3>
-                        <p class="text-sm text-gray-600">
-                            {{ notes?.length || 0 }} note(s)
-                        </p>
-                    </div>
-                </div>
-
-                <div v-if="notes && notes.length > 0" class="space-y-4">
-                    <Card v-for="note in notes" :key="note.id">
-                        <CardContent class="pt-6">
-                            <div class="flex items-start gap-4">
-                                <div
-                                    class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
-                                >
-                                    <FileText class="w-4 h-4 text-gray-600" />
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="font-medium">{{
-                                            note.user?.name || "Unknown"
-                                        }}</span>
-                                        <span class="text-xs text-gray-500">{{
-                                            formatDate(note.created_at)
-                                        }}</span>
-                                    </div>
-                                    <p class="text-sm whitespace-pre-wrap">
-                                        {{ note.note }}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <div v-else class="text-center py-8 text-gray-500">
-                    <FileText class="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>No notes found for this work order.</p>
-                </div>
-            </TabsContent>
-        </Tabs>
-    </div>
+            <VendorEdit
+                v-if="activeTab === 'vendor_edit'"
+                :workOrderVendorData="workOrderVendorData"
+                :workOrder="workOrderForm"
+                :isLoading="isLoading"
+                @fetch-vendor="fetchVendors"
+            />
+        </CardContent>
+    </Card>
 </template>

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateBuildingCustomFieldsRequest;
 use App\Jobs\GenerateOnboardingPdfJob;
 use App\Jobs\GenerateW9PdfJob;
+use App\Models\Building;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +14,73 @@ use mikehaertl\pdftk\Pdf;
 
 class BuildingController extends Controller
 {
+    public function index(Request $request): \Inertia\Response
+    {
+        $perPage = $request->per_page
+            ? ($request->per_page === 'All' ? Building::count() : (int) $request->per_page)
+            : 10;
+
+        $buildings = Building::query()
+            ->when($request->search, fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')
+                ->orWhere('address', 'like', '%'.$request->search.'%')
+                ->orWhere('city', 'like', '%'.$request->search.'%'))
+            ->withCount('workOrders')
+            ->orderByDesc('active')
+            ->orderBy('name')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn ($building) => [
+                'id' => $building->id,
+                'propertyware_id' => $building->propertyware_id,
+                'name' => $building->name,
+                'address' => collect([$building->address, $building->city, $building->state_region, $building->postal_code])->filter()->implode(', '),
+                'active' => $building->active,
+                'work_orders_count' => $building->work_orders_count,
+            ]);
+
+        return inertia('Building/Index', [
+            'title' => 'Buildings',
+            'buildings' => $buildings,
+            'filter' => $request->only(['search', 'per_page']),
+        ]);
+    }
+
+    public function show(Building $building): \Inertia\Response
+    {
+        $workOrders = $building->workOrders()
+            ->with('service_status')
+            ->latest('created_date')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn ($wo) => [
+                'id' => $wo->id,
+                'work_order_no' => $wo->work_order_no,
+                'description' => $wo->description,
+                'status' => $wo->status,
+                'service_status' => $wo->service_status?->name,
+                'priority' => $wo->priority,
+                'category' => $wo->category,
+                'created_date' => $wo->created_date ? Carbon::parse($wo->created_date)->format('M d, Y') : null,
+            ]);
+
+        return inertia('Building/Show', [
+            'title' => $building->name ?? 'Building Details',
+            'building' => [
+                'id' => $building->id,
+                'propertyware_id' => $building->propertyware_id,
+                'name' => $building->name,
+                'address' => $building->address,
+                'address_cont' => $building->address_cont,
+                'city' => $building->city,
+                'state_region' => $building->state_region,
+                'postal_code' => $building->postal_code,
+                'country' => $building->country,
+                'active' => $building->active,
+            ],
+            'workOrders' => $workOrders,
+        ]);
+    }
+
     public function create(Request $request)
     {
         return inertia('Building/Create', [

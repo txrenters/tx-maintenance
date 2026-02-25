@@ -57,10 +57,10 @@ const props = defineProps({
 
 // Use pre-calculated stats for better performance
 const upcomingInspections = computed(
-    () => props.stats?.upcoming_inspections || 0
+    () => props.stats?.upcoming_inspections || 0,
 );
 const overdueInspections = computed(
-    () => props.stats?.overdue_inspections || 0
+    () => props.stats?.overdue_inspections || 0,
 );
 
 // All data is loaded immediately, no need for loading states
@@ -80,8 +80,8 @@ function getCompletionPercentage(completed, total) {
 
 const currentYear = new Date().getFullYear();
 const years = Array.from(
-    { length: currentYear - 2023 },
-    (_, i) => currentYear - i
+    { length: currentYear - 2012 },
+    (_, i) => currentYear - i,
 );
 
 const selectedYear = ref(props.filter.year ?? currentYear);
@@ -112,7 +112,7 @@ usePoll(30000, {
 // Use pre-calculated values from server
 const monthlyGrowthRate = computed(() => props.stats?.monthly_growth_rate || 0);
 const averageCompletionTime = computed(
-    () => props.stats?.average_completion_time || 0
+    () => props.stats?.average_completion_time || 0,
 );
 
 const formattedCount = (number) => {
@@ -183,7 +183,7 @@ const getStatusColor = (index) => {
                             <span class="text-sm font-medium"
                                 >{{
                                     formattedCount(
-                                        stats?.monthly_work_orders || 0
+                                        stats?.monthly_work_orders || 0,
                                     )
                                 }}
                                 work orders this month</span
@@ -321,7 +321,7 @@ const getStatusColor = (index) => {
                             {{
                                 getCompletionPercentage(
                                     stats?.completed_work_orders || 0,
-                                    stats?.total_work_orders || 1
+                                    stats?.total_work_orders || 1,
                                 )
                             }}%
                         </span>
@@ -331,8 +331,8 @@ const getStatusColor = (index) => {
                             parseFloat(
                                 getCompletionPercentage(
                                     stats?.completed_work_orders || 0,
-                                    stats?.total_work_orders || 1
-                                )
+                                    stats?.total_work_orders || 1,
+                                ),
                             )
                         "
                         class="h-2 bg-green-200 dark:bg-green-800"
@@ -379,7 +379,7 @@ const getStatusColor = (index) => {
                         >{{
                             getCompletionPercentage(
                                 stats?.pending_work_orders || 0,
-                                stats?.total_work_orders || 1
+                                stats?.total_work_orders || 1,
                             )
                         }}% of total</span
                     >
@@ -423,7 +423,7 @@ const getStatusColor = (index) => {
                             {{
                                 getCompletionPercentage(
                                     stats?.process_work_orders || 0,
-                                    stats?.total_work_orders || 1
+                                    stats?.total_work_orders || 1,
                                 )
                             }}%
                         </span>
@@ -433,8 +433,8 @@ const getStatusColor = (index) => {
                             parseFloat(
                                 getCompletionPercentage(
                                     stats?.process_work_orders || 0,
-                                    stats?.total_work_orders || 1
-                                )
+                                    stats?.total_work_orders || 1,
+                                ),
                             )
                         "
                         class="h-2 bg-purple-200 dark:bg-purple-800"
@@ -490,8 +490,8 @@ const getStatusColor = (index) => {
                             parseFloat(
                                 getCompletionPercentage(
                                     stats?.completed_tasks || 0,
-                                    stats?.total_tasks || 1
-                                )
+                                    stats?.total_tasks || 1,
+                                ),
                             )
                         "
                         class="h-2 bg-teal-200 dark:bg-teal-800"
@@ -766,11 +766,11 @@ const getStatusColor = (index) => {
                                 <div
                                     class="h-2 rounded-full transition-all duration-500 ease-in-out"
                                     :class="`bg-gradient-to-r ${getStatusColor(
-                                        index
+                                        index,
                                     )}`"
                                     :style="{
                                         width: `${getStatusPercentage(
-                                            status.total || 0
+                                            status.total || 0,
                                         )}%`,
                                     }"
                                 ></div>

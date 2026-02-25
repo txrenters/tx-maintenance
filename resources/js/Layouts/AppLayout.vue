@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from "vue";
+import GlobalSearch from "@/Components/GlobalSearch.vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
 import { Icon } from "@iconify/vue";
@@ -76,6 +77,7 @@ import {
     Globe,
     Handshake,
     Hammer,
+    Warehouse,
     BookOpen,
     PaperclipIcon,
     Sprout,
@@ -85,6 +87,7 @@ import {
     FileIcon,
     WrenchIcon,
     Briefcase,
+    Search,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
 
@@ -233,6 +236,13 @@ const navs = computed(() => {
                 requires: ["admin", "woc", "vendor", "owner"],
             },
             {
+                name: "Buildings",
+                url: route("buildings.index"),
+                isActive: page.url.startsWith("/buildings"),
+                icon: Warehouse,
+                requires: ["admin", "woc"],
+            },
+            {
                 name: "Vendors",
                 url: route("vendors.index"),
                 isActive: page.url.startsWith("/vendors"),
@@ -321,6 +331,9 @@ const canAccess = (requiredRoles) => {
     // Return true if there are any matches, otherwise false
     return matchingRoles.length > 0;
 };
+
+const searchRef = ref(null);
+const openSearch = () => searchRef.value?.open();
 
 const notifications = ref([]);
 const markingAsRead = ref(new Set()); // Track which notifications are being marked as read
@@ -584,6 +597,13 @@ onMounted(() => {
     fetchNotifications(); // initial load
     // Set interval for every 5 minutes (300,000 ms)
     intervalId = setInterval(fetchNotifications, 5000);
+
+    document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+            e.preventDefault();
+            openSearch();
+        }
+    });
 });
 
 onUnmounted(() => {
@@ -870,6 +890,13 @@ onUnmounted(() => {
                     <div class="flex justify-between w-full">
                         <BreadcrumbContainer :title="page.props.title" />
                         <div class="mr-5 flex gap-2">
+                            <Button
+                                @click="openSearch"
+                                variant="icon"
+                                aria-label="Search work orders"
+                            >
+                                <Search class="h-4 w-4" />
+                            </Button>
                             <Popover>
                                 <PopoverTrigger class="relative">
                                     <BellRing class="w-4 h-4" />
@@ -1218,6 +1245,8 @@ onUnmounted(() => {
             </div>
         </SidebarInset>
     </SidebarProvider>
+
+    <GlobalSearch ref="searchRef" />
 
     <Dialog v-model:open="openModal">
         <DialogContent

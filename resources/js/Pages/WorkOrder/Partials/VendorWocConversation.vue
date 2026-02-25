@@ -37,7 +37,8 @@ const { toast } = useToast();
 const vendor_phone_number = page.props.auth.user.vendor.twilio_number;
 
 const woc_phone_number = ref(
-    props.workOrder.woc?.woc_number?.twilio_phone_number.phone_number
+    props.workOrder.woc?.woc_number?.twilio_phone_number?.phone_number
+        ?? page.props.maintenance_twilio_phone_number
 );
 
 const loading = ref(false);
@@ -221,8 +222,8 @@ onMounted(() => {
                                 {{ props.workOrder.woc.name }}
                             </div>
                             {{
-                                props.workOrder.woc.woc_number
-                                    .twilio_phone_number.phone_number
+                                props.workOrder.woc?.woc_number
+                                    ?.twilio_phone_number?.phone_number
                             }}
                         </div>
                     </div>
