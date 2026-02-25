@@ -20,6 +20,11 @@ class JobberTextMessage extends Model
         return $this->belongsTo(Jobber::class);
     }
 
+    public function visit(): BelongsTo
+    {
+        return $this->belongsTo(JobberVisit::class, 'jobber_visit_id');
+    }
+
     public function scopeFilter($query, array $filter): void
     {
         if (! empty($filter['search'])) {

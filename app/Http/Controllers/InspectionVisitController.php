@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -87,6 +88,60 @@ class InspectionVisitController extends Controller
         $visit = JobberVisit::with(['job.client', 'job.property', 'job.textMessages', 'job.clientContacts'])
             ->findOrFail($visitId);
 
+        // Scope messages to the selected visit window, not the entire job history.
+        $jobVisits = $visit->job->visits()
+            ->whereNotNull('start_at')
+            ->orderBy('start_at')
+            ->get()
+            ->values();
+
+        $currentIndex = $jobVisits->search(fn ($jobVisit) => $jobVisit->id === $visit->id);
+
+        $currentStartChicago = Carbon::createFromFormat('Y-m-d H:i:s', $visit->start_at, 'America/Chicago');
+        $currentEndChicago = $visit->end_at
+            ? Carbon::createFromFormat('Y-m-d H:i:s', $visit->end_at, 'America/Chicago')
+            : $currentStartChicago->copy();
+
+        $windowStartChicago = $currentStartChicago->copy()->subDays(14);
+        $windowEndChicago = $currentEndChicago->copy()->addDays(14);
+
+        if ($currentIndex !== false) {
+            if ($currentIndex > 0) {
+                $prevStart = Carbon::createFromFormat(
+                    'Y-m-d H:i:s',
+                    $jobVisits[$currentIndex - 1]->start_at,
+                    'America/Chicago'
+                );
+                $secondsBetweenPrevAndCurrent = $prevStart->diffInSeconds($currentStartChicago);
+                $windowStartChicago = $prevStart->copy()->addSeconds((int) floor($secondsBetweenPrevAndCurrent / 2));
+            }
+
+            if ($currentIndex < $jobVisits->count() - 1) {
+                $nextStart = Carbon::createFromFormat(
+                    'Y-m-d H:i:s',
+                    $jobVisits[$currentIndex + 1]->start_at,
+                    'America/Chicago'
+                );
+                $secondsBetweenCurrentAndNext = $currentStartChicago->diffInSeconds($nextStart);
+                $windowEndChicago = $currentStartChicago->copy()->addSeconds((int) floor($secondsBetweenCurrentAndNext / 2));
+            }
+        }
+
+        $windowStartUtc = $windowStartChicago->copy()->setTimezone('UTC');
+        $windowEndUtc = $windowEndChicago->copy()->setTimezone('UTC');
+
+        $visitScopedMessages = JobberTextMessage::query()
+            ->where('jobber_id', $visit->job->id)
+            ->where(function ($query) use ($visit, $windowStartUtc, $windowEndUtc) {
+                $query->where('jobber_visit_id', $visit->id)
+                    ->orWhere(function ($legacyQuery) use ($windowStartUtc, $windowEndUtc) {
+                        $legacyQuery->whereNull('jobber_visit_id')
+                            ->whereBetween('created_at', [$windowStartUtc, $windowEndUtc]);
+                    });
+            })
+            ->orderBy('created_at')
+            ->get();
+
         // Database stores dates as Chicago time - create Carbon instances in Chicago timezone
         $startDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->start_at, 'America/Chicago');
         $endDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->end_at, 'America/Chicago');
@@ -106,8 +161,8 @@ class InspectionVisitController extends Controller
                 'client' => $visit->job->client,
                 'property' => $visit->job->property,
             ],
-            'text_messages_count' => $visit->job->textMessages()->count(),
-            'text_messages' => $visit->job->textMessages->sortBy('created_at')->map(function ($message) {
+            'text_messages_count' => $visitScopedMessages->count(),
+            'text_messages' => $visitScopedMessages->map(function ($message) {
                 return [
                     'id' => $message->id,
                     'message' => $message->messages,

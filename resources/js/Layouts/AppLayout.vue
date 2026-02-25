@@ -443,33 +443,41 @@ const isLoading = ref(false);
 const MAX_MESSAGE_LENGTH = 1600;
 const messageBody = ref("");
 const workOrderNo = ref("");
+const includeRefSuffix = ref(true);
 const refSuffix = computed(() =>
     workOrderNo.value ? ` (Ref: WO#${workOrderNo.value})` : ""
 );
+const activeRefSuffix = computed(() =>
+    includeRefSuffix.value ? refSuffix.value : ""
+);
 const maxBodyLength = computed(() =>
-    Math.max(0, MAX_MESSAGE_LENGTH - refSuffix.value.length)
+    Math.max(0, MAX_MESSAGE_LENGTH - activeRefSuffix.value.length)
 );
 const displayMessage = computed({
-    get: () => `${messageBody.value}${refSuffix.value}`,
+    get: () => `${messageBody.value}${activeRefSuffix.value}`,
     set: (value) => {
         const suffix = refSuffix.value;
+        const withSuffixLimit = Math.max(0, MAX_MESSAGE_LENGTH - suffix.length);
         if (!suffix) {
-            messageBody.value = value.slice(0, maxBodyLength.value);
+            messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
             return;
         }
         if (value.endsWith(suffix)) {
+            includeRefSuffix.value = true;
             messageBody.value = value
                 .slice(0, -suffix.length)
-                .slice(0, maxBodyLength.value);
+                .slice(0, withSuffixLimit);
             return;
         }
         if (value.includes(suffix)) {
+            includeRefSuffix.value = true;
             messageBody.value = value
                 .replace(suffix, "")
-                .slice(0, maxBodyLength.value);
+                .slice(0, withSuffixLimit);
             return;
         }
-        messageBody.value = value.slice(0, maxBodyLength.value);
+        includeRefSuffix.value = false;
+        messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
     },
 });
 const quickMessageCount = computed(() => displayMessage.value.length);
@@ -491,6 +499,7 @@ const handleChatModal = async (model) => {
     conversation_type.value = model?.conversation_type ?? "job";
     reference_id.value = model?.work_order_id ?? model?.jobber_id;
     notif.value = model;
+    includeRefSuffix.value = true;
     workOrderNo.value =
         response.data?.[0]?.work_order?.work_order_no ??
         model?.work_order_no ??

@@ -27,12 +27,16 @@ const props = defineProps({
 });
 
 const messageBody = ref("");
+const includeRefSuffix = ref(true);
 const refSuffix = computed(() => {
     const workOrderNo = props.workOrder?.work_order_no;
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
+const activeRefSuffix = computed(() =>
+    includeRefSuffix.value ? refSuffix.value : ""
+);
 const displayMessage = computed({
-    get: () => `${messageBody.value}${refSuffix.value}`,
+    get: () => `${messageBody.value}${activeRefSuffix.value}`,
     set: (value) => {
         const suffix = refSuffix.value;
         if (!suffix) {
@@ -40,13 +44,16 @@ const displayMessage = computed({
             return;
         }
         if (value.endsWith(suffix)) {
+            includeRefSuffix.value = true;
             messageBody.value = value.slice(0, -suffix.length);
             return;
         }
         if (value.includes(suffix)) {
+            includeRefSuffix.value = true;
             messageBody.value = value.replace(suffix, "");
             return;
         }
+        includeRefSuffix.value = false;
         messageBody.value = value;
     },
 });
@@ -401,3 +408,4 @@ onMounted(() => {
     border-radius: 5px;
 }
 </style>
+

@@ -117,8 +117,8 @@ const checkDueTask = (tasks) => {
                 <div v-else class="flex text-left mb-1 mt-2">
                     <UserRoundPen class="w-4 h-4" />
                     <p class="text-xs text-gray-100 uppercase">
-                        {{ work_order.owners[0].first_name }}
-                        {{ work_order.owners[0].last_name }}
+                        {{ work_order.owners?.[0]?.first_name ?? "N/A" }}
+                        {{ work_order.owners?.[0]?.last_name ?? "" }}
                     </p>
                 </div>
                 <p

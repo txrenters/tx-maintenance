@@ -90,6 +90,7 @@ class TwilioWebhookController extends Controller
                 'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
                 'jobber_id' => $jobberMessage->jobber_id,
+                'jobber_visit_id' => $jobberMessage->jobber_visit_id ?? null,
             ]);
 
             if ($numMedia > 1) {
@@ -103,7 +104,8 @@ class TwilioWebhookController extends Controller
                         'receiver_number' => $to,
                         'messages' => '',
                         'image' => $mediaUrl,
-                        'jobber_job_id' => $jobberMessage->jobber_job_id,
+                        'jobber_id' => $jobberMessage->jobber_id,
+                        'jobber_visit_id' => $jobberMessage->jobber_visit_id ?? null,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
@@ -210,10 +212,10 @@ class TwilioWebhookController extends Controller
             $query->where('receiver_number', $to)
                 ->where('sender_number', $from);
         })
-            ->whereHas('jobber')
-            ->with('jobber')
-            ->get()
-            ->sortByDesc(fn ($message) => $message->jobber->start_at)
+            ->whereHas('jobber', function ($query) {
+                $query->where('job_status', '!=', 'archived');
+            })
+            ->latest('created_at')
             ->first();
     }
 

@@ -31,30 +31,38 @@ const page = usePage();
 
 const messageBody = ref("");
 const MAX_MESSAGE_LENGTH = 1600;
+const includeRefSuffix = ref(true);
 const refSuffix = computed(() => {
     const workOrderNo = props.workOrder?.work_order_no;
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
+const activeRefSuffix = computed(() =>
+    includeRefSuffix.value ? refSuffix.value : ""
+);
 const maxBodyLength = computed(() =>
-    Math.max(0, MAX_MESSAGE_LENGTH - refSuffix.value.length)
+    Math.max(0, MAX_MESSAGE_LENGTH - activeRefSuffix.value.length)
 );
 const displayMessage = computed({
-    get: () => `${messageBody.value}${refSuffix.value}`,
+    get: () => `${messageBody.value}${activeRefSuffix.value}`,
     set: (value) => {
         const suffix = refSuffix.value;
+        const withSuffixLimit = Math.max(0, MAX_MESSAGE_LENGTH - suffix.length);
         if (!suffix) {
-            messageBody.value = value;
+            messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
             return;
         }
         if (value.endsWith(suffix)) {
-            messageBody.value = value.slice(0, -suffix.length);
+            includeRefSuffix.value = true;
+            messageBody.value = value.slice(0, -suffix.length).slice(0, withSuffixLimit);
             return;
         }
         if (value.includes(suffix)) {
-            messageBody.value = value.replace(suffix, "");
+            includeRefSuffix.value = true;
+            messageBody.value = value.replace(suffix, "").slice(0, withSuffixLimit);
             return;
         }
-        messageBody.value = value.slice(0, maxBodyLength.value);
+        includeRefSuffix.value = false;
+        messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
     },
 });
 const selectedOwner = ref("");
@@ -402,3 +410,4 @@ watch(
     border-radius: 5px;
 }
 </style>
+

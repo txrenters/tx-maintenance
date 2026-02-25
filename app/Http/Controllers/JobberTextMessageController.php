@@ -34,6 +34,7 @@ class JobberTextMessageController extends Controller
             'receiver_numbers' => 'required|array|min:1',
             'receiver_numbers.*' => 'required|string',
             'jobber_id' => 'required|exists:jobber_jobs,id',
+            'jobber_visit_id' => 'nullable|exists:jobber_visits,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
         ]);
 
@@ -85,6 +86,7 @@ class JobberTextMessageController extends Controller
                     // Check for duplicate messages sent within the last 1 minute to prevent double-submission
                     $recentMessage = JobberTextMessage::where('receiver_number', $receiverNumber)
                         ->where('jobber_id', $validatedData['jobber_id'])
+                        ->where('jobber_visit_id', $validatedData['jobber_visit_id'] ?? null)
                         ->where('messages', $validatedData['messages'] ?? '')
                         ->where('created_at', '>=', now()->subMinutes(1))
                         ->first();
@@ -112,6 +114,7 @@ class JobberTextMessageController extends Controller
                         'sender_number' => $senderNumber,
                         'receiver_number' => $receiverNumber,
                         'jobber_id' => $validatedData['jobber_id'],
+                        'jobber_visit_id' => $validatedData['jobber_visit_id'] ?? null,
                         'image' => $imagePath,
                     ]);
 

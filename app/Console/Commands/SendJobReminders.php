@@ -224,6 +224,7 @@ class SendJobReminders extends Command
                         'sender_number' => $senderNumber,
                         'receiver_number' => $phoneNumber,
                         'jobber_id' => $visit->job->id,
+                        'jobber_visit_id' => $visit->id,
                         'sent_at' => $visit->job->start_at,
                     ]);
 

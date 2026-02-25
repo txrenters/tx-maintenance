@@ -499,6 +499,9 @@ const sendMessage = () => {
     }
 
     formData.append("jobber_id", selectedEvent.value.job.id);
+    if (selectedEvent.value?.id) {
+        formData.append("jobber_visit_id", selectedEvent.value.id);
+    }
 
     if (selectedImage.value) {
         formData.append("image", selectedImage.value);
