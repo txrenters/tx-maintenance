@@ -27,10 +27,14 @@ const props = defineProps({
 });
 
 const messageBody = ref("");
+const MAX_MESSAGE_LENGTH = 1600;
 const refSuffix = computed(() => {
     const workOrderNo = props.workOrder?.work_order_no;
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
+const maxBodyLength = computed(() =>
+    Math.max(0, MAX_MESSAGE_LENGTH - refSuffix.value.length)
+);
 const displayMessage = computed({
     get: () => `${messageBody.value}${refSuffix.value}`,
     set: (value) => {
@@ -47,9 +51,10 @@ const displayMessage = computed({
             messageBody.value = value.replace(suffix, "");
             return;
         }
-        messageBody.value = value;
+        messageBody.value = value.slice(0, maxBodyLength.value);
     },
 });
+const messageCount = computed(() => displayMessage.value.length);
 const selectedVendor = ref("");
 const vendor_phone_number = ref("");
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
@@ -341,7 +346,11 @@ onMounted(() => {
                     rows="3"
                     @input="autoResize"
                     :disabled="loading"
+                    :maxlength="MAX_MESSAGE_LENGTH"
                 />
+                <p class="text-xs text-muted-foreground text-right mt-1 pr-2">
+                    {{ messageCount }}/{{ MAX_MESSAGE_LENGTH }}
+                </p>
                 <div class="flex absolute top-3 right-2">
                     <!-- Attachment Button -->
                     <Button

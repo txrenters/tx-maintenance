@@ -163,7 +163,7 @@ onUnmounted(() => {
                 <input
                     v-model="query"
                     type="text"
-                    placeholder="Search work orders..."
+                    placeholder="Search work orders, description, category or location..."
                     autofocus
                     class="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
                 />

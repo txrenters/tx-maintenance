@@ -31,7 +31,6 @@ class SearchController extends Controller
             ))
             ->when($buildingId, fn ($q) => $q->where('work_orders.building_id', $buildingId))
             ->orderBy('work_orders.created_date', 'desc')
-            ->limit(15)
             ->get();
 
         $results = $workOrders->map(fn ($wo) => [

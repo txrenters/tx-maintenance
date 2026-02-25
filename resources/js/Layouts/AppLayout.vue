@@ -440,7 +440,39 @@ const markAsUnread = async (notificationId) => {
 
 const openModal = ref(false);
 const isLoading = ref(false);
-const newMessage = ref("");
+const MAX_MESSAGE_LENGTH = 1600;
+const messageBody = ref("");
+const workOrderNo = ref("");
+const refSuffix = computed(() =>
+    workOrderNo.value ? ` (Ref: WO#${workOrderNo.value})` : ""
+);
+const maxBodyLength = computed(() =>
+    Math.max(0, MAX_MESSAGE_LENGTH - refSuffix.value.length)
+);
+const displayMessage = computed({
+    get: () => `${messageBody.value}${refSuffix.value}`,
+    set: (value) => {
+        const suffix = refSuffix.value;
+        if (!suffix) {
+            messageBody.value = value.slice(0, maxBodyLength.value);
+            return;
+        }
+        if (value.endsWith(suffix)) {
+            messageBody.value = value
+                .slice(0, -suffix.length)
+                .slice(0, maxBodyLength.value);
+            return;
+        }
+        if (value.includes(suffix)) {
+            messageBody.value = value
+                .replace(suffix, "")
+                .slice(0, maxBodyLength.value);
+            return;
+        }
+        messageBody.value = value.slice(0, maxBodyLength.value);
+    },
+});
+const quickMessageCount = computed(() => displayMessage.value.length);
 const conversations = ref([]);
 const receiver_number = ref("");
 const sender_number = ref("");
@@ -459,6 +491,10 @@ const handleChatModal = async (model) => {
     conversation_type.value = model?.conversation_type ?? "job";
     reference_id.value = model?.work_order_id ?? model?.jobber_id;
     notif.value = model;
+    workOrderNo.value =
+        response.data?.[0]?.work_order?.work_order_no ??
+        model?.work_order_no ??
+        "";
     openModal.value = true;
 };
 const loading = ref(false);
@@ -482,7 +518,7 @@ const sendMessage = () => {
         return;
     }
 
-    if (!newMessage.value || !newMessage.value.trim()) {
+    if (!messageBody.value || !messageBody.value.trim()) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -493,9 +529,9 @@ const sendMessage = () => {
         return;
     }
 
-    if (newMessage.value.trim() !== "" && conversation_type.value !== "job") {
+    if (messageBody.value.trim() !== "" && conversation_type.value !== "job") {
         const formData = new FormData();
-        formData.append("text", newMessage.value.trim());
+        formData.append("text", displayMessage.value.trim());
         formData.append("sender_phone_number", sender_number.value);
         formData.append("receiver_phone_number", receiver_number.value);
         formData.append("work_order_id", reference_id.value);
@@ -509,7 +545,7 @@ const sendMessage = () => {
                     title: "Success",
                     description: "Message has been sent successfully!",
                 });
-                newMessage.value = "";
+                messageBody.value = "";
                 // Reset textarea height
                 const textarea = document.querySelector(
                     'textarea[placeholder="Type your message..."]',
@@ -531,9 +567,9 @@ const sendMessage = () => {
         });
     }
 
-    if (newMessage.value.trim() !== "" && conversation_type.value === "job") {
+    if (messageBody.value.trim() !== "" && conversation_type.value === "job") {
         const formData = new FormData();
-        formData.append("messages", newMessage.value.trim());
+        formData.append("messages", messageBody.value.trim());
         formData.append("sender_number", sender_number.value);
         formData.append("receiver_numbers[]", receiver_number.value);
         formData.append("jobber_id", reference_id.value);
@@ -547,7 +583,7 @@ const sendMessage = () => {
                     title: "Success",
                     description: "Message has been sent successfully!",
                 });
-                newMessage.value = "";
+                messageBody.value = "";
                 // Reset textarea height
                 const textarea = document.querySelector(
                     'textarea[placeholder="Type your message..."]',
@@ -1294,12 +1330,16 @@ onUnmounted(() => {
                 <!-- Message Input -->
                 <div class="relative w-full mt-4 mb-6">
                     <Textarea
-                        v-model="newMessage"
+                        v-model="displayMessage"
                         placeholder="Type your message..."
                         class="w-full resize-none rounded-2xl border py-3 pr-24 min-h-[44px] max-h-[200px] overflow-y-auto"
                         rows="3"
                         @input="autoResize"
+                        :maxlength="MAX_MESSAGE_LENGTH"
                     />
+                    <p class="text-xs text-muted-foreground text-right mt-1">
+                        {{ quickMessageCount }}/{{ MAX_MESSAGE_LENGTH }}
+                    </p>
                     <div class="flex absolute top-3 right-2">
                         <!-- Send Button -->
                         <Button
