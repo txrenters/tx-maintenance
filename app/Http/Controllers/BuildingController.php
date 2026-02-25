@@ -18,7 +18,7 @@ class BuildingController extends Controller
     {
         $perPage = $request->per_page
             ? ($request->per_page === 'All' ? Building::count() : (int) $request->per_page)
-            : 10;
+            : 50;
 
         $buildings = Building::query()
             ->when($request->search, fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')
