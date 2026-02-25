@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, nextTick } from "vue";
+import { ref, watch, onMounted, nextTick, computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { Loader2, Send, Paperclip, X, Image } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -29,7 +29,30 @@ const emit = defineEmits(["update-owner-convo"]);
 const { toast } = useToast();
 const page = usePage();
 
-const newMessage = ref("");
+const messageBody = ref("");
+const refSuffix = computed(() => {
+    const workOrderNo = props.workOrder?.work_order_no;
+    return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
+});
+const displayMessage = computed({
+    get: () => `${messageBody.value}${refSuffix.value}`,
+    set: (value) => {
+        const suffix = refSuffix.value;
+        if (!suffix) {
+            messageBody.value = value;
+            return;
+        }
+        if (value.endsWith(suffix)) {
+            messageBody.value = value.slice(0, -suffix.length);
+            return;
+        }
+        if (value.includes(suffix)) {
+            messageBody.value = value.replace(suffix, "");
+            return;
+        }
+        messageBody.value = value;
+    },
+});
 const selectedOwner = ref("");
 const owner_phone_number = ref("");
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
@@ -121,7 +144,7 @@ const sendMessage = () => {
         return;
     }
 
-    if (!newMessage.value && !selectedImage.value) {
+    if (!messageBody.value && !selectedImage.value) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -132,12 +155,12 @@ const sendMessage = () => {
         return;
     }
 
-    if (newMessage.value.trim() !== "" || selectedImage.value) {
+    if (messageBody.value.trim() !== "" || selectedImage.value) {
         console.log(woc_phone_number.value);
 
         // Create FormData for file upload
         const formData = new FormData();
-        formData.append("text", newMessage.value || "");
+        formData.append("text", displayMessage.value || "");
         formData.append("sender_phone_number", woc_phone_number.value);
         formData.append("receiver_phone_number", owner_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
@@ -157,7 +180,7 @@ const sendMessage = () => {
                     description: "Message has been sent successfully!",
                 });
                 emit("update-owner-convo");
-                newMessage.value = "";
+                messageBody.value = "";
                 // Reset textarea height
                 const textarea = document.querySelector('textarea[placeholder="Type your message..."]');
                 if (textarea) textarea.style.height = "auto";
@@ -330,7 +353,7 @@ watch(
                 />
 
                 <Textarea
-                    v-model="newMessage"
+                    v-model="displayMessage"
                     placeholder="Type your message..."
                     class="w-full resize-none rounded-2xl border py-3 pr-24 min-h-[44px] max-h-[200px] overflow-y-auto"
                     rows="3"

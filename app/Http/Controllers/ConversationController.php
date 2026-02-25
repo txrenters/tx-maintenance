@@ -122,7 +122,7 @@ class ConversationController extends Controller
 
             $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
 
-            $messageText = trim(($validatedData['text'] ?? '').' (Ref: WO#'.$workOrder->work_order_no.')');
+            $messageText = trim($validatedData['text'] ?? '');
 
             $conversation = Conversation::create([
                 'message' => $messageText,
