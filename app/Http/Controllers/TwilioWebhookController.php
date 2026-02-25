@@ -83,15 +83,21 @@ class TwilioWebhookController extends Controller
         if ($jobberMessage) {
 
             $numMedia = (int) $request->input('NumMedia');
+            $hasVisitColumn = JobberTextMessage::hasVisitColumn();
 
-            $textMessage = JobberTextMessage::create([
+            $payload = [
                 'sender_number' => $from,
                 'receiver_number' => $to,
                 'messages' => $body,
                 'image' => $numMedia > 0 ? $request->input('MediaUrl0') : null,
                 'jobber_id' => $jobberMessage->jobber_id,
-                'jobber_visit_id' => $jobberMessage->jobber_visit_id ?? null,
-            ]);
+            ];
+
+            if ($hasVisitColumn) {
+                $payload['jobber_visit_id'] = $jobberMessage->jobber_visit_id ?? null;
+            }
+
+            $textMessage = JobberTextMessage::create($payload);
 
             if ($numMedia > 1) {
                 $mediaWithTextMessage = [];
@@ -105,10 +111,13 @@ class TwilioWebhookController extends Controller
                         'messages' => '',
                         'image' => $mediaUrl,
                         'jobber_id' => $jobberMessage->jobber_id,
-                        'jobber_visit_id' => $jobberMessage->jobber_visit_id ?? null,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
+
+                    if ($hasVisitColumn) {
+                        $mediaWithTextMessage[count($mediaWithTextMessage) - 1]['jobber_visit_id'] = $jobberMessage->jobber_visit_id ?? null;
+                    }
                 }
 
                 DB::table('jobber_text_messages')->insert($mediaWithTextMessage);

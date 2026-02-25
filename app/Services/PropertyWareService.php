@@ -102,6 +102,46 @@ class PropertyWareService
 
     }
 
+    /**
+     * Stream SOAP work orders page-by-page to avoid loading all pages into memory.
+     *
+     * @param  callable(array<int, mixed>): void  $callback
+     */
+    public function streamWorkOrders(callable $callback, int $maxPages = 20): void
+    {
+        try {
+            $client = $this->initiate();
+
+            for ($pageNumber = 1; $pageNumber <= $maxPages; $pageNumber++) {
+                $params = [
+                    'pageNumber' => $pageNumber,
+                    'orderByNewestFirst' => 1,
+                ];
+
+                $response = $client->getWorkOrders($params);
+                if (empty($response)) {
+                    break;
+                }
+
+                $orders = json_decode(json_encode($response), true);
+                if (empty($orders)) {
+                    break;
+                }
+
+                $callback($orders);
+
+                // Explicit cleanup between pages for long-running scheduler jobs.
+                unset($orders, $response);
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+        } catch (Exception $e) {
+            Log::error('SOAP request failed: '.$e->getMessage());
+            throw $e;
+        }
+    }
+
     public function getWorkOrdersViaRestAPI()
     {
         try {
@@ -166,6 +206,65 @@ class PropertyWareService
             return 'Error: '.$e->getMessage();
         }
 
+    }
+
+    /**
+     * Stream REST work orders in fixed-size batches.
+     *
+     * @param  callable(array<int, mixed>): void  $callback
+     */
+    public function streamWorkOrdersViaRestAPI(callable $callback, int $limit = 500): void
+    {
+        try {
+            $offset = 0;
+
+            while (true) {
+                $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
+                    'includeCustomFields' => 'true',
+                    'orderby' => 'createddate DESC',
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+
+                if (! $response->successful()) {
+                    Log::error('Error retrieving Work Orders', [
+                        'error' => 'Unable to retrieve work orders',
+                        'error_details' => [
+                            'status_code' => $response->status(),
+                            'body' => $response->body(),
+                            'offset' => $offset,
+                        ],
+                    ]);
+                    break;
+                }
+
+                $workOrders = $response->json();
+                if (empty($workOrders)) {
+                    break;
+                }
+
+                $callback($workOrders);
+
+                $count = count($workOrders);
+                Log::info('Success in retrieving work orders', [
+                    'offset' => $offset,
+                    'count' => $count,
+                ]);
+
+                $offset += $limit;
+                if ($count < $limit) {
+                    break;
+                }
+
+                unset($workOrders, $response);
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+        } catch (Exception $e) {
+            Log::error('REST API request failed: '.$e->getMessage());
+            throw $e;
+        }
     }
 
     public function getBuilding($buildingId)

@@ -39,24 +39,19 @@ class WorkOrderImportCommand extends Command
      */
     public function handle(): void
     {
-        $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
-
-        if (empty($work_orders)) {
-            Log::warning('No work orders returned from Propertyware API.');
-
-            return;
-        }
-
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
+        $processedCount = 0;
+        $this->propertyWareService->streamWorkOrders(function (array $workOrders) use (&$processedCount, $now) {
+            foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
+                foreach ($workOrderChunk as $order) {
+                    $data = (array) $order;
+                    $ID = $data['ID'] ?? null;
 
-        foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
-            foreach ($workOrderChunk as $order) {
-                $data = (array) $order;
+                    if (! $ID) {
+                        continue;
+                    }
 
-                $ID = $data['ID'] ?? null;
-
-                if ($ID) {
                     // Process tenant and user
                     $tenant = $this->processTenantAndUser($data);
 
@@ -65,13 +60,23 @@ class WorkOrderImportCommand extends Command
 
                     // Process work order and related data
                     $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
-
+                    $processedCount++;
                 }
 
+                unset($workOrderChunk);
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
             }
+        });
+
+        if ($processedCount === 0) {
+            Log::warning('No work orders returned from Propertyware API.');
+
+            return;
         }
 
-        Log::info('Work order imported successfully!');
+        Log::info('Work order imported successfully!', ['count' => $processedCount]);
     }
 
     private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void

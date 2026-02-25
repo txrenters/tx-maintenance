@@ -50,6 +50,9 @@ class JobberTextMessageController extends Controller
         DB::beginTransaction();
 
         try {
+            $hasVisitColumn = JobberTextMessage::hasVisitColumn();
+            $visitId = $hasVisitColumn ? ($validatedData['jobber_visit_id'] ?? null) : null;
+
             // Handle image upload if present
             $imagePath = null;
             if ($request->hasFile('image')) {
@@ -84,12 +87,16 @@ class JobberTextMessageController extends Controller
             foreach ($receiverNumbers as $receiverNumber) {
                 try {
                     // Check for duplicate messages sent within the last 1 minute to prevent double-submission
-                    $recentMessage = JobberTextMessage::where('receiver_number', $receiverNumber)
+                    $recentMessageQuery = JobberTextMessage::where('receiver_number', $receiverNumber)
                         ->where('jobber_id', $validatedData['jobber_id'])
-                        ->where('jobber_visit_id', $validatedData['jobber_visit_id'] ?? null)
                         ->where('messages', $validatedData['messages'] ?? '')
-                        ->where('created_at', '>=', now()->subMinutes(1))
-                        ->first();
+                        ->where('created_at', '>=', now()->subMinutes(1));
+
+                    if ($hasVisitColumn) {
+                        $recentMessageQuery->where('jobber_visit_id', $visitId);
+                    }
+
+                    $recentMessage = $recentMessageQuery->first();
 
                     if ($recentMessage) {
                         Log::warning("Duplicate message prevented for {$receiverNumber} (jobber_id: {$validatedData['jobber_id']})");
@@ -109,14 +116,19 @@ class JobberTextMessageController extends Controller
                     }
 
                     // Save the message to the database AFTER successful send
-                    $jobberTextMessage = JobberTextMessage::create([
+                    $payload = [
                         'messages' => $validatedData['messages'] ?? '',
                         'sender_number' => $senderNumber,
                         'receiver_number' => $receiverNumber,
                         'jobber_id' => $validatedData['jobber_id'],
-                        'jobber_visit_id' => $validatedData['jobber_visit_id'] ?? null,
                         'image' => $imagePath,
-                    ]);
+                    ];
+
+                    if ($hasVisitColumn) {
+                        $payload['jobber_visit_id'] = $visitId;
+                    }
+
+                    $jobberTextMessage = JobberTextMessage::create($payload);
 
                     $sentMessages[] = $jobberTextMessage;
                 } catch (\Exception $e) {

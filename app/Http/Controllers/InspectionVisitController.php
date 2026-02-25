@@ -85,7 +85,7 @@ class InspectionVisitController extends Controller
      */
     public function visitDetails($visitId)
     {
-        $visit = JobberVisit::with(['job.client', 'job.property', 'job.textMessages', 'job.clientContacts'])
+        $visit = JobberVisit::with(['job.client', 'job.property', 'job.clientContacts'])
             ->findOrFail($visitId);
 
         // Scope messages to the selected visit window, not the entire job history.
@@ -130,15 +130,22 @@ class InspectionVisitController extends Controller
         $windowStartUtc = $windowStartChicago->copy()->setTimezone('UTC');
         $windowEndUtc = $windowEndChicago->copy()->setTimezone('UTC');
 
-        $visitScopedMessages = JobberTextMessage::query()
-            ->where('jobber_id', $visit->job->id)
-            ->where(function ($query) use ($visit, $windowStartUtc, $windowEndUtc) {
+        $visitScopedMessagesQuery = JobberTextMessage::query()
+            ->where('jobber_id', $visit->job->id);
+
+        if (JobberTextMessage::hasVisitColumn()) {
+            $visitScopedMessagesQuery->where(function ($query) use ($visit, $windowStartUtc, $windowEndUtc) {
                 $query->where('jobber_visit_id', $visit->id)
                     ->orWhere(function ($legacyQuery) use ($windowStartUtc, $windowEndUtc) {
                         $legacyQuery->whereNull('jobber_visit_id')
                             ->whereBetween('created_at', [$windowStartUtc, $windowEndUtc]);
                     });
-            })
+            });
+        } else {
+            $visitScopedMessagesQuery->whereBetween('created_at', [$windowStartUtc, $windowEndUtc]);
+        }
+
+        $visitScopedMessages = $visitScopedMessagesQuery
             ->orderBy('created_at')
             ->get();
 
