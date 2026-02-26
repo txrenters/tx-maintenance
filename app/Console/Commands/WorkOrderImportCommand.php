@@ -43,33 +43,29 @@ class WorkOrderImportCommand extends Command
         $processedCount = 0;
         $wocUserId = User::role('woc')->value('id');
 
-        $this->propertyWareService->streamWorkOrders(function (array $workOrders) use (&$processedCount, $now, $wocUserId) {
-            foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
-                foreach ($workOrderChunk as $order) {
-                    $data = (array) $order;
-                    $ID = $data['ID'] ?? null;
+        $workOrders = $this->propertyWareService->getWorkOrders() ?? [];
 
-                    if (! $ID) {
-                        continue;
-                    }
+        foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
+            foreach ($workOrderChunk as $order) {
+                $data = (array) $order;
+                $ID = $data['ID'] ?? null;
 
-                    // Process tenant and user
-                    $tenant = $this->processTenantAndUser($data);
-
-                    // Process owner and user
-                    $owner = $this->processOwnerAndUser($data);
-
-                    // Process work order and related data
-                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $wocUserId);
-                    $processedCount++;
+                if (! $ID) {
+                    continue;
                 }
 
-                unset($workOrderChunk);
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
+                // Process tenant and user
+                $tenant = $this->processTenantAndUser($data);
+
+                // Process owner and user
+                $owner = $this->processOwnerAndUser($data);
+
+                // Process work order and related data
+                $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $wocUserId);
+                $processedCount++;
             }
-        });
+
+        }
 
         if ($processedCount === 0) {
             Log::warning('No work orders returned from Propertyware API.');
@@ -160,11 +156,6 @@ class WorkOrderImportCommand extends Command
                     }
                 }
             }
-
-            // DB::table('work_orders')->updateOrInsert(
-            //     ['propertyware_id' => $work_order_propertyware_id],
-            //     $work_order_data
-            // );
 
             DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],

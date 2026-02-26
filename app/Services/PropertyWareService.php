@@ -80,12 +80,14 @@ class PropertyWareService
             $client = $this->initiate();
             $allWorkOrders = [];
 
-            for ($pageNumber = 1; $pageNumber <= 20; $pageNumber++) {
+            for ($pageNumber = 1; $pageNumber <= 10; $pageNumber++) {
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
                 ];
+
                 $response = $client->getWorkOrders($params);
+
                 if (! empty($response)) {
                     $orders = json_decode(json_encode($response), true);
                     $allWorkOrders = array_merge($allWorkOrders, $orders);
@@ -119,6 +121,7 @@ class PropertyWareService
                 ];
 
                 $response = $client->getWorkOrders($params);
+
                 if (empty($response)) {
                     break;
                 }
@@ -129,12 +132,6 @@ class PropertyWareService
                 }
 
                 $callback($orders);
-
-                // Explicit cleanup between pages for long-running scheduler jobs.
-                unset($orders, $response);
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
             }
         } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
