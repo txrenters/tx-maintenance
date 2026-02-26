@@ -107,7 +107,7 @@ class PropertyWareService
      *
      * @param  callable(array<int, mixed>): void  $callback
      */
-    public function streamWorkOrders(callable $callback, int $maxPages = 15): void
+    public function streamWorkOrders(callable $callback, int $maxPages = 5): void
     {
         try {
             $client = $this->initiate();
