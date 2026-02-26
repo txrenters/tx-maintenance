@@ -314,26 +314,16 @@ class PropertyWareService
      *
      * @param  callable(array<int, mixed>): void  $callback
      */
-    public function streamWorkOrdersViaRestAPI(callable $callback, int $limit = 500, ?int $totalToFetch = null): void
+    public function streamWorkOrdersViaRestAPI(callable $callback, int $limit = 500): void
     {
         try {
             $offset = 0;
-            $totalFetched = 0;
 
             while (true) {
-                $requestLimit = $limit;
-                if ($totalToFetch !== null) {
-                    $remaining = $totalToFetch - $totalFetched;
-                    if ($remaining <= 0) {
-                        break;
-                    }
-                    $requestLimit = min($limit, $remaining);
-                }
-
                 $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
                     'includeCustomFields' => 'true',
                     'orderby' => 'createddate DESC',
-                    'limit' => $requestLimit,
+                    'limit' => $limit,
                     'offset' => $offset,
                 ]);
 
@@ -354,29 +344,16 @@ class PropertyWareService
                     break;
                 }
 
-                if ($totalToFetch !== null) {
-                    $remaining = $totalToFetch - $totalFetched;
-                    if (count($workOrders) > $remaining) {
-                        $workOrders = array_slice($workOrders, 0, $remaining);
-                    }
-                }
-
                 $callback($workOrders);
 
                 $count = count($workOrders);
-                $totalFetched += $count;
                 Log::info('Success in retrieving work orders', [
                     'offset' => $offset,
                     'count' => $count,
-                    'total_fetched' => $totalFetched,
-                    'total_cap' => $totalToFetch,
                 ]);
 
                 $offset += $limit;
                 if ($count < $limit) {
-                    break;
-                }
-                if ($totalToFetch !== null && $totalFetched >= $totalToFetch) {
                     break;
                 }
 

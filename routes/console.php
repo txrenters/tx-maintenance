@@ -8,7 +8,7 @@ Schedule::command('import:work-orders')
     ->withoutOverlapping()
     ->runInBackground()
     ->then(function () {
-        Artisan::call('update:work-orders-status', ['--cap' => 5000]);
+        Artisan::call('update:work-orders-status');
     });
 
 // Refresh Jobber token every 30 minutes to prevent expiration
