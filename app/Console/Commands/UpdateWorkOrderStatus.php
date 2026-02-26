@@ -18,7 +18,7 @@ class UpdateWorkOrderStatus extends Command
      *
      * @var string
      */
-    protected $signature = 'update:work-orders-status';
+    protected $signature = 'update:work-orders-status {--cap=5000 : Maximum number of work orders to fetch per run}';
 
     /**
      * The console command description.
@@ -45,6 +45,7 @@ class UpdateWorkOrderStatus extends Command
      */
     public function handle(): void
     {
+        $cap = max((int) $this->option('cap'), 1);
         Log::info('Work Orders updates are running.');
 
         $retrievedCount = 0;
@@ -86,7 +87,7 @@ class UpdateWorkOrderStatus extends Command
                 if (function_exists('gc_collect_cycles')) {
                     gc_collect_cycles();
                 }
-            });
+            }, 500, $cap);
 
             if ($retrievedCount === 0) {
                 Log::warning('No work orders returned from Propertyware API.');
@@ -97,6 +98,7 @@ class UpdateWorkOrderStatus extends Command
             Log::info('Successfully updated Work order details!', [
                 'retrieved_count' => $retrievedCount,
                 'updated_count' => $updatedCount,
+                'fetch_cap' => $cap,
             ]);
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage(), [
