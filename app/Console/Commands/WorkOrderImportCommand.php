@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
-use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -42,7 +41,9 @@ class WorkOrderImportCommand extends Command
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
         $processedCount = 0;
-        $this->propertyWareService->streamWorkOrders(function (array $workOrders) use (&$processedCount, $now) {
+        $wocUserId = User::role('woc')->value('id');
+
+        $this->propertyWareService->streamWorkOrders(function (array $workOrders) use (&$processedCount, $now, $wocUserId) {
             foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
                 foreach ($workOrderChunk as $order) {
                     $data = (array) $order;
@@ -59,7 +60,7 @@ class WorkOrderImportCommand extends Command
                     $owner = $this->processOwnerAndUser($data);
 
                     // Process work order and related data
-                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $wocUserId);
                     $processedCount++;
                 }
 
@@ -79,12 +80,11 @@ class WorkOrderImportCommand extends Command
         Log::info('Work order imported successfully!', ['count' => $processedCount]);
     }
 
-    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
+    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now, ?int $wocUserId): void
     {
         DB::beginTransaction();
         try {
             $work_order_propertyware_id = $data['ID'] ?? null;
-            $woc = User::role('woc')->first();
 
             DB::table('work_order_categories')->updateOrInsert(
                 ['name' => $data['category']],
@@ -133,7 +133,7 @@ class WorkOrderImportCommand extends Command
                 'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
                 'owner_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
-                'user_id' => $woc?->id,
+                'user_id' => $wocUserId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -166,18 +166,20 @@ class WorkOrderImportCommand extends Command
             //     $work_order_data
             // );
 
-            WorkOrder::updateOrCreate(
+            DB::table('work_orders')->updateOrInsert(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
 
-            $workOrder = WorkOrder::where('propertyware_id', $work_order_propertyware_id)
-                ->with('service_status')
-                ->first();
+            $workOrderId = DB::table('work_orders')
+                ->where('propertyware_id', $work_order_propertyware_id)
+                ->value('id');
 
-            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
-            DB::table('work_order_custom_fields')->insert($customFieldData);
-            $this->processRelatedData($data, $workOrder->id, $now);
+            DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
+            if (! empty($customFieldData)) {
+                DB::table('work_order_custom_fields')->insert($customFieldData);
+            }
+            $this->processRelatedData($data, $workOrderId, $now);
 
             DB::commit();
         } catch (\Throwable $th) {
@@ -357,7 +359,9 @@ class WorkOrderImportCommand extends Command
             }
         }
         DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
-        DB::table('work_order_notes')->insert($notesData);
+        if (! empty($notesData)) {
+            DB::table('work_order_notes')->insert($notesData);
+        }
     }
 
     private function processTenants(array $data, int $work_order, string $now): void
