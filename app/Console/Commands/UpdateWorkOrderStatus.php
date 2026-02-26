@@ -2,18 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Building;
 use App\Models\User;
 use App\Models\Vendor;
-use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-
-use function Symfony\Component\Clock\now;
 
 class UpdateWorkOrderStatus extends Command
 {
@@ -35,6 +31,8 @@ class UpdateWorkOrderStatus extends Command
 
     /** @var array<int, int> Cache of propertyware_id => local building propertyware_id */
     private array $buildingCache = [];
+    /** @var array<int, int> Cache of propertyware_id => local vendor id */
+    private array $vendorCache = [];
 
     public function __construct(PropertyWareService $propertyWareService)
     {
@@ -47,120 +45,267 @@ class UpdateWorkOrderStatus extends Command
      */
     public function handle(): void
     {
-        $work_orders = $this->propertyWareService->getWorkOrdersViaRestAPI() ?? [];
+        Log::info('Work Orders updates are running.');
 
-        if (empty($work_orders)) {
-            Log::warning('No work orders returned from Propertyware API.');
+        $retrievedCount = 0;
+        $updatedCount = 0;
+
+        try {
+            $this->propertyWareService->streamWorkOrdersViaRestAPI(function (array $workOrders) use (&$retrievedCount, &$updatedCount) {
+                $retrievedCount += count($workOrders);
+                $existingWorkOrderMap = $this->getExistingWorkOrderIdMap($workOrders);
+
+                foreach ($workOrders as $order) {
+                    $data = (array) $order;
+                    $propertywareId = isset($data['id']) ? (int) $data['id'] : null;
+
+                    if (! $propertywareId) {
+                        continue;
+                    }
+
+                    $workOrderId = $existingWorkOrderMap[$propertywareId] ?? null;
+                    if (! $workOrderId) {
+                        continue;
+                    }
+
+                    $workOrderData = $this->buildWorkOrderUpdatePayload($data);
+                    if (! empty($workOrderData)) {
+                        $workOrderData['updated_at'] = now();
+                        DB::table('work_orders')
+                            ->where('id', $workOrderId)
+                            ->update($workOrderData);
+                        $updatedCount++;
+                    }
+
+                    if (array_key_exists('assignedVendors', $data)) {
+                        $this->syncAssignedVendors($workOrderId, $data['assignedVendors']);
+                    }
+                }
+
+                unset($existingWorkOrderMap, $workOrders);
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            });
+
+            if ($retrievedCount === 0) {
+                Log::warning('No work orders returned from Propertyware API.');
+
+                return;
+            }
+
+            Log::info('Successfully updated Work order details!', [
+                'retrieved_count' => $retrievedCount,
+                'updated_count' => $updatedCount,
+            ]);
+        } catch (\Throwable $th) {
+            Log::error('Updating Work order failed: '.$th->getMessage(), [
+                'trace' => $th->getTraceAsString(),
+            ]);
+        }
+
+    }
+
+    /**
+     * @param  array<int, mixed>  $workOrders
+     * @return array<int, int>
+     */
+    private function getExistingWorkOrderIdMap(array $workOrders): array
+    {
+        $propertywareIds = [];
+
+        foreach ($workOrders as $order) {
+            $data = (array) $order;
+            if (! empty($data['id'])) {
+                $propertywareIds[] = (int) $data['id'];
+            }
+        }
+
+        $propertywareIds = array_values(array_unique($propertywareIds));
+        if (empty($propertywareIds)) {
+            return [];
+        }
+
+        return DB::table('work_orders')
+            ->whereIn('propertyware_id', $propertywareIds)
+            ->pluck('id', 'propertyware_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function buildWorkOrderUpdatePayload(array $data): array
+    {
+        $workOrderData = [];
+
+        if (array_key_exists('status', $data)) {
+            $workOrderData['status'] = $data['status'];
+        }
+        if (array_key_exists('authorizedToEnter', $data)) {
+            $workOrderData['authorized_to_enter'] = $data['authorizedToEnter'];
+        }
+        if (array_key_exists('category', $data)) {
+            $workOrderData['category'] = $data['category'];
+        }
+        if (array_key_exists('completedDate', $data)) {
+            $workOrderData['completed_date'] = $this->safeParseDate($data['completedDate'], true);
+        }
+        if (array_key_exists('costEstimate', $data)) {
+            $workOrderData['cost_estimate'] = $data['costEstimate'];
+        }
+        if (array_key_exists('description', $data)) {
+            $workOrderData['description'] = $data['description'];
+        }
+        if (array_key_exists('hourEstimate', $data)) {
+            $workOrderData['hour_estimate'] = $data['hourEstimate'];
+        }
+        if (array_key_exists('priority', $data)) {
+            $workOrderData['priority'] = $data['priority'];
+        }
+        if (array_key_exists('requiredMaterials', $data)) {
+            $workOrderData['required_materials'] = $data['requiredMaterials'];
+        }
+        if (array_key_exists('source', $data)) {
+            $workOrderData['source'] = $data['source'];
+        }
+        if (array_key_exists('specificLocation', $data)) {
+            $workOrderData['specific_location'] = $data['specificLocation'];
+        }
+        if (array_key_exists('type', $data)) {
+            $workOrderData['type'] = $data['type'];
+        }
+        if (array_key_exists('actualCost', $data)) {
+            $workOrderData['total_cost'] = $data['actualCost'];
+        }
+        if (array_key_exists('scheduledEndDate', $data)) {
+            $workOrderData['scheduled_end_date'] = $this->safeParseDate($data['scheduledEndDate'], true);
+        }
+        if (array_key_exists('approved', $data)) {
+            $workOrderData['is_approved'] = (bool) $data['approved'];
+        }
+        if (! empty($data['buildingID'])) {
+            $workOrderData['building_id'] = $this->findOrCreateBuilding((int) $data['buildingID']);
+        }
+
+        if (isset($data['customFields']) && is_array($data['customFields'])) {
+            foreach ($data['customFields'] as $customField) {
+                if (($customField['fieldName'] ?? null) == 'Service Status') {
+                    $serviceStatusId = DB::table('service_status')
+                        ->whereLike('name', '%'.($customField['value'] ?? '').'%')
+                        ->value('id');
+
+                    $workOrderData['service_status_id'] = $serviceStatusId ?? 1;
+
+                } elseif (($customField['fieldName'] ?? null) == 'Zone') {
+                    $workOrderData['zone'] = $customField['value'] ?? '';
+                } elseif (($customField['fieldName'] ?? null) == 'Additional work needed- Reschedule') {
+                    $workOrderData['additional_work_needed_reschedule'] = $customField['value'] ?? '';
+                } elseif (($customField['fieldName'] ?? null) == 'Management Plan') {
+                    $workOrderData['management_plan'] = $customField['value'] ?? '';
+                } elseif (($customField['fieldName'] ?? null) == 'closing comment') {
+                    $workOrderData['closing_comments'] = $customField['value'] ?? '';
+                }
+            }
+        }
+
+        return $workOrderData;
+    }
+
+    private function safeParseDate(?string $value, bool $dateOnly = false): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            $carbon = Carbon::parse($value);
+
+            return $dateOnly ? $carbon->toDateString() : $carbon->toDateTimeString();
+        } catch (\Exception) {
+            try {
+                $carbon = Carbon::createFromFormat('Y-m-d\TH:i A', $value);
+
+                return $dateOnly ? $carbon->toDateString() : $carbon->toDateTimeString();
+            } catch (\Exception) {
+                Log::warning('Could not parse date from PropertyWare', ['value' => $value]);
+
+                return null;
+            }
+        }
+    }
+
+    /**
+     * @param  mixed  $assignedVendors
+     */
+    private function syncAssignedVendors(int $workOrderId, $assignedVendors): void
+    {
+        if (! is_array($assignedVendors)) {
+            return;
+        }
+
+        $incomingVendorIds = [];
+
+        foreach ($assignedVendors as $vendor) {
+            if (! is_array($vendor)) {
+                continue;
+            }
+
+            $vendorId = $this->findOrCreateVendorId($vendor);
+            if (! $vendorId) {
+                continue;
+            }
+
+            $incomingVendorIds[] = $vendorId;
+
+            DB::table('work_order_vendors')->updateOrInsert(
+                ['vendor_id' => $vendorId, 'work_order_id' => $workOrderId],
+                [
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
+        $pivotQuery = DB::table('work_order_vendors')->where('work_order_id', $workOrderId);
+        if (empty($incomingVendorIds)) {
+            $pivotQuery->delete();
 
             return;
         }
 
-        Log::info('Work Orders updates are running.');
+        $pivotQuery->whereNotIn('vendor_id', array_values(array_unique($incomingVendorIds)))->delete();
+    }
 
-        try {
-            foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
-                foreach ($workOrderChunk as $order) {
-                    $data = (array) $order;
-
-                    $ID = $data['id'] ?? null;
-
-                    if ($ID) {
-                        $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
-
-                        if ($workOrder) {
-                            $work_order_data = [
-                                'status' => $data['status'] ?? $workOrder->status,
-                                'authorized_to_enter' => $data['authorizedToEnter'] ?? $workOrder->authorized_to_enter,
-                                'category' => $data['category'] ?? $workOrder->category,
-                                'completed_date' => $data['completedDate'] ?? $workOrder->completed_date,
-                                'cost_estimate' => $data['costEstimate'] ?? $workOrder->cost_estimate,
-                                'description' => $data['description'] ?? $workOrder->description,
-                                'hour_estimate' => $data['hourEstimate'] ?? $workOrder->hour_estimate,
-                                'priority' => $data['priority'] ?? $workOrder->priority,
-                                'required_materials' => $data['requiredMaterials'] ?? $workOrder->required_materials,
-                                'source' => $data['source'] ?? $workOrder->source,
-                                'specific_location' => $data['specificLocation'] ?? $workOrder->specific_location,
-                                'type' => $data['type'] ?? $workOrder->type,
-                                'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
-                                'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
-                                'is_approved' => $data['approved'] ?? $workOrder->is_approved,
-                                'building_id' => isset($data['buildingID']) ? $this->findOrCreateBuilding($data['buildingID']) : $workOrder->building_id,
-                            ];
-
-                            $customFieldData = [];
-
-                            if (isset($data['customFields']) && is_array($data['customFields'])) {
-                                foreach ($data['customFields'] as $customField) {
-                                    if ($customField['fieldName'] == 'Service Status') {
-
-                                        $service_status_id = DB::table('service_status')
-                                            ->whereLike('name', '%'.($customField['value'] ?? '').'%')
-                                            ->value('id');
-
-                                        $work_order_data['service_status_id'] = $service_status_id ?? 1;
-
-                                    } elseif ($customField['fieldName'] == 'Zone') {
-                                        $work_order_data['zone'] = $customField['value'] ?? '';
-                                    } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
-                                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
-                                    } elseif ($customField['fieldName'] == 'Management Plan') {
-                                        $work_order_data['management_plan'] = $customField['value'] ?? '';
-                                    } elseif ($customField['fieldName'] == 'closing comment') {
-                                        $work_order_data['closing_comments'] = $customField['value'] ?? '';
-                                    }
-                                }
-                            }
-
-                            $workOrder->update($work_order_data);
-
-                            // $this->processNotes($data, $workOrder->id);
-
-                            if (! empty($customFieldData)) {
-                                DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
-                                DB::table('work_order_custom_fields')->insert($customFieldData);
-                            }
-
-                            if (! empty($data['assignedVendors'])) {
-
-                                $incomingVendorIds = [];
-
-                                foreach ($data['assignedVendors'] as $vendor) {
-                                    $vendorId = DB::table('vendors')
-                                        ->where('propertyware_id', $vendor['id'])
-                                        ->value('id');
-
-                                    if (! $vendorId) {
-                                        $vendorId = $this->createVendor($vendor);
-                                    }
-
-                                    $incomingVendorIds[] = $vendorId;
-
-                                    DB::table('work_order_vendors')->updateOrInsert(
-                                        ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
-                                        [
-                                            'created_at' => now(),
-                                            'updated_at' => now(),
-                                        ]
-                                    );
-                                }
-
-                                // REMOVE vendors not in the new list
-                                DB::table('work_order_vendors')
-                                    ->where('work_order_id', $workOrder->id)
-                                    ->whereNotIn('vendor_id', $incomingVendorIds)
-                                    ->delete();
-
-                            }
-                        }
-                    }
-                }
-            }
-
-            Log::info('Successfully updated Work order details! Work Order Count: '.count($work_orders));
-        } catch (\Throwable $th) {
-            Log::error('Updating Work order failed: '.$th->getMessage());
+    /**
+     * @param  array<string, mixed>  $vendorData
+     */
+    private function findOrCreateVendorId(array $vendorData): ?int
+    {
+        $propertywareId = isset($vendorData['id']) ? (int) $vendorData['id'] : null;
+        if (! $propertywareId) {
+            return null;
         }
 
+        if (isset($this->vendorCache[$propertywareId])) {
+            return $this->vendorCache[$propertywareId];
+        }
+
+        $vendorId = DB::table('vendors')
+            ->where('propertyware_id', $propertywareId)
+            ->value('id');
+
+        if (! $vendorId) {
+            $vendorId = $this->createVendor($vendorData);
+        }
+
+        if (! $vendorId) {
+            return null;
+        }
+
+        return $this->vendorCache[$propertywareId] = (int) $vendorId;
     }
 
     private function findOrCreateBuilding(int $propertywareId): int
@@ -169,10 +314,12 @@ class UpdateWorkOrderStatus extends Command
             return $this->buildingCache[$propertywareId];
         }
 
-        $existing = Building::where('propertyware_id', $propertywareId)->first();
+        $existingPropertywareId = DB::table('buildings')
+            ->where('propertyware_id', $propertywareId)
+            ->value('propertyware_id');
 
-        if ($existing) {
-            return $this->buildingCache[$propertywareId] = $existing->propertyware_id;
+        if ($existingPropertywareId) {
+            return $this->buildingCache[$propertywareId] = (int) $existingPropertywareId;
         }
 
         $headers = [
@@ -192,18 +339,23 @@ class UpdateWorkOrderStatus extends Command
 
         $data = $response->json();
 
-        Building::create([
-            'propertyware_id' => $propertywareId,
-            'name' => $data['name'] ?? null,
-            'address' => $data['address']['address'] ?? null,
-            'address_cont' => $data['address']['addressCont'] ?? null,
-            'city' => $data['address']['city'] ?? null,
-            'state_region' => $data['address']['stateRegion'] ?? null,
-            'postal_code' => $data['address']['postalCode'] ?? null,
-            'country' => $data['address']['country'] ?? null,
-            'portfolio_id' => $data['portfolioID'] ?? null,
-            'active' => $data['active'] ?? true,
-        ]);
+        DB::table('buildings')->updateOrInsert(
+            ['propertyware_id' => $propertywareId],
+            [
+                'propertyware_id' => $propertywareId,
+                'name' => $data['name'] ?? null,
+                'address' => $data['address']['address'] ?? null,
+                'address_cont' => $data['address']['addressCont'] ?? null,
+                'city' => $data['address']['city'] ?? null,
+                'state_region' => $data['address']['stateRegion'] ?? null,
+                'postal_code' => $data['address']['postalCode'] ?? null,
+                'country' => $data['address']['country'] ?? null,
+                'portfolio_id' => $data['portfolioID'] ?? null,
+                'active' => $data['active'] ?? true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
 
         return $this->buildingCache[$propertywareId] = $propertywareId;
     }
@@ -238,10 +390,13 @@ class UpdateWorkOrderStatus extends Command
             'name_on_check' => $vendorData['name'],
             'email' => $vendorEmail,
             'user_id' => $user->id,
-            'is_active' => $vendorData['active'],
+            'is_active' => $vendorData['active'] ?? true,
         ];
 
-        $vendor = Vendor::create($vendorsData);
+        $vendor = Vendor::updateOrCreate(
+            ['propertyware_id' => $vendorData['id']],
+            $vendorsData
+        );
 
         return $vendor->id;
     }
