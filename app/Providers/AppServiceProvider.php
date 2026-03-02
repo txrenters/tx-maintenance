@@ -38,8 +38,8 @@ class AppServiceProvider extends ServiceProvider
             URL::forceRootUrl(config('app.url'));
         }
 
-        Model::shouldBeStrict(! App::environment('production'));
-        Model::automaticallyEagerLoadRelationships();
+        // Model::shouldBeStrict(! App::environment('production'));
+        // Model::automaticallyEagerLoadRelationships();
 
     }
 }
