@@ -23,7 +23,7 @@ const formatDate = (date) => {
         if (date.includes("T")) {
             // Parse ISO string in UTC and convert to America/Chicago time
             parsedDate = DateTime.fromISO(date, { zone: "utc" }).setZone(
-                timezone
+                timezone,
             );
         } else {
             // Parse custom formatted date string in UTC and convert to America/Chicago time
@@ -72,7 +72,7 @@ const removeMessage = (id) => {
                     props.messages.splice(index, 1);
                 }
             },
-        }
+        },
     );
 };
 
@@ -98,13 +98,13 @@ const openMedia = (mediaUrl) => {
                     : 'bg-primary text-primary-foreground rounded-br-none'
             "
         >
-            <button
+            <!-- <button
                 type="button"
                 class="absolute right-1 top-[-5px] flex items-center justify-center w-4 h-4 rounded-full bg-destructive text-white hover:bg-red-600 transition-colors"
                 @click="removeMessage(msg.id)"
             >
                 <XIcon class="w-3 h-3" />
-            </button>
+            </button> -->
             <p
                 class="text-xs"
                 :class="

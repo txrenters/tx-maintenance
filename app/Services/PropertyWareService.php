@@ -80,14 +80,12 @@ class PropertyWareService
             $client = $this->initiate();
             $allWorkOrders = [];
 
-            for ($pageNumber = 1; $pageNumber <= 10; $pageNumber++) {
+            for ($pageNumber = 1; $pageNumber <= 20; $pageNumber++) {
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
                 ];
-
                 $response = $client->getWorkOrders($params);
-
                 if (! empty($response)) {
                     $orders = json_decode(json_encode($response), true);
                     $allWorkOrders = array_merge($allWorkOrders, $orders);
@@ -145,8 +143,8 @@ class PropertyWareService
 
             $allWorkOrders = [];
             $limit = 500; // PropertyWare API max limit per request
-            $totalToFetch = 3000;
-            $numberOfRequests = (int) ceil($totalToFetch / $limit);
+            $totalToFetch = 5000;
+            $numberOfRequests = ceil($totalToFetch / $limit);
 
             for ($i = 0; $i < $numberOfRequests; $i++) {
                 $offset = $i * $limit;
@@ -202,167 +200,7 @@ class PropertyWareService
 
             return 'Error: '.$e->getMessage();
         }
-    }
 
-    public function getWorkOrdersViaRestAPIWithTotalCap(int $totalToFetch = 3000, int $limit = 500)
-    {
-        try {
-
-            $allWorkOrders = [];
-            $numberOfRequests = (int) ceil($totalToFetch / $limit);
-            $stopReason = 'completed_loop';
-
-            Log::info('PropertyWare capped work order fetch started', [
-                'target_total' => $totalToFetch,
-                'batch_limit' => $limit,
-                'planned_requests' => $numberOfRequests,
-            ]);
-
-            for ($i = 0; $i < $numberOfRequests; $i++) {
-                $offset = $i * $limit;
-                $remaining = $totalToFetch - count($allWorkOrders);
-                if ($remaining <= 0) {
-                    $stopReason = 'target_reached_before_request';
-                    break;
-                }
-
-                $requestLimit = min($limit, $remaining);
-
-                $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
-                    'includeCustomFields' => 'true',
-                    'orderby' => 'createddate DESC',
-                    'limit' => $requestLimit,
-                    'offset' => $offset,
-                ]);
-
-                if ($response->status() == 200) {
-                    $workOrders = $response->json();
-
-                    if (empty($workOrders)) {
-                        $stopReason = 'empty_response';
-                        break; // No more results
-                    }
-
-                    // Keep total strictly capped at $totalToFetch.
-                    if (count($workOrders) > $remaining) {
-                        $workOrders = array_slice($workOrders, 0, $remaining);
-                    }
-
-                    $allWorkOrders = array_merge($allWorkOrders, $workOrders);
-
-                    Log::info('Success in retrieving work orders', [
-                        'batch' => $i + 1,
-                        'offset' => $offset,
-                        'requested_limit' => $requestLimit,
-                        'count' => count($workOrders),
-                        'cumulative_total' => count($allWorkOrders),
-                    ]);
-
-                    // If we got fewer results than the limit, we've reached the end
-                    if (count($workOrders) < $requestLimit) {
-                        $stopReason = 'partial_batch_returned';
-                        break;
-                    }
-                } else {
-                    Log::error('Error retrieving Work Orders', [
-                        'error' => 'Unable to retrieve work orders',
-                        'error_details' => [
-                            'status_code' => $response->status(),
-                            'body' => $response->body(),
-                            'offset' => $offset,
-                            'requested_limit' => $requestLimit,
-                            'target_total' => $totalToFetch,
-                            'retrieved_so_far' => count($allWorkOrders),
-                        ],
-                    ]);
-
-                    return false;
-                }
-            }
-
-            Log::info('Total work orders retrieved', [
-                'total' => count($allWorkOrders),
-                'target_total' => $totalToFetch,
-                'is_target_reached' => count($allWorkOrders) >= $totalToFetch,
-                'stop_reason' => $stopReason,
-            ]);
-
-            if (count($allWorkOrders) < $totalToFetch) {
-                Log::warning('PropertyWare returned fewer work orders than requested cap', [
-                    'target_total' => $totalToFetch,
-                    'retrieved_total' => count($allWorkOrders),
-                    'missing_total' => $totalToFetch - count($allWorkOrders),
-                    'stop_reason' => $stopReason,
-                ]);
-            }
-
-            return array_slice($allWorkOrders, 0, $totalToFetch);
-
-        } catch (Exception $e) {
-            Log::error('REST API request failed: '.$e->getMessage());
-
-            return 'Error: '.$e->getMessage();
-        }
-
-    }
-
-    /**
-     * Stream REST work orders in fixed-size batches.
-     *
-     * @param  callable(array<int, mixed>): void  $callback
-     */
-    public function streamWorkOrdersViaRestAPI(callable $callback, int $limit = 500): void
-    {
-        try {
-            $offset = 0;
-
-            while (true) {
-                $response = Http::withHeaders($this->headers)->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
-                    'includeCustomFields' => 'true',
-                    'orderby' => 'createddate DESC',
-                    'limit' => $limit,
-                    'offset' => $offset,
-                ]);
-
-                if (! $response->successful()) {
-                    Log::error('Error retrieving Work Orders', [
-                        'error' => 'Unable to retrieve work orders',
-                        'error_details' => [
-                            'status_code' => $response->status(),
-                            'body' => $response->body(),
-                            'offset' => $offset,
-                        ],
-                    ]);
-                    break;
-                }
-
-                $workOrders = $response->json();
-                if (empty($workOrders)) {
-                    break;
-                }
-
-                $callback($workOrders);
-
-                $count = count($workOrders);
-                Log::info('Success in retrieving work orders', [
-                    'offset' => $offset,
-                    'count' => $count,
-                ]);
-
-                $offset += $limit;
-                if ($count < $limit) {
-                    break;
-                }
-
-                unset($workOrders, $response);
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
-            }
-        } catch (Exception $e) {
-            Log::error('REST API request failed: '.$e->getMessage());
-            throw $e;
-        }
     }
 
     public function getBuilding($buildingId)

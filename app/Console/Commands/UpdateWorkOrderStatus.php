@@ -9,8 +9,9 @@ use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+
+use function Symfony\Component\Clock\now;
 
 class UpdateWorkOrderStatus extends Command
 {
@@ -29,11 +30,6 @@ class UpdateWorkOrderStatus extends Command
     protected $description = 'Retrieve work orders from PropertyWare API and update work order details';
 
     protected PropertyWareService $propertyWareService;
-
-    /** @var array<int, int> Cache of propertyware_id => local building propertyware_id */
-    private array $buildingCache = [];
-    /** @var array<int, int> Cache of propertyware_id => local vendor id */
-    private array $vendorCache = [];
 
     public function __construct(PropertyWareService $propertyWareService)
     {
@@ -64,6 +60,7 @@ class UpdateWorkOrderStatus extends Command
                     $ID = $data['id'] ?? null;
 
                     if ($ID) {
+
                         $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
                         if ($workOrder) {
@@ -83,12 +80,7 @@ class UpdateWorkOrderStatus extends Command
                                 'total_cost' => $data['actualCost'] ?? $workOrder->total_cost,
                                 'scheduled_end_date' => ! empty($data['scheduledEndDate']) ? Carbon::parse($data['scheduledEndDate'])->toDateString() : null,
                                 'is_approved' => $data['approved'] ?? $workOrder->is_approved,
-                                'building_id' => $workOrder->building_id,
                             ];
-
-                            if (! empty($data['buildingID'])) {
-                                $work_order_data['building_id'] = $data['buildingID'];
-                            }
 
                             $customFieldData = [];
 
@@ -152,7 +144,6 @@ class UpdateWorkOrderStatus extends Command
                                     ->where('work_order_id', $workOrder->id)
                                     ->whereNotIn('vendor_id', $incomingVendorIds)
                                     ->delete();
-
                             }
                         }
                     }
@@ -163,6 +154,7 @@ class UpdateWorkOrderStatus extends Command
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
+
     }
 
     private function createVendor(array $vendorData): ?int
@@ -195,15 +187,37 @@ class UpdateWorkOrderStatus extends Command
             'name_on_check' => $vendorData['name'],
             'email' => $vendorEmail,
             'user_id' => $user->id,
-            'is_active' => $vendorData['active'] ?? true,
+            'is_active' => $vendorData['active'],
         ];
 
-        $vendor = Vendor::updateOrCreate(
-            ['propertyware_id' => $vendorData['id']],
-            $vendorsData
-        );
+        $vendor = Vendor::create($vendorsData);
 
         return $vendor->id;
+    }
+
+    private function processNotes(array $data, int $work_order): void
+    {
+        $now = now();
+
+        $notesData = [];
+        if (! empty($data['notes']) && is_array($data['notes'])) {
+            foreach ($data['notes'] as $note) {
+                $notesData[] = [
+                    'propertyware_id' => $note['id'] ?? null,
+                    'client_data' => $note['clientData'] ?? null,
+                    'subject' => $note['subject'] ?? null,
+                    'body' => $note['body'] ?? null,
+                    'is_private' => $note['private'] ?? null,
+                    'date' => $note['date'] ?? '',
+                    'is_default' => $note['default'] ?? false,
+                    'work_order_id' => $work_order,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+        DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
+        DB::table('work_order_notes')->insert($notesData);
     }
 
     private function createOrUpdateUser(array $data, string $role): User

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -38,49 +39,47 @@ class WorkOrderImportCommand extends Command
      */
     public function handle(): void
     {
-        $now = now()->format('Y-m-d H:i:s');
-        Log::info('Work Orders import is running.');
-        $processedCount = 0;
-        $wocUserId = User::role('woc')->value('id');
+        $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
 
-        $workOrders = $this->propertyWareService->getWorkOrders() ?? [];
-
-        foreach (array_chunk($workOrders, 100) as $workOrderChunk) {
-            foreach ($workOrderChunk as $order) {
-                $data = (array) $order;
-                $ID = $data['ID'] ?? null;
-
-                if (! $ID) {
-                    continue;
-                }
-
-                // Process tenant and user
-                $tenant = $this->processTenantAndUser($data);
-
-                // Process owner and user
-                $owner = $this->processOwnerAndUser($data);
-
-                // Process work order and related data
-                $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $wocUserId);
-                $processedCount++;
-            }
-
-        }
-
-        if ($processedCount === 0) {
+        if (empty($work_orders)) {
             Log::warning('No work orders returned from Propertyware API.');
 
             return;
         }
 
-        Log::info('Work order imported successfully!', ['count' => $processedCount]);
+        $now = now()->format('Y-m-d H:i:s');
+        Log::info('Work Orders import is running.');
+
+        foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
+            foreach ($workOrderChunk as $order) {
+                $data = (array) $order;
+
+                $ID = $data['ID'] ?? null;
+
+                if ($ID) {
+                    // Process tenant and user
+                    $tenant = $this->processTenantAndUser($data);
+
+                    // Process owner and user
+                    $owner = $this->processOwnerAndUser($data);
+
+                    // Process work order and related data
+                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+
+                }
+
+            }
+        }
+
+        Log::info('Work order imported successfully!');
     }
 
-    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now, ?int $wocUserId): void
+    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
     {
         DB::beginTransaction();
         try {
             $work_order_propertyware_id = $data['ID'] ?? null;
+            $woc = User::role('woc')->first();
 
             DB::table('work_order_categories')->updateOrInsert(
                 ['name' => $data['category']],
@@ -129,7 +128,7 @@ class WorkOrderImportCommand extends Command
                 'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
                 'owner_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
-                'user_id' => $wocUserId,
+                'user_id' => $woc?->id,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -157,20 +156,23 @@ class WorkOrderImportCommand extends Command
                 }
             }
 
-            DB::table('work_orders')->updateOrInsert(
+            // DB::table('work_orders')->updateOrInsert(
+            //     ['propertyware_id' => $work_order_propertyware_id],
+            //     $work_order_data
+            // );
+
+            WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
 
-            $workOrderId = DB::table('work_orders')
-                ->where('propertyware_id', $work_order_propertyware_id)
-                ->value('id');
+            $workOrder = WorkOrder::where('propertyware_id', $work_order_propertyware_id)
+                ->with('service_status')
+                ->first();
 
-            DB::table('work_order_custom_fields')->where('work_order_id', $workOrderId)->delete();
-            if (! empty($customFieldData)) {
-                DB::table('work_order_custom_fields')->insert($customFieldData);
-            }
-            $this->processRelatedData($data, $workOrderId, $now);
+            DB::table('work_order_custom_fields')->where('work_order_id', $workOrder->id)->delete();
+            DB::table('work_order_custom_fields')->insert($customFieldData);
+            $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();
         } catch (\Throwable $th) {
@@ -350,9 +352,7 @@ class WorkOrderImportCommand extends Command
             }
         }
         DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
-        if (! empty($notesData)) {
-            DB::table('work_order_notes')->insert($notesData);
-        }
+        DB::table('work_order_notes')->insert($notesData);
     }
 
     private function processTenants(array $data, int $work_order, string $now): void
