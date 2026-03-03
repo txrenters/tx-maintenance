@@ -150,8 +150,9 @@ class WorkOrderImportCommand extends Command
                         $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
                     } elseif ($customField['fieldName'] == 'Management Plan') {
                         $work_order_data['management_plan'] = $customField['value'] ?? '';
-                    } elseif ($customField['fieldName'] == 'closing comment') {
-                        $work_order_data['closing_comments'] = $customField['value'] ?? '';
+                    } 
+                    elseif ($customField['fieldName'] == 'closing comment') {
+                        $work_order_data['closing_comments'] = empty($work_order_data['closing_comments']) ? $customField['value'] : $work_order_data['closing_comments'];
                     }
                 }
             }

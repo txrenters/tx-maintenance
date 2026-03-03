@@ -80,7 +80,7 @@ class PropertyWareService
             $client = $this->initiate();
             $allWorkOrders = [];
 
-            for ($pageNumber = 1; $pageNumber <= 10; $pageNumber++) {
+            for ($pageNumber = 1; $pageNumber <= 20; $pageNumber++) {
                 $params = [
                     'pageNumber' => $pageNumber,
                     'orderByNewestFirst' => 1,
@@ -100,41 +100,6 @@ class PropertyWareService
             return 'Error: '.$e->getMessage();
         }
 
-    }
-
-    /**
-     * Stream SOAP work orders page-by-page to avoid loading all pages into memory.
-     *
-     * @param  callable(array<int, mixed>): void  $callback
-     */
-    public function streamWorkOrders(callable $callback, int $maxPages = 5): void
-    {
-        try {
-            $client = $this->initiate();
-
-            for ($pageNumber = 1; $pageNumber <= $maxPages; $pageNumber++) {
-                $params = [
-                    'pageNumber' => $pageNumber,
-                    'orderByNewestFirst' => 1,
-                ];
-
-                $response = $client->getWorkOrders($params);
-
-                if (empty($response)) {
-                    break;
-                }
-
-                $orders = json_decode(json_encode($response), true);
-                if (empty($orders)) {
-                    break;
-                }
-
-                $callback($orders);
-            }
-        } catch (Exception $e) {
-            Log::error('SOAP request failed: '.$e->getMessage());
-            throw $e;
-        }
     }
 
     public function getWorkOrdersViaRestAPI()

@@ -42,6 +42,7 @@ class UpdateWorkOrderStatus extends Command
      */
     public function handle(): void
     {
+
         $work_orders = $this->propertyWareService->getWorkOrdersViaRestAPI() ?? [];
 
         if (empty($work_orders)) {
@@ -101,7 +102,7 @@ class UpdateWorkOrderStatus extends Command
                                     } elseif ($customField['fieldName'] == 'Management Plan') {
                                         $work_order_data['management_plan'] = $customField['value'] ?? '';
                                     } elseif ($customField['fieldName'] == 'closing comment') {
-                                        $work_order_data['closing_comments'] = $customField['value'] ?? '';
+                                        $work_order_data['closing_comments'] = empty($workOrder->closing_comments) ? $customField['value'] : $workOrder->closing_comments;
                                     }
                                 }
                             }
