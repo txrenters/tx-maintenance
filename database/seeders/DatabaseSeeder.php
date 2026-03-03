@@ -19,6 +19,9 @@ class DatabaseSeeder extends Seeder
         $this->call(TaskTemplateSeeder::class);
         $this->call(TaskSeeder::class);
         $this->call(TaskDetailSeeder::class);
+        if (app()->isLocal() || app()->environment('testing')) {
+            $this->call(ScheduledVisitSeeder::class);
+        }
         // $this->call(VendorSeeder::class);
         // $this->call(TenantSeeder::class);
         // $this->call(OwnerSeeder::class);

@@ -84,7 +84,7 @@ const initializeWeek = () => {
                 props.weekStart,
                 currentWeekStart.value,
                 "Day of week:",
-                currentWeekStart.value.getDay()
+                currentWeekStart.value.getDay(),
             );
         } else {
             // fallback if parse fails
@@ -182,7 +182,7 @@ const navigateWeek = (direction) => {
 
     // Create a Date object representing this calendar day and add 7 days
     const date = new Date(year, month - 1, day);
-    date.setDate(date.getDate() + (direction * 7));
+    date.setDate(date.getDate() + direction * 7);
 
     // Format the new date in Chicago timezone
     const weekKey = chicagoFormatter.format(date);
@@ -193,7 +193,7 @@ const navigateWeek = (direction) => {
         "from:",
         currentChicagoDate,
         "to:",
-        weekKey
+        weekKey,
     );
 
     // Simple page reload with new week parameter
@@ -323,18 +323,18 @@ const parseYMD = (ymd) => {
 };
 const getStatusColor = (event) => {
     if (event.is_complete) {
-        return "bg-green-50 border-green-200 hover:bg-green-100";
+        return "bg-green-500 border-green-200 hover:bg-green-600";
     }
 
     const eventChicagoStr = chicagoFormatter.format(new Date(event.start));
     const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
-        return "bg-red-50 border-red-200 hover:bg-red-100";
+        return "bg-red-500 border-red-200 hover:bg-red-600";
     } else if (eventChicagoStr === todayChicagoStr) {
-        return "bg-blue-50 border-blue-200 hover:bg-blue-100";
+        return "bg-blue-500 border-blue-200 hover:bg-blue-600";
     } else {
-        return "bg-gray-50 border-gray-200 hover:bg-gray-100";
+        return "bg-gray-500 border-gray-200 hover:bg-gray-600";
     }
 };
 
@@ -438,7 +438,7 @@ const fetchClients = async (query) => {
     isSearchingLoading.value = true;
     try {
         const response = await axios.get(
-            route("jobber.searchClient", { search: query })
+            route("jobber.searchClient", { search: query }),
         );
         clients.value = response.data;
     } catch (e) {
@@ -457,7 +457,7 @@ const addRecipientFromClient = () => {
     if (
         selectedClient.value &&
         !selectedRecipients.value.find(
-            (r) => r.phone === selectedClient.value.phone
+            (r) => r.phone === selectedClient.value.phone,
         )
     ) {
         selectedRecipients.value.push({
@@ -494,7 +494,7 @@ const sendMessage = () => {
     if (customePhoneNumber.value.trim() !== "") {
         formData.append(
             `receiver_numbers[${selectedRecipients.value.length}]`,
-            customePhoneNumber.value.trim()
+            customePhoneNumber.value.trim(),
         );
     }
 
@@ -559,7 +559,7 @@ const saveContactsForJob = async () => {
                     name: recipient.name || recipient.phone,
                     phone: recipient.phone,
                 })),
-            }
+            },
         );
     } catch (error) {
         console.error("Error saving contacts:", error);
@@ -569,7 +569,7 @@ const saveContactsForJob = async () => {
 watch(selectedContact, (newContactId) => {
     if (newContactId) {
         const foundContact = jobContacts.value.find(
-            (contact) => contact.id == newContactId
+            (contact) => contact.id == newContactId,
         );
         contactPhoneNumber.value = foundContact ? foundContact.phone : "";
     }
@@ -591,7 +591,7 @@ const fetchMessages = async () => {
             route("jobber-text-messages.index", {
                 job_id: selectedEvent.value.job.id,
             }),
-            { signal: messageController.signal }
+            { signal: messageController.signal },
         );
         const data = await response.json();
         jobMessages.value = data.messages || [];
@@ -793,7 +793,7 @@ onMounted(() => {
                 :key="date.toISOString()"
                 :class="[
                     'p-3 text-center border-r last:border-r-0',
-                    isToday(date) ? 'bg-primary/10' : '',
+                    isToday(date) ? 'bg-primary/5' : '',
                 ]"
             >
                 <div class="font-medium text-sm">
@@ -859,12 +859,8 @@ onMounted(() => {
 
                             <!-- Location -->
                             <div class="flex items-start gap-1">
-                                <MapPin
-                                    class="h-3 w-3 text-muted-foreground mt-0.5"
-                                />
-                                <span
-                                    class="text-xs text-muted-foreground line-clamp-2"
-                                >
+                                <MapPin class="h-3 w-3 mt-0.5" />
+                                <span class="text-xs line-clamp-2">
                                     {{ event.teamMember || event.assignedTo }}
                                 </span>
                             </div>
@@ -874,8 +870,7 @@ onMounted(() => {
                     <!-- Empty State -->
                     <div
                         v-if="
-                            !eventsByDate[chicagoFormatter.format(date)]
-                                ?.length
+                            !eventsByDate[chicagoFormatter.format(date)]?.length
                         "
                         class="text-center py-8 text-muted-foreground"
                     >
@@ -1008,7 +1003,7 @@ onMounted(() => {
                         <p class="text-sm pl-6">
                             {{
                                 new Date(
-                                    selectedEvent.start
+                                    selectedEvent.start,
                                 ).toLocaleDateString("en-US", {
                                     weekday: "long",
                                     year: "numeric",
@@ -1038,7 +1033,7 @@ onMounted(() => {
                                         year: "numeric",
                                         month: "long",
                                         day: "numeric",
-                                    }
+                                    },
                                 )
                             }}
                         </p>
@@ -1356,7 +1351,9 @@ onMounted(() => {
 
 /* Card hover effects */
 .hover\:shadow-md:hover {
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    box-shadow:
+        0 4px 6px -1px rgb(0 0 0 / 0.1),
+        0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 /* Scrollbar styling for week columns */
