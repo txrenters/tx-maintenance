@@ -323,18 +323,18 @@ const parseYMD = (ymd) => {
 };
 const getStatusColor = (event) => {
     if (event.is_complete) {
-        return "bg-green-500 border-green-200 hover:bg-green-600";
+        return "bg-green-500 border-green-600 hover:bg-green-800";
     }
 
     const eventChicagoStr = chicagoFormatter.format(new Date(event.start));
     const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
-        return "bg-red-500 border-red-200 hover:bg-red-600";
+        return "bg-red-500 border-red-600 hover:bg-red-400";
     } else if (eventChicagoStr === todayChicagoStr) {
-        return "bg-blue-500 border-blue-200 hover:bg-blue-600";
+        return "bg-blue-500 border-blue-600 hover:bg-blue-400";
     } else {
-        return "bg-gray-500 border-gray-200 hover:bg-gray-600";
+        return "bg-gray-500 border-gray-600 hover:bg-gray-400";
     }
 };
 
@@ -833,7 +833,7 @@ onMounted(() => {
                         :class="[
                             'cursor-pointer transition-all hover:shadow-md text-black',
                             event.notified_7_days || event.notified_3_days
-                                ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                                ? 'bg-green-50 border-green-600 hover:bg-green-900'
                                 : getStatusColor(event),
                         ]"
                         @click="openEventModal(event)"
