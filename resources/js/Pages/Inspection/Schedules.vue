@@ -321,64 +321,67 @@ const parseYMD = (ymd) => {
     // Use UTC date at noon to prevent timezone shift when formatting in Chicago
     return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 };
-const getStatusColor = (event) => {
+const getEventStatus = (event) => {
     if (event.is_complete) {
-        return "bg-green-500 border-green-600 hover:bg-green-800";
+        return "complete";
     }
 
     const eventChicagoStr = chicagoFormatter.format(new Date(event.start));
     const todayChicagoStr = chicagoFormatter.format(new Date());
 
     if (eventChicagoStr < todayChicagoStr) {
-        return "bg-red-500 border-red-600 hover:bg-red-400";
+        return "overdue";
     } else if (eventChicagoStr === todayChicagoStr) {
-        return "bg-blue-500 border-blue-600 hover:bg-blue-400";
+        return "today";
     } else {
-        return "bg-gray-500 border-gray-600 hover:bg-gray-400";
+        return "upcoming";
+    }
+};
+
+const getStatusCardClasses = (event) => {
+    const baseClasses =
+        "border-l-4 text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md";
+    const isNotified = event.notified_7_days || event.notified_3_days;
+
+    if (isNotified) {
+        return `${baseClasses} border-emerald-200 border-l-emerald-500 bg-emerald-50 hover:bg-emerald-100`;
+    }
+
+    switch (getEventStatus(event)) {
+        case "complete":
+            return `${baseClasses} border-green-200 border-l-green-500 bg-green-50 hover:bg-green-100`;
+        case "overdue":
+            return `${baseClasses} border-red-200 border-l-red-500 bg-red-50 hover:bg-red-100`;
+        case "today":
+            return `${baseClasses} border-blue-200 border-l-blue-500 bg-blue-50 hover:bg-blue-100`;
+        default:
+            return `${baseClasses} border-slate-200 border-l-slate-400 bg-slate-50 hover:bg-slate-100`;
     }
 };
 
 // Get status icon
 const getStatusIcon = (event) => {
-    if (event.is_complete) {
-        return CheckCircle2;
-    }
-
-    const eventDate = new Date(event.start || event.date);
-
-    // Get event date in Chicago timezone
-    const eventChicagoStr = chicagoFormatter.format(eventDate);
-
-    // Get today in Chicago timezone
-    const todayChicagoStr = chicagoFormatter.format(new Date());
-
-    if (eventChicagoStr < todayChicagoStr) {
-        return AlertCircle;
-    } else {
-        return Clock;
+    switch (getEventStatus(event)) {
+        case "complete":
+            return CheckCircle2;
+        case "overdue":
+            return AlertCircle;
+        default:
+            return Clock;
     }
 };
 
 // Get status icon color
 const getStatusIconColor = (event) => {
-    if (event.is_complete) {
-        return "text-green-600";
-    }
-
-    const eventDate = new Date(event.start || event.date);
-
-    // Get event date in Chicago timezone
-    const eventChicagoStr = chicagoFormatter.format(eventDate);
-
-    // Get today in Chicago timezone
-    const todayChicagoStr = chicagoFormatter.format(new Date());
-
-    if (eventChicagoStr < todayChicagoStr) {
-        return "text-red-600";
-    } else if (eventChicagoStr === todayChicagoStr) {
-        return "text-blue-600";
-    } else {
-        return "text-gray-600";
+    switch (getEventStatus(event)) {
+        case "complete":
+            return "text-green-700";
+        case "overdue":
+            return "text-red-700";
+        case "today":
+            return "text-blue-700";
+        default:
+            return "text-slate-600";
     }
 };
 
@@ -831,10 +834,8 @@ onMounted(() => {
                         ]"
                         :key="event.id"
                         :class="[
-                            'cursor-pointer transition-all hover:shadow-md text-black',
-                            event.notified_7_days || event.notified_3_days
-                                ? 'bg-green-50 border-green-600 hover:bg-green-900'
-                                : getStatusColor(event),
+                            'cursor-pointer',
+                            getStatusCardClasses(event),
                         ]"
                         @click="openEventModal(event)"
                     >

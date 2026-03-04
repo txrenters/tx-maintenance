@@ -63,9 +63,13 @@ const props = defineProps({
     categories: Object,
     users: Object,
     filter: Object,
+    listRouteName: {
+        type: String,
+        default: "work_orders.lawn_service",
+    },
 });
 
-const url = ref(route("work_orders.lawn_service"));
+const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 

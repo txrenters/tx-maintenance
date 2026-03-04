@@ -76,11 +76,9 @@ import {
     Globe2,
     Globe,
     Handshake,
-    Hammer,
     Warehouse,
     BookOpen,
     PaperclipIcon,
-    Sprout,
     SendIcon,
     Loader2Icon,
     HammerIcon,
@@ -146,6 +144,27 @@ const navs = computed(() => {
                               isActive: page.component === "WorkOrder/Index",
                           },
                           {
+                              title: "Inspections",
+                              url: route("work_orders.inspections"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/inspections"
+                              ),
+                          },
+                          {
+                              title: "Lawn Service",
+                              url: route("work_orders.lawn_service"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/lawn_service"
+                              ),
+                          },
+                          {
+                              title: "Turnovers",
+                              url: route("work_orders.turnovers"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/turnovers"
+                              ),
+                          },
+                          {
                               title: "Completed",
                               url: route("work_orders.closed_work_orders"),
                               isActive: page.component === "WorkOrder/Close",
@@ -192,20 +211,6 @@ const navs = computed(() => {
             },
         ],
         menu2: [
-            {
-                name: "Inspections",
-                url: route("work_orders.inspections"),
-                isActive: page.url.startsWith("/work_orders/inspections"),
-                icon: Hammer,
-                requires: ["admin", "woc", "vendor"],
-            },
-            {
-                name: "Lawn Service",
-                url: route("work_orders.lawn_service"),
-                isActive: page.url.startsWith("/work_orders/lawn_service"),
-                icon: Sprout,
-                requires: ["admin", "woc", "vendor"],
-            },
             {
                 name: "Coordinators",
                 url: route("work_orders.coordinators"),

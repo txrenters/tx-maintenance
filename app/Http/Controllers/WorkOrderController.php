@@ -60,7 +60,8 @@ class WorkOrderController extends Controller
                     })
                     ->where('status', 'Open')
                     ->where('category', 'NOT LIKE', '%move out inspection%')
-                    ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%');
+                    ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
+                    ->where('type', 'NOT LIKE', '%Turnover%');
             },
             'work_orders.service_status',
             'work_orders.vendors.user',
@@ -708,6 +709,73 @@ class WorkOrderController extends Controller
 
         return inertia('WorkOrder/LawnCare', [
             'title' => 'Lawn Service Work Orders',
+            'service_status' => Inertia::defer(fn () => $service_status),
+            'vendors' => Inertia::defer(fn () => $vendors),
+            'categories' => Inertia::defer(fn () => $categories),
+            'users' => Inertia::defer(fn () => $users),
+            'filter' => $request->only(['search', 'per_page', 'vendor']),
+        ]);
+    }
+
+    public function turnover_work_orders(Request $request)
+    {
+        $query = ServiceStatus::with([
+            'work_order',
+            'work_order.owners',
+            'work_orders' => function ($query) {
+                $query->scoped()
+                    ->when(request('search'), function ($q, $search) {
+                        $q->where('work_order_no', $search);
+                    })
+                    ->when(request('vendor'), function ($q, $vendorId) {
+                        $q->whereHas('vendors', function ($q) use ($vendorId) {
+                            $q->where('work_order_vendors.vendor_id', $vendorId);
+                        });
+                    })
+                    ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                        $date = request()->only(['start_date', 'end_date']);
+                        $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                        $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                        $q->whereBetween('created_date', [$start_date, $end_date]);
+                    })
+                    ->where('type', 'Turnover')
+                    ->where('status', 'Open');
+            },
+            'work_orders.service_status',
+            'work_orders.vendors.user',
+            'work_orders.requested_by',
+            'work_orders.managed_by',
+            'work_orders.tasks',
+            'work_orders.owners',
+        ])
+            ->whereNot('name', 'Not Changed');
+
+        $service_status = $query->get();
+
+        if ($request->user()->hasRole('vendor')) {
+            $query->whereNotIn('name', [
+                'Service Completed - Call Tenant for follow up',
+                'Completed - Verified - Updating Owner',
+                'Owner Completing Work',
+                'Closed',
+                'Paid',
+            ]);
+        }
+
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
+        $vendorUserIds = $vendors->pluck('user_id')->toArray();
+
+        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
+            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
+                ->whereIn('id', $vendorUserIds)
+            )
+            ->orderBy('name', 'ASC')
+            ->get();
+
+        return inertia('WorkOrder/Turnovers', [
+            'title' => 'Turnover Work Orders',
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),

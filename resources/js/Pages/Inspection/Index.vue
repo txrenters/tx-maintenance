@@ -530,6 +530,69 @@ const formatStatus = (status) => {
     return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 };
 
+const getJobStatusTone = (job) => {
+    const status = job?.job_status;
+
+    if (
+        status === "late" ||
+        status === "ending_within_30_days" ||
+        status === "unscheduled"
+    ) {
+        return "overdue";
+    }
+
+    if (status === "active" || status === "today") {
+        return "today";
+    }
+
+    if (
+        status === "requires_invoicing" ||
+        status === "action_required" ||
+        status === "on_hold"
+    ) {
+        return "attention";
+    }
+
+    if (status === "upcoming") {
+        return "upcoming";
+    }
+
+    return "default";
+};
+
+const getJobCardClasses = (job) => {
+    const baseClasses =
+        "mb-2 rounded-lg p-4 cursor-pointer border border-l-4 text-slate-900 shadow-sm transition-all transform-gpu hover:-translate-y-0.5 hover:shadow-md";
+
+    switch (getJobStatusTone(job)) {
+        case "overdue":
+            return `${baseClasses} border-red-200 border-l-red-500 bg-red-50 hover:bg-red-100`;
+        case "today":
+            return `${baseClasses} border-blue-200 border-l-blue-500 bg-blue-50 hover:bg-blue-100`;
+        case "attention":
+            return `${baseClasses} border-amber-200 border-l-amber-500 bg-amber-50 hover:bg-amber-100`;
+        case "upcoming":
+            return `${baseClasses} border-emerald-200 border-l-emerald-500 bg-emerald-50 hover:bg-emerald-100`;
+        default:
+            return `${baseClasses} border-slate-200 border-l-slate-400 bg-slate-50 hover:bg-slate-100`;
+    }
+};
+
+const getJobStatusBadgeClasses = (job) => {
+    switch (getJobStatusTone(job)) {
+        case "overdue":
+            return "border-red-200 bg-red-50 text-red-700";
+        case "today":
+            return "border-blue-200 bg-blue-50 text-blue-700";
+        case "attention":
+            return "border-amber-200 bg-amber-50 text-amber-700";
+        case "upcoming":
+            return "border-emerald-200 bg-emerald-50 text-emerald-700";
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-700";
+    }
+};
+
 // Memoized date formatting
 const formatDate = (date) => {
     if (!date) return "------";
@@ -872,28 +935,8 @@ usePoll(15000, {
                         <div
                             v-for="item in collection"
                             :key="item.id"
-                            class="mb-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all border transform-gpu"
+                            :class="getJobCardClasses(item)"
                             @click="openJobModal(item)"
-                            :class="{
-                                // Past/Late items - Red (matching calendar past events)
-                                'bg-red-100 text-red-800 border-red-300 hover:bg-red-200':
-                                    item.job_status === 'late' ||
-                                    item.job_status ===
-                                        'ending_within_30_days' ||
-                                    item.job_status === 'unscheduled',
-                                // Current/Today items - Blue (matching calendar today events)
-                                'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200':
-                                    item.job_status === 'active' ||
-                                    item.job_status === 'today',
-                                // Action Required/On Hold - Yellow (warning state)
-                                'bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200':
-                                    item.job_status === 'requires_invoicing' ||
-                                    item.job_status === 'action_required' ||
-                                    item.job_status === 'on_hold',
-                                // Future/Upcoming items - Green (matching calendar future events)
-                                'bg-green-100 text-green-800 border-green-300 hover:bg-green-200':
-                                    item.job_status === 'upcoming',
-                            }"
                         >
                             <!-- Work Order Number & Date -->
                             <div
@@ -970,25 +1013,8 @@ usePoll(15000, {
                     <div class="flex gap-2 mb-2 flex-wrap" v-if="selectedJob">
                         <Badge
                             :class="[
-                                'px-3 py-1 font-medium',
-                                {
-                                    'bg-red-100 text-red-800 border-red-200':
-                                        selectedJob.job_status === 'late' ||
-                                        selectedJob.job_status ===
-                                            'ending_within_30_days',
-                                    'bg-blue-100 text-blue-800 border-blue-200':
-                                        selectedJob.job_status === 'active' ||
-                                        selectedJob.job_status ===
-                                            'unscheduled',
-                                    'bg-yellow-100 text-yellow-800 border-yellow-200':
-                                        selectedJob.job_status ===
-                                            'requires_invoicing' ||
-                                        selectedJob.job_status ===
-                                            'action_required' ||
-                                        selectedJob.job_status === 'on_hold',
-                                    'bg-green-100 text-green-800 border-green-200':
-                                        selectedJob.job_status === 'upcoming',
-                                },
+                                'px-3 py-1 font-medium border',
+                                getJobStatusBadgeClasses(selectedJob),
                             ]"
                         >
                             {{ formatStatus(selectedJob.job_status) }}
