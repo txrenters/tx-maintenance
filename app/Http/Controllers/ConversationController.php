@@ -10,7 +10,6 @@ use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 class ConversationController extends Controller
@@ -100,22 +99,26 @@ class ConversationController extends Controller
         $validatedData = $request->validated();
 
         if (empty($validatedData['text']) && ! $request->hasFile('image')) {
-            return redirect()->back()->with('error', 'Please provide either a message or an image.');
+            return redirect()->back()->withErrors([
+                'message' => 'Please provide either a message or an image.',
+            ]);
         }
 
-        $senderNumber = $validatedData['sender_phone_number'];
+        $conversation = null;
 
-        // Validate and format receiver number
         try {
+            $senderNumber = $this->formatNumber($validatedData['sender_phone_number'] ?? '');
             $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
         } catch (InvalidArgumentException $e) {
             Log::error('Invalid phone number format', [
-                'sender' => $senderNumber,
+                'sender' => $validatedData['sender_phone_number'] ?? null,
                 'receiver' => $validatedData['receiver_phone_number'],
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->back()->with('error', 'Invalid phone number. Please check the phone number and try again.');
+            return redirect()->back()->withErrors([
+                'message' => 'Invalid phone number. Please check the phone number and try again.',
+            ]);
         }
 
         try {
@@ -168,18 +171,43 @@ class ConversationController extends Controller
             }
 
             $twilio = new TwilioService;
-            $twilio->sendMessage(
+            $twilioMessage = $twilio->sendMessage(
                 $receiverNumber,
                 $senderNumber,
                 $messageText,
                 $imageFullPath
             );
 
-            return redirect()->back()->with('success', 'Message sent successfully!');
-        } catch (\Exception $e) {
-            Log::error('Failed to send message: '.$e->getMessage());
+            $conversation->update([
+                'twilio_sid' => $twilioMessage->sid ?? null,
+                'twilio_status' => $twilioMessage->status ?? 'queued',
+                'twilio_status_updated_at' => now(),
+                'twilio_error_code' => null,
+                'twilio_error_message' => null,
+            ]);
 
-            return redirect()->back()->with('error', 'Failed to send the message. Please try again.');
+            return redirect()->back()->with('success', 'Message queued with Twilio. Delivery pending.');
+        } catch (\Exception $e) {
+            if ($conversation) {
+                $conversation->update([
+                    'twilio_status' => 'failed',
+                    'twilio_status_updated_at' => now(),
+                    'twilio_error_code' => (string) $e->getCode(),
+                    'twilio_error_message' => $e->getMessage(),
+                ]);
+            }
+
+            Log::error('Failed to send message', [
+                'work_order_id' => $validatedData['work_order_id'] ?? null,
+                'conversation_type' => $validatedData['conversation_type'] ?? null,
+                'sender' => $validatedData['sender_phone_number'] ?? null,
+                'receiver' => $validatedData['receiver_phone_number'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->withErrors([
+                'message' => 'Failed to queue message with Twilio. Please try again.',
+            ]);
         }
     }
 

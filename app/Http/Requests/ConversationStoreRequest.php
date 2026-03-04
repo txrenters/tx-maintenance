@@ -23,10 +23,10 @@ class ConversationStoreRequest extends FormRequest
     {
         return [
             'text' => 'nullable|string|max:1600',
-            'work_order_id' => 'required',
-            'sender_phone_number' => 'nullable',
-            'receiver_phone_number' => 'nullable',
-            'conversation_type' => 'required',
+            'work_order_id' => 'required|integer|exists:work_orders,id',
+            'sender_phone_number' => 'required|string',
+            'receiver_phone_number' => 'required|string',
+            'conversation_type' => 'required|string|max:50',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max
         ];
     }

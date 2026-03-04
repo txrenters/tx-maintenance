@@ -146,6 +146,62 @@ class TwilioWebhookController extends Controller
         return response('Error processing request', 500);
     }
 
+    public function statusCallback(Request $request)
+    {
+        $messageSid = (string) $request->input('MessageSid', '');
+        $messageStatus = (string) $request->input('MessageStatus', '');
+        $errorCode = $request->input('ErrorCode');
+        $errorMessage = $request->input('ErrorMessage');
+
+        if ($messageSid === '') {
+            Log::warning('Twilio status callback missing MessageSid', [
+                'payload' => $request->all(),
+            ]);
+
+            return response()->noContent();
+        }
+
+        $conversation = Conversation::where('twilio_sid', $messageSid)->latest('id')->first();
+        if (! $conversation) {
+            Log::warning('Twilio status callback received for unknown SID', [
+                'sid' => $messageSid,
+                'status' => $messageStatus,
+                'to' => $request->input('To'),
+                'from' => $request->input('From'),
+            ]);
+
+            return response()->noContent();
+        }
+
+        $conversation->update([
+            'twilio_status' => $messageStatus !== '' ? $messageStatus : null,
+            'twilio_status_updated_at' => now(),
+            'twilio_error_code' => $errorCode ? (string) $errorCode : null,
+            'twilio_error_message' => $errorMessage ?: null,
+        ]);
+
+        if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
+            Log::warning('Twilio delivery failure', [
+                'conversation_id' => $conversation->id,
+                'work_order_id' => $conversation->work_order_id,
+                'sid' => $messageSid,
+                'status' => $messageStatus,
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
+                'to' => $conversation->receiver_number,
+                'from' => $conversation->sender_number,
+            ]);
+        } else {
+            Log::info('Twilio delivery status updated', [
+                'conversation_id' => $conversation->id,
+                'sid' => $messageSid,
+                'status' => $messageStatus,
+            ]);
+        }
+
+        return response()->noContent();
+    }
+
     protected function forwardToPlusThis(array $data)
     {
         try {

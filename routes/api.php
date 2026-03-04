@@ -41,6 +41,11 @@ Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute
 
+Route::post('/twilio/status-callback', [TwilioWebhookController::class, 'statusCallback'])
+    ->name('twilio.status_callback')
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:120,1');
+
 Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute;

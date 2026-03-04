@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
 use Twilio\Rest\Client;
+use Twilio\Rest\Api\V2010\Account\MessageInstance;
 
 class TwilioService
 {
@@ -12,30 +13,67 @@ class TwilioService
     public function __construct()
     {
         $this->client = new Client(
-            env('TWILIO_SID'),
-            env('TWILIO_AUTH_TOKEN')
+            config('services.twilio.sid'),
+            config('services.twilio.auth_token')
         );
     }
 
-    public function sendMessage($to, $from, $message, $mediaUrl = null)
+    public function sendMessage($to, $from, $message, $mediaUrl = null): MessageInstance
     {
         try {
             $messageData = [
                 'from' => $from,
-                'body' => $message.' '.$mediaUrl,
             ];
 
-            $this->client->messages->create($to, $messageData);
+            $trimmedMessage = trim((string) $message);
+            if ($trimmedMessage !== '') {
+                $messageData['body'] = $trimmedMessage;
+            }
 
-            Log::info('Message sent successfully', [
+            if (! empty($mediaUrl)) {
+                $messageData['mediaUrl'] = [$mediaUrl];
+            }
+
+            $statusCallbackUrl = $this->resolveStatusCallbackUrl();
+            if (! empty($statusCallbackUrl)) {
+                $messageData['statusCallback'] = $statusCallbackUrl;
+            }
+
+            $twilioMessage = $this->client->messages->create($to, $messageData);
+
+            Log::info('Message queued with Twilio', [
+                'sid' => $twilioMessage->sid ?? null,
+                'status' => $twilioMessage->status ?? null,
                 'to' => $to,
                 'from' => $from,
-                'body' => $message,
+                'body' => $trimmedMessage,
                 'media' => $mediaUrl ? 'included' : 'none',
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('Message unsuccessfully: '.$e->getMessage());
+            return $twilioMessage;
+        } catch (\Throwable $e) {
+            Log::error('Twilio message send failed', [
+                'to' => $to,
+                'from' => $from,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
+    }
+
+    protected function resolveStatusCallbackUrl(): ?string
+    {
+        $configuredUrl = config('services.twilio.status_callback_url');
+        if (! empty($configuredUrl)) {
+            return $configuredUrl;
+        }
+
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($appUrl === '') {
+            return null;
+        }
+
+        return $appUrl.'/api/twilio/status-callback';
     }
 }

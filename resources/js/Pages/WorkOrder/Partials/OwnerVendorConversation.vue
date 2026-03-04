@@ -169,7 +169,7 @@ const sendMessage = () => {
             onSuccess: () => {
                 toast({
                     title: "Success",
-                    description: "Message has been sent successfully!",
+                    description: "Message queued with Twilio. Delivery pending.",
                 });
                 messageBody.value = "";
                 // Reset textarea height
@@ -179,12 +179,15 @@ const sendMessage = () => {
                 scrollToBottom();
                 emit("update-owner-vendor-convo");
             },
-            onError: () => {
+            onError: (errors) => {
+                const errorMessage =
+                    errors.message ||
+                    Object.values(errors)[0] ||
+                    "There was a problem with your request. Please try again!";
                 toast({
                     variant: "destructive",
                     title: "Uh oh! Something went wrong.",
-                    description:
-                        "There was a problem with your request. Please try again!",
+                    description: errorMessage,
                 });
             },
             onFinish: () => {

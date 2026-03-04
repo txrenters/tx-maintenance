@@ -4,7 +4,14 @@ import { X, XIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import { router } from "@inertiajs/vue3";
 import { useToast } from "./ui/toast";
+import { DateTime } from "luxon";
+import { XIcon } from "lucide-vue-next";
+import { computed } from "vue";
+import { router, usePage } from "@inertiajs/vue3";
+import { useToast } from "./ui/toast";
+
 const { toast } = useToast();
+const page = usePage();
 
 const props = defineProps({
     messages: Object,
@@ -52,6 +59,37 @@ const messages = computed(() => {
     });
 });
 
+const isAdmin = computed(() =>
+    (page.props.auth?.user?.roles || []).includes("admin"),
+);
+const getTwilioStatusLabel = (status) => {
+    if (!status) return "";
+
+    return String(status)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const getTwilioStatusClasses = (status) => {
+    switch (String(status).toLowerCase()) {
+        case "delivered":
+        case "read":
+            return "border-emerald-200 bg-emerald-50 text-emerald-700";
+        case "undelivered":
+        case "failed":
+        case "canceled":
+            return "border-red-200 bg-red-50 text-red-700";
+        case "sent":
+        case "queued":
+        case "accepted":
+        case "sending":
+        case "scheduled":
+            return "border-blue-200 bg-blue-50 text-blue-700";
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-700";
+    }
+};
+
 const removeMessage = (id) => {
     router.post(
         route("workorder.message.delete", id),
@@ -98,13 +136,14 @@ const openMedia = (mediaUrl) => {
                     : 'bg-primary text-primary-foreground rounded-br-none'
             "
         >
-            <!-- <button
+            <button
+                v-if="isAdmin"
                 type="button"
                 class="absolute right-1 top-[-5px] flex items-center justify-center w-4 h-4 rounded-full bg-destructive text-white hover:bg-red-600 transition-colors"
                 @click="removeMessage(msg.id)"
             >
                 <XIcon class="w-3 h-3" />
-            </button> -->
+            </button>
             <p
                 class="text-xs"
                 :class="
@@ -162,16 +201,30 @@ const openMedia = (mediaUrl) => {
                 >
                     From: {{ msg.sender_number }}
                 </p>
-                <p
-                    class="text-xs"
-                    :class="
-                        msg.sender_number === sender
-                            ? 'text-white'
-                            : 'text-gray-500'
-                    "
-                >
-                    {{ msg.created_at }}
-                </p>
+                <div class="flex items-center gap-2">
+                    <span
+                        v-if="msg.sender_number === sender && msg.twilio_status"
+                        class="inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-semibold"
+                        :class="getTwilioStatusClasses(msg.twilio_status)"
+                        :title="
+                            msg.twilio_error_message
+                                ? `Twilio error: ${msg.twilio_error_message}`
+                                : ''
+                        "
+                    >
+                        {{ getTwilioStatusLabel(msg.twilio_status) }}
+                    </span>
+                    <p
+                        class="text-xs"
+                        :class="
+                            msg.sender_number === sender
+                                ? 'text-white'
+                                : 'text-gray-500'
+                        "
+                    >
+                        {{ msg.created_at }}
+                    </p>
+                </div>
             </div>
         </div>
     </div>
