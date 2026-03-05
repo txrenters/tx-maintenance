@@ -186,7 +186,7 @@ class ConversationController extends Controller
                 'twilio_error_message' => null,
             ]);
 
-            return redirect()->back()->with('success', 'Message queued with Twilio. Delivery pending.');
+            return redirect()->back()->with('success', 'Message sent. Delivery may take a moment.');
         } catch (\Exception $e) {
             if ($conversation) {
                 $conversation->update([
@@ -206,7 +206,7 @@ class ConversationController extends Controller
             ]);
 
             return redirect()->back()->withErrors([
-                'message' => 'Failed to queue message with Twilio. Please try again.',
+                'message' => 'Could not send message. Please try again.',
             ]);
         }
     }
@@ -257,3 +257,4 @@ class ConversationController extends Controller
         return redirect()->back()->with('success', 'Message deleted successfully!');
     }
 }
+

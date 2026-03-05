@@ -185,7 +185,7 @@ const sendMessage = () => {
             onSuccess: () => {
                 toast({
                     title: "Success",
-                    description: "Message queued with Twilio. Delivery pending.",
+                    description: "Message sent. Delivery may take a moment.",
                 });
                 messageBody.value = "";
                 // Reset textarea height
@@ -411,4 +411,5 @@ onMounted(() => {
     border-radius: 5px;
 }
 </style>
+
 

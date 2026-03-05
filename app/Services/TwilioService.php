@@ -25,13 +25,10 @@ class TwilioService
                 'from' => $from,
             ];
 
-            $trimmedMessage = trim((string) $message);
-            if ($trimmedMessage !== '') {
-                $messageData['body'] = $trimmedMessage;
-            }
-
-            if (! empty($mediaUrl)) {
-                $messageData['mediaUrl'] = [$mediaUrl];
+            $mediaLinks = $this->normalizeMediaLinks($mediaUrl);
+            $messageBody = $this->buildMessageBody($message, $mediaLinks);
+            if ($messageBody !== '') {
+                $messageData['body'] = $messageBody;
             }
 
             $statusCallbackUrl = $this->resolveStatusCallbackUrl();
@@ -46,8 +43,9 @@ class TwilioService
                 'status' => $twilioMessage->status ?? null,
                 'to' => $to,
                 'from' => $from,
-                'body' => $trimmedMessage,
-                'media' => $mediaUrl ? 'included' : 'none',
+                'body' => $messageBody,
+                'media_links_count' => count($mediaLinks),
+                'send_mode' => 'sms_with_links',
             ]);
 
             return $twilioMessage;
@@ -75,5 +73,41 @@ class TwilioService
         }
 
         return $appUrl.'/api/twilio/status-callback';
+    }
+
+    protected function buildMessageBody($message, array $mediaLinks): string
+    {
+        $trimmedMessage = trim((string) $message);
+
+        if (empty($mediaLinks)) {
+            return $trimmedMessage;
+        }
+
+        $linksText = implode("\n", $mediaLinks);
+
+        if ($trimmedMessage === '') {
+            return $linksText;
+        }
+
+        return $trimmedMessage."\n".$linksText;
+    }
+
+    protected function normalizeMediaLinks($mediaUrl): array
+    {
+        if (empty($mediaUrl)) {
+            return [];
+        }
+
+        $mediaLinks = is_array($mediaUrl) ? $mediaUrl : [$mediaUrl];
+        $normalizedLinks = [];
+
+        foreach ($mediaLinks as $link) {
+            $trimmedLink = trim((string) $link);
+            if ($trimmedLink !== '') {
+                $normalizedLinks[] = $trimmedLink;
+            }
+        }
+
+        return array_values(array_unique($normalizedLinks));
     }
 }

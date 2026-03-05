@@ -19,11 +19,28 @@ class TwilioWebhookController extends Controller
     {
         $data = $request->all();
 
+        // Some Twilio setups send status callbacks to this same endpoint.
+        if ($request->filled('MessageSid') && $request->filled('MessageStatus') && ! $request->filled('Body')) {
+            return $this->statusCallback($request);
+        }
+
         $this->forwardToPlusThis($data);
 
-        $from = is_array($data['From']) ? implode(',', $data['From']) : (string) $data['From'];
-        $to = is_array($data['To']) ? implode(',', $data['To']) : (string) $data['To'];
-        $body = is_array($data['Body']) ? implode(',', $data['Body']) : (string) $data['Body'];
+        $fromRaw = $request->input('From');
+        $toRaw = $request->input('To');
+        $bodyRaw = $request->input('Body', '');
+
+        $from = is_array($fromRaw) ? implode(',', $fromRaw) : (string) $fromRaw;
+        $to = is_array($toRaw) ? implode(',', $toRaw) : (string) $toRaw;
+        $body = is_array($bodyRaw) ? implode(',', $bodyRaw) : (string) $bodyRaw;
+
+        if ($from === '' || $to === '') {
+            Log::warning('Twilio webhook missing From/To fields', [
+                'payload' => $data,
+            ]);
+
+            return response()->noContent();
+        }
 
         $isMms = isset($data['NumMedia']) && $data['NumMedia'] > 0;
 
@@ -51,6 +68,8 @@ class TwilioWebhookController extends Controller
                     Log::info('Message saved successfully into the database.', ['data' => $conversation]);
 
                     $workOrder = WorkOrder::find($workOrderId);
+                    $resolvedWorkOrderId = $workOrder?->id ?? $workOrderId;
+                    $resolvedWorkOrderNo = $workOrder?->work_order_no ?? $workOrderId;
 
                     activity()
                         ->performedOn($conversation)
@@ -59,22 +78,22 @@ class TwilioWebhookController extends Controller
                             'senderNumber' => $from,
                             'receiverNumber' => $to,
                             'message' => $body,
-                            'work_order_id' => $workOrder->id,
+                            'work_order_id' => $resolvedWorkOrderId,
                         ])
-                        ->log('Work Order #'.$workOrder->work_order_no.' - New Message Received');
+                        ->log('Work Order #'.$resolvedWorkOrderNo.' - New Message Received');
 
                     return response()->noContent(); // HTTP 204
 
                 } catch (Exception $e) {
                     Log::error('Failed to create conversation: '.$e->getMessage());
 
-                    return response('Error processing request', 500);
+                    return response()->noContent();
                 }
 
             } else {
                 Log::info('Message not valid for insertion (duplicate or missing data).');
 
-                return response('Error processing request', 500);
+                return response()->noContent();
             }
         }
 
@@ -124,6 +143,8 @@ class TwilioWebhookController extends Controller
             }
 
             $jobber = Jobber::find($jobberMessage->jobber_id);
+            $resolvedJobId = $jobber?->id ?? $jobberMessage->jobber_id;
+            $resolvedJobNumber = $jobber?->job_number ?? $jobberMessage->jobber_id;
 
             activity()
                 ->performedOn($textMessage)
@@ -132,9 +153,9 @@ class TwilioWebhookController extends Controller
                     'senderNumber' => $from,
                     'receiverNumber' => $to,
                     'message' => $body,
-                    'job_id' => $jobber->id,
+                    'job_id' => $resolvedJobId,
                 ])
-                ->log('Job #'.$jobber->job_number.' - New Message Received');
+                ->log('Job #'.$resolvedJobNumber.' - New Message Received');
 
             Log::info('Jobber Message saved successfully into the database.', ['data' => $textMessage]);
 
@@ -143,60 +164,69 @@ class TwilioWebhookController extends Controller
 
         Log::info('Message not found in the database.');
 
-        return response('Error processing request', 500);
+        return response()->noContent();
     }
 
     public function statusCallback(Request $request)
     {
-        $messageSid = (string) $request->input('MessageSid', '');
-        $messageStatus = (string) $request->input('MessageStatus', '');
-        $errorCode = $request->input('ErrorCode');
-        $errorMessage = $request->input('ErrorMessage');
+        try {
+            $messageSid = (string) $request->input('MessageSid', '');
+            $messageStatus = (string) $request->input('MessageStatus', '');
+            $errorCode = $request->input('ErrorCode');
+            $errorMessage = $request->input('ErrorMessage');
 
-        if ($messageSid === '') {
-            Log::warning('Twilio status callback missing MessageSid', [
+            if ($messageSid === '') {
+                Log::warning('Twilio status callback missing MessageSid', [
+                    'payload' => $request->all(),
+                ]);
+
+                return response()->noContent();
+            }
+
+            $conversation = Conversation::where('twilio_sid', $messageSid)->latest('id')->first();
+            if (! $conversation) {
+                Log::warning('Twilio status callback received for unknown SID', [
+                    'sid' => $messageSid,
+                    'status' => $messageStatus,
+                    'to' => $request->input('To'),
+                    'from' => $request->input('From'),
+                ]);
+
+                return response()->noContent();
+            }
+
+            $conversation->update([
+                'twilio_status' => $messageStatus !== '' ? $messageStatus : null,
+                'twilio_status_updated_at' => now(),
+                'twilio_error_code' => $errorCode ? (string) $errorCode : null,
+                'twilio_error_message' => $errorMessage ?: null,
+            ]);
+
+            if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
+                Log::warning('Twilio delivery failure', [
+                    'conversation_id' => $conversation->id,
+                    'work_order_id' => $conversation->work_order_id,
+                    'sid' => $messageSid,
+                    'status' => $messageStatus,
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage,
+                    'to' => $conversation->receiver_number,
+                    'from' => $conversation->sender_number,
+                ]);
+            } else {
+                Log::info('Twilio delivery status updated', [
+                    'conversation_id' => $conversation->id,
+                    'sid' => $messageSid,
+                    'status' => $messageStatus,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Twilio status callback processing failed', [
+                'error' => $e->getMessage(),
                 'payload' => $request->all(),
             ]);
 
             return response()->noContent();
-        }
-
-        $conversation = Conversation::where('twilio_sid', $messageSid)->latest('id')->first();
-        if (! $conversation) {
-            Log::warning('Twilio status callback received for unknown SID', [
-                'sid' => $messageSid,
-                'status' => $messageStatus,
-                'to' => $request->input('To'),
-                'from' => $request->input('From'),
-            ]);
-
-            return response()->noContent();
-        }
-
-        $conversation->update([
-            'twilio_status' => $messageStatus !== '' ? $messageStatus : null,
-            'twilio_status_updated_at' => now(),
-            'twilio_error_code' => $errorCode ? (string) $errorCode : null,
-            'twilio_error_message' => $errorMessage ?: null,
-        ]);
-
-        if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
-            Log::warning('Twilio delivery failure', [
-                'conversation_id' => $conversation->id,
-                'work_order_id' => $conversation->work_order_id,
-                'sid' => $messageSid,
-                'status' => $messageStatus,
-                'error_code' => $errorCode,
-                'error_message' => $errorMessage,
-                'to' => $conversation->receiver_number,
-                'from' => $conversation->sender_number,
-            ]);
-        } else {
-            Log::info('Twilio delivery status updated', [
-                'conversation_id' => $conversation->id,
-                'sid' => $messageSid,
-                'status' => $messageStatus,
-            ]);
         }
 
         return response()->noContent();
@@ -249,13 +279,26 @@ class TwilioWebhookController extends Controller
 
     protected function getWorkOrderMessage(string $body, string $from, string $to)
     {
-        // "Ref: WO#12345" just in case
-        if (preg_match('/Ref:\s*(WO#\d+)/', $body, $matches)) {
+        // Prefer explicit "Ref: WO#12345" when present.
+        if (preg_match('/Ref:\s*(WO#\d+)/i', $body, $matches)) {
             $refNo = $matches[1];
             $workOrder = WorkOrder::where('work_order_no', $refNo)->first();
 
-            return Conversation::where('work_order_id', $workOrder->id)->latest()
-                ->first();
+            if ($workOrder) {
+                $matchedConversation = Conversation::where('work_order_id', $workOrder->id)
+                    ->latest()
+                    ->first();
+
+                if ($matchedConversation) {
+                    return $matchedConversation;
+                }
+            } else {
+                Log::warning('Twilio webhook reference did not match a work order', [
+                    'reference' => $refNo,
+                    'from' => $from,
+                    'to' => $to,
+                ]);
+            }
         }
 
         return Conversation::where(function ($query) use ($from, $to) {

@@ -1,6 +1,6 @@
 <script setup>
 import { DateTime } from "luxon";
-import { X, XIcon } from "lucide-vue-next";
+import { AlertCircle, CheckCheck, Clock3, Send, XIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { useToast } from "./ui/toast";
@@ -65,23 +65,43 @@ const getTwilioStatusLabel = (status) => {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
-const getTwilioStatusClasses = (status) => {
+const getTwilioStatusTextClasses = (status) => {
     switch (String(status).toLowerCase()) {
         case "delivered":
         case "read":
-            return "border-emerald-200 bg-emerald-50 text-emerald-700";
-        case "undelivered":
-        case "failed":
-        case "canceled":
-            return "border-red-200 bg-red-50 text-red-700";
         case "sent":
         case "queued":
         case "accepted":
         case "sending":
         case "scheduled":
-            return "border-blue-200 bg-blue-50 text-blue-700";
+            return "text-emerald-600";
+        case "undelivered":
+        case "failed":
+        case "canceled":
+            return "text-red-600";
         default:
-            return "border-slate-200 bg-slate-50 text-slate-700";
+            return "text-slate-500";
+    }
+};
+
+const getTwilioStatusIcon = (status) => {
+    switch (String(status || "").toLowerCase()) {
+        case "delivered":
+        case "read":
+            return CheckCheck;
+        case "sent":
+            return Send;
+        case "queued":
+        case "accepted":
+        case "sending":
+        case "scheduled":
+            return Clock3;
+        case "undelivered":
+        case "failed":
+        case "canceled":
+            return AlertCircle;
+        default:
+            return Clock3;
     }
 };
 
@@ -147,7 +167,23 @@ const openMedia = (mediaUrl) => {
                         : 'text-gray-500'
                 "
             >
-                To: {{ msg.receiver_number }}
+                To: {{ msg.receiver_number }} -
+                <span
+                    v-if="msg.sender_number === sender && msg.twilio_status"
+                    class="inline-flex items-center gap-1 font-semibold"
+                    :class="getTwilioStatusTextClasses(msg.twilio_status)"
+                    :title="
+                        msg.twilio_error_message
+                            ? `Delivery error: ${msg.twilio_error_message}`
+                            : ''
+                    "
+                >
+                    <component
+                        :is="getTwilioStatusIcon(msg.twilio_status)"
+                        class="h-3 w-3"
+                    />
+                    {{ getTwilioStatusLabel(msg.twilio_status) }}
+                </span>
             </p>
 
             <span
@@ -197,18 +233,6 @@ const openMedia = (mediaUrl) => {
                     From: {{ msg.sender_number }}
                 </p>
                 <div class="flex items-center gap-2">
-                    <span
-                        v-if="msg.sender_number === sender && msg.twilio_status"
-                        class="inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-semibold"
-                        :class="getTwilioStatusClasses(msg.twilio_status)"
-                        :title="
-                            msg.twilio_error_message
-                                ? `Twilio error: ${msg.twilio_error_message}`
-                                : ''
-                        "
-                    >
-                        {{ getTwilioStatusLabel(msg.twilio_status) }}
-                    </span>
                     <p
                         class="text-xs"
                         :class="
@@ -224,3 +248,4 @@ const openMedia = (mediaUrl) => {
         </div>
     </div>
 </template>
+

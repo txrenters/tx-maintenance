@@ -189,7 +189,7 @@ const sendMessage = () => {
             onSuccess: () => {
                 toast({
                     title: "Success",
-                    description: "Message queued with Twilio. Delivery pending.",
+                    description: "Message sent. Delivery may take a moment.",
                 });
                 emit("update-owner-convo");
                 messageBody.value = "";
@@ -413,4 +413,5 @@ watch(
     border-radius: 5px;
 }
 </style>
+
 
