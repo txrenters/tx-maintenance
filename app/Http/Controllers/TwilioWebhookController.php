@@ -18,10 +18,25 @@ class TwilioWebhookController extends Controller
     public function handle(Request $request)
     {
         $data = $request->all();
+        $messageSid = (string) ($request->input('MessageSid') ?: $request->input('SmsSid', ''));
+        $messageStatus = (string) $request->input('MessageStatus', '');
 
         // Some Twilio setups send status callbacks to this same endpoint.
-        if ($request->filled('MessageSid') && $request->filled('MessageStatus') && ! $request->filled('Body')) {
+        if ($messageSid !== '' && $messageStatus !== '') {
             return $this->statusCallback($request);
+        }
+
+        // Ignore webhook retries/replays for a SID we already stored.
+        if ($messageSid !== '') {
+            $existingConversation = Conversation::where('twilio_sid', $messageSid)->latest('id')->first();
+            if ($existingConversation) {
+                Log::info('Twilio webhook duplicate ignored for existing SID', [
+                    'sid' => $messageSid,
+                    'conversation_id' => $existingConversation->id,
+                ]);
+
+                return response()->noContent();
+            }
         }
 
         $this->forwardToPlusThis($data);
@@ -60,6 +75,7 @@ class TwilioWebhookController extends Controller
                         'receiver_number' => $to,
                         'sender_number' => $from,
                         'work_order_id' => $workOrderId,
+                        'twilio_sid' => $messageSid !== '' ? $messageSid : null,
                     ]);
 
                     if ($isMms) {
@@ -170,7 +186,7 @@ class TwilioWebhookController extends Controller
     public function statusCallback(Request $request)
     {
         try {
-            $messageSid = (string) $request->input('MessageSid', '');
+            $messageSid = (string) ($request->input('MessageSid') ?: $request->input('SmsSid', ''));
             $messageStatus = (string) $request->input('MessageStatus', '');
             $errorCode = $request->input('ErrorCode');
             $errorMessage = $request->input('ErrorMessage');

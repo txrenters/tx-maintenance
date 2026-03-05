@@ -67,20 +67,12 @@ const getTwilioStatusLabel = (status) => {
 
 const getTwilioStatusTextClasses = (status) => {
     switch (String(status).toLowerCase()) {
-        case "delivered":
-        case "read":
-        case "sent":
-        case "queued":
-        case "accepted":
-        case "sending":
-        case "scheduled":
-            return "text-emerald-600";
         case "undelivered":
         case "failed":
         case "canceled":
-            return "text-red-600";
+            return "text-red-300";
         default:
-            return "text-slate-500";
+            return "text-white";
     }
 };
 
@@ -248,4 +240,3 @@ const openMedia = (mediaUrl) => {
         </div>
     </div>
 </template>
-
