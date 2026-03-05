@@ -17,7 +17,7 @@ class ConversationMediaResource extends JsonResource
         return [
             'id' => $this->id,
             'original_url' => $this->original_url,
-            'local_url' => $this->local_path ? asset('storage/'.$this->local_path) : null,
+            'local_url' => $this->public_url,
             'content_type' => $this->content_type,
             'file_name' => $this->file_name,
             'created_at' => $this->created_at?->toIso8601String(),

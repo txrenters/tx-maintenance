@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\URL;
 
 class ConversationMedia extends Model
 {
@@ -22,6 +23,9 @@ class ConversationMedia extends Model
 
     public function getPublicUrlAttribute(): string
     {
-        return asset('storage/'.$this->local_path);
+        return URL::signedRoute(
+            'conversation.media.show',
+            ['media' => $this->id]
+        );
     }
 }

@@ -138,16 +138,17 @@ class ConversationController extends Controller
             ]);
 
             $imagePath = null;
+            $conversationMedia = null;
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
                 $originalName = $image->getClientOriginalName();
                 $filename = time().'_'.$originalName;
 
-                // Store image in storage/app/public/conversation_images
-                $imagePath = $image->storeAs('conversation_images', $filename, 'public');
+                // Store image in a non-public disk; access is provided via signed route.
+                $imagePath = $image->storeAs('conversation_images', $filename);
 
                 // Save image info to conversation_medias table
-                ConversationMedia::create([
+                $conversationMedia = ConversationMedia::create([
                     'message_id' => $conversation->id,
                     'original_url' => '', // We're storing locally, no original URL from external source
                     'local_path' => $imagePath,
@@ -158,8 +159,8 @@ class ConversationController extends Controller
 
             $imageFullPath = '';
 
-            if ($imagePath) {
-                $imageFullPath = asset('storage/'.$imagePath);
+            if ($conversationMedia) {
+                $imageFullPath = $conversationMedia->public_url;
             }
 
             $user = auth()->user();

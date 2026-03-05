@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Jobber;
 use App\Models\JobberTextMessage;
+use App\Models\TwilioPhoneNumber;
 use App\Models\WorkOrder;
 use App\Services\MediaService;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -67,6 +69,17 @@ class TwilioWebhookController extends Controller
             $workOrderId = $workOrderMessage->work_order_id ?? ''; // Provide a fallback
 
             if ($workOrderId && $type) {
+                if ($this->isInternalMirrorOfRecentOutbound(
+                    from: $from,
+                    to: $to,
+                    body: $body,
+                    workOrderId: (int) $workOrderId,
+                    conversationType: (string) $type,
+                    incomingSid: $messageSid !== '' ? $messageSid : null
+                )) {
+                    return response()->noContent();
+                }
+
                 try {
                     $conversation = Conversation::create([
                         'message' => $body,
@@ -246,6 +259,101 @@ class TwilioWebhookController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    protected function isInternalMirrorOfRecentOutbound(
+        string $from,
+        string $to,
+        string $body,
+        int $workOrderId,
+        string $conversationType,
+        ?string $incomingSid = null
+    ): bool {
+        if (! $this->isManagedTwilioNumber($from) || ! $this->isManagedTwilioNumber($to)) {
+            return false;
+        }
+
+        $normalizedBody = $this->normalizeMessageBody($body);
+
+        $recentOutboundCandidates = Conversation::query()
+            ->where('sender_number', $from)
+            ->where('receiver_number', $to)
+            ->where('work_order_id', $workOrderId)
+            ->where('conversation_type', $conversationType)
+            ->whereNotNull('twilio_sid')
+            ->where('created_at', '>=', now()->subSeconds(90))
+            ->latest('id')
+            ->get(['id', 'message', 'twilio_sid', 'created_at']);
+
+        foreach ($recentOutboundCandidates as $candidate) {
+            if ($incomingSid && $candidate->twilio_sid === $incomingSid) {
+                continue;
+            }
+
+            if ($this->normalizeMessageBody((string) $candidate->message) !== $normalizedBody) {
+                continue;
+            }
+
+            Log::info('Skipped mirrored Twilio internal inbound copy', [
+                'work_order_id' => $workOrderId,
+                'conversation_type' => $conversationType,
+                'from' => $from,
+                'to' => $to,
+                'incoming_sid' => $incomingSid,
+                'matched_conversation_id' => $candidate->id,
+                'matched_conversation_sid' => $candidate->twilio_sid,
+                'matched_created_at' => $candidate->created_at instanceof Carbon
+                    ? $candidate->created_at->toIso8601String()
+                    : $candidate->created_at,
+            ]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    protected function normalizeMessageBody(string $body): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($body));
+
+        return $normalized ?? '';
+    }
+
+    protected function isManagedTwilioNumber(string $number): bool
+    {
+        static $managedNumbers = null;
+
+        if ($managedNumbers === null) {
+            $managedNumbers = TwilioPhoneNumber::query()
+                ->pluck('phone_number')
+                ->map(fn ($phone) => $this->normalizePhone((string) $phone))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return in_array($this->normalizePhone($number), $managedNumbers, true);
+    }
+
+    protected function normalizePhone(string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', $number) ?: '';
+
+        if ($digits === '') {
+            return '';
+        }
+
+        if (strlen($digits) === 10) {
+            return '+1'.$digits;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return '+'.$digits;
+        }
+
+        return '+'.$digits;
     }
 
     protected function forwardToPlusThis(array $data)

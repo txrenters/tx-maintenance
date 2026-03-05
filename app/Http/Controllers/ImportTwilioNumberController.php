@@ -2,56 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TwilioPhoneNumber;
-use Illuminate\Support\Facades\DB;
+use App\Services\TwilioPhoneNumberSyncService;
 use Illuminate\Support\Facades\Log;
-use Twilio\Rest\Client;
 
 class ImportTwilioNumberController extends Controller
 {
-    public function __invoke()
+    public function __invoke(TwilioPhoneNumberSyncService $syncService)
     {
-        $account_sid = env('TWILIO_SID');
-        $auth_token = env('TWILIO_AUTH_TOKEN');
-
-        $client = new Client($account_sid, $auth_token);
-
-        $twilioNumbers = $client->incomingPhoneNumbers;
-
-        DB::beginTransaction(); // Start Transaction for null values
-
         try {
-            $data = [];
+            $result = $syncService->sync();
 
-            foreach ($twilioNumbers->read() as $twilio) {
-                $capabilities = [
-                    'mms' => $twilio->capabilities->mms ? 'Yes' : 'No',
-                    'sms' => $twilio->capabilities->sms ? 'Yes' : 'No',
-                    'voice' => $twilio->capabilities->voice ? 'Yes' : 'No',
-                    'fax' => $twilio->capabilities->fax ? 'Yes' : 'No',
-                ];
-
-                $data = [
-                    'name' => $twilio->friendlyName,
-                    'account_sid' => $twilio->accountSid,
-                    'sid' => $twilio->sid,
-                    'phone_number' => $twilio->phoneNumber,
-                    'sms_application_sid' => $twilio->smsApplicationSid ?? null,
-                    'capabilities' => json_encode($capabilities),
-                    'twilio_status' => $twilio->status ?? 'unknown',
-                ];
-
-                $twilioPhone = TwilioPhoneNumber::where('phone_number', $twilio->phoneNumber)->first();
-
-                if ($twilioPhone) {
-                    $twilioPhone->update($data);
-                } else {
-                    TwilioPhoneNumber::create($data);
-                }
-            }
-        } catch (\Exception $e) {
-            DB::rollBack(); // Rollback on error
+            return redirect()->back()->with('success', "Twilio numbers synced. Total: {$result['total']}, Created: {$result['created']}, Updated: {$result['updated']}");
+        } catch (\Throwable $e) {
             Log::error('Error importing Twilio numbers: '.$e->getMessage());
+
+            return redirect()->back()->withErrors([
+                'message' => 'Failed to sync Twilio numbers. Please try again.',
+            ]);
         }
 
     }

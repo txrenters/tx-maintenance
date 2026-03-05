@@ -23,7 +23,7 @@ class MediaService
             $fileName = Str::random(40).'.'.$extension;
             $path = "message_media/{$messageId}/{$fileName}";
 
-            Storage::disk('public')->put($path, $response->body());
+            Storage::disk('local')->put($path, $response->body());
 
             return ConversationMedia::create([
                 'message_id' => $messageId,

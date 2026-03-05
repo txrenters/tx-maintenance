@@ -24,3 +24,9 @@ Schedule::command('jobs:send-reminders')
     ->dailyAt('16:00')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('twilio:sync-phone-numbers')
+    ->timezone('America/Chicago')
+    ->dailyAt('01:30')
+    ->withoutOverlapping()
+    ->runInBackground();

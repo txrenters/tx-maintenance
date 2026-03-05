@@ -6,6 +6,7 @@ use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\ConversationLogsController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
@@ -169,6 +170,9 @@ Route::middleware([
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');
 
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
+Route::get('/conversation-media/{media}', [ConversationMediaController::class, 'show'])
+    ->name('conversation.media.show')
+    ->middleware('signed');
 
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
 Route::get('/jobber/reconnect', [JobberAuthController::class, 'refreshAccessToken'])->name('jobber.reconnect');
