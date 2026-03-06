@@ -151,32 +151,6 @@ const openMedia = (mediaUrl) => {
             >
                 <XIcon class="w-3 h-3" />
             </button>
-            <p
-                class="text-xs"
-                :class="
-                    msg.sender_number === sender
-                        ? 'text-white'
-                        : 'text-gray-500'
-                "
-            >
-                <span
-                    v-if="msg.sender_number === sender && msg.twilio_status"
-                    class="inline-flex items-center gap-1 font-semibold"
-                    :class="getTwilioStatusTextClasses(msg.twilio_status)"
-                    :title="
-                        msg.twilio_error_message
-                            ? `Delivery error: ${msg.twilio_error_message}`
-                            : ''
-                    "
-                >
-                    <component
-                        :is="getTwilioStatusIcon(msg.twilio_status)"
-                        class="h-3 w-3"
-                    />
-                    {{ getTwilioStatusLabel(msg.twilio_status) }} -
-                </span>
-                {{ msg.receiver_number }}
-            </p>
 
             <span
                 class="text-md py-1 whitespace-pre-line"
@@ -214,6 +188,39 @@ const openMedia = (mediaUrl) => {
                 />
             </div>
             <div class="flex gap-20 items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <p
+                        class="text-xs"
+                        :class="
+                            msg.sender_number === sender
+                                ? 'text-white'
+                                : 'text-gray-500'
+                        "
+                    >
+                        <span
+                            v-if="
+                                msg.sender_number === sender &&
+                                msg.twilio_status
+                            "
+                            class="inline-flex items-center gap-1 font-semibold"
+                            :class="
+                                getTwilioStatusTextClasses(msg.twilio_status)
+                            "
+                            :title="
+                                msg.twilio_error_message
+                                    ? `Delivery error: ${msg.twilio_error_message}`
+                                    : ''
+                            "
+                        >
+                            <component
+                                :is="getTwilioStatusIcon(msg.twilio_status)"
+                                class="h-3 w-3"
+                            />
+                            {{ getTwilioStatusLabel(msg.twilio_status) }} -
+                        </span>
+                        {{ msg.created_at }}
+                    </p>
+                </div>
                 <p
                     class="text-xs"
                     :class="
@@ -224,18 +231,6 @@ const openMedia = (mediaUrl) => {
                 >
                     From: {{ msg.sender_number }}
                 </p>
-                <div class="flex items-center gap-2">
-                    <p
-                        class="text-xs"
-                        :class="
-                            msg.sender_number === sender
-                                ? 'text-white'
-                                : 'text-gray-500'
-                        "
-                    >
-                        {{ msg.created_at }}
-                    </p>
-                </div>
             </div>
         </div>
     </div>
