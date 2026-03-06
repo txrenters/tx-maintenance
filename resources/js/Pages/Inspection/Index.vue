@@ -264,7 +264,12 @@ const fetchJobMessages = async (jobId) => {
             route("jobber-text-messages.index", { jobber_id: jobId }),
             { signal: messageController.signal }
         );
-        const messages = response.data?.messages || [];
+        const payload = response.data;
+        const messages = Array.isArray(payload)
+            ? payload
+            : payload?.messages ||
+              payload?.data ||
+              [];
         jobMessages.value = messages.slice(0, 50);
 
         if (selectedJob.value?.id === jobId) {
