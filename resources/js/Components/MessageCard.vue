@@ -159,7 +159,6 @@ const openMedia = (mediaUrl) => {
                         : 'text-gray-500'
                 "
             >
-                To: {{ msg.receiver_number }} -
                 <span
                     v-if="msg.sender_number === sender && msg.twilio_status"
                     class="inline-flex items-center gap-1 font-semibold"
@@ -174,8 +173,9 @@ const openMedia = (mediaUrl) => {
                         :is="getTwilioStatusIcon(msg.twilio_status)"
                         class="h-3 w-3"
                     />
-                    {{ getTwilioStatusLabel(msg.twilio_status) }}
+                    {{ getTwilioStatusLabel(msg.twilio_status) }} -
                 </span>
+                {{ msg.receiver_number }}
             </p>
 
             <span

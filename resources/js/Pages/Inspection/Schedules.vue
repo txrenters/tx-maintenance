@@ -8,6 +8,7 @@ import MessageCard from "@/Components/MessageCard.vue";
 import { router, usePage, Head } from "@inertiajs/vue3";
 import debounce from "lodash.debounce";
 import { useEchoPublic } from "@laravel/echo-vue";
+import axios from "axios";
 import {
     Dialog,
     DialogContent,
@@ -410,6 +411,7 @@ const selectedClient = ref(null);
 const clients = ref([]);
 const customePhoneNumber = ref("");
 const selectedContact = ref("");
+const contactPhoneNumber = ref("");
 const jobContacts = ref([]);
 
 const tabButtons = [
@@ -484,22 +486,36 @@ const sendMessage = () => {
         return;
     }
 
+    const customNumber = customePhoneNumber.value.trim();
+    const recipientsForSend = [...selectedRecipients.value];
+    if (customNumber) {
+        recipientsForSend.push({
+            name: customNumber,
+            phone: customNumber,
+        });
+    }
+
+    if (recipientsForSend.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Please select at least one recipient",
+        });
+        return;
+    }
+
+    const submittedMessage = newMessage.value || "";
+    const optimisticImage = imagePreview.value;
+
     isSendingMessage.value = true;
 
     const formData = new FormData();
-    formData.append("messages", newMessage.value || "");
+    formData.append("messages", submittedMessage);
     formData.append("sender_number", senderPhoneNumber.value);
 
-    selectedRecipients.value.forEach((recipient, index) => {
+    recipientsForSend.forEach((recipient, index) => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
-
-    if (customePhoneNumber.value.trim() !== "") {
-        formData.append(
-            `receiver_numbers[${selectedRecipients.value.length}]`,
-            customePhoneNumber.value.trim(),
-        );
-    }
 
     formData.append("jobber_id", selectedEvent.value.job.id);
     if (selectedEvent.value?.id) {
@@ -516,24 +532,28 @@ const sendMessage = () => {
         onSuccess: (page) => {
             toast({
                 title: "Success",
-                description: "Messages sent successfully!",
+                description: "Message sent. Delivery may take a moment.",
             });
 
-            const timestamp = new Date().toISOString();
-            const newMessages = selectedRecipients.value.map((recipient) => ({
+            const newMessages = recipientsForSend.map((recipient) => ({
                 id: Date.now() + Math.random(),
-                message: newMessage.value || "",
+                message: submittedMessage,
                 sender_number: senderPhoneNumber.value,
                 receiver_number: recipient.phone,
-                image: imagePreview.value,
-                created_at: timestamp,
+                image: optimisticImage,
+                created_at: new Date().toISOString(),
                 jobber_id: selectedEvent.value.job.id,
+                twilio_status: "queued",
             }));
 
             jobMessages.value = [...newMessages, ...jobMessages.value];
             newMessage.value = "";
+            customePhoneNumber.value = "";
             removeImage();
-            saveContactsForJob();
+            nextTick(() => {
+                saveContactsForJob();
+                fetchJobMessages(selectedEvent.value?.id);
+            });
         },
         onError: (errors) => {
             toast({
@@ -579,8 +599,11 @@ watch(selectedContact, (newContactId) => {
 });
 
 let messageController = null;
-const fetchMessages = async () => {
-    if (!selectedEvent.value?.job?.id) return;
+const fetchJobMessages = async (visitId) => {
+    if (!visitId || !selectedEvent.value?.job?.id) {
+        jobMessages.value = [];
+        return;
+    }
 
     if (messageController) {
         messageController.abort();
@@ -590,40 +613,30 @@ const fetchMessages = async () => {
     isLoadingMessages.value = true;
 
     try {
-        const response = await fetch(
+        const response = await axios.get(
             route("jobber-text-messages.index", {
-                job_id: selectedEvent.value.job.id,
+                jobber_id: selectedEvent.value.job.id,
             }),
             { signal: messageController.signal },
         );
-        const data = await response.json();
-        jobMessages.value = data.messages || [];
+        const messages = response.data?.messages || [];
+        jobMessages.value = messages.slice(0, 50);
+
+        if (selectedEvent.value) {
+            selectedEvent.value.text_messages = messages;
+        }
+        jobContacts.value = [];
     } catch (error) {
-        if (error.name !== "AbortError") {
+        if (error.name !== "AbortError" && error.code !== "ERR_CANCELED") {
             console.error("Error fetching messages:", error);
-            jobMessages.value = [];
+            jobMessages.value = selectedEvent.value?.text_messages
+                ? selectedEvent.value.text_messages.slice(0, 50)
+                : [];
+            jobContacts.value = [];
         }
     } finally {
         isLoadingMessages.value = false;
         messageController = null;
-    }
-};
-
-const fetchJobMessages = async (visitId) => {
-    try {
-        isLoadingMessages.value = true;
-        if (selectedEvent.value?.text_messages) {
-            jobMessages.value = selectedEvent.value.text_messages;
-        } else {
-            jobMessages.value = [];
-        }
-        jobContacts.value = [];
-    } catch (error) {
-        console.error("Error fetching messages:", error);
-        jobMessages.value = [];
-        jobContacts.value = [];
-    } finally {
-        isLoadingMessages.value = false;
     }
 };
 

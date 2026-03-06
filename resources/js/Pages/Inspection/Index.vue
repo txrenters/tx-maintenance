@@ -246,6 +246,11 @@ const fileInput = ref(null);
 // Optimized message fetching
 let messageController = null;
 const fetchJobMessages = async (jobId) => {
+    if (!jobId) {
+        jobMessages.value = [];
+        return;
+    }
+
     // Cancel previous request if still pending
     if (messageController) {
         messageController.abort();
@@ -255,18 +260,23 @@ const fetchJobMessages = async (jobId) => {
 
     try {
         isLoadingMessages.value = true;
-        // Messages are already loaded with the job data
-        if (selectedJob.value?.text_messages) {
-            // Limit messages for performance
-            jobMessages.value = selectedJob.value.text_messages.slice(0, 50);
-        } else {
-            jobMessages.value = [];
+        const response = await axios.get(
+            route("jobber-text-messages.index", { jobber_id: jobId }),
+            { signal: messageController.signal }
+        );
+        const messages = response.data?.messages || [];
+        jobMessages.value = messages.slice(0, 50);
+
+        if (selectedJob.value?.id === jobId) {
+            selectedJob.value.text_messages = messages;
         }
         jobContacts.value = [];
     } catch (error) {
-        if (error.name !== "AbortError") {
+        if (error.name !== "AbortError" && error.code !== "ERR_CANCELED") {
             console.error("Error fetching messages:", error);
-            jobMessages.value = [];
+            jobMessages.value = selectedJob.value?.text_messages
+                ? selectedJob.value.text_messages.slice(0, 50)
+                : [];
             jobContacts.value = [];
         }
     } finally {
@@ -418,24 +428,38 @@ const sendMessage = () => {
         return;
     }
 
+    const customNumber = customPhoneNumber.value.trim();
+    const recipientsForSend = [...selectedRecipients.value];
+    if (customNumber) {
+        recipientsForSend.push({
+            name: customNumber,
+            phone: customNumber,
+        });
+    }
+
+    if (recipientsForSend.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Please select at least one recipient",
+        });
+        return;
+    }
+
+    const submittedMessage = newMessage.value || "";
+    const optimisticImage = imagePreview.value;
+
     isSendingMessage.value = true;
 
     // Create FormData for file upload
     const formData = new FormData();
-    formData.append("messages", newMessage.value || "");
+    formData.append("messages", submittedMessage);
     formData.append("sender_number", senderPhoneNumber.value);
 
     // Add all recipient numbers
-    selectedRecipients.value.forEach((recipient, index) => {
+    recipientsForSend.forEach((recipient, index) => {
         formData.append(`receiver_numbers[${index}]`, recipient.phone);
     });
-
-    if (customPhoneNumber.value.trim() !== "") {
-        formData.append(
-            `receiver_numbers[${selectedRecipients.value.length}]`,
-            customPhoneNumber.value.trim()
-        );
-    }
 
     formData.append("jobber_id", selectedJob.value.id);
 
@@ -450,23 +474,21 @@ const sendMessage = () => {
         onSuccess: (page) => {
             toast({
                 title: "Success",
-                description: "Messages sent successfully!",
+                description: "Message sent. Delivery may take a moment.",
             });
 
             // Batch update messages for better performance
             requestAnimationFrame(() => {
-                const timestamp = new Date().toISOString();
-                const newMessages = selectedRecipients.value.map(
-                    (recipient) => ({
+                const newMessages = recipientsForSend.map((recipient) => ({
                         id: Date.now() + Math.random(),
-                        message: newMessage.value || "",
+                        message: submittedMessage,
                         sender_number: senderPhoneNumber.value,
                         receiver_number: recipient.phone,
-                        image: imagePreview.value,
-                        created_at: timestamp,
+                        image: optimisticImage,
+                        created_at: new Date().toISOString(),
                         jobber_id: selectedJob.value.id,
-                    })
-                );
+                        twilio_status: "queued",
+                    }));
 
                 // Batch insert at the beginning
                 jobMessages.value = [
@@ -477,15 +499,19 @@ const sendMessage = () => {
                 // Update job count in the main list
                 updateJobMessageCount(
                     selectedJob.value.id,
-                    selectedRecipients.value.length
+                    recipientsForSend.length
                 );
             });
 
             newMessage.value = "";
+            customPhoneNumber.value = "";
             removeImage();
 
             // Save contacts asynchronously
-            nextTick(() => saveContactsForJob());
+            nextTick(() => {
+                saveContactsForJob();
+                fetchJobMessages(selectedJob.value?.id);
+            });
         },
         onError: (errors) => {
             toast({

@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SendJobReminders extends Command
 {
@@ -80,6 +81,8 @@ class SendJobReminders extends Command
 
         $twilio = new TwilioService;
         $senderNumber = env('TWILIO_PHONE_NUMBER');
+        $hasVisitColumn = JobberTextMessage::hasVisitColumn();
+        $messageColumns = $this->getMessageColumnAvailability();
 
         $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
 
@@ -206,10 +209,10 @@ class SendJobReminders extends Command
             foreach ($uniqueRecipients as $recipient) {
                 $phoneNumber = $recipient['phone'];
                 $clientName = $recipient['name'];
-                try {
-                    $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
-                    $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+                $message = str_replace('{CLIENT_NAME}', $clientName, $messageText);
+                $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
 
+                try {
                     Log::info('Sending job reminder SMS', [
                         'client_name' => $clientName,
                         'visit_date' => $visitDate,
@@ -217,16 +220,45 @@ class SendJobReminders extends Command
                         'notification_type' => $notifiedField,
                     ]);
 
-                    $twilio->sendMessage($phoneNumber, $senderNumber, $message2);
+                    $twilioMessage = $twilio->sendMessage($phoneNumber, $senderNumber, $message2);
 
-                    $text = JobberTextMessage::create([
+                    $payload = [
                         'messages' => $message2 ?? '',
                         'sender_number' => $senderNumber,
                         'receiver_number' => $phoneNumber,
                         'jobber_id' => $visit->job->id,
-                        'jobber_visit_id' => $visit->id,
-                        'sent_at' => $visit->job->start_at,
-                    ]);
+                    ];
+
+                    if ($hasVisitColumn) {
+                        $payload['jobber_visit_id'] = $visit->id;
+                    }
+
+                    if ($messageColumns['status']) {
+                        $payload['status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['sent_at']) {
+                        $payload['sent_at'] = now();
+                    }
+                    if ($messageColumns['error_message']) {
+                        $payload['error_message'] = null;
+                    }
+                    if ($messageColumns['twilio_sid']) {
+                        $payload['twilio_sid'] = $twilioMessage->sid ?? null;
+                    }
+                    if ($messageColumns['twilio_status']) {
+                        $payload['twilio_status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['twilio_status_updated_at']) {
+                        $payload['twilio_status_updated_at'] = now();
+                    }
+                    if ($messageColumns['twilio_error_code']) {
+                        $payload['twilio_error_code'] = null;
+                    }
+                    if ($messageColumns['twilio_error_message']) {
+                        $payload['twilio_error_message'] = null;
+                    }
+
+                    $text = JobberTextMessage::create($payload);
 
                     Log::info('Job reminder SMS sent successfully', [
                         'message_id' => $text->id,
@@ -236,6 +268,44 @@ class SendJobReminders extends Command
 
                 } catch (\Throwable $th) {
                     Log::error('Sending message is unsuccesfull:', ['error' => $th->getMessage()]);
+
+                    $failedPayload = [
+                        'messages' => $message2 ?? '',
+                        'sender_number' => $senderNumber,
+                        'receiver_number' => $phoneNumber,
+                        'jobber_id' => $visit->job->id,
+                    ];
+
+                    if ($hasVisitColumn) {
+                        $failedPayload['jobber_visit_id'] = $visit->id;
+                    }
+
+                    if ($messageColumns['status']) {
+                        $failedPayload['status'] = 'failed';
+                    }
+                    if ($messageColumns['sent_at']) {
+                        $failedPayload['sent_at'] = now();
+                    }
+                    if ($messageColumns['error_message']) {
+                        $failedPayload['error_message'] = $th->getMessage();
+                    }
+                    if ($messageColumns['twilio_sid']) {
+                        $failedPayload['twilio_sid'] = null;
+                    }
+                    if ($messageColumns['twilio_status']) {
+                        $failedPayload['twilio_status'] = 'failed';
+                    }
+                    if ($messageColumns['twilio_status_updated_at']) {
+                        $failedPayload['twilio_status_updated_at'] = now();
+                    }
+                    if ($messageColumns['twilio_error_code']) {
+                        $failedPayload['twilio_error_code'] = $th->getCode() ? (string) $th->getCode() : null;
+                    }
+                    if ($messageColumns['twilio_error_message']) {
+                        $failedPayload['twilio_error_message'] = $th->getMessage();
+                    }
+
+                    JobberTextMessage::create($failedPayload);
                 }
             }
         }
@@ -252,5 +322,19 @@ class SendJobReminders extends Command
         }
 
         return '+1'.$cleanedNumber;
+    }
+
+    protected function getMessageColumnAvailability(): array
+    {
+        return [
+            'status' => Schema::hasColumn('jobber_text_messages', 'status'),
+            'sent_at' => Schema::hasColumn('jobber_text_messages', 'sent_at'),
+            'error_message' => Schema::hasColumn('jobber_text_messages', 'error_message'),
+            'twilio_sid' => Schema::hasColumn('jobber_text_messages', 'twilio_sid'),
+            'twilio_status' => Schema::hasColumn('jobber_text_messages', 'twilio_status'),
+            'twilio_status_updated_at' => Schema::hasColumn('jobber_text_messages', 'twilio_status_updated_at'),
+            'twilio_error_code' => Schema::hasColumn('jobber_text_messages', 'twilio_error_code'),
+            'twilio_error_message' => Schema::hasColumn('jobber_text_messages', 'twilio_error_message'),
+        ];
     }
 }
