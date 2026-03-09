@@ -1,515 +1,766 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, reactive, ref } from "vue";
+import { Head, Link, router } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import Pagination from "@/Components/Pagination.vue";
+import PaginationResultRange from "@/Components/PaginationResultRange.vue";
+import { Badge } from "@/Components/ui/badge";
+import { Button } from "@/Components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
 import {
-    MessageSquare,
-    Calendar,
-    User,
-    Phone,
-    Clock,
-    CheckCircle,
-    Circle,
-    Search,
-    Filter,
-    Download,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/Components/ui/dialog";
+import { Input } from "@/Components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import {
+    AlertCircle,
+    Briefcase,
     Eye,
+    Filter,
+    MessageSquare,
+    RefreshCcw,
+    Search,
     Wrench,
-    PhoneCall,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     title: String,
-    conversations: Array,
+    messages: Object,
     workOrders: Array,
+    jobs: Array,
     stats: Object,
+    filters: Object,
+    deliveryStatuses: Array,
+    canViewJobMessages: Boolean,
 });
 
-const searchTerm = ref("");
-const statusFilter = ref("all");
-const workOrderFilter = ref("all");
-const selectedConversation = ref(null);
+const isFilterModalOpen = ref(false);
 const isViewModalOpen = ref(false);
+const selectedMessage = ref(null);
 
-const openViewModal = (conversation) => {
-    selectedConversation.value = conversation;
+const filterForm = reactive({
+    search: props.filters?.search || "",
+    source: props.filters?.source || "all",
+    work_order_id: props.filters?.work_order_id || "all",
+    jobber_id: props.filters?.jobber_id || "all",
+    read_status: props.filters?.read_status || "all",
+    delivery_status: props.filters?.delivery_status || "all",
+});
+
+const messagesData = computed(() => props.messages?.data || []);
+const activeFiltersCount = computed(() => {
+    return [
+        filterForm.search.trim() !== "",
+        filterForm.source !== "all",
+        filterForm.work_order_id !== "all",
+        filterForm.jobber_id !== "all",
+        filterForm.read_status !== "all",
+        filterForm.delivery_status !== "all",
+    ].filter(Boolean).length;
+});
+
+const sourceLabel = (source) => {
+    if (source === "work_order") return "Work Order";
+    if (source === "job") return "Job Text";
+    return "Message";
+};
+
+const twilioStatusLabel = (status) => {
+    if (!status) return "Pending";
+    return String(status)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const twilioStatusVariant = (status) => {
+    switch (String(status || "").toLowerCase()) {
+        case "delivered":
+        case "read":
+            return "secondary";
+        case "failed":
+        case "undelivered":
+        case "canceled":
+            return "destructive";
+        default:
+            return "outline";
+    }
+};
+
+const normalizeFilterValue = (value) => {
+    if (value === undefined || value === null) return "all";
+    if (String(value).trim() === "") return "all";
+    return String(value);
+};
+
+const resetFilterForm = () => {
+    filterForm.search = props.filters?.search || "";
+    filterForm.source = props.filters?.source || "all";
+    filterForm.work_order_id = normalizeFilterValue(
+        props.filters?.work_order_id
+    );
+    filterForm.jobber_id = normalizeFilterValue(props.filters?.jobber_id);
+    filterForm.read_status = props.filters?.read_status || "all";
+    filterForm.delivery_status = props.filters?.delivery_status || "all";
+};
+
+const openFilters = () => {
+    resetFilterForm();
+    isFilterModalOpen.value = true;
+};
+
+const applyFilters = () => {
+    const query = {};
+
+    if (filterForm.search.trim() !== "") query.search = filterForm.search.trim();
+    if (filterForm.source !== "all") query.source = filterForm.source;
+    if (filterForm.work_order_id !== "all")
+        query.work_order_id = filterForm.work_order_id;
+    if (filterForm.jobber_id !== "all") query.jobber_id = filterForm.jobber_id;
+    if (filterForm.read_status !== "all")
+        query.read_status = filterForm.read_status;
+    if (filterForm.delivery_status !== "all")
+        query.delivery_status = filterForm.delivery_status;
+
+    router.get(route("conversation_logs.index"), query, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+    isFilterModalOpen.value = false;
+};
+
+const clearAllFilters = () => {
+    filterForm.search = "";
+    filterForm.source = "all";
+    filterForm.work_order_id = "all";
+    filterForm.jobber_id = "all";
+    filterForm.read_status = "all";
+    filterForm.delivery_status = "all";
+
+    router.get(route("conversation_logs.index"), {}, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+    isFilterModalOpen.value = false;
+};
+
+const openViewModal = (message) => {
+    selectedMessage.value = message;
     isViewModalOpen.value = true;
 };
 
 const closeViewModal = () => {
-    selectedConversation.value = null;
+    selectedMessage.value = null;
     isViewModalOpen.value = false;
 };
 
-const filteredConversations = computed(() => {
-    let filtered = props.conversations.data;
-
-    if (searchTerm.value) {
-        filtered = filtered.filter(
-            (conv) =>
-                conv.message
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.work_order?.work_order_no
-                    ?.toString()
-                    .toLowerCase()
-                    .includes(searchTerm.value.toLowerCase()) ||
-                conv.sender_name
-                    ?.toLowerCase()
-                    .includes(searchTerm.value.toLowerCase())
-        );
-    }
-
-    if (statusFilter.value !== "all") {
-        filtered = filtered.filter((conv) => {
-            if (statusFilter.value === "read") return conv.is_read;
-            if (statusFilter.value === "unread") return !conv.is_read;
-            return true;
-        });
-    }
-
-    if (workOrderFilter.value !== "all") {
-        filtered = filtered.filter(
-            (conv) => conv.work_order_id == workOrderFilter.value
-        );
-    }
-
-    return filtered;
-});
-
 const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+
+    return date.toLocaleString("en-US", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
 };
 
-const truncateMessage = (message, length = 100) => {
-    if (message.length <= length) return message;
-    return message.substring(0, length) + "...";
+const truncateMessage = (message, length = 120) => {
+    const value = String(message || "");
+    if (value.length <= length) return value;
+    return `${value.slice(0, length)}...`;
 };
 </script>
 
 <template>
-    <Head :title="title" />
+    <Head :title="title || 'Messages'" />
 
     <div class="space-y-6">
-        <!-- Header -->
-        <div class="flex justify-between items-center">
-            <div>
-                <h1 class="text-3xl font-bold">Conversation Logs</h1>
-                <p class="mt-2">
-                    View all SMS conversations and messages related to work
-                    orders
-                </p>
-            </div>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="grid gap-4 md:grid-cols-4">
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
+        <Card
+            class="border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white"
+        >
+            <CardContent class="pt-6">
+                <div
+                    class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
                 >
-                    <CardTitle class="text-sm font-medium"
-                        >Total Messages</CardTitle
-                    >
-                    <MessageSquare class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">
-                        {{ stats?.total || 0 }}
+                    <div class="space-y-1">
+                        <h1 class="text-2xl font-bold md:text-3xl">Messages</h1>
+                        <p class="text-sm text-slate-300">
+                            Unified feed for Work Order and Job text messages
+                            with Twilio delivery status.
+                        </p>
                     </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium"
-                        >Unread Messages</CardTitle
-                    >
-                    <Circle class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">
-                        {{ stats?.unread || 0 }}
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium"
-                        >Read Messages</CardTitle
-                    >
-                    <CheckCircle class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">{{ stats?.read || 0 }}</div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader
-                    class="flex flex-row items-center justify-between space-y-0 pb-2"
-                >
-                    <CardTitle class="text-sm font-medium"
-                        >Active Conversations</CardTitle
-                    >
-                    <Phone class="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div class="text-2xl font-bold">
-                        {{ stats?.active_conversations || 0 }}
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-
-        <!-- Filters -->
-        <Card>
-            <CardHeader>
-                <CardTitle>Filter Conversations</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div class="grid gap-4 md:grid-cols-3">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Search</label>
-                        <div class="relative">
-                            <Search
-                                class="absolute left-3 top-3 h-4 w-4 text-gray-400"
-                            />
-                            <Input
-                                v-model="searchTerm"
-                                type="search"
-                                placeholder="Search messages, work orders, or senders..."
-                                class="pl-10"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Status</label>
-                        <Select v-model="statusFilter">
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all"
-                                    >All Messages</SelectItem
-                                >
-                                <SelectItem value="read">Read Only</SelectItem>
-                                <SelectItem value="unread"
-                                    >Unread Only</SelectItem
-                                >
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Work Order</label>
-                        <Select v-model="workOrderFilter">
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select work order" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all"
-                                    >All Work Orders</SelectItem
-                                >
-                                <SelectItem
-                                    v-for="workOrder in workOrders"
-                                    :key="workOrder.id"
-                                    :value="workOrder.id.toString()"
-                                >
-                                    {{ workOrder.work_order_no }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <div class="flex gap-2">
+                        <Button
+                            variant="secondary"
+                            class="gap-2"
+                            @click="openFilters"
+                        >
+                            <Filter class="h-4 w-4" />
+                            Filters
+                            <Badge
+                                v-if="activeFiltersCount"
+                                variant="default"
+                                class="ml-1 bg-slate-900 text-white"
+                            >
+                                {{ activeFiltersCount }}
+                            </Badge>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            class="gap-2 border-slate-500 bg-transparent text-white hover:bg-slate-700"
+                            @click="clearAllFilters"
+                        >
+                            <RefreshCcw class="h-4 w-4" />
+                            Reset
+                        </Button>
                     </div>
                 </div>
             </CardContent>
         </Card>
 
-        <!-- Conversations Table -->
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <Card>
+                <CardHeader class="pb-2">
+                    <CardTitle class="text-xs font-medium text-muted-foreground"
+                        >Total</CardTitle
+                    >
+                </CardHeader>
+                <CardContent class="pt-0">
+                    <p class="text-2xl font-semibold">{{ stats?.total || 0 }}</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader class="pb-2">
+                    <CardTitle class="text-xs font-medium text-muted-foreground"
+                        >Work Order</CardTitle
+                    >
+                </CardHeader>
+                <CardContent class="pt-0">
+                    <p class="text-2xl font-semibold">
+                        {{ stats?.work_order_total || 0 }}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader class="pb-2">
+                    <CardTitle class="text-xs font-medium text-muted-foreground"
+                        >Job Text</CardTitle
+                    >
+                </CardHeader>
+                <CardContent class="pt-0">
+                    <p class="text-2xl font-semibold">
+                        {{ stats?.job_total || 0 }}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader class="pb-2">
+                    <CardTitle class="text-xs font-medium text-muted-foreground"
+                        >Delivery Tracked</CardTitle
+                    >
+                </CardHeader>
+                <CardContent class="pt-0">
+                    <p class="text-2xl font-semibold">
+                        {{ stats?.with_delivery_status || 0 }}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader class="pb-2">
+                    <CardTitle class="text-xs font-medium text-muted-foreground"
+                        >Delivery Failed</CardTitle
+                    >
+                </CardHeader>
+                <CardContent class="pt-0">
+                    <p class="text-2xl font-semibold text-red-600">
+                        {{ stats?.failed || 0 }}
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+
         <Card>
-            <CardHeader>
-                <div class="flex justify-between items-center">
-                    <div>
-                        <CardTitle>Conversations</CardTitle>
-                        <CardDescription>
-                            {{ filteredConversations.length }} of
-                            {{ conversations.length }} messages
-                        </CardDescription>
-                    </div>
+            <CardHeader class="pb-2">
+                <div class="flex items-center justify-between gap-2">
+                    <CardTitle class="text-lg">Message Feed</CardTitle>
+                    <span class="text-xs text-muted-foreground">
+                        {{ messages?.total || 0 }} result(s)
+                    </span>
                 </div>
             </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Work Order</TableHead>
-                            <TableHead>Sender</TableHead>
-                            <TableHead>Receiver</TableHead>
+                            <TableHead>Source</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>From / To</TableHead>
                             <TableHead>Message</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead>Twilio Status</TableHead>
+                            <TableHead>Timestamp</TableHead>
+                            <TableHead class="w-[100px]">Action</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow
-                            v-for="conversation in filteredConversations"
-                            :key="conversation.id"
+                            v-for="message in messagesData"
+                            :key="message.row_id"
                         >
                             <TableCell>
                                 <Badge
                                     :variant="
-                                        conversation.is_read
-                                            ? 'secondary'
-                                            : 'default'
+                                        message.source === 'work_order'
+                                            ? 'default'
+                                            : 'secondary'
                                     "
                                 >
-                                    <CheckCircle
-                                        v-if="conversation.is_read"
-                                        class="w-3 h-3 mr-1"
-                                    />
-                                    <Circle v-else class="w-3 h-3 mr-1" />
-                                    {{
-                                        conversation.is_read ? "Read" : "Unread"
-                                    }}
+                                    {{ sourceLabel(message.source) }}
                                 </Badge>
                             </TableCell>
                             <TableCell>
-                                <Link
-                                    v-if="conversation.work_order"
-                                    :href="
-                                        route(
-                                            'work_orders.details',
-                                            conversation.work_order_id
-                                        )
-                                    "
-                                    class="text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                    {{ conversation.work_order.work_order_no }}
-                                </Link>
-                                <span v-else class="text-gray-500">
-                                    No Work Order
-                                </span>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        conversation.sender_number || "Unknown"
-                                    }}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-400" />
-                                    <span>{{
-                                        conversation.receiver_number ||
-                                        "Unknown"
-                                    }}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="max-w-md">
-                                    <p class="text-sm">
+                                <div v-if="message.source === 'work_order'">
+                                    <Link
+                                        v-if="message.work_order_id"
+                                        :href="
+                                            route(
+                                                'work_orders.details',
+                                                message.work_order_id
+                                            )
+                                        "
+                                        class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                                    >
+                                        <Wrench class="h-3.5 w-3.5" />
                                         {{
-                                            truncateMessage(
-                                                conversation.message
+                                            message.work_order_no ||
+                                            `WO #${message.work_order_id}`
+                                        }}
+                                    </Link>
+                                    <span
+                                        v-else
+                                        class="text-sm text-muted-foreground"
+                                        >No work order</span
+                                    >
+                                </div>
+                                <div v-else>
+                                    <Link
+                                        v-if="message.jobber_id"
+                                        :href="
+                                            route(
+                                                'jobber.jobDetails',
+                                                message.jobber_id
+                                            )
+                                        "
+                                        class="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:text-emerald-900"
+                                    >
+                                        <Briefcase class="h-3.5 w-3.5" />
+                                        {{
+                                            message.job_number ||
+                                            `Job #${message.jobber_id}`
+                                        }}
+                                    </Link>
+                                    <span
+                                        v-else
+                                        class="text-sm text-muted-foreground"
+                                        >No job</span
+                                    >
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <p class="text-xs">
+                                    <span class="font-medium">From:</span>
+                                    {{ message.sender_number || "N/A" }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    <span class="font-medium">To:</span>
+                                    {{ message.receiver_number || "N/A" }}
+                                </p>
+                            </TableCell>
+                            <TableCell>
+                                <p
+                                    class="max-w-[420px] whitespace-pre-wrap break-words text-sm"
+                                >
+                                    {{
+                                        truncateMessage(message.message) ||
+                                        "No text content"
+                                    }}
+                                </p>
+                            </TableCell>
+                            <TableCell>
+                                <div class="space-y-1">
+                                    <Badge
+                                        :variant="
+                                            twilioStatusVariant(
+                                                message.twilio_status
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            twilioStatusLabel(
+                                                message.twilio_status
                                             )
                                         }}
+                                    </Badge>
+                                    <p
+                                        v-if="message.twilio_error_message"
+                                        class="max-w-[260px] text-xs text-red-600 line-clamp-2"
+                                    >
+                                        {{ message.twilio_error_message }}
                                     </p>
                                 </div>
                             </TableCell>
-                            <TableCell>
-                                <div
-                                    class="flex items-center gap-2 text-sm text-gray-600"
-                                >
-                                    <Clock class="w-4 h-4" />
-                                    {{ formatDate(conversation.created_at) }}
-                                </div>
+                            <TableCell class="text-sm text-muted-foreground">
+                                {{ formatDate(message.created_at) }}
                             </TableCell>
                             <TableCell>
-                                <div class="flex gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        class="gap-1"
-                                        @click="openViewModal(conversation)"
-                                    >
-                                        <Eye class="w-4 h-4" />
-                                        View
-                                    </Button>
-                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    class="gap-1"
+                                    @click="openViewModal(message)"
+                                >
+                                    <Eye class="h-4 w-4" />
+                                    View
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
 
                 <div
-                    v-if="filteredConversations.length === 0"
-                    class="text-center py-8"
+                    v-if="messagesData.length === 0"
+                    class="flex flex-col items-center justify-center py-12 text-center"
                 >
                     <MessageSquare
-                        class="w-12 h-12 text-gray-400 mx-auto mb-4"
+                        class="mb-3 h-10 w-10 text-muted-foreground"
                     />
-                    <p class="text-gray-500">
-                        No conversations found matching your criteria
+                    <p class="text-sm font-medium">No messages found</p>
+                    <p class="text-xs text-muted-foreground">
+                        Try adjusting the filters.
                     </p>
                 </div>
-                <div class="flex justify-between">
-                    <PaginationResultRange :data="conversations" />
-                    <Pagination :pagination="conversations.links" />
+
+                <div class="mt-4 flex items-center justify-between">
+                    <PaginationResultRange :data="messages" />
+                    <Pagination :pagination="messages?.links || []" />
                 </div>
             </CardContent>
         </Card>
 
-        <!-- View Modal -->
-        <Dialog v-model:open="isViewModalOpen">
+        <Dialog v-model:open="isFilterModalOpen">
             <DialogContent class="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle class="flex items-center gap-2">
-                        <MessageSquare class="w-5 h-5" />
-                        Message Details
+                        <Filter class="h-4 w-4" />
+                        Filter Messages
                     </DialogTitle>
                     <DialogDescription>
-                        Full conversation details and metadata
+                        Apply filters to work order and job text messages.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div v-if="selectedConversation" class="space-y-6">
-                    <!-- Message Content -->
-                    <div class="space-y-3">
-                        <h3 class="font-semibold text-lg">Message</h3>
-                        <div class="border p-4 rounded-lg">
-                            <p class="text-sm whitespace-pre-wrap">
-                                {{ selectedConversation.message }}
+                <div class="grid gap-4 py-2 md:grid-cols-2">
+                    <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm font-medium">Search</label>
+                        <div class="relative">
+                            <Search
+                                class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
+                            />
+                            <Input
+                                v-model="filterForm.search"
+                                type="search"
+                                placeholder="Message, phone number, WO#, Job#"
+                                class="pl-9"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Source</label>
+                        <Select v-model="filterForm.source">
+                            <SelectTrigger>
+                                <SelectValue placeholder="All sources" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="work_order"
+                                    >Work Order</SelectItem
+                                >
+                                <SelectItem
+                                    v-if="canViewJobMessages"
+                                    value="job"
+                                    >Job Text</SelectItem
+                                >
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Read Status</label>
+                        <Select v-model="filterForm.read_status">
+                            <SelectTrigger>
+                                <SelectValue placeholder="All read states" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="read">Read</SelectItem>
+                                <SelectItem value="unread">Unread</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Work Order</label>
+                        <Select v-model="filterForm.work_order_id">
+                            <SelectTrigger>
+                                <SelectValue placeholder="All work orders" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem
+                                    v-for="workOrder in workOrders || []"
+                                    :key="workOrder.id"
+                                    :value="String(workOrder.id)"
+                                >
+                                    {{ workOrder.work_order_no }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Job</label>
+                        <Select
+                            v-model="filterForm.jobber_id"
+                            :disabled="!canViewJobMessages"
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="All jobs" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem
+                                    v-for="job in jobs || []"
+                                    :key="job.id"
+                                    :value="String(job.id)"
+                                >
+                                    {{
+                                        job.job_number || `Job #${job.id}`
+                                    }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm font-medium"
+                            >Twilio Delivery Status</label
+                        >
+                        <Select v-model="filterForm.delivery_status">
+                            <SelectTrigger>
+                                <SelectValue
+                                    placeholder="All delivery statuses"
+                                />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem
+                                    v-for="status in deliveryStatuses || []"
+                                    :key="status"
+                                    :value="status"
+                                >
+                                    {{ twilioStatusLabel(status) }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                <DialogFooter class="gap-2">
+                    <Button variant="outline" @click="clearAllFilters"
+                        >Clear</Button
+                    >
+                    <Button @click="applyFilters">Apply Filters</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-model:open="isViewModalOpen">
+            <DialogContent class="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle class="flex items-center gap-2">
+                        <Eye class="h-4 w-4" />
+                        Message Details
+                    </DialogTitle>
+                    <DialogDescription>
+                        Full message metadata including Twilio delivery status.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div v-if="selectedMessage" class="space-y-5">
+                    <div class="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                Source
+                            </p>
+                            <Badge
+                                :variant="
+                                    selectedMessage.source === 'work_order'
+                                        ? 'default'
+                                        : 'secondary'
+                                "
+                            >
+                                {{ sourceLabel(selectedMessage.source) }}
+                            </Badge>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                Created At
+                            </p>
+                            <p class="text-sm font-medium">
+                                {{ formatDate(selectedMessage.created_at) }}
+                            </p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                From
+                            </p>
+                            <p class="text-sm">
+                                {{ selectedMessage.sender_number || "N/A" }}
+                            </p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                To
+                            </p>
+                            <p class="text-sm">
+                                {{ selectedMessage.receiver_number || "N/A" }}
                             </p>
                         </div>
                     </div>
 
-                    <!-- Metadata -->
-                    <div class="grid gap-4 md:grid-cols-3">
-                        <div class="space-y-3">
-                            <h4 class="font-medium">Sender Information</h4>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-500" />
-                                    <span class="font-medium">Phone:</span>
-                                    <span>{{
-                                        selectedConversation.sender_number ||
-                                        "N/A"
-                                    }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3">
-                            <h4 class="font-medium">Receiver Information</h4>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex items-center gap-2">
-                                    <Phone class="w-4 h-4 text-gray-500" />
-                                    <span class="font-medium">Phone:</span>
-                                    <span>{{
-                                        selectedConversation.receiver_number ||
-                                        "N/A"
-                                    }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3">
-                            <h4 class="font-medium">Message Details</h4>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex gap-1 flex-col">
-                                    <div class="flex gap-2 items-center">
-                                        <Clock class="w-4 h-4" />
-                                        <span class="font-medium">Sent:</span>
-                                    </div>
-
-                                    <span>{{
-                                        formatDate(
-                                            selectedConversation.created_at
-                                        )
-                                    }}</span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <Badge
-                                        :variant="
-                                            selectedConversation.is_read
-                                                ? 'secondary'
-                                                : 'default'
-                                        "
-                                        class="text-xs"
-                                    >
-                                        <CheckCircle
-                                            v-if="selectedConversation.is_read"
-                                            class="w-3 h-3 mr-1"
-                                        />
-                                        <Circle v-else class="w-3 h-3 mr-1" />
-                                        {{
-                                            selectedConversation.is_read
-                                                ? "Read"
-                                                : "Unread"
-                                        }}
-                                    </Badge>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="rounded-md border p-4">
+                        <p class="mb-2 text-xs uppercase text-muted-foreground">
+                            Message
+                        </p>
+                        <p class="whitespace-pre-wrap break-words text-sm">
+                            {{ selectedMessage.message || "No text content" }}
+                        </p>
                     </div>
 
-                    <!-- Work Order Information -->
-                    <div class="space-y-3">
-                        <h4 class="font-medium">Work Order</h4>
-                        <div
-                            v-if="selectedConversation.work_order"
-                            class="flex items-center gap-2 text-sm"
-                        >
-                            <Wrench class="w-4 h-4 text-gray-500" />
-                            <Link
-                                :href="
-                                    route(
-                                        'work_orders.details',
-                                        selectedConversation.work_order_id
+                    <div class="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                Twilio Status
+                            </p>
+                            <Badge
+                                :variant="
+                                    twilioStatusVariant(
+                                        selectedMessage.twilio_status
                                     )
                                 "
-                                class="text-blue-600 hover:text-blue-800 font-medium"
                             >
                                 {{
-                                    selectedConversation.work_order
-                                        .work_order_no
+                                    twilioStatusLabel(
+                                        selectedMessage.twilio_status
+                                    )
                                 }}
-                            </Link>
+                            </Badge>
                         </div>
-                        <div v-else class="text-sm text-gray-500">
-                            No associated work order
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase text-muted-foreground">
+                                Twilio SID
+                            </p>
+                            <p class="text-sm">
+                                {{ selectedMessage.twilio_sid || "N/A" }}
+                            </p>
+                        </div>
+                        <div
+                            v-if="selectedMessage.twilio_error_message"
+                            class="space-y-2 md:col-span-2"
+                        >
+                            <p
+                                class="flex items-center gap-1 text-xs uppercase text-red-600"
+                            >
+                                <AlertCircle class="h-3.5 w-3.5" />
+                                Delivery Error
+                            </p>
+                            <p class="text-sm text-red-700">
+                                {{ selectedMessage.twilio_error_message }}
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-2 mt-6">
-                    <Button variant="outline" @click="closeViewModal">
-                        Close
-                    </Button>
-                    <Button v-if="selectedConversation?.work_order" as-child>
+                <DialogFooter class="gap-2">
+                    <Button variant="outline" @click="closeViewModal"
+                        >Close</Button
+                    >
+                    <Button
+                        v-if="
+                            selectedMessage?.source === 'work_order' &&
+                            selectedMessage?.work_order_id
+                        "
+                        as-child
+                    >
                         <Link
                             :href="
                                 route(
                                     'work_orders.details',
-                                    selectedConversation.work_order_id
+                                    selectedMessage.work_order_id
                                 )
                             "
                         >
-                            View Work Order
+                            <Wrench class="mr-1 h-4 w-4" />
+                            Open Work Order
                         </Link>
                     </Button>
-                </div>
+                    <Button
+                        v-if="
+                            selectedMessage?.source === 'job' &&
+                            selectedMessage?.jobber_id
+                        "
+                        as-child
+                    >
+                        <Link
+                            :href="
+                                route(
+                                    'jobber.jobDetails',
+                                    selectedMessage.jobber_id
+                                )
+                            "
+                        >
+                            <Briefcase class="mr-1 h-4 w-4" />
+                            Open Job
+                        </Link>
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     </div>

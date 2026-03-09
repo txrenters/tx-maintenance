@@ -62,13 +62,11 @@ import {
     CalendarDays,
     LayoutDashboard,
     XIcon,
-    Users,
     UserRoundCheck,
     Circle,
     Files,
     ClipboardList,
     Wrench,
-    Truck,
     BotMessageSquare,
     BadgeAlert,
     Bell,
@@ -200,6 +198,39 @@ const navs = computed(() => {
                 ],
                 requires: ["admin", "woc", "vendor"],
             },
+            {
+                title: "People",
+                url: "#",
+                icon: Users2,
+                isActive:
+                    page.url.startsWith("/WorkOrder/Coordinators") ||
+                    page.url.startsWith("/vendors") ||
+                    page.url.startsWith("/owners") ||
+                    page.url.startsWith("/tenants"),
+                items: [
+                    {
+                        title: "Coordinators",
+                        url: route("work_orders.coordinators"),
+                        isActive: page.url.startsWith("/WorkOrder/Coordinators"),
+                    },
+                    {
+                        title: "Vendors",
+                        url: route("vendors.index"),
+                        isActive: page.url.startsWith("/vendors"),
+                    },
+                    {
+                        title: "Owners",
+                        url: route("owners.index"),
+                        isActive: page.url.startsWith("/owners"),
+                    },
+                    {
+                        title: "Tenants",
+                        url: route("tenants.index"),
+                        isActive: page.url.startsWith("/tenants"),
+                    },
+                ],
+                requires: ["admin", "woc"],
+            },
         ],
         menu: [
             {
@@ -211,13 +242,6 @@ const navs = computed(() => {
             },
         ],
         menu2: [
-            {
-                name: "Coordinators",
-                url: route("work_orders.coordinators"),
-                isActive: page.url.startsWith("/WorkOrder/Coordinators"),
-                icon: Users2,
-                requires: ["admin", "woc"],
-            },
             {
                 name: "Tasks",
                 url: route("tasks.index"),
@@ -248,28 +272,7 @@ const navs = computed(() => {
                 requires: ["admin", "woc"],
             },
             {
-                name: "Vendors",
-                url: route("vendors.index"),
-                isActive: page.url.startsWith("/vendors"),
-                icon: Truck,
-                requires: ["admin", "woc"],
-            },
-            {
-                name: "Owners",
-                url: route("owners.index"),
-                isActive: page.url.startsWith("/owners"),
-                icon: Users,
-                requires: ["admin", "woc"],
-            },
-            {
-                name: "Tenants",
-                url: route("tenants.index"),
-                isActive: page.url.startsWith("/tenants"),
-                icon: Users,
-                requires: ["admin", "woc"],
-            },
-            {
-                name: "Conversations",
+                name: "Messages",
                 url: route("conversation_logs.index"),
                 isActive: page.component === "ConversationLogs",
                 icon: Globe,
