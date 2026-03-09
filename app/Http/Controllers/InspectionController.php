@@ -21,48 +21,56 @@ class InspectionController extends Controller
      */
     public function index(Request $request)
     {
-        $jobs = Jobber::query()
-            ->with(['client', 'visits'])
-            ->filter(request(['search'])) // Add search filter if needed
-            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
-                $start_date = Carbon::parse(request('start_date'))->startOfDay();
-                $end_date = Carbon::parse(request('end_date'))->endOfDay();
+        $jobsPerStatus = 20;
 
-                $q->where(function ($query) use ($start_date, $end_date) {
-                    $query->whereBetween('start_at', [$start_date, $end_date])
-                        ->orWhereBetween('end_at', [$start_date, $end_date]);
+        $baseQuery = Jobber::query()
+            ->filter($request->only(['search']))
+            ->when($request->filled(['start_date', 'end_date']), function ($q) use ($request) {
+                $startDate = Carbon::parse($request->start_date)->startOfDay();
+                $endDate = Carbon::parse($request->end_date)->endOfDay();
+
+                $q->where(function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('start_at', [$startDate, $endDate])
+                        ->orWhereBetween('end_at', [$startDate, $endDate]);
                 });
             })
-            ->whereNotIn('job_status', ['archived', 'closed'])
-            ->orderBy('start_at', 'desc')
-            ->get()
-            ->map(function ($job) {
-                return [
-                    'id' => $job->id,
-                    'job_number' => $job->job_number,
-                    'title' => $job->title,
-                    'job_status' => $job->job_status,
-                    'job_type' => $job->job_type,
-                    'total' => $job->total,
-                    'start_at' => $job->start_at,
-                    'client_name' => $job->client->first_name.' '.$job->client->last_name ?? 'No Client',
-                    'visits_count' => $job->visits->count(),
-                ];
-            });
+            ->whereNotIn('job_status', ['archived', 'closed']);
 
-        $groupedJobs = $jobs->groupBy('job_status');
+        $statusCounts = (clone $baseQuery)
+            ->selectRaw('job_status, COUNT(*) as total')
+            ->groupBy('job_status')
+            ->pluck('total', 'job_status');
 
-        $allStatuses = $jobs->pluck('job_status')->unique()->sortDesc()->values();
+        $allStatuses = $statusCounts->keys()->sortDesc()->values();
 
-        // Format the grouped data for frontend
-        $jobsByStatus = $allStatuses->mapWithKeys(function ($status) use ($groupedJobs) {
-            return [$status => $groupedJobs->get($status, collect())];
+        $jobsByStatus = $allStatuses->mapWithKeys(function ($status) use ($baseQuery, $jobsPerStatus) {
+            $jobs = (clone $baseQuery)
+                ->where('job_status', $status)
+                ->with('client')
+                ->withCount('visits')
+                ->orderBy('start_at', 'desc')
+                ->limit($jobsPerStatus)
+                ->get()
+                ->map(function ($job) {
+                    return [
+                        'id' => $job->id,
+                        'job_number' => $job->job_number,
+                        'title' => $job->title,
+                        'job_status' => $job->job_status,
+                        'job_type' => $job->job_type,
+                        'total' => $job->total,
+                        'start_at' => $job->start_at,
+                        'client_name' => trim(($job->client?->first_name ?? '').' '.($job->client?->last_name ?? '')) ?: 'No Client',
+                        'visits_count' => $job->visits_count ?? 0,
+                    ];
+                });
+
+            return [$status => $jobs];
         });
 
-        // Get statistics
         $statistics = [
-            'total_jobs' => $jobs->count(),
-            'status_counts' => $jobs->countBy('job_status'),
+            'total_jobs' => $statusCounts->sum(),
+            'status_counts' => $statusCounts,
             'statuses' => $allStatuses,
         ];
 
