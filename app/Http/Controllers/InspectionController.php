@@ -82,20 +82,43 @@ class InspectionController extends Controller
         return redirect()->back()->with('success', 'Deleted successfully!');
     }
 
-    public function jobDetails(Jobber $job)
+    public function jobDetails(Request $request, Jobber $job)
+    {
+        $payload = $this->buildJobDetailsPayload($job);
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->query('format') === 'json') {
+            return response()->json($payload);
+        }
+
+        return inertia('Inspection/Show', [
+            'title' => 'Job #'.$job->job_number,
+            'job' => array_merge([
+                'id' => $job->id,
+                'job_number' => $job->job_number,
+                'title' => $job->title,
+                'job_status' => $job->job_status,
+                'job_type' => $job->job_type,
+                'total' => $job->total,
+                'start_at' => $job->start_at,
+                'client_name' => trim(($job->client?->first_name ?? '').' '.($job->client?->last_name ?? '')) ?: null,
+            ], $payload),
+        ]);
+    }
+
+    protected function buildJobDetailsPayload(Jobber $job): array
     {
         $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts']);
 
-        return response()->json([
+        return [
             'jobber_web_uri' => $job->jobber_web_uri,
             'instructions' => $job->instructions,
             'end_at' => $job->end_at,
             'completed_at' => $job->completed_at,
             'client' => $job->client ?? null,
-            'client_id' => $job->client->id ?? null,
-            'phone' => $job->client->phone,
-            'client_company' => $job->client->company_name ?? null,
-            'property_id' => $job->property->id ?? null,
+            'client_id' => $job->client?->id,
+            'phone' => $job->client?->phone,
+            'client_company' => $job->client?->company_name,
+            'property_id' => $job->property?->id,
             'property_address' => $job->property ?
                 trim($job->property->street.' '.$job->property->city.' '.$job->property->province.' '.$job->property->postal_code.' '.$job->property->country)
                 : 'No Property',
@@ -105,13 +128,19 @@ class InspectionController extends Controller
                 return [
                     'id' => $message->id,
                     'message' => $message->messages,
+                    'messages' => $message->messages,
                     'sender_number' => $message->sender_number,
                     'receiver_number' => $message->receiver_number,
                     'image' => $message->image ? asset('storage/'.$message->image) : null,
-                    'is_mms' => ! empty($message->image), // Set MMS flag for images
+                    'is_mms' => ! empty($message->image),
                     'created_at' => $message->created_at,
+                    'sent_at' => $message->sent_at,
+                    'twilio_status' => $message->twilio_status,
+                    'twilio_error_code' => $message->twilio_error_code,
+                    'twilio_error_message' => $message->twilio_error_message,
+                    'twilio_sid' => $message->twilio_sid,
                 ];
-            }),
+            })->values(),
             'text_messages_count' => $job->textMessages->count(),
             'client_contacts' => $job->clientContacts->map(function ($client) {
                 return [
@@ -119,8 +148,8 @@ class InspectionController extends Controller
                     'client' => $client->name,
                     'phone' => $client->phone,
                 ];
-            }),
-        ]);
+            })->values(),
+        ];
     }
 
     public function messages(Request $request)

@@ -136,9 +136,12 @@ const openJobModal = async (job) => {
     jobDetailsController = new AbortController();
 
     try {
-        const response = await axios.get(route("jobber.jobDetails", job.id), {
-            signal: jobDetailsController.signal,
-        });
+        const response = await axios.get(
+            route("jobber.jobDetails", { job: job.id, format: "json" }),
+            {
+                signal: jobDetailsController.signal,
+            }
+        );
 
         selectedJob.value = { ...job, ...response.data };
         isModalOpen.value = true;
