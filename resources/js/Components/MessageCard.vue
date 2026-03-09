@@ -198,10 +198,7 @@ const openMedia = (mediaUrl) => {
                         "
                     >
                         <span
-                            v-if="
-                                msg.sender_number === sender &&
-                                msg.twilio_status
-                            "
+                            v-if="msg.twilio_status"
                             class="inline-flex items-center gap-1 font-semibold"
                             :class="
                                 getTwilioStatusTextClasses(msg.twilio_status)
