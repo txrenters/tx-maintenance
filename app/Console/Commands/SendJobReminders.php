@@ -80,7 +80,7 @@ class SendJobReminders extends Command
             ->get();
 
         $twilio = new TwilioService;
-        $senderNumber = env('TWILIO_PHONE_NUMBER');
+        $senderNumber = env('TWILIO_PHONE_NUMBER'); // this is for THMP phone number
         $hasVisitColumn = JobberTextMessage::hasVisitColumn();
         $messageColumns = $this->getMessageColumnAvailability();
 

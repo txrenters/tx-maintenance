@@ -7,6 +7,7 @@ use App\Services\TwilioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -52,6 +53,7 @@ class JobberTextMessageController extends Controller
         try {
             $hasVisitColumn = JobberTextMessage::hasVisitColumn();
             $visitId = $hasVisitColumn ? ($validatedData['jobber_visit_id'] ?? null) : null;
+            $messageColumns = $this->getMessageColumnAvailability();
 
             // Handle image upload if present
             $imagePath = null;
@@ -106,8 +108,9 @@ class JobberTextMessageController extends Controller
                     }
 
                     // Only send SMS if there's content (text or image note)
+                    $twilioMessage = null;
                     if (! empty($messageContent)) {
-                        $twilio->sendMessage(
+                        $twilioMessage = $twilio->sendMessage(
                             $receiverNumber,
                             $senderNumber,
                             $messageContent,
@@ -126,6 +129,31 @@ class JobberTextMessageController extends Controller
 
                     if ($hasVisitColumn) {
                         $payload['jobber_visit_id'] = $visitId;
+                    }
+
+                    if ($messageColumns['status']) {
+                        $payload['status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['sent_at']) {
+                        $payload['sent_at'] = now();
+                    }
+                    if ($messageColumns['error_message']) {
+                        $payload['error_message'] = null;
+                    }
+                    if ($messageColumns['twilio_sid']) {
+                        $payload['twilio_sid'] = $twilioMessage->sid ?? null;
+                    }
+                    if ($messageColumns['twilio_status']) {
+                        $payload['twilio_status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['twilio_status_updated_at']) {
+                        $payload['twilio_status_updated_at'] = now();
+                    }
+                    if ($messageColumns['twilio_error_code']) {
+                        $payload['twilio_error_code'] = null;
+                    }
+                    if ($messageColumns['twilio_error_message']) {
+                        $payload['twilio_error_message'] = null;
                     }
 
                     $jobberTextMessage = JobberTextMessage::create($payload);
@@ -182,6 +210,20 @@ class JobberTextMessageController extends Controller
         }
 
         return '+'.$cleanedNumber;
+    }
+
+    protected function getMessageColumnAvailability(): array
+    {
+        return [
+            'status' => Schema::hasColumn('jobber_text_messages', 'status'),
+            'sent_at' => Schema::hasColumn('jobber_text_messages', 'sent_at'),
+            'error_message' => Schema::hasColumn('jobber_text_messages', 'error_message'),
+            'twilio_sid' => Schema::hasColumn('jobber_text_messages', 'twilio_sid'),
+            'twilio_status' => Schema::hasColumn('jobber_text_messages', 'twilio_status'),
+            'twilio_status_updated_at' => Schema::hasColumn('jobber_text_messages', 'twilio_status_updated_at'),
+            'twilio_error_code' => Schema::hasColumn('jobber_text_messages', 'twilio_error_code'),
+            'twilio_error_message' => Schema::hasColumn('jobber_text_messages', 'twilio_error_message'),
+        ];
     }
 
     public function show(JobberTextMessage $jobberTextMessage)

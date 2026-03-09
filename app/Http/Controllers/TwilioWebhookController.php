@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class TwilioWebhookController extends Controller
 {
@@ -213,42 +214,81 @@ class TwilioWebhookController extends Controller
             }
 
             $conversation = Conversation::where('twilio_sid', $messageSid)->latest('id')->first();
-            if (! $conversation) {
-                Log::warning('Twilio status callback received for unknown SID', [
-                    'sid' => $messageSid,
-                    'status' => $messageStatus,
-                    'to' => $request->input('To'),
-                    'from' => $request->input('From'),
+            if ($conversation) {
+                $conversation->update([
+                    'twilio_status' => $messageStatus !== '' ? $messageStatus : null,
+                    'twilio_status_updated_at' => now(),
+                    'twilio_error_code' => $errorCode ? (string) $errorCode : null,
+                    'twilio_error_message' => $errorMessage ?: null,
                 ]);
+
+                if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
+                    Log::warning('Twilio delivery failure', [
+                        'conversation_id' => $conversation->id,
+                        'work_order_id' => $conversation->work_order_id,
+                        'sid' => $messageSid,
+                        'status' => $messageStatus,
+                        'error_code' => $errorCode,
+                        'error_message' => $errorMessage,
+                        'to' => $conversation->receiver_number,
+                        'from' => $conversation->sender_number,
+                    ]);
+                } else {
+                    Log::info('Twilio delivery status updated', [
+                        'conversation_id' => $conversation->id,
+                        'sid' => $messageSid,
+                        'status' => $messageStatus,
+                    ]);
+                }
 
                 return response()->noContent();
             }
 
-            $conversation->update([
-                'twilio_status' => $messageStatus !== '' ? $messageStatus : null,
-                'twilio_status_updated_at' => now(),
-                'twilio_error_code' => $errorCode ? (string) $errorCode : null,
-                'twilio_error_message' => $errorMessage ?: null,
-            ]);
+            if (Schema::hasColumn('jobber_text_messages', 'twilio_sid')) {
+                $jobberMessage = JobberTextMessage::where('twilio_sid', $messageSid)->latest('id')->first();
 
-            if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
-                Log::warning('Twilio delivery failure', [
-                    'conversation_id' => $conversation->id,
-                    'work_order_id' => $conversation->work_order_id,
-                    'sid' => $messageSid,
-                    'status' => $messageStatus,
-                    'error_code' => $errorCode,
-                    'error_message' => $errorMessage,
-                    'to' => $conversation->receiver_number,
-                    'from' => $conversation->sender_number,
-                ]);
-            } else {
-                Log::info('Twilio delivery status updated', [
-                    'conversation_id' => $conversation->id,
-                    'sid' => $messageSid,
-                    'status' => $messageStatus,
-                ]);
+                if ($jobberMessage) {
+                    $updates = [];
+
+                    if (Schema::hasColumn('jobber_text_messages', 'twilio_status')) {
+                        $updates['twilio_status'] = $messageStatus !== '' ? $messageStatus : null;
+                    }
+                    if (Schema::hasColumn('jobber_text_messages', 'twilio_status_updated_at')) {
+                        $updates['twilio_status_updated_at'] = now();
+                    }
+                    if (Schema::hasColumn('jobber_text_messages', 'twilio_error_code')) {
+                        $updates['twilio_error_code'] = $errorCode ? (string) $errorCode : null;
+                    }
+                    if (Schema::hasColumn('jobber_text_messages', 'twilio_error_message')) {
+                        $updates['twilio_error_message'] = $errorMessage ?: null;
+                    }
+                    if (Schema::hasColumn('jobber_text_messages', 'status')) {
+                        $updates['status'] = $messageStatus !== '' ? $messageStatus : null;
+                    }
+                    if (Schema::hasColumn('jobber_text_messages', 'error_message')) {
+                        $updates['error_message'] = $errorMessage ?: null;
+                    }
+
+                    if (! empty($updates)) {
+                        $jobberMessage->update($updates);
+                    }
+
+                    Log::info('Twilio delivery status updated for jobber message', [
+                        'jobber_text_message_id' => $jobberMessage->id,
+                        'sid' => $messageSid,
+                        'status' => $messageStatus,
+                    ]);
+
+                    return response()->noContent();
+                }
             }
+
+            Log::warning('Twilio status callback received for unknown SID', [
+                'sid' => $messageSid,
+                'status' => $messageStatus,
+                'to' => $request->input('To'),
+                'from' => $request->input('From'),
+            ]);
         } catch (\Throwable $e) {
             Log::error('Twilio status callback processing failed', [
                 'error' => $e->getMessage(),
