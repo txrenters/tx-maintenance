@@ -4,6 +4,7 @@ import { Head, Link, router } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import Pagination from "@/Components/Pagination.vue";
 import PaginationResultRange from "@/Components/PaginationResultRange.vue";
+import SearchBar from "@/Components/SearchBar.vue";
 import { Badge } from "@/Components/ui/badge";
 import { Button } from "@/Components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
@@ -58,6 +59,8 @@ const props = defineProps({
 const isFilterModalOpen = ref(false);
 const isViewModalOpen = ref(false);
 const selectedMessage = ref(null);
+const url = route("conversation_logs.index");
+const search = ref(props.filters?.search || "");
 
 const filterForm = reactive({
     search: props.filters?.search || "",
@@ -202,116 +205,35 @@ const truncateMessage = (message, length = 120) => {
     <Head :title="title || 'Messages'" />
 
     <div class="space-y-6">
-        <Card
-            class="border-none bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white"
-        >
-            <CardContent class="pt-6">
-                <div
-                    class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-                >
-                    <div class="space-y-1">
-                        <h1 class="text-2xl font-bold md:text-3xl">Messages</h1>
-                        <p class="text-sm text-slate-300">
-                            Unified feed for Work Order and Job text messages
-                            with Twilio delivery status.
-                        </p>
-                    </div>
-                    <div class="flex gap-2">
-                        <Button
-                            variant="secondary"
-                            class="gap-2"
-                            @click="openFilters"
-                        >
-                            <Filter class="h-4 w-4" />
-                            Filters
-                            <Badge
-                                v-if="activeFiltersCount"
-                                variant="default"
-                                class="ml-1 bg-slate-900 text-white"
-                            >
-                                {{ activeFiltersCount }}
-                            </Badge>
-                        </Button>
-                        <Button
-                            variant="outline"
-                            class="gap-2 border-slate-500 bg-transparent text-white hover:bg-slate-700"
-                            @click="clearAllFilters"
-                        >
-                            <RefreshCcw class="h-4 w-4" />
-                            Reset
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <Card>
-                <CardHeader class="pb-2">
-                    <CardTitle class="text-xs font-medium text-muted-foreground"
-                        >Total</CardTitle
+        <div class="flex gap-3 flex-col sm:flex-row items-center justify-between">
+            <SearchBar :url="url" v-model="search" class="w-full" />
+            <div class="flex gap-2">
+                <Button variant="outline" class="gap-2" @click="openFilters">
+                    <Filter class="h-4 w-4" />
+                    Filters
+                    <Badge
+                        v-if="activeFiltersCount"
+                        variant="secondary"
+                        class="ml-1"
                     >
-                </CardHeader>
-                <CardContent class="pt-0">
-                    <p class="text-2xl font-semibold">{{ stats?.total || 0 }}</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader class="pb-2">
-                    <CardTitle class="text-xs font-medium text-muted-foreground"
-                        >Work Order</CardTitle
-                    >
-                </CardHeader>
-                <CardContent class="pt-0">
-                    <p class="text-2xl font-semibold">
-                        {{ stats?.work_order_total || 0 }}
-                    </p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader class="pb-2">
-                    <CardTitle class="text-xs font-medium text-muted-foreground"
-                        >Job Text</CardTitle
-                    >
-                </CardHeader>
-                <CardContent class="pt-0">
-                    <p class="text-2xl font-semibold">
-                        {{ stats?.job_total || 0 }}
-                    </p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader class="pb-2">
-                    <CardTitle class="text-xs font-medium text-muted-foreground"
-                        >Delivery Tracked</CardTitle
-                    >
-                </CardHeader>
-                <CardContent class="pt-0">
-                    <p class="text-2xl font-semibold">
-                        {{ stats?.with_delivery_status || 0 }}
-                    </p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader class="pb-2">
-                    <CardTitle class="text-xs font-medium text-muted-foreground"
-                        >Delivery Failed</CardTitle
-                    >
-                </CardHeader>
-                <CardContent class="pt-0">
-                    <p class="text-2xl font-semibold text-red-600">
-                        {{ stats?.failed || 0 }}
-                    </p>
-                </CardContent>
-            </Card>
+                        {{ activeFiltersCount }}
+                    </Badge>
+                </Button>
+                <Button variant="outline" class="gap-2" @click="clearAllFilters">
+                    <RefreshCcw class="h-4 w-4" />
+                    Reset
+                </Button>
+            </div>
         </div>
 
         <Card>
             <CardHeader class="pb-2">
                 <div class="flex items-center justify-between gap-2">
-                    <CardTitle class="text-lg">Message Feed</CardTitle>
+                    <CardTitle class="text-lg">Messages</CardTitle>
                     <span class="text-xs text-muted-foreground">
-                        {{ messages?.total || 0 }} result(s)
+                        {{ messages?.total || 0 }} result(s) • WO:
+                        {{ stats?.work_order_total || 0 }} • Jobs:
+                        {{ stats?.job_total || 0 }}
                     </span>
                 </div>
             </CardHeader>
