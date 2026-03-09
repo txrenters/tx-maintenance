@@ -41,8 +41,8 @@ class ConversationLogsController extends Controller
 
         $statsRow = (clone $messagesQuery)
             ->selectRaw('COUNT(*) as total')
-            ->selectRaw("SUM(CASE WHEN source = 'work_order' AND is_read = 1 THEN 1 ELSE 0 END) as read")
-            ->selectRaw("SUM(CASE WHEN source = 'work_order' AND is_read = 0 THEN 1 ELSE 0 END) as unread")
+            ->selectRaw("SUM(CASE WHEN source = 'work_order' AND is_read = 1 THEN 1 ELSE 0 END) as read_count")
+            ->selectRaw("SUM(CASE WHEN source = 'work_order' AND is_read = 0 THEN 1 ELSE 0 END) as unread_count")
             ->selectRaw("SUM(CASE WHEN source = 'work_order' THEN 1 ELSE 0 END) as work_order_total")
             ->selectRaw("SUM(CASE WHEN source = 'job' THEN 1 ELSE 0 END) as job_total")
             ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(twilio_status, '')) IN ('failed', 'undelivered', 'canceled') THEN 1 ELSE 0 END) as failed")
@@ -88,8 +88,8 @@ class ConversationLogsController extends Controller
 
         $stats = [
             'total' => (int) ($statsRow->total ?? 0),
-            'read' => (int) ($statsRow->read ?? 0),
-            'unread' => (int) ($statsRow->unread ?? 0),
+            'read' => (int) ($statsRow->read_count ?? 0),
+            'unread' => (int) ($statsRow->unread_count ?? 0),
             'work_order_total' => (int) ($statsRow->work_order_total ?? 0),
             'job_total' => (int) ($statsRow->job_total ?? 0),
             'failed' => (int) ($statsRow->failed ?? 0),
