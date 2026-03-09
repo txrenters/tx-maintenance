@@ -206,6 +206,13 @@ class ConversationController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
+            if ($conversation) {
+                return redirect()->back()->withErrors([
+                    'message' => 'Message saved, but Twilio could not send it.',
+                    'details' => $e->getMessage(),
+                ]);
+            }
+
             return redirect()->back()->withErrors([
                 'message' => 'Could not send message. Please try again.',
             ]);

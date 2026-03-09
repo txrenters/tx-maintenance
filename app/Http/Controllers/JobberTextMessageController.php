@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\JobberTextMessage;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -48,8 +47,6 @@ class JobberTextMessageController extends Controller
         $senderNumber = $validatedData['sender_number'];
         $receiverNumbers = array_map([$this, 'formatNumber'], $validatedData['receiver_numbers']);
 
-        DB::beginTransaction();
-
         try {
             $hasVisitColumn = JobberTextMessage::hasVisitColumn();
             $visitId = $hasVisitColumn ? ($validatedData['jobber_visit_id'] ?? null) : null;
@@ -67,6 +64,7 @@ class JobberTextMessageController extends Controller
             }
 
             $twilio = new TwilioService;
+            $savedMessages = [];
             $sentMessages = [];
             $failedRecipients = [];
 
@@ -87,6 +85,8 @@ class JobberTextMessageController extends Controller
 
             // Send message to each recipient
             foreach ($receiverNumbers as $receiverNumber) {
+                $jobberTextMessage = null;
+
                 try {
                     // Check for duplicate messages sent within the last 1 minute to prevent double-submission
                     $recentMessageQuery = JobberTextMessage::where('receiver_number', $receiverNumber)
@@ -98,6 +98,18 @@ class JobberTextMessageController extends Controller
                         $recentMessageQuery->where('jobber_visit_id', $visitId);
                     }
 
+                    if ($messageColumns['twilio_status']) {
+                        $recentMessageQuery->where(function ($query) {
+                            $query->whereNull('twilio_status')
+                                ->orWhereNotIn('twilio_status', ['failed', 'undelivered', 'canceled']);
+                        });
+                    } elseif ($messageColumns['status']) {
+                        $recentMessageQuery->where(function ($query) {
+                            $query->whereNull('status')
+                                ->orWhere('status', '!=', 'failed');
+                        });
+                    }
+
                     $recentMessage = $recentMessageQuery->first();
 
                     if ($recentMessage) {
@@ -107,18 +119,6 @@ class JobberTextMessageController extends Controller
                         continue;
                     }
 
-                    // Only send SMS if there's content (text or image note)
-                    $twilioMessage = null;
-                    if (! empty($messageContent)) {
-                        $twilioMessage = $twilio->sendMessage(
-                            $receiverNumber,
-                            $senderNumber,
-                            $messageContent,
-                            $mediaUrl
-                        );
-                    }
-
-                    // Save the message to the database AFTER successful send
                     $payload = [
                         'messages' => $validatedData['messages'] ?? '',
                         'sender_number' => $senderNumber,
@@ -132,19 +132,16 @@ class JobberTextMessageController extends Controller
                     }
 
                     if ($messageColumns['status']) {
-                        $payload['status'] = $twilioMessage->status ?? 'queued';
-                    }
-                    if ($messageColumns['sent_at']) {
-                        $payload['sent_at'] = now();
+                        $payload['status'] = 'pending';
                     }
                     if ($messageColumns['error_message']) {
                         $payload['error_message'] = null;
                     }
                     if ($messageColumns['twilio_sid']) {
-                        $payload['twilio_sid'] = $twilioMessage->sid ?? null;
+                        $payload['twilio_sid'] = null;
                     }
                     if ($messageColumns['twilio_status']) {
-                        $payload['twilio_status'] = $twilioMessage->status ?? 'queued';
+                        $payload['twilio_status'] = 'pending';
                     }
                     if ($messageColumns['twilio_status_updated_at']) {
                         $payload['twilio_status_updated_at'] = now();
@@ -157,18 +154,86 @@ class JobberTextMessageController extends Controller
                     }
 
                     $jobberTextMessage = JobberTextMessage::create($payload);
+                    $savedMessages[] = $jobberTextMessage;
 
-                    $sentMessages[] = $jobberTextMessage;
-                } catch (\Exception $e) {
+                    // Only send SMS if there's content (text or image note)
+                    $twilioMessage = null;
+                    if (! empty($messageContent)) {
+                        $twilioMessage = $twilio->sendMessage(
+                            $receiverNumber,
+                            $senderNumber,
+                            $messageContent,
+                            $mediaUrl
+                        );
+                    }
+
+                    $successUpdates = [];
+                    if ($messageColumns['status']) {
+                        $successUpdates['status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['sent_at']) {
+                        $successUpdates['sent_at'] = now();
+                    }
+                    if ($messageColumns['error_message']) {
+                        $successUpdates['error_message'] = null;
+                    }
+                    if ($messageColumns['twilio_sid']) {
+                        $successUpdates['twilio_sid'] = $twilioMessage->sid ?? null;
+                    }
+                    if ($messageColumns['twilio_status']) {
+                        $successUpdates['twilio_status'] = $twilioMessage->status ?? 'queued';
+                    }
+                    if ($messageColumns['twilio_status_updated_at']) {
+                        $successUpdates['twilio_status_updated_at'] = now();
+                    }
+                    if ($messageColumns['twilio_error_code']) {
+                        $successUpdates['twilio_error_code'] = null;
+                    }
+                    if ($messageColumns['twilio_error_message']) {
+                        $successUpdates['twilio_error_message'] = null;
+                    }
+
+                    $jobberTextMessage->update($successUpdates);
+
+                    $sentMessages[] = $jobberTextMessage->fresh();
+                } catch (\Throwable $e) {
                     Log::error("Failed to send message to {$receiverNumber}: ".$e->getMessage());
+
+                    if ($jobberTextMessage) {
+                        $failedUpdates = [];
+                        if ($messageColumns['status']) {
+                            $failedUpdates['status'] = 'failed';
+                        }
+                        if ($messageColumns['sent_at']) {
+                            $failedUpdates['sent_at'] = now();
+                        }
+                        if ($messageColumns['error_message']) {
+                            $failedUpdates['error_message'] = $e->getMessage();
+                        }
+                        if ($messageColumns['twilio_sid']) {
+                            $failedUpdates['twilio_sid'] = null;
+                        }
+                        if ($messageColumns['twilio_status']) {
+                            $failedUpdates['twilio_status'] = 'failed';
+                        }
+                        if ($messageColumns['twilio_status_updated_at']) {
+                            $failedUpdates['twilio_status_updated_at'] = now();
+                        }
+                        if ($messageColumns['twilio_error_code']) {
+                            $failedUpdates['twilio_error_code'] = $e->getCode() ? (string) $e->getCode() : null;
+                        }
+                        if ($messageColumns['twilio_error_message']) {
+                            $failedUpdates['twilio_error_message'] = $e->getMessage();
+                        }
+
+                        $jobberTextMessage->update($failedUpdates);
+                    }
+
                     $failedRecipients[] = $receiverNumber;
                 }
             }
 
-            // Commit the transaction if at least one message was sent successfully
             if (! empty($sentMessages)) {
-                DB::commit();
-
                 $successMessage = count($sentMessages).' message(s) sent successfully!';
                 if (! empty($failedRecipients)) {
                     $successMessage .= ' Failed to send to: '.implode(', ', $failedRecipients);
@@ -180,15 +245,19 @@ class JobberTextMessageController extends Controller
                     'message' => $successMessage,
                     'data' => $sentMessages,
                 ]);
-            } else {
-                // All messages failed
-                DB::rollBack();
-                throw new \Exception('Failed to send messages to all recipients.');
             }
 
-        } catch (\Exception $e) {
-            // Roll back the transaction in case of an error
-            DB::rollBack();
+            if (! empty($savedMessages)) {
+                return redirect()->back()->withErrors([
+                    'error' => 'Message saved, but Twilio could not send it to: '.implode(', ', $failedRecipients),
+                ])->with([
+                    'data' => JobberTextMessage::whereKey(collect($savedMessages)->pluck('id'))->get(),
+                ]);
+            }
+
+            throw new \RuntimeException('Failed to send messages to all recipients.');
+
+        } catch (\Throwable $e) {
 
             // Log the error
             Log::error('Failed to send jobber text message: '.$e->getMessage());
