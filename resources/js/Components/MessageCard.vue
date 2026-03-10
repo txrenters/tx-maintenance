@@ -70,7 +70,7 @@ const getTwilioStatusTextClasses = (status) => {
         case "undelivered":
         case "failed":
         case "canceled":
-            return "text-red-300";
+            return "text-red-600";
         default:
             return "text-white";
     }
@@ -229,6 +229,12 @@ const openMedia = (mediaUrl) => {
                     From: {{ msg.sender_number }}
                 </p>
             </div>
+            <p
+                v-if="msg.twilio_error_message"
+                class="mt-1 text-xs text-red-600"
+            >
+                Error: {{ msg.twilio_error_message }}
+            </p>
         </div>
     </div>
 </template>
