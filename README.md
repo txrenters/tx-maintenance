@@ -1,6 +1,6 @@
-# TX Work Order
+# TexasRenters.com Maintenance
 
-TX Work Order is a Laravel + Inertia/Vue application used to run TexasRenters maintenance operations. It is not just a ticket list. The app combines work-order coordination, vendor workflows, owner/tenant communication, inspections/jobs from Jobber, scheduled service, invoicing, attachments, notes, and Twilio-based messaging.
+TexasRenters.com Maintenance is a Laravel + Inertia/Vue application used to run TexasRenters maintenance operations. It is not just a ticket list. The app combines work-order coordination, vendor workflows, owner/tenant communication, inspections/jobs from Jobber, scheduled service, invoicing, attachments, notes, and Twilio-based messaging.
 
 ## What the app does
 
@@ -22,15 +22,15 @@ Primary operational area of the application.
 - Controller: `app/Http/Controllers/WorkOrderController.php`
 - Card view by service status: `resources/js/Pages/WorkOrder/Partials/WorkOrderCard.vue`
 - Detailed work order view includes:
-  - details
-  - tasks
-  - notes
-  - vendor edit
-  - multiple conversation tabs by role
-  - service schedule
-  - attachments
-  - invoices
-  - general conversation thread
+    - details
+    - tasks
+    - notes
+    - vendor edit
+    - multiple conversation tabs by role
+    - service schedule
+    - attachments
+    - invoices
+    - general conversation thread
 
 Special work-order queues exposed in navigation:
 
@@ -67,12 +67,12 @@ Jobber is used for jobs, visits, and related text-message workflows.
 - Page: `resources/js/Pages/Inspection/Index.vue`
 - Controller: `app/Http/Controllers/InspectionController.php`
 - Related routes:
-  - `/inspections`
-  - `/visits`
-  - `/jobber-connect`
-  - `/jobber-sync`
-  - `/inspections/{job}/details`
-  - `/inspections/text/messages`
+    - `/inspections`
+    - `/visits`
+    - `/jobber-connect`
+    - `/jobber-sync`
+    - `/inspections/{job}/details`
+    - `/inspections/text/messages`
 
 This area supports:
 
@@ -165,9 +165,9 @@ Important behavior:
 
 - admins, WOCs, and accounting users are effectively unscoped for work orders
 - vendors are limited to work orders linked through:
-  - vendor assignments
-  - tasks assigned to that user
-  - attachments uploaded by that user
+    - vendor assignments
+    - tasks assigned to that user
+    - attachments uploaded by that user
 - owners are scoped by matching owner email
 - tenants are scoped by `tenant_id`
 
