@@ -33,7 +33,7 @@ jobs:
       - name: Install Node.js and npm
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Copy .env file
         run: |
@@ -45,7 +45,7 @@ jobs:
           echo "REVERB_PORT=${{ secrets.REVERB_PORT }}" >> .env
           echo "REVERB_SCHEME=${{ secrets.REVERB_SCHEME }}" >> .env
 
-          echo "VITE_APP_NAME='TX Maintenance Portal'" >> .env
+          echo "VITE_APP_NAME='TexasRenters.com Maintenance'" >> .env
 
           echo "VITE_REVERB_APP_KEY=${{ secrets.VITE_REVERB_APP_KEY }}" >> .env
           echo "VITE_REVERB_HOST=${{ secrets.VITE_REVERB_HOST }}" >> .env
