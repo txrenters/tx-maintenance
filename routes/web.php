@@ -33,9 +33,10 @@ use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
-    return redirect()->route('login');
+    return Inertia::render('Welcome');
 });
 
 Route::middleware([

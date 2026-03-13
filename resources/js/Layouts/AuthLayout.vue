@@ -28,10 +28,11 @@ const currentYear = new Date().getFullYear();
                         class="font-bold text-primary text-decoration-none"
                         >TexasRenters.com</a
                     >
-                    Maintenance Portal. All rights reserved.
+                    Maintenance. All rights reserved.
                     <br />
                     <span>
-                        Developed and maintained by Texas Renters IT Department.
+                        Developed and maintained by TexasRenters.com IT
+                        Department.
                     </span>
                 </div>
             </div>
