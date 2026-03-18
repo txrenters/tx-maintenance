@@ -41,7 +41,7 @@ jobs:
       - name: Copy .env file
         run: |
           cp .env.example .env
-          echo "QUEUE_CONNECTION=redis" >> .env
+          echo "QUEUE_CONNECTION=database" >> .env
           echo "REDIS_CLIENT=phpredis" >> .env
           echo "REVERB_APP_ID=${{ secrets.REVERB_APP_ID }}" >> .env
           echo "REVERB_APP_KEY=${{ secrets.REVERB_APP_KEY }}" >> .env
