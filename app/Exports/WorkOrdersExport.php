@@ -4,16 +4,14 @@ namespace App\Exports;
 
 use App\Models\WorkOrder;
 use Carbon\Carbon;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
-use Maatwebsite\Excel\Concerns\WithHeadings;
+use Illuminate\Support\Collection;
 
-class WorkOrdersExport implements FromCollection, ShouldAutoSize, WithHeadings
+class WorkOrdersExport
 {
     /**
-     * @return \Illuminate\Support\Collection
+     * @return Collection<int, array<string, mixed>>
      */
-    public function collection()
+    public function rows(): Collection
     {
         return WorkOrder::with([
             'service_status', 'requested_by', 'vendors', 'managed_by', 'owners',

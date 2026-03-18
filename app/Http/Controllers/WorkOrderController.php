@@ -20,7 +20,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
-use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkOrderController extends Controller
 {
@@ -999,8 +1002,38 @@ class WorkOrderController extends Controller
         return redirect()->back()->with('success', 'Work orders updated successfully.');
     }
 
-    public function export()
+    public function export(): StreamedResponse
     {
-        return Excel::download(new WorkOrdersExport, 'Work_Orders_Export_'.date('d-m-Y-h-i').'.xlsx');
+        $export = new WorkOrdersExport;
+        $spreadsheet = $this->buildWorkOrdersSpreadsheet($export);
+        $filename = 'Work_Orders_Export_'.date('d-m-Y-h-i').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function buildWorkOrdersSpreadsheet(WorkOrdersExport $export): Spreadsheet
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $rows = [
+            $export->headings(),
+            ...$export->rows()->map(fn (array $row) => array_values($row))->all(),
+        ];
+
+        $sheet->fromArray($rows);
+
+        foreach (range(1, count($export->headings())) as $columnIndex) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($columnIndex))
+                ->setAutoSize(true);
+        }
+
+        return $spreadsheet;
     }
 }

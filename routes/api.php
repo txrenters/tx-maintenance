@@ -10,7 +10,6 @@ use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TwilioWebhookController;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -38,16 +37,13 @@ Route::post('/service_schedule/{serviceSchedule}/complete', [ServiceScheduleCont
 Route::delete('/service_schedule/{serviceSchedule}', [ServiceScheduleController::class, 'destroy'])->name('service_schedule.destroy');
 
 Route::post('/twilio/webhook', [TwilioWebhookController::class, 'handle'])
-    ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute
 
 Route::post('/twilio/status-callback', [TwilioWebhookController::class, 'statusCallback'])
     ->name('twilio.status_callback')
-    ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:120,1');
 
 Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
-    ->withoutMiddleware([VerifyCsrfToken::class])
     ->middleware('throttle:60,1'); // 60 requests per minute;
 
 Route::put('/notifications/{activity}/mark-as-read', [NotificationController::class, 'markAsRead']);
@@ -70,6 +66,5 @@ Route::prefix('v1')->group(function () {
     Route::get('/conversations', [APIConversationController::class, 'index']);
 
     Route::post('/tex/webhook', [TwilioWebhookController::class, 'handle'])
-        ->withoutMiddleware([VerifyCsrfToken::class])
         ->middleware('throttle:60,1'); // 60 requests per minute
 });
