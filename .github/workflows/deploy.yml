@@ -55,6 +55,12 @@ jobs:
           echo "VITE_REVERB_PORT=${{ secrets.VITE_REVERB_PORT }}" >> .env
           echo "VITE_REVERB_SCHEME=${{ secrets.VITE_REVERB_SCHEME }}" >> .env
 
+      - name: Clear config cache FIRST
+        run: php artisan config:clear
+
+      - name: Clear all caches
+        run: php artisan optimize:clear
+
       - name: Install npm dependencies
         run: npm ci
 
@@ -63,7 +69,6 @@ jobs:
 
       - name: Optimize Laravel Application
         run: |
-          php artisan optimize:clear
           php artisan route:cache
           php artisan view:cache
           php artisan event:cache
