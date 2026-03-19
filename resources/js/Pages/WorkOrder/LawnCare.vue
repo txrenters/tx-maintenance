@@ -555,6 +555,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.location = order.location;
         workOrderForm.managed_by = order.managed_by;
         workOrderForm.requested = order.requested_by;
+        workOrderVendors.value = order.vendors ?? [];
         workOrderForm.vendors =
             order.local_status === "Created"
                 ? Object.values(order.vendors).map((vendor) => vendor.name)
@@ -1028,6 +1029,7 @@ const page = usePage();
             <Invoices
                 :workOrderInvoices="workOrderInvoices"
                 :workOrder="workOrderForm"
+                :assignedVendors="workOrderVendors"
                 :isLoading="isLoading"
                 @fetch-invoices="fetchInvoices(workOrderForm.id)"
                 v-if="activeTab === 'invoices'"

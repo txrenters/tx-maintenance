@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -229,7 +229,14 @@ const vendorOwnerConversation = ref([]);
 const vendorTenantConversation = ref([]);
 const workOrderOwners = ref([]);
 const workOrderTenants = ref([]);
-const workOrderVendors = ref([]);
+const workOrderVendors = ref(order.vendors ?? []);
+
+watch(
+    () => props.workOrder?.vendors,
+    (vendors) => {
+        workOrderVendors.value = vendors ?? [];
+    },
+);
 
 // ── Fetch helpers (same as Index.vue) ─────────────────────────────────────────
 const fetchOwnerConversation = async () => {
@@ -667,6 +674,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'invoices'"
                 :workOrderInvoices="workOrderInvoices"
                 :workOrder="workOrderForm"
+                :assignedVendors="workOrderVendors"
                 :isLoading="isLoading"
                 @fetch-invoices="fetchInvoices"
             />

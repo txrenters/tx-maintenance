@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
 import { Loader2, File } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -11,6 +11,10 @@ const props = defineProps({
     workOrderInvoices: Object,
     isLoading: Boolean,
     workOrder: Object,
+    assignedVendors: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(["fetch-invoices"]);
@@ -35,6 +39,12 @@ const updateInvoiceForm = useForm({
 const openExpandModal = ref(false);
 const expandedImage = ref("");
 const expandedImageName = ref("");
+
+const invoiceVendors = computed(() =>
+    props.assignedVendors.filter(
+        (vendor) => vendor && vendor.id && vendor.name,
+    ),
+);
 
 const handleExpandImage = (imageSelected) => {
     expandedImage.value = imageSelected.invoice_url;
@@ -220,8 +230,7 @@ const handleDeleteInvoice = (invoice) => {
                     v-if="
                         ($page.props.auth.user.roles.includes('admin') ||
                             $page.props.auth.user.roles.includes('woc')) &&
-                        workOrder.vendors &&
-                        workOrder.vendors.length > 0
+                        invoiceVendors.length > 0
                     "
                 >
                     <Label>Vendor</Label>
@@ -232,7 +241,7 @@ const handleDeleteInvoice = (invoice) => {
                         <SelectContent>
                             <SelectGroup>
                                 <SelectItem
-                                    v-for="vendor in workOrder.vendors"
+                                    v-for="vendor in invoiceVendors"
                                     :key="vendor.id"
                                     :value="String(vendor.id)"
                                 >
