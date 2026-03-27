@@ -171,10 +171,9 @@ const sendMessage = () => {
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "vendor");
 
-        // Backend expects a single `image` file.
-        if (attachedImages.value.length > 0) {
-            formData.append("image", attachedImages.value[0].file);
-        }
+        attachedImages.value.forEach((img) => {
+            formData.append("images[]", img.file);
+        });
 
         router.post(route("work_order.conversation.send"), formData, {
             preserveState: true,

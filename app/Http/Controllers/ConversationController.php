@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ConversationStoreRequest;
+use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\JobberTextMessage;
 use App\Models\WorkOrder;
-use App\Services\TwilioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -98,13 +98,13 @@ class ConversationController extends Controller
     {
         $validatedData = $request->validated();
 
-        if (empty($validatedData['text']) && ! $request->hasFile('image')) {
+        $hasImages = $request->hasFile('images');
+
+        if (empty($validatedData['text']) && ! $hasImages) {
             return redirect()->back()->withErrors([
                 'message' => 'Please provide either a message or an image.',
             ]);
         }
-
-        $conversation = null;
 
         try {
             $senderNumber = $this->formatNumber($validatedData['sender_phone_number'] ?? '');
@@ -121,120 +121,68 @@ class ConversationController extends Controller
             ]);
         }
 
-        try {
+        $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
+        $messageText = trim($validatedData['text'] ?? '');
 
-            $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
+        $conversation = Conversation::create([
+            'message' => $messageText,
+            'sender_number' => $senderNumber,
+            'receiver_number' => $receiverNumber,
+            'work_order_id' => $validatedData['work_order_id'],
+            'conversation_type' => $validatedData['conversation_type'],
+            'is_read' => true,
+            'is_mms' => $hasImages,
+        ]);
 
-            $messageText = trim($validatedData['text'] ?? '');
-
-            $conversation = Conversation::create([
-                'message' => $messageText,
-                'sender_number' => $senderNumber,
-                'receiver_number' => $receiverNumber,
-                'work_order_id' => $validatedData['work_order_id'],
-                'conversation_type' => $validatedData['conversation_type'],
-                'is_read' => true,
-                'is_mms' => $request->hasFile('image'), // Set MMS flag if image is present
-            ]);
-
-            $imagePath = null;
-            $conversationMedia = null;
-            if ($request->hasFile('image')) {
-                $image = $request->file('image');
-                $originalName = $image->getClientOriginalName();
-                $filename = time().'_'.$originalName;
-
-                // Store image in a non-public disk; access is provided via signed route.
+        // Store all uploaded images and collect their signed URLs
+        $mediaUrls = [];
+        if ($hasImages) {
+            foreach ($request->file('images') as $image) {
+                $filename = time().'_'.$image->getClientOriginalName();
                 $imagePath = $image->storeAs('conversation_images', $filename);
 
-                // Save image info to conversation_medias table
                 $conversationMedia = ConversationMedia::create([
                     'message_id' => $conversation->id,
-                    'original_url' => '', // We're storing locally, no original URL from external source
+                    'original_url' => '',
                     'local_path' => $imagePath,
                     'content_type' => $image->getMimeType(),
-                    'file_name' => $originalName,
+                    'file_name' => $image->getClientOriginalName(),
                 ]);
+
+                $mediaUrls[] = $conversationMedia->public_url;
             }
+        }
 
-            $imageFullPath = '';
+        $user = auth()->user();
 
-            if ($conversationMedia) {
-                $imageFullPath = $conversationMedia->public_url;
-            }
+        if ($user->hasRole('owner') || $user->hasRole('tenant')) {
+            $this->sendNotification($conversation, $validatedData, $workOrder);
 
-            $user = auth()->user();
+            return redirect()->back()->with('success', 'Message sent successfully!');
+        }
 
-            if ($user->hasRole('owner') || $user->hasRole('tenant')) {
-                $this->sendNotification($conversation, $validatedData, $workOrder);
+        // Dispatch first job: carries the text message + first image (if any).
+        // Subsequent jobs carry only the image URL (empty message body).
+        $firstImageUrl = ! empty($mediaUrls) ? array_shift($mediaUrls) : null;
 
-                return redirect()->back()->with('success', 'Message sent successfully!');
-            }
+        SendConversationMessageJob::dispatch(
+            $receiverNumber,
+            $senderNumber,
+            $messageText,
+            $firstImageUrl,
+            $conversation->id,
+        );
 
-            $twilio = new TwilioService;
-            $twilioMessage = $twilio->sendMessage(
+        foreach ($mediaUrls as $imageUrl) {
+            SendConversationMessageJob::dispatch(
                 $receiverNumber,
                 $senderNumber,
-                $messageText,
-                $imageFullPath
+                '',
+                $imageUrl,
             );
-
-            $conversation->update([
-                'twilio_sid' => $twilioMessage->sid ?? null,
-                'twilio_status' => $twilioMessage->status ?? 'queued',
-                'twilio_status_updated_at' => now(),
-                'twilio_error_code' => null,
-                'twilio_error_message' => null,
-            ]);
-
-            return redirect()->back()->with('success', 'Message sent. Delivery may take a moment.');
-        } catch (\Exception $e) {
-            if ($conversation) {
-                $conversation->update([
-                    'twilio_status' => 'failed',
-                    'twilio_status_updated_at' => now(),
-                    'twilio_error_code' => (string) $e->getCode(),
-                    'twilio_error_message' => $e->getMessage(),
-                ]);
-
-                $workOrder = WorkOrder::find($validatedData['work_order_id'] ?? null);
-                $resolvedWorkOrderNo = $workOrder?->work_order_no ?? ($validatedData['work_order_id'] ?? '');
-
-                activity()
-                    ->performedOn($conversation)
-                    ->event('message_undelivered')
-                    ->withProperties([
-                        'senderNumber' => $senderNumber,
-                        'receiverNumber' => $senderNumber,
-                        'message' => $validatedData['text'] ?? '',
-                        'work_order_id' => $validatedData['work_order_id'] ?? null,
-                        'error_code' => (string) $e->getCode(),
-                        'error_message' => $e->getMessage(),
-                        'twilio_status' => 'failed',
-                        'read' => false,
-                    ])
-                    ->log('Work Order #'.$resolvedWorkOrderNo.' - Message Failed');
-            }
-
-            Log::error('Failed to send message', [
-                'work_order_id' => $validatedData['work_order_id'] ?? null,
-                'conversation_type' => $validatedData['conversation_type'] ?? null,
-                'sender' => $validatedData['sender_phone_number'] ?? null,
-                'receiver' => $validatedData['receiver_phone_number'] ?? null,
-                'error' => $e->getMessage(),
-            ]);
-
-            if ($conversation) {
-                return redirect()->back()->withErrors([
-                    'message' => 'Message saved, but Twilio could not send it.',
-                    'details' => $e->getMessage(),
-                ]);
-            }
-
-            return redirect()->back()->withErrors([
-                'message' => 'Could not send message. Please try again.',
-            ]);
         }
+
+        return redirect()->back()->with('success', 'Message sent. Delivery may take a moment.');
     }
 
     protected function formatNumber(string $number): string

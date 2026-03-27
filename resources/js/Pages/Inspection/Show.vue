@@ -43,8 +43,7 @@ const searchQuery = ref("");
 const clients = ref([]);
 const customPhoneNumber = ref("");
 const newMessage = ref("");
-const selectedImage = ref(null);
-const imagePreview = ref(null);
+const selectedImages = ref([]);
 const fileInput = ref(null);
 
 let messageController = null;
@@ -91,9 +90,8 @@ const hydrate = () => {
   newMessage.value = "";
   customPhoneNumber.value = "";
   selectedRecipients.value = [];
-  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
-  selectedImage.value = null;
-  imagePreview.value = null;
+  selectedImages.value.forEach((img) => URL.revokeObjectURL(img.preview));
+  selectedImages.value = [];
 };
 
 const loadSavedContacts = async () => {
@@ -145,7 +143,7 @@ const saveContacts = async () => {
 
 const sendMessage = () => {
   if (!job.value?.id) return;
-  if (!newMessage.value.trim() && !selectedImage.value) {
+  if (!newMessage.value.trim() && selectedImages.value.length === 0) {
     toast({ variant: "destructive", title: "Error", description: "Please enter a message or add an image." });
     return;
   }
@@ -163,7 +161,7 @@ const sendMessage = () => {
   formData.append("sender_number", senderPhoneNumber.value || "");
   recipients.forEach((r, i) => formData.append(`receiver_numbers[${i}]`, r.phone));
   formData.append("jobber_id", job.value.id);
-  if (selectedImage.value) formData.append("image", selectedImage.value);
+  selectedImages.value.forEach((img) => formData.append("images[]", img.file));
 
   router.post(route("jobber-text-messages.store"), formData, {
     preserveState: true,
@@ -172,7 +170,8 @@ const sendMessage = () => {
       toast({ title: "Success", description: "Message sent." });
       newMessage.value = "";
       customPhoneNumber.value = "";
-      removeImage();
+      selectedImages.value.forEach((img) => URL.revokeObjectURL(img.preview));
+      selectedImages.value = [];
       nextTick(async () => {
         await saveContacts();
         await fetchJobMessages();
@@ -200,21 +199,19 @@ const addRecipientFromClient = () => {
 };
 
 const handleImageSelect = (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
+  const files = Array.from(event.target.files || []);
+  files.forEach((file) => {
   if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
     toast({ variant: "destructive", title: "Invalid image", description: "Use an image file up to 5MB." });
     return;
   }
-  selectedImage.value = file;
-  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
-  imagePreview.value = URL.createObjectURL(file);
-};
-const removeImage = () => {
-  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
-  selectedImage.value = null;
-  imagePreview.value = null;
+    selectedImages.value.push({ file, preview: URL.createObjectURL(file) });
+  });
   if (fileInput.value) fileInput.value.value = "";
+};
+const removeImage = (index) => {
+  URL.revokeObjectURL(selectedImages.value[index].preview);
+  selectedImages.value.splice(index, 1);
 };
 
 const switchTab = (tab) => {
@@ -241,7 +238,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
+  selectedImages.value.forEach((img) => URL.revokeObjectURL(img.preview));
   if (messageController) messageController.abort();
   if (contactsController) contactsController.abort();
 });
@@ -391,19 +388,18 @@ onUnmounted(() => {
           <div v-else class="text-center py-8 text-muted-foreground">No messages yet</div>
         </ScrollArea>
 
-        <div v-if="imagePreview" class="mb-2 p-3 border rounded-lg bg-muted/20">
-          <div class="flex items-start gap-3">
-            <img :src="imagePreview" alt="Selected image" class="w-20 h-20 object-cover rounded-lg border" />
-            <div class="flex-1">
-              <p class="text-sm font-medium">{{ selectedImage?.name }}</p>
-              <p class="text-xs text-muted-foreground">{{ Math.round(selectedImage?.size / 1024) }}KB</p>
+        <div v-if="selectedImages.length > 0" class="mb-2 p-3 border rounded-lg bg-muted/20">
+          <div class="flex flex-wrap gap-2">
+            <div v-for="(img, index) in selectedImages" :key="index" class="relative">
+              <img :src="img.preview" :alt="img.file.name" class="w-20 h-20 object-cover rounded-lg border" />
+              <Button size="icon" variant="destructive" class="absolute -top-2 -right-2 h-6 w-6" @click="removeImage(index)"><X class="h-3 w-3" /></Button>
             </div>
-            <Button size="icon" variant="destructive" class="h-6 w-6" @click="removeImage"><X class="h-3 w-3" /></Button>
           </div>
+          <p class="text-xs text-muted-foreground mt-2">{{ selectedImages.length }} image{{ selectedImages.length > 1 ? 's' : '' }} selected</p>
         </div>
 
         <div class="relative w-full">
-          <input ref="fileInput" type="file" accept="image/*" @change="handleImageSelect" class="hidden" />
+          <input ref="fileInput" type="file" accept="image/*" multiple @change="handleImageSelect" class="hidden" />
           <Textarea v-model="newMessage" placeholder="Type your message..." class="w-full resize-y rounded-2xl border py-3 pr-24" rows="1" :disabled="isSendingMessage" @keydown.enter.prevent="sendMessage" />
           <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
             <Button size="icon" variant="ghost" @click="fileInput?.click()" :disabled="isSendingMessage" title="Attach image"><Paperclip class="h-4 w-4" /></Button>

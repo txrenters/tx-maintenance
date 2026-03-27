@@ -75,8 +75,7 @@ const autoResize = (event) => {
 };
 
 // Image attachment functionality
-const selectedImage = ref(null);
-const imagePreview = ref(null);
+const selectedImages = ref([]);
 const fileInput = ref(null);
 
 const owner_phone_number = page.props.auth.user.phone;
@@ -88,47 +87,38 @@ const woc_phone_number = ref(
 
 // Handle file selection
 const handleImageSelect = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        // Validate file type
+    const files = Array.from(event.target.files || []);
+    files.forEach((file) => {
         if (!file.type.startsWith("image/")) {
             toast({
                 variant: "destructive",
                 title: "Invalid file type",
-                description:
-                    "Please select an image file (JPG, PNG, GIF, etc.)",
+                description: "Please select image files (JPG, PNG, GIF, etc.)",
             });
             return;
         }
-
-        // Validate file size (5MB limit)
         if (file.size > 5 * 1024 * 1024) {
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: "Please select an image smaller than 5MB",
+                description: `${file.name} exceeds 5MB limit`,
             });
             return;
         }
-
-        selectedImage.value = file;
-
-        // Create preview URL
         const reader = new FileReader();
         reader.onload = (e) => {
-            imagePreview.value = e.target.result;
+            selectedImages.value.push({ file, preview: e.target.result });
         };
         reader.readAsDataURL(file);
+    });
+    if (fileInput.value) {
+        fileInput.value.value = "";
     }
 };
 
 // Remove selected image
-const removeImage = () => {
-    selectedImage.value = null;
-    imagePreview.value = null;
-    if (fileInput.value) {
-        fileInput.value.value = "";
-    }
+const removeImage = (index) => {
+    selectedImages.value.splice(index, 1);
 };
 
 // Trigger file input
@@ -139,7 +129,7 @@ const triggerFileInput = () => {
 const sendMessage = () => {
     loading.value = true;
 
-    if (!messageBody.value && !selectedImage.value) {
+    if (!messageBody.value && selectedImages.value.length === 0) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
@@ -150,7 +140,7 @@ const sendMessage = () => {
         return;
     }
 
-    if (messageBody.value.trim() !== "" || selectedImage.value) {
+    if (messageBody.value.trim() !== "" || selectedImages.value.length > 0) {
         // Create FormData for file upload
         const formData = new FormData();
         formData.append("text", displayMessage.value || "");
@@ -159,10 +149,9 @@ const sendMessage = () => {
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "owner");
 
-        // Add image if selected
-        if (selectedImage.value) {
-            formData.append("image", selectedImage.value);
-        }
+        selectedImages.value.forEach((img) => {
+            formData.append("images[]", img.file);
+        });
 
         router.post(route("work_order.conversation.send"), formData, {
             preserveState: true,
@@ -176,7 +165,7 @@ const sendMessage = () => {
                 // Reset textarea height
                 const textarea = document.querySelector('textarea[placeholder="Type your message..."]');
                 if (textarea) textarea.style.height = "auto";
-                removeImage(); // Clear the selected image
+                selectedImages.value = []; // Clear selected images
                 scrollToBottom();
                 emit("update-owner-convo");
             },
@@ -248,37 +237,33 @@ onMounted(() => {
 
             <!-- Image Preview -->
             <div
-                v-if="imagePreview"
+                v-if="selectedImages.length > 0"
                 class="mb-4 p-3 border rounded-lg bg-muted/20"
             >
-                <div class="flex items-start gap-3">
-                    <div class="relative">
+                <div class="flex flex-wrap gap-2">
+                    <div
+                        v-for="(img, index) in selectedImages"
+                        :key="index"
+                        class="relative"
+                    >
                         <img
-                            :src="imagePreview"
-                            alt="Selected image"
+                            :src="img.preview"
+                            :alt="img.file.name"
                             class="w-20 h-20 object-cover rounded-lg border"
                         />
                         <Button
                             size="icon"
                             variant="destructive"
                             class="absolute -top-2 -right-2 h-6 w-6"
-                            @click="removeImage"
+                            @click="removeImage(index)"
                         >
                             <X class="h-3 w-3" />
                         </Button>
                     </div>
-                    <div class="flex-1">
-                        <p class="text-sm font-medium">
-                            {{ selectedImage?.name }}
-                        </p>
-                        <p class="text-xs text-muted-foreground">
-                            {{ Math.round(selectedImage?.size / 1024) }}KB
-                        </p>
-                        <p class="text-xs text-muted-foreground mt-1">
-                            Ready to send with your message
-                        </p>
-                    </div>
                 </div>
+                <p class="text-xs text-muted-foreground mt-2">
+                    {{ selectedImages.length }} image{{ selectedImages.length > 1 ? 's' : '' }} selected
+                </p>
             </div>
 
             <!-- Message Input -->
@@ -288,6 +273,7 @@ onMounted(() => {
                     ref="fileInput"
                     type="file"
                     accept="image/*"
+                    multiple
                     @change="handleImageSelect"
                     class="hidden"
                 />
