@@ -84,6 +84,7 @@ import {
     WrenchIcon,
     Briefcase,
     Search,
+    AlertTriangleIcon,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
 
@@ -447,6 +448,8 @@ const markAsUnread = async (notificationId) => {
 };
 
 const openModal = ref(false);
+const openFailedModal = ref(false);
+const failedNotification = ref(null);
 const isLoading = ref(false);
 const MAX_MESSAGE_LENGTH = 1600;
 const messageBody = ref("");
@@ -495,6 +498,11 @@ const sender_number = ref("");
 const conversation_type = ref("");
 const reference_id = ref("");
 const notif = ref(null);
+
+const handleFailedModal = (notification) => {
+    failedNotification.value = notification;
+    openFailedModal.value = true;
+};
 
 const handleChatModal = async (model) => {
     const response = await axios.post("/api/notification/messages", {
@@ -1034,7 +1042,9 @@ onUnmounted(() => {
                                                                 'job_message_received',
                                                             'bg-red-100 text-red-600':
                                                                 notification.event ===
-                                                                'jobber_not_sent',
+                                                                    'jobber_not_sent' ||
+                                                                notification.event ===
+                                                                    'message_undelivered',
                                                             'bg-yellow-500':
                                                                 notification.event ===
                                                                     'invoice_uploaded' ||
@@ -1055,7 +1065,9 @@ onUnmounted(() => {
                                                                 'job_message_received',
                                                             'bg-red-100 text-red-600':
                                                                 notification.event ===
-                                                                'jobber_not_sent',
+                                                                    'jobber_not_sent' ||
+                                                                notification.event ===
+                                                                    'message_undelivered',
                                                             'bg-yellow-100 text-yellow-600':
                                                                 notification.event ===
                                                                     'invoice_uploaded' ||
@@ -1068,6 +1080,13 @@ onUnmounted(() => {
                                                             v-if="
                                                                 notification.event ===
                                                                 'work_order_message_received'
+                                                            "
+                                                        />
+                                                        <AlertTriangleIcon
+                                                            class="w-4 h-4"
+                                                            v-else-if="
+                                                                notification.event ===
+                                                                'message_undelivered'
                                                             "
                                                         />
                                                         <HammerIcon
@@ -1174,6 +1193,25 @@ onUnmounted(() => {
                                                                 </Button>
                                                                 <Button
                                                                     v-if="
+                                                                        notification.event ===
+                                                                            'message_undelivered' ||
+                                                                        notification.event ===
+                                                                            'jobber_not_sent'
+                                                                    "
+                                                                    as="button"
+                                                                    size="sm"
+                                                                    variant="link"
+                                                                    class="text-xs text-red-600"
+                                                                    @click.stop.prevent="
+                                                                        handleFailedModal(
+                                                                            notification,
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    View Details
+                                                                </Button>
+                                                                <Button
+                                                                    v-else-if="
                                                                         (notification
                                                                             .subject
                                                                             ?.conversation_type ||
@@ -1306,6 +1344,84 @@ onUnmounted(() => {
     </SidebarProvider>
 
     <GlobalSearch ref="searchRef" />
+
+    <Dialog v-model:open="openFailedModal">
+        <DialogContent class="w-full !max-w-lg">
+            <DialogHeader class="text-left">
+                <DialogTitle class="text-xl text-red-600 flex items-center gap-2">
+                    <AlertTriangleIcon class="w-5 h-5" />
+                    Message Delivery Failed
+                </DialogTitle>
+                <DialogDescription>
+                    The following message could not be delivered.
+                </DialogDescription>
+            </DialogHeader>
+            <Separator />
+            <div
+                v-if="failedNotification"
+                class="flex flex-col gap-3 py-2"
+            >
+                <div class="rounded-lg bg-red-50 border border-red-200 p-4 flex flex-col gap-2">
+                    <p class="font-semibold text-sm text-red-700">
+                        {{ failedNotification.title }}
+                    </p>
+                    <p class="text-sm text-gray-700">
+                        <span class="font-medium">Message:</span>
+                        {{ failedNotification.message }}
+                    </p>
+                    <p
+                        v-if="failedNotification.twilio_status"
+                        class="text-sm text-gray-700"
+                    >
+                        <span class="font-medium">Status:</span>
+                        <span class="capitalize ml-1 text-red-600">{{
+                            failedNotification.twilio_status
+                        }}</span>
+                    </p>
+                    <p
+                        v-if="failedNotification.error_code"
+                        class="text-sm text-gray-700"
+                    >
+                        <span class="font-medium">Error Code:</span>
+                        {{ failedNotification.error_code }}
+                    </p>
+                    <p
+                        v-if="failedNotification.error_message"
+                        class="text-sm text-gray-700"
+                    >
+                        <span class="font-medium">Error:</span>
+                        {{ failedNotification.error_message }}
+                    </p>
+                    <p class="text-xs text-gray-400 mt-1">
+                        {{ failedNotification.time }}
+                    </p>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <Button
+                        v-if="
+                            failedNotification.subject?.conversation_type ||
+                            failedNotification.subject?.jobber_id
+                        "
+                        size="sm"
+                        variant="outline"
+                        @click.prevent="
+                            openFailedModal = false;
+                            handleChatModal(failedNotification.subject);
+                        "
+                    >
+                        View Conversation
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        @click.prevent="openFailedModal = false"
+                    >
+                        Close
+                    </Button>
+                </div>
+            </div>
+        </DialogContent>
+    </Dialog>
 
     <Dialog v-model:open="openModal">
         <DialogContent

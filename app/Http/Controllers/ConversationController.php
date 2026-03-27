@@ -196,6 +196,24 @@ class ConversationController extends Controller
                     'twilio_error_code' => (string) $e->getCode(),
                     'twilio_error_message' => $e->getMessage(),
                 ]);
+
+                $workOrder = WorkOrder::find($validatedData['work_order_id'] ?? null);
+                $resolvedWorkOrderNo = $workOrder?->work_order_no ?? ($validatedData['work_order_id'] ?? '');
+
+                activity()
+                    ->performedOn($conversation)
+                    ->event('message_undelivered')
+                    ->withProperties([
+                        'senderNumber' => $senderNumber,
+                        'receiverNumber' => $senderNumber,
+                        'message' => $validatedData['text'] ?? '',
+                        'work_order_id' => $validatedData['work_order_id'] ?? null,
+                        'error_code' => (string) $e->getCode(),
+                        'error_message' => $e->getMessage(),
+                        'twilio_status' => 'failed',
+                        'read' => false,
+                    ])
+                    ->log('Work Order #'.$resolvedWorkOrderNo.' - Message Failed');
             }
 
             Log::error('Failed to send message', [
@@ -265,4 +283,3 @@ class ConversationController extends Controller
         return redirect()->back()->with('success', 'Message deleted successfully!');
     }
 }
-

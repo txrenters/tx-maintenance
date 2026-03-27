@@ -233,6 +233,24 @@ class TwilioWebhookController extends Controller
                         'to' => $conversation->receiver_number,
                         'from' => $conversation->sender_number,
                     ]);
+
+                    $workOrder = WorkOrder::find($conversation->work_order_id);
+                    $resolvedWorkOrderNo = $workOrder?->work_order_no ?? $conversation->work_order_id;
+
+                    activity()
+                        ->performedOn($conversation)
+                        ->event('message_undelivered')
+                        ->withProperties([
+                            'senderNumber' => $conversation->sender_number,
+                            'receiverNumber' => $conversation->sender_number,
+                            'message' => $conversation->message,
+                            'work_order_id' => $conversation->work_order_id,
+                            'error_code' => $errorCode ? (string) $errorCode : null,
+                            'error_message' => $errorMessage ?: null,
+                            'twilio_status' => $messageStatus,
+                            'read' => false,
+                        ])
+                        ->log('Work Order #'.$resolvedWorkOrderNo.' - Message '.ucfirst($messageStatus));
                 } else {
                     Log::info('Twilio delivery status updated', [
                         'conversation_id' => $conversation->id,
@@ -278,6 +296,26 @@ class TwilioWebhookController extends Controller
                         'sid' => $messageSid,
                         'status' => $messageStatus,
                     ]);
+
+                    if (in_array($messageStatus, ['failed', 'undelivered'], true)) {
+                        $jobber = Jobber::find($jobberMessage->jobber_id);
+                        $resolvedJobNumber = $jobber?->job_number ?? $jobberMessage->jobber_id;
+
+                        activity()
+                            ->performedOn($jobberMessage)
+                            ->event('message_undelivered')
+                            ->withProperties([
+                                'senderNumber' => $jobberMessage->sender_number,
+                                'receiverNumber' => $jobberMessage->sender_number,
+                                'message' => $jobberMessage->messages,
+                                'job_id' => $jobberMessage->jobber_id,
+                                'error_code' => $errorCode ? (string) $errorCode : null,
+                                'error_message' => $errorMessage ?: null,
+                                'twilio_status' => $messageStatus,
+                                'read' => false,
+                            ])
+                            ->log('Job #'.$resolvedJobNumber.' - Message '.ucfirst($messageStatus));
+                    }
 
                     return response()->noContent();
                 }
@@ -418,7 +456,7 @@ class TwilioWebhookController extends Controller
                     Log::error('Failed to forward data to PlusThis. Response: '.$plusThisResponse->body());
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error forwarding data: '.$e->getMessage());
         }
 
@@ -436,7 +474,7 @@ class TwilioWebhookController extends Controller
                     $conversation->id
                 );
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Media attachment failed: '.$e->getMessage());
         }
     }

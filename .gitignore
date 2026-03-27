@@ -26,3 +26,8 @@ yarn-error.log
 /config/database.php
 
 CLAUDE.md
+ 
+# Environment files (do not commit secrets)
+.env
+.env.*
+!.env.example

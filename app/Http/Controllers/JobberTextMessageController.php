@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Services\TwilioService;
 use Illuminate\Http\Request;
@@ -200,6 +201,24 @@ class JobberTextMessageController extends Controller
                     Log::error("Failed to send message to {$receiverNumber}: ".$e->getMessage());
 
                     if ($jobberTextMessage) {
+                        $jobber = Jobber::find($validatedData['jobber_id']);
+                        $resolvedJobNumber = $jobber?->job_number ?? $validatedData['jobber_id'];
+
+                        activity()
+                            ->performedOn($jobberTextMessage)
+                            ->event('message_undelivered')
+                            ->withProperties([
+                                'senderNumber' => $validatedData['sender_number'],
+                                'receiverNumber' => $validatedData['sender_number'],
+                                'message' => $validatedData['messages'] ?? '',
+                                'job_id' => $validatedData['jobber_id'],
+                                'error_code' => $e->getCode() ? (string) $e->getCode() : null,
+                                'error_message' => $e->getMessage(),
+                                'twilio_status' => 'failed',
+                                'read' => false,
+                            ])
+                            ->log('Job #'.$resolvedJobNumber.' - Message Failed');
+
                         $failedUpdates = [];
                         if ($messageColumns['status']) {
                             $failedUpdates['status'] = 'failed';
@@ -256,7 +275,6 @@ class JobberTextMessageController extends Controller
             }
 
             throw new \RuntimeException('Failed to send messages to all recipients.');
-
         } catch (\Throwable $e) {
 
             // Log the error

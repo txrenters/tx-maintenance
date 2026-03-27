@@ -35,9 +35,9 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Copy .env file
+      - name: Rename .env file
         run: |
-          cp .env.example .env
+          mv .env.example .env
           echo "REVERB_APP_ID=${{ secrets.REVERB_APP_ID }}" >> .env
           echo "REVERB_APP_KEY=${{ secrets.REVERB_APP_KEY }}" >> .env
           echo "REVERB_APP_SECRET=${{ secrets.REVERB_APP_SECRET }}" >> .env
