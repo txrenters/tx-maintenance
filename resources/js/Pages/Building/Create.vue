@@ -106,6 +106,7 @@ const form = useForm({
     catsAllowed: "",
     catRestrictions: "",
     otherPetsRestriction: "",
+    petOtherAllowed: "",
     //Swimming Pool
     swimmingPool: "",
     poolService: "",
@@ -1270,6 +1271,25 @@ const loadBuildingData = () => {
 
         // Pre-populate form with existing values
         populateFormFromCustomFields();
+
+        // Override pet fields with native API values only if petsAllowed has been explicitly set
+        if (building.value.petsAllowed === true) {
+            if (building.value.petDogAllowed !== undefined) {
+                form.dogsAllowed = building.value.petDogAllowed ? "Yes" : "No";
+            }
+            if (building.value.petCatAllowed !== undefined) {
+                form.catsAllowed = building.value.petCatAllowed ? "Yes" : "No";
+            }
+            if (building.value.petOtherAllowed !== undefined) {
+                form.petOtherAllowed = building.value.petOtherAllowed
+                    ? "Yes"
+                    : "No";
+            }
+        } else if (building.value.petsAllowed === false) {
+            form.dogsAllowed = "No";
+            form.catsAllowed = "No";
+            form.petOtherAllowed = "No";
+        }
 
         // Parse maintenanceNotice built-in field for vendor information
         if (

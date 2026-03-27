@@ -45,6 +45,7 @@ const validatePetPolicy = () => {
         errors.push("Other Pet Restrictions is required");
     }
 
+
     validationErrors.value = errors;
     return errors.length === 0;
 };
@@ -183,6 +184,25 @@ const markSectionCompleted = (value) => {
                                 v-model="form.catRestrictions"
                                 placeholder="Any specific restrictions (e.g., 'No declawed cats', 'Indoor only', or 'None')"
                             />
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium"
+                                >Other Pets Allowed?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500">(Required)</span>
+                            </label>
+                            <Select v-model="form.petOtherAllowed">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select option" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Yes"
+                                        >Yes - Other pets allowed</SelectItem
+                                    >
+                                    <SelectItem value="No">No other pets</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

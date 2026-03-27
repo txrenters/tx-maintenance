@@ -10,11 +10,12 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Inertia\Response;
 use mikehaertl\pdftk\Pdf;
 
 class BuildingController extends Controller
 {
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
         $perPage = $request->per_page
             ? ($request->per_page === 'All' ? Building::count() : (int) $request->per_page)
@@ -45,7 +46,7 @@ class BuildingController extends Controller
         ]);
     }
 
-    public function show(Building $building): \Inertia\Response
+    public function show(Building $building): Response
     {
         $workOrders = $building->workOrders()
             ->with('service_status')
@@ -167,6 +168,8 @@ class BuildingController extends Controller
                 }, $propertywareData['fieldSetDTOS']),
             ]);
 
+            $formData = $request->input('formData');
+
             // Make API call to Propertyware for custom fields
             $response = $this->updatePropertywareCustomFields($propertywareData);
 
@@ -183,8 +186,16 @@ class BuildingController extends Controller
                     }
                 }
 
+                // Update native pet fields via building PUT endpoint
+                $petResponse = $this->updatePetFields($buildingId, $formData);
+                if (! $petResponse['success']) {
+                    Log::warning('Failed to update pet fields', [
+                        'Building ID' => $buildingId,
+                        'Error' => $petResponse['error'],
+                    ]);
+                }
+
                 $signature = $request->input('signature');
-                $formData = $request->input('formData');
                 $ownerName = $request->input('ownerName');
 
                 // Get building details for PDF
@@ -335,6 +346,47 @@ class BuildingController extends Controller
             'success' => false,
             'error' => 'Unable to update maintenanceNotice field: '.$response->body(),
         ];
+    }
+
+    private function updatePetFields(int|string $buildingId, array $formData): array
+    {
+        $petDogAllowed = ($formData['dogsAllowed'] ?? '') === 'Yes';
+        $petCatAllowed = ($formData['catsAllowed'] ?? '') === 'Yes';
+        $petOtherAllowed = ($formData['petOtherAllowed'] ?? '') === 'Yes';
+        $petsAllowed = $petDogAllowed || $petCatAllowed || $petOtherAllowed;
+
+        Log::info('Updating pet fields for building', [
+            'Building ID' => $buildingId,
+            'petsAllowed' => $petsAllowed,
+            'petDogAllowed' => $petDogAllowed,
+            'petCatAllowed' => $petCatAllowed,
+            'petOtherAllowed' => $petOtherAllowed,
+        ]);
+
+        $response = Http::withHeaders([
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            'Content-Type' => 'application/merge-patch+json',
+        ])->patch("https://api.propertyware.com/pw/api/rest/v1/buildings/{$buildingId}", [
+            'petsAllowed' => $petsAllowed,
+            'petDogAllowed' => $petDogAllowed,
+            'petCatAllowed' => $petCatAllowed,
+            'petOtherAllowed' => $petOtherAllowed,
+        ]);
+
+        if ($response->successful()) {
+            Log::info('Pet fields updated successfully', ['Building ID' => $buildingId]);
+
+            return ['success' => true, 'data' => $response->json()];
+        }
+
+        Log::error('Failed to update pet fields', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
+        return ['success' => false, 'error' => $response->body()];
     }
 
     private function formatToUSDisplay(string $phoneNumber): string
