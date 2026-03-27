@@ -523,6 +523,47 @@ const handleChatModal = async (model) => {
     openModal.value = true;
 };
 const loading = ref(false);
+const selectedImages = ref([]);
+const fileInput = ref(null);
+
+const handleImageSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    files.forEach((file) => {
+        if (!file.type.startsWith("image/")) {
+            toast({
+                variant: "destructive",
+                title: "Invalid file type",
+                description: "Please select image files (JPG, PNG, GIF, etc.)",
+            });
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast({
+                variant: "destructive",
+                title: "File too large",
+                description: `${file.name} exceeds 5MB limit`,
+            });
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            selectedImages.value.push({ file, preview: e.target.result });
+        };
+        reader.readAsDataURL(file);
+    });
+    if (fileInput.value) {
+        fileInput.value.value = "";
+    }
+};
+
+const removeImage = (index) => {
+    selectedImages.value.splice(index, 1);
+};
+
+const triggerFileInput = () => {
+    fileInput.value?.click();
+};
+
 const autoResize = (event) => {
     const textarea = event.target;
     textarea.style.height = "auto";
@@ -543,24 +584,30 @@ const sendMessage = () => {
         return;
     }
 
-    if (!messageBody.value || !messageBody.value.trim()) {
+    if (!messageBody.value.trim() && selectedImages.value.length === 0) {
         toast({
             variant: "destructive",
             title: "Uh oh! Something went wrong.",
-            description: "Please type a message!",
+            description: "Please type a message or attach an image!",
         });
         loading.value = false;
 
         return;
     }
 
-    if (messageBody.value.trim() !== "" && conversation_type.value !== "job") {
+    if (
+        (messageBody.value.trim() !== "" || selectedImages.value.length > 0) &&
+        conversation_type.value !== "job"
+    ) {
         const formData = new FormData();
         formData.append("text", displayMessage.value.trim());
         formData.append("sender_phone_number", sender_number.value);
         formData.append("receiver_phone_number", receiver_number.value);
         formData.append("work_order_id", reference_id.value);
         formData.append("conversation_type", conversation_type.value);
+        selectedImages.value.forEach((img) => {
+            formData.append("images[]", img.file);
+        });
 
         router.post(route("work_order.conversation.send"), formData, {
             preserveState: true,
@@ -571,6 +618,7 @@ const sendMessage = () => {
                     description: "Message sent. Delivery may take a moment.",
                 });
                 messageBody.value = "";
+                selectedImages.value = [];
                 // Reset textarea height
                 const textarea = document.querySelector(
                     'textarea[placeholder="Type your message..."]',
@@ -595,13 +643,19 @@ const sendMessage = () => {
         });
     }
 
-    if (messageBody.value.trim() !== "" && conversation_type.value === "job") {
+    if (
+        (messageBody.value.trim() !== "" || selectedImages.value.length > 0) &&
+        conversation_type.value === "job"
+    ) {
         const formData = new FormData();
         formData.append("messages", messageBody.value.trim());
         formData.append("sender_number", sender_number.value);
         formData.append("receiver_numbers[]", receiver_number.value);
         formData.append("jobber_id", reference_id.value);
         formData.append("conversation_type", conversation_type.value);
+        selectedImages.value.forEach((img) => {
+            formData.append("images[]", img.file);
+        });
 
         router.post(route("jobber-text-messages.store"), formData, {
             preserveState: true,
@@ -612,6 +666,7 @@ const sendMessage = () => {
                     description: "Message has been sent successfully!",
                 });
                 messageBody.value = "";
+                selectedImages.value = [];
                 // Reset textarea height
                 const textarea = document.querySelector(
                     'textarea[placeholder="Type your message..."]',
@@ -1466,6 +1521,50 @@ onUnmounted(() => {
                     </ScrollArea>
                 </div>
 
+                <!-- Image Preview -->
+                <div
+                    v-if="selectedImages.length > 0"
+                    class="mb-3 p-3 border rounded-lg bg-muted/20"
+                >
+                    <div class="flex flex-wrap gap-2">
+                        <div
+                            v-for="(img, index) in selectedImages"
+                            :key="index"
+                            class="relative"
+                        >
+                            <img
+                                :src="img.preview"
+                                :alt="img.file.name"
+                                class="w-20 h-20 object-cover rounded-lg border"
+                            />
+                            <Button
+                                size="icon"
+                                variant="destructive"
+                                class="absolute -top-2 -right-2 h-6 w-6"
+                                @click="removeImage(index)"
+                            >
+                                <XIcon class="h-3 w-3" />
+                            </Button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-2">
+                        {{ selectedImages.length }} image{{
+                            selectedImages.length > 1 ? "s" : ""
+                        }}
+                        selected
+                    </p>
+                </div>
+
+                <!-- Hidden file input -->
+                <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    @change="handleImageSelect"
+                    class="hidden"
+                />
+
                 <!-- Message Input -->
                 <div class="relative w-full mt-4 mb-6">
                     <Textarea
@@ -1480,6 +1579,15 @@ onUnmounted(() => {
                         {{ quickMessageCount }}/{{ MAX_MESSAGE_LENGTH }}
                     </p>
                     <div class="flex absolute top-3 right-2">
+                        <!-- Paperclip Button -->
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            @click.prevent="triggerFileInput"
+                            :disabled="loading"
+                        >
+                            <PaperclipIcon class="h-4 w-4" />
+                        </Button>
                         <!-- Send Button -->
                         <Button
                             size="icon"
