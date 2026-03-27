@@ -504,14 +504,16 @@ const handleFailedModal = (notification) => {
     openFailedModal.value = true;
 };
 
-const handleChatModal = async (model) => {
+const handleChatModal = async (model, shouldReverse = true) => {
     const response = await axios.post("/api/notification/messages", {
         data: model,
     });
 
     conversations.value = response.data;
-    sender_number.value = model.receiver_number; // since this is a text message from a client we need to reverse
-    receiver_number.value = model.sender_number; // since this is a text message from a client we need to reverse
+    // shouldReverse=true: inbound notification (client sent to us, so receiver = our number)
+    // shouldReverse=false: outbound/failed notification (we sent, so sender = our number)
+    sender_number.value = shouldReverse ? model.receiver_number : model.sender_number;
+    receiver_number.value = shouldReverse ? model.sender_number : model.receiver_number;
     conversation_type.value = model?.conversation_type ?? "job";
     reference_id.value = model?.work_order_id ?? model?.jobber_id;
     notif.value = model;
@@ -1461,7 +1463,7 @@ onUnmounted(() => {
                         variant="outline"
                         @click.prevent="
                             openFailedModal = false;
-                            handleChatModal(failedNotification.subject);
+                            handleChatModal(failedNotification.subject, false);
                         "
                     >
                         View Conversation
