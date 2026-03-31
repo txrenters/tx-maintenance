@@ -461,64 +461,25 @@ class SendJobReminders extends Command
 
     protected function buildingReferenceMatches(string $jobberClientName, string $propertywareClientReference): bool
     {
-        $normalizedJobberClientName = $this->normalizeBuildingReference($jobberClientName);
         $normalizedJobberBuildingReference = $this->normalizeBaseBuildingReference($jobberClientName);
-        $normalizedPropertywareClientReference = $this->normalizeBuildingReference($propertywareClientReference);
         $normalizedPropertywareBuildingReference = $this->normalizeBaseBuildingReference($propertywareClientReference);
 
-        if ($normalizedJobberClientName === '') {
+        if ($normalizedJobberBuildingReference === '') {
             return false;
         }
 
-        if ($normalizedPropertywareBuildingReference !== '' && $normalizedJobberBuildingReference === $normalizedPropertywareBuildingReference) {
-            return true;
-        }
-
-        if ($normalizedPropertywareClientReference !== '' && $normalizedJobberClientName === $normalizedPropertywareClientReference) {
-            return true;
-        }
-
-        return false;
+        return $normalizedPropertywareBuildingReference !== ''
+            && $normalizedJobberBuildingReference === $normalizedPropertywareBuildingReference;
     }
 
     protected function normalizeBuildingReference(string $value): string
     {
-        $normalizedValue = Str::of($value)
+        return Str::of($value)
             ->lower()
             ->replaceMatches('/[^\pL\pN\s]/u', ' ')
             ->replaceMatches('/\s+/', ' ')
             ->trim()
             ->value();
-
-        $streetTypeMap = [
-            'aly' => 'alley',
-            'allee' => 'alley',
-            'ave' => 'avenue',
-            'av' => 'avenue',
-            'blvd' => 'boulevard',
-            'cir' => 'circle',
-            'ct' => 'court',
-            'cv' => 'cove',
-            'dr' => 'drive',
-            'hwy' => 'highway',
-            'ln' => 'lane',
-            'lp' => 'loop',
-            'pkwy' => 'parkway',
-            'pl' => 'place',
-            'rd' => 'road',
-            'sq' => 'square',
-            'st' => 'street',
-            'ter' => 'terrace',
-            'trl' => 'trail',
-            'way' => 'way',
-        ];
-
-        return collect(explode(' ', $normalizedValue))
-            ->filter()
-            ->map(function (string $part) use ($streetTypeMap): string {
-                return $streetTypeMap[$part] ?? $part;
-            })
-            ->implode(' ');
     }
 
     protected function normalizeBaseBuildingReference(string $value): string
