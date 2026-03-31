@@ -151,7 +151,7 @@ class SendJobReminders extends Command
             return;
         }
 
-        $body = $response->json();
+        $body = json_decode($response->body(), true);
         $records = $body['records'] ?? [];
         $this->line('PropertyWare JSON loaded: '.count($records).' records');
         $this->line('HTTP status: '.$response->status());
@@ -254,7 +254,7 @@ class SendJobReminders extends Command
             return;
         }
 
-        $records = $response->json()['records'] ?? [];
+        $records = json_decode($response->body(), true)['records'] ?? [];
 
         $isSmallBatch = $visits->count() <= 10;
 
