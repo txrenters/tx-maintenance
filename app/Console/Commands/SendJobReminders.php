@@ -143,7 +143,7 @@ class SendJobReminders extends Command
         }
 
         $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
-        $response = Http::get($TENANT_JSON_API_LINK);
+        $response = Http::timeout(60)->get($TENANT_JSON_API_LINK);
 
         if ($response->failed()) {
             $this->error('Failed to fetch PropertyWare JSON.');
@@ -249,7 +249,7 @@ class SendJobReminders extends Command
 
         $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
 
-        $response = Http::get($TENANT_JSON_API_LINK);
+        $response = Http::timeout(60)->get($TENANT_JSON_API_LINK);
 
         if ($response->failed()) {
             Log::error('Failed to fetch client data from Propertyware');
