@@ -153,12 +153,20 @@ class SendJobReminders extends Command
 
         $records = $response->json()['records'] ?? [];
         $this->line('PropertyWare JSON loaded: '.count($records).' records');
+
+        if (count($records) === 0) {
+            $this->error('PropertyWare returned 0 records — API may be down or the response format changed. Cannot match visits.');
+
+            return;
+        }
+
         $this->line('');
 
         foreach ($tbpVisits as $visit) {
             $client = $visit->job->client->name ?? '';
+            $jobberKey = $this->normalizeBaseBuildingReference($client);
 
-            $this->line('--- Visit ID: '.$visit->id.' | Jobber address: '.$client.' ---');
+            $this->line('--- Visit ID: '.$visit->id.' | Jobber address: '.$client.' | Key (first 2 words): '.$jobberKey.' ---');
 
             $matched = collect($records)->filter(function ($record) use ($client) {
                 return $this->buildingReferenceMatches($client, (string) ($record[15] ?? ''));
@@ -178,7 +186,10 @@ class SendJobReminders extends Command
                         'Other' => (string) ($record[12] ?? ''),
                     ])->first(fn (string $v): bool => $v !== '');
 
+                    $pwKey = $this->normalizeBaseBuildingReference((string) ($record[15] ?? ''));
+
                     $this->line('    Building : '.($record[15] ?? 'N/A'));
+                    $this->line('    PW Key   : '.$pwKey.' (matched Jobber key: '.$jobberKey.')');
                     $this->line('    Tenant   : '.($record[3] ?? 'N/A'));
                     $this->line('    Status   : '.($record[2] ?? 'N/A'));
                     $this->line('    Phone    : '.($phone ?: 'N/A'));
