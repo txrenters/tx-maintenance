@@ -7,10 +7,10 @@ use App\Models\JobberVisit;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class SendJobReminders extends Command
 {
@@ -23,7 +23,8 @@ class SendJobReminders extends Command
      */
     protected $signature = 'jobs:send-reminders
                             {--days=* : Send reminders only for the provided day offsets}
-                            {--run-date= : Run reminders as if the command were executed on this date (Y-m-d)}';
+                            {--run-date= : Run reminders as if the command were executed on this date (Y-m-d)}
+                            {--search : Search all TBP visits for the given date(s) against PropertyWare JSON without sending SMS}';
 
     /**
      * The console command description.
@@ -96,6 +97,16 @@ class SendJobReminders extends Command
             return self::FAILURE;
         }
 
+        if ($this->option('search')) {
+            foreach ($requestedDays->unique()->sort()->values() as $day) {
+                $this->searchPropertyware(
+                    $today->copy()->timezone(self::COMMAND_TIMEZONE)->addDays($day)
+                );
+            }
+
+            return self::SUCCESS;
+        }
+
         foreach ($requestedDays->unique()->sort()->values() as $day) {
             $configuration = $reminderConfigurations[$day];
 
@@ -107,6 +118,80 @@ class SendJobReminders extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    protected function searchPropertyware(Carbon $scheduled_date): void
+    {
+        $this->line('');
+        $this->info('=== Searching PropertyWare for date: '.$scheduled_date->toDateString().' ===');
+
+        $tbpVisits = JobberVisit::with(['job.client'])
+            ->whereDate('start_at', $scheduled_date)
+            ->get()
+            ->filter(function ($visit) {
+                return preg_match('/tenant benefit|tbp/i', $visit->job->title ?? '')
+                    && preg_match('/tenant benefit|tbp/i', $visit->title ?? '');
+            })
+            ->values();
+
+        $this->line('TBP visits for date: '.$tbpVisits->count());
+
+        if ($tbpVisits->isEmpty()) {
+            $this->warn('No TBP visits found for this date.');
+
+            return;
+        }
+
+        $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
+        $response = Http::get($TENANT_JSON_API_LINK);
+
+        if ($response->failed()) {
+            $this->error('Failed to fetch PropertyWare JSON.');
+
+            return;
+        }
+
+        $records = $response->json()['records'] ?? [];
+        $this->line('PropertyWare JSON loaded: '.count($records).' records');
+        $this->line('');
+
+        foreach ($tbpVisits as $visit) {
+            $client = $visit->job->client->name ?? '';
+
+            $this->line('--- Visit ID: '.$visit->id.' | Jobber address: '.$client.' ---');
+
+            $matched = collect($records)->filter(function ($record) use ($client) {
+                return $this->buildingReferenceMatches($client, (string) ($record[15] ?? ''));
+            })->values();
+
+            if ($matched->isEmpty()) {
+                $this->warn('  No match in PropertyWare record[15]');
+                $this->outputJsonBuildingSample($records, $client);
+            } else {
+                $this->info('  Matched '.$matched->count().' PropertyWare record(s):');
+
+                foreach ($matched as $record) {
+                    $phone = collect([
+                        'Mobile' => (string) ($record[13] ?? ''),
+                        'Home' => (string) ($record[14] ?? ''),
+                        'Work' => (string) ($record[11] ?? ''),
+                        'Other' => (string) ($record[12] ?? ''),
+                    ])->first(fn (string $v): bool => $v !== '');
+
+                    $this->line('    Building : '.($record[15] ?? 'N/A'));
+                    $this->line('    Tenant   : '.($record[3] ?? 'N/A'));
+                    $this->line('    Status   : '.($record[2] ?? 'N/A'));
+                    $this->line('    Phone    : '.($phone ?: 'N/A'));
+                    $this->line('    Mobile   : '.($record[13] ?: 'N/A'));
+                    $this->line('    Home     : '.($record[14] ?: 'N/A'));
+                    $this->line('    Work     : '.($record[11] ?: 'N/A'));
+                    $this->line('    Address  : '.($record[4] ?? 'N/A'));
+                    $this->line('    ---');
+                }
+            }
+
+            $this->line('');
+        }
     }
 
     protected function resolveRunDate(): ?Carbon
@@ -155,6 +240,8 @@ class SendJobReminders extends Command
         }
 
         $records = $response->json()['records'] ?? [];
+
+        $isSmallBatch = $visits->count() <= 10;
 
         foreach ($visits as $visit) {
             $jobTitle = $visit->job->title;
@@ -212,14 +299,21 @@ class SendJobReminders extends Command
                 static $loggedComparisonSample = false;
 
                 if (! $loggedComparisonSample) {
+                    $sampleRecord4Value = collect($records)
+                        ->map(fn ($record): string => (string) ($record[4] ?? ''))
+                        ->filter(fn (string $value): bool => $value !== '')
+                        ->first();
+
                     Log::info('Send job reminders comparison sample', [
                         'jobber_client_name' => $client,
                         'propertyware_record_15_value' => $samplePropertywareRecordValue,
+                        'propertyware_record_4_value' => $sampleRecord4Value,
                     ]);
 
                     $this->line('Comparison sample for this run:');
                     $this->line('  Jobber client: '.$client);
                     $this->line('  PropertyWare record[15]: '.($samplePropertywareRecordValue ?: 'N/A'));
+                    $this->line('  PropertyWare record[4]:  '.($sampleRecord4Value ?: 'N/A'));
 
                     $loggedComparisonSample = true;
                 }
@@ -270,6 +364,10 @@ class SendJobReminders extends Command
                     $this->line('  Similar PropertyWare building candidates:');
 
                     $this->outputPropertywareCandidates($similarCandidates);
+                }
+
+                if ($isSmallBatch) {
+                    $this->outputJsonBuildingSample($records, $client ?? '');
                 }
 
                 continue;
@@ -641,6 +739,64 @@ class SendJobReminders extends Command
             'lease_status' => (string) ($record[2] ?? ''),
             'tenant_name' => (string) ($record[3] ?? ''),
         ];
+    }
+
+    /**
+     * For small batches, search the PropertyWare JSON 1-by-1 and output unique building
+     * values from record[15] that share any non-numeric word with the Jobber client name.
+     *
+     * @param  array<int, mixed>  $records
+     */
+    protected function outputJsonBuildingSample(array $records, string $jobberClientName): void
+    {
+        $words = collect(explode(' ', $this->normalizeBuildingReference($jobberClientName)))
+            ->filter()
+            ->reject(fn (string $w): bool => is_numeric($w))
+            ->values();
+
+        if ($words->isEmpty()) {
+            return;
+        }
+
+        $matches = collect($records)
+            ->map(fn ($record): string => (string) ($record[15] ?? ''))
+            ->filter(fn (string $building): bool => $building !== '')
+            ->unique()
+            ->filter(function (string $building) use ($words): bool {
+                $normalized = $this->normalizeBuildingReference($building);
+
+                foreach ($words as $word) {
+                    if (str_contains($normalized, $word)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values()
+            ->take(10);
+
+        if ($matches->isEmpty()) {
+            $sample = collect($records)
+                ->map(fn ($record): string => (string) ($record[15] ?? ''))
+                ->filter(fn (string $building): bool => $building !== '')
+                ->unique()
+                ->take(5)
+                ->values();
+
+            $this->line('  JSON 1-by-1 search: no building in record[15] shares any word with "'.$jobberClientName.'"');
+            $this->line('  Sample record[15] values from JSON:');
+
+            foreach ($sample as $building) {
+                $this->line('    - '.$building);
+            }
+        } else {
+            $this->line('  JSON 1-by-1 search — record[15] buildings sharing a word with "'.$jobberClientName.'":');
+
+            foreach ($matches as $building) {
+                $this->line('    - '.$building);
+            }
+        }
     }
 
     /**
