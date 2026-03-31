@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Models\Owner;
 use App\Models\User;
 use Carbon\Carbon;
@@ -291,6 +292,8 @@ class WorkOrderService
             $this->processRelatedData($data, $work_order, $now);
 
             DB::commit();
+
+            GenerateWorkOrderRecommendationJob::dispatch($work_order);
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order ID: '.($work_order_propertyware_id ?? 'unknown').' - '.$th->getMessage());

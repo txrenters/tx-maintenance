@@ -7,6 +7,7 @@ use App\Models\JobberVisit;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +19,9 @@ class SendJobReminders extends Command
      *
      * @var string
      */
-    protected $signature = 'jobs:send-reminders';
+    protected $signature = 'jobs:send-reminders
+                            {--days=* : Send reminders only for the provided day offsets}
+                            {--run-date= : Run reminders as if the command were executed on this date (Y-m-d)}';
 
     /**
      * The console command description.
@@ -30,9 +33,13 @@ class SendJobReminders extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
-        $today = Carbon::today();
+        $today = $this->resolveRunDate();
+
+        if (! $today instanceof Carbon) {
+            return self::FAILURE;
+        }
 
         $notifyMessageFor7days = "Dear {CLIENT_NAME},\n
             As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}:
@@ -58,15 +65,66 @@ class SendJobReminders extends Command
             Warm regards,
             TexasRenters.com, LLC";
 
-        // 7 days before
-        $this->sendMessages($today->copy()->timezone('America/Chicago')->addDays(7), 'notified_7_days', $notifyMessageFor7days);
+        $reminderConfigurations = [
+            3 => [
+                'notified_field' => 'notified_3_days',
+                'message' => $notifyMessageFor3days,
+            ],
+            7 => [
+                'notified_field' => 'notified_7_days',
+                'message' => $notifyMessageFor7days,
+            ],
+        ];
 
-        // 3 days before
-        $this->sendMessages($today->copy()->timezone('America/Chicago')->addDays(3), 'notified_3_days', $notifyMessageFor3days);
+        $requestedDays = collect($this->option('days'))
+            ->map(fn (mixed $day): int => (int) $day)
+            ->values();
 
+        if ($requestedDays->isEmpty()) {
+            $requestedDays = collect([3, 7]);
+        }
+
+        $invalidDays = $requestedDays
+            ->reject(fn (int $day): bool => array_key_exists($day, $reminderConfigurations))
+            ->all();
+
+        if ($invalidDays !== []) {
+            $this->error('Unsupported reminder day override(s): '.implode(', ', $invalidDays).'. Supported values: 3, 7.');
+
+            return self::FAILURE;
+        }
+
+        foreach ($requestedDays->unique()->sort()->values() as $day) {
+            $configuration = $reminderConfigurations[$day];
+
+            $this->sendMessages(
+                $today->copy()->timezone('America/Chicago')->addDays($day),
+                $configuration['notified_field'],
+                $configuration['message']
+            );
+        }
+
+        return self::SUCCESS;
     }
 
-    protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText)
+    protected function resolveRunDate(): ?Carbon
+    {
+        $runDate = $this->option('run-date');
+
+        if ($runDate === null || $runDate === '') {
+            return Carbon::today();
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', (string) $runDate)->startOfDay();
+        } catch (\Throwable) {
+            $this->error('The run date must use the Y-m-d format, for example 2026-03-31.');
+
+            return null;
+        }
+    }
+
+    protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText): void
     {
         // Don’t process if the visit date is on weekend
         if ($scheduled_date->isWeekend()) {
@@ -125,19 +183,23 @@ class SendJobReminders extends Command
                         '12' => $records[0][12] ?? 'N/A',
                         '13' => $records[0][13] ?? 'N/A',
                         '14' => $records[0][14] ?? 'N/A',
+                        '15' => $records[0][15] ?? 'N/A',
                     ],
                 ]);
                 $loggedSample = true;
             }
 
             $filtered = collect($records)->filter(function ($record) use ($client) {
-                // Exact case-insensitive match to prevent matching similar names
-                return strtolower(trim($record[4] ?? '')) === strtolower(trim($client ?? ''));
+                return $this->buildingReferenceMatches(
+                    $client ?? '',
+                    (string) ($record[15] ?? '')
+                );
             })->values();
 
             if ($filtered->isEmpty()) {
                 Log::warning('No PropertyWare tenant found for Jobber client', [
                     'jobber_client_name' => $client,
+                    'normalized_jobber_client_name' => $this->normalizeBuildingReference($client ?? ''),
                     'visit_id' => $visit->id,
                 ]);
 
@@ -155,7 +217,7 @@ class SendJobReminders extends Command
                     'jobber_client_name' => $client,
                     'propertyware_status' => $clientStatus,
                     'propertyware_tenant_name' => $clientName,
-                    'propertyware_property_match' => $record[4] ?? 'N/A',
+                    'propertyware_client_reference' => $record[15] ?? 'N/A',
                 ]);
 
                 if (strtolower($clientStatus) !== 'active') {
@@ -324,6 +386,70 @@ class SendJobReminders extends Command
         return '+1'.$cleanedNumber;
     }
 
+    protected function buildingReferenceMatches(string $jobberClientName, string $propertywareClientReference): bool
+    {
+        $normalizedJobberClientName = $this->normalizeBuildingReference($jobberClientName);
+        $normalizedPropertywareClientReference = $this->normalizeBuildingReference($propertywareClientReference);
+
+        if ($normalizedJobberClientName === '' || $normalizedPropertywareClientReference === '') {
+            return false;
+        }
+
+        return $normalizedJobberClientName === $normalizedPropertywareClientReference;
+    }
+
+    protected function normalizeBuildingReference(string $value): string
+    {
+        $normalizedValue = Str::of($value)
+            ->lower()
+            ->replaceMatches('/[^\pL\pN\s]/u', ' ')
+            ->replaceMatches('/\s+/', ' ')
+            ->trim()
+            ->value();
+
+        $streetTypeMap = [
+            'aly' => 'alley',
+            'allee' => 'alley',
+            'ave' => 'avenue',
+            'av' => 'avenue',
+            'blvd' => 'boulevard',
+            'cir' => 'circle',
+            'ct' => 'court',
+            'cv' => 'cove',
+            'dr' => 'drive',
+            'hwy' => 'highway',
+            'ln' => 'lane',
+            'lp' => 'loop',
+            'pkwy' => 'parkway',
+            'pl' => 'place',
+            'rd' => 'road',
+            'sq' => 'square',
+            'st' => 'street',
+            'ter' => 'terrace',
+            'trl' => 'trail',
+            'way' => 'way',
+        ];
+
+        return collect(explode(' ', $normalizedValue))
+            ->filter()
+            ->map(function (string $part) use ($streetTypeMap): string {
+                return $streetTypeMap[$part] ?? $part;
+            })
+            ->implode(' ');
+    }
+
+    /**
+     * @return array{
+     *     status: bool,
+     *     sent_at: bool,
+     *     error_message: bool,
+     *     twilio_sid: bool,
+     *     twilio_status: bool,
+     *     twilio_status_updated_at: bool,
+     *     twilio_error_code: bool,
+     *     twilio_error_message: bool
+     * }
+     */
     protected function getMessageColumnAvailability(): array
     {
         return [

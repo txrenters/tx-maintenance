@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\ServiceStatus;
+use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\WorkOrder>
+ * @extends Factory<WorkOrder>
  */
 class WorkOrderFactory extends Factory
 {
@@ -17,7 +19,17 @@ class WorkOrderFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'service_status_id' => ServiceStatus::query()->first()?->id ?? ServiceStatus::query()->create([
+                'name' => 'New',
+                'description' => 'New',
+            ])->id,
+            'work_order_no' => fake()->unique()->numberBetween(1000, 9999),
+            'description' => fake()->sentence(),
+            'location' => fake()->streetAddress(),
+            'status' => 'Open',
+            'type' => 'Repair',
+            'category' => 'Maintenance',
+            'created_date' => now(),
         ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\WorkOrderScope;
 use Carbon\Carbon;
+use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[ScopedBy([WorkOrderScope::class])]
 class WorkOrder extends Model
 {
-    /** @use HasFactory<\Database\Factories\WorkOrderFactory> */
+    /** @use HasFactory<WorkOrderFactory> */
     use HasFactory;
 
     protected $table = 'work_orders';
@@ -117,6 +118,11 @@ class WorkOrder extends Model
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function recommendation(): HasOne
+    {
+        return $this->hasOne(WorkOrderRecommendation::class)->latestOfMany();
     }
 
     public function notes(): HasMany

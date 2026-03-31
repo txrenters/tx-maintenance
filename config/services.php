@@ -58,4 +58,9 @@ return [
         'status_callback_url' => env('TWILIO_STATUS_CALLBACK_URL'),
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-5.1-mini'),
+    ],
+
 ];

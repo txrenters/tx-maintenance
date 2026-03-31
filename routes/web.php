@@ -6,8 +6,8 @@ use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ConversationController;
-use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\ConversationLogsController;
+use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImportTwilioNumberController;
@@ -32,6 +32,7 @@ use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
+use App\Http\Controllers\WorkOrderRecommendationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -76,6 +77,8 @@ Route::middleware([
     Route::get('/work_orders/turnovers/all', [WorkOrderController::class, 'turnover_work_orders'])->name('work_orders.turnovers');
     Route::get('/work_orders/{workOrder}/details', [WorkOrderController::class, 'details'])->name('work_orders.details');
     Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
+    Route::get('/work_orders/{workOrder}/recommendation', [WorkOrderRecommendationController::class, 'show'])->name('work_orders.recommendation.show');
+    Route::post('/work_orders/{workOrder}/recommendation/generate', [WorkOrderRecommendationController::class, 'generate'])->name('work_orders.recommendation.generate');
     Route::put('/work_orders/{workOrder}/close', [WorkOrderController::class, 'close'])->name('work_orders.close');
     Route::put('/work_orders/{workOrder}/open', [WorkOrderController::class, 'open'])->name('work_orders.open');
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');

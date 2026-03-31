@@ -21,6 +21,7 @@ import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
+import Recommendation from "./Partials/Recommendation.vue";
 import {
     ClipboardList,
     ListChecks,
@@ -31,6 +32,7 @@ import {
     Notebook,
     MessagesSquare,
     ArrowLeft,
+    Sparkles,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -53,6 +55,12 @@ const { toast } = useToast();
 // ── Tab configuration (mirrors Index.vue modal) ──────────────────────────────
 const activeTab = ref("details");
 const tabButtons = [
+    {
+        name: "recommendation",
+        tooltip: "Recommendation",
+        icon: Sparkles,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
     {
         name: "details",
         tooltip: "Details",
@@ -221,6 +229,9 @@ const workOrderNotes = ref(props.notes ?? []);
 const workOrderAttachments = ref(props.attachments ?? []);
 const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
+const recommendation = ref(null);
+const aiReady = ref(false);
+const isGeneratingRecommendation = ref(false);
 
 const ownerConversation = ref([]);
 const tenantConversation = ref([]);
@@ -402,10 +413,79 @@ const fetchVendors = async () => {
     }
 };
 
+const fetchRecommendation = async () => {
+    try {
+        isLoading.value = true;
+        const res = await axios.get(
+            route("work_orders.recommendation.show", workOrderForm.id),
+        );
+        recommendation.value = res.data.recommendation;
+        aiReady.value = res.data.ai_ready;
+    } catch (e) {
+        console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const generateRecommendation = async () => {
+    try {
+        isGeneratingRecommendation.value = true;
+        const res = await axios.post(
+            route("work_orders.recommendation.generate", workOrderForm.id),
+        );
+        recommendation.value = res.data.recommendation;
+        aiReady.value = res.data.ai_ready;
+        toast({
+            title: "Success",
+            description: "Recommendation generated successfully.",
+        });
+    } catch (e) {
+        console.error(e);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to generate recommendation.",
+        });
+    } finally {
+        isGeneratingRecommendation.value = false;
+    }
+};
+
+const assignRecommendedVendor = (vendor) => {
+    if (!vendor?.name) {
+        return;
+    }
+
+    router.put(
+        route("work_orders.vendor.change", workOrderForm.id),
+        { vendors: [vendor.name] },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                workOrderVendors.value = [vendor];
+                toast({
+                    title: "Success",
+                    description: "Recommended vendor assigned.",
+                });
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to assign recommended vendor.",
+                });
+            },
+        },
+    );
+};
+
 // ── Tab switching (mirrors Index.vue switchTab) ───────────────────────────────
 const switchTab = (tabName) => {
     activeTab.value = tabName;
 
+    if (tabName === "recommendation") fetchRecommendation();
     if (tabName === "tasks") fetchWorkOrderTask();
     if (tabName === "notes") fetchNotes();
     if (tabName === "attachments") fetchAttachments();
@@ -534,6 +614,16 @@ const handleCloseOrderSubmit = () => {
         <Separator />
 
         <CardContent class="pt-4">
+            <Recommendation
+                v-if="activeTab === 'recommendation'"
+                :recommendation="recommendation"
+                :isLoading="isLoading"
+                :isGenerating="isGeneratingRecommendation"
+                :aiReady="aiReady"
+                @generate="generateRecommendation"
+                @assign="assignRecommendedVendor"
+            />
+
             <WorkOrderDetails
                 v-if="activeTab === 'details'"
                 :workOrder="workOrderForm"

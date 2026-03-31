@@ -20,6 +20,7 @@ import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
 import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
+import Recommendation from "./Partials/Recommendation.vue";
 import debounce from "lodash/debounce";
 
 import {
@@ -38,6 +39,7 @@ import {
     Search,
     Loader2Icon,
     Loader2,
+    Sparkles,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -115,6 +117,12 @@ const closeWorkOrderForm = useForm({
 
 const activeTab = ref("details");
 const tabButtons = [
+    {
+        name: "recommendation",
+        tooltip: "Recommendation",
+        icon: Sparkles,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
     {
         name: "details",
         tooltip: "Details",
@@ -228,6 +236,10 @@ const tabButtons = [
 const switchTab = (tabName) => {
     activeTab.value = tabName;
     workOrderTasks.value = [];
+
+    if (activeTab.value === "recommendation" && workOrderForm.id) {
+        fetchRecommendation(workOrderForm.id);
+    }
 
     if (activeTab.value === "tasks" && workOrderForm.id) {
         fetchWorkOrderTask(workOrderForm.id);
@@ -473,6 +485,9 @@ const fetchNotes = async (workOrderId) => {
 };
 
 const workOrderVendorData = ref([]);
+const recommendation = ref(null);
+const aiReady = ref(false);
+const isGeneratingRecommendation = ref(false);
 const fetchVendors = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -487,6 +502,77 @@ const fetchVendors = async (workOrderId) => {
     } finally {
         isLoading.value = false;
     }
+};
+
+const fetchRecommendation = async (workOrderId) => {
+    try {
+        isLoading.value = true;
+        const response = await axios.get(
+            route("work_orders.recommendation.show", workOrderId)
+        );
+
+        recommendation.value = response.data.recommendation;
+        aiReady.value = response.data.ai_ready;
+    } catch (error) {
+        console.error("Error fetching recommendation:", error);
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const generateRecommendation = async () => {
+    try {
+        isGeneratingRecommendation.value = true;
+        const response = await axios.post(
+            route("work_orders.recommendation.generate", workOrderForm.id)
+        );
+
+        recommendation.value = response.data.recommendation;
+        aiReady.value = response.data.ai_ready;
+
+        toast({
+            title: "Success",
+            description: "Recommendation generated successfully!",
+        });
+    } catch (error) {
+        console.error("Error generating recommendation:", error);
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "Failed to generate recommendation.",
+        });
+    } finally {
+        isGeneratingRecommendation.value = false;
+    }
+};
+
+const assignRecommendedVendor = (vendor) => {
+    if (!vendor?.name) {
+        return;
+    }
+
+    router.put(
+        route("work_orders.vendor.change", workOrderForm.id),
+        { vendors: [vendor.name] },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                workOrderVendors.value = [vendor];
+                toast({
+                    title: "Success",
+                    description: "Recommended vendor assigned successfully!",
+                });
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description: "Failed to assign recommended vendor.",
+                });
+            },
+        }
+    );
 };
 
 const handleUpdateSubmit = () => {
@@ -538,6 +624,9 @@ const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
     activeTab.value = "details";
     workOrderTasks.value = [];
+    recommendation.value = null;
+    aiReady.value = false;
+    isGeneratingRecommendation.value = false;
     openWorkOrder.value = true;
     isLoading.value = true;
 
@@ -889,6 +978,16 @@ const page = usePage();
                 </div>
             </DialogHeader>
             <Separator />
+
+            <Recommendation
+                :recommendation="recommendation"
+                :isLoading="isLoading"
+                :isGenerating="isGeneratingRecommendation"
+                :aiReady="aiReady"
+                @generate="generateRecommendation"
+                @assign="assignRecommendedVendor"
+                v-if="activeTab === 'recommendation'"
+            />
 
             <WorkOrderDetails
                 :workOrder="workOrderForm"
