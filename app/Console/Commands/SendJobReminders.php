@@ -169,6 +169,9 @@ class SendJobReminders extends Command
             }
 
             $client = $visit->job->client->name;
+            $normalizedClientName = $this->normalizeBuildingReference($client ?? '');
+            $normalizedClientKey = $this->normalizeBaseBuildingReference($client ?? '');
+            $streetNumber = $this->extractStreetNumber($client ?? '');
 
             // Log the first record structure for debugging (only log once per run)
             static $loggedSample = false;
@@ -199,11 +202,62 @@ class SendJobReminders extends Command
             })->values();
 
             if ($filtered->isEmpty()) {
+                $candidateBuildings = collect($records)
+                    ->filter(function ($record) use ($streetNumber) {
+                        if ($streetNumber === null) {
+                            return false;
+                        }
+
+                        $building = (string) ($record[15] ?? '');
+
+                        return $this->extractStreetNumber($building) === $streetNumber;
+                    })
+                    ->map(function ($record) {
+                        $building = (string) ($record[15] ?? '');
+
+                        return [
+                            'propertyware_building' => $building,
+                            'normalized_propertyware_building' => $this->normalizeBuildingReference($building),
+                            'propertyware_building_key' => $this->normalizeBaseBuildingReference($building),
+                            'propertyware_address' => (string) ($record[4] ?? ''),
+                            'lease_status' => (string) ($record[2] ?? ''),
+                            'tenant_name' => (string) ($record[3] ?? ''),
+                        ];
+                    })
+                    ->take(10)
+                    ->values()
+                    ->all();
+
                 Log::warning('No PropertyWare tenant found for Jobber client', [
                     'jobber_client_name' => $client,
-                    'normalized_jobber_client_name' => $this->normalizeBuildingReference($client ?? ''),
+                    'normalized_jobber_client_name' => $normalizedClientName,
+                    'jobber_client_key' => $normalizedClientKey,
+                    'jobber_street_number' => $streetNumber,
+                    'propertyware_candidates_same_number' => $candidateBuildings,
                     'visit_id' => $visit->id,
                 ]);
+
+                $this->warn('No PropertyWare tenant found for Jobber client');
+                $this->line('  Jobber client: '.$client);
+                $this->line('  Normalized jobber client: '.$normalizedClientName);
+                $this->line('  Jobber client key: '.$normalizedClientKey);
+                $this->line('  Jobber street number: '.($streetNumber ?? 'N/A'));
+                $this->line('  Visit ID: '.$visit->id);
+
+                if ($candidateBuildings === []) {
+                    $this->line('  PropertyWare candidates with same number: none');
+                } else {
+                    $this->line('  PropertyWare candidates with same number:');
+
+                    foreach ($candidateBuildings as $candidateBuilding) {
+                        $this->line('    - Building: '.($candidateBuilding['propertyware_building'] ?: 'N/A'));
+                        $this->line('      Building normalized: '.($candidateBuilding['normalized_propertyware_building'] ?: 'N/A'));
+                        $this->line('      Building key: '.($candidateBuilding['propertyware_building_key'] ?: 'N/A'));
+                        $this->line('      Address: '.($candidateBuilding['propertyware_address'] ?: 'N/A'));
+                        $this->line('      Lease status: '.($candidateBuilding['lease_status'] ?: 'N/A'));
+                        $this->line('      Tenant name: '.($candidateBuilding['tenant_name'] ?: 'N/A'));
+                    }
+                }
 
                 continue;
             }
@@ -478,6 +532,17 @@ class SendJobReminders extends Command
         }
 
         return $parts->take(2)->implode(' ');
+    }
+
+    protected function extractStreetNumber(string $value): ?string
+    {
+        $normalizedValue = $this->normalizeBuildingReference($value);
+
+        if ($normalizedValue === '') {
+            return null;
+        }
+
+        return Str::of($normalizedValue)->explode(' ')->first();
     }
 
     /**
