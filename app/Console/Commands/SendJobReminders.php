@@ -202,38 +202,26 @@ class SendJobReminders extends Command
             })->values();
 
             if ($filtered->isEmpty()) {
-                $candidateBuildings = collect($records)
-                    ->filter(function ($record) use ($streetNumber) {
-                        if ($streetNumber === null) {
-                            return false;
-                        }
-
-                        $building = (string) ($record[15] ?? '');
-
-                        return $this->extractStreetNumber($building) === $streetNumber;
-                    })
-                    ->map(function ($record) {
-                        $building = (string) ($record[15] ?? '');
-
-                        return [
-                            'propertyware_building' => $building,
-                            'normalized_propertyware_building' => $this->normalizeBuildingReference($building),
-                            'propertyware_building_key' => $this->normalizeBaseBuildingReference($building),
-                            'propertyware_address' => (string) ($record[4] ?? ''),
-                            'lease_status' => (string) ($record[2] ?? ''),
-                            'tenant_name' => (string) ($record[3] ?? ''),
-                        ];
-                    })
-                    ->take(10)
-                    ->values()
-                    ->all();
+                $candidateBuildings = $this->propertywareCandidatesWithSameNumber($records, $streetNumber);
+                $similarCandidates = $this->propertywareSimilarCandidates($records, $client ?? '');
 
                 Log::warning('No PropertyWare tenant found for Jobber client', [
                     'jobber_client_name' => $client,
                     'normalized_jobber_client_name' => $normalizedClientName,
                     'jobber_client_key' => $normalizedClientKey,
                     'jobber_street_number' => $streetNumber,
+                    'visit' => [
+                        'id' => $visit->id,
+                        'title' => $visit->title,
+                        'start_at' => $visit->start_at,
+                    ],
+                    'job' => [
+                        'id' => $visit->job->id,
+                        'number' => $visit->job->job_number,
+                        'title' => $visit->job->title,
+                    ],
                     'propertyware_candidates_same_number' => $candidateBuildings,
+                    'propertyware_similar_candidates' => $similarCandidates,
                     'visit_id' => $visit->id,
                 ]);
 
@@ -243,20 +231,26 @@ class SendJobReminders extends Command
                 $this->line('  Jobber client key: '.$normalizedClientKey);
                 $this->line('  Jobber street number: '.($streetNumber ?? 'N/A'));
                 $this->line('  Visit ID: '.$visit->id);
+                $this->line('  Visit title: '.($visit->title ?: 'N/A'));
+                $this->line('  Visit start_at: '.($visit->start_at ?: 'N/A'));
+                $this->line('  Job ID: '.$visit->job->id);
+                $this->line('  Job number: '.($visit->job->job_number ?: 'N/A'));
+                $this->line('  Job title: '.($visit->job->title ?: 'N/A'));
 
                 if ($candidateBuildings === []) {
                     $this->line('  PropertyWare candidates with same number: none');
                 } else {
                     $this->line('  PropertyWare candidates with same number:');
 
-                    foreach ($candidateBuildings as $candidateBuilding) {
-                        $this->line('    - Building: '.($candidateBuilding['propertyware_building'] ?: 'N/A'));
-                        $this->line('      Building normalized: '.($candidateBuilding['normalized_propertyware_building'] ?: 'N/A'));
-                        $this->line('      Building key: '.($candidateBuilding['propertyware_building_key'] ?: 'N/A'));
-                        $this->line('      Address: '.($candidateBuilding['propertyware_address'] ?: 'N/A'));
-                        $this->line('      Lease status: '.($candidateBuilding['lease_status'] ?: 'N/A'));
-                        $this->line('      Tenant name: '.($candidateBuilding['tenant_name'] ?: 'N/A'));
-                    }
+                    $this->outputPropertywareCandidates($candidateBuildings);
+                }
+
+                if ($similarCandidates === []) {
+                    $this->line('  Similar PropertyWare building/address candidates: none');
+                } else {
+                    $this->line('  Similar PropertyWare building/address candidates:');
+
+                    $this->outputPropertywareCandidates($similarCandidates);
                 }
 
                 continue;
@@ -504,6 +498,175 @@ class SendJobReminders extends Command
         }
 
         return Str::of($normalizedValue)->explode(' ')->first();
+    }
+
+    /**
+     * @param  array<int, mixed>  $records
+     * @return array<int, array{
+     *     propertyware_building: string,
+     *     normalized_propertyware_building: string,
+     *     propertyware_building_key: string,
+     *     propertyware_address: string,
+     *     normalized_propertyware_address: string,
+     *     propertyware_address_key: string,
+     *     lease_status: string,
+     *     tenant_name: string
+     * }>
+     */
+    protected function propertywareCandidatesWithSameNumber(array $records, ?string $streetNumber): array
+    {
+        return collect($records)
+            ->filter(function ($record) use ($streetNumber) {
+                if ($streetNumber === null) {
+                    return false;
+                }
+
+                $building = (string) ($record[15] ?? '');
+                $address = (string) ($record[4] ?? '');
+
+                return $this->extractStreetNumber($building) === $streetNumber
+                    || $this->extractStreetNumber($address) === $streetNumber;
+            })
+            ->map(fn ($record) => $this->mapPropertywareCandidate($record))
+            ->take(10)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, mixed>  $records
+     * @return array<int, array{
+     *     propertyware_building: string,
+     *     normalized_propertyware_building: string,
+     *     propertyware_building_key: string,
+     *     propertyware_address: string,
+     *     normalized_propertyware_address: string,
+     *     propertyware_address_key: string,
+     *     lease_status: string,
+     *     tenant_name: string
+     * }>
+     */
+    protected function propertywareSimilarCandidates(array $records, string $jobberClientName): array
+    {
+        $searchPhrase = $this->streetSearchPhrase($jobberClientName);
+
+        if ($searchPhrase === '') {
+            return [];
+        }
+
+        return collect($records)
+            ->filter(function ($record) use ($searchPhrase) {
+                $building = $this->normalizeBuildingReference((string) ($record[15] ?? ''));
+                $address = $this->normalizeBuildingReference((string) ($record[4] ?? ''));
+
+                return str_contains($building, $searchPhrase) || str_contains($address, $searchPhrase);
+            })
+            ->map(fn ($record) => $this->mapPropertywareCandidate($record))
+            ->unique(fn (array $candidate): string => implode('|', [
+                $candidate['propertyware_building'],
+                $candidate['propertyware_address'],
+                $candidate['tenant_name'],
+            ]))
+            ->take(10)
+            ->values()
+            ->all();
+    }
+
+    protected function streetSearchPhrase(string $value): string
+    {
+        $parts = collect(explode(' ', $this->normalizeBuildingReference($value)))
+            ->filter()
+            ->reject(fn (string $part): bool => is_numeric($part))
+            ->reject(fn (string $part): bool => in_array($part, [
+                'aly',
+                'ave',
+                'avenue',
+                'blvd',
+                'boulevard',
+                'cir',
+                'circle',
+                'court',
+                'ct',
+                'dr',
+                'drive',
+                'hwy',
+                'highway',
+                'lane',
+                'ln',
+                'loop',
+                'parkway',
+                'pkwy',
+                'pl',
+                'place',
+                'rd',
+                'road',
+                'st',
+                'street',
+                'ter',
+                'terrace',
+                'trl',
+                'trail',
+                'way',
+            ], true))
+            ->values();
+
+        return $parts->take(3)->implode(' ');
+    }
+
+    /**
+     * @param  array<int, mixed>  $record
+     * @return array{
+     *     propertyware_building: string,
+     *     normalized_propertyware_building: string,
+     *     propertyware_building_key: string,
+     *     propertyware_address: string,
+     *     normalized_propertyware_address: string,
+     *     propertyware_address_key: string,
+     *     lease_status: string,
+     *     tenant_name: string
+     * }
+     */
+    protected function mapPropertywareCandidate(array $record): array
+    {
+        $building = (string) ($record[15] ?? '');
+        $address = (string) ($record[4] ?? '');
+
+        return [
+            'propertyware_building' => $building,
+            'normalized_propertyware_building' => $this->normalizeBuildingReference($building),
+            'propertyware_building_key' => $this->normalizeBaseBuildingReference($building),
+            'propertyware_address' => $address,
+            'normalized_propertyware_address' => $this->normalizeBuildingReference($address),
+            'propertyware_address_key' => $this->normalizeBaseBuildingReference($address),
+            'lease_status' => (string) ($record[2] ?? ''),
+            'tenant_name' => (string) ($record[3] ?? ''),
+        ];
+    }
+
+    /**
+     * @param  array<int, array{
+     *     propertyware_building: string,
+     *     normalized_propertyware_building: string,
+     *     propertyware_building_key: string,
+     *     propertyware_address: string,
+     *     normalized_propertyware_address: string,
+     *     propertyware_address_key: string,
+     *     lease_status: string,
+     *     tenant_name: string
+     * }>  $candidates
+     */
+    protected function outputPropertywareCandidates(array $candidates): void
+    {
+        foreach ($candidates as $candidateBuilding) {
+            $this->line('    - Building: '.($candidateBuilding['propertyware_building'] ?: 'N/A'));
+            $this->line('      Building normalized: '.($candidateBuilding['normalized_propertyware_building'] ?: 'N/A'));
+            $this->line('      Building key: '.($candidateBuilding['propertyware_building_key'] ?: 'N/A'));
+            $this->line('      Address: '.($candidateBuilding['propertyware_address'] ?: 'N/A'));
+            $this->line('      Address normalized: '.($candidateBuilding['normalized_propertyware_address'] ?: 'N/A'));
+            $this->line('      Address key: '.($candidateBuilding['propertyware_address_key'] ?: 'N/A'));
+            $this->line('      Lease status: '.($candidateBuilding['lease_status'] ?: 'N/A'));
+            $this->line('      Tenant name: '.($candidateBuilding['tenant_name'] ?: 'N/A'));
+        }
     }
 
     /**
