@@ -151,11 +151,15 @@ class SendJobReminders extends Command
             return;
         }
 
-        $records = $response->json()['records'] ?? [];
+        $body = $response->json();
+        $records = $body['records'] ?? [];
         $this->line('PropertyWare JSON loaded: '.count($records).' records');
+        $this->line('HTTP status: '.$response->status());
 
         if (count($records) === 0) {
             $this->error('PropertyWare returned 0 records — API may be down or the response format changed. Cannot match visits.');
+            $this->line('Response keys present: '.implode(', ', array_keys($body ?? [])));
+            $this->line('Raw response (first 500 chars): '.substr($response->body(), 0, 500));
 
             return;
         }
