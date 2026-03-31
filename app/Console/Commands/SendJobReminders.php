@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Schema;
 
 class SendJobReminders extends Command
 {
+    protected const COMMAND_TIMEZONE = 'America/Chicago';
+
     /**
      * The name and signature of the console command.
      *
@@ -98,7 +100,7 @@ class SendJobReminders extends Command
             $configuration = $reminderConfigurations[$day];
 
             $this->sendMessages(
-                $today->copy()->timezone('America/Chicago')->addDays($day),
+                $today->copy()->timezone(self::COMMAND_TIMEZONE)->addDays($day),
                 $configuration['notified_field'],
                 $configuration['message']
             );
@@ -112,11 +114,11 @@ class SendJobReminders extends Command
         $runDate = $this->option('run-date');
 
         if ($runDate === null || $runDate === '') {
-            return Carbon::today();
+            return Carbon::now(self::COMMAND_TIMEZONE)->startOfDay();
         }
 
         try {
-            return Carbon::createFromFormat('Y-m-d', (string) $runDate)->startOfDay();
+            return Carbon::createFromFormat('Y-m-d', (string) $runDate, self::COMMAND_TIMEZONE)->startOfDay();
         } catch (\Throwable) {
             $this->error('The run date must use the Y-m-d format, for example 2026-03-31.');
 
@@ -218,6 +220,7 @@ class SendJobReminders extends Command
                     'propertyware_status' => $clientStatus,
                     'propertyware_tenant_name' => $clientName,
                     'propertyware_client_reference' => $record[15] ?? 'N/A',
+                    'propertyware_address' => $record[4] ?? 'N/A',
                 ]);
 
                 if (strtolower($clientStatus) !== 'active') {
@@ -257,6 +260,9 @@ class SendJobReminders extends Command
                     $uniqueRecipients[$key] = [
                         'phone' => $formattedNumber,
                         'name' => $clientName,
+                        'lease_status' => $clientStatus,
+                        'propertyware_building' => (string) ($record[15] ?? ''),
+                        'propertyware_address' => (string) ($record[4] ?? ''),
                     ];
                 }
             }
@@ -277,6 +283,9 @@ class SendJobReminders extends Command
                 try {
                     Log::info('Sending job reminder SMS', [
                         'client_name' => $clientName,
+                        'jobber_client_name' => $client,
+                        'matched_propertyware_building' => $recipient['propertyware_building'],
+                        'matched_propertyware_address' => $recipient['propertyware_address'],
                         'visit_date' => $visitDate,
                         'to' => $phoneNumber,
                         'notification_type' => $notifiedField,
@@ -325,6 +334,16 @@ class SendJobReminders extends Command
                     Log::info('Job reminder SMS sent successfully', [
                         'message_id' => $text->id,
                         'client_name' => $clientName,
+                        'jobber_client_name' => $client,
+                        'visit_id' => $visit->id,
+                        'job_id' => $visit->job->id,
+                        'job_number' => $visit->job->job_number,
+                        'matched_propertyware_building' => $recipient['propertyware_building'],
+                        'matched_propertyware_address' => $recipient['propertyware_address'],
+                        'propertyware_tenant_name' => $clientName,
+                        'propertyware_lease_status' => $recipient['lease_status'],
+                        'visit_date' => $visitDate,
+                        'notification_type' => $notifiedField,
                         'to' => $phoneNumber,
                     ]);
 
@@ -389,13 +408,23 @@ class SendJobReminders extends Command
     protected function buildingReferenceMatches(string $jobberClientName, string $propertywareClientReference): bool
     {
         $normalizedJobberClientName = $this->normalizeBuildingReference($jobberClientName);
+        $normalizedJobberBuildingReference = $this->normalizeBaseBuildingReference($jobberClientName);
         $normalizedPropertywareClientReference = $this->normalizeBuildingReference($propertywareClientReference);
+        $normalizedPropertywareBuildingReference = $this->normalizeBaseBuildingReference($propertywareClientReference);
 
-        if ($normalizedJobberClientName === '' || $normalizedPropertywareClientReference === '') {
+        if ($normalizedJobberClientName === '') {
             return false;
         }
 
-        return $normalizedJobberClientName === $normalizedPropertywareClientReference;
+        if ($normalizedPropertywareBuildingReference !== '' && $normalizedJobberBuildingReference === $normalizedPropertywareBuildingReference) {
+            return true;
+        }
+
+        if ($normalizedPropertywareClientReference !== '' && $normalizedJobberClientName === $normalizedPropertywareClientReference) {
+            return true;
+        }
+
+        return false;
     }
 
     protected function normalizeBuildingReference(string $value): string
@@ -436,6 +465,19 @@ class SendJobReminders extends Command
                 return $streetTypeMap[$part] ?? $part;
             })
             ->implode(' ');
+    }
+
+    protected function normalizeBaseBuildingReference(string $value): string
+    {
+        $parts = collect(explode(' ', $this->normalizeBuildingReference($value)))
+            ->filter()
+            ->values();
+
+        if ($parts->isEmpty()) {
+            return '';
+        }
+
+        return $parts->take(3)->implode(' ');
     }
 
     /**
