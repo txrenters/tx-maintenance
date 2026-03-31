@@ -204,6 +204,25 @@ class SendJobReminders extends Command
             if ($filtered->isEmpty()) {
                 $candidateBuildings = $this->propertywareCandidatesWithSameNumber($records, $streetNumber);
                 $similarCandidates = $this->propertywareSimilarCandidates($records, $client ?? '');
+                $samplePropertywareRecordValue = collect($records)
+                    ->map(fn ($record): string => (string) ($record[15] ?? ''))
+                    ->filter(fn (string $value): bool => $value !== '')
+                    ->first();
+
+                static $loggedComparisonSample = false;
+
+                if (! $loggedComparisonSample) {
+                    Log::info('Send job reminders comparison sample', [
+                        'jobber_client_name' => $client,
+                        'propertyware_record_15_value' => $samplePropertywareRecordValue,
+                    ]);
+
+                    $this->line('Comparison sample for this run:');
+                    $this->line('  Jobber client: '.$client);
+                    $this->line('  PropertyWare record[15]: '.($samplePropertywareRecordValue ?: 'N/A'));
+
+                    $loggedComparisonSample = true;
+                }
 
                 Log::warning('No PropertyWare tenant found for Jobber client', [
                     'jobber_client_name' => $client,
@@ -246,9 +265,9 @@ class SendJobReminders extends Command
                 }
 
                 if ($similarCandidates === []) {
-                    $this->line('  Similar PropertyWare building/address candidates: none');
+                    $this->line('  Similar PropertyWare building candidates: none');
                 } else {
-                    $this->line('  Similar PropertyWare building/address candidates:');
+                    $this->line('  Similar PropertyWare building candidates:');
 
                     $this->outputPropertywareCandidates($similarCandidates);
                 }
@@ -333,7 +352,6 @@ class SendJobReminders extends Command
                         'client_name' => $clientName,
                         'jobber_client_name' => $client,
                         'matched_propertyware_building' => $recipient['propertyware_building'],
-                        'matched_propertyware_address' => $recipient['propertyware_address'],
                         'visit_date' => $visitDate,
                         'to' => $phoneNumber,
                         'notification_type' => $notifiedField,
@@ -387,7 +405,6 @@ class SendJobReminders extends Command
                         'job_id' => $visit->job->id,
                         'job_number' => $visit->job->job_number,
                         'matched_propertyware_building' => $recipient['propertyware_building'],
-                        'matched_propertyware_address' => $recipient['propertyware_address'],
                         'propertyware_tenant_name' => $clientName,
                         'propertyware_lease_status' => $recipient['lease_status'],
                         'visit_date' => $visitDate,
@@ -506,9 +523,6 @@ class SendJobReminders extends Command
      *     propertyware_building: string,
      *     normalized_propertyware_building: string,
      *     propertyware_building_key: string,
-     *     propertyware_address: string,
-     *     normalized_propertyware_address: string,
-     *     propertyware_address_key: string,
      *     lease_status: string,
      *     tenant_name: string
      * }>
@@ -522,10 +536,8 @@ class SendJobReminders extends Command
                 }
 
                 $building = (string) ($record[15] ?? '');
-                $address = (string) ($record[4] ?? '');
 
-                return $this->extractStreetNumber($building) === $streetNumber
-                    || $this->extractStreetNumber($address) === $streetNumber;
+                return $this->extractStreetNumber($building) === $streetNumber;
             })
             ->map(fn ($record) => $this->mapPropertywareCandidate($record))
             ->take(10)
@@ -539,9 +551,6 @@ class SendJobReminders extends Command
      *     propertyware_building: string,
      *     normalized_propertyware_building: string,
      *     propertyware_building_key: string,
-     *     propertyware_address: string,
-     *     normalized_propertyware_address: string,
-     *     propertyware_address_key: string,
      *     lease_status: string,
      *     tenant_name: string
      * }>
@@ -557,14 +566,12 @@ class SendJobReminders extends Command
         return collect($records)
             ->filter(function ($record) use ($searchPhrase) {
                 $building = $this->normalizeBuildingReference((string) ($record[15] ?? ''));
-                $address = $this->normalizeBuildingReference((string) ($record[4] ?? ''));
 
-                return str_contains($building, $searchPhrase) || str_contains($address, $searchPhrase);
+                return str_contains($building, $searchPhrase);
             })
             ->map(fn ($record) => $this->mapPropertywareCandidate($record))
             ->unique(fn (array $candidate): string => implode('|', [
                 $candidate['propertyware_building'],
-                $candidate['propertyware_address'],
                 $candidate['tenant_name'],
             ]))
             ->take(10)
@@ -619,9 +626,6 @@ class SendJobReminders extends Command
      *     propertyware_building: string,
      *     normalized_propertyware_building: string,
      *     propertyware_building_key: string,
-     *     propertyware_address: string,
-     *     normalized_propertyware_address: string,
-     *     propertyware_address_key: string,
      *     lease_status: string,
      *     tenant_name: string
      * }
@@ -629,15 +633,11 @@ class SendJobReminders extends Command
     protected function mapPropertywareCandidate(array $record): array
     {
         $building = (string) ($record[15] ?? '');
-        $address = (string) ($record[4] ?? '');
 
         return [
             'propertyware_building' => $building,
             'normalized_propertyware_building' => $this->normalizeBuildingReference($building),
             'propertyware_building_key' => $this->normalizeBaseBuildingReference($building),
-            'propertyware_address' => $address,
-            'normalized_propertyware_address' => $this->normalizeBuildingReference($address),
-            'propertyware_address_key' => $this->normalizeBaseBuildingReference($address),
             'lease_status' => (string) ($record[2] ?? ''),
             'tenant_name' => (string) ($record[3] ?? ''),
         ];
@@ -648,9 +648,6 @@ class SendJobReminders extends Command
      *     propertyware_building: string,
      *     normalized_propertyware_building: string,
      *     propertyware_building_key: string,
-     *     propertyware_address: string,
-     *     normalized_propertyware_address: string,
-     *     propertyware_address_key: string,
      *     lease_status: string,
      *     tenant_name: string
      * }>  $candidates
@@ -661,9 +658,6 @@ class SendJobReminders extends Command
             $this->line('    - Building: '.($candidateBuilding['propertyware_building'] ?: 'N/A'));
             $this->line('      Building normalized: '.($candidateBuilding['normalized_propertyware_building'] ?: 'N/A'));
             $this->line('      Building key: '.($candidateBuilding['propertyware_building_key'] ?: 'N/A'));
-            $this->line('      Address: '.($candidateBuilding['propertyware_address'] ?: 'N/A'));
-            $this->line('      Address normalized: '.($candidateBuilding['normalized_propertyware_address'] ?: 'N/A'));
-            $this->line('      Address key: '.($candidateBuilding['propertyware_address_key'] ?: 'N/A'));
             $this->line('      Lease status: '.($candidateBuilding['lease_status'] ?: 'N/A'));
             $this->line('      Tenant name: '.($candidateBuilding['tenant_name'] ?: 'N/A'));
         }

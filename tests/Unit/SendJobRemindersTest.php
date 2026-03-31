@@ -124,7 +124,7 @@ class SendJobRemindersTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_it_surfaces_similar_propertyware_candidates_from_the_address_field(): void
+    public function test_it_surfaces_similar_propertyware_candidates_from_the_building_field(): void
     {
         $command = new class extends SendJobReminders
         {
@@ -142,19 +142,17 @@ class SendJobRemindersTest extends TestCase
             [
                 2 => 'Active',
                 3 => 'Jane Tenant',
-                4 => '10107 Mariposa Green Court',
-                15 => '',
+                15 => '10107 Mariposa Green Court',
             ],
             [
                 2 => 'Active',
                 3 => 'John Tenant',
-                4 => '8800 Different Street',
-                15 => '',
+                15 => '8800 Different Street',
             ],
         ], '10107 Mariposa Green Ct');
 
         $this->assertCount(1, $candidates);
-        $this->assertSame('10107 Mariposa Green Court', $candidates[0]['propertyware_address']);
+        $this->assertSame('10107 Mariposa Green Court', $candidates[0]['propertyware_building']);
         $this->assertSame('Jane Tenant', $candidates[0]['tenant_name']);
     }
 }
