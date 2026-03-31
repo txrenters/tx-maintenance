@@ -477,7 +477,7 @@ class SendJobReminders extends Command
             return '';
         }
 
-        return $parts->take(3)->implode(' ');
+        return $parts->take(2)->implode(' ');
     }
 
     /**

@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from "vue";
 import { Button } from "@/Components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
 import {
     Card,
     CardContent,
@@ -10,13 +9,12 @@ import {
     CardTitle,
 } from "@/Components/ui/card";
 import { Badge } from "@/Components/ui/badge";
-import { Sparkles, Bot, Wrench, History, RefreshCw, CheckCircle2 } from "lucide-vue-next";
+import { Sparkles, Wrench, History, RefreshCw, CheckCircle2 } from "lucide-vue-next";
 
 const props = defineProps({
     isLoading: Boolean,
     isGenerating: Boolean,
     recommendation: Object,
-    aiReady: Boolean,
 });
 
 const emit = defineEmits(["generate", "assign"]);
@@ -46,15 +44,6 @@ const formatDate = (date) => {
 <template>
     <div class="px-6 pb-6">
         <div class="grid gap-4">
-            <Alert v-if="!aiReady" class="border-amber-200 bg-amber-50 text-amber-900">
-                <Bot class="h-4 w-4" />
-                <AlertTitle>AI SDK not active yet</AlertTitle>
-                <AlertDescription>
-                    Recommendations currently use the built-in heuristic fallback until
-                    `laravel/ai` is installed and configured with OpenAI.
-                </AlertDescription>
-            </Alert>
-
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="text-sm font-medium text-primary">Recommendation Center</p>

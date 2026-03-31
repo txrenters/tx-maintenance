@@ -230,7 +230,6 @@ const workOrderAttachments = ref(props.attachments ?? []);
 const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
-const aiReady = ref(false);
 const isGeneratingRecommendation = ref(false);
 
 const ownerConversation = ref([]);
@@ -420,7 +419,6 @@ const fetchRecommendation = async () => {
             route("work_orders.recommendation.show", workOrderForm.id),
         );
         recommendation.value = res.data.recommendation;
-        aiReady.value = res.data.ai_ready;
     } catch (e) {
         console.error(e);
     } finally {
@@ -435,7 +433,6 @@ const generateRecommendation = async () => {
             route("work_orders.recommendation.generate", workOrderForm.id),
         );
         recommendation.value = res.data.recommendation;
-        aiReady.value = res.data.ai_ready;
         toast({
             title: "Success",
             description: "Recommendation generated successfully.",
@@ -619,7 +616,6 @@ const handleCloseOrderSubmit = () => {
                 :recommendation="recommendation"
                 :isLoading="isLoading"
                 :isGenerating="isGeneratingRecommendation"
-                :aiReady="aiReady"
                 @generate="generateRecommendation"
                 @assign="assignRecommendedVendor"
             />

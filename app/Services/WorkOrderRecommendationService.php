@@ -16,6 +16,35 @@ use Laravel\Ai\Promptable;
 class WorkOrderRecommendationService
 {
     /**
+     * @return array{ready: bool, provider: ?string}
+     */
+    public function aiStatus(): array
+    {
+        if (! class_exists(Promptable::class)) {
+            return [
+                'ready' => false,
+                'provider' => null,
+            ];
+        }
+
+        $provider = (string) config('ai.default');
+        $providerConfig = config("ai.providers.{$provider}", []);
+        $driver = data_get($providerConfig, 'driver');
+        $key = (string) data_get($providerConfig, 'key', '');
+
+        $isReady = filled($driver) && filled($key);
+
+        if ($provider === 'azure') {
+            $isReady = $isReady && filled(data_get($providerConfig, 'url')) && filled(data_get($providerConfig, 'deployment'));
+        }
+
+        return [
+            'ready' => $isReady,
+            'provider' => $provider !== '' ? $provider : null,
+        ];
+    }
+
+    /**
      * @return array{
      *     issue_type: string,
      *     issue_subtype: ?string,
@@ -119,7 +148,7 @@ class WorkOrderRecommendationService
                 'confidence' => max(0, min(100, (int) data_get($response, 'confidence', 0))),
                 'needs_human_review' => (bool) data_get($response, 'needs_human_review', false),
                 'source' => 'laravel_ai',
-                'model' => config('services.openai.model'),
+                'model' => $this->aiModelName(),
                 'raw_response' => method_exists($response, 'toArray') ? $response->toArray() : (array) $response,
             ];
         } catch (\Throwable) {
@@ -214,6 +243,17 @@ class WorkOrderRecommendationService
             'Latest update comments: '.($workOrder->latest_update_comments ?? 'N/A'),
             'Closing comments: '.($workOrder->closing_comments ?? 'N/A'),
         ]);
+    }
+
+    private function aiModelName(): ?string
+    {
+        $provider = (string) config('ai.default');
+
+        return match ($provider) {
+            'azure' => config('ai.providers.azure.deployment'),
+            'openai' => config('services.openai.model'),
+            default => $provider !== '' ? $provider : null,
+        };
     }
 
     /**

@@ -13,7 +13,10 @@ return [
     |
     */
 
-    'default' => 'openai',
+    'default' => env(
+        'AI_DEFAULT_PROVIDER',
+        env('AZURE_OPENAI_API_KEY') && env('AZURE_OPENAI_URL') ? 'azure' : 'openai'
+    ),
     'default_for_images' => 'gemini',
     'default_for_audio' => 'openai',
     'default_for_transcription' => 'openai',

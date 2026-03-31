@@ -486,7 +486,6 @@ const fetchNotes = async (workOrderId) => {
 
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
-const aiReady = ref(false);
 const isGeneratingRecommendation = ref(false);
 const fetchVendors = async (workOrderId) => {
     try {
@@ -512,7 +511,6 @@ const fetchRecommendation = async (workOrderId) => {
         );
 
         recommendation.value = response.data.recommendation;
-        aiReady.value = response.data.ai_ready;
     } catch (error) {
         console.error("Error fetching recommendation:", error);
     } finally {
@@ -528,7 +526,6 @@ const generateRecommendation = async () => {
         );
 
         recommendation.value = response.data.recommendation;
-        aiReady.value = response.data.ai_ready;
 
         toast({
             title: "Success",
@@ -625,7 +622,6 @@ const handleWorkOrder = async (orderId) => {
     activeTab.value = "details";
     workOrderTasks.value = [];
     recommendation.value = null;
-    aiReady.value = false;
     isGeneratingRecommendation.value = false;
     openWorkOrder.value = true;
     isLoading.value = true;
@@ -983,7 +979,6 @@ const page = usePage();
                 :recommendation="recommendation"
                 :isLoading="isLoading"
                 :isGenerating="isGeneratingRecommendation"
-                :aiReady="aiReady"
                 @generate="generateRecommendation"
                 @assign="assignRecommendedVendor"
                 v-if="activeTab === 'recommendation'"
