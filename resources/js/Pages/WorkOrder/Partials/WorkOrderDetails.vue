@@ -42,13 +42,25 @@ const isCompleteDialogOpen = ref(false);
 const searchTerm = ref("");
 
 const { contains } = useFilter({ sensitivity: "base" }); // this is use for vendors dropdown
+
+const selectedVendors = ref(
+    (props.workOrder.vendors || []).map((v) => ({ id: v.id, name: v.name })),
+);
+
+const selectedVendorNames = computed({
+    get: () => selectedVendors.value.map((v) => v.name),
+    set: (names) => {
+        selectedVendors.value = selectedVendors.value.filter((v) =>
+            names.includes(v.name),
+        );
+    },
+});
+
 const filteredVendors = computed(() => {
-    const assignedIds = props.workOrder.vendors.map((v) =>
-        typeof v === "object" ? v.id : null,
-    ).filter(Boolean);
-
-    const options = props.vendors.filter((i) => !assignedIds.includes(i.id));
-
+    const assignedIds = selectedVendors.value.map((v) => v.id);
+    const options = (props.vendors || []).filter(
+        (i) => !assignedIds.includes(i.id),
+    );
     return searchTerm.value
         ? options.filter((option) => contains(option.name, searchTerm.value))
         : options;
@@ -127,9 +139,7 @@ const handleEmergencySubmit = () => {
 const loadingVendor = ref(false);
 const handleVendorSubmit = () => {
     loadingVendor.value = true;
-    const vendorIds = props.workOrder.vendors
-        .map((v) => (typeof v === "object" ? v.id : null))
-        .filter(Boolean);
+    const vendorIds = selectedVendors.value.map((v) => v.id);
     router.put(
         route("work_orders.vendor.change", props.workOrder.id),
         {
@@ -279,7 +289,7 @@ const handleCompleteSubmit = () => {
                     </template>
 
                     <Combobox
-                        v-model="workOrder.vendors"
+                        v-model="selectedVendorNames"
                         v-model:open="open"
                         :ignore-filter="true"
                         v-else
@@ -293,7 +303,7 @@ const handleCompleteSubmit = () => {
                             "
                         >
                             <TagsInput
-                                v-model="workOrder.vendors"
+                                v-model="selectedVendorNames"
                                 class="gap-2 w-full"
                                 v-if="
                                     !$page.props.auth.user.roles.includes(
@@ -303,9 +313,9 @@ const handleCompleteSubmit = () => {
                             >
                                 <div class="flex gap-2 flex-wrap items-center">
                                     <TagsInputItem
-                                        v-for="vendor in workOrder.vendors"
-                                        :key="vendor"
-                                        :value="vendor"
+                                        v-for="vendor in selectedVendors"
+                                        :key="vendor.id"
+                                        :value="vendor.name"
                                     >
                                         <TagsInputItemText />
                                         <TagsInputItemDelete />
@@ -329,14 +339,15 @@ const handleCompleteSubmit = () => {
                                     <ComboboxItem
                                         v-for="vendor in filteredVendors"
                                         :key="vendor.id"
-                                        :value="vendor"
+                                        :value="vendor.name"
                                         @select.prevent="
                                             (ev) => {
                                                 if (ev.detail.value) {
                                                     searchTerm = '';
-                                                    workOrder.vendors.push(
-                                                        ev.detail.value,
-                                                    );
+                                                    selectedVendors.value.push({
+                                                        id: vendor.id,
+                                                        name: vendor.name,
+                                                    });
                                                 }
 
                                                 if (
