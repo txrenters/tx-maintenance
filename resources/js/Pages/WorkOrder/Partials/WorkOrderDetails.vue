@@ -43,11 +43,12 @@ const searchTerm = ref("");
 
 const { contains } = useFilter({ sensitivity: "base" }); // this is use for vendors dropdown
 const filteredVendors = computed(() => {
-    const options = props.vendors.filter(
-        (i) => !props.workOrder.vendors.includes(i.name),
-    );
+    const assignedIds = props.workOrder.vendors.map((v) =>
+        typeof v === "object" ? v.id : null,
+    ).filter(Boolean);
 
-    console.log(options);
+    const options = props.vendors.filter((i) => !assignedIds.includes(i.id));
+
     return searchTerm.value
         ? options.filter((option) => contains(option.name, searchTerm.value))
         : options;
@@ -126,10 +127,13 @@ const handleEmergencySubmit = () => {
 const loadingVendor = ref(false);
 const handleVendorSubmit = () => {
     loadingVendor.value = true;
+    const vendorIds = props.workOrder.vendors
+        .map((v) => (typeof v === "object" ? v.id : null))
+        .filter(Boolean);
     router.put(
         route("work_orders.vendor.change", props.workOrder.id),
         {
-            vendors: props.workOrder.vendors,
+            vendor_ids: vendorIds,
         },
         {
             preserveState: true,
@@ -325,13 +329,10 @@ const handleCompleteSubmit = () => {
                                     <ComboboxItem
                                         v-for="vendor in filteredVendors"
                                         :key="vendor.id"
-                                        :value="vendor.name"
+                                        :value="vendor"
                                         @select.prevent="
                                             (ev) => {
-                                                if (
-                                                    typeof ev.detail.value ===
-                                                    'string'
-                                                ) {
+                                                if (ev.detail.value) {
                                                     searchTerm = '';
                                                     workOrder.vendors.push(
                                                         ev.detail.value,

@@ -27,6 +27,7 @@ use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\FallbackVendorController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
@@ -55,6 +56,8 @@ Route::middleware([
     Route::get('/twilio_numbers/import/numbers', ImportTwilioNumberController::class)->name('import_twilio_numbers');
 
     Route::resource('/woc_numbers', WOCNumbersController::class);
+
+    Route::resource('/fallback_vendors', FallbackVendorController::class)->only(['index', 'store', 'update', 'destroy']);
 
     Route::resource('/vendors', VendorController::class);
     Route::put('/vendors/change_status/{vendor}', [VendorController::class, 'update_status'])->name('vendors.change_status');

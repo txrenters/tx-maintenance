@@ -207,7 +207,8 @@ const navs = computed(() => {
                     page.url.startsWith("/WorkOrder/Coordinators") ||
                     page.url.startsWith("/vendors") ||
                     page.url.startsWith("/owners") ||
-                    page.url.startsWith("/tenants"),
+                    page.url.startsWith("/tenants") ||
+                    page.url.startsWith("/fallback_vendors"),
                 items: [
                     {
                         title: "Coordinators",
@@ -228,6 +229,11 @@ const navs = computed(() => {
                         title: "Tenants",
                         url: route("tenants.index"),
                         isActive: page.url.startsWith("/tenants"),
+                    },
+                    {
+                        title: "Fallback Vendors",
+                        url: route("fallback_vendors.index"),
+                        isActive: page.url.startsWith("/fallback_vendors"),
                     },
                 ],
                 requires: ["admin", "woc"],

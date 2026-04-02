@@ -790,44 +790,20 @@ class WorkOrderController extends Controller
     public function vendor_change(Request $request, WorkOrder $workOrder)
     {
         $request->validate([
-            'vendors' => 'required|array',
+            'vendor_ids' => 'required|array',
+            'vendor_ids.*' => 'integer|exists:vendors,id',
         ]);
 
         DB::beginTransaction();
 
         try {
-            // Normalize vendor names
-            $vendorNames = collect($request->vendors)
-                ->filter()
-                ->map(fn ($v) => trim($v))
-                ->unique();
+            $vendorIds = collect($request->vendor_ids)->filter()->unique()->values()->all();
 
-            // Fetch all vendors in one query
-            $vendors = Vendor::where(function ($q) use ($vendorNames) {
-                foreach ($vendorNames as $name) {
-                    $q->orWhere('name', 'like', "%{$name}%");
-                }
-            })->get();
+            $vendors = Vendor::whereIn('id', $vendorIds)->get();
 
-            $vendorIds = [];
-            $vendorIDs = [];
-
-            foreach ($vendorNames as $vendorName) {
-                $vendor = $vendors->first(fn ($v) => str_contains(strtolower($v->name), strtolower($vendorName))
-                );
-
-                if (! $vendor) {
-                    Log::warning("Vendor not found: {$vendorName}");
-
-                    continue;
-                }
-
-                $vendorIds[] = $vendor->id;
-
-                // PropertyWare XML IDs
-                $vendorIDs[] =
-                    "<vendorID xsi:type=\"xsd:long\">{$vendor->propertyware_id}</vendorID>";
-            }
+            $vendorIDs = $vendors->map(
+                fn (Vendor $v) => "<vendorID xsi:type=\"xsd:long\">{$v->propertyware_id}</vendorID>"
+            )->all();
 
             // 🔥 Sync vendors (update instead of delete)
             $changes = $workOrder->vendors()->sync($vendorIds);

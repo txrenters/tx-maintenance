@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\WorkOrderRecommendationAgent;
+use App\Models\FallbackVendor;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderRecommendation;
@@ -355,13 +356,16 @@ class WorkOrderRecommendationService
      */
     private function fallbackVendorDetails(string $issueType, array $keywords, ?Vendor $recommendedVendor, array $databaseAlternates): array
     {
-        $configuredVendors = collect(config('work_order_recommendations.fallback_vendors', []))
-            ->map(function (array $vendor, string $name) {
-                return [
-                    'name' => $name,
-                    ...$vendor,
-                ];
-            });
+        $configuredVendors = FallbackVendor::active()
+            ->get()
+            ->map(fn (FallbackVendor $vendor) => [
+                'name' => $vendor->name,
+                'contacts' => $vendor->contacts,
+                'notes' => $vendor->notes,
+                'issue_types' => $vendor->issue_types,
+                'keywords' => $vendor->keywords,
+                'priority' => $vendor->priority,
+            ]);
 
         $databaseVendorNames = collect($databaseAlternates)
             ->pluck('name')
@@ -555,13 +559,16 @@ class WorkOrderRecommendationService
      */
     private function fallbackVendorByIssue(string $issueType, array $keywords): ?array
     {
-        return collect(config('work_order_recommendations.fallback_vendors', []))
-            ->map(function (array $vendor, string $name) {
-                return [
-                    'name' => $name,
-                    ...$vendor,
-                ];
-            })
+        return FallbackVendor::active()
+            ->get()
+            ->map(fn (FallbackVendor $vendor) => [
+                'name' => $vendor->name,
+                'contacts' => $vendor->contacts,
+                'notes' => $vendor->notes,
+                'issue_types' => $vendor->issue_types,
+                'keywords' => $vendor->keywords,
+                'priority' => $vendor->priority,
+            ])
             ->filter(function (array $vendor) use ($issueType, $keywords) {
                 if (in_array($issueType, $vendor['issue_types'] ?? [], true)) {
                     return true;
@@ -576,12 +583,12 @@ class WorkOrderRecommendationService
 
     private function generalFallbackVendor(Collection $activeVendors): ?Vendor
     {
-        $generalFallback = collect(config('work_order_recommendations.fallback_vendors', []))
-            ->keys()
-            ->first(fn (string $name) => $name === 'RA Solutions');
+        $generalFallback = FallbackVendor::active()
+            ->orderBy('priority')
+            ->first();
 
         if ($generalFallback !== null) {
-            $vendor = $activeVendors->first(fn (Vendor $activeVendor) => Str::lower($activeVendor->name) === Str::lower($generalFallback));
+            $vendor = $activeVendors->first(fn (Vendor $activeVendor) => Str::lower($activeVendor->name) === Str::lower($generalFallback->name));
 
             if ($vendor instanceof Vendor) {
                 return $vendor;
