@@ -344,7 +344,7 @@ const handleCompleteSubmit = () => {
                                             (ev) => {
                                                 if (ev.detail.value) {
                                                     searchTerm = '';
-                                                    selectedVendors.value.push({
+                                                    selectedVendors.push({
                                                         id: vendor.id,
                                                         name: vendor.name,
                                                     });
