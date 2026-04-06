@@ -152,6 +152,16 @@ const openMedia = (mediaUrl) => {
                 <XIcon class="w-3 h-3" />
             </button>
 
+            <p
+                class="text-xs mb-1"
+                :class="
+                    msg.sender_number === sender
+                        ? 'text-white/70'
+                        : 'text-gray-500'
+                "
+            >
+                To: {{ msg.receiver_number }}
+            </p>
             <span
                 class="text-md py-1 whitespace-pre-line"
                 :class="
@@ -227,16 +237,6 @@ const openMedia = (mediaUrl) => {
                     "
                 >
                     From: {{ msg.sender_number }}
-                </p>
-                <p
-                    class="text-xs"
-                    :class="
-                        msg.sender_number === sender
-                            ? 'text-white'
-                            : 'text-gray-500'
-                    "
-                >
-                    To: {{ msg.receiver_number }}
                 </p>
             </div>
             <p
