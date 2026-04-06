@@ -228,6 +228,16 @@ const openMedia = (mediaUrl) => {
                 >
                     From: {{ msg.sender_number }}
                 </p>
+                <p
+                    class="text-xs"
+                    :class="
+                        msg.sender_number === sender
+                            ? 'text-white'
+                            : 'text-gray-500'
+                    "
+                >
+                    To: {{ msg.receiver_number }}
+                </p>
             </div>
             <p
                 v-if="msg.twilio_error_message"
