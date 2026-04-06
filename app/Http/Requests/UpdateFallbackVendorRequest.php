@@ -18,7 +18,7 @@ class UpdateFallbackVendorRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'vendor_id' => ['required', 'integer', 'exists:vendors,id'],
             'notes' => ['nullable', 'string'],
             'priority' => ['required', 'integer', 'min:1', 'max:255'],
             'is_active' => ['boolean'],

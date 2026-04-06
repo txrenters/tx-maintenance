@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FallbackVendor extends Model
 {
     protected $fillable = [
-        'name',
+        'vendor_id',
         'contacts',
         'notes',
         'issue_types',
@@ -25,6 +26,11 @@ class FallbackVendor extends Model
             'is_active' => 'boolean',
             'priority' => 'integer',
         ];
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class);
     }
 
     public function scopeActive($query)

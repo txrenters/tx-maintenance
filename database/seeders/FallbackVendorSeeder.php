@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\FallbackVendor;
+use App\Models\Vendor;
 use Illuminate\Database\Seeder;
 
 class FallbackVendorSeeder extends Seeder
@@ -11,7 +12,7 @@ class FallbackVendorSeeder extends Seeder
     {
         $vendors = [
             [
-                'name' => 'Texas Home Maintenance Pros',
+                'vendor_name' => 'Texas Home Maintenance Pros',
                 'contacts' => [
                     ['name' => 'Romero', 'phone' => '(305) 303-3420'],
                     ['name' => 'Carlos', 'phone' => '(786) 501-0690'],
@@ -22,7 +23,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 10,
             ],
             [
-                'name' => 'SDM Home Services LLC',
+                'vendor_name' => 'SDM Home Services LLC',
                 'contacts' => [
                     ['phone' => '(281) 844-8563'],
                 ],
@@ -32,7 +33,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 20,
             ],
             [
-                'name' => 'Professional Same day Repair',
+                'vendor_name' => 'Professional Same day Repair',
                 'contacts' => [
                     ['phone' => '(832) 708-4891'],
                 ],
@@ -42,7 +43,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 30,
             ],
             [
-                'name' => 'Bi-Polar AC',
+                'vendor_name' => 'Bi-Polar AC',
                 'contacts' => [
                     ['phone' => '(832) 909-0022'],
                 ],
@@ -52,7 +53,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 10,
             ],
             [
-                'name' => 'Express Key',
+                'vendor_name' => 'Express Key',
                 'contacts' => [
                     ['phone' => '(512) 800-3464'],
                 ],
@@ -62,7 +63,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 10,
             ],
             [
-                'name' => 'Justin Time Garage Doors',
+                'vendor_name' => 'Justin Time Garage Doors',
                 'contacts' => [
                     ['phone' => '(832) 800-8687'],
                 ],
@@ -72,7 +73,7 @@ class FallbackVendorSeeder extends Seeder
                 'priority' => 10,
             ],
             [
-                'name' => 'RA Solutions',
+                'vendor_name' => 'RA Solutions',
                 'contacts' => [
                     ['email' => 'main@rapropertysolutions.net', 'phone' => '(346) 760-9532'],
                 ],
@@ -83,8 +84,22 @@ class FallbackVendorSeeder extends Seeder
             ],
         ];
 
-        foreach ($vendors as $vendor) {
-            FallbackVendor::firstOrCreate(['name' => $vendor['name']], $vendor);
+        foreach ($vendors as $entry) {
+            $vendorName = $entry['vendor_name'];
+            unset($entry['vendor_name']);
+
+            $vendor = Vendor::whereRaw('LOWER(name) = ?', [strtolower($vendorName)])->first();
+
+            if (! $vendor) {
+                $this->command?->warn("Vendor '{$vendorName}' not found in vendors table — skipping.");
+
+                continue;
+            }
+
+            FallbackVendor::firstOrCreate(
+                ['vendor_id' => $vendor->id],
+                $entry
+            );
         }
     }
 }

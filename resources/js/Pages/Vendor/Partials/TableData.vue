@@ -37,10 +37,10 @@ const updateStatus = (checked, vendor) => {
             <TableRow v-for="vendor in data" :key="vendor.id">
                 <TableCell class="font-medium">
                     {{ vendor.name }}
+                    <p v-if="vendor.email" class="text-xs font-normal text-muted-foreground">
+                        {{ vendor.email }}
+                    </p>
                     <span class="flex flex-col md:hidden">
-                        <p class="text-xs font-normal">
-                            {{ vendor.email }}
-                        </p>
                         <p class="text-xs font-normal">
                             {{ vendor.phone }}
                         </p>

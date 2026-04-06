@@ -317,7 +317,7 @@ class PropertyWareService
 
             return json_encode($response);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
 
             return [];
@@ -442,7 +442,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             return false;
             Log::error('Updating service status failed: '.$exception);
         }
@@ -520,7 +520,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             Log::error('Closing work order failed: '.$exception->getMessage(), [
                 'work_order_no' => $workOrder->work_order_no,
                 'trace' => $exception->getTraceAsString(),
@@ -607,7 +607,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             Log::error('Re-opening work order failed: '.$exception->getMessage(), [
                 'work_order_no' => $workOrder->work_order_no,
                 'trace' => $exception->getTraceAsString(),
@@ -656,10 +656,9 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
-        // Build SOAP payload without location field to avoid validation errors
-        // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
-
-        $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
+        // Fetch fresh location from PropertyWare to avoid truncated local value
+        $pwWorkOrder = $this->getWorkOrder($workorderId);
+        $location = htmlspecialchars($pwWorkOrder['location'] ?? $workOrder->location ?? '', ENT_XML1, 'UTF-8');
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -704,7 +703,7 @@ class PropertyWareService
                 'message' => $res['message'],
             ]);
 
-            throw new \Exception('PropertyWare API Error: '.$res['message']);
+            throw new Exception('PropertyWare API Error: '.$res['message']);
         }
 
         if ($workOrder->is_approved) {
@@ -787,7 +786,7 @@ class PropertyWareService
             $absolutePath = public_path('storage/attachments/'.basename($attachment['filename']));
 
             if (! file_exists($absolutePath)) {
-                throw new \Exception('File does not exist: '.$absolutePath);
+                throw new Exception('File does not exist: '.$absolutePath);
             }
 
             $title = $attachment['title'] ?? 'Invoice';
@@ -857,7 +856,7 @@ class PropertyWareService
 
             return false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error uploading work order attachment: '.$e->getMessage());
 
             return false;
@@ -869,12 +868,12 @@ class PropertyWareService
         try {
             $workOrder = WorkOrder::find($workOrderId);
             if (! $workOrder) {
-                throw new \Exception("Work order not found: $workOrderId");
+                throw new Exception("Work order not found: $workOrderId");
             }
 
             $absolutePath = public_path('storage/invoices/'.basename($invoice->filename));
             if (! file_exists($absolutePath)) {
-                throw new \Exception("File does not exist: $absolutePath");
+                throw new Exception("File does not exist: $absolutePath");
             }
 
             $formFields = [
@@ -955,7 +954,7 @@ class PropertyWareService
 
             return false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Exception uploading invoice: '.$e->getMessage());
 
             return false;
@@ -970,7 +969,7 @@ class PropertyWareService
 
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
             $workOrder = WorkOrder::with('vendors')->find($workOrder->id);
 
@@ -1066,7 +1065,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error in updating work order: '.$e->getMessage(), [
                 'workOrderId' => $workorderId ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,
@@ -1081,7 +1080,7 @@ class PropertyWareService
     {
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
 
             $cost_etimate = 0;
@@ -1131,7 +1130,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
                 'work_order_id' => $workOrder->propertyware_id ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,
@@ -1146,7 +1145,7 @@ class PropertyWareService
     {
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
 
             // Send PATCH request to PropertyWare REST API
@@ -1178,7 +1177,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
                 'work_order_id' => $workOrder->propertyware_id ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,

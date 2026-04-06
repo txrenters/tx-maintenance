@@ -18,6 +18,15 @@ import { Textarea } from "@/Components/ui/textarea";
 import { Switch } from "@/Components/ui/switch";
 import { Badge } from "@/Components/ui/badge";
 import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
     Card,
     CardContent,
     CardHeader,
@@ -48,6 +57,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({
     title: String,
     fallbackVendors: Array,
+    vendors: Array,
 });
 
 const { toast } = useToast();
@@ -58,7 +68,7 @@ const isDeleteDialogOpen = ref(false);
 const selectedVendorId = ref(null);
 
 const blankForm = () => ({
-    name: "",
+    vendor_id: null,
     notes: "",
     priority: 50,
     is_active: true,
@@ -83,7 +93,7 @@ const removeContact = (targetForm, index) => {
 
 const openEditDialog = (vendor) => {
     editForm.id = vendor.id;
-    editForm.name = vendor.name;
+    editForm.vendor_id = vendor.vendor_id ? String(vendor.vendor_id) : "";
     editForm.notes = vendor.notes ?? "";
     editForm.priority = vendor.priority;
     editForm.is_active = vendor.is_active;
@@ -163,7 +173,7 @@ const handleDelete = () => {
             <CardHeader class="pb-2">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <CardTitle class="text-base">{{ vendor.name }}</CardTitle>
+                        <CardTitle class="text-base">{{ vendor.vendor?.name ?? 'Unknown Vendor' }}</CardTitle>
                         <Badge :variant="vendor.is_active ? 'default' : 'secondary'">
                             {{ vendor.is_active ? "Active" : "Inactive" }}
                         </Badge>
@@ -225,9 +235,21 @@ const handleDelete = () => {
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
-                        <Label class="mb-1">Name</Label>
-                        <Input v-model="form.name" placeholder="Vendor name" />
-                        <p v-if="form.errors.name" class="text-destructive text-xs mt-1">{{ form.errors.name }}</p>
+                        <Label class="mb-1">Vendor</Label>
+                        <Select v-model="form.vendor_id">
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an active vendor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>Vendors</SelectLabel>
+                                    <SelectItem v-for="v in vendors" :key="v.id" :value="String(v.id)">
+                                        {{ v.name }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <p v-if="form.errors.vendor_id" class="text-destructive text-xs mt-1">{{ form.errors.vendor_id }}</p>
                     </div>
                     <div>
                         <Label class="mb-1">Priority</Label>
@@ -310,9 +332,21 @@ const handleDelete = () => {
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
-                        <Label class="mb-1">Name</Label>
-                        <Input v-model="editForm.name" placeholder="Vendor name" />
-                        <p v-if="editForm.errors.name" class="text-destructive text-xs mt-1">{{ editForm.errors.name }}</p>
+                        <Label class="mb-1">Vendor</Label>
+                        <Select v-model="editForm.vendor_id">
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an active vendor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>Vendors</SelectLabel>
+                                    <SelectItem v-for="v in vendors" :key="v.id" :value="String(v.id)">
+                                        {{ v.name }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <p v-if="editForm.errors.vendor_id" class="text-destructive text-xs mt-1">{{ editForm.errors.vendor_id }}</p>
                     </div>
                     <div>
                         <Label class="mb-1">Priority</Label>
