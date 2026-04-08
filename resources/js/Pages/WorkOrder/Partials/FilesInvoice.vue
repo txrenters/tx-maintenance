@@ -168,7 +168,7 @@ const formatDate = (date) => {
                         >{{ file.status }}</Badge
                     >
                 </p>
-                <p class="text-sm">Vendor: {{ file.vendor.name }}</p>
+                <p class="text-sm">Vendor: {{ file.vendor?.name ?? 'N/A' }}</p>
                 <p class="text-sm">Date: {{ formatDate(file.created_at) }}</p>
             </div>
 

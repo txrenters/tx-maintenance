@@ -57,15 +57,10 @@ class InvoiceController extends Controller
                 return redirect()->back()->withErrors('Selected vendor is not assigned to this work order.');
             }
         } else {
-            // No vendor_id provided, check if work order has vendors
+            // No vendor_id provided, auto-assign first vendor if available, otherwise allow null
             $workOrder = WorkOrder::with('vendors')->find($validatedData['work_order_id']);
             $firstVendor = $workOrder?->vendors()->first();
-
-            if (! $firstVendor) {
-                return redirect()->back()->withErrors('No vendor assigned to this work order. Please assign a vendor first.');
-            }
-
-            $validatedData['vendor_id'] = $firstVendor->id;
+            $validatedData['vendor_id'] = $firstVendor?->id;
         }
 
         if ($request->hasFile('filename')) {
