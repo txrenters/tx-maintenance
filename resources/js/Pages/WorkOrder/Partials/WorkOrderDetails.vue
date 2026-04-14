@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
-import { router } from "@inertiajs/vue3";
+import { router, usePage } from "@inertiajs/vue3";
 import { useFilter } from "reka-ui";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -34,6 +34,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["save", "close", "delete", "update-workOrder"]);
+const page = usePage();
 
 const open = ref(false);
 const isDeleteDialogOpen = ref(false);
@@ -64,6 +65,22 @@ const filteredVendors = computed(() => {
     return searchTerm.value
         ? options.filter((option) => contains(option.name, searchTerm.value))
         : options;
+});
+
+const isVendorUser = computed(() =>
+    page.props.auth.user.roles.includes("vendor"),
+);
+
+const visibleWorkOrderVendors = computed(() => {
+    const vendors = Array.isArray(props.workOrder?.vendors)
+        ? props.workOrder.vendors
+        : [];
+
+    if (!isVendorUser.value) {
+        return vendors;
+    }
+
+    return vendors.filter((vendor) => vendor.id === page.props.auth.user.vendor?.id);
 });
 
 const formatDate = (date) => {
@@ -281,7 +298,7 @@ const handleCompleteSubmit = () => {
                         Assign vendor
                     </Button>
                     <template v-if="workOrder.local_status === 'Updated'">
-                        <p v-for="vendor in workOrder.vendors" :key="vendor">
+                        <p v-for="vendor in visibleWorkOrderVendors" :key="vendor.id ?? vendor">
                             <span v-if="vendor.id"> {{ vendor.name }}</span>
                             <span v-else> {{ vendor }}</span>
                         </p>
@@ -367,7 +384,7 @@ const handleCompleteSubmit = () => {
                 </div>
                 <div v-else>
                     <Label for="message">Vendors:</Label>
-                    <div v-for="vendor in workOrder.vendors" :key="vendor.id">
+                    <div v-for="vendor in visibleWorkOrderVendors" :key="vendor.id">
                         <p>{{ vendor.name }}</p>
                     </div>
                 </div>

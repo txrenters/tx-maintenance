@@ -239,6 +239,17 @@ class WorkOrderController extends Controller
             'vendor_tenant_conversation',
         ]);
 
+        $user = request()->user();
+
+        if ($user->hasRole('vendor') && $user->vendor) {
+            $workOrder->setRelation(
+                'vendors',
+                $workOrder->vendors
+                    ->where('id', $user->vendor->id)
+                    ->values()
+            );
+        }
+
         // Get all conversations for this work order
         $conversations = collect()
             ->merge($workOrder->tenant_conversation)
@@ -267,7 +278,13 @@ class WorkOrderController extends Controller
         $serviceStatuses = $serviceStatusesQuery->get();
 
         // Get vendors for potential assignments
-        $vendors = Vendor::with('user')->where('is_active', true)->get();
+        $vendorsQuery = Vendor::with('user')->where('is_active', true);
+
+        if ($user->hasRole('vendor') && $user->vendor) {
+            $vendorsQuery->whereKey($user->vendor->id);
+        }
+
+        $vendors = $vendorsQuery->get();
 
         return inertia('WorkOrder/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,

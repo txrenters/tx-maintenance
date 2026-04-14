@@ -36,7 +36,8 @@
       "Bash(composer show:*)",
       "Bash(Get-Content \"C:\\\\Projects\\\\tx_work_order\\\\storage\\\\logs\\\\laravel.log\" -Tail 50)",
       "Bash(vendor/bin/pint:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
