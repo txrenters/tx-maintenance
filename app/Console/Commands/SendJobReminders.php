@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\JobReminderMail;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Services\TwilioService;
@@ -9,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -24,7 +26,8 @@ class SendJobReminders extends Command
     protected $signature = 'jobs:send-reminders
                             {--days=* : Send reminders only for the provided day offsets}
                             {--run-date= : Run reminders as if the command were executed on this date (Y-m-d)}
-                            {--search : Search all TBP visits for the given date(s) against PropertyWare JSON without sending SMS}';
+                            {--search : Search all TBP visits for the given date(s) against PropertyWare JSON without sending SMS}
+                            {--test-email= : Send a sample reminder email to the given address using the 7-day template, then exit}';
 
     /**
      * The console command description.
@@ -97,6 +100,33 @@ class SendJobReminders extends Command
             return self::FAILURE;
         }
 
+        $testEmail = $this->option('test-email');
+
+        if ($testEmail !== null && $testEmail !== '') {
+            $templates = [
+                7 => $notifyMessageFor7days,
+                3 => $notifyMessageFor3days,
+            ];
+
+            $testDaysOption = collect($this->option('days'))
+                ->map(fn (mixed $day): int => (int) $day)
+                ->filter(fn (int $day): bool => array_key_exists($day, $templates))
+                ->unique()
+                ->values();
+
+            $daysToSend = $testDaysOption->isEmpty() ? [7, 3] : $testDaysOption->all();
+
+            foreach ($daysToSend as $day) {
+                $result = $this->sendTestEmail((string) $testEmail, $templates[$day], $day);
+
+                if ($result !== self::SUCCESS) {
+                    return $result;
+                }
+            }
+
+            return self::SUCCESS;
+        }
+
         if ($this->option('search')) {
             foreach ($requestedDays->unique()->sort()->values() as $day) {
                 $this->searchPropertyware(
@@ -118,6 +148,42 @@ class SendJobReminders extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    protected function sendTestEmail(string $to, string $messageText, int $reminderDays): int
+    {
+        if (! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            $this->error('Invalid email address: '.$to);
+
+            return self::FAILURE;
+        }
+
+        $sampleName = 'Sample Tenant';
+        $sampleDate = Carbon::now(self::COMMAND_TIMEZONE)->next(Carbon::TUESDAY)->format('l, F d, Y');
+        $body = str_replace(
+            ['{CLIENT_NAME}', '{SCHEDULED_DATE}'],
+            [$sampleName, $sampleDate],
+            $messageText
+        );
+        $subjectLine = sprintf('[TEST %d-day] Reminder: Scheduled TBP Service on %s', $reminderDays, $sampleDate);
+
+        try {
+            Mail::to($to)->send(new JobReminderMail(
+                tenantName: $sampleName,
+                visitDate: $sampleDate,
+                body: $body,
+                subjectLine: $subjectLine,
+            ));
+
+            $this->info(sprintf('Test %d-day reminder email sent to %s', $reminderDays, $to));
+
+            return self::SUCCESS;
+        } catch (\Throwable $th) {
+            $this->error('Failed to send test email: '.$th->getMessage());
+            Log::error('Test reminder email failed', ['to' => $to, 'error' => $th->getMessage(), 'reminder_days' => $reminderDays]);
+
+            return self::FAILURE;
+        }
     }
 
     protected function searchPropertyware(Carbon $scheduled_date): void
@@ -391,12 +457,14 @@ class SendJobReminders extends Command
                 continue;
             }
 
-            // Collect unique phone numbers with their client names to prevent duplicate messages
+            // Collect unique phone numbers and emails with their client names to prevent duplicate messages
             $uniqueRecipients = [];
+            $uniqueEmails = [];
 
             foreach ($filtered as $record) {
                 $clientStatus = $record[2];
                 $clientName = $record[3];
+                $clientEmail = trim((string) ($record[22] ?? ''));
 
                 Log::info('Processing PropertyWare tenant record', [
                     'jobber_client_name' => $client,
@@ -431,22 +499,34 @@ class SendJobReminders extends Command
                             'jobber_error_message' => 'We could not find the phone number for tenant: '.$clientName,
                         ])
                         ->log('Job #'.$visit->job->job_number.' - Text Message Failed');
+                } else {
+                    $formattedNumber = $this->formatNumber($workingPhoneNumber);
 
-                    continue;
+                    // Deduplicate by phone + name combination (allow same phone with different names)
+                    $key = $formattedNumber.'|'.$clientName;
+                    if (! isset($uniqueRecipients[$key])) {
+                        $uniqueRecipients[$key] = [
+                            'phone' => $formattedNumber,
+                            'name' => $clientName,
+                            'lease_status' => $clientStatus,
+                            'propertyware_building' => (string) ($record[15] ?? ''),
+                            'propertyware_address' => (string) ($record[4] ?? ''),
+                        ];
+                    }
                 }
 
-                $formattedNumber = $this->formatNumber($workingPhoneNumber);
+                if ($clientEmail !== '' && filter_var($clientEmail, FILTER_VALIDATE_EMAIL)) {
+                    $emailKey = strtolower($clientEmail);
 
-                // Deduplicate by phone + name combination (allow same phone with different names)
-                $key = $formattedNumber.'|'.$clientName;
-                if (! isset($uniqueRecipients[$key])) {
-                    $uniqueRecipients[$key] = [
-                        'phone' => $formattedNumber,
-                        'name' => $clientName,
-                        'lease_status' => $clientStatus,
-                        'propertyware_building' => (string) ($record[15] ?? ''),
-                        'propertyware_address' => (string) ($record[4] ?? ''),
-                    ];
+                    if (! isset($uniqueEmails[$emailKey])) {
+                        $uniqueEmails[$emailKey] = [
+                            'email' => $clientEmail,
+                            'name' => $clientName,
+                            'lease_status' => $clientStatus,
+                            'propertyware_building' => (string) ($record[15] ?? ''),
+                            'propertyware_address' => (string) ($record[4] ?? ''),
+                        ];
+                    }
                 }
             }
 
@@ -568,6 +648,54 @@ class SendJobReminders extends Command
                     }
 
                     JobberTextMessage::create($failedPayload);
+                }
+            }
+
+            foreach ($uniqueEmails as $recipient) {
+                $emailAddress = $recipient['email'];
+                $recipientName = $recipient['name'];
+                $message = str_replace('{CLIENT_NAME}', $recipientName, $messageText);
+                $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+                $subjectLine = 'Reminder: Scheduled TBP Service on '.$visitDate;
+
+                try {
+                    Log::info('Sending job reminder email', [
+                        'client_name' => $recipientName,
+                        'jobber_client_name' => $client,
+                        'matched_propertyware_building' => $recipient['propertyware_building'],
+                        'visit_date' => $visitDate,
+                        'to' => $emailAddress,
+                        'notification_type' => $notifiedField,
+                    ]);
+
+                    Mail::to($emailAddress)->send(new JobReminderMail(
+                        tenantName: $recipientName,
+                        visitDate: $visitDate,
+                        body: $message2,
+                        subjectLine: $subjectLine,
+                    ));
+
+                    Log::info('Job reminder email sent successfully', [
+                        'client_name' => $recipientName,
+                        'jobber_client_name' => $client,
+                        'visit_id' => $visit->id,
+                        'job_id' => $visit->job->id,
+                        'job_number' => $visit->job->job_number,
+                        'matched_propertyware_building' => $recipient['propertyware_building'],
+                        'visit_date' => $visitDate,
+                        'notification_type' => $notifiedField,
+                        'to' => $emailAddress,
+                    ]);
+                } catch (\Throwable $th) {
+                    Log::error('Sending job reminder email failed', [
+                        'client_name' => $recipientName,
+                        'jobber_client_name' => $client,
+                        'visit_id' => $visit->id,
+                        'job_id' => $visit->job->id,
+                        'visit_date' => $visitDate,
+                        'to' => $emailAddress,
+                        'error' => $th->getMessage(),
+                    ]);
                 }
             }
         }
