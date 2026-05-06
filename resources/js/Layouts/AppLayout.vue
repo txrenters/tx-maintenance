@@ -238,6 +238,27 @@ const navs = computed(() => {
                 ],
                 requires: ["admin", "woc"],
             },
+            {
+                title: "Messages",
+                url: "#",
+                icon: Globe,
+                isActive:
+                    page.component === "ConversationLogs" ||
+                    page.component === "TwilioMessageSearch",
+                items: [
+                    {
+                        title: "Conversations",
+                        url: route("conversation_logs.index"),
+                        isActive: page.component === "ConversationLogs",
+                    },
+                    {
+                        title: "Search Twilio",
+                        url: route("twilio_messages.search"),
+                        isActive: page.component === "TwilioMessageSearch",
+                    },
+                ],
+                requires: ["admin", "woc"],
+            },
         ],
         menu: [
             {
@@ -276,13 +297,6 @@ const navs = computed(() => {
                 url: route("buildings.index"),
                 isActive: page.url.startsWith("/buildings"),
                 icon: Warehouse,
-                requires: ["admin", "woc"],
-            },
-            {
-                name: "Messages",
-                url: route("conversation_logs.index"),
-                isActive: page.component === "ConversationLogs",
-                icon: Globe,
                 requires: ["admin", "woc"],
             },
         ],

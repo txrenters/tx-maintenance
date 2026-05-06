@@ -10,6 +10,7 @@ use App\Http\Controllers\ConversationLogsController;
 use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FallbackVendorController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
@@ -25,9 +26,9 @@ use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantsController;
+use App\Http\Controllers\TwilioMessageSearchController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\FallbackVendorController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\WOCNumbersController;
@@ -106,6 +107,9 @@ Route::middleware([
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
+
+    Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
+    Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');
 
     Route::resource('/task_templates', TaskTemplateController::class);
 

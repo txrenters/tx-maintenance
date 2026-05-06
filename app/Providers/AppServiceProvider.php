@@ -29,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
             return $user->hasRole('admin') ? true : null;
         });
 
+        Gate::define('search_twilio_messages', function ($user) {
+            return $user->hasRole('woc');
+        });
+
         LogViewer::auth(function ($request) {
             return $request->user()?->hasRole('admin') ? true : null;
         });

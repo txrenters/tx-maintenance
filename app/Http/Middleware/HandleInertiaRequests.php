@@ -66,6 +66,11 @@ class HandleInertiaRequests extends Middleware
             'jobber_twilio_phone_number' => $jobber_twilio_phone_number,
             'logo' => asset('tx-logo.webp'),
             'app_url' => env('APP_URL'),
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+                'warning' => fn () => $request->session()->get('warning'),
+            ],
         ]);
     }
 }
