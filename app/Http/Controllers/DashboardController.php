@@ -59,11 +59,12 @@ class DashboardController extends Controller
             ')
             ->first();
 
+        $now = now();
         $visitStats = JobberVisit::selectRaw('
                 COUNT(CASE WHEN is_complete = 1 THEN 1 END) as completed_inspection_visits,
-                COUNT(CASE WHEN is_complete = 0 AND start_at < NOW() THEN 1 END) as overdue_inspections,
-                COUNT(CASE WHEN is_complete = 0 AND start_at >= NOW() THEN 1 END) as upcoming_inspections
-            ')
+                COUNT(CASE WHEN is_complete = 0 AND start_at < ? THEN 1 END) as overdue_inspections,
+                COUNT(CASE WHEN is_complete = 0 AND start_at >= ? THEN 1 END) as upcoming_inspections
+            ', [$now, $now])
             ->first();
 
         // Calculate monthly growth rate efficiently
@@ -86,9 +87,10 @@ class DashboardController extends Controller
             (($thisMonthOrders - $lastMonthOrders) / $lastMonthOrders) * 100 : 100;
 
         // Calculate average completion time efficiently
-        $completionStats = WorkOrder::selectRaw('
-                AVG(DATEDIFF(completed_date, created_date)) as avg_completion_days
-            ')
+        $dateDiffExpr = $this->sqlDateDiffDays('completed_date', 'created_date');
+        $completionStats = WorkOrder::selectRaw("
+                AVG({$dateDiffExpr}) as avg_completion_days
+            ")
             ->scoped()
             ->whereNotNull('completed_date')
             ->where('completed_date', '>', DB::raw('created_date'))
@@ -133,15 +135,17 @@ class DashboardController extends Controller
             }
 
             // Query work orders for the last 12 months
-            $workOrderData = WorkOrder::selectRaw('
-                    MONTH(created_date) as month,
-                    YEAR(created_date) as year,
-                    SUM(CASE WHEN status = "Closed" THEN 1 ELSE 0 END) as Completed,
+            $monthExpr = $this->sqlMonth('created_date');
+            $yearExpr = $this->sqlYear('created_date');
+            $workOrderData = WorkOrder::selectRaw("
+                    {$monthExpr} as month,
+                    {$yearExpr} as year,
+                    SUM(CASE WHEN status = \"Closed\" THEN 1 ELSE 0 END) as Completed,
                     COUNT(id) as Created
-                ')
+                ")
                 ->scoped()
                 ->where('created_date', '>=', $startDate)
-                ->groupByRaw('YEAR(created_date), MONTH(created_date)')
+                ->groupByRaw("{$yearExpr}, {$monthExpr}")
                 ->get()
                 ->keyBy(function ($item) {
                     return $item->year.'-'.$item->month;
@@ -165,15 +169,17 @@ class DashboardController extends Controller
             'July', 'August', 'September', 'October', 'November', 'December',
         ];
 
-        $workOrderData = WorkOrder::selectRaw('
-                MONTHNAME(created_date) as name,
-                SUM(CASE WHEN status = "Closed" THEN 1 ELSE 0 END) as Completed,
+        $monthNameExpr = $this->sqlMonthName('created_date');
+        $monthExpr = $this->sqlMonth('created_date');
+        $workOrderData = WorkOrder::selectRaw("
+                {$monthNameExpr} as name,
+                SUM(CASE WHEN status = \"Closed\" THEN 1 ELSE 0 END) as Completed,
                 COUNT(id) as Created
-            ')
+            ")
             ->scoped()
             ->whereYear('created_date', $year)
-            ->groupByRaw('MONTHNAME(created_date), MONTH(created_date)')
-            ->orderByRaw('MONTH(created_date)')
+            ->groupByRaw("{$monthNameExpr}, {$monthExpr}")
+            ->orderByRaw("{$monthExpr}")
             ->get()
             ->keyBy('name');
 
@@ -191,17 +197,16 @@ class DashboardController extends Controller
     private function getServiceStatus()
     {
         return ServiceStatus::withCount([
-            // Count all related work orders for this service status
             'work_orders as total' => function ($q) {
-                // Apply your WorkOrderScope and filters automatically
-                $q->filtered() // If you have a local scope named filtered()
-                    ->scoped()   // If you have a local/global scope named scoped()
+                $q->filtered()
+                    ->scoped()
                     ->where('work_orders.status', 'Open');
             },
         ])
             ->whereNotIn('name', ['Not Changed', 'Closed'])
-            ->having('total', '>', 0)
             ->get()
+            ->filter(fn ($status) => $status->total > 0)
+            ->values()
             ->map(fn ($status) => [
                 'name' => $status->name,
                 'total' => $status->total,
@@ -211,10 +216,11 @@ class DashboardController extends Controller
     private function getInspectionAnalytics()
     {
         // Return minimal inspection analytics for charts
-        $inspectionsByDayOfWeek = JobberVisit::selectRaw('
-                DAYOFWEEK(start_at) - 1 as day_of_week,
+        $dayOfWeekExpr = $this->sqlDayOfWeekZeroIndexed('start_at');
+        $inspectionsByDayOfWeek = JobberVisit::selectRaw("
+                {$dayOfWeekExpr} as day_of_week,
                 COUNT(*) as count
-            ')
+            ")
             ->groupBy('day_of_week')
             ->get()
             ->keyBy('day_of_week');
@@ -247,5 +253,62 @@ class DashboardController extends Controller
         }
 
         return round(($stats->completed_visits / $stats->total_visits) * 100);
+    }
+
+    private function isSqlite(): bool
+    {
+        return DB::connection()->getDriverName() === 'sqlite';
+    }
+
+    private function sqlYear(string $column): string
+    {
+        return $this->isSqlite()
+            ? "CAST(strftime('%Y', {$column}) AS INTEGER)"
+            : "YEAR({$column})";
+    }
+
+    private function sqlMonth(string $column): string
+    {
+        return $this->isSqlite()
+            ? "CAST(strftime('%m', {$column}) AS INTEGER)"
+            : "MONTH({$column})";
+    }
+
+    private function sqlMonthName(string $column): string
+    {
+        if (! $this->isSqlite()) {
+            return "MONTHNAME({$column})";
+        }
+
+        $monthExpr = $this->sqlMonth($column);
+
+        return "CASE {$monthExpr}"
+            ." WHEN 1 THEN 'January'"
+            ." WHEN 2 THEN 'February'"
+            ." WHEN 3 THEN 'March'"
+            ." WHEN 4 THEN 'April'"
+            ." WHEN 5 THEN 'May'"
+            ." WHEN 6 THEN 'June'"
+            ." WHEN 7 THEN 'July'"
+            ." WHEN 8 THEN 'August'"
+            ." WHEN 9 THEN 'September'"
+            ." WHEN 10 THEN 'October'"
+            ." WHEN 11 THEN 'November'"
+            ." WHEN 12 THEN 'December'"
+            .' END';
+    }
+
+    private function sqlDayOfWeekZeroIndexed(string $column): string
+    {
+        return $this->isSqlite()
+            ? "CAST(strftime('%w', {$column}) AS INTEGER)"
+            : "(DAYOFWEEK({$column}) - 1)";
+    }
+
+    private function sqlDateDiffDays(string $newer, string $older): string
+    {
+        return $this->isSqlite()
+            ? "(julianday({$newer}) - julianday({$older}))"
+            : "DATEDIFF({$newer}, {$older})";
     }
 }
