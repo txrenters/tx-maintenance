@@ -133,7 +133,8 @@ class TwilioMessageSearchController extends Controller
     }
 
     /**
-     * Create a Conversation row for an inbound Twilio message that is missing locally.
+     * Create a local row for an inbound Twilio message that is missing locally,
+     * mirroring TwilioWebhookController's WO-first, then jobber-fallback logic.
      *
      * @param  array<string, mixed>  $message
      */
@@ -142,12 +143,26 @@ class TwilioMessageSearchController extends Controller
         $customerPhone = (string) ($message['from'] ?? '');
         $ourNumber = (string) ($message['to'] ?? '');
 
-        $thread = $this->findMostRecentThreadForPhone($customerPhone);
+        $workOrderThread = $this->findMatchingWorkOrderThread($customerPhone, $ourNumber);
 
-        if ($thread === null) {
-            return back()->with('warning', 'No work order conversation found for '.$customerPhone.'. Cannot import — please reply to this customer from a work order first.');
+        if ($workOrderThread !== null) {
+            return $this->importIntoWorkOrder($message, $workOrderThread, $customerPhone, $ourNumber);
         }
 
+        $jobberThread = $this->findMatchingJobberThread($customerPhone, $ourNumber);
+
+        if ($jobberThread !== null) {
+            return $this->importIntoJobber($message, $jobberThread, $customerPhone, $ourNumber);
+        }
+
+        return back()->with('warning', 'No matching work order or active job conversation found between '.$customerPhone.' and '.$ourNumber.'. Cannot import.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    protected function importIntoWorkOrder(array $message, Conversation $thread, string $customerPhone, string $ourNumber): RedirectResponse
+    {
         try {
             $conversation = Conversation::create([
                 'message' => (string) ($message['body'] ?? ''),
@@ -167,6 +182,7 @@ class TwilioMessageSearchController extends Controller
 
             Log::info('Twilio message imported via search page', [
                 'sid' => $message['sid'] ?? null,
+                'target' => 'work_order_conversation',
                 'conversation_id' => $conversation->id,
                 'work_order_id' => $thread->work_order_id,
             ]);
@@ -188,6 +204,7 @@ class TwilioMessageSearchController extends Controller
         } catch (\Throwable $e) {
             Log::error('Twilio message import failed', [
                 'sid' => $message['sid'] ?? null,
+                'target' => 'work_order_conversation',
                 'error' => $e->getMessage(),
             ]);
 
@@ -195,6 +212,64 @@ class TwilioMessageSearchController extends Controller
         }
 
         return back()->with('success', 'Imported inbound message into work order #'.$thread->work_order_id.'.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    protected function importIntoJobber(array $message, JobberTextMessage $thread, string $customerPhone, string $ourNumber): RedirectResponse
+    {
+        try {
+            $payload = [
+                'messages' => (string) ($message['body'] ?? ''),
+                'sender_number' => $customerPhone,
+                'receiver_number' => $ourNumber,
+                'image' => null,
+                'jobber_id' => $thread->jobber_id,
+                'twilio_sid' => $message['sid'] ?? null,
+                'twilio_status' => $message['status'] ?? null,
+                'twilio_error_code' => $message['error_code'] ?? null,
+                'twilio_error_message' => $message['error_message'] ?? null,
+                'twilio_status_updated_at' => now(),
+                'created_at' => $this->parseTwilioDate($message['date_sent'] ?? $message['date_created'] ?? null),
+                'updated_at' => $this->parseTwilioDate($message['date_updated'] ?? $message['date_sent'] ?? null),
+            ];
+
+            if (JobberTextMessage::hasVisitColumn()) {
+                $payload['jobber_visit_id'] = $thread->jobber_visit_id ?? null;
+            }
+
+            $jobberMessage = JobberTextMessage::create($payload);
+
+            Log::info('Twilio message imported via search page', [
+                'sid' => $message['sid'] ?? null,
+                'target' => 'jobber_text_message',
+                'jobber_text_message_id' => $jobberMessage->id,
+                'jobber_id' => $thread->jobber_id,
+            ]);
+
+            activity()
+                ->performedOn($jobberMessage)
+                ->event('job_message_received')
+                ->withProperties([
+                    'senderNumber' => $customerPhone,
+                    'receiverNumber' => $ourNumber,
+                    'message' => (string) ($message['body'] ?? ''),
+                    'jobber_id' => $thread->jobber_id,
+                    'imported_via' => 'twilio_search',
+                ])
+                ->log('Job #'.$thread->jobber_id.' - New Message Received');
+        } catch (\Throwable $e) {
+            Log::error('Twilio message import failed', [
+                'sid' => $message['sid'] ?? null,
+                'target' => 'jobber_text_message',
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to import message: '.$e->getMessage());
+        }
+
+        return back()->with('success', 'Imported inbound message into job #'.$thread->jobber_id.'.');
     }
 
     /**
@@ -212,20 +287,64 @@ class TwilioMessageSearchController extends Controller
         return $to !== null && in_array($to, $this->ourTwilioNumbers(), true);
     }
 
-    protected function findMostRecentThreadForPhone(string $phone): ?Conversation
+    /**
+     * Mirror TwilioWebhookController::getWorkOrderMessage — find the latest
+     * work_order_conversations row where the customer/our-number pair matches in
+     * either direction. Pair-matching prevents collisions with unrelated threads
+     * that happen to involve the same customer phone.
+     */
+    protected function findMatchingWorkOrderThread(string $customerPhone, string $ourNumber): ?Conversation
     {
-        $candidates = $this->phoneVariants($phone);
-        if (empty($candidates)) {
+        $customerVariants = $this->phoneVariants($customerPhone);
+        $ourVariants = $this->phoneVariants($ourNumber);
+
+        if (empty($customerVariants) || empty($ourVariants)) {
             return null;
         }
 
         return Conversation::query()
             ->withoutGlobalScope(ConversationScope::class)
-            ->where(function ($query) use ($candidates) {
-                $query->whereIn('sender_number', $candidates)
-                    ->orWhereIn('receiver_number', $candidates);
+            ->where(function ($query) use ($customerVariants, $ourVariants) {
+                $query->where(function ($q) use ($customerVariants, $ourVariants) {
+                    $q->whereIn('sender_number', $customerVariants)
+                        ->whereIn('receiver_number', $ourVariants);
+                })->orWhere(function ($q) use ($customerVariants, $ourVariants) {
+                    $q->whereIn('sender_number', $ourVariants)
+                        ->whereIn('receiver_number', $customerVariants);
+                });
             })
             ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Mirror TwilioWebhookController::getJobberMessage — find the latest
+     * jobber_text_messages row for the customer/our-number pair tied to a
+     * non-archived job.
+     */
+    protected function findMatchingJobberThread(string $customerPhone, string $ourNumber): ?JobberTextMessage
+    {
+        $customerVariants = $this->phoneVariants($customerPhone);
+        $ourVariants = $this->phoneVariants($ourNumber);
+
+        if (empty($customerVariants) || empty($ourVariants)) {
+            return null;
+        }
+
+        return JobberTextMessage::query()
+            ->where(function ($query) use ($customerVariants, $ourVariants) {
+                $query->where(function ($q) use ($customerVariants, $ourVariants) {
+                    $q->whereIn('sender_number', $customerVariants)
+                        ->whereIn('receiver_number', $ourVariants);
+                })->orWhere(function ($q) use ($customerVariants, $ourVariants) {
+                    $q->whereIn('sender_number', $ourVariants)
+                        ->whereIn('receiver_number', $customerVariants);
+                });
+            })
+            ->whereHas('jobber', function ($query) {
+                $query->where('job_status', '!=', 'archived');
+            })
+            ->latest('created_at')
             ->first();
     }
 
