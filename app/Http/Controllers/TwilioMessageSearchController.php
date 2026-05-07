@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
 use App\Models\Scopes\ConversationScope;
+use App\Models\WorkOrder;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -169,6 +170,21 @@ class TwilioMessageSearchController extends Controller
                 'conversation_id' => $conversation->id,
                 'work_order_id' => $thread->work_order_id,
             ]);
+
+            $workOrder = WorkOrder::find($thread->work_order_id);
+            $resolvedWorkOrderNo = $workOrder?->work_order_no ?? $thread->work_order_id;
+
+            activity()
+                ->performedOn($conversation)
+                ->event('work_order_message_received')
+                ->withProperties([
+                    'senderNumber' => $customerPhone,
+                    'receiverNumber' => $ourNumber,
+                    'message' => (string) ($message['body'] ?? ''),
+                    'work_order_id' => $thread->work_order_id,
+                    'imported_via' => 'twilio_search',
+                ])
+                ->log('Work Order #'.$resolvedWorkOrderNo.' - New Message Received');
         } catch (\Throwable $e) {
             Log::error('Twilio message import failed', [
                 'sid' => $message['sid'] ?? null,
