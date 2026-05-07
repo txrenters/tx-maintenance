@@ -84,6 +84,10 @@ const props = defineProps({
         type: Number,
         default: 100,
     },
+    ourTwilioNumbers: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const { toast } = useToast();
@@ -462,11 +466,16 @@ const localMatchLabel = (message) => {
                                         View
                                     </Button>
                                     <Button
-                                        v-if="message.local_match"
+                                        v-if="message.local_match || message.importable"
                                         variant="outline"
                                         size="sm"
                                         class="gap-1"
                                         :disabled="syncingSid === message.sid"
+                                        :title="
+                                            message.local_match
+                                                ? 'Update Twilio status on the local record'
+                                                : 'Import this missed inbound message into the local database'
+                                        "
                                         @click="syncStatus(message.sid)"
                                     >
                                         <Loader2
@@ -474,7 +483,7 @@ const localMatchLabel = (message) => {
                                             class="h-4 w-4 animate-spin"
                                         />
                                         <RefreshCcw v-else class="h-4 w-4" />
-                                        Sync
+                                        {{ message.local_match ? "Sync" : "Import" }}
                                     </Button>
                                 </div>
                             </TableCell>
@@ -673,6 +682,22 @@ const localMatchLabel = (message) => {
                     </div>
 
                     <div
+                        v-if="!selectedMessage.local_match && selectedMessage.importable"
+                        class="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+                    >
+                        <p class="mb-1 text-xs font-semibold uppercase">
+                            Not in local database
+                        </p>
+                        <p>
+                            This inbound message was sent to one of our Twilio
+                            numbers but never stored locally. Click
+                            <strong>Import to Local</strong> to attach it to the
+                            most recent work order conversation for
+                            {{ selectedMessage.from || "this sender" }}.
+                        </p>
+                    </div>
+
+                    <div
                         v-if="selectedMessage.local_match"
                         class="rounded-md border p-4"
                     >
@@ -714,7 +739,7 @@ const localMatchLabel = (message) => {
                         Close
                     </Button>
                     <Button
-                        v-if="selectedMessage?.local_match"
+                        v-if="selectedMessage?.local_match || selectedMessage?.importable"
                         class="gap-2"
                         :disabled="syncingSid === selectedMessage?.sid"
                         @click="syncStatus(selectedMessage.sid)"
@@ -724,7 +749,11 @@ const localMatchLabel = (message) => {
                             class="h-4 w-4 animate-spin"
                         />
                         <RefreshCcw v-else class="h-4 w-4" />
-                        Sync Status to Local
+                        {{
+                            selectedMessage?.local_match
+                                ? "Sync Status to Local"
+                                : "Import to Local"
+                        }}
                     </Button>
                     <Button
                         v-if="

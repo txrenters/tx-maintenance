@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
+use App\Models\Scopes\ConversationScope;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,7 @@ class TwilioMessageSearchController extends Controller
         $messages = [];
         $error = null;
         $resultLimit = 100;
+        $ourTwilioNumbers = $this->ourTwilioNumbers();
 
         if ($hasFilters) {
             try {
@@ -54,7 +56,7 @@ class TwilioMessageSearchController extends Controller
                     'limit' => $resultLimit,
                 ]);
 
-                $messages = $this->attachLocalMatches($messages);
+                $messages = $this->attachLocalMatches($messages, $ourTwilioNumbers);
             } catch (\Throwable $e) {
                 Log::error('Twilio message search failed', [
                     'error' => $e->getMessage(),
@@ -71,6 +73,7 @@ class TwilioMessageSearchController extends Controller
             'error' => $error,
             'hasFilters' => $hasFilters,
             'resultLimit' => $resultLimit,
+            'ourTwilioNumbers' => $ourTwilioNumbers,
         ]);
     }
 
@@ -117,18 +120,163 @@ class TwilioMessageSearchController extends Controller
                 ->update($payload);
         }
 
-        if ($updatedRecords === 0) {
-            return back()->with('warning', 'Twilio status: '.$message['status'].'. No local record matched SID '.$message['sid'].'.');
+        if ($updatedRecords > 0) {
+            return back()->with('success', 'Synced Twilio status ('.$message['status'].') to '.$updatedRecords.' local record(s).');
         }
 
-        return back()->with('success', 'Synced Twilio status ('.$message['status'].') to '.$updatedRecords.' local record(s).');
+        if ($this->isImportable($message)) {
+            return $this->importInboundMessage($message);
+        }
+
+        return back()->with('warning', 'Twilio status: '.$message['status'].'. No local record matched SID '.$message['sid'].'.');
+    }
+
+    /**
+     * Create a Conversation row for an inbound Twilio message that is missing locally.
+     *
+     * @param  array<string, mixed>  $message
+     */
+    protected function importInboundMessage(array $message): RedirectResponse
+    {
+        $customerPhone = (string) ($message['from'] ?? '');
+        $ourNumber = (string) ($message['to'] ?? '');
+
+        $thread = $this->findMostRecentThreadForPhone($customerPhone);
+
+        if ($thread === null) {
+            return back()->with('warning', 'No work order conversation found for '.$customerPhone.'. Cannot import — please reply to this customer from a work order first.');
+        }
+
+        try {
+            $conversation = Conversation::create([
+                'message' => (string) ($message['body'] ?? ''),
+                'is_mms' => (int) ($message['num_media'] ?? 0) > 0,
+                'conversation_type' => $thread->conversation_type,
+                'sender_number' => $customerPhone,
+                'receiver_number' => $ourNumber,
+                'work_order_id' => $thread->work_order_id,
+                'twilio_sid' => $message['sid'] ?? null,
+                'twilio_status' => $message['status'] ?? null,
+                'twilio_error_code' => $message['error_code'] ?? null,
+                'twilio_error_message' => $message['error_message'] ?? null,
+                'twilio_status_updated_at' => now(),
+                'created_at' => $this->parseTwilioDate($message['date_sent'] ?? $message['date_created'] ?? null),
+                'updated_at' => $this->parseTwilioDate($message['date_updated'] ?? $message['date_sent'] ?? null),
+            ]);
+
+            Log::info('Twilio message imported via search page', [
+                'sid' => $message['sid'] ?? null,
+                'conversation_id' => $conversation->id,
+                'work_order_id' => $thread->work_order_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Twilio message import failed', [
+                'sid' => $message['sid'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to import message: '.$e->getMessage());
+        }
+
+        return back()->with('success', 'Imported inbound message into work order #'.$thread->work_order_id.'.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    protected function isImportable(array $message): bool
+    {
+        $direction = strtolower((string) ($message['direction'] ?? ''));
+        if (! str_starts_with($direction, 'inbound')) {
+            return false;
+        }
+
+        $to = $this->normalizePhone((string) ($message['to'] ?? ''));
+
+        return $to !== null && in_array($to, $this->ourTwilioNumbers(), true);
+    }
+
+    protected function findMostRecentThreadForPhone(string $phone): ?Conversation
+    {
+        $candidates = $this->phoneVariants($phone);
+        if (empty($candidates)) {
+            return null;
+        }
+
+        return Conversation::query()
+            ->withoutGlobalScope(ConversationScope::class)
+            ->where(function ($query) use ($candidates) {
+                $query->whereIn('sender_number', $candidates)
+                    ->orWhereIn('receiver_number', $candidates);
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function phoneVariants(string $phone): array
+    {
+        $normalized = $this->normalizePhone($phone);
+        if ($normalized === null) {
+            return [];
+        }
+
+        $digits = preg_replace('/\D/', '', $normalized) ?? '';
+        $variants = [$normalized, $digits];
+
+        if (str_starts_with($digits, '1') && strlen($digits) === 11) {
+            $variants[] = substr($digits, 1);
+        }
+
+        return array_values(array_filter(array_unique($variants), fn ($v) => $v !== ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function ourTwilioNumbers(): array
+    {
+        $configured = [
+            (string) config('services.twilio.phone_number', env('TWILIO_PHONE_NUMBER')),
+            (string) env('MAINTENANC_TWILIO_PHONE_NUMBER', ''),
+        ];
+
+        $normalized = [];
+        foreach ($configured as $value) {
+            $value = trim($value);
+            if ($value === '') {
+                continue;
+            }
+            $normalizedValue = $this->normalizePhone($value);
+            if ($normalizedValue !== null) {
+                $normalized[] = $normalizedValue;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    protected function parseTwilioDate(?string $value): \DateTimeInterface
+    {
+        if (! $value) {
+            return now();
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return now();
+        }
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, string>  $ourTwilioNumbers
      * @return array<int, array<string, mixed>>
      */
-    protected function attachLocalMatches(array $messages): array
+    protected function attachLocalMatches(array $messages, array $ourTwilioNumbers = []): array
     {
         $sids = collect($messages)
             ->pluck('sid')
@@ -137,27 +285,28 @@ class TwilioMessageSearchController extends Controller
             ->values()
             ->all();
 
-        if (empty($sids)) {
-            return $messages;
-        }
-
-        $conversationMatches = Conversation::query()
-            ->whereIn('twilio_sid', $sids)
-            ->get(['twilio_sid', 'work_order_id', 'twilio_status'])
-            ->keyBy('twilio_sid');
-
+        $conversationMatches = collect();
         $jobberMatches = collect();
-        if ($this->jobberTextMessagesHasTwilioColumns()) {
-            $jobberMatches = JobberTextMessage::query()
+
+        if (! empty($sids)) {
+            $conversationMatches = Conversation::query()
                 ->whereIn('twilio_sid', $sids)
-                ->get(['twilio_sid', 'jobber_id', 'jobber_visit_id', 'twilio_status'])
+                ->get(['twilio_sid', 'work_order_id', 'twilio_status'])
                 ->keyBy('twilio_sid');
+
+            if ($this->jobberTextMessagesHasTwilioColumns()) {
+                $jobberMatches = JobberTextMessage::query()
+                    ->whereIn('twilio_sid', $sids)
+                    ->get(['twilio_sid', 'jobber_id', 'jobber_visit_id', 'twilio_status'])
+                    ->keyBy('twilio_sid');
+            }
         }
 
-        return array_map(function (array $message) use ($conversationMatches, $jobberMatches): array {
+        return array_map(function (array $message) use ($conversationMatches, $jobberMatches, $ourTwilioNumbers): array {
             $sid = $message['sid'] ?? null;
             $message['local_match'] = null;
             $message['local_status_diff'] = false;
+            $message['importable'] = false;
 
             if ($sid !== null && $conversationMatches->has($sid)) {
                 $row = $conversationMatches->get($sid);
@@ -176,6 +325,16 @@ class TwilioMessageSearchController extends Controller
                     'local_status' => $row->twilio_status,
                 ];
                 $message['local_status_diff'] = $this->statusDiffers($message['status'] ?? null, $row->twilio_status);
+            } else {
+                $direction = strtolower((string) ($message['direction'] ?? ''));
+                $toNormalized = $this->normalizePhone((string) ($message['to'] ?? ''));
+                if (
+                    str_starts_with($direction, 'inbound')
+                    && $toNormalized !== null
+                    && in_array($toNormalized, $ourTwilioNumbers, true)
+                ) {
+                    $message['importable'] = true;
+                }
             }
 
             return $message;
