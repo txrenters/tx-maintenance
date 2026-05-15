@@ -34,16 +34,16 @@ const getFileIcon = (filename) => {
     const ext = filename.split(".").pop().toLowerCase();
     switch (ext) {
         case "pdf":
-            return "icons/pdf.png";
+            return "/icons/pdf.png";
         case "doc":
         case "docx":
-            return "icons/docx.png";
+            return "/icons/docx.png";
         case "xls":
         case "xlsx":
         case "txt":
-            return "icons/excel.png";
+            return "/icons/excel.png";
         default:
-            return "icons/file.png";
+            return "/icons/file.png";
     }
 };
 
