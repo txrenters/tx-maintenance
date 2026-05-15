@@ -41,40 +41,46 @@ class SendJobberTextMessageJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            // Update status to sending
             $this->jobberTextMessage->update(['status' => 'sending']);
 
             $twilio = new TwilioService;
 
-            // Send the message via Twilio
-            $twilio->sendMessage(
+            $twilioMessage = $twilio->sendMessage(
                 $this->jobberTextMessage->receiver_number,
                 $this->jobberTextMessage->sender_number,
                 $this->messageContent,
                 $this->mediaUrl
             );
 
-            // Update status to sent
             $this->jobberTextMessage->update([
                 'status' => 'sent',
                 'sent_at' => now(),
+                'twilio_sid' => $twilioMessage->sid ?? null,
+                'twilio_status' => $twilioMessage->status ?? 'queued',
+                'twilio_status_updated_at' => now(),
+                'twilio_error_code' => null,
+                'twilio_error_message' => null,
             ]);
 
-            Log::info("Message sent successfully to {$this->jobberTextMessage->receiver_number}");
+            Log::info("Message sent successfully to {$this->jobberTextMessage->receiver_number}", [
+                'sid' => $twilioMessage->sid ?? null,
+                'status' => $twilioMessage->status ?? null,
+            ]);
 
         } catch (\Exception $e) {
-            // Log the error
             Log::error("Failed to send message to {$this->jobberTextMessage->receiver_number}: ".$e->getMessage());
 
-            // Update status to failed if this is the last retry
             if ($this->attempts() >= $this->tries) {
                 $this->jobberTextMessage->update([
                     'status' => 'failed',
                     'error_message' => $e->getMessage(),
+                    'twilio_status' => 'failed',
+                    'twilio_status_updated_at' => now(),
+                    'twilio_error_code' => (string) $e->getCode(),
+                    'twilio_error_message' => $e->getMessage(),
                 ]);
             }
 
-            // Re-throw to trigger retry
             throw $e;
         }
     }
@@ -84,10 +90,13 @@ class SendJobberTextMessageJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
-        // Update the message status to failed
         $this->jobberTextMessage->update([
             'status' => 'failed',
             'error_message' => $exception->getMessage(),
+            'twilio_status' => 'failed',
+            'twilio_status_updated_at' => now(),
+            'twilio_error_code' => (string) $exception->getCode(),
+            'twilio_error_message' => $exception->getMessage(),
         ]);
 
         Log::error("Job failed permanently for message to {$this->jobberTextMessage->receiver_number}: ".$exception->getMessage());
