@@ -41,6 +41,8 @@ class NotificationController extends Controller
                 'error_code' => $activity->properties['error_code'] ?? null,
                 'error_message' => $activity->properties['error_message'] ?? null,
                 'twilio_status' => $activity->properties['twilio_status'] ?? null,
+                'work_order_id' => $activity->properties['work_order_id'] ?? $activity->subject?->work_order_id ?? null,
+                'job_id' => $activity->properties['job_id'] ?? $activity->subject?->jobber_id ?? null,
                 'subject' => $activity->subject,
                 'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
                 'timestamp' => $activity->created_at->timestamp,

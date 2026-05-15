@@ -85,6 +85,11 @@ import {
     Briefcase,
     Search,
     AlertTriangleIcon,
+    ExternalLink,
+    Check,
+    Undo2,
+    Reply,
+    Info,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
 
@@ -522,6 +527,21 @@ const notif = ref(null);
 const handleFailedModal = (notification) => {
     failedNotification.value = notification;
     openFailedModal.value = true;
+};
+
+const openNotificationTarget = (notification) => {
+    if (notification.work_order_id) {
+        router.visit(
+            route("work_orders.details", { workOrder: notification.work_order_id }),
+        );
+        return;
+    }
+
+    if (notification.job_id) {
+        router.visit(
+            route("jobber.jobDetails", { job: notification.job_id }),
+        );
+    }
 };
 
 const handleChatModal = async (model, shouldReverse = true) => {
@@ -1233,6 +1253,9 @@ onUnmounted(() => {
                                                                         )
                                                                     "
                                                                 >
+                                                                    <Check
+                                                                        class="w-3 h-3"
+                                                                    />
                                                                     {{
                                                                         markingAsRead.has(
                                                                             notification.id,
@@ -1260,6 +1283,9 @@ onUnmounted(() => {
                                                                         )
                                                                     "
                                                                 >
+                                                                    <Undo2
+                                                                        class="w-3 h-3"
+                                                                    />
                                                                     {{
                                                                         markingAsRead.has(
                                                                             notification.id,
@@ -1285,6 +1311,9 @@ onUnmounted(() => {
                                                                         )
                                                                     "
                                                                 >
+                                                                    <Info
+                                                                        class="w-3 h-3"
+                                                                    />
                                                                     View Details
                                                                 </Button>
                                                                 <Button
@@ -1309,7 +1338,30 @@ onUnmounted(() => {
                                                                         )
                                                                     "
                                                                 >
+                                                                    <Reply
+                                                                        class="w-3 h-3"
+                                                                    />
                                                                     Reply
+                                                                </Button>
+                                                                <Button
+                                                                    v-if="
+                                                                        notification.work_order_id ||
+                                                                        notification.job_id
+                                                                    "
+                                                                    as="button"
+                                                                    size="sm"
+                                                                    variant="link"
+                                                                    class="text-xs"
+                                                                    @click.stop.prevent="
+                                                                        openNotificationTarget(
+                                                                            notification,
+                                                                        )
+                                                                    "
+                                                                >
+                                                                    <ExternalLink
+                                                                        class="w-3 h-3"
+                                                                    />
+                                                                    Open
                                                                 </Button>
                                                             </div>
                                                         </div>
