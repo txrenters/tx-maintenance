@@ -48,11 +48,11 @@ const editForm = useForm({
     twilio_number: "",
     name: "",
     name_on_check: "",
-    twilio_number: "",
     vendor_type: "",
     email: "",
     phone: "",
     address: "",
+    zones: [],
 });
 
 const setEditForm = (vendor) => {
@@ -64,6 +64,7 @@ const setEditForm = (vendor) => {
     editForm.vendor_type = vendor.vendor_type;
     editForm.phone = vendor.phone;
     editForm.address = vendor.address;
+    editForm.zones = Array.isArray(vendor.zones) ? [...vendor.zones] : [];
 };
 const handleOpenDialog = (open, vendor) => {
     isDialogOpen.value = open;
@@ -421,6 +422,27 @@ const handleImportVendor = () => {
                     </Select>
                     <Label class="mt-1 text-destructive text-xs">{{
                         editForm.errors.twilio_number
+                    }}</Label>
+                </div>
+
+                <div class="mb-3 w-full flex flex-col gap-2">
+                    <Label for="zones">Zones</Label>
+                    <TagsInput v-model="editForm.zones">
+                        <TagsInputItem
+                            v-for="item in editForm.zones"
+                            :key="item"
+                            :value="item"
+                        >
+                            <TagsInputItemText />
+                            <TagsInputItemDelete />
+                        </TagsInputItem>
+                        <TagsInputInput placeholder="Type a zone and press Enter (e.g. 1, 2, 3)" />
+                    </TagsInput>
+                    <p class="text-xs text-muted-foreground">
+                        Leave empty if this vendor serves all zones. Add specific zone numbers to limit recommendations to those zones.
+                    </p>
+                    <Label class="mt-1 text-destructive text-xs">{{
+                        editForm.errors.zones
                     }}</Label>
                 </div>
 

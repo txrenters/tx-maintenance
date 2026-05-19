@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\Agents\VendorRecommendationAgent;
 use App\Ai\Agents\WorkOrderRecommendationAgent;
 use App\Models\FallbackVendor;
 use App\Models\Vendor;
@@ -79,7 +80,7 @@ class WorkOrderRecommendationService
 
     public function generate(WorkOrder $workOrder): WorkOrderRecommendation
     {
-        $workOrder->loadMissing(['vendors', 'managed_by', 'requested_by', 'recommendation.recommendedVendor']);
+        $workOrder->loadMissing(['vendors', 'managed_by', 'requested_by', 'recommendation.recommendedVendor', 'building']);
 
         $activeVendors = Vendor::query()
             ->where('is_active', true)
@@ -88,7 +89,23 @@ class WorkOrderRecommendationService
 
         $classification = $this->classify($workOrder, $activeVendors);
         $matchedHistory = $this->findMatchedHistory($workOrder, $classification['keywords'], $classification['issue_type']);
-        $recommendedVendor = $this->determineRecommendedVendor($classification, $matchedHistory, $activeVendors);
+        $buildingHistory = $this->filterBuildingHistory($matchedHistory, $workOrder);
+
+        [$recommendedVendor, $vendorSource, $vendorReasoning] = $this->pickVendor(
+            $workOrder,
+            $classification,
+            $matchedHistory,
+            $buildingHistory,
+            $activeVendors,
+        );
+
+        $ownerPreferredName = $vendorSource === 'owner_preferred'
+            ? $this->extractPreferredVendorName(
+                $workOrder->building?->maintenance_notice,
+                $classification['issue_type'] ?? null,
+            )
+            : null;
+
         $alternateVendors = $this->alternateVendors($recommendedVendor, $classification['vendor_category'], $activeVendors, $matchedHistory);
         $fallbackVendorDetails = $this->fallbackVendorDetails($classification['issue_type'], $classification['keywords'], $recommendedVendor, $alternateVendors);
 
@@ -102,21 +119,465 @@ class WorkOrderRecommendationService
                 'issue_type' => $classification['issue_type'],
                 'issue_subtype' => $classification['issue_subtype'],
                 'vendor_category' => $classification['vendor_category'],
+                'vendor_source' => $vendorSource,
                 'confidence' => $classification['confidence'],
                 'needs_human_review' => $classification['needs_human_review'],
                 'summary' => $classification['summary'],
-                'reasoning' => $this->buildReasoning($recommendedVendor, $matchedHistory, $classification),
+                'reasoning' => $vendorReasoning ?? $this->buildReasoning($recommendedVendor, $matchedHistory, $classification),
                 'keywords' => $classification['keywords'],
                 'matched_work_orders' => $matchedHistory->take(5)->map(fn (WorkOrder $history) => $this->formatHistory($history))->values()->all(),
                 'alternate_vendors' => [
                     'database' => $alternateVendors,
                     'fallback' => $fallbackVendorDetails,
                 ],
-                'classification' => Arr::except($classification, ['raw_response']),
+                'classification' => Arr::except($classification, ['raw_response']) + [
+                    'vendor_source' => $vendorSource,
+                    'owner_preferred_name' => $ownerPreferredName,
+                    'maintenance_notice' => $workOrder->building?->maintenance_notice,
+                ],
                 'raw_response' => $classification['raw_response'],
                 'generated_at' => now(),
             ]
         )->load('recommendedVendor');
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @param  Collection<int, WorkOrder>  $buildingHistory
+     * @param  Collection<int, Vendor>  $activeVendors
+     * @return array{0: ?Vendor, 1: string, 2: ?string}
+     */
+    private function pickVendor(
+        WorkOrder $workOrder,
+        array $classification,
+        Collection $matchedHistory,
+        Collection $buildingHistory,
+        Collection $activeVendors,
+    ): array {
+        $aiPick = $this->recommendVendorWithAi($workOrder, $classification, $matchedHistory, $buildingHistory, $activeVendors);
+
+        if ($aiPick !== null) {
+            return $aiPick;
+        }
+
+        return $this->recommendVendorHeuristic($workOrder, $classification, $matchedHistory, $buildingHistory, $activeVendors);
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @param  Collection<int, WorkOrder>  $buildingHistory
+     * @param  Collection<int, Vendor>  $activeVendors
+     * @return array{0: ?Vendor, 1: string, 2: string}|null
+     */
+    private function recommendVendorWithAi(
+        WorkOrder $workOrder,
+        array $classification,
+        Collection $matchedHistory,
+        Collection $buildingHistory,
+        Collection $activeVendors,
+    ): ?array {
+        if (! class_exists(Promptable::class)) {
+            return null;
+        }
+
+        try {
+            $allowedSources = ['owner_preferred', 'building_history', 'cross_site_history', 'category_match', 'fallback'];
+
+            $candidates = $activeVendors
+                ->map(fn (Vendor $vendor) => [
+                    'id' => $vendor->id,
+                    'name' => $vendor->name,
+                    'vendor_type' => $vendor->vendor_type,
+                ])
+                ->values()
+                ->all();
+
+            $prompt = implode("\n", [
+                'Pick the best vendor for this work order using the strict priority order in your instructions.',
+                'Issue type: '.$classification['issue_type'],
+                'Vendor category hint: '.($classification['vendor_category'] ?? 'N/A'),
+                'Work order description: '.($workOrder->description ?? 'N/A'),
+                '',
+                'Building maintenance notice:',
+                $workOrder->building?->maintenance_notice ?? 'N/A',
+                '',
+                'Building history (prior completed work orders at this same building):',
+                $this->summarizeHistory($buildingHistory),
+                '',
+                'Cross-site history (similar completed work orders at other buildings):',
+                $this->summarizeHistory($matchedHistory->reject(fn (WorkOrder $wo) => $buildingHistory->contains('id', $wo->id))),
+                '',
+                'Candidate active vendors:',
+                json_encode($candidates, JSON_UNESCAPED_SLASHES),
+            ]);
+
+            $response = (new VendorRecommendationAgent($allowedSources))->prompt($prompt);
+
+            $vendorId = data_get($response, 'vendor_id');
+            $source = (string) data_get($response, 'vendor_source', 'fallback');
+
+            if (! in_array($source, $allowedSources, true)) {
+                $source = 'fallback';
+            }
+
+            $vendor = null;
+
+            if (filled($vendorId)) {
+                $vendor = $activeVendors->firstWhere('id', $vendorId);
+            }
+
+            if ($vendor === null && filled(data_get($response, 'vendor_name'))) {
+                $vendor = $activeVendors->first(
+                    fn (Vendor $candidate) => Str::lower($candidate->name) === Str::lower((string) data_get($response, 'vendor_name'))
+                );
+            }
+
+            $reasoning = (string) (data_get($response, 'reasoning') ?? 'No reasoning provided.');
+
+            return [$vendor, $source, $reasoning];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @param  Collection<int, WorkOrder>  $buildingHistory
+     * @param  Collection<int, Vendor>  $activeVendors
+     * @return array{0: ?Vendor, 1: string, 2: ?string}
+     */
+    private function recommendVendorHeuristic(
+        WorkOrder $workOrder,
+        array $classification,
+        Collection $matchedHistory,
+        Collection $buildingHistory,
+        Collection $activeVendors,
+    ): array {
+        $ownerPreferred = $this->matchOwnerPreferredVendor(
+            $workOrder->building?->maintenance_notice,
+            $classification,
+            $activeVendors,
+        );
+
+        if ($ownerPreferred instanceof Vendor) {
+            return [$ownerPreferred, 'owner_preferred', sprintf(
+                'Recommended %s because the building maintenance notice names them as the preferred vendor for %s issues.',
+                $ownerPreferred->name,
+                $classification['issue_type'],
+            )];
+        }
+
+        $buildingHistoryVendor = $this->firstActiveVendorFromHistory($buildingHistory, $activeVendors);
+
+        if ($buildingHistoryVendor instanceof Vendor) {
+            $sample = $buildingHistory->first();
+
+            return [$buildingHistoryVendor, 'building_history', sprintf(
+                'Recommended %s because they completed a similar %s issue at this building on %s.',
+                $buildingHistoryVendor->name,
+                $classification['issue_type'],
+                $this->formatDate($sample?->completed_date),
+            )];
+        }
+
+        $crossSiteVendor = $this->firstActiveVendorFromHistory(
+            $matchedHistory->reject(fn (WorkOrder $wo) => $buildingHistory->contains('id', $wo->id)),
+            $activeVendors,
+        );
+
+        if ($crossSiteVendor instanceof Vendor) {
+            $sample = $matchedHistory->first();
+
+            return [$crossSiteVendor, 'cross_site_history', sprintf(
+                'Recommended %s because they completed a similar %s issue at another building on %s.',
+                $crossSiteVendor->name,
+                $classification['issue_type'],
+                $this->formatDate($sample?->completed_date),
+            )];
+        }
+
+        if (filled($classification['vendor_category'])) {
+            $nonServiceTypes = ['broker', 'administrative', 'advertising', 'municipal utility', 'maintenance supplies', 'home warranty', 'professional services', 'txre agent', 'eviction', 'management company'];
+
+            $categoryVendor = $activeVendors->first(
+                fn (Vendor $vendor) => filled($vendor->vendor_type)
+                    && ! Str::contains(Str::lower($vendor->vendor_type), $nonServiceTypes)
+                    && Str::contains(Str::lower($vendor->vendor_type), Str::lower($classification['vendor_category']))
+            );
+
+            if ($categoryVendor instanceof Vendor) {
+                return [$categoryVendor, 'category_match', sprintf(
+                    'Recommended %s because their vendor type matches the %s category.',
+                    $categoryVendor->name,
+                    $classification['vendor_category'],
+                )];
+            }
+        }
+
+        $configuredFallback = $this->fallbackVendorByIssue($classification['issue_type'], $classification['keywords']);
+
+        if ($configuredFallback !== null) {
+            $vendor = $activeVendors->first(
+                fn (Vendor $candidate) => Str::lower($candidate->name) === Str::lower($configuredFallback['name'])
+            );
+
+            if ($vendor instanceof Vendor) {
+                return [$vendor, 'fallback', sprintf(
+                    'Recommended %s from the configured fallback list for %s issues.',
+                    $vendor->name,
+                    $classification['issue_type'],
+                )];
+            }
+        }
+
+        $general = $this->generalFallbackVendor($activeVendors);
+
+        if ($general instanceof Vendor) {
+            return [$general, 'fallback', sprintf(
+                'No history or owner preference matched; defaulting to %s.',
+                $general->name,
+            )];
+        }
+
+        return [null, 'fallback', 'No active vendor match was found automatically. Human review is required.'];
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @return Collection<int, WorkOrder>
+     */
+    private function filterBuildingHistory(Collection $matchedHistory, WorkOrder $workOrder): Collection
+    {
+        if (! $workOrder->building_id) {
+            return collect();
+        }
+
+        return $matchedHistory
+            ->filter(fn (WorkOrder $history) => $history->building_id === $workOrder->building_id)
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $history
+     * @param  Collection<int, Vendor>  $activeVendors
+     */
+    private function firstActiveVendorFromHistory(Collection $history, Collection $activeVendors): ?Vendor
+    {
+        foreach ($history as $workOrder) {
+            $vendor = $workOrder->vendors->first(fn (Vendor $candidate) => $candidate->is_active);
+
+            if ($vendor instanceof Vendor) {
+                return $activeVendors->firstWhere('id', $vendor->id) ?? $vendor;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Heuristic scan of the maintenance notice for an active vendor name.
+     * Prefers a vendor whose type matches the work order category if multiple names appear.
+     * Falls back to the placeholder "OWNER VENDOR" record when the notice clearly
+     * signals an owner preference but no specific vendor name matches.
+     *
+     * @param  Collection<int, Vendor>  $activeVendors
+     */
+    private function matchOwnerPreferredVendor(?string $notice, array $classification, Collection $activeVendors): ?Vendor
+    {
+        if (blank($notice)) {
+            return null;
+        }
+
+        $haystack = Str::lower($notice);
+
+        $mentioned = $activeVendors
+            ->filter(fn (Vendor $vendor) => filled($vendor->name)
+                && Str::lower($vendor->name) !== 'owner vendor'
+                && Str::contains($haystack, Str::lower($vendor->name)))
+            ->values();
+
+        if ($mentioned->count() === 1) {
+            return $mentioned->first();
+        }
+
+        if ($mentioned->count() > 1) {
+            $category = $classification['vendor_category'] ?? null;
+            $issueType = $classification['issue_type'] ?? null;
+
+            return $mentioned->first(function (Vendor $vendor) use ($category, $issueType) {
+                if (blank($vendor->vendor_type)) {
+                    return false;
+                }
+
+                $type = Str::lower($vendor->vendor_type);
+
+                return (filled($category) && Str::contains($type, Str::lower($category)))
+                    || (filled($issueType) && Str::contains($type, Str::lower($issueType)));
+            }) ?? $mentioned->first();
+        }
+
+        if ($this->noticeSignalsOwnerPreference($haystack)) {
+            $labels = $this->extractCategoryLabels($notice);
+            $issueType = $classification['issue_type'] ?? null;
+
+            if (! empty($labels) && filled($issueType)) {
+                $issueLower = Str::lower($issueType);
+                $hasMatchingLabel = false;
+
+                foreach ($labels as $label) {
+                    if (Str::contains(Str::lower($label), $issueLower) || Str::contains($issueLower, Str::lower($label))) {
+                        $hasMatchingLabel = true;
+                        break;
+                    }
+                }
+
+                if (! $hasMatchingLabel) {
+                    return null;
+                }
+            }
+
+            return $activeVendors->first(fn (Vendor $vendor) => Str::lower((string) $vendor->name) === 'owner vendor');
+        }
+
+        return null;
+    }
+
+    /**
+     * Extracts the leading category labels from a maintenance notice.
+     * For input "HVAC: PACHECO 832-..; Plumbing: BURNSIDE 832-.." returns ["HVAC", "Plumbing"].
+     *
+     * @return array<int, string>
+     */
+    private function extractCategoryLabels(string $notice): array
+    {
+        $labels = [];
+        $segments = preg_split('/[;\n]+/', $notice) ?: [];
+
+        foreach ($segments as $segment) {
+            if (preg_match('/^\s*([A-Za-z\/\s&]{2,30}?)\s*[:\-]\s*\S/u', $segment, $match)) {
+                $labels[] = trim($match[1]);
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Attempts to extract the preferred-vendor name from the maintenance notice.
+     * When an issue type is provided and the notice uses category-labeled segments like
+     * "HVAC: VendorName 832-555-1212", the segment matching the issue type wins.
+     */
+    private function extractPreferredVendorName(?string $notice, ?string $issueType = null): ?string
+    {
+        if (blank($notice)) {
+            return null;
+        }
+
+        if (filled($issueType)) {
+            $segments = preg_split('/[;\n]+/', $notice) ?: [];
+
+            foreach ($segments as $segment) {
+                if (! preg_match('/^\s*([A-Za-z\/\s&]+?)\s*[:\-]\s*(.+)$/u', $segment, $match)) {
+                    continue;
+                }
+
+                $label = trim($match[1]);
+                $body = trim($match[2]);
+
+                if (Str::contains(Str::lower($label), Str::lower($issueType))) {
+                    $name = $this->extractNameFromSegment($body);
+
+                    if ($name !== null) {
+                        return $name;
+                    }
+                }
+            }
+        }
+
+        return $this->extractNameFromSegment($notice);
+    }
+
+    private function extractNameFromSegment(string $segment): ?string
+    {
+        if (preg_match('/\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}/u', $segment, $match, PREG_OFFSET_CAPTURE)) {
+            $before = rtrim(substr($segment, 0, $match[0][1]), " #(\t");
+            $words = array_values(array_filter(preg_split('/\s+/', $before) ?: []));
+
+            if (! empty($words)) {
+                $filler = ['is', 'the', 'use', 'a', 'an', 'for', 'provider', 'vendor', 'preferred', 'warranty', 'owner', 'hvac', 'plumbing', 'electrical', 'phone'];
+                $candidate = array_slice($words, -4);
+
+                while (count($candidate) > 1) {
+                    $first = Str::lower(rtrim((string) $candidate[0], ':'));
+                    if (! in_array($first, $filler, true)) {
+                        break;
+                    }
+                    array_shift($candidate);
+                }
+
+                $name = trim(implode(' ', $candidate), ' :-');
+
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        }
+
+        if (preg_match('/(?:provider|vendor|warranty)[\s:]+([A-Z][\w&\'\-\.\/]+(?:\s+[A-Z]?[\w&\'\-\.\/]+){0,2})/u', $segment, $match)) {
+            return trim($match[1]);
+        }
+
+        return null;
+    }
+
+    private function noticeSignalsOwnerPreference(string $loweredNotice): bool
+    {
+        $signals = [
+            'vendor',
+            'provider',
+            'warranty',
+            'use only',
+            'preferred',
+            'do not use',
+            'must use',
+            'owner prefers',
+            'owner\'s',
+            'owners ',
+        ];
+
+        foreach ($signals as $signal) {
+            if (Str::contains($loweredNotice, $signal)) {
+                return true;
+            }
+        }
+
+        // A phone number in the notice strongly suggests a named vendor
+        return (bool) preg_match('/\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}/u', $loweredNotice);
+    }
+
+    /**
+     * @param  Collection<int, WorkOrder>  $history
+     */
+    private function summarizeHistory(Collection $history): string
+    {
+        if ($history->isEmpty()) {
+            return 'None.';
+        }
+
+        return $history
+            ->take(5)
+            ->map(function (WorkOrder $workOrder) {
+                $vendor = $workOrder->vendors->first();
+
+                return sprintf(
+                    '#%s | %s | description: %s | vendor: %s',
+                    $workOrder->work_order_no ?? $workOrder->id,
+                    $this->formatDate($workOrder->completed_date),
+                    Str::limit((string) $workOrder->description, 140),
+                    $vendor?->name ?? 'unknown',
+                );
+            })
+            ->implode("\n");
     }
 
     /**
@@ -179,13 +640,15 @@ class WorkOrderRecommendationService
             $workOrder->category,
             $workOrder->latest_update_comments,
             $workOrder->closing_comments,
+            $workOrder->building?->maintenance_notice,
         ])));
 
         $rules = [
+            'HOA Violation' => ['hoa violation', 'hoa notice', 'deed restriction', 'covenant violation'],
             'Lockout' => ['lockout', 'locked out', 'garage lockout'],
             'Garage Door' => ['garage door', 'garage opener', 'garage stuck'],
             'Lock Repair' => ['front door', 'exit door', 'door lock', 'deadbolt', 'lock replacement', 'lock repair', 'cannot lock', 'cannot unlock'],
-            'HVAC' => ['hvac', 'ac', 'a/c', 'air conditioner', 'air conditioning', 'furnace', 'heat', 'cooling', 'thermostat'],
+            'HVAC' => ['hvac', 'ac', 'a/c', 'air conditioner', 'air conditioning', 'furnace', 'heat', 'heater', 'heating', 'cooling', 'thermostat'],
             'Plumbing' => ['plumb', 'faucet', 'toilet', 'sink', 'drain', 'leak', 'water heater', 'garbage disposal', 'clog'],
             'Electrical' => ['electrical', 'breaker', 'outlet', 'switch', 'power', 'light fixture', 'wiring', 'panel'],
             'Appliance Repair' => ['appliance', 'refrigerator', 'fridge', 'stove', 'oven', 'dishwasher', 'microwave', 'washer', 'dryer'],
@@ -194,7 +657,7 @@ class WorkOrderRecommendationService
             'Pest Control' => ['pest', 'roach', 'cockroach', 'mouse', 'mice', 'rat', 'ant', 'termite', 'bed bug'],
             'Cleaning' => ['clean', 'trash out', 'make ready clean', 'deep clean'],
             'Painting' => ['paint', 'repaint', 'touch up', 'touch-up', 'drywall patch'],
-            'Landscaping' => ['lawn', 'grass', 'tree', 'landscape', 'yard', 'sprinkler', 'irrigation'],
+            'Landscaping' => ['lawn', 'grass', 'tree', 'stump', 'weeds', 'landscape', 'yard', 'sprinkler', 'irrigation'],
             'General Maintenance' => ['maintenance', 'repair', 'fix', 'issue'],
         ];
 
@@ -203,14 +666,13 @@ class WorkOrderRecommendationService
         $keywords = collect();
 
         foreach ($rules as $issueType => $needles) {
-            $score = collect($needles)
-                ->filter(fn (string $needle) => Str::contains($text, $needle))
-                ->count();
+            $matched = collect($needles)->filter(fn (string $needle) => $this->keywordMatches($text, $needle));
+            $score = $matched->count();
 
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $bestIssueType = $issueType;
-                $keywords = collect($needles)->filter(fn (string $needle) => Str::contains($text, $needle));
+                $keywords = $matched;
             }
         }
 
@@ -243,7 +705,15 @@ class WorkOrderRecommendationService
             'Category: '.($workOrder->category ?? 'N/A'),
             'Latest update comments: '.($workOrder->latest_update_comments ?? 'N/A'),
             'Closing comments: '.($workOrder->closing_comments ?? 'N/A'),
+            'Building maintenance notice: '.($workOrder->building?->maintenance_notice ?? 'N/A'),
         ]);
+    }
+
+    private function keywordMatches(string $haystack, string $needle): bool
+    {
+        $pattern = '/(?<![a-z0-9])'.preg_quote($needle, '/').'(?![a-z0-9])/i';
+
+        return (bool) preg_match($pattern, $haystack);
     }
 
     private function aiModelName(): ?string
@@ -284,38 +754,6 @@ class WorkOrderRecommendationService
             ->get();
 
         return $history->sortByDesc(fn (WorkOrder $historyWorkOrder) => $this->historyScore($workOrder, $historyWorkOrder, $keywords, $issueType))->values();
-    }
-
-    private function determineRecommendedVendor(array $classification, Collection $matchedHistory, Collection $activeVendors): ?Vendor
-    {
-        $historyVendor = $matchedHistory
-            ->map(function (WorkOrder $history) {
-                return $history->vendors
-                    ->first(fn (Vendor $vendor) => $vendor->is_active);
-            })
-            ->filter()
-            ->first();
-
-        if ($historyVendor instanceof Vendor) {
-            return $activeVendors->firstWhere('id', $historyVendor->id) ?? $historyVendor;
-        }
-
-        $mappedFallback = $this->fallbackVendorByIssue($classification['issue_type'], $classification['keywords']);
-
-        if ($mappedFallback !== null) {
-            return $activeVendors->first(
-                fn (Vendor $vendor) => Str::lower($vendor->name) === Str::lower($mappedFallback['name'])
-            );
-        }
-
-        if (blank($classification['vendor_category'])) {
-            return $this->generalFallbackVendor($activeVendors);
-        }
-
-        $databaseVendor = $activeVendors
-            ->first(fn (Vendor $vendor) => filled($vendor->vendor_type) && Str::contains(Str::lower($vendor->vendor_type), Str::lower($classification['vendor_category'])));
-
-        return $databaseVendor ?? $this->generalFallbackVendor($activeVendors);
     }
 
     /**
@@ -477,7 +915,7 @@ class WorkOrderRecommendationService
         $completedDate = $this->normalizeDate($history->completed_date);
 
         if ($completedDate instanceof CarbonInterface) {
-            $score += max(0, 30 - now()->diffInMonths($completedDate));
+            $score += max(0, 30 - (int) now()->diffInMonths($completedDate));
         }
 
         return $score;
@@ -486,6 +924,7 @@ class WorkOrderRecommendationService
     private function guessVendorCategory(string $issueType, Collection $activeVendors): ?string
     {
         $mappings = [
+            'HOA Violation' => ['landscape', 'lawn', 'handyman', 'maintenance'],
             'Lockout' => ['lock'],
             'Garage Door' => ['garage'],
             'Lock Repair' => ['lock', 'rekey'],
@@ -503,10 +942,12 @@ class WorkOrderRecommendationService
         ];
 
         $needles = $mappings[$issueType] ?? [];
+        $nonServiceTypes = ['broker', 'administrative', 'advertising', 'municipal utility', 'maintenance supplies', 'home warranty', 'professional services', 'txre agent', 'eviction', 'management company'];
 
         return $activeVendors
             ->pluck('vendor_type')
             ->filter()
+            ->reject(fn (string $vendorType) => Str::contains(Str::lower($vendorType), $nonServiceTypes))
             ->first(function (string $vendorType) use ($needles) {
                 return collect($needles)->contains(fn (string $needle) => Str::contains(Str::lower($vendorType), $needle));
             });

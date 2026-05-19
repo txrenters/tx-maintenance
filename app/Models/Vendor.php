@@ -15,7 +15,12 @@ class Vendor extends Model
     protected $table = 'vendors';
 
     protected $fillable = [
-        'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id',
+        'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'zones' => 'array',
     ];
 
     public function user(): BelongsTo

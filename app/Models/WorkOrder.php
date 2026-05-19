@@ -125,6 +125,11 @@ class WorkOrder extends Model
         return $this->hasOne(WorkOrderRecommendation::class)->latestOfMany();
     }
 
+    public function building(): BelongsTo
+    {
+        return $this->belongsTo(Building::class, 'building_id', 'propertyware_id');
+    }
+
     public function notes(): HasMany
     {
         return $this->hasMany(WorkOrderNotes::class);

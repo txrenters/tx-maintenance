@@ -38,6 +38,7 @@ class VendorController extends Controller
                     'name_on_check' => $vendor->name_on_check,
                     'address' => $vendor->user->address,
                     'twilio_number' => $vendor->twilio_number,
+                    'zones' => $vendor->zones ?? [],
                     'status' => $vendor->is_active ? true : false,
                 ];
             });
@@ -107,7 +108,11 @@ class VendorController extends Controller
             'vendor_type' => '',
             'name_on_check' => '',
             'email' => 'required',
+            'zones' => 'nullable|array',
+            'zones.*' => 'string|max:50',
         ]);
+
+        $vendorData['zones'] = empty($vendorData['zones'] ?? null) ? null : array_values(array_unique($vendorData['zones']));
 
         $userData = $request->validate([
             'name' => 'required',

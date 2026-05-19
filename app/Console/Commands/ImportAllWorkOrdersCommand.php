@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ImportAllWorkOrdersCommand extends Command
 {
-    protected $signature = 'import:all-work-orders';
+    protected $signature = 'import:all-work-orders {--limit= : Stop after importing this many work orders (for local testing)}';
 
     protected $description = 'Import and update all work orders from PropertyWare';
 
@@ -29,26 +29,30 @@ class ImportAllWorkOrdersCommand extends Command
             'x-propertyware-system-id' => config('services.propertyware.system_id'),
         ];
 
-        // PropertyWare API max per request
-        $limit = 500;
+        $maxToImport = $this->option('limit') !== null ? max(1, (int) $this->option('limit')) : null;
+        $batchSize = $maxToImport !== null ? min(500, $maxToImport) : 500;
         $offset = 0;
         $totalProcessed = 0;
 
-        Log::info('Work Orders import started.');
+        Log::info('Work Orders import started.', ['limit' => $maxToImport]);
 
         try {
             while (true) {
-                $workOrders = $this->fetchBatch($headers, $limit, $offset);
+                $workOrders = $this->fetchBatch($headers, $batchSize, $offset);
 
                 if ($workOrders === null) {
                     // All retries exhausted for this batch — skip and continue
-                    $offset += $limit;
+                    $offset += $batchSize;
 
                     continue;
                 }
 
                 if (empty($workOrders)) {
                     break;
+                }
+
+                if ($maxToImport !== null && $totalProcessed + count($workOrders) > $maxToImport) {
+                    $workOrders = array_slice($workOrders, 0, $maxToImport - $totalProcessed);
                 }
 
                 Log::info('Fetched work orders batch', [
@@ -59,10 +63,14 @@ class ImportAllWorkOrdersCommand extends Command
                 $this->processBatch($workOrders, $headers);
 
                 $totalProcessed += count($workOrders);
-                $offset += $limit;
+                $offset += $batchSize;
 
-                // Fewer results than the limit means we've reached the last page
-                if (count($workOrders) < $limit) {
+                if ($maxToImport !== null && $totalProcessed >= $maxToImport) {
+                    break;
+                }
+
+                // Fewer results than the batch size means we've reached the last page
+                if (count($workOrders) < $batchSize) {
                     break;
                 }
             }
@@ -259,23 +267,38 @@ class ImportAllWorkOrdersCommand extends Command
 
         $existing = Building::where('propertyware_id', $propertywareId)->first();
 
-        if ($existing) {
+        if ($existing && $existing->details_synced_at !== null) {
             return $this->buildingCache[$propertywareId] = $existing->propertyware_id;
         }
 
         $response = Http::withHeaders($headers)
-            ->get("https://api.propertyware.com/pw/api/rest/v1/buildings/{$propertywareId}");
+            ->get("https://api.propertyware.com/pw/api/rest/v1/buildings/{$propertywareId}", [
+                'includeCustomFields' => 'true',
+            ]);
 
         if (! $response->successful()) {
             Log::warning('Could not fetch building from PropertyWare', ['propertyware_id' => $propertywareId]);
 
-            return $propertywareId;
+            return $this->buildingCache[$propertywareId] = $propertywareId;
         }
 
         $data = $response->json();
 
-        Building::create([
-            'propertyware_id' => $propertywareId,
+        Building::updateOrCreate(
+            ['propertyware_id' => $propertywareId],
+            $this->mapBuildingPayload($data),
+        );
+
+        return $this->buildingCache[$propertywareId] = $propertywareId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function mapBuildingPayload(array $data): array
+    {
+        return [
             'name' => $data['name'] ?? null,
             'address' => $data['address']['address'] ?? null,
             'address_cont' => $data['address']['addressCont'] ?? null,
@@ -285,9 +308,16 @@ class ImportAllWorkOrdersCommand extends Command
             'country' => $data['address']['country'] ?? null,
             'portfolio_id' => $data['portfolioID'] ?? null,
             'active' => $data['active'] ?? true,
-        ]);
-
-        return $this->buildingCache[$propertywareId] = $propertywareId;
+            'maintenance_notice' => $data['maintenanceNotice'] ?? null,
+            'maintenance_spending_limit_amount' => $data['maintenanceSpendingLimitAmount'] ?? null,
+            'maintenance_spending_limit_time' => $data['maintenanceSpendingLimitTime'] ?? null,
+            'maintenance_labor_surcharge_amount' => $data['maintenanceLaborSurchargeAmount'] ?? null,
+            'maintenance_labor_surcharge_type' => $data['maintenanceLaborSurchargeType'] ?? null,
+            'category' => $data['category'] ?? null,
+            'property_type' => $data['propertyType'] ?? null,
+            'custom_fields' => $data['customFields'] ?? null,
+            'details_synced_at' => now(),
+        ];
     }
 
     private function createVendor(array $vendorData): ?int

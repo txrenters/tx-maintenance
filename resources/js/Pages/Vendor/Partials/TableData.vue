@@ -26,6 +26,7 @@ const updateStatus = (checked, vendor) => {
                 <TableHead class="hidden md:table-cell"
                     >Twilio Number
                 </TableHead>
+                <TableHead class="hidden md:table-cell">Zones </TableHead>
                 <TableHead>Status </TableHead>
                 <TableHead class="hidden md:table-cell">Address </TableHead>
                 <TableHead>
@@ -59,6 +60,18 @@ const updateStatus = (checked, vendor) => {
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     {{ vendor.twilio_number }}
+                </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    <div v-if="vendor.zones?.length" class="flex flex-wrap gap-1">
+                        <Badge
+                            v-for="zone in vendor.zones"
+                            :key="zone"
+                            variant="outline"
+                        >
+                            {{ zone }}
+                        </Badge>
+                    </div>
+                    <span v-else class="text-xs text-muted-foreground">—</span>
                 </TableCell>
                 <TableCell>
                     <Switch

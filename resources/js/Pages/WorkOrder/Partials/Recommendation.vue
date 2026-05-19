@@ -9,7 +9,16 @@ import {
     CardTitle,
 } from "@/Components/ui/card";
 import { Badge } from "@/Components/ui/badge";
-import { Sparkles, Wrench, History, RefreshCw, CheckCircle2 } from "lucide-vue-next";
+import {
+    Sparkles,
+    Wrench,
+    History,
+    RefreshCw,
+    CheckCircle2,
+    Star,
+    FileText,
+    ArrowRight,
+} from "lucide-vue-next";
 
 const props = defineProps({
     isLoading: Boolean,
@@ -17,7 +26,7 @@ const props = defineProps({
     recommendation: Object,
 });
 
-const emit = defineEmits(["generate", "assign"]);
+defineEmits(["generate", "assign"]);
 
 const matchedWorkOrders = computed(
     () => props.recommendation?.matched_work_orders ?? [],
@@ -32,18 +41,45 @@ const recommendedVendor = computed(
     () => props.recommendation?.recommended_vendor ?? null,
 );
 
-const formatDate = (date) => {
-    if (!date) {
-        return "Unknown";
-    }
+const VENDOR_SOURCE_LABELS = {
+    owner_preferred: { label: "Owner Preferred", variant: "default" },
+    building_history: { label: "Building History", variant: "secondary" },
+    cross_site_history: { label: "Cross-Site History", variant: "secondary" },
+    category_match: { label: "Category Match", variant: "outline" },
+    fallback: { label: "Fallback", variant: "outline" },
+};
 
+const vendorSourceBadge = computed(() => {
+    const source = props.recommendation?.vendor_source;
+    return source ? VENDOR_SOURCE_LABELS[source] ?? null : null;
+});
+
+const ownerPreferredName = computed(
+    () => props.recommendation?.classification?.owner_preferred_name ?? null,
+);
+const maintenanceNotice = computed(
+    () => props.recommendation?.classification?.maintenance_notice ?? null,
+);
+
+const confidence = computed(() => Number(props.recommendation?.confidence ?? 0));
+
+const confidenceTone = computed(() => {
+    const c = confidence.value;
+    if (c >= 75) return "bg-emerald-500";
+    if (c >= 50) return "bg-amber-500";
+    return "bg-red-500";
+});
+
+const formatDate = (date) => {
+    if (!date) return "Unknown";
     return new Date(date).toLocaleDateString();
 };
 </script>
 
 <template>
     <div class="px-6 pb-6">
-        <div class="grid gap-4">
+        <div class="space-y-5">
+            <!-- Header -->
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="text-sm font-medium text-primary">Recommendation Center</p>
@@ -52,29 +88,24 @@ const formatDate = (date) => {
                     </p>
                 </div>
 
-                <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        :disabled="isGenerating"
-                        @click="$emit('generate')"
-                    >
-                        <RefreshCw :class="{ 'animate-spin': isGenerating }" class="mr-2 h-4 w-4" />
-                        {{ recommendation ? "Refresh Recommendation" : "Generate Recommendation" }}
-                    </Button>
-
-                    <Button
-                        :disabled="!recommendedVendor || isGenerating"
-                        @click="$emit('assign', recommendedVendor)"
-                    >
-                        <CheckCircle2 class="mr-2 h-4 w-4" />
-                        Assign Recommended Vendor
-                    </Button>
-                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="isGenerating"
+                    @click="$emit('generate')"
+                >
+                    <RefreshCw
+                        :class="{ 'animate-spin': isGenerating }"
+                        class="mr-2 h-4 w-4"
+                    />
+                    {{ recommendation ? "Refresh" : "Generate" }}
+                </Button>
             </div>
 
+            <!-- Empty state -->
             <div
                 v-if="!recommendation && !isLoading"
-                class="rounded-lg border border-dashed px-6 py-10 text-center"
+                class="rounded-lg border border-dashed px-6 py-12 text-center"
             >
                 <Sparkles class="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
                 <p class="font-medium">No recommendation has been generated yet.</p>
@@ -83,143 +114,251 @@ const formatDate = (date) => {
                 </p>
             </div>
 
-            <div v-else-if="recommendation" class="grid gap-4 lg:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <Sparkles class="h-4 w-4" />
-                            Work Order Summary
-                        </CardTitle>
-                        <CardDescription>
-                            Issue normalization and confidence for this recommendation snapshot.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent class="space-y-3">
-                        <div class="flex flex-wrap gap-2">
-                            <Badge variant="outline">
-                                Issue: {{ recommendation.issue_type || "Unknown" }}
-                            </Badge>
-                            <Badge v-if="recommendation.vendor_category" variant="outline">
-                                Vendor Type: {{ recommendation.vendor_category }}
-                            </Badge>
-                            <Badge
-                                :variant="
-                                    recommendation.needs_human_review ? 'destructive' : 'outline'
-                                "
-                            >
-                                Confidence: {{ recommendation.confidence ?? 0 }}%
-                            </Badge>
+            <template v-else-if="recommendation">
+                <!-- HERO: Recommended Vendor -->
+                <Card
+                    class="overflow-hidden border-2 border-primary/40 bg-gradient-to-br from-primary/5 via-background to-background shadow-sm"
+                >
+                    <CardContent class="space-y-4 p-6">
+                        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                            <Star class="h-3.5 w-3.5 fill-primary text-primary" />
+                            Recommended Vendor
                         </div>
 
-                        <p class="text-sm leading-6 text-muted-foreground">
-                            {{ recommendation.summary || "No summary available." }}
-                        </p>
-
-                        <div v-if="recommendation.keywords?.length" class="flex flex-wrap gap-2">
-                            <Badge
-                                v-for="keyword in recommendation.keywords"
-                                :key="keyword"
-                                variant="secondary"
-                            >
-                                {{ keyword }}
-                            </Badge>
-                        </div>
-
-                        <p class="text-xs text-muted-foreground">
-                            Source: {{ recommendation.source }}<span v-if="recommendation.generated_at">
-                                • Generated {{ formatDate(recommendation.generated_at) }}
-                            </span>
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <Wrench class="h-4 w-4" />
-                            Vendor Recommendation
-                        </CardTitle>
-                        <CardDescription>
-                            Best current match based on history and active vendor types.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent class="space-y-3">
-                        <div v-if="recommendedVendor">
-                            <p class="text-lg font-semibold">{{ recommendedVendor.name }}</p>
-                            <p class="text-sm text-muted-foreground">
-                                {{ recommendedVendor.vendor_type || "No vendor type listed" }}
-                            </p>
-                        </div>
-                        <div v-else class="text-sm text-muted-foreground">
-                            No vendor could be automatically recommended.
-                        </div>
-
-                        <p class="text-sm leading-6">
-                            {{ recommendation.reasoning || "No reasoning available." }}
-                        </p>
-
-                        <div v-if="databaseAlternates.length" class="space-y-2">
-                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Alternate Database Vendors
-                            </p>
-                            <div class="flex flex-wrap gap-2">
+                        <div v-if="recommendedVendor" class="space-y-4">
+                            <!-- Vendor name + source badge -->
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h2 class="text-2xl font-bold leading-tight">
+                                        {{ recommendedVendor.name }}
+                                    </h2>
+                                    <p class="mt-0.5 text-sm text-muted-foreground">
+                                        {{ recommendedVendor.vendor_type || "No vendor type listed" }}
+                                    </p>
+                                </div>
                                 <Badge
-                                    v-for="vendor in databaseAlternates"
-                                    :key="vendor.id"
-                                    variant="outline"
+                                    v-if="vendorSourceBadge"
+                                    :variant="vendorSourceBadge.variant"
+                                    class="shrink-0"
                                 >
-                                    {{ vendor.name }}
+                                    {{ vendorSourceBadge.label }}
                                 </Badge>
                             </div>
+
+                            <!-- Issue type + confidence bar -->
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-medium">
+                                        {{ recommendation.issue_type || "Unknown issue" }}
+                                    </span>
+                                    <span class="tabular-nums text-muted-foreground">
+                                        {{ confidence }}% confidence
+                                    </span>
+                                </div>
+                                <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+                                    <div
+                                        class="h-full rounded-full transition-all"
+                                        :class="confidenceTone"
+                                        :style="{ width: `${confidence}%` }"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Reasoning -->
+                            <p
+                                v-if="recommendation.reasoning"
+                                class="border-l-2 border-primary/40 pl-3 text-sm italic leading-6 text-muted-foreground"
+                            >
+                                {{ recommendation.reasoning }}
+                            </p>
+
+                            <!-- Owner preference + maintenance notice -->
+                            <div
+                                v-if="ownerPreferredName || maintenanceNotice"
+                                class="rounded-md border border-primary/30 bg-primary/5 p-3"
+                            >
+                                <div
+                                    v-if="ownerPreferredName"
+                                    class="flex items-center gap-2 text-sm font-semibold text-primary"
+                                >
+                                    <Star class="h-3.5 w-3.5 fill-primary" />
+                                    Owner prefers: {{ ownerPreferredName }}
+                                </div>
+                                <div
+                                    v-if="maintenanceNotice"
+                                    :class="[ownerPreferredName ? 'mt-2' : '']"
+                                >
+                                    <p class="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-foreground">
+                                        <FileText class="h-3 w-3" />
+                                        Maintenance Notice
+                                    </p>
+                                    <p class="whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                                        {{ maintenanceNotice }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                <Button
+                                    :disabled="!recommendedVendor || isGenerating"
+                                    @click="$emit('assign', recommendedVendor)"
+                                >
+                                    <CheckCircle2 class="mr-2 h-4 w-4" />
+                                    Assign Vendor
+                                    <ArrowRight class="ml-2 h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    :disabled="isGenerating"
+                                    @click="$emit('generate')"
+                                >
+                                    <RefreshCw
+                                        :class="{ 'animate-spin': isGenerating }"
+                                        class="mr-2 h-4 w-4"
+                                    />
+                                    Regenerate
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div v-else class="py-4 text-sm text-muted-foreground">
+                            No vendor could be automatically recommended. Human review is required.
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card class="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <History class="h-4 w-4" />
-                            Similar Work Orders
+                <!-- Issue Summary + Similar Work Orders -->
+                <div class="space-y-4">
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <Sparkles class="h-4 w-4" />
+                                Issue Summary
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="space-y-3 text-sm">
+                            <p class="leading-6 text-muted-foreground">
+                                {{ recommendation.summary || "No summary available." }}
+                            </p>
+
+                            <div
+                                v-if="recommendation.vendor_category"
+                                class="flex items-center justify-between text-xs"
+                            >
+                                <span class="text-muted-foreground">Vendor type</span>
+                                <span class="font-medium">
+                                    {{ recommendation.vendor_category }}
+                                </span>
+                            </div>
+
+                            <div
+                                v-if="recommendation.keywords?.length"
+                                class="flex flex-wrap gap-1.5"
+                            >
+                                <Badge
+                                    v-for="keyword in recommendation.keywords"
+                                    :key="keyword"
+                                    variant="secondary"
+                                    class="text-[10px]"
+                                >
+                                    {{ keyword }}
+                                </Badge>
+                            </div>
+
+                            <p class="border-t pt-2 text-[11px] text-muted-foreground">
+                                Source: {{ recommendation.source }}
+                                <span v-if="recommendation.generated_at">
+                                    • Generated {{ formatDate(recommendation.generated_at) }}
+                                </span>
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader class="pb-3">
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <History class="h-4 w-4" />
+                                Similar Work Orders
+                            </CardTitle>
+                            <CardDescription>
+                                Prior completed work used to support the recommendation.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent class="pt-0">
+                            <div v-if="matchedWorkOrders.length" class="-mx-2 divide-y">
+                                <div
+                                    v-for="item in matchedWorkOrders"
+                                    :key="item.id"
+                                    class="px-2 py-3"
+                                >
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <p class="text-sm font-semibold">
+                                            #{{ item.work_order_no }}
+                                        </p>
+                                        <p class="text-[11px] text-muted-foreground">
+                                            {{ formatDate(item.completed_date) }}
+                                        </p>
+                                    </div>
+                                    <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                        {{
+                                            item.description ||
+                                            item.closing_comments ||
+                                            "No details available."
+                                        }}
+                                    </p>
+                                    <p
+                                        v-if="item.vendor?.name"
+                                        class="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-primary"
+                                    >
+                                        Prior vendor: {{ item.vendor.name }}
+                                    </p>
+                                </div>
+                            </div>
+                            <p v-else class="text-sm text-muted-foreground">
+                                No close historical matches were found yet.
+                            </p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Alternate Database Vendors -->
+                <Card v-if="databaseAlternates.length">
+                    <CardHeader class="pb-3">
+                        <CardTitle class="flex items-center gap-2 text-base">
+                            <Wrench class="h-4 w-4" />
+                            Alternate Vendors
                         </CardTitle>
                         <CardDescription>
-                            Prior work used to support the vendor recommendation.
+                            Other active vendors that match this issue category.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div v-if="matchedWorkOrders.length" class="space-y-3">
-                            <div
-                                v-for="item in matchedWorkOrders"
-                                :key="item.id"
-                                class="rounded-lg border px-4 py-3"
+                        <div class="flex flex-wrap gap-2">
+                            <Badge
+                                v-for="vendor in databaseAlternates"
+                                :key="vendor.id"
+                                variant="outline"
+                                class="py-1"
                             >
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <p class="font-medium">#{{ item.work_order_no }}</p>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ formatDate(item.completed_date) }}
-                                    </p>
-                                </div>
-                                <p class="mt-1 text-sm text-muted-foreground">
-                                    {{ item.description || item.closing_comments || "No details available." }}
-                                </p>
-                                <p
-                                    v-if="item.vendor?.name"
-                                    class="mt-2 text-xs font-medium uppercase tracking-wide text-primary"
+                                {{ vendor.name }}
+                                <span
+                                    v-if="vendor.vendor_type"
+                                    class="ml-1 text-muted-foreground"
                                 >
-                                    Prior vendor: {{ item.vendor.name }}
-                                </p>
-                            </div>
+                                    · {{ vendor.vendor_type }}
+                                </span>
+                            </Badge>
                         </div>
-                        <p v-else class="text-sm text-muted-foreground">
-                            No close historical matches were found yet.
-                        </p>
                     </CardContent>
                 </Card>
 
-                <Card class="lg:col-span-2" v-if="fallbackAlternates.length">
-                    <CardHeader>
-                        <CardTitle>Fallback Vendor List</CardTitle>
+                <!-- Fallback Vendors -->
+                <Card v-if="fallbackAlternates.length">
+                    <CardHeader class="pb-3">
+                        <CardTitle class="text-base">Fallback Vendor List</CardTitle>
                         <CardDescription>
-                            Manual vendor recommendations from your curated vendor list.
+                            Curated manual vendors for when no automatic match applies.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -227,38 +366,43 @@ const formatDate = (date) => {
                             <div
                                 v-for="vendor in fallbackAlternates"
                                 :key="vendor.name"
-                                class="rounded-lg border px-4 py-3"
+                                class="rounded-lg border bg-muted/20 px-4 py-3"
                             >
-                                <p class="font-medium">{{ vendor.name }}</p>
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="font-medium">{{ vendor.name }}</p>
+                                </div>
                                 <p
                                     v-if="vendor.issue_types?.length"
-                                    class="mt-1 text-xs uppercase tracking-wide text-muted-foreground"
+                                    class="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
                                 >
-                                    {{ vendor.issue_types.join(", ") }}
+                                    {{ vendor.issue_types.join(" · ") }}
                                 </p>
                                 <div
                                     v-if="vendor.contacts?.length"
-                                    class="mt-2 space-y-1 text-sm text-muted-foreground"
+                                    class="mt-2 space-y-1 text-sm"
                                 >
                                     <div
                                         v-for="(contact, index) in vendor.contacts"
                                         :key="`${vendor.name}-${index}`"
+                                        class="text-muted-foreground"
                                     >
-                                        <span v-if="contact.name">{{ contact.name }}: </span>
+                                        <span v-if="contact.name" class="font-medium text-foreground">
+                                            {{ contact.name }}:
+                                        </span>
                                         <span v-if="contact.phone">{{ contact.phone }}</span>
                                         <span v-if="contact.email">
                                             <span v-if="contact.phone"> • </span>{{ contact.email }}
                                         </span>
                                     </div>
                                 </div>
-                                <p v-if="vendor.notes" class="mt-2 text-sm text-muted-foreground">
+                                <p v-if="vendor.notes" class="mt-2 text-xs leading-5 text-muted-foreground">
                                     {{ vendor.notes }}
                                 </p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-            </div>
+            </template>
         </div>
     </div>
 </template>
