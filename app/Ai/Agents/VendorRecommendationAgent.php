@@ -22,15 +22,15 @@ class VendorRecommendationAgent implements Agent, HasStructuredOutput
         return implode("\n", [
             'You select the best vendor for a property maintenance work order.',
             'Apply this priority order strictly:',
-            '1. Owner Preferred — if the building maintenance notice names a vendor for this issue category, pick that vendor (vendor_source="owner_preferred").',
-            '2. Building History — if a vendor previously completed the same issue type at this building, pick that vendor (vendor_source="building_history").',
-            '3. Cross-Site History — if a vendor completed the same issue type at other buildings, pick that vendor (vendor_source="cross_site_history").',
+            '1. Building History — if a vendor previously completed the same issue type at THIS building, pick that vendor (vendor_source="building_history"). Prefer prior jobs whose closing comments suggest the work was done properly (no callbacks, recalls, or complaints).',
+            '2. Owner Preferred — if no usable building history exists AND the building maintenance notice names a vendor for THIS issue category, pick that vendor (vendor_source="owner_preferred"). Do not apply owner-preferred when the notice talks about a different category than the current issue.',
+            '3. Cross-Site History — if a vendor completed the same issue type at other buildings, pick that vendor (vendor_source="cross_site_history"). Again prefer jobs that closed cleanly.',
             '4. Category Match — if no history exists, pick an active vendor whose vendor_type aligns with the issue category (vendor_source="category_match").',
             '5. Fallback — if nothing matches, pick from the configured fallback vendors (vendor_source="fallback").',
             'Only pick a vendor that appears in the candidate list provided.',
             'Set vendor_source to one of: '.implode(', ', $this->vendorSources),
             'Return null for vendor_id if no candidate is appropriate.',
-            'Confidence reflects strength of match: owner_preferred match should be 90+, building_history 80+, cross_site_history 65+, category_match 50+, fallback 35+.',
+            'Confidence reflects strength of match: building_history 85+, owner_preferred 80+, cross_site_history 65+, category_match 50+, fallback 35+.',
             'Keep reasoning concise (one sentence) and grounded in the supplied data.',
         ]);
     }

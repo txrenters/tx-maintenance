@@ -253,6 +253,21 @@ class WorkOrderRecommendationService
         Collection $buildingHistory,
         Collection $activeVendors,
     ): array {
+        // Building History first — the property's own track record for this issue
+        // type is the strongest signal we have.
+        [$buildingHistoryVendor, $buildingHistorySample] = $this->firstActiveVendorFromHistoryWithSample($buildingHistory, $activeVendors);
+
+        if ($buildingHistoryVendor instanceof Vendor) {
+            return [$buildingHistoryVendor, 'building_history', sprintf(
+                'Recommended %s because they completed a similar %s issue at this building on %s%s.',
+                $buildingHistoryVendor->name,
+                $classification['issue_type'],
+                $this->formatDate($buildingHistorySample?->completed_date),
+                $buildingHistorySample && $this->wasCompletedCleanly($buildingHistorySample) ? ' with no rework signals in closing comments' : '',
+            )];
+        }
+
+        // Owner Preferred second — only when the notice's category matches the current issue.
         $ownerPreferred = $this->matchOwnerPreferredVendor(
             $workOrder->building?->maintenance_notice,
             $classification,
@@ -267,32 +282,18 @@ class WorkOrderRecommendationService
             )];
         }
 
-        $buildingHistoryVendor = $this->firstActiveVendorFromHistory($buildingHistory, $activeVendors);
-
-        if ($buildingHistoryVendor instanceof Vendor) {
-            $sample = $buildingHistory->first();
-
-            return [$buildingHistoryVendor, 'building_history', sprintf(
-                'Recommended %s because they completed a similar %s issue at this building on %s.',
-                $buildingHistoryVendor->name,
-                $classification['issue_type'],
-                $this->formatDate($sample?->completed_date),
-            )];
-        }
-
-        $crossSiteVendor = $this->firstActiveVendorFromHistory(
+        // Cross-Site History — same issue type handled cleanly at another property.
+        [$crossSiteVendor, $crossSiteSample] = $this->firstActiveVendorFromHistoryWithSample(
             $matchedHistory->reject(fn (WorkOrder $wo) => $buildingHistory->contains('id', $wo->id)),
             $activeVendors,
         );
 
         if ($crossSiteVendor instanceof Vendor) {
-            $sample = $matchedHistory->first();
-
             return [$crossSiteVendor, 'cross_site_history', sprintf(
                 'Recommended %s because they completed a similar %s issue at another building on %s.',
                 $crossSiteVendor->name,
                 $classification['issue_type'],
-                $this->formatDate($sample?->completed_date),
+                $this->formatDate($crossSiteSample?->completed_date),
             )];
         }
 
@@ -349,7 +350,7 @@ class WorkOrderRecommendationService
     private function filterBuildingHistory(Collection $matchedHistory, WorkOrder $workOrder): Collection
     {
         if (! $workOrder->building_id) {
-            return collect();
+            return new Collection;
         }
 
         return $matchedHistory
@@ -363,15 +364,89 @@ class WorkOrderRecommendationService
      */
     private function firstActiveVendorFromHistory(Collection $history, Collection $activeVendors): ?Vendor
     {
+        [$vendor] = $this->firstActiveVendorFromHistoryWithSample($history, $activeVendors);
+
+        return $vendor;
+    }
+
+    /**
+     * Picks the first active vendor from a history collection, preferring jobs
+     * whose closing comments suggest the work was completed cleanly. Returns the
+     * vendor alongside the source WorkOrder for downstream reasoning.
+     *
+     * @param  Collection<int, WorkOrder>  $history
+     * @param  Collection<int, Vendor>  $activeVendors
+     * @return array{0: ?Vendor, 1: ?WorkOrder}
+     */
+    private function firstActiveVendorFromHistoryWithSample(Collection $history, Collection $activeVendors): array
+    {
+        // First pass: only cleanly-completed jobs.
+        foreach ($history as $workOrder) {
+            if (! $this->wasCompletedCleanly($workOrder)) {
+                continue;
+            }
+
+            $vendor = $workOrder->vendors->first(fn (Vendor $candidate) => $candidate->is_active);
+
+            if ($vendor instanceof Vendor) {
+                return [$activeVendors->firstWhere('id', $vendor->id) ?? $vendor, $workOrder];
+            }
+        }
+
+        // Second pass: relax the cleanliness filter so we still recommend someone
+        // when every match has a vague or noisy closing comment.
         foreach ($history as $workOrder) {
             $vendor = $workOrder->vendors->first(fn (Vendor $candidate) => $candidate->is_active);
 
             if ($vendor instanceof Vendor) {
-                return $activeVendors->firstWhere('id', $vendor->id) ?? $vendor;
+                return [$activeVendors->firstWhere('id', $vendor->id) ?? $vendor, $workOrder];
             }
         }
 
-        return null;
+        return [null, null];
+    }
+
+    /**
+     * Heuristic check on whether a past work order's closing comments suggest the
+     * job was completed cleanly. Blank closing comments count as clean — many
+     * older PropertyWare WOs ship without them but were still resolved.
+     */
+    private function wasCompletedCleanly(WorkOrder $history): bool
+    {
+        $comments = Str::lower((string) ($history->closing_comments ?? ''));
+
+        if ($comments === '') {
+            return true;
+        }
+
+        $negativeSignals = [
+            'recall',
+            'redo',
+            're-do',
+            'callback',
+            'call back',
+            'complaint',
+            'unsatisfactory',
+            'did not fix',
+            "didn't fix",
+            'still broken',
+            'still not working',
+            'still leaking',
+            'reopen',
+            're-open',
+            'incomplete',
+            'unfinished',
+            'returned to fix',
+            'had to come back',
+        ];
+
+        foreach ($negativeSignals as $signal) {
+            if (Str::contains($comments, $signal)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -389,6 +464,8 @@ class WorkOrderRecommendationService
         }
 
         $haystack = Str::lower($notice);
+        $issueType = $classification['issue_type'] ?? null;
+        $vendorCategory = $classification['vendor_category'] ?? null;
 
         $mentioned = $activeVendors
             ->filter(fn (Vendor $vendor) => filled($vendor->name)
@@ -396,29 +473,28 @@ class WorkOrderRecommendationService
                 && Str::contains($haystack, Str::lower($vendor->name)))
             ->values();
 
-        if ($mentioned->count() === 1) {
-            return $mentioned->first();
-        }
-
-        if ($mentioned->count() > 1) {
-            $category = $classification['vendor_category'] ?? null;
-            $issueType = $classification['issue_type'] ?? null;
-
-            return $mentioned->first(function (Vendor $vendor) use ($category, $issueType) {
+        if ($mentioned->isNotEmpty()) {
+            $matching = $mentioned->first(function (Vendor $vendor) use ($vendorCategory, $issueType) {
                 if (blank($vendor->vendor_type)) {
                     return false;
                 }
 
                 $type = Str::lower($vendor->vendor_type);
 
-                return (filled($category) && Str::contains($type, Str::lower($category)))
+                return (filled($vendorCategory) && Str::contains($type, Str::lower($vendorCategory)))
                     || (filled($issueType) && Str::contains($type, Str::lower($issueType)));
-            }) ?? $mentioned->first();
+            });
+
+            if ($matching instanceof Vendor) {
+                return $matching;
+            }
+
+            // A vendor is named in the notice but their type does not match the current
+            // issue — fall through so the waterfall picks a vendor that actually fits.
         }
 
         if ($this->noticeSignalsOwnerPreference($haystack)) {
             $labels = $this->extractCategoryLabels($notice);
-            $issueType = $classification['issue_type'] ?? null;
 
             if (! empty($labels) && filled($issueType)) {
                 $issueLower = Str::lower($issueType);
@@ -432,6 +508,14 @@ class WorkOrderRecommendationService
                 }
 
                 if (! $hasMatchingLabel) {
+                    return null;
+                }
+            } elseif (filled($issueType)) {
+                // Free-form notice (no "Category: vendor" segments). Use the rule table to
+                // infer what the notice is about and require a match with the current issue.
+                $noticeIssueType = $this->inferNoticeIssueType($notice);
+
+                if (filled($noticeIssueType) && Str::lower($noticeIssueType) !== Str::lower($issueType)) {
                     return null;
                 }
             }
@@ -568,13 +652,17 @@ class WorkOrderRecommendationService
             ->take(5)
             ->map(function (WorkOrder $workOrder) {
                 $vendor = $workOrder->vendors->first();
+                $closing = trim((string) $workOrder->closing_comments);
+                $cleanlyMarker = $this->wasCompletedCleanly($workOrder) ? 'clean' : 'rework_signal';
 
                 return sprintf(
-                    '#%s | %s | description: %s | vendor: %s',
+                    '#%s | %s | %s | description: %s | vendor: %s | closing: %s',
                     $workOrder->work_order_no ?? $workOrder->id,
                     $this->formatDate($workOrder->completed_date),
+                    $cleanlyMarker,
                     Str::limit((string) $workOrder->description, 140),
                     $vendor?->name ?? 'unknown',
+                    $closing === '' ? 'n/a' : Str::limit($closing, 140),
                 );
             })
             ->implode("\n");
@@ -634,47 +722,19 @@ class WorkOrderRecommendationService
      */
     private function heuristicClassification(WorkOrder $workOrder, Collection $activeVendors): array
     {
+        // NOTE: building.maintenance_notice is intentionally excluded — it describes the
+        // owner's preferred vendor for a specific category, not the current job's category.
+        // Mixing it in caused work orders to be misclassified (e.g. handrail repair tagged
+        // HVAC because the notice mentioned "A/C service").
         $text = Str::lower(implode("\n", array_filter([
             $workOrder->description,
             $workOrder->type,
             $workOrder->category,
             $workOrder->latest_update_comments,
             $workOrder->closing_comments,
-            $workOrder->building?->maintenance_notice,
         ])));
 
-        $rules = [
-            'HOA Violation' => ['hoa violation', 'hoa notice', 'deed restriction', 'covenant violation'],
-            'Lockout' => ['lockout', 'locked out', 'garage lockout'],
-            'Garage Door' => ['garage door', 'garage opener', 'garage stuck'],
-            'Lock Repair' => ['front door', 'exit door', 'door lock', 'deadbolt', 'lock replacement', 'lock repair', 'cannot lock', 'cannot unlock'],
-            'HVAC' => ['hvac', 'ac', 'a/c', 'air conditioner', 'air conditioning', 'furnace', 'heat', 'heater', 'heating', 'cooling', 'thermostat'],
-            'Plumbing' => ['plumb', 'faucet', 'toilet', 'sink', 'drain', 'leak', 'water heater', 'garbage disposal', 'clog'],
-            'Electrical' => ['electrical', 'breaker', 'outlet', 'switch', 'power', 'light fixture', 'wiring', 'panel'],
-            'Appliance Repair' => ['appliance', 'refrigerator', 'fridge', 'stove', 'oven', 'dishwasher', 'microwave', 'washer', 'dryer'],
-            'Locksmith' => ['lock', 'rekey', 'key', 'deadbolt', 'door lock'],
-            'Roofing' => ['roof', 'shingle', 'ceiling leak', 'attic leak'],
-            'Pest Control' => ['pest', 'roach', 'cockroach', 'mouse', 'mice', 'rat', 'ant', 'termite', 'bed bug'],
-            'Cleaning' => ['clean', 'trash out', 'make ready clean', 'deep clean'],
-            'Painting' => ['paint', 'repaint', 'touch up', 'touch-up', 'drywall patch'],
-            'Landscaping' => ['lawn', 'grass', 'tree', 'stump', 'weeds', 'landscape', 'yard', 'sprinkler', 'irrigation'],
-            'General Maintenance' => ['maintenance', 'repair', 'fix', 'issue'],
-        ];
-
-        $bestIssueType = 'General Maintenance';
-        $bestScore = 0;
-        $keywords = collect();
-
-        foreach ($rules as $issueType => $needles) {
-            $matched = collect($needles)->filter(fn (string $needle) => $this->keywordMatches($text, $needle));
-            $score = $matched->count();
-
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestIssueType = $issueType;
-                $keywords = $matched;
-            }
-        }
+        [$bestIssueType, $bestScore, $keywords] = $this->bestRuleMatch($text);
 
         $vendorCategory = $this->guessVendorCategory($bestIssueType, $activeVendors);
         $confidence = $bestScore > 0 ? min(90, 45 + ($bestScore * 15)) : 25;
@@ -695,6 +755,9 @@ class WorkOrderRecommendationService
 
     private function buildClassificationPrompt(WorkOrder $workOrder, array $vendorTypes): string
     {
+        // The building maintenance notice is intentionally omitted here — it describes the
+        // owner's preferred vendor, not the type of issue. It is supplied separately to the
+        // vendor-selection step in recommendVendorWithAi().
         return implode("\n", [
             'Classify this maintenance work order for vendor recommendation.',
             'Return the structured schema only.',
@@ -705,8 +768,71 @@ class WorkOrderRecommendationService
             'Category: '.($workOrder->category ?? 'N/A'),
             'Latest update comments: '.($workOrder->latest_update_comments ?? 'N/A'),
             'Closing comments: '.($workOrder->closing_comments ?? 'N/A'),
-            'Building maintenance notice: '.($workOrder->building?->maintenance_notice ?? 'N/A'),
         ]);
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function classificationRules(): array
+    {
+        return [
+            'HOA Violation' => ['hoa violation', 'hoa notice', 'deed restriction', 'covenant violation'],
+            'Lockout' => ['lockout', 'locked out', 'garage lockout'],
+            'Garage Door' => ['garage door', 'garage opener', 'garage stuck'],
+            'Lock Repair' => ['front door', 'exit door', 'door lock', 'deadbolt', 'lock replacement', 'lock repair', 'cannot lock', 'cannot unlock'],
+            'HVAC' => ['hvac', 'ac', 'a/c', 'air conditioner', 'air conditioning', 'furnace', 'heat', 'heater', 'heating', 'cooling', 'thermostat'],
+            'Plumbing' => ['plumb', 'faucet', 'toilet', 'sink', 'drain', 'leak', 'water heater', 'garbage disposal', 'clog'],
+            'Electrical' => ['electrical', 'breaker', 'outlet', 'switch', 'power', 'light fixture', 'wiring', 'panel'],
+            'Appliance Repair' => ['appliance', 'refrigerator', 'fridge', 'stove', 'oven', 'dishwasher', 'microwave', 'washer', 'dryer'],
+            'Locksmith' => ['lock', 'rekey', 'key', 'deadbolt', 'door lock'],
+            'Roofing' => ['roof', 'shingle', 'ceiling leak', 'attic leak'],
+            'Pest Control' => ['pest', 'roach', 'cockroach', 'mouse', 'mice', 'rat', 'ant', 'termite', 'bed bug'],
+            'Cleaning' => ['clean', 'trash out', 'make ready clean', 'deep clean'],
+            'Painting' => ['paint', 'repaint', 'touch up', 'touch-up', 'drywall patch'],
+            'Landscaping' => ['lawn', 'grass', 'tree', 'stump', 'weeds', 'landscape', 'yard', 'sprinkler', 'irrigation'],
+            'Carpentry' => ['handrail', 'railing', 'stair', 'stairs', 'steps', 'concrete steps', 'structural', 'fence', 'gate', 'deck', 'siding', 'wood rot', 'rotten wood', 'door frame', 'window frame', 'cabinet'],
+            'General Maintenance' => ['maintenance', 'repair', 'fix', 'issue'],
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: int, 2: \Illuminate\Support\Collection<int, string>}
+     */
+    private function bestRuleMatch(string $loweredText): array
+    {
+        $bestIssueType = 'General Maintenance';
+        $bestScore = 0;
+        $keywords = collect();
+
+        foreach ($this->classificationRules() as $issueType => $needles) {
+            $matched = collect($needles)->filter(fn (string $needle) => $this->keywordMatches($loweredText, $needle));
+            $score = $matched->count();
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestIssueType = $issueType;
+                $keywords = $matched;
+            }
+        }
+
+        return [$bestIssueType, $bestScore, $keywords];
+    }
+
+    /**
+     * Infers the implied issue type of a maintenance notice using the same rule table.
+     * Used to gate owner-preferred vendor matches so a notice that talks about HVAC
+     * does not get applied to a structural or plumbing job.
+     */
+    private function inferNoticeIssueType(?string $notice): ?string
+    {
+        if (blank($notice)) {
+            return null;
+        }
+
+        [$issueType, $score] = $this->bestRuleMatch(Str::lower($notice));
+
+        return $score > 0 ? $issueType : null;
     }
 
     private function keywordMatches(string $haystack, string $needle): bool
@@ -918,6 +1044,12 @@ class WorkOrderRecommendationService
             $score += max(0, 30 - (int) now()->diffInMonths($completedDate));
         }
 
+        if ($this->wasCompletedCleanly($history)) {
+            $score += 15;
+        } else {
+            $score -= 25;
+        }
+
         return $score;
     }
 
@@ -938,6 +1070,7 @@ class WorkOrderRecommendationService
             'Cleaning' => ['clean'],
             'Painting' => ['paint', 'drywall'],
             'Landscaping' => ['lawn', 'landscape', 'tree'],
+            'Carpentry' => ['handyman', 'maintenance'],
             'General Maintenance' => ['maintenance', 'handyman'],
         ];
 
