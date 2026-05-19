@@ -20,6 +20,7 @@ import Attachments from "./Partials/Attachments.vue";
 import Invoices from "./Partials/Invoices.vue";
 import Notes from "./Partials/Notes.vue";
 import VendorEdit from "./Partials/VendorEdit.vue";
+import Recommendation from "./Partials/Recommendation.vue";
 import debounce from "lodash/debounce";
 
 import {
@@ -38,6 +39,7 @@ import {
     Search,
     Loader2Icon,
     Loader2,
+    Sparkles,
     ExternalLink,
 } from "lucide-vue-next";
 
@@ -122,6 +124,12 @@ const closeWorkOrderForm = useForm({
 
 const activeTab = ref("details");
 const tabButtons = [
+    {
+        name: "recommendation",
+        tooltip: "Recommendation",
+        icon: Sparkles,
+        requires: ["admin", "woc", "vendor", "owner", "tenant"],
+    },
     {
         name: "details",
         tooltip: "Details",
@@ -235,6 +243,10 @@ const tabButtons = [
 const switchTab = (tabName) => {
     activeTab.value = tabName;
     workOrderTasks.value = [];
+
+    if (activeTab.value === "recommendation" && workOrderForm.id) {
+        fetchRecommendation(workOrderForm.id);
+    }
 
     if (activeTab.value === "tasks" && workOrderForm.id) {
         fetchWorkOrderTask(workOrderForm.id);
@@ -496,6 +508,72 @@ const fetchVendors = async (workOrderId) => {
     }
 };
 
+const recommendation = ref(null);
+const isGeneratingRecommendation = ref(false);
+
+const fetchRecommendation = async (workOrderId) => {
+    try {
+        const response = await axios.get(
+            route("work_orders.recommendation.show", workOrderId)
+        );
+        recommendation.value = response.data.recommendation;
+    } catch (error) {
+        console.error("Error fetching recommendation:", error);
+    }
+};
+
+const generateRecommendation = async () => {
+    try {
+        isGeneratingRecommendation.value = true;
+        const response = await axios.post(
+            route("work_orders.recommendation.generate", workOrderForm.id)
+        );
+        recommendation.value = response.data.recommendation;
+        toast({
+            title: "Success",
+            description: "Recommendation generated successfully!",
+        });
+    } catch (error) {
+        console.error("Error generating recommendation:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to generate recommendation.",
+        });
+    } finally {
+        isGeneratingRecommendation.value = false;
+    }
+};
+
+const assignRecommendedVendor = (vendor) => {
+    if (!vendor?.name) {
+        return;
+    }
+
+    router.put(
+        route("work_orders.vendor.change", workOrderForm.id),
+        { vendors: [vendor.name] },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                workOrderVendors.value = [vendor];
+                toast({
+                    title: "Success",
+                    description: "Recommended vendor assigned successfully!",
+                });
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description: "Failed to assign recommended vendor.",
+                });
+            },
+        }
+    );
+};
+
 const handleUpdateSubmit = () => {
     workOrderForm.put(route("work_orders.update", workOrderForm.id), {
         preserveState: true,
@@ -545,6 +623,8 @@ const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
     activeTab.value = "details";
     workOrderTasks.value = [];
+    recommendation.value = null;
+    isGeneratingRecommendation.value = false;
     openWorkOrder.value = true;
     isLoading.value = true;
 
@@ -910,6 +990,15 @@ const page = usePage();
                 </div>
             </DialogHeader>
             <Separator />
+
+            <Recommendation
+                :recommendation="recommendation"
+                :isLoading="isLoading"
+                :isGenerating="isGeneratingRecommendation"
+                @generate="generateRecommendation"
+                @assign="assignRecommendedVendor"
+                v-if="activeTab === 'recommendation'"
+            />
 
             <WorkOrderDetails
                 :workOrder="workOrderForm"
