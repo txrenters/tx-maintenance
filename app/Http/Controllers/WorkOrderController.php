@@ -215,6 +215,7 @@ class WorkOrderController extends Controller
             'managed_by',
             'woc.wocNumber.twilioPhoneNumber',
             'owners',
+            'building',
         ])->first();
 
         return response()->json($workOrder, 200);
@@ -237,6 +238,7 @@ class WorkOrderController extends Controller
             'owner_conversation',
             'vendor_conversation',
             'vendor_tenant_conversation',
+            'building',
         ]);
 
         $user = request()->user();

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
-import { router, usePage } from "@inertiajs/vue3";
+import { Link, router, usePage } from "@inertiajs/vue3";
 import { useFilter } from "reka-ui";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -222,6 +222,24 @@ const latestScheduledEndDate = computed(() => {
 
         return latestDate;
     }, null);
+});
+
+const buildingAddress = computed(() => {
+    const building = props.workOrder?.building;
+    if (!building) {
+        return null;
+    }
+
+    const cityState = [
+        building.city,
+        [building.state_region, building.postal_code]
+            .filter(Boolean)
+            .join(" "),
+    ]
+        .filter(Boolean)
+        .join(", ");
+
+    return [building.address, cityState].filter(Boolean).join(", ") || null;
 });
 
 const handleDeleteSubmit = () => {
@@ -472,6 +490,19 @@ const handleCompleteSubmit = () => {
                 <div>
                     <Label for="message">Location:</Label>
                     <p>{{ workOrder.location }}</p>
+                    <Link
+                        v-if="buildingAddress && workOrder.building?.id"
+                        :href="route('buildings.show', workOrder.building.id)"
+                        class="text-sm text-primary hover:underline"
+                    >
+                        {{ buildingAddress }}
+                    </Link>
+                    <p
+                        v-else-if="buildingAddress"
+                        class="text-sm text-primary"
+                    >
+                        {{ buildingAddress }}
+                    </p>
                 </div>
 
                 <div>

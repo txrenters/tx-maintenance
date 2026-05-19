@@ -33,6 +33,7 @@ import {
     MessagesSquare,
     ArrowLeft,
     Sparkles,
+    ExternalLink,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -218,6 +219,8 @@ const workOrderForm = useForm({
     zone: order.zone,
     vendor_notes: order.vendor_notes,
     woc: order.woc,
+    building: order.building ?? null,
+    propertyware_id: order.propertyware_id,
 });
 
 const closeWorkOrderForm = useForm({ id: order.id });
@@ -569,6 +572,16 @@ const handleCloseOrderSubmit = () => {
                 <CardTitle class="text-primary text-xl">
                     #{{ workOrderForm.work_order_no }}
                 </CardTitle>
+                <a
+                    v-if="workOrderForm.propertyware_id"
+                    :href="`https://app.propertyware.com/pw/maintenance/work_order_detail.do?entityID=${workOrderForm.propertyware_id}`"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                >
+                    <ExternalLink class="h-3.5 w-3.5" />
+                    PropertyWare
+                </a>
             </div>
             <div class="flex gap-2 flex-wrap mt-2">
                 <Badge

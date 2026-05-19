@@ -35,6 +35,7 @@ import {
     ScanSearch,
     Search,
     Loader2Icon,
+    ExternalLink,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -106,6 +107,8 @@ const workOrderForm = useForm({
     owners: [],
     local_status: "",
     woc: "",
+    building: null,
+    propertyware_id: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -597,6 +600,8 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.vendor_notes = order.vendor_notes;
 
         workOrderForm.woc = order.woc;
+        workOrderForm.building = order.building ?? null;
+        workOrderForm.propertyware_id = order.propertyware_id;
 
         // Reset close form
         closeWorkOrderForm.reset();
@@ -802,7 +807,19 @@ watch(filter_vendor, filterVendor);
         >
             <DialogHeader class="p-6 pb-0 text-left">
                 <DialogTitle class="text-2xl text-primary">
-                    <p v-if="!isLoading">#{{ workOrderForm.work_order_no }}</p>
+                    <div v-if="!isLoading" class="flex items-center gap-3">
+                        <p>#{{ workOrderForm.work_order_no }}</p>
+                        <a
+                            v-if="workOrderForm.propertyware_id"
+                            :href="`https://app.propertyware.com/pw/maintenance/work_order_detail.do?entityID=${workOrderForm.propertyware_id}`"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                        >
+                            <ExternalLink class="h-3.5 w-3.5" />
+                            PropertyWare
+                        </a>
+                    </div>
                 </DialogTitle>
                 <DialogDescription>
                     <div class="flex gap-2 mb-2 flex-wrap" v-if="!isLoading">

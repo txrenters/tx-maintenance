@@ -1,5 +1,6 @@
 <script setup>
 import { Link } from "@inertiajs/vue3";
+import { ChevronDown, ExternalLink } from "lucide-vue-next";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 defineOptions({ layout: AppLayout });
@@ -16,8 +17,20 @@ defineProps({
         <!-- Building Details -->
         <Card>
             <CardHeader>
-                <CardTitle class="flex items-center justify-between">
-                    <span>{{ building.name ?? "Building Details" }}</span>
+                <CardTitle class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <span>{{ building.name ?? "Building Details" }}</span>
+                        <a
+                            v-if="building.propertyware_id"
+                            :href="`https://app.propertyware.com/pw/properties/building_detail.do?entityID=${building.propertyware_id}`"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                        >
+                            <ExternalLink class="h-3.5 w-3.5" />
+                            PropertyWare
+                        </a>
+                    </div>
                     <Badge :variant="building.active ? 'default' : 'secondary'">
                         {{ building.active ? "Active" : "Inactive" }}
                     </Badge>
@@ -78,86 +91,98 @@ defineProps({
         </Card>
 
         <!-- Maintenance Settings -->
-        <Card>
-            <CardHeader>
-                <CardTitle class="flex items-center justify-between">
-                    <span>Maintenance</span>
-                    <span
-                        v-if="building.details_synced_at"
-                        class="text-xs font-normal text-muted-foreground"
+        <Collapsible v-slot="{ open }">
+            <Card>
+                <CardHeader class="p-0">
+                    <CollapsibleTrigger
+                        class="flex w-full items-center justify-between gap-2 p-6 text-left transition-colors hover:bg-muted/40"
                     >
-                        Synced {{ new Date(building.details_synced_at).toLocaleString() }}
-                    </span>
-                </CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-4 text-sm">
-                <div v-if="building.maintenance_notice">
-                    <dt class="mb-1 text-muted-foreground">Maintenance Notice</dt>
-                    <dd class="whitespace-pre-line rounded-md border bg-muted/30 p-3 font-medium">
-                        {{ building.maintenance_notice }}
-                    </dd>
-                </div>
-                <div
-                    v-else
-                    class="rounded-md border border-dashed p-3 text-muted-foreground"
-                >
-                    No maintenance notice on file.
-                </div>
-
-                <dl class="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
-                    <div>
-                        <dt class="text-muted-foreground">Spending Limit</dt>
-                        <dd class="font-medium">
-                            {{
-                                building.maintenance_spending_limit_amount
-                                    ? `$${building.maintenance_spending_limit_amount}`
-                                    : "—"
-                            }}
-                            <span
-                                v-if="building.maintenance_spending_limit_time"
-                                class="text-muted-foreground"
-                            >
-                                / {{ building.maintenance_spending_limit_time }}
-                            </span>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-muted-foreground">Labor Surcharge</dt>
-                        <dd class="font-medium">
-                            {{
-                                building.maintenance_labor_surcharge_amount
-                                    ? `$${building.maintenance_labor_surcharge_amount}`
-                                    : "—"
-                            }}
-                            <span
-                                v-if="building.maintenance_labor_surcharge_type"
-                                class="text-muted-foreground"
-                            >
-                                ({{ building.maintenance_labor_surcharge_type }})
-                            </span>
-                        </dd>
-                    </div>
-                </dl>
-
-                <div
-                    v-if="building.custom_fields && building.custom_fields.length"
-                    class="space-y-2"
-                >
-                    <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Custom Fields
-                    </p>
-                    <dl class="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-                        <div
-                            v-for="field in building.custom_fields"
-                            :key="field.definitionID || field.fieldName"
+                        <span class="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight">
+                            <ChevronDown
+                                class="h-4 w-4 transition-transform"
+                                :class="{ '-rotate-90': !open }"
+                            />
+                            Maintenance
+                        </span>
+                        <span
+                            v-if="building.details_synced_at"
+                            class="text-xs font-normal text-muted-foreground"
                         >
-                            <dt class="text-muted-foreground">{{ field.fieldName }}</dt>
-                            <dd class="font-medium">{{ field.value || "—" }}</dd>
+                            Synced {{ new Date(building.details_synced_at).toLocaleString() }}
+                        </span>
+                    </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                    <CardContent class="space-y-4 text-sm">
+                        <div v-if="building.maintenance_notice">
+                            <dt class="mb-1 text-muted-foreground">Maintenance Notice</dt>
+                            <dd class="whitespace-pre-line rounded-md border bg-muted/30 p-3 font-medium">
+                                {{ building.maintenance_notice }}
+                            </dd>
                         </div>
-                    </dl>
-                </div>
-            </CardContent>
-        </Card>
+                        <div
+                            v-else
+                            class="rounded-md border border-dashed p-3 text-muted-foreground"
+                        >
+                            No maintenance notice on file.
+                        </div>
+
+                        <dl class="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+                            <div>
+                                <dt class="text-muted-foreground">Spending Limit</dt>
+                                <dd class="font-medium">
+                                    {{
+                                        building.maintenance_spending_limit_amount
+                                            ? `$${building.maintenance_spending_limit_amount}`
+                                            : "—"
+                                    }}
+                                    <span
+                                        v-if="building.maintenance_spending_limit_time"
+                                        class="text-muted-foreground"
+                                    >
+                                        / {{ building.maintenance_spending_limit_time }}
+                                    </span>
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-muted-foreground">Labor Surcharge</dt>
+                                <dd class="font-medium">
+                                    {{
+                                        building.maintenance_labor_surcharge_amount
+                                            ? `$${building.maintenance_labor_surcharge_amount}`
+                                            : "—"
+                                    }}
+                                    <span
+                                        v-if="building.maintenance_labor_surcharge_type"
+                                        class="text-muted-foreground"
+                                    >
+                                        ({{ building.maintenance_labor_surcharge_type }})
+                                    </span>
+                                </dd>
+                            </div>
+                        </dl>
+
+                        <div
+                            v-if="building.custom_fields && building.custom_fields.length"
+                            class="space-y-2"
+                        >
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Custom Fields
+                            </p>
+                            <dl class="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                                <div
+                                    v-for="field in building.custom_fields"
+                                    :key="field.definitionID || field.fieldName"
+                                >
+                                    <dt class="text-muted-foreground">{{ field.fieldName }}</dt>
+                                    <dd class="font-medium">{{ field.value || "—" }}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </CardContent>
+                </CollapsibleContent>
+            </Card>
+        </Collapsible>
 
         <!-- Related Work Orders -->
         <Card>
