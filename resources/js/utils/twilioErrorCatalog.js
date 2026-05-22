@@ -65,3 +65,42 @@ export const describeTwilioError = (code) => {
 export const friendlyTwilioError = (code, rawMessage) => {
     return describeTwilioError(code) ?? (rawMessage || null);
 };
+
+/**
+ * Twilio error codes where retrying the same message will not help — either
+ * the recipient cannot receive it, the content is the issue, or the account
+ * needs admin work. Hide the Retry button for these.
+ */
+const NON_RETRYABLE_CODES = new Set([
+    '21211', // invalid phone number
+    '21408', // SMS not enabled for country
+    '21606', // From number invalid / not SMS-capable
+    '21610', // recipient texted STOP
+    '21614', // destination not a mobile line
+    '21617', // body too long
+    '30002', // account suspended
+    '30005', // unknown destination handset
+    '30006', // landline / unreachable carrier
+    '30011', // recipient cannot receive MMS
+    '30032', // toll-free unverified
+    '30034', // 10DLC unregistered
+    '30038', // toll-free verification rejected
+    '30450', // trial account restriction
+]);
+
+/**
+ * Should we offer a Retry button for a message that failed with this code?
+ * Unknown codes default to retryable so the user always has an option.
+ */
+export const isRetryableTwilioError = (code) => {
+    if (code === null || code === undefined) {
+        return true;
+    }
+
+    const normalized = String(code).trim();
+    if (normalized === '') {
+        return true;
+    }
+
+    return ! NON_RETRYABLE_CODES.has(normalized);
+};

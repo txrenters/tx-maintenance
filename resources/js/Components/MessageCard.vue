@@ -1,10 +1,22 @@
 <script setup>
 import { DateTime } from "luxon";
-import { AlertCircle, CheckCheck, Clock3, Send, XIcon } from "lucide-vue-next";
-import { computed } from "vue";
+import {
+    AlertCircle,
+    CheckCheck,
+    Clock3,
+    Loader2,
+    RotateCw,
+    Send,
+    XIcon,
+} from "lucide-vue-next";
+import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
+import axios from "axios";
 import { useToast } from "./ui/toast";
-import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
+import {
+    friendlyTwilioError,
+    isRetryableTwilioError,
+} from "@/utils/twilioErrorCatalog.js";
 
 const { toast } = useToast();
 const page = usePage();
@@ -125,6 +137,62 @@ const removeMessage = (id) => {
 const openMedia = (mediaUrl) => {
     if (mediaUrl) {
         window.open(mediaUrl, "_blank", "noopener,noreferrer");
+    }
+};
+
+const resendingIds = ref(new Set());
+
+const isFailedStatus = (status) => {
+    if (!status) return false;
+    const normalized = String(status).toLowerCase();
+    return normalized === "failed" || normalized === "undelivered";
+};
+
+const canResend = (msg) => {
+    if (!isFailedStatus(msg.twilio_status)) return false;
+    if (!isRetryableTwilioError(msg.twilio_error_code)) return false;
+    // Only outbound (messages from "us") are eligible — we cannot resend
+    // an inbound reply on the tenant's behalf.
+    return msg.sender_number === props.sender;
+};
+
+const resendMessage = async (msg) => {
+    if (!canResend(msg) || resendingIds.value.has(msg.id)) return;
+
+    const url = msg.work_order_id
+        ? `/api/conversations/${msg.id}/resend`
+        : msg.jobber_id
+          ? `/api/jobber-text-messages/${msg.id}/resend`
+          : null;
+
+    if (!url) {
+        toast({
+            variant: "destructive",
+            title: "Can't resend",
+            description: "This message can't be identified for resending.",
+        });
+        return;
+    }
+
+    resendingIds.value.add(msg.id);
+    try {
+        await axios.post(url);
+        toast({
+            title: "Message queued",
+            description: "Twilio is redelivering this message.",
+        });
+    } catch (error) {
+        const description =
+            error?.response?.data?.error ||
+            error?.response?.data?.message ||
+            "Could not resend. Please try again.";
+        toast({
+            variant: "destructive",
+            title: "Resend failed",
+            description,
+        });
+    } finally {
+        resendingIds.value.delete(msg.id);
     }
 };
 </script>
@@ -260,6 +328,21 @@ const openMedia = (mediaUrl) => {
                     )
                 }}
             </p>
+            <button
+                v-if="canResend(msg)"
+                type="button"
+                :disabled="resendingIds.has(msg.id)"
+                class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 disabled:opacity-60"
+                title="Resend this message via Twilio"
+                @click="resendMessage(msg)"
+            >
+                <Loader2
+                    v-if="resendingIds.has(msg.id)"
+                    class="h-3 w-3 animate-spin"
+                />
+                <RotateCw v-else class="h-3 w-3" />
+                {{ resendingIds.has(msg.id) ? "Resending…" : "Retry" }}
+            </button>
         </div>
     </div>
 </template>

@@ -9,6 +9,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ResendTwilioMessageController;
 use App\Http\Controllers\TwilioWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,11 @@ Route::post('/jobber/webhook', [JobberWebhookController::class, 'handle'])
 
 Route::put('/notifications/{activity}/mark-as-read', [NotificationController::class, 'markAsRead']);
 Route::put('/notifications/{activity}/mark-as-unread', [NotificationController::class, 'markAsUnread']);
+
+Route::post('/conversations/{conversation}/resend', [ResendTwilioMessageController::class, 'conversation'])
+    ->name('api.conversations.resend');
+Route::post('/jobber-text-messages/{jobberTextMessage}/resend', [ResendTwilioMessageController::class, 'jobberTextMessage'])
+    ->name('api.jobber-text-messages.resend');
 
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
 Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);
