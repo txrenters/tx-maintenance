@@ -13,7 +13,7 @@ Schedule::command('import:work-orders')
 
 Schedule::command('import:buildings-from-work-orders')
     ->daily();
-    
+
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
@@ -28,5 +28,10 @@ Schedule::command('jobs:send-reminders')
 Schedule::command('twilio:sync-phone-numbers')
     ->timezone('America/Chicago')
     ->dailyAt('01:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('twilio:import-inbound-messages')
+    ->everyFiveMinutes()
     ->withoutOverlapping()
     ->runInBackground();

@@ -155,6 +155,83 @@ class TwilioService
         ];
     }
 
+    /**
+     * Stream inbound Twilio messages addressed to a given number since a given date.
+     *
+     * Yields each Twilio MessageInstance so callers can inspect direction, media, etc.
+     *
+     * @return iterable<MessageInstance>
+     */
+    public function streamInboundMessagesTo(string $toNumber, \DateTimeInterface $dateSentAfter, int $limit = 200): iterable
+    {
+        $options = [
+            'to' => $toNumber,
+            'dateSentAfter' => $dateSentAfter,
+        ];
+
+        try {
+            return $this->client->messages->read($options, max(1, $limit));
+        } catch (RestException $e) {
+            Log::error('Twilio inbound stream failed', [
+                'to' => $toNumber,
+                'status_code' => $e->getStatusCode(),
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Build the webhook-style media URL list for a given message SID. Returns
+     * an array of ['url' => string, 'content_type' => string].
+     *
+     * @return array<int, array{url: string, content_type: string}>
+     */
+    public function fetchMessageMedia(string $sid): array
+    {
+        $sid = trim($sid);
+        if ($sid === '') {
+            return [];
+        }
+
+        try {
+            $mediaList = $this->client->messages($sid)->media->read();
+        } catch (RestException $e) {
+            if ($e->getStatusCode() === 404) {
+                return [];
+            }
+
+            Log::error('Twilio media fetch failed', [
+                'sid' => $sid,
+                'status_code' => $e->getStatusCode(),
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        $accountSid = (string) config('services.twilio.sid');
+        $authToken = (string) config('services.twilio.auth_token');
+        $hasCreds = $accountSid !== '' && $authToken !== '';
+
+        $items = [];
+        foreach ($mediaList as $media) {
+            $mediaSid = $media->sid;
+            $contentType = (string) ($media->contentType ?? '');
+            $baseUrl = "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages/{$sid}/Media/{$mediaSid}";
+
+            // Include basic auth in the URL so HTTP::get() can fetch the binary without code changes elsewhere.
+            $url = $hasCreds
+                ? "https://{$accountSid}:{$authToken}@api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages/{$sid}/Media/{$mediaSid}"
+                : $baseUrl;
+
+            $items[] = ['url' => $url, 'content_type' => $contentType];
+        }
+
+        return $items;
+    }
+
     public function sendMessage($to, $from, $message, $mediaUrl = null): MessageInstance
     {
         try {
