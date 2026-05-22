@@ -4,6 +4,7 @@ import { AlertCircle, CheckCheck, Clock3, Send, XIcon } from "lucide-vue-next";
 import { computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { useToast } from "./ui/toast";
+import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 const { toast } = useToast();
 const page = usePage();
@@ -214,8 +215,11 @@ const openMedia = (mediaUrl) => {
                                 getTwilioStatusTextClasses(msg.twilio_status)
                             "
                             :title="
-                                msg.twilio_error_message
-                                    ? `Delivery error: ${msg.twilio_error_message}`
+                                friendlyTwilioError(
+                                    msg.twilio_error_code,
+                                    msg.twilio_error_message,
+                                )
+                                    ? `Delivery error: ${friendlyTwilioError(msg.twilio_error_code, msg.twilio_error_message)}`
                                     : ''
                             "
                         >
@@ -240,10 +244,21 @@ const openMedia = (mediaUrl) => {
                 </p>
             </div>
             <p
-                v-if="msg.twilio_error_message"
+                v-if="
+                    friendlyTwilioError(
+                        msg.twilio_error_code,
+                        msg.twilio_error_message,
+                    )
+                "
                 class="mt-1 text-xs text-red-600"
             >
-                Error: {{ msg.twilio_error_message }}
+                Error:
+                {{
+                    friendlyTwilioError(
+                        msg.twilio_error_code,
+                        msg.twilio_error_message,
+                    )
+                }}
             </p>
         </div>
     </div>

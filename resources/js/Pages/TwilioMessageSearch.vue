@@ -37,34 +37,7 @@ import {
     Search,
     Wrench,
 } from "lucide-vue-next";
-
-const TWILIO_ERROR_EXPLANATIONS = {
-    "21211": "The 'To' phone number is not a valid number. Check formatting (must be E.164, e.g. +15125551234).",
-    "21408": "Twilio is not permitted to send SMS to the destination region. Enable the country in Twilio's Geo Permissions.",
-    "21606": "The 'From' phone number is not a valid, SMS-capable Twilio number on your account.",
-    "21610": "The recipient replied STOP and is now on Twilio's opt-out list. They will not receive any more messages until they reply START to opt back in.",
-    "21611": "The 'From' number has exceeded its queued message limit. Slow down sending or use additional numbers.",
-    "21612": "Twilio cannot route to this carrier from the 'From' number provided. Try a different sender number or check the destination.",
-    "21614": "The 'To' number is not a valid mobile number — likely a landline or unreachable line.",
-    "21617": "The message body exceeds Twilio's maximum length (1600 characters).",
-    "30001": "Queue overflow — Twilio's message queue is full. Retry later or reduce send rate.",
-    "30002": "Account suspended. Contact Twilio support to investigate.",
-    "30003": "Destination handset is unreachable (powered off, out of coverage, or invalid).",
-    "30004": "Message blocked by the recipient's carrier or device. Often spam-filtering or a personal block.",
-    "30005": "Unknown destination handset — the number doesn't exist on the receiving network.",
-    "30006": "Landline or unreachable carrier — the number cannot receive SMS.",
-    "30007": "Carrier filtered the message as spam. Review content and sender registration (A2P 10DLC).",
-    "30008": "Unknown error reported by the carrier — usually transient. Retry once.",
-    "30009": "Missing inbound segment — Twilio received a partial multi-part message.",
-    "30010": "Message price exceeded the configured max price. Increase the limit or use a different route.",
-    "30011": "MMS is not supported by the recipient's carrier or device.",
-    "30032": "Toll-free number has not been verified for messaging. Submit toll-free verification in the Twilio console.",
-    "30034": "A2P 10DLC registration is incomplete. Register your brand and campaign before sending to US numbers.",
-    "30035": "A2P 10DLC daily message limit reached for this campaign tier.",
-    "30036": "Validity period expired before the message could be delivered. The carrier dropped it.",
-    "30037": "Daily message limit reached for this 'From' number.",
-    "30038": "Toll-free verification was rejected. Resubmit with corrections in the Twilio console.",
-};
+import { describeTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 defineOptions({ layout: AppLayout });
 
@@ -261,10 +234,7 @@ const truncate = (text, length = 80) => {
     return `${value.slice(0, length)}…`;
 };
 
-const errorExplanation = (code) => {
-    if (!code) return null;
-    return TWILIO_ERROR_EXPLANATIONS[String(code).trim()] || null;
-};
+const errorExplanation = describeTwilioError;
 
 const errorDocsUrl = (code) => {
     if (!code) return null;

@@ -92,6 +92,7 @@ import {
     Info,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
+import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 const page = usePage();
 
@@ -1508,18 +1509,28 @@ onUnmounted(() => {
                         }}</span>
                     </p>
                     <p
-                        v-if="failedNotification.error_code"
+                        v-if="
+                            friendlyTwilioError(
+                                failedNotification.error_code,
+                                failedNotification.error_message,
+                            )
+                        "
                         class="text-sm text-gray-700"
                     >
-                        <span class="font-medium">Error Code:</span>
-                        {{ failedNotification.error_code }}
+                        <span class="font-medium">What this means:</span>
+                        {{
+                            friendlyTwilioError(
+                                failedNotification.error_code,
+                                failedNotification.error_message,
+                            )
+                        }}
                     </p>
                     <p
-                        v-if="failedNotification.error_message"
-                        class="text-sm text-gray-700"
+                        v-if="failedNotification.error_code"
+                        class="text-xs text-gray-500"
                     >
-                        <span class="font-medium">Error:</span>
-                        {{ failedNotification.error_message }}
+                        <span class="font-medium">Twilio error code:</span>
+                        {{ failedNotification.error_code }}
                     </p>
                     <p class="text-xs text-gray-400 mt-1">
                         {{ failedNotification.time }}

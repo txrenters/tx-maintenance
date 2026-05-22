@@ -42,6 +42,7 @@ import {
     Search,
     Wrench,
 } from "lucide-vue-next";
+import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 defineOptions({ layout: AppLayout });
 
@@ -350,10 +351,20 @@ const truncateMessage = (message, length = 120) => {
                                         }}
                                     </Badge>
                                     <p
-                                        v-if="message.twilio_error_message"
+                                        v-if="
+                                            friendlyTwilioError(
+                                                message.twilio_error_code,
+                                                message.twilio_error_message,
+                                            )
+                                        "
                                         class="max-w-[260px] text-xs text-red-600 line-clamp-2"
                                     >
-                                        {{ message.twilio_error_message }}
+                                        {{
+                                            friendlyTwilioError(
+                                                message.twilio_error_code,
+                                                message.twilio_error_message,
+                                            )
+                                        }}
                                     </p>
                                 </div>
                             </TableCell>
@@ -624,7 +635,12 @@ const truncateMessage = (message, length = 120) => {
                             </p>
                         </div>
                         <div
-                            v-if="selectedMessage.twilio_error_message"
+                            v-if="
+                                friendlyTwilioError(
+                                    selectedMessage.twilio_error_code,
+                                    selectedMessage.twilio_error_message,
+                                )
+                            "
                             class="space-y-2 md:col-span-2"
                         >
                             <p
@@ -634,7 +650,19 @@ const truncateMessage = (message, length = 120) => {
                                 Delivery Error
                             </p>
                             <p class="text-sm text-red-700">
-                                {{ selectedMessage.twilio_error_message }}
+                                {{
+                                    friendlyTwilioError(
+                                        selectedMessage.twilio_error_code,
+                                        selectedMessage.twilio_error_message,
+                                    )
+                                }}
+                            </p>
+                            <p
+                                v-if="selectedMessage.twilio_error_code"
+                                class="text-xs text-gray-500"
+                            >
+                                Twilio error code:
+                                {{ selectedMessage.twilio_error_code }}
                             </p>
                         </div>
                     </div>
