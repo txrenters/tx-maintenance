@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
@@ -14,6 +15,7 @@ use App\Services\TwilioService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
@@ -274,6 +276,106 @@ class ImportTwilioInboundMessagesTest extends TestCase
         ]);
     }
 
+    public function test_it_downloads_attachments_for_work_order_mms(): void
+    {
+        Storage::fake('local');
+
+        $workOrder = $this->seedWorkOrder();
+
+        Conversation::create([
+            'message' => 'thread seed',
+            'conversation_type' => 'tenant',
+            'sender_number' => self::TWILIO_PHONE,
+            'receiver_number' => self::TENANT_PHONE,
+            'work_order_id' => $workOrder->id,
+        ]);
+
+        $mediaUrl1 = 'https://api.twilio.com/2010-04-01/Accounts/AC_test/Messages/SM_mms_wo/Media/ME_aaa';
+        $mediaUrl2 = 'https://api.twilio.com/2010-04-01/Accounts/AC_test/Messages/SM_mms_wo/Media/ME_bbb';
+
+        Http::fake([
+            'e.plusthis.com/*' => Http::response('{"ok":true}', 200),
+            $mediaUrl1 => Http::response(random_bytes(64), 200, ['Content-Type' => 'image/jpeg']),
+            $mediaUrl2 => Http::response(random_bytes(64), 200, ['Content-Type' => 'image/png']),
+        ]);
+
+        $this->bindFakeTwilioWithMessages(
+            messages: [
+                $this->makeMessage([
+                    'sid' => 'SM_mms_wo',
+                    'from' => self::TENANT_PHONE,
+                    'to' => self::TWILIO_PHONE,
+                    'body' => 'picture of the leak',
+                    'numMedia' => '2',
+                ]),
+            ],
+            mediaBySid: [
+                'SM_mms_wo' => [
+                    ['url' => $mediaUrl1, 'content_type' => 'image/jpeg'],
+                    ['url' => $mediaUrl2, 'content_type' => 'image/png'],
+                ],
+            ]
+        );
+
+        $this->artisan('twilio:import-inbound-messages', ['--lookback' => 60])
+            ->assertSuccessful();
+
+        $conversation = Conversation::where('twilio_sid', 'SM_mms_wo')->first();
+        $this->assertNotNull($conversation);
+        $this->assertTrue((bool) $conversation->is_mms);
+
+        $media = ConversationMedia::where('message_id', $conversation->id)->get();
+        $this->assertCount(2, $media, 'Both attachments should be downloaded and stored.');
+        $this->assertEqualsCanonicalizing(
+            ['image/jpeg', 'image/png'],
+            $media->pluck('content_type')->all()
+        );
+
+        foreach ($media as $row) {
+            Storage::disk('local')->assertExists($row->local_path);
+            $this->assertStringNotContainsString('@', $row->original_url, 'Stored URL must not contain basic-auth credentials.');
+        }
+    }
+
+    public function test_it_stores_attachment_url_for_jobber_mms(): void
+    {
+        $jobber = $this->seedJobber();
+
+        JobberTextMessage::create([
+            'messages' => 'thread seed',
+            'sender_number' => self::TWILIO_PHONE,
+            'receiver_number' => self::TENANT_PHONE,
+            'jobber_id' => $jobber->id,
+        ]);
+
+        $mediaUrl = 'https://api.twilio.com/2010-04-01/Accounts/AC_test/Messages/SM_mms_jb/Media/ME_ccc';
+
+        $this->bindFakeTwilioWithMessages(
+            messages: [
+                $this->makeMessage([
+                    'sid' => 'SM_mms_jb',
+                    'from' => self::TENANT_PHONE,
+                    'to' => self::TWILIO_PHONE,
+                    'body' => 'visit photo attached',
+                    'numMedia' => '1',
+                ]),
+            ],
+            mediaBySid: [
+                'SM_mms_jb' => [
+                    ['url' => $mediaUrl, 'content_type' => 'image/jpeg'],
+                ],
+            ]
+        );
+
+        $this->artisan('twilio:import-inbound-messages', ['--lookback' => 60])
+            ->assertSuccessful();
+
+        $textMessage = JobberTextMessage::where('twilio_sid', 'SM_mms_jb')->first();
+        $this->assertNotNull($textMessage);
+        $this->assertSame($mediaUrl, $textMessage->image);
+        $this->assertStringNotContainsString('@', (string) $textMessage->image, 'Stored URL must not contain basic-auth credentials.');
+    }
+
     public function test_it_skips_outbound_messages_returned_by_twilio(): void
     {
         $workOrder = $this->seedWorkOrder();
@@ -338,11 +440,11 @@ class ImportTwilioInboundMessagesTest extends TestCase
     /**
      * @param  array<int, object>  $messages
      */
-    private function bindFakeTwilioWithMessages(array $messages): void
+    private function bindFakeTwilioWithMessages(array $messages, array $mediaBySid = []): void
     {
-        $fake = new class($messages) extends TwilioService
+        $fake = new class($messages, $mediaBySid) extends TwilioService
         {
-            public function __construct(private array $stubbed)
+            public function __construct(private array $stubbed, private array $mediaBySid)
             {
                 // bypass parent constructor (no Twilio client needed for tests)
             }
@@ -357,7 +459,7 @@ class ImportTwilioInboundMessagesTest extends TestCase
 
             public function fetchMessageMedia(string $sid): array
             {
-                return [];
+                return $this->mediaBySid[$sid] ?? [];
             }
         };
 

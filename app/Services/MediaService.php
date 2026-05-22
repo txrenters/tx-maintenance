@@ -13,7 +13,17 @@ class MediaService
     public function downloadAndStore(string $url, string $contentType, int $messageId): ?ConversationMedia
     {
         try {
-            $response = Http::timeout(30)->get($url);
+            $request = Http::timeout(30);
+
+            if (str_contains($url, 'api.twilio.com')) {
+                $accountSid = (string) config('services.twilio.sid');
+                $authToken = (string) config('services.twilio.auth_token');
+                if ($accountSid !== '' && $authToken !== '') {
+                    $request = $request->withBasicAuth($accountSid, $authToken);
+                }
+            }
+
+            $response = $request->get($url);
 
             if (! $response->successful()) {
                 throw new \Exception("Failed to download media (HTTP {$response->status()})");

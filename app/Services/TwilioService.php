@@ -212,19 +212,12 @@ class TwilioService
         }
 
         $accountSid = (string) config('services.twilio.sid');
-        $authToken = (string) config('services.twilio.auth_token');
-        $hasCreds = $accountSid !== '' && $authToken !== '';
 
         $items = [];
         foreach ($mediaList as $media) {
             $mediaSid = $media->sid;
             $contentType = (string) ($media->contentType ?? '');
-            $baseUrl = "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages/{$sid}/Media/{$mediaSid}";
-
-            // Include basic auth in the URL so HTTP::get() can fetch the binary without code changes elsewhere.
-            $url = $hasCreds
-                ? "https://{$accountSid}:{$authToken}@api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages/{$sid}/Media/{$mediaSid}"
-                : $baseUrl;
+            $url = "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages/{$sid}/Media/{$mediaSid}";
 
             $items[] = ['url' => $url, 'content_type' => $contentType];
         }
