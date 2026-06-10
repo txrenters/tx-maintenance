@@ -1787,12 +1787,27 @@ const submitForm = async () => {
             console.error("Error status:", error.response.status);
         }
 
+        const errorData = error.response?.data;
+        let errorMessage =
+            errorData?.message ||
+            "Unable to update building information. Please try again.";
+
+        // Surface field-level validation errors (e.g. required fields) when present
+        if (errorData?.errors && typeof errorData.errors === "object") {
+            const fieldMessages = Object.values(errorData.errors)
+                .flat()
+                .filter(Boolean);
+            if (fieldMessages.length) {
+                errorMessage = `Please fix the following: ${fieldMessages.join(" ")}`;
+            }
+        }
+
         toast({
             variant: "destructive",
             title: "Submission Failed",
-            description:
-                error.response?.data?.message ||
-                "Unable to update building information. Please try again.",
+            description: errorData?.details
+                ? `${errorMessage} (Details: ${errorData.details})`
+                : errorMessage,
         });
     } finally {
         loading.value = false;

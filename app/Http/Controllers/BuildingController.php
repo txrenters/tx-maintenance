@@ -233,7 +233,15 @@ class BuildingController extends Controller
                     'total_updated' => count($propertywareData['fieldSetDTOS']),
                 ]);
             } else {
-                throw new \Exception('Propertyware API update failed');
+                Log::error('Failed to update custom fields: Propertyware API rejected the submission', [
+                    'Building ID' => $buildingId,
+                    'Error' => $response['error'] ?? null,
+                ]);
+
+                return response()->json([
+                    'error' => 'Failed to update building information',
+                    'message' => $response['message'] ?? $this->friendlyPropertywareError($response['error'] ?? null),
+                ], 422);
             }
 
         } catch (\Exception $e) {
@@ -241,7 +249,8 @@ class BuildingController extends Controller
 
             return response()->json([
                 'error' => 'Failed to update building information',
-                'message' => $e->getMessage(),
+                'message' => 'Something went wrong while saving your information. Please try again in a few minutes, and contact us if the problem continues.',
+                'details' => $e->getMessage(),
             ], 500);
         }
     }
@@ -266,6 +275,17 @@ class BuildingController extends Controller
 
     private function updatePropertywareCustomFields($data)
     {
+        // Normalize free-text values so legacy Propertyware TEXT fields accept them.
+        if (! empty($data['fieldSetDTOS']) && is_array($data['fieldSetDTOS'])) {
+            $data['fieldSetDTOS'] = array_map(function ($field) {
+                if (isset($field['value']) && is_string($field['value'])) {
+                    $field['value'] = $this->sanitizeCustomFieldValue($field['value']);
+                }
+
+                return $field;
+            }, $data['fieldSetDTOS']);
+        }
+
         // Make API call to Propertyware
         $response = Http::withHeaders([
             'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
@@ -290,7 +310,91 @@ class BuildingController extends Controller
         return [
             'success' => false,
             'error' => $response->body(),
+            'message' => $this->friendlyPropertywareError($response->body()),
         ];
+    }
+
+    /**
+     * Normalize a free-text custom field value so Propertyware's legacy TEXT fields accept it.
+     *
+     * Owners frequently paste notes from Word or Google Docs, which introduces "smart"
+     * punctuation (curly quotes, en/em dashes, ellipses, non-breaking spaces) and other
+     * non-Latin-1 characters that Propertyware rejects with "Invalid value for field data type TEXT".
+     * Common offenders are transliterated to plain ASCII; any remaining control or non-Latin-1
+     * characters are dropped. Tabs and line breaks are preserved.
+     */
+    private function sanitizeCustomFieldValue(string $value): string
+    {
+        $replacements = [
+            "\u{2018}" => "'", "\u{2019}" => "'", "\u{201A}" => "'", "\u{201B}" => "'",
+            "\u{201C}" => '"', "\u{201D}" => '"', "\u{201E}" => '"', "\u{201F}" => '"',
+            "\u{2010}" => '-', "\u{2011}" => '-', "\u{2012}" => '-', "\u{2013}" => '-',
+            "\u{2014}" => '-', "\u{2015}" => '-',
+            "\u{2026}" => '...',
+            "\u{2022}" => '-', "\u{00B7}" => '-', "\u{2043}" => '-',
+            "\u{00A0}" => ' ', "\u{2007}" => ' ', "\u{2009}" => ' ', "\u{200A}" => ' ', "\u{202F}" => ' ',
+            "\u{200B}" => '', "\u{200C}" => '', "\u{200D}" => '', "\u{FEFF}" => '',
+        ];
+
+        $value = strtr($value, $replacements);
+
+        // Drop any remaining characters outside printable Latin-1, but keep tab/newline/carriage return.
+        $stripped = preg_replace('/[^\x{0009}\x{000A}\x{000D}\x{0020}-\x{00FF}]/u', '', $value);
+
+        return $stripped ?? $value;
+    }
+
+    /**
+     * Translate a Propertyware custom-fields error response into a clear, actionable message
+     * for the property owner filling out the onboarding form.
+     */
+    private function friendlyPropertywareError(?string $body): string
+    {
+        $details = [];
+
+        if ($body) {
+            $decoded = json_decode($body, true);
+
+            if (is_array($decoded) && ! empty($decoded['errors']) && is_array($decoded['errors'])) {
+                foreach ($decoded['errors'] as $error) {
+                    if (empty($error['key'])) {
+                        continue;
+                    }
+
+                    $reason = $this->describeFieldError($error['message'] ?? '');
+                    $details[$error['key']] = $reason ? "{$error['key']} ({$reason})" : $error['key'];
+                }
+            }
+        }
+
+        if (! empty($details)) {
+            return "We couldn't save the following field(s): ".implode('; ', array_values($details))
+                .'. Please correct the field(s) above and submit again.';
+        }
+
+        return 'We were unable to save your property information. Please try again in a few minutes, and contact us if the problem continues.';
+    }
+
+    /**
+     * Turn a raw Propertyware field-level error message into a short, plain-English reason.
+     */
+    private function describeFieldError(string $message): string
+    {
+        $normalized = strtolower($message);
+
+        if (str_contains($normalized, 'required') || str_contains($normalized, 'mandatory') || str_contains($normalized, 'cannot be empty')) {
+            return 'this field is required';
+        }
+
+        if (str_contains($normalized, 'length') || str_contains($normalized, 'too long')) {
+            return 'the entry is too long — please shorten it';
+        }
+
+        if (str_contains($normalized, 'data type') || str_contains($normalized, 'invalid value')) {
+            return 'the entry is too long or contains special characters/formatting — please shorten it or retype it as plain text';
+        }
+
+        return $message !== '' ? $message : 'please review this field';
     }
 
     private function updateMaintenanceNotice($buildingId, $maintenanceNotice)
