@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Services\VendorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -75,7 +76,11 @@ class VendorImportTest extends TestCase
         // Same user updated in place; no orphan, no duplicate vendor.
         $this->assertSame($userId, $vendor->user_id);
         $this->assertSame('real@acme.com', $vendor->email);
-        $this->assertSame('real@acme.com', User::find($userId)->email);
+
+        $user = User::find($userId);
+        $this->assertSame('real@acme.com', $user->email);
+        // Password tracks the email (email-as-password) so login keeps working.
+        $this->assertTrue(Hash::check('real@acme.com', $user->password));
         $this->assertSame(1, Vendor::where('propertyware_id', 5555)->count());
     }
 

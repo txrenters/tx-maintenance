@@ -50,15 +50,13 @@ class VendorService
             $user = $existingVendor?->user
                 ?? User::firstOrNew(['email' => $email]);
 
-            $wasExisting = $user->exists;
             $user->email = $email;
             $user->name = $name;
             $user->phone = $data['phone'] ?? $data['otherPhone'] ?? $user->phone;
             $user->company = $data['companyName'] ?? $user->company;
             $user->address = $address ?: $user->address;
-            if (! $wasExisting) {
-                $user->password = bcrypt($email);
-            }
+            // Keep the password in sync with the email (this app uses email-as-password).
+            $user->password = bcrypt($email);
             $user->save();
 
             if (! $user->hasRole('vendor')) {

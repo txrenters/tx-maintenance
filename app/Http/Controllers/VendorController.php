@@ -166,6 +166,10 @@ class VendorController extends Controller
             'address' => '',
         ]);
 
+        // This app uses email-as-password (as noted in the edit dialog), so keep
+        // the password in sync whenever the email changes.
+        $userData['password'] = bcrypt($userData['email']);
+
         User::find($vendor->user_id)->update($userData);
         $vendor->update($vendorData);
 
