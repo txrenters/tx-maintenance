@@ -90,6 +90,7 @@ import {
     Undo2,
     Reply,
     Info,
+    ChartBarBig,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
@@ -306,6 +307,34 @@ const navs = computed(() => {
                 requires: ["admin", "woc"],
             },
         ],
+        reports: {
+            title: "Reports",
+            icon: ChartBarBig,
+            isActive: page.url.startsWith("/reports"),
+            requires: ["admin", "woc"],
+            items: [
+                {
+                    title: "Unresolved in 7 Days",
+                    url: route("reports.unresolved_7_days"),
+                    isActive: page.url.startsWith("/reports/unresolved-7-days"),
+                },
+                {
+                    title: "Not Scheduled in 3 Days",
+                    url: route("reports.not_scheduled_3_days"),
+                    isActive: page.url.startsWith("/reports/not-scheduled-3-days"),
+                },
+                {
+                    title: "Tasks On Time",
+                    url: route("reports.tasks_on_time"),
+                    isActive: page.url.startsWith("/reports/tasks-on-time"),
+                },
+                {
+                    title: "Open Over 30 Days",
+                    url: route("reports.open_over_30_days"),
+                    isActive: page.url.startsWith("/reports/open-over-30-days"),
+                },
+            ],
+        },
         settings: [
             {
                 name: "Task Templates",
@@ -903,6 +932,56 @@ onUnmounted(() => {
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                         </template>
+                    </SidebarMenu>
+                    <SidebarMenu
+                        v-if="
+                            !navs.reports.requires ||
+                            canAccess(navs.reports.requires)
+                        "
+                    >
+                        <Collapsible
+                            as-child
+                            :default-open="navs.reports.isActive"
+                            :data-state="navs.reports.isActive"
+                            class="group/collapsible"
+                        >
+                            <SidebarMenuItem>
+                                <CollapsibleTrigger as-child>
+                                    <SidebarMenuButton
+                                        :tooltip="navs.reports.title"
+                                    >
+                                        <component :is="navs.reports.icon" />
+                                        <span>{{ navs.reports.title }}</span>
+                                        <ChevronRight
+                                            class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                        />
+                                    </SidebarMenuButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                    <SidebarMenuSub>
+                                        <SidebarMenuSubItem
+                                            v-for="subItem in navs.reports.items"
+                                            :key="subItem.title"
+                                        >
+                                            <SidebarMenuSubButton as-child>
+                                                <Link
+                                                    :href="subItem.url"
+                                                    prefetch
+                                                    :class="{
+                                                        'font-semibold p-2 border':
+                                                            subItem.isActive,
+                                                    }"
+                                                >
+                                                    <span>{{
+                                                        subItem.title
+                                                    }}</span>
+                                                </Link>
+                                            </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                    </SidebarMenuSub>
+                                </CollapsibleContent>
+                            </SidebarMenuItem>
+                        </Collapsible>
                     </SidebarMenu>
                 </SidebarGroup>
                 <SidebarGroup

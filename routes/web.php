@@ -21,6 +21,7 @@ use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
@@ -105,6 +106,11 @@ Route::middleware([
     Route::get('/inspections/text/messages', [InspectionController::class, 'messages'])->name('jobber.messages');
 
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
+
+    Route::get('/reports/unresolved-7-days', [ReportController::class, 'unresolvedWithin7Days'])->name('reports.unresolved_7_days');
+    Route::get('/reports/not-scheduled-3-days', [ReportController::class, 'notScheduledWithin3Days'])->name('reports.not_scheduled_3_days');
+    Route::get('/reports/tasks-on-time', [ReportController::class, 'tasksCompletedOnTime'])->name('reports.tasks_on_time');
+    Route::get('/reports/open-over-30-days', [ReportController::class, 'openOver30Days'])->name('reports.open_over_30_days');
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
