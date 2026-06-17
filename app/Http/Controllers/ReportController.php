@@ -83,12 +83,13 @@ class ReportController extends Controller
         ];
 
         // Not resolved within 7 days: still NOT closed and already past 7 days.
-        // (Closed-but-late work orders are excluded — they were resolved.)
         $breached = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date
             && $wo->status !== 'Closed'
             && $this->wholeDays($wo->created_date, $today) > 7);
         // Resolved within 7 days: Closed only, within 7 days.
         $compliant = $workOrders->filter(fn (WorkOrder $wo) => $closedDate($wo) && $days($wo) <= 7);
+        // Resolved after 7 days: Closed, but it took more than 7 days.
+        $closedLate = $workOrders->filter(fn (WorkOrder $wo) => $closedDate($wo) && $days($wo) > 7);
 
         return $this->respond('unresolved_7_days', [
             'title' => 'WOs Not Resolved Within 7 Days',
@@ -110,6 +111,7 @@ class ReportController extends Controller
             'lists' => [
                 ['key' => 'breached', 'label' => 'Not resolved within 7 days', 'rows' => $breached->map($map)->values()],
                 ['key' => 'compliant', 'label' => 'Resolved within 7 days', 'rows' => $compliant->map($map)->values()],
+                ['key' => 'closed_late', 'label' => 'Resolved after 7 days', 'rows' => $closedLate->map($map)->values()],
             ],
         ]);
     }
@@ -201,26 +203,29 @@ class ReportController extends Controller
             return $due->lt($today);
         };
 
-        // Count by work order: a work order breaches if any of its tasks were late.
-        $rows = $tasks->groupBy('work_order_id')->map(function ($woTasks) use ($isLate) {
-            $wo = $woTasks->first()->work_order;
-            $lateCount = $woTasks->filter($isLate)->count();
+        // Count by work order (excluding closed ones); a work order breaches if
+        // any of its tasks were late.
+        $rows = $tasks->groupBy('work_order_id')
+            ->filter(fn ($woTasks) => optional($woTasks->first()->work_order)->status !== 'Closed')
+            ->map(function ($woTasks) use ($isLate) {
+                $wo = $woTasks->first()->work_order;
+                $lateCount = $woTasks->filter($isLate)->count();
 
-            return [
-                'id' => $wo?->id,
-                'work_order_no' => $wo?->work_order_no,
-                'location' => $wo?->location,
-                'status' => $wo?->service_status?->name ?? $wo?->status,
-                'late' => $lateCount,
-                'tasks' => $woTasks->count(),
-            ];
-        })->values();
+                return [
+                    'id' => $wo?->id,
+                    'work_order_no' => $wo?->work_order_no,
+                    'location' => $wo?->location,
+                    'status' => $wo?->service_status?->name ?? $wo?->status,
+                    'late' => $lateCount,
+                    'tasks' => $woTasks->count(),
+                ];
+            })->values();
 
         [$breached, $compliant] = $rows->partition(fn ($row) => $row['late'] > 0);
 
         return $this->respond('tasks_on_time', [
             'title' => 'Tasks Not Completed On Time',
-            'description' => 'Work orders with at least one task due this month that was completed late or is still pending past due.',
+            'description' => 'Open work orders with at least one task due this month that was completed late or is still pending past due.',
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $rows->count(),

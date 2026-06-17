@@ -148,18 +148,26 @@ class ReportTest extends TestCase
         WorkOrderTask::withoutGlobalScopes()->where('id', $late->id)->update(['updated_at' => $due->copy()->addDays(3)]);
 
         // WO 8002 has only an on-time task -> compliant.
-        $wo2 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8002]);
+        $wo2 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8002, 'status' => 'Open']);
         $onTime = WorkOrderTask::create([
             'work_order_id' => $wo2->id, 'assigned_user_id' => $assignee->id,
             'description' => 'on-time task', 'due_date' => $due, 'status' => 'completed',
         ]);
         WorkOrderTask::withoutGlobalScopes()->where('id', $onTime->id)->update(['updated_at' => $due->copy()->subDay()]);
 
+        // WO 8003 is Closed with a late task -> excluded entirely.
+        $wo3 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8003, 'status' => 'Closed']);
+        $closedLate = WorkOrderTask::create([
+            'work_order_id' => $wo3->id, 'assigned_user_id' => $assignee->id,
+            'description' => 'closed late task', 'due_date' => $due, 'status' => 'completed',
+        ]);
+        WorkOrderTask::withoutGlobalScopes()->where('id', $closedLate->id)->update(['updated_at' => $due->copy()->addDays(3)]);
+
         $this->actingAs($admin)
             ->get(route('reports.tasks_on_time', ['year' => $due->year, 'month' => $due->month]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('total', 2)
+                ->where('total', 2) // the closed work order is excluded
                 ->where('breached', 1)
                 ->where('lists.0.rows.0.work_order_no', 8001)
                 ->where('lists.0.rows.0.late', 1)
