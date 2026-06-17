@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateTaskRequest;
+use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\TaskService;
@@ -17,7 +18,17 @@ class TaskController extends Controller
      */
     public function index(Request $request)
     {
+        $assigned = $request->input('assigned');
+        $status = $request->input('status');
+
+        $taskFilter = function ($query) use ($assigned, $status) {
+            $query->whereNotNull('work_order_id')
+                ->when($assigned, fn ($q) => $q->where('assigned_user_id', $assigned))
+                ->when($status, fn ($q) => $q->where('status', $status));
+        };
+
         $workOrders = WorkOrder::with([
+            'tasks' => $taskFilter,
             'tasks.task.taskDetails.taskServiceStatus',
             'tasks.task.nextServiceStatus',
             'tasks.assigned_user',
@@ -26,9 +37,7 @@ class TaskController extends Controller
             ->when($request->search, function ($query) use ($request) {
                 $query->where('work_order_no', 'like', '%'.$request->search.'%');
             })
-            ->whereHas('tasks', function ($query) {
-                $query->whereNotNull('work_order_id'); // Ensure tasks are linked to a work order
-            })
+            ->whereHas('tasks', $taskFilter)
             ->get();
 
         $now = now();
@@ -77,8 +86,16 @@ class TaskController extends Controller
             });
         });
 
+        $assignableUsers = User::query()
+            ->whereIn('id', WorkOrderTask::query()->whereNotNull('assigned_user_id')->distinct()->pluck('assigned_user_id'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
+            'assignableUsers' => $assignableUsers,
+            'statuses' => ['pending', 'processing', 'completed'],
+            'filter' => $request->only(['search', 'assigned', 'status']),
             'total_dueTodayTasks' => count($dueTodayTasks),
             'total_upcomingTasks' => count($upcomingTasks),
             'total_pastDueTasks' => count($pastDueTasks),

@@ -1,12 +1,28 @@
 <script setup>
-import { Truck, Tag, UserRoundPen, CircleCheckBig } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin } from "lucide-vue-next";
 import { DateTime } from "luxon";
+import { usePage } from "@inertiajs/vue3";
+
 const emit = defineEmits(["showWorkOrder"]);
 
 const props = defineProps({
     work_order: Object,
     service_status: Object,
 });
+
+const page = usePage();
+const authUser = page.props.auth?.user;
+const isVendor = (authUser?.roles ?? []).includes("vendor");
+const myVendorId = authUser?.vendor?.id;
+
+// A vendor must only see their own tag on a shared work order, never other vendors'.
+const displayVendors = (workOrder) => {
+    const vendors = workOrder?.vendors ?? [];
+    if (isVendor && myVendorId) {
+        return vendors.filter((v) => v.id === myVendorId);
+    }
+    return vendors;
+};
 
 const formatDate = (date) => {
     if (!date) return "------";
@@ -132,6 +148,32 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             <p class="text-sm text-gray-100 font-semibold">
                                 {{ work_order.location }}
                             </p>
+
+                            <!-- Property name & address -->
+                            <div
+                                v-if="work_order.building"
+                                class="text-xs text-gray-200 mt-0.5 flex items-start gap-1 justify-center"
+                            >
+                                <MapPin class="w-3 h-3 mt-0.5 shrink-0" />
+                                <span class="text-center">
+                                    <span
+                                        v-if="work_order.building.name"
+                                        class="font-medium"
+                                        >{{ work_order.building.name }}</span
+                                    >
+                                    <template v-if="work_order.building.address">
+                                        <br />
+                                        {{ work_order.building.address
+                                        }}<template v-if="work_order.building.city"
+                                            >, {{ work_order.building.city }}</template
+                                        ><template
+                                            v-if="work_order.building.state_region"
+                                        >
+                                            {{ work_order.building.state_region }}</template
+                                        >
+                                    </template>
+                                </span>
+                            </div>
                             <div class="flex gap-2 justify-center">
                                 <p
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"
@@ -167,7 +209,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             </div>
                             <p
                                 class="text-xs text-gray-100"
-                                v-for="vendor in work_order.vendors"
+                                v-for="vendor in displayVendors(work_order)"
                                 :key="vendor.id"
                             >
                                 <span class="flex gap-1 text-left uppercase">
