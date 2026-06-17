@@ -64,7 +64,12 @@ class ReportController extends Controller
             ->orderBy('created_date')
             ->get();
 
-        $days = fn (WorkOrder $wo) => $this->wholeDays($wo->created_date, $wo->completed_date ?: $today);
+        // A work order counts as resolved only when it is Closed.
+        $closedDate = fn (WorkOrder $wo) => ($wo->status === 'Closed' && $wo->completed_date)
+            ? Carbon::parse($wo->completed_date)
+            : null;
+
+        $days = fn (WorkOrder $wo) => $this->wholeDays($wo->created_date, $closedDate($wo) ?? $today);
 
         $map = fn (WorkOrder $wo) => [
             'id' => $wo->id,
@@ -73,16 +78,21 @@ class ReportController extends Controller
             'location' => $wo->location,
             'status' => $wo->service_status?->name ?? $wo->status,
             'created_date' => $wo->created_date,
-            'resolution' => $wo->completed_date ?: 'Open',
+            'resolution' => $closedDate($wo) ? $wo->completed_date : 'Open',
             'days' => $days($wo),
         ];
 
-        $breached = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date && $days($wo) > 7);
-        $compliant = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date && $wo->completed_date && $days($wo) <= 7);
+        // Not resolved within 7 days: still NOT closed and already past 7 days.
+        // (Closed-but-late work orders are excluded — they were resolved.)
+        $breached = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date
+            && $wo->status !== 'Closed'
+            && $this->wholeDays($wo->created_date, $today) > 7);
+        // Resolved within 7 days: Closed only, within 7 days.
+        $compliant = $workOrders->filter(fn (WorkOrder $wo) => $closedDate($wo) && $days($wo) <= 7);
 
         return $this->respond('unresolved_7_days', [
             'title' => 'WOs Not Resolved Within 7 Days',
-            'description' => 'Work orders created this month that took more than 7 days to complete, or are still open after 7 days.',
+            'description' => 'Open work orders created this month that are still not closed after 7 days. The other tab lists those closed within 7 days.',
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $workOrders->count(),
@@ -98,8 +108,8 @@ class ReportController extends Controller
                 ['key' => 'days', 'label' => 'Days', 'type' => 'right'],
             ],
             'lists' => [
-                ['key' => 'breached', 'label' => 'Not within 7 days', 'rows' => $breached->map($map)->values()],
-                ['key' => 'compliant', 'label' => 'Within 7 days', 'rows' => $compliant->map($map)->values()],
+                ['key' => 'breached', 'label' => 'Not resolved within 7 days', 'rows' => $breached->map($map)->values()],
+                ['key' => 'compliant', 'label' => 'Resolved within 7 days', 'rows' => $compliant->map($map)->values()],
             ],
         ]);
     }
@@ -112,7 +122,10 @@ class ReportController extends Controller
         $this->authorizeReports($request);
         [$year, $month, $start, $end] = $this->monthRange($request);
 
+        // Only open work orders are still relevant for scheduling; closed ones
+        // were resolved so a missing schedule no longer matters.
         $workOrders = WorkOrder::query()->with(['service_status', 'service_schedules'])
+            ->where('status', 'Open')
             ->whereBetween('created_date', [$start, $end])
             ->orderBy('created_date')
             ->get();
@@ -144,7 +157,7 @@ class ReportController extends Controller
 
         return $this->respond('not_scheduled_3_days', [
             'title' => 'WOs Not Scheduled Within 3 Business Days',
-            'description' => 'Work orders created this month that were not given a service schedule within 3 business days (weekends excluded).',
+            'description' => 'Open work orders created this month that were not given a service schedule within 3 business days (weekends excluded).',
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $workOrders->count(),
@@ -174,10 +187,9 @@ class ReportController extends Controller
         [$year, $month, $start, $end] = $this->monthRange($request);
         $today = now();
 
-        $tasks = WorkOrderTask::query()->with('work_order')
+        $tasks = WorkOrderTask::query()->with('work_order.service_status')
             ->whereNotNull('due_date')
             ->whereBetween('due_date', [$start, $end])
-            ->orderBy('due_date')
             ->get();
 
         $isLate = function (WorkOrderTask $task) use ($today) {
@@ -189,36 +201,41 @@ class ReportController extends Controller
             return $due->lt($today);
         };
 
-        $map = fn (WorkOrderTask $task) => [
-            'id' => $task->work_order_id,
-            'work_order_no' => $task->work_order?->work_order_no,
-            'description' => $task->description,
-            'due_date' => $task->due_date,
-            'status' => $task->status,
-            'completed_on' => $task->status === 'completed' ? $task->updated_at : 'Not done',
-        ];
+        // Count by work order: a work order breaches if any of its tasks were late.
+        $rows = $tasks->groupBy('work_order_id')->map(function ($woTasks) use ($isLate) {
+            $wo = $woTasks->first()->work_order;
+            $lateCount = $woTasks->filter($isLate)->count();
 
-        $breached = $tasks->filter($isLate);
-        $onTime = $tasks->filter(fn (WorkOrderTask $task) => $task->status === 'completed' && ! $isLate($task));
+            return [
+                'id' => $wo?->id,
+                'work_order_no' => $wo?->work_order_no,
+                'location' => $wo?->location,
+                'status' => $wo?->service_status?->name ?? $wo?->status,
+                'late' => $lateCount,
+                'tasks' => $woTasks->count(),
+            ];
+        })->values();
+
+        [$breached, $compliant] = $rows->partition(fn ($row) => $row['late'] > 0);
 
         return $this->respond('tasks_on_time', [
             'title' => 'Tasks Not Completed On Time',
-            'description' => 'Work-order tasks due this month that were completed after their due date, or are still pending past due.',
+            'description' => 'Work orders with at least one task due this month that was completed late or is still pending past due.',
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
-            'total' => $tasks->count(),
+            'total' => $rows->count(),
             'breached' => $breached->count(),
-            'countLabel' => 'No. of Tasks',
+            'countLabel' => 'No. of WOs',
             'columns' => [
                 ['key' => 'work_order_no', 'label' => 'WO #', 'type' => 'wo_link'],
-                ['key' => 'description', 'label' => 'Task', 'type' => 'truncate'],
-                ['key' => 'due_date', 'label' => 'Due', 'type' => 'date'],
+                ['key' => 'location', 'label' => 'Location', 'type' => 'truncate'],
                 ['key' => 'status', 'label' => 'Status'],
-                ['key' => 'completed_on', 'label' => 'Completed', 'type' => 'date'],
+                ['key' => 'late', 'label' => 'Late tasks', 'type' => 'right'],
+                ['key' => 'tasks', 'label' => 'Tasks', 'type' => 'right'],
             ],
             'lists' => [
-                ['key' => 'breached', 'label' => 'Late / overdue', 'rows' => $breached->map($map)->values()],
-                ['key' => 'compliant', 'label' => 'On time', 'rows' => $onTime->map($map)->values()],
+                ['key' => 'breached', 'label' => 'WOs with late tasks', 'rows' => $breached->values()],
+                ['key' => 'compliant', 'label' => 'WOs all on time', 'rows' => $compliant->values()],
             ],
         ]);
     }
@@ -233,7 +250,9 @@ class ReportController extends Controller
         $today = now();
         $cutoff = $today->copy()->subDays(30);
 
+        // Closed work orders are excluded — this is about open backlog.
         $workOrders = WorkOrder::query()->with('service_status')
+            ->where('status', 'Open')
             ->whereBetween('created_date', [$start, $end])
             ->orderBy('created_date')
             ->get();
@@ -248,12 +267,11 @@ class ReportController extends Controller
             'days' => $this->wholeDays($wo->created_date, $today),
         ];
 
-        $isOpenOld = fn (WorkOrder $wo) => $wo->status === 'Open'
-            && $wo->created_date
+        $isOld = fn (WorkOrder $wo) => $wo->created_date
             && Carbon::parse($wo->created_date)->lt($cutoff);
 
-        $breached = $workOrders->filter($isOpenOld);
-        $compliant = $workOrders->reject($isOpenOld);
+        $breached = $workOrders->filter($isOld);
+        $compliant = $workOrders->reject($isOld);
 
         return $this->respond('open_over_30_days', [
             'title' => 'Open WOs Over 30 Days Old',
@@ -273,7 +291,7 @@ class ReportController extends Controller
             ],
             'lists' => [
                 ['key' => 'breached', 'label' => 'Open over 30 days', 'rows' => $breached->map($map)->values()],
-                ['key' => 'compliant', 'label' => 'Closed or within 30 days', 'rows' => $compliant->map($map)->values()],
+                ['key' => 'compliant', 'label' => 'Open within 30 days', 'rows' => $compliant->map($map)->values()],
             ],
         ]);
     }

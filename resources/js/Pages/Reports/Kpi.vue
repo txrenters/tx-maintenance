@@ -27,14 +27,22 @@ const months = [
 
 const year = ref(props.filters.year ?? new Date().getFullYear());
 const month = ref(props.filters.month ?? new Date().getMonth() + 1);
-const activeMetric = ref("percentage");
 
 const activeList = ref(props.lists[0]?.key ?? "breached");
 const pageNum = ref(1);
 const perPage = 20;
 
-const currentRows = computed(
-    () => props.lists.find((l) => l.key === activeList.value)?.rows ?? []
+const currentList = computed(
+    () => props.lists.find((l) => l.key === activeList.value) ?? null
+);
+const currentRows = computed(() => currentList.value?.rows ?? []);
+
+// Stats reflect the selected tab, not always the breached set.
+const activeCount = computed(() => currentRows.value.length);
+const activePercentage = computed(() =>
+    props.total > 0
+        ? Math.round((activeCount.value / props.total) * 1000) / 10
+        : 0
 );
 const totalPages = computed(() =>
     Math.max(1, Math.ceil(currentRows.value.length / perPage))
@@ -79,7 +87,7 @@ const subtitle = computed(() => {
     const noun = props.countLabel.toLowerCase().includes("task")
         ? "tasks"
         : "work orders";
-    return `${props.breached} of ${props.total} ${noun} (${props.percentage}%)`;
+    return `${activeCount.value} of ${props.total} ${noun} (${activePercentage.value}%)`;
 });
 </script>
 
@@ -138,42 +146,24 @@ const subtitle = computed(() => {
         </CardHeader>
 
         <CardContent class="space-y-5">
-            <!-- Metric tiles -->
+            <!-- Metric tiles (reflect the selected tab) -->
             <div class="grid grid-cols-2 gap-3 max-w-md">
-                <button
-                    type="button"
-                    class="rounded-lg border p-4 text-left transition-colors"
-                    :class="
-                        activeMetric === 'percentage'
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:bg-accent'
-                    "
-                    @click="activeMetric = 'percentage'"
-                >
+                <div class="rounded-lg border border-border p-4">
                     <p class="text-xs font-medium text-muted-foreground uppercase">
                         Percentage
                     </p>
                     <p class="text-3xl font-bold text-foreground mt-1">
-                        {{ percentage }}%
+                        {{ activePercentage }}%
                     </p>
-                </button>
-                <button
-                    type="button"
-                    class="rounded-lg border p-4 text-left transition-colors"
-                    :class="
-                        activeMetric === 'count'
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:bg-accent'
-                    "
-                    @click="activeMetric = 'count'"
-                >
+                </div>
+                <div class="rounded-lg border border-border p-4">
                     <p class="text-xs font-medium text-muted-foreground uppercase">
                         {{ countLabel }}
                     </p>
                     <p class="text-3xl font-bold text-foreground mt-1">
-                        {{ breached }}
+                        {{ activeCount }}
                     </p>
-                </button>
+                </div>
             </div>
 
             <p class="text-sm text-muted-foreground">{{ subtitle }}</p>
@@ -228,7 +218,8 @@ const subtitle = computed(() => {
                             </Link>
                             <span
                                 v-else-if="col.type === 'truncate'"
-                                class="line-clamp-1 block"
+                                class="line-clamp-2 block max-w-[280px] break-words"
+                                :title="row[col.key]"
                                 >{{ row[col.key] || "—" }}</span
                             >
                             <span v-else>{{ cellValue(row, col) }}</span>
