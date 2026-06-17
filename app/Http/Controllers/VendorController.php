@@ -55,6 +55,50 @@ class VendorController extends Controller
         ]);
     }
 
+    public function show(Vendor $vendor)
+    {
+        Gate::authorize('view_vendors', Vendor::class);
+
+        $vendor->load('user');
+
+        $workOrders = $vendor->workOrders()
+            ->with('service_status')
+            ->orderByDesc('created_date')
+            ->get()
+            ->map(fn ($workOrder) => [
+                'id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'description' => $workOrder->description,
+                'location' => $workOrder->location,
+                'priority' => $workOrder->priority,
+                'status' => $workOrder->status,
+                'service_status' => $workOrder->service_status?->name,
+                'created_date' => $workOrder->created_date,
+                'completed_date' => $workOrder->completed_date,
+                'cost_estimate' => $workOrder->pivot->cost_estimate,
+                'scheduled_end_date' => $workOrder->pivot->scheduled_end_date,
+            ]);
+
+        return inertia('Vendor/Show', [
+            'title' => $vendor->name,
+            'vendor' => [
+                'id' => $vendor->id,
+                'name' => $vendor->name,
+                'email' => $vendor->email,
+                'phone' => $vendor->user?->phone,
+                'company' => $vendor->user?->company,
+                'address' => $vendor->user?->address,
+                'vendor_type' => $vendor->vendor_type,
+                'name_on_check' => $vendor->name_on_check,
+                'twilio_number' => $vendor->twilio_number,
+                'is_active' => (bool) $vendor->is_active,
+                'propertyware_id' => $vendor->propertyware_id,
+                'zones' => $vendor->zones ?? [],
+            ],
+            'workOrders' => $workOrders,
+        ]);
+    }
+
     public function store(Request $request)
     {
         Gate::authorize('create_vendor', Vendor::class);
@@ -152,32 +196,78 @@ class VendorController extends Controller
 
         $vendorName = trim($request->vendors_name);
 
-        $vendorExists = Vendor::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($vendorName)])->exists();
+        $propertyWare = new PropertyWareService;
 
-        if (! $vendorExists) {
-            $propertyWare = new PropertyWareService;
+        // Find the vendor (and its PropertyWare ID) by name.
+        $match = $propertyWare->getVendorsByName($vendorName);
 
-            $vendors = $propertyWare->getVendorsByName($vendorName);
+        if (is_array($match) && isset($match[0])) {
+            $match = $match[0];
+        }
 
-            if ($vendors) {
-                $vendorService = new VendorService;
-                $vendorService->handle($vendors);
+        $pwId = $match['ID'] ?? $match['id'] ?? null;
 
-                return response()->json([
-                    'status' => true,
-                    'message' => 'Vendors imported successfully.',
-                ], 200);
-            } else {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'No vendors found.',
-                ], 422);
-            }
+        if (! $pwId) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No vendors found.',
+            ], 422);
+        }
+
+        // Pull the full, fresh record from the single-vendor REST endpoint so the
+        // imported/synced data is complete and current.
+        $vendorData = $propertyWare->getVendor($pwId) ?? $match;
+
+        $vendor = (new VendorService)->handle($vendorData);
+
+        if (! $vendor) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Could not import the vendor. Please try again.',
+            ], 422);
         }
 
         return response()->json([
-            'status' => false,
-            'message' => 'Vendor already exists.',
-        ], 422);
+            'status' => true,
+            'message' => 'Vendor synced successfully.',
+        ], 200);
+    }
+
+    /**
+     * Re-sync a single existing vendor's data from PropertyWare using its stored ID.
+     */
+    public function sync(Vendor $vendor)
+    {
+        Gate::authorize('update_vendor', Vendor::class);
+
+        if (! $vendor->propertyware_id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'This vendor has no PropertyWare ID to sync.',
+            ], 422);
+        }
+
+        $vendorData = (new PropertyWareService)->getVendor($vendor->propertyware_id);
+
+        if (! $vendorData) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Could not fetch this vendor from PropertyWare.',
+            ], 422);
+        }
+
+        $synced = (new VendorService)->handle($vendorData);
+
+        if (! $synced) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Could not sync the vendor. Please try again.',
+            ], 422);
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Vendor synced from PropertyWare.',
+        ], 200);
     }
 }

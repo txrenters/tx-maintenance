@@ -41,6 +41,33 @@ const form = useForm({
 });
 
 const isDialogOpen = ref(false);
+
+const syncingId = ref(null);
+const handleSyncVendor = (vendor) => {
+    syncingId.value = vendor.id;
+    axios
+        .post(route("vendors.sync", vendor.id))
+        .then((res) => {
+            toast({
+                title: "Synced",
+                description:
+                    res.data?.message || "Vendor synced from PropertyWare.",
+            });
+            router.reload({ only: ["vendors"] });
+        })
+        .catch((err) => {
+            toast({
+                variant: "destructive",
+                title: "Sync failed",
+                description:
+                    err.response?.data?.message ||
+                    "Could not sync this vendor. Please try again.",
+            });
+        })
+        .finally(() => {
+            syncingId.value = null;
+        });
+};
 const isCreateDialogOpen = ref(false);
 
 const editForm = useForm({
@@ -230,8 +257,10 @@ const handleImportVendor = () => {
         <CardContent>
             <TableData
                 :data="vendors.data"
+                :syncingId="syncingId"
                 @isDialogOpen="handleOpenDialog"
                 @statusChanged="handleStatusChange"
+                @syncVendor="handleSyncVendor"
             />
         </CardContent>
         <CardFooter

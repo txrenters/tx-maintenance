@@ -285,6 +285,36 @@ class PropertyWareService
         }
     }
 
+    /**
+     * Retrieve a single vendor from PropertyWare by its ID (REST: GET /vendors/{id}).
+     * Uses the same API-key headers ($this->headers) as the other REST calls.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getVendor($vendorId): ?array
+    {
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/vendors/'.$vendorId, [
+                    'includeCustomFields' => 'true',
+                ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('Error retrieving vendor from PropertyWare', [
+                'vendor_id' => $vendorId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('PropertyWare getVendor failed: '.$e->getMessage(), ['vendor_id' => $vendorId]);
+        }
+
+        return null;
+    }
+
     public function getVendorsByName($vendorName)
     {
         try {
@@ -317,7 +347,7 @@ class PropertyWareService
 
             return json_encode($response);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('SOAP request failed: '.$e->getMessage());
 
             return [];
@@ -442,7 +472,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             return false;
             Log::error('Updating service status failed: '.$exception);
         }
@@ -520,7 +550,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             Log::error('Closing work order failed: '.$exception->getMessage(), [
                 'work_order_no' => $workOrder->work_order_no,
                 'trace' => $exception->getTraceAsString(),
@@ -607,7 +637,7 @@ class PropertyWareService
 
             return true;
 
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             Log::error('Re-opening work order failed: '.$exception->getMessage(), [
                 'work_order_no' => $workOrder->work_order_no,
                 'trace' => $exception->getTraceAsString(),
@@ -704,7 +734,7 @@ class PropertyWareService
                 'message' => $res['message'],
             ]);
 
-            throw new \Exception('PropertyWare API Error: '.$res['message']);
+            throw new Exception('PropertyWare API Error: '.$res['message']);
         }
 
         if ($workOrder->is_approved) {
@@ -787,7 +817,7 @@ class PropertyWareService
             $absolutePath = public_path('storage/attachments/'.basename($attachment['filename']));
 
             if (! file_exists($absolutePath)) {
-                throw new \Exception('File does not exist: '.$absolutePath);
+                throw new Exception('File does not exist: '.$absolutePath);
             }
 
             $title = $attachment['title'] ?? 'Invoice';
@@ -857,7 +887,7 @@ class PropertyWareService
 
             return false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error uploading work order attachment: '.$e->getMessage());
 
             return false;
@@ -869,12 +899,12 @@ class PropertyWareService
         try {
             $workOrder = WorkOrder::find($workOrderId);
             if (! $workOrder) {
-                throw new \Exception("Work order not found: $workOrderId");
+                throw new Exception("Work order not found: $workOrderId");
             }
 
             $absolutePath = public_path('storage/invoices/'.basename($invoice->filename));
             if (! file_exists($absolutePath)) {
-                throw new \Exception("File does not exist: $absolutePath");
+                throw new Exception("File does not exist: $absolutePath");
             }
 
             $formFields = [
@@ -955,7 +985,7 @@ class PropertyWareService
 
             return false;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Exception uploading invoice: '.$e->getMessage());
 
             return false;
@@ -970,7 +1000,7 @@ class PropertyWareService
 
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
             $workOrder = WorkOrder::with('vendors')->find($workOrder->id);
 
@@ -1066,7 +1096,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error in updating work order: '.$e->getMessage(), [
                 'workOrderId' => $workorderId ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,
@@ -1081,7 +1111,7 @@ class PropertyWareService
     {
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
 
             $cost_etimate = 0;
@@ -1131,7 +1161,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
                 'work_order_id' => $workOrder->propertyware_id ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,
@@ -1146,7 +1176,7 @@ class PropertyWareService
     {
         try {
             if (! $workOrder) {
-                throw new \Exception('Work order not found.');
+                throw new Exception('Work order not found.');
             }
 
             // Send PATCH request to PropertyWare REST API
@@ -1178,7 +1208,7 @@ class PropertyWareService
             ]);
 
             return false;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error syncing work order to PropertyWare: '.$e->getMessage(), [
                 'work_order_id' => $workOrder->propertyware_id ?? null,
                 'work_order_no' => $workOrder->work_order_no ?? null,

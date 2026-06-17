@@ -63,6 +63,7 @@ Route::middleware([
     Route::resource('/vendors', VendorController::class);
     Route::put('/vendors/change_status/{vendor}', [VendorController::class, 'update_status'])->name('vendors.change_status');
     Route::post('/vendors_import', [VendorController::class, 'import'])->name('vendors.import');
+    Route::post('/vendors/{vendor}/sync', [VendorController::class, 'sync'])->name('vendors.sync');
 
     Route::resource('/owners', OwnerController::class);
     Route::post('/owners/bulkdelete', [OwnerController::class, 'bulkdelete'])->name('owners.bulkdelete');

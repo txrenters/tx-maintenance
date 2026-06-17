@@ -1,9 +1,10 @@
 <script setup>
-import { Phone, SquarePen } from "lucide-vue-next";
-const emit = defineEmits(["isDialogOpen", "statusChanged"]);
+import { Phone, SquarePen, RefreshCw, Loader2 } from "lucide-vue-next";
+const emit = defineEmits(["isDialogOpen", "statusChanged", "syncVendor"]);
 
 defineProps({
     data: Object,
+    syncingId: [Number, String, null],
 });
 
 const openEditDialog = (user) => {
@@ -11,6 +12,9 @@ const openEditDialog = (user) => {
 };
 const updateStatus = (checked, vendor) => {
     emit("statusChanged", checked, vendor); // Emit event to parent
+};
+const syncVendor = (vendor) => {
+    emit("syncVendor", vendor);
 };
 </script>
 <template>
@@ -37,7 +41,12 @@ const updateStatus = (checked, vendor) => {
         <TableBody>
             <TableRow v-for="vendor in data" :key="vendor.id">
                 <TableCell class="font-medium">
-                    {{ vendor.name }}
+                    <Link
+                        :href="route('vendors.show', vendor.id)"
+                        class="hover:text-primary hover:underline"
+                    >
+                        {{ vendor.name }}
+                    </Link>
                     <p v-if="vendor.email" class="text-xs font-normal text-muted-foreground">
                         {{ vendor.email }}
                     </p>
@@ -90,6 +99,19 @@ const updateStatus = (checked, vendor) => {
                             @click="openEditDialog(vendor)"
                             ><SquarePen
                         /></Button>
+                        <Button
+                            variant="link"
+                            class="hover:text-primary p-0"
+                            title="Sync from PropertyWare"
+                            :disabled="syncingId === vendor.id"
+                            @click="syncVendor(vendor)"
+                        >
+                            <Loader2
+                                v-if="syncingId === vendor.id"
+                                class="animate-spin"
+                            />
+                            <RefreshCw v-else />
+                        </Button>
                     </div>
                 </TableCell>
             </TableRow>

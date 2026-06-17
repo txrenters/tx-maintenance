@@ -6,25 +6,33 @@ use App\Models\User;
 use App\Models\Vendor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class VendorService
 {
-    public function handle($data)
+    /**
+     * Create or update a vendor (and its linked user) from PropertyWare data.
+     *
+     * Keyed on the PropertyWare vendor ID so re-importing syncs instead of
+     * duplicating. The linked user is matched by email and updated in place.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function handle($data): ?Vendor
     {
+        $pwId = $data['id'] ?? $data['ID'] ?? null;
+
+        if (! $pwId) {
+            Log::warning('Vendor sync skipped: missing PropertyWare ID.');
+
+            return null;
+        }
+
         DB::beginTransaction();
 
         try {
-
-            $vendor_propertyware_id = $data['ID'] ?? null;
-            $vendorEmail = $data['email'] ?? $vendor_propertyware_id.'@texasrenter.com';
-
-            $vendorExist = Vendor::where('propertyware_id', $vendor_propertyware_id)->where('email', $vendorEmail)->exists();
-
-            $userExist = User::where('email', $vendorEmail)->exists();
-
-            if ($vendorExist || $userExist) {
-                return null; // Vendor already exists, no need to create a new one
-            }
+            $name = $data['name'] ?? $data['companyName'] ?? 'Unknown Vendor';
+            $email = $this->resolveEmail($data, $pwId, $name);
 
             $address = trim(implode(' ', array_filter([
                 $data['address'] ?? null,
@@ -35,42 +43,65 @@ class VendorService
                 $data['zip'] ?? null,
             ])));
 
-            $usersData = [
-                'email' => $vendorEmail,
-                'name' => $data['name'],
-                'phone' => $data['phone'] ?? null,
-                'company' => $data['companyName'] ?? null,
-                'address' => $address,
-                'password' => bcrypt($vendorEmail),
-            ];
+            // Prefer the vendor's already-linked user so a re-sync corrects their
+            // existing record (e.g. fixes a bad email) instead of orphaning it and
+            // creating a new one. Fall back to matching by email, then creating.
+            $existingVendor = Vendor::where('propertyware_id', $pwId)->first();
+            $user = $existingVendor?->user
+                ?? User::firstOrNew(['email' => $email]);
 
-            $user = $this->createOrUpdateUser($usersData, 'vendor');
+            $wasExisting = $user->exists;
+            $user->email = $email;
+            $user->name = $name;
+            $user->phone = $data['phone'] ?? $data['otherPhone'] ?? $user->phone;
+            $user->company = $data['companyName'] ?? $user->company;
+            $user->address = $address ?: $user->address;
+            if (! $wasExisting) {
+                $user->password = bcrypt($email);
+            }
+            $user->save();
 
-            $vendorsData = [
-                'propertyware_id' => $user->id,
-                'name' => $data['name'],
-                'name_on_check' => $data['name'],
-                'email' => $vendorEmail,
-                'user_id' => $user->id,
-                'is_active' => $data['active'],
-            ];
+            if (! $user->hasRole('vendor')) {
+                $user->assignRole('vendor');
+            }
 
-            $vendor = Vendor::create($vendorsData);
+            $vendor = Vendor::updateOrCreate(
+                ['propertyware_id' => $pwId],
+                [
+                    'name' => $name,
+                    'name_on_check' => $data['nameOnCheck'] ?? $name,
+                    'email' => $email,
+                    'vendor_type' => $data['type'] ?? null,
+                    'is_active' => $data['active'] ?? true,
+                    'user_id' => $user->id,
+                ]
+            );
 
             DB::commit();
 
             return $vendor;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error creating vendor: '.$e->getMessage());
+            Log::error('Error syncing vendor: '.$e->getMessage(), ['propertyware_id' => $pwId]);
+
+            return null;
         }
     }
 
-    private function createOrUpdateUser(array $data, string $role): User
+    /**
+     * Resolve a vendor's email, falling back to a readable placeholder when
+     * PropertyWare has none on file (instead of an opaque numeric address).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveEmail(array $data, $pwId, string $name): string
     {
-        $user = User::updateOrCreate(['email' => $data['email']], $data);
-        $user->assignRole($role);
+        if (! empty($data['email'])) {
+            return $data['email'];
+        }
 
-        return $user;
+        $slug = Str::slug($name) ?: 'vendor';
+
+        return "{$slug}-{$pwId}@no-email.texasrenters.com";
     }
 }
