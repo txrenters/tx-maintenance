@@ -28,11 +28,26 @@ class ReportController extends Controller
     }
 
     /**
+     * Years to offer in the filter: from the current year back to the earliest
+     * work-order created year actually present in the database.
+     *
      * @return array<int, int>
      */
     private function years(): array
     {
-        return range((int) now()->year, 2024);
+        $earliest = WorkOrder::query()->whereNotNull('created_date')->min('created_date');
+        $startYear = $earliest ? (int) Carbon::parse($earliest)->year : (int) now()->year;
+        $endYear = (int) now()->year;
+
+        return range($endYear, min($startYear, $endYear));
+    }
+
+    /**
+     * Whole calendar days between two dates, ignoring time-of-day.
+     */
+    private function wholeDays($from, $to): int
+    {
+        return (int) Carbon::parse($from)->startOfDay()->diffInDays(Carbon::parse($to)->startOfDay());
     }
 
     /**
@@ -49,14 +64,9 @@ class ReportController extends Controller
             ->orderBy('created_date')
             ->get();
 
-        $rows = $workOrders->filter(function (WorkOrder $wo) use ($today) {
-            if (! $wo->created_date) {
-                return false;
-            }
-            $resolved = $wo->completed_date ? Carbon::parse($wo->completed_date) : $today;
+        $days = fn (WorkOrder $wo) => $this->wholeDays($wo->created_date, $wo->completed_date ?: $today);
 
-            return Carbon::parse($wo->created_date)->diffInDays($resolved) > 7;
-        })->map(fn (WorkOrder $wo) => [
+        $map = fn (WorkOrder $wo) => [
             'id' => $wo->id,
             'work_order_no' => $wo->work_order_no,
             'description' => $wo->description,
@@ -64,8 +74,11 @@ class ReportController extends Controller
             'status' => $wo->service_status?->name ?? $wo->status,
             'created_date' => $wo->created_date,
             'resolution' => $wo->completed_date ?: 'Open',
-            'days' => (int) round(Carbon::parse($wo->created_date)->diffInDays($wo->completed_date ? Carbon::parse($wo->completed_date) : $today)),
-        ])->values();
+            'days' => $days($wo),
+        ];
+
+        $breached = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date && $days($wo) > 7);
+        $compliant = $workOrders->filter(fn (WorkOrder $wo) => $wo->created_date && $wo->completed_date && $days($wo) <= 7);
 
         return $this->respond('unresolved_7_days', [
             'title' => 'WOs Not Resolved Within 7 Days',
@@ -73,7 +86,7 @@ class ReportController extends Controller
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $workOrders->count(),
-            'breached' => $rows->count(),
+            'breached' => $breached->count(),
             'countLabel' => 'No. of WOs',
             'columns' => [
                 ['key' => 'work_order_no', 'label' => 'WO #', 'type' => 'wo_link'],
@@ -84,7 +97,10 @@ class ReportController extends Controller
                 ['key' => 'resolution', 'label' => 'Completed', 'type' => 'date'],
                 ['key' => 'days', 'label' => 'Days', 'type' => 'right'],
             ],
-            'rows' => $rows,
+            'lists' => [
+                ['key' => 'breached', 'label' => 'Not within 7 days', 'rows' => $breached->map($map)->values()],
+                ['key' => 'compliant', 'label' => 'Within 7 days', 'rows' => $compliant->map($map)->values()],
+            ],
         ]);
     }
 
@@ -101,31 +117,30 @@ class ReportController extends Controller
             ->orderBy('created_date')
             ->get();
 
-        $rows = $workOrders->map(function (WorkOrder $wo) {
+        $evaluate = function (WorkOrder $wo) {
             $created = $wo->created_date ? Carbon::parse($wo->created_date) : null;
-            $firstSchedule = $wo->service_schedules
-                ->sortBy('created_at')
-                ->first();
+            $firstSchedule = $wo->service_schedules->sortBy('created_at')->first();
             $scheduledAt = $firstSchedule?->created_at ? Carbon::parse($firstSchedule->created_at) : null;
-
-            $bizDays = ($created && $scheduledAt) ? $created->diffInWeekdays($scheduledAt) : null;
+            $bizDays = ($created && $scheduledAt) ? (int) $created->diffInWeekdays($scheduledAt) : null;
             $breached = ! $scheduledAt || ($bizDays !== null && $bizDays > 3);
 
             return [
-                'id' => $wo->id,
-                'work_order_no' => $wo->work_order_no,
-                'description' => $wo->description,
-                'status' => $wo->service_status?->name ?? $wo->status,
-                'created_date' => $wo->created_date,
-                'scheduled_on' => $scheduledAt ? $scheduledAt->toDateString() : 'Never scheduled',
-                'biz_days' => $scheduledAt ? (int) $bizDays : '—',
-                '_breached' => $breached,
+                'breached' => $breached,
+                'row' => [
+                    'id' => $wo->id,
+                    'work_order_no' => $wo->work_order_no,
+                    'description' => $wo->description,
+                    'status' => $wo->service_status?->name ?? $wo->status,
+                    'created_date' => $wo->created_date,
+                    'scheduled_on' => $scheduledAt ? $scheduledAt->toDateString() : 'Never scheduled',
+                    'biz_days' => $scheduledAt ? $bizDays : '—',
+                ],
             ];
-        })->filter(fn ($row) => $row['_breached'])->map(function ($row) {
-            unset($row['_breached']);
+        };
 
-            return $row;
-        })->values();
+        $evaluated = $workOrders->map($evaluate);
+        $breached = $evaluated->where('breached', true)->pluck('row')->values();
+        $compliant = $evaluated->where('breached', false)->pluck('row')->values();
 
         return $this->respond('not_scheduled_3_days', [
             'title' => 'WOs Not Scheduled Within 3 Business Days',
@@ -133,7 +148,7 @@ class ReportController extends Controller
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $workOrders->count(),
-            'breached' => $rows->count(),
+            'breached' => $breached->count(),
             'countLabel' => 'No. of WOs',
             'columns' => [
                 ['key' => 'work_order_no', 'label' => 'WO #', 'type' => 'wo_link'],
@@ -143,7 +158,10 @@ class ReportController extends Controller
                 ['key' => 'scheduled_on', 'label' => 'First Scheduled'],
                 ['key' => 'biz_days', 'label' => 'Biz days', 'type' => 'right'],
             ],
-            'rows' => $rows,
+            'lists' => [
+                ['key' => 'breached', 'label' => 'Not scheduled in 3 days', 'rows' => $breached],
+                ['key' => 'compliant', 'label' => 'Scheduled in 3 days', 'rows' => $compliant],
+            ],
         ]);
     }
 
@@ -162,21 +180,26 @@ class ReportController extends Controller
             ->orderBy('due_date')
             ->get();
 
-        $rows = $tasks->filter(function (WorkOrderTask $task) use ($today) {
+        $isLate = function (WorkOrderTask $task) use ($today) {
             $due = Carbon::parse($task->due_date)->endOfDay();
             if ($task->status === 'completed') {
-                return Carbon::parse($task->updated_at)->gt($due); // completed late
+                return Carbon::parse($task->updated_at)->gt($due);
             }
 
-            return $due->lt($today); // still not done and overdue
-        })->map(fn (WorkOrderTask $task) => [
+            return $due->lt($today);
+        };
+
+        $map = fn (WorkOrderTask $task) => [
             'id' => $task->work_order_id,
             'work_order_no' => $task->work_order?->work_order_no,
             'description' => $task->description,
             'due_date' => $task->due_date,
             'status' => $task->status,
             'completed_on' => $task->status === 'completed' ? $task->updated_at : 'Not done',
-        ])->values();
+        ];
+
+        $breached = $tasks->filter($isLate);
+        $onTime = $tasks->filter(fn (WorkOrderTask $task) => $task->status === 'completed' && ! $isLate($task));
 
         return $this->respond('tasks_on_time', [
             'title' => 'Tasks Not Completed On Time',
@@ -184,7 +207,7 @@ class ReportController extends Controller
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $tasks->count(),
-            'breached' => $rows->count(),
+            'breached' => $breached->count(),
             'countLabel' => 'No. of Tasks',
             'columns' => [
                 ['key' => 'work_order_no', 'label' => 'WO #', 'type' => 'wo_link'],
@@ -193,42 +216,52 @@ class ReportController extends Controller
                 ['key' => 'status', 'label' => 'Status'],
                 ['key' => 'completed_on', 'label' => 'Completed', 'type' => 'date'],
             ],
-            'rows' => $rows,
+            'lists' => [
+                ['key' => 'breached', 'label' => 'Late / overdue', 'rows' => $breached->map($map)->values()],
+                ['key' => 'compliant', 'label' => 'On time', 'rows' => $onTime->map($map)->values()],
+            ],
         ]);
     }
 
     /**
-     * KPI: open work orders older than 30 days (snapshot, target = 0).
+     * KPI: open work orders older than 30 days (per created month, target = 0).
      */
     public function openOver30Days(Request $request)
     {
         $this->authorizeReports($request);
+        [$year, $month, $start, $end] = $this->monthRange($request);
         $today = now();
         $cutoff = $today->copy()->subDays(30);
 
-        $open = WorkOrder::query()->with('service_status')
-            ->where('status', 'Open')
+        $workOrders = WorkOrder::query()->with('service_status')
+            ->whereBetween('created_date', [$start, $end])
+            ->orderBy('created_date')
             ->get();
 
-        $rows = $open->filter(fn (WorkOrder $wo) => $wo->created_date && Carbon::parse($wo->created_date)->lt($cutoff))
-            ->sortBy('created_date')
-            ->map(fn (WorkOrder $wo) => [
-                'id' => $wo->id,
-                'work_order_no' => $wo->work_order_no,
-                'description' => $wo->description,
-                'location' => $wo->location,
-                'status' => $wo->service_status?->name ?? $wo->status,
-                'created_date' => $wo->created_date,
-                'days' => (int) round(Carbon::parse($wo->created_date)->diffInDays($today)),
-            ])->values();
+        $map = fn (WorkOrder $wo) => [
+            'id' => $wo->id,
+            'work_order_no' => $wo->work_order_no,
+            'description' => $wo->description,
+            'location' => $wo->location,
+            'status' => $wo->service_status?->name ?? $wo->status,
+            'created_date' => $wo->created_date,
+            'days' => $this->wholeDays($wo->created_date, $today),
+        ];
+
+        $isOpenOld = fn (WorkOrder $wo) => $wo->status === 'Open'
+            && $wo->created_date
+            && Carbon::parse($wo->created_date)->lt($cutoff);
+
+        $breached = $workOrders->filter($isOpenOld);
+        $compliant = $workOrders->reject($isOpenOld);
 
         return $this->respond('open_over_30_days', [
             'title' => 'Open WOs Over 30 Days Old',
-            'description' => 'Work orders that are still open and were created more than 30 days ago. Target is zero.',
-            'hasMonthFilter' => false,
-            'filters' => [],
-            'total' => $open->count(),
-            'breached' => $rows->count(),
+            'description' => 'Work orders created this month that are still open more than 30 days later. Target is zero.',
+            'hasMonthFilter' => true,
+            'filters' => ['year' => $year, 'month' => $month],
+            'total' => $workOrders->count(),
+            'breached' => $breached->count(),
             'countLabel' => 'No. of WOs',
             'columns' => [
                 ['key' => 'work_order_no', 'label' => 'WO #', 'type' => 'wo_link'],
@@ -238,7 +271,10 @@ class ReportController extends Controller
                 ['key' => 'created_date', 'label' => 'Created', 'type' => 'date'],
                 ['key' => 'days', 'label' => 'Days open', 'type' => 'right'],
             ],
-            'rows' => $rows,
+            'lists' => [
+                ['key' => 'breached', 'label' => 'Open over 30 days', 'rows' => $breached->map($map)->values()],
+                ['key' => 'compliant', 'label' => 'Closed or within 30 days', 'rows' => $compliant->map($map)->values()],
+            ],
         ]);
     }
 

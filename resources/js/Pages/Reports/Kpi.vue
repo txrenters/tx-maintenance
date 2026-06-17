@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { router } from "@inertiajs/vue3";
 
@@ -17,7 +17,7 @@ const props = defineProps({
     percentage: { type: Number, default: 0 },
     countLabel: { type: String, default: "No. of WOs" },
     columns: { type: Array, default: () => [] },
-    rows: { type: Array, default: () => [] },
+    lists: { type: Array, default: () => [] },
 });
 
 const months = [
@@ -28,6 +28,27 @@ const months = [
 const year = ref(props.filters.year ?? new Date().getFullYear());
 const month = ref(props.filters.month ?? new Date().getMonth() + 1);
 const activeMetric = ref("percentage");
+
+const activeList = ref(props.lists[0]?.key ?? "breached");
+const pageNum = ref(1);
+const perPage = 20;
+
+const currentRows = computed(
+    () => props.lists.find((l) => l.key === activeList.value)?.rows ?? []
+);
+const totalPages = computed(() =>
+    Math.max(1, Math.ceil(currentRows.value.length / perPage))
+);
+const paginatedRows = computed(() =>
+    currentRows.value.slice((pageNum.value - 1) * perPage, pageNum.value * perPage)
+);
+
+watch(currentRows, () => (pageNum.value = 1));
+
+const selectList = (key) => {
+    activeList.value = key;
+    pageNum.value = 1;
+};
 
 const applyFilter = () => {
     router.get(
@@ -40,7 +61,7 @@ const applyFilter = () => {
 const fmtDate = (v) => {
     if (!v) return "—";
     const d = new Date(v);
-    if (isNaN(d.getTime())) return v; // pass through "Open", "Never scheduled", etc.
+    if (isNaN(d.getTime())) return v;
     return d.toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
@@ -117,7 +138,7 @@ const subtitle = computed(() => {
         </CardHeader>
 
         <CardContent class="space-y-5">
-            <!-- Metric tabs -->
+            <!-- Metric tiles -->
             <div class="grid grid-cols-2 gap-3 max-w-md">
                 <button
                     type="button"
@@ -157,8 +178,26 @@ const subtitle = computed(() => {
 
             <p class="text-sm text-muted-foreground">{{ subtitle }}</p>
 
+            <!-- List tabs -->
+            <div class="flex flex-wrap gap-2 border-b pb-3">
+                <button
+                    v-for="l in lists"
+                    :key="l.key"
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                    :class="
+                        activeList === l.key
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:bg-accent'
+                    "
+                    @click="selectList(l.key)"
+                >
+                    {{ l.label }} ({{ l.rows.length }})
+                </button>
+            </div>
+
             <!-- Drill-down list -->
-            <Table v-if="rows.length">
+            <Table v-if="paginatedRows.length">
                 <TableHeader>
                     <TableRow>
                         <TableHead
@@ -171,7 +210,7 @@ const subtitle = computed(() => {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    <TableRow v-for="(row, i) in rows" :key="i">
+                    <TableRow v-for="(row, i) in paginatedRows" :key="i">
                         <TableCell
                             v-for="col in columns"
                             :key="col.key"
@@ -202,7 +241,39 @@ const subtitle = computed(() => {
                 v-else
                 class="rounded-lg border bg-muted/30 p-8 text-center text-sm text-muted-foreground"
             >
-                🎉 None for this period — nothing breached.
+                Nothing in this list for the selected period.
+            </div>
+
+            <!-- Pagination -->
+            <div
+                v-if="currentRows.length > perPage"
+                class="flex items-center justify-between text-sm text-muted-foreground"
+            >
+                <span>
+                    Showing {{ (pageNum - 1) * perPage + 1 }}–{{
+                        Math.min(pageNum * perPage, currentRows.length)
+                    }}
+                    of {{ currentRows.length }}
+                </span>
+                <div class="flex items-center gap-1">
+                    <button
+                        type="button"
+                        class="rounded-md border px-3 py-1 disabled:opacity-50 hover:bg-accent"
+                        :disabled="pageNum <= 1"
+                        @click="pageNum--"
+                    >
+                        Prev
+                    </button>
+                    <span class="px-2">Page {{ pageNum }} / {{ totalPages }}</span>
+                    <button
+                        type="button"
+                        class="rounded-md border px-3 py-1 disabled:opacity-50 hover:bg-accent"
+                        :disabled="pageNum >= totalPages"
+                        @click="pageNum++"
+                    >
+                        Next
+                    </button>
+                </div>
             </div>
         </CardContent>
     </Card>

@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\ServiceSchedule;
 use App\Models\ServiceStatus;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
@@ -61,8 +64,9 @@ class ReportTest extends TestCase
                 ->where('total', 2)
                 ->where('breached', 1)
                 ->where('percentage', 50)
-                ->has('rows', 1)
-                ->where('rows.0.work_order_no', 5001)
+                ->has('lists.0.rows', 1)
+                ->where('lists.0.rows.0.work_order_no', 5001)
+                ->where('lists.1.rows.0.work_order_no', 5002)
             );
     }
 
@@ -70,21 +74,87 @@ class ReportTest extends TestCase
     {
         $admin = $this->admin();
         $status = ServiceStatus::create(['name' => 'New', 'description' => 'New']);
+        $old = now()->subDays(45);
 
         WorkOrder::factory()->create([
             'service_status_id' => $status->id, 'work_order_no' => 6001,
-            'created_date' => now()->subDays(45), 'status' => 'Open',
+            'created_date' => $old, 'status' => 'Open',
         ]);
         WorkOrder::factory()->create([
             'service_status_id' => $status->id, 'work_order_no' => 6002,
-            'created_date' => now()->subDays(5), 'status' => 'Open',
+            'created_date' => $old->copy(), 'status' => 'Closed',
+            'completed_date' => $old->copy()->addDays(2),
         ]);
 
-        $this->actingAs($admin)->get(route('reports.open_over_30_days'))
+        $this->actingAs($admin)
+            ->get(route('reports.open_over_30_days', ['year' => $old->year, 'month' => $old->month]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('breached', 1)
-                ->where('rows.0.work_order_no', 6001)
+                ->where('lists.0.rows.0.work_order_no', 6001)
+            );
+    }
+
+    public function test_not_scheduled_within_3_days_splits_breached_and_compliant(): void
+    {
+        $admin = $this->admin();
+        $status = ServiceStatus::create(['name' => 'New', 'description' => 'New']);
+        $created = now()->startOfMonth()->addDay();
+
+        $vendorUser = User::factory()->create();
+        $vendor = Vendor::create([
+            'propertyware_id' => 'V-9', 'name' => 'V', 'is_active' => true, 'user_id' => $vendorUser->id,
+        ]);
+
+        // No schedule -> breached
+        WorkOrder::factory()->create([
+            'service_status_id' => $status->id, 'work_order_no' => 7001, 'created_date' => $created,
+        ]);
+        // Scheduled the same day -> compliant
+        $scheduled = WorkOrder::factory()->create([
+            'service_status_id' => $status->id, 'work_order_no' => 7002, 'created_date' => $created,
+        ]);
+        ServiceSchedule::create([
+            'work_order_id' => $scheduled->id, 'vendor_id' => $vendor->id,
+            'title' => 'x', 'scheduled_date' => $created, 'status' => 'scheduled', 'created_at' => $created,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('reports.not_scheduled_3_days', ['year' => $created->year, 'month' => $created->month]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('breached', 1)
+                ->where('lists.0.rows.0.work_order_no', 7001)
+                ->where('lists.1.rows.0.work_order_no', 7002)
+            );
+    }
+
+    public function test_tasks_on_time_flags_late_tasks_only(): void
+    {
+        $admin = $this->admin();
+        $status = ServiceStatus::create(['name' => 'New', 'description' => 'New']);
+        $wo = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8001]);
+        $assignee = User::factory()->create();
+        $due = now()->startOfMonth()->addDays(5);
+
+        $late = WorkOrderTask::create([
+            'work_order_id' => $wo->id, 'assigned_user_id' => $assignee->id,
+            'description' => 'late task', 'due_date' => $due, 'status' => 'completed',
+        ]);
+        $onTime = WorkOrderTask::create([
+            'work_order_id' => $wo->id, 'assigned_user_id' => $assignee->id,
+            'description' => 'on-time task', 'due_date' => $due, 'status' => 'completed',
+        ]);
+        // Completed dates via updated_at (late = after due, on-time = before due).
+        WorkOrderTask::withoutGlobalScopes()->where('id', $late->id)->update(['updated_at' => $due->copy()->addDays(3)]);
+        WorkOrderTask::withoutGlobalScopes()->where('id', $onTime->id)->update(['updated_at' => $due->copy()->subDay()]);
+
+        $this->actingAs($admin)
+            ->get(route('reports.tasks_on_time', ['year' => $due->year, 'month' => $due->month]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('breached', 1)
+                ->where('lists.0.rows.0.description', 'late task')
             );
     }
 
