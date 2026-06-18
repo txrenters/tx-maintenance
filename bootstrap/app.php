@@ -1,9 +1,14 @@
 <?php
 
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveVendorAccountToken;
+use App\Http\Middleware\ResolveVendorPortalToken;
 use App\Http\Middleware\UpgradeToHttpsUnderNgrok;
+use App\Http\Middleware\ValidateApiKey;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,8 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
 
             UpgradeToHttpsUnderNgrok::class,
 
@@ -36,7 +41,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'api.key' => \App\Http\Middleware\ValidateApiKey::class,
+            'api.key' => ValidateApiKey::class,
+            'vendor.portal' => ResolveVendorPortalToken::class,
+            'vendor.account' => ResolveVendorAccountToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

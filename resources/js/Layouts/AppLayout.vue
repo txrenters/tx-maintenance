@@ -204,7 +204,8 @@ const navs = computed(() => {
                         isActive: page.url.startsWith("/visits"),
                     },
                 ],
-                requires: ["admin", "woc", "vendor"],
+                // THMP vendor keeps access via the email bypass in canAccess(); other vendors don't.
+                requires: ["admin", "woc"],
             },
             {
                 title: "People",

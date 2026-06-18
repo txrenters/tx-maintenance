@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class Vendor extends Model
 {
@@ -15,7 +16,7 @@ class Vendor extends Model
     protected $table = 'vendors';
 
     protected $fillable = [
-        'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones',
+        'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
     ];
 
     protected $casts = [
@@ -31,7 +32,33 @@ class Vendor extends Model
     public function workOrders(): BelongsToMany
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_vendors', 'vendor_id', 'work_order_id')
+            ->withPivot('access_token', 'cost_estimate', 'time_estimate', 'scheduled_end_date')
             ->withTimestamps();
+    }
+
+    /**
+     * Return this vendor's stable no-login dashboard token, creating it if absent.
+     */
+    public function ensurePortalToken(): string
+    {
+        if (! $this->portal_token) {
+            $this->portal_token = static::generateUniquePortalToken();
+            $this->save();
+        }
+
+        return $this->portal_token;
+    }
+
+    /**
+     * Generate a random dashboard token that is guaranteed unique across vendors.
+     */
+    public static function generateUniquePortalToken(): string
+    {
+        do {
+            $token = Str::random(48);
+        } while (static::query()->where('portal_token', $token)->exists());
+
+        return $token;
     }
 
     public function invoices(): HasMany

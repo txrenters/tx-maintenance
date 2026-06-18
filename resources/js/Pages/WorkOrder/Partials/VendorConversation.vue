@@ -139,12 +139,12 @@ const removeImage = (index) => {
 
 const sendMessage = () => {
     loading.value = true;
-    if (!vendor_phone_number.value) {
+    if (!selectedVendor.value && !vendor_phone_number.value) {
         toast({
             variant: "destructive",
-            title: "Uh oh! Something went wrong.",
+            title: "Select a vendor",
             description:
-                "There was a problem with your request. Please select a receiver!",
+                "Please select a vendor or enter a phone number. Vendors with no number will still see the message in their portal.",
         });
         loading.value = false;
 
@@ -170,6 +170,9 @@ const sendMessage = () => {
         formData.append("receiver_phone_number", vendor_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "vendor");
+        if (selectedVendor.value) {
+            formData.append("vendor_id", selectedVendor.value);
+        }
 
         attachedImages.value.forEach((img) => {
             formData.append("images[]", img.file);

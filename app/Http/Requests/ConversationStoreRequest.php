@@ -25,8 +25,9 @@ class ConversationStoreRequest extends FormRequest
         return [
             'text' => 'nullable|string|max:1600',
             'work_order_id' => 'required|integer|exists:work_orders,id',
-            'sender_phone_number' => 'required|string',
-            'receiver_phone_number' => 'required|string',
+            'sender_phone_number' => 'nullable|string',
+            'receiver_phone_number' => 'nullable|string',
+            'vendor_id' => 'nullable|integer|exists:vendors,id',
             'conversation_type' => 'required|string|max:50',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max per image

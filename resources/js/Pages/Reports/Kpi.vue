@@ -83,6 +83,13 @@ const cellValue = (row, col) => {
     return v ?? "—";
 };
 
+const truncateWords = (v, limit = 50) => {
+    if (!v) return "—";
+    const words = String(v).trim().split(/\s+/);
+    if (words.length <= limit) return v;
+    return words.slice(0, limit).join(" ") + "…";
+};
+
 const subtitle = computed(() => {
     const noun = props.countLabel.toLowerCase().includes("task")
         ? "tasks"
@@ -218,9 +225,9 @@ const subtitle = computed(() => {
                             </Link>
                             <span
                                 v-else-if="col.type === 'truncate'"
-                                class="line-clamp-2 block max-w-[280px] break-words"
+                                class="block max-w-[280px] break-words"
                                 :title="row[col.key]"
-                                >{{ row[col.key] || "—" }}</span
+                                >{{ truncateWords(row[col.key]) }}</span
                             >
                             <span v-else>{{ cellValue(row, col) }}</span>
                         </TableCell>

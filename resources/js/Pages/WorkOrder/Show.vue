@@ -47,6 +47,7 @@ const props = defineProps({
     notes: Array,
     attachments: Array,
     vendors: Array,
+    vendorLinks: Array,
     categories: Array,
     serviceStatuses: Array,
 });
@@ -613,7 +614,7 @@ const handleCloseOrderSubmit = () => {
         </CardHeader>
 
         <!-- Centered tab switcher -->
-        <div class="flex justify-center px-6 pb-4 gap-3">
+        <div class="flex flex-wrap justify-center px-6 pb-4 gap-2">
             <TabSwitcher
                 :buttons="tabButtons"
                 :activeTab="activeTab"
@@ -790,6 +791,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'vendor_edit'"
                 :workOrderVendorData="workOrderVendorData"
                 :workOrder="workOrderForm"
+                :vendorLinks="vendorLinks"
                 :isLoading="isLoading"
                 @fetch-vendor="fetchVendors"
             />

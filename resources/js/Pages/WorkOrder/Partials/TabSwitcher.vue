@@ -38,7 +38,8 @@ const canAccess = (requiredRoles) => {
       <TooltipTrigger as-child>
         <Button
           :variant="activeTab === button.name ? '' : 'outline'"
-          size="icon"
+          size="sm"
+          class="gap-1.5"
           @click="handleSwitchTab(button.name)"
         >
           <span
@@ -48,16 +49,15 @@ const canAccess = (requiredRoles) => {
               button.icon === 'T' ||
               button.icon === 'W'
             "
-            class="text-xs"
+            class="text-xs font-semibold"
             >{{ button.icon }}</span
           >
 
-          <!-- If the icon exists and is not 'vot', render the icon -->
+          <!-- If the icon exists and is not a letter, render the icon -->
           <component :is="button.icon" class="w-4 h-4" v-else-if="button.icon" />
 
-          <!-- If there is no icon at all, show the label -->
-          <span v-else>{{ button.label }}</span>
-          <!-- Fallback if no icon -->
+          <!-- Text label (previously only shown in the tooltip) -->
+          <span class="text-xs">{{ button.tooltip || button.label }}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>

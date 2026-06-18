@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
-import { useForm } from "@inertiajs/vue3";
-import { Plus, SquarePen } from "lucide-vue-next";
+import { useForm, usePage } from "@inertiajs/vue3";
+import { Plus, SquarePen, Copy, Check, Mail, MailX } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 
@@ -11,7 +11,38 @@ const props = defineProps({
     isLoading: Boolean,
     workOrder: Object,
     workOrderVendorData: Object,
+    vendorLinks: { type: Array, default: () => [] },
 });
+
+const page = usePage();
+const isStaff = ["admin", "woc", "accounting"].some((role) =>
+    (page.props.auth.user?.roles ?? []).includes(role)
+);
+
+const copied = ref(null);
+
+const copyLink = async (link, kind) => {
+    const url = kind === "dashboard" ? link.dashboard_url : link.url;
+    if (!url) return;
+    try {
+        await navigator.clipboard.writeText(url);
+        copied.value = `${link.vendor_id}:${kind}`;
+        setTimeout(() => (copied.value = null), 2000);
+        toast({
+            title: "Link copied",
+            description:
+                kind === "dashboard"
+                    ? `All-jobs link for ${link.name} copied.`
+                    : `This work order's link for ${link.name} copied.`,
+        });
+    } catch (e) {
+        toast({
+            variant: "destructive",
+            title: "Couldn't copy",
+            description: "Please copy the link manually.",
+        });
+    }
+};
 
 const emit = defineEmits(["fetch-vendor"]);
 
@@ -99,6 +130,65 @@ const handleFetchVendor = () => {
 
 <template>
     <div class="overflow-y-auto px-6 w-full min-h-[300px] mb-10">
+        <!-- Vendor portal magic links (staff only) -->
+        <div v-if="isStaff && vendorLinks.length" class="mb-5">
+            <p class="font-semibold uppercase text-xs mb-2">
+                Vendor Portal Links
+            </p>
+            <p class="text-xs text-muted-foreground mb-3">
+                Each vendor has a unique no-login link. Copy and send it to a
+                vendor who has no email on file.
+            </p>
+            <div class="space-y-2">
+                <div
+                    v-for="link in vendorLinks"
+                    :key="link.vendor_id"
+                    class="flex items-center justify-between gap-2 p-2 border rounded-md"
+                >
+                    <div class="flex items-center gap-2 min-w-0">
+                        <Mail
+                            v-if="link.has_email"
+                            class="w-4 h-4 text-green-600 shrink-0"
+                        />
+                        <MailX
+                            v-else
+                            class="w-4 h-4 text-amber-500 shrink-0"
+                            title="No email on file"
+                        />
+                        <span class="text-sm truncate">{{ link.name }}</span>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            :disabled="!link.url"
+                            @click="copyLink(link, 'work_order')"
+                        >
+                            <Check
+                                v-if="copied === `${link.vendor_id}:work_order`"
+                                class="w-3.5 h-3.5 mr-1"
+                            />
+                            <Copy v-else class="w-3.5 h-3.5 mr-1" />
+                            This job
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            :disabled="!link.dashboard_url"
+                            @click="copyLink(link, 'dashboard')"
+                        >
+                            <Check
+                                v-if="copied === `${link.vendor_id}:dashboard`"
+                                class="w-3.5 h-3.5 mr-1"
+                            />
+                            <Copy v-else class="w-3.5 h-3.5 mr-1" />
+                            All jobs
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="flex justify-between gap-2 items-center mb-3">
             <div>
                 <p class="font-semibold uppercase text-xs mb-3">

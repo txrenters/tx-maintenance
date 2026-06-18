@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Conversation;
 use App\Models\JobberTextMessage;
 use Spatie\Activitylog\Models\Activity;
 
@@ -22,34 +23,25 @@ class NotificationController extends Controller
         }
 
         if ($user->hasRole('vendor')) {
-            // Scope to this vendor's assigned work orders and to messages to/from
-            // their own phone. Never leak unrelated activity (the old filter matched
-            // a null twilio_number, which surfaced everyone's notifications).
+            // Vendors are only notified about their own WOC <-> vendor conversation
+            // (conversation_type 'vendor') on work orders assigned to them. They must
+            // never see tenant/owner threads or other activity on the work order.
             $workOrderIds = $user->vendor
                 ? $user->vendor->workOrders()->pluck('work_orders.id')->all()
                 : [];
 
-            $phone = preg_replace('/\D+/', '', (string) ($user->vendor?->phone ?? $user->phone));
-            $phoneDigits = strlen($phone) >= 10 ? substr($phone, -10) : null;
-
-            $query->where(function ($q) use ($workOrderIds, $phoneDigits) {
-                $scoped = false;
-
-                if (! empty($workOrderIds)) {
-                    $q->whereIn('properties->work_order_id', $workOrderIds);
-                    $scoped = true;
-                }
-
-                if ($phoneDigits) {
-                    $q->orWhere('properties->receiverNumber', 'like', '%'.$phoneDigits)
-                        ->orWhere('properties->senderNumber', 'like', '%'.$phoneDigits);
-                    $scoped = true;
-                }
-
-                if (! $scoped) {
-                    $q->whereRaw('1 = 0');
-                }
-            });
+            if (empty($workOrderIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHasMorph(
+                    'subject',
+                    [Conversation::class],
+                    function ($q) use ($workOrderIds) {
+                        $q->where('conversation_type', 'vendor')
+                            ->whereIn('work_order_id', $workOrderIds);
+                    }
+                );
+            }
         }
 
         $activities = $query->take(100)->get();

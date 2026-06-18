@@ -150,30 +150,23 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             </p>
 
                             <!-- Property name & address -->
-                            <div
-                                v-if="work_order.building"
-                                class="text-xs text-gray-200 mt-0.5 flex items-start gap-1 justify-center"
-                            >
-                                <MapPin class="w-3 h-3 mt-0.5 shrink-0" />
-                                <span class="text-center">
-                                    <span
+                              <span class="text-center text-xs text-gray-200">
+                                    <!-- <span
                                         v-if="work_order.building.name"
                                         class="font-medium"
                                         >{{ work_order.building.name }}</span
-                                    >
+                                    > -->
                                     <template v-if="work_order.building.address">
-                                        <br />
                                         {{ work_order.building.address
                                         }}<template v-if="work_order.building.city"
                                             >, {{ work_order.building.city }}</template
                                         ><template
                                             v-if="work_order.building.state_region"
                                         >
-                                            {{ work_order.building.state_region }}</template
+                                             {{ work_order.building.state_region }}</template
                                         >
                                     </template>
                                 </span>
-                            </div>
                             <div class="flex gap-2 justify-center">
                                 <p
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"

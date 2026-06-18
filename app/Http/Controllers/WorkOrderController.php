@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
+use App\Models\WorkOrderVendor;
 use App\Notifications\NewWorkOrderAssignNotification;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
@@ -289,6 +290,21 @@ class WorkOrderController extends Controller
 
         $vendors = $vendorsQuery->get();
 
+        // Per-vendor magic-link portal URLs (one unique link per assignment) so the
+        // coordinator can copy a link for vendors who have no email on file. These
+        // tokens are never exposed to owners/tenants.
+        $vendorLinks = $user->hasAnyRole(['admin', 'woc', 'accounting', 'vendor'])
+            ? $workOrder->vendors->map(fn ($vendor) => [
+                'vendor_id' => $vendor->id,
+                'name' => $vendor->name,
+                'has_email' => (bool) $vendor->email,
+                'url' => $vendor->pivot->access_token
+                    ? route('vendor.portal.show', $vendor->pivot->access_token)
+                    : null,
+                'dashboard_url' => route('vendor.portal.dashboard', $vendor->ensurePortalToken()),
+            ])->values()
+            : collect();
+
         return inertia('WorkOrder/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
             'workOrder' => $workOrder,
@@ -298,6 +314,7 @@ class WorkOrderController extends Controller
             'notes' => $workOrder->notes,
             'attachments' => $workOrder->attachments,
             'vendors' => $vendors,
+            'vendorLinks' => $vendorLinks,
             'categories' => $categories,
             'serviceStatuses' => $serviceStatuses,
         ]);
@@ -840,10 +857,18 @@ class WorkOrderController extends Controller
 
             if (! empty($newVendorIds)) {
                 Vendor::whereIn('id', $newVendorIds)->each(function ($vendor) use ($workOrder) {
+                    // Every assignment gets its own magic-link token so the coordinator
+                    // can copy a link even when the vendor has no email on file.
+                    $token = WorkOrderVendor::generateUniqueAccessToken();
+                    $workOrder->vendors()->updateExistingPivot($vendor->id, [
+                        'access_token' => $token,
+                    ]);
+
                     if ($vendor->email) {
                         try {
+                            $portalUrl = route('vendor.portal.show', $token);
                             $vendor->notify(
-                                new NewWorkOrderAssignNotification($workOrder)
+                                new NewWorkOrderAssignNotification($workOrder, $portalUrl)
                             );
                         } catch (\Throwable $e) {
                             Log::error('Vendor notification failed', [

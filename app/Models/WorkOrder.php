@@ -67,6 +67,7 @@ class WorkOrder extends Model
     {
         return $this->belongsToMany(Vendor::class, 'work_order_vendors', 'work_order_id', 'vendor_id')
             ->using(WorkOrderVendor::class)
+            ->withPivot('access_token', 'cost_estimate', 'time_estimate', 'scheduled_end_date')
             ->withTimestamps();
     }
 

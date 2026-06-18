@@ -32,6 +32,7 @@ use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
+use App\Http\Controllers\VendorPortalController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderNotesController;
@@ -183,6 +184,22 @@ Route::middleware([
 
         return inertia('Guide/AdminGuide');
     })->name('guide.admin');
+});
+
+// Public, no-login vendor dashboard listing all of one vendor's active work orders.
+Route::middleware('vendor.account')->get('/vendor/{vendorToken}', [VendorPortalController::class, 'dashboard'])
+    ->name('vendor.portal.dashboard');
+
+// Public, no-login vendor portal. Access is gated entirely by the magic-link token.
+Route::middleware('vendor.portal')->prefix('vendor-portal/{token}')->group(function () {
+    Route::get('/', [VendorPortalController::class, 'show'])->name('vendor.portal.show');
+    Route::post('/estimate', [VendorPortalController::class, 'updateEstimate'])->name('vendor.portal.estimate');
+    Route::post('/attachments', [VendorPortalController::class, 'uploadAttachments'])->name('vendor.portal.attachments');
+    Route::post('/invoice', [VendorPortalController::class, 'uploadInvoice'])->name('vendor.portal.invoice');
+    Route::post('/schedule', [VendorPortalController::class, 'storeSchedule'])->name('vendor.portal.schedule');
+    Route::post('/message', [VendorPortalController::class, 'sendMessage'])->name('vendor.portal.message');
+    Route::post('/messages/read', [VendorPortalController::class, 'markMessagesRead'])->name('vendor.portal.messages.read');
+    Route::post('/tasks/{task}/complete', [VendorPortalController::class, 'completeTask'])->name('vendor.portal.tasks.complete');
 });
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');

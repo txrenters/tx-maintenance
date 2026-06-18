@@ -4,7 +4,7 @@ import { router, useForm, usePoll, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import WorkOrderClosedCard from "./Partials/WorkOrderClosedCard.vue";
+import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
@@ -781,26 +781,43 @@ watch(filter_vendor, filterVendor);
             </Link>
         </div>
     </div>
-    <Deferred data="service_status">
-        <template #fallback>
-            <div
-                class="flex gap-3 mb-3 overflow-hidden"
-                v-for="value in 3"
-                :key="value"
-            >
-                <Skeleton
-                    v-for="value in 6"
-                    :key="value"
-                    class="h-[180px] w-[240px] rounded-lg"
-                />
-            </div>
-        </template>
+    <ScrollArea
+        class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
+    >
+        <Deferred data="service_status">
+            <template #fallback>
+                <div class="mb-5">
+                    <div class="flex gap-3 mb-3">
+                        <Skeleton
+                            v-for="value in 6"
+                            :key="value"
+                            class="h-[80px] w-[240px]"
+                        />
+                    </div>
+                    <div
+                        class="flex gap-3 mb-3"
+                        v-for="value in 3"
+                        :key="value"
+                    >
+                        <Skeleton
+                            v-for="value in 6"
+                            :key="value"
+                            class="h-[180px] w-[240px] rounded-lg"
+                        />
+                    </div>
+                </div>
+            </template>
+            <WorkOrderCard
+                :service_status="service_status"
+                @showWorkOrder="handleWorkOrder"
+            />
+        </Deferred>
+        <ScrollBar orientation="horizontal" />
+    </ScrollArea>
 
-        <WorkOrderClosedCard
-            :service_status="service_status"
-            @showWorkOrder="handleWorkOrder"
-        />
-    </Deferred>
+    <div class="">
+        <span class="text-gray-600">Drag/swipe the scrollbar →</span>
+    </div>
     <Dialog v-model:open="openWorkOrder">
         <DialogScrollContent
             class="flex w-full !max-w-4xl grid-rows-[auto_minmax(0,1fr)_auto] flex-col p-0 md:max-w-2xl"

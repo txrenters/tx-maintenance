@@ -140,7 +140,7 @@ class ReportTest extends TestCase
         $due = now()->startOfMonth()->addDays(5);
 
         // WO 8001 has a late task -> breached.
-        $wo1 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8001]);
+        $wo1 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8001, 'created_date' => $due, 'status' => 'Open']);
         $late = WorkOrderTask::create([
             'work_order_id' => $wo1->id, 'assigned_user_id' => $assignee->id,
             'description' => 'late task', 'due_date' => $due, 'status' => 'completed',
@@ -148,7 +148,7 @@ class ReportTest extends TestCase
         WorkOrderTask::withoutGlobalScopes()->where('id', $late->id)->update(['updated_at' => $due->copy()->addDays(3)]);
 
         // WO 8002 has only an on-time task -> compliant.
-        $wo2 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8002, 'status' => 'Open']);
+        $wo2 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8002, 'created_date' => $due, 'status' => 'Open']);
         $onTime = WorkOrderTask::create([
             'work_order_id' => $wo2->id, 'assigned_user_id' => $assignee->id,
             'description' => 'on-time task', 'due_date' => $due, 'status' => 'completed',
@@ -156,7 +156,7 @@ class ReportTest extends TestCase
         WorkOrderTask::withoutGlobalScopes()->where('id', $onTime->id)->update(['updated_at' => $due->copy()->subDay()]);
 
         // WO 8003 is Closed with a late task -> excluded entirely.
-        $wo3 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8003, 'status' => 'Closed']);
+        $wo3 = WorkOrder::factory()->create(['service_status_id' => $status->id, 'work_order_no' => 8003, 'created_date' => $due, 'status' => 'Closed']);
         $closedLate = WorkOrderTask::create([
             'work_order_id' => $wo3->id, 'assigned_user_id' => $assignee->id,
             'description' => 'closed late task', 'due_date' => $due, 'status' => 'completed',

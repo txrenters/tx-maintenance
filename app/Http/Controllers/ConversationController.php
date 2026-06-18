@@ -107,8 +107,12 @@ class ConversationController extends Controller
         }
 
         try {
-            $senderNumber = $this->formatNumber($validatedData['sender_phone_number'] ?? '');
-            $receiverNumber = $this->formatNumber($validatedData['receiver_phone_number']);
+            $senderNumber = filled($validatedData['sender_phone_number'] ?? null)
+                ? $this->formatNumber($validatedData['sender_phone_number'])
+                : null;
+            $receiverNumber = filled($validatedData['receiver_phone_number'] ?? null)
+                ? $this->formatNumber($validatedData['receiver_phone_number'])
+                : null;
         } catch (InvalidArgumentException $e) {
             Log::error('Invalid phone number format', [
                 'sender' => $validatedData['sender_phone_number'] ?? null,
@@ -123,14 +127,18 @@ class ConversationController extends Controller
 
         $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
         $messageText = trim($validatedData['text'] ?? '');
+        $isVendorMessage = $validatedData['conversation_type'] === 'vendor';
 
         $conversation = Conversation::create([
             'message' => $messageText,
             'sender_number' => $senderNumber,
             'receiver_number' => $receiverNumber,
             'work_order_id' => $validatedData['work_order_id'],
+            'vendor_id' => $validatedData['vendor_id'] ?? null,
             'conversation_type' => $validatedData['conversation_type'],
             'is_read' => true,
+            // A coordinator-to-vendor message is unseen by the vendor until they open their portal.
+            'read_by_vendor' => ! $isVendorMessage,
             'is_mms' => $hasImages,
         ]);
 
@@ -159,6 +167,12 @@ class ConversationController extends Controller
             $this->sendNotification($conversation, $validatedData, $workOrder);
 
             return redirect()->back()->with('success', 'Message sent successfully!');
+        }
+
+        // No phone number on file (e.g. a portal-only vendor): the message is saved
+        // and will appear in the vendor portal, but there is nothing to text.
+        if (! $receiverNumber) {
+            return redirect()->back()->with('success', 'Message saved. The vendor will see it in their portal.');
         }
 
         // Dispatch first job: carries the text message + first image (if any).
