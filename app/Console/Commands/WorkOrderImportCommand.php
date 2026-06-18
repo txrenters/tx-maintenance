@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\VendorServiceRequestMail;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
@@ -10,6 +11,8 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class WorkOrderImportCommand extends Command
 {
@@ -28,6 +31,12 @@ class WorkOrderImportCommand extends Command
     protected $description = 'Import work orders from PropertyWare API every minute';
 
     protected PropertyWareService $propertyWareService;
+
+    /**
+     * Memoized check for the service_request_sent_at column so we never email
+     * vendors before the migration that tracks "already sent" has run.
+     */
+    private ?bool $canTrackServiceRequest = null;
 
     public function __construct(PropertyWareService $propertyWareService)
     {
@@ -181,9 +190,86 @@ class WorkOrderImportCommand extends Command
             // commit because it makes an external API call and must not hold the
             // transaction open; it is self-contained and never throws.
             $this->syncWorkOrderDocuments($work_order_propertyware_id, $workOrder->id);
+
+            // Email the service request PDF to the assigned vendor(s), once.
+            $this->sendServiceRequestToVendors($workOrder);
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order no: '.($data['number'] ?? 'unknown').' - '.$th->getMessage());
+        }
+    }
+
+    /**
+     * If the work order has a "Work Order Information.pdf" document and a vendor
+     * with an email is assigned, email that PDF to the vendor(s) with the
+     * standard service-request message — exactly once per work order.
+     */
+    private function sendServiceRequestToVendors(WorkOrder $workOrder): void
+    {
+        try {
+            // Without the tracking column we cannot record that we've sent, which
+            // would make the every-minute import re-email. Do nothing until the
+            // migration has run (deploy-order safe).
+            $this->canTrackServiceRequest ??= Schema::hasColumn('work_orders', 'service_request_sent_at');
+            if (! $this->canTrackServiceRequest) {
+                return;
+            }
+
+            // Already sent for this work order.
+            if ($workOrder->service_request_sent_at) {
+                return;
+            }
+
+            $document = WorkOrderDocuments::where('work_order_id', $workOrder->id)
+                ->where('file_name', 'Work Order Information.pdf')
+                ->first();
+
+            // No service request document yet — nothing to send.
+            if (! $document) {
+                return;
+            }
+
+            $vendors = $workOrder->vendors()->get()->filter(fn ($vendor) => filled($vendor->email));
+
+            // No vendor with an email assigned yet — try again on a later import.
+            if ($vendors->isEmpty()) {
+                return;
+            }
+
+            $pdf = $this->propertyWareService->downloadDocument($document->propertyware_id);
+
+            // Couldn't fetch the file — leave unsent so a later import retries.
+            if (! $pdf) {
+                return;
+            }
+
+            foreach ($vendors as $vendor) {
+                // Each vendor's own magic-link to this work order in the portal,
+                // where they can upload photos. Null token => no button shown.
+                $portalUrl = filled($vendor->pivot->access_token ?? null)
+                    ? route('vendor.portal.show', $vendor->pivot->access_token)
+                    : null;
+
+                Mail::to($vendor->email)->send(new VendorServiceRequestMail(
+                    vendorName: $vendor->name ?? 'Vendor',
+                    workOrderNo: (string) $workOrder->work_order_no,
+                    pdfContent: $pdf['content'],
+                    portalUrl: $portalUrl,
+                ));
+            }
+
+            $workOrder->forceFill(['service_request_sent_at' => now()])->save();
+
+            Log::info('Service request emailed to vendor(s)', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'vendor_count' => $vendors->count(),
+            ]);
+        } catch (\Throwable $th) {
+            Log::error('Failed to email service request to vendors', [
+                'work_order_id' => $workOrder->id,
+                'error' => $th->getMessage(),
+            ]);
         }
     }
 

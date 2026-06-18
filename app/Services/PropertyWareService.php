@@ -134,6 +134,37 @@ class PropertyWareService
         }
     }
 
+    /**
+     * Download the raw file content of a PropertyWare document.
+     *
+     * @return array{content: string, mime: string}|null
+     */
+    public function downloadDocument($documentId): ?array
+    {
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/docs/'.$documentId.'/download');
+
+            if ($response->successful()) {
+                return [
+                    'content' => $response->body(),
+                    'mime' => $response->header('Content-Type') ?: 'application/octet-stream',
+                ];
+            }
+
+            Log::error('Error downloading document', [
+                'document_id' => $documentId,
+                'status_code' => $response->status(),
+            ]);
+
+            return null;
+        } catch (Exception $e) {
+            Log::error('PropertyWare downloadDocument failed: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
     public function getWorkOrders()
     {
         try {
