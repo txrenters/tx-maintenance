@@ -22,6 +22,7 @@ import {
     TagsInputItemText,
 } from "@/Components/ui/tags-input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
+import EditableField from "@/Components/EditableField.vue";
 import axios from "axios";
 const { toast } = useToast();
 
@@ -591,58 +592,37 @@ const handleCompleteSubmit = () => {
                         <p>{{ workOrder.approval_comments ?? "-------" }}</p>
                     </div>
                 </div>
-                <div class="grid gap-1.5 mt-5">
-                    <Label for="message">Zone:</Label>
-                    <Input
-                        class="mt-1"
-                        v-model="workOrder.zone"
-                        :disabled="
-                            $page.props.auth.user.roles.includes('vendor')
-                        "
-                    />
-                </div>
+                <EditableField
+                    class="mt-5"
+                    label="Zone:"
+                    type="input"
+                    :editable="!isVendorUser"
+                    v-model="workOrder.zone"
+                />
 
-                <div class="grid gap-1.5 mt-5">
-                    <Label for="message">Management Plan</Label>
-                    <Textarea
-                        placeholder="Type your message here."
-                        v-model="workOrder.management_plan"
-                        :disabled="
-                            $page.props.auth.user.roles.includes('vendor')
-                        "
-                    />
-                </div>
-                <div class="grid gap-1.5 mt-5">
-                    <Label for="message">Additional Work Needed </Label>
-                    <Textarea
-                        placeholder="Type your message here."
-                        rows="1"
-                        :disabled="
-                            $page.props.auth.user.roles.includes('vendor')
-                        "
-                        v-model="workOrder.additional_work_needed_reschedule"
-                    />
-                </div>
-                <div class="grid gap-1.5 mt-5">
-                    <Label for="message">Closing Comments</Label>
-                    <Textarea
-                        placeholder="Type your message here."
-                        v-model="workOrder.closing_comments"
-                        rows="1"
-                        :disabled="
-                            $page.props.auth.user.roles.includes('vendor')
-                        "
-                    />
-                </div>
-                <div class="grid gap-1.5 mt-5 pb-12">
-                    <Label>Description:</Label>
-                    <Textarea
-                        placeholder="Type your message here."
+                <EditableField
+                    class="mt-5"
+                    label="Management Plan"
+                    :editable="!isVendorUser"
+                    v-model="workOrder.management_plan"
+                />
+                <EditableField
+                    class="mt-5"
+                    label="Additional Work Needed"
+                    :editable="!isVendorUser"
+                    v-model="workOrder.additional_work_needed_reschedule"
+                />
+                <EditableField
+                    class="mt-5"
+                    label="Closing Comments"
+                    :editable="!isVendorUser"
+                    v-model="workOrder.closing_comments"
+                />
+                <div class="mt-5 pb-12">
+                    <EditableField
+                        label="Description:"
+                        :editable="!isVendorUser"
                         v-model="workOrder.description"
-                        rows="1"
-                        :disabled="
-                            $page.props.auth.user.roles.includes('vendor')
-                        "
                     />
                 </div>
             </div>

@@ -167,7 +167,6 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                         >
                                     </template>
                                 </span>
-                            <div class="flex gap-2 justify-center">
                                 <p
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"
                                 >
@@ -181,7 +180,6 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                 >
                                     <CircleCheckBig class="w-3 h-3" />Approved
                                 </p>
-                            </div>
 
                             <div
                                 v-if="work_order.requested_by"
