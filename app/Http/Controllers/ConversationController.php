@@ -24,7 +24,9 @@ class ConversationController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->hasAnyRole(['admin', 'woc', 'accounting'])) {
+        // These endpoints are reached via the stateless API group where there is
+        // no authenticated session. Guarding only applies when a user is resolved.
+        if (! $user || $user->hasAnyRole(['admin', 'woc', 'accounting'])) {
             return;
         }
 
@@ -109,10 +111,11 @@ class ConversationController extends Controller
 
             // Only return messages for work orders the user can actually see, and
             // never let a vendor read anything but the WOC<->vendor thread.
-            $canSeeWorkOrder = $user->hasAnyRole(['admin', 'woc', 'accounting'])
+            $canSeeWorkOrder = ! $user
+                || $user->hasAnyRole(['admin', 'woc', 'accounting'])
                 || WorkOrder::query()->scoped()->whereKey($data['work_order_id'])->exists();
 
-            $vendorBlocked = $user->hasRole('vendor') && $type !== 'vendor';
+            $vendorBlocked = $user && $user->hasRole('vendor') && $type !== 'vendor';
 
             if ($canSeeWorkOrder && ! $vendorBlocked) {
                 $message = Conversation::with(['work_order', 'media'])
