@@ -19,6 +19,7 @@ class SearchController extends Controller
         }
 
         $workOrders = WorkOrder::query()
+            ->scoped()
             ->leftJoin('buildings', 'buildings.propertyware_id', '=', 'work_orders.building_id')
             ->select('work_orders.*', 'buildings.name as building_name')
             ->with('service_status:id,name')

@@ -14,8 +14,36 @@ use InvalidArgumentException;
 
 class ConversationController extends Controller
 {
+    /**
+     * Ensure the current user may read the given conversation type for this work order.
+     * Admins/WOC/accounting have full access. Everyone else is limited to work orders
+     * visible to them via the WorkOrder scope, and vendors may only ever read the
+     * WOC<->vendor ('vendor') thread — never tenant/owner/cross threads.
+     */
+    private function assertCanViewConversation(WorkOrder $workOrder, string $type): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasAnyRole(['admin', 'woc', 'accounting'])) {
+            return;
+        }
+
+        $canSeeWorkOrder = WorkOrder::query()->scoped()->whereKey($workOrder->getKey())->exists();
+
+        if (! $canSeeWorkOrder) {
+            abort(403);
+        }
+
+        if ($user->hasRole('vendor') && $type !== 'vendor') {
+            abort(403);
+        }
+    }
+
     public function show(WorkOrder $workOrder)
     {
+        // Bundles tenant/owner threads; vendors must never reach it.
+        $this->assertCanViewConversation($workOrder, 'tenant');
+
         $convo = $workOrder->load(['vendor_tenant_conversation.media', 'tenant_conversation.media', 'owner_conversation.media', 'vendor_conversation.media', 'vendors']);
 
         return inertia('Conversation/Index', [
@@ -26,6 +54,8 @@ class ConversationController extends Controller
 
     public function get_vendor_tenant_conversation(WorkOrder $workOrder)
     {
+        $this->assertCanViewConversation($workOrder, 'vendor_tenant');
+
         $workOrder->load(['tenants', 'vendor_tenant_conversation.media', 'vendors.user']);
 
         return response()->json($workOrder, 200);
@@ -33,6 +63,8 @@ class ConversationController extends Controller
 
     public function get_vendor_owner_conversation(WorkOrder $workOrder)
     {
+        $this->assertCanViewConversation($workOrder, 'vendor_owner');
+
         $workOrder->load(['owners', 'vendors.user', 'vendor_owner_conversation.media']);
 
         return response()->json($workOrder, 200);
@@ -40,6 +72,8 @@ class ConversationController extends Controller
 
     public function get_vendor_conversation(WorkOrder $workOrder)
     {
+        $this->assertCanViewConversation($workOrder, 'vendor');
+
         $workOrder->load(['vendor_conversation.media', 'vendors.user']);
 
         return response()->json($workOrder, 200);
@@ -47,6 +81,8 @@ class ConversationController extends Controller
 
     public function get_tenant_conversation(WorkOrder $workOrder)
     {
+        $this->assertCanViewConversation($workOrder, 'tenant');
+
         $workOrder->load(['tenants', 'tenant_conversation.media']);
 
         return response()->json($workOrder, 200);
@@ -54,6 +90,8 @@ class ConversationController extends Controller
 
     public function get_owner_conversation(WorkOrder $workOrder)
     {
+        $this->assertCanViewConversation($workOrder, 'owner');
+
         $workOrder->load(['owners', 'owner_conversation.media']);
 
         return response()->json($workOrder, 200);
@@ -66,10 +104,22 @@ class ConversationController extends Controller
         $data = $request->data ?? [];
 
         if (! empty($data['work_order_id'])) {
-            $message = Conversation::with(['work_order', 'media'])
-                ->where('work_order_id', $data['work_order_id'])
-                ->where('conversation_type', $data['conversation_type'] ?? null)
-                ->get();
+            $user = auth()->user();
+            $type = $data['conversation_type'] ?? null;
+
+            // Only return messages for work orders the user can actually see, and
+            // never let a vendor read anything but the WOC<->vendor thread.
+            $canSeeWorkOrder = $user->hasAnyRole(['admin', 'woc', 'accounting'])
+                || WorkOrder::query()->scoped()->whereKey($data['work_order_id'])->exists();
+
+            $vendorBlocked = $user->hasRole('vendor') && $type !== 'vendor';
+
+            if ($canSeeWorkOrder && ! $vendorBlocked) {
+                $message = Conversation::with(['work_order', 'media'])
+                    ->where('work_order_id', $data['work_order_id'])
+                    ->where('conversation_type', $type)
+                    ->get();
+            }
 
         } elseif (! empty($data['jobber_id'])) {
             $query = JobberTextMessage::where('jobber_id', $data['jobber_id']);

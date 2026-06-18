@@ -25,7 +25,7 @@ class BuildingController extends Controller
             ->when($request->search, fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')
                 ->orWhere('address', 'like', '%'.$request->search.'%')
                 ->orWhere('city', 'like', '%'.$request->search.'%'))
-            ->withCount('workOrders')
+            ->withCount(['workOrders as work_orders_count' => fn ($q) => $q->scoped()])
             ->orderByDesc('active')
             ->orderBy('name')
             ->paginate($perPage)
@@ -49,6 +49,7 @@ class BuildingController extends Controller
     public function show(Building $building): Response
     {
         $workOrders = $building->workOrders()
+            ->scoped()
             ->with('service_status')
             ->latest('created_date')
             ->paginate(20)
