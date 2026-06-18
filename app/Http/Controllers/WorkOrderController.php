@@ -117,7 +117,8 @@ class WorkOrderController extends Controller
                 ->whereNotNull('total_cost')
                 ->where('total_cost', '>', 0)
                 ->whereNotNull('completed_date')
-                ->where('completed_date', '>=', now()->subDays(30))
+                // While searching, surface matching paid work orders regardless of age.
+                ->when(! request('search'), fn ($q) => $q->where('completed_date', '>=', now()->subDays(30)))
                 ->where('category', 'NOT LIKE', '%lawn care%')
                 ->latest('completed_date')
                 ->get();
@@ -151,7 +152,8 @@ class WorkOrderController extends Controller
                 })
                 ->where('status', 'Closed')
                 ->whereNotNull('completed_date')
-                ->where('completed_date', '>=', now()->subDays(30))
+                // While searching, surface matching closed work orders regardless of age.
+                ->when(! request('search'), fn ($q) => $q->where('completed_date', '>=', now()->subDays(30)))
                 ->where('category', 'NOT LIKE', '%lawn care%')
                 ->latest('completed_date')
                 ->get();

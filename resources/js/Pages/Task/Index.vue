@@ -36,7 +36,25 @@ const applyFilters = () => {
             assigned: assigned.value || undefined,
             status: status.value || undefined,
         },
-        { preserveState: true, preserveScroll: true, replace: true }
+        {
+            // The task buckets are Inertia::optional props, so they must be
+            // requested explicitly here — otherwise changing the filter only
+            // refreshes the count badges and the task lists stay stale.
+            only: [
+                "pastDueTasks",
+                "dueTodayTasks",
+                "upcomingTasks",
+                "completedTasks",
+                "total_pastDueTasks",
+                "total_dueTodayTasks",
+                "total_upcomingTasks",
+                "total_completedTasks",
+                "filter",
+            ],
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        }
     );
 };
 

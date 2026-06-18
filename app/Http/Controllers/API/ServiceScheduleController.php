@@ -49,6 +49,13 @@ class ServiceScheduleController extends Controller
 
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
+            Log::error('Failed to create service schedule', [
+                'work_order_id' => $validatedData['work_order_id'] ?? null,
+                'vendor_id' => $validatedData['vendor_id'] ?? null,
+                'tenant_id' => $validatedData['tenant_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
             return redirect()->back()->with('error', 'Failed to set service schedule. Please try again.');
         }
     }
@@ -82,6 +89,14 @@ class ServiceScheduleController extends Controller
 
             return redirect()->back()->with('success', 'Service schedule updated successfully!');
         } catch (\Exception $e) {
+            Log::error('Failed to update service schedule', [
+                'service_schedule_id' => $serviceSchedule->id,
+                'work_order_id' => $serviceSchedule->work_order_id ?? null,
+                'vendor_id' => $validatedData['vendor_id'] ?? null,
+                'tenant_id' => $validatedData['tenant_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
             return redirect()->back()->with('error', 'Failed to update service schedule. Please try again.');
         }
     }

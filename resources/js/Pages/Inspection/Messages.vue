@@ -277,7 +277,7 @@ const handleJobFilterChange = (value) => {
                             <TableCell>
                                 <div class="max-w-md flex-col gap-2">
                                     <p class="text-sm">
-                                        {{ conversation?.created_at }}
+                                        {{ formatDate(conversation?.created_at) }}
                                     </p>
                                 </div>
                             </TableCell>
