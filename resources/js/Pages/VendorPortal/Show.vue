@@ -144,8 +144,18 @@ const scheduleStatusClass = (status) => {
     return "bg-primary/10 text-primary";
 };
 
-const fmtDate = (d) =>
-    d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+const fmtDate = (d) => {
+    if (!d) return "";
+    // Accept ISO, MySQL "YYYY-MM-DD HH:MM:SS", and date-only strings. Build the
+    // date from its parts so it never shows "Invalid Date" or shifts a day by TZ.
+    const [y, m, day] = String(d).slice(0, 10).split("-").map(Number);
+    if (!y || !m || !day) return "";
+    return new Date(y, m - 1, day).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+};
 
 // --- Photo upload ---
 const photoType = ref("after");

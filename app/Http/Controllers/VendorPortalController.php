@@ -424,6 +424,21 @@ class VendorPortalController extends Controller
                 }
             }
 
+            // Surface the message in the coordinator's notification feed, which is
+            // driven by the activity log. Without this, WOC/admin are never notified.
+            activity()
+                ->performedOn($conversation)
+                ->event('work_order_message_received')
+                ->withProperties([
+                    'senderNumber' => $vendorNumber,
+                    'receiverNumber' => $wocNumber,
+                    'message' => $messageText !== '' ? $messageText : '[image]',
+                    'work_order_id' => $workOrder->id,
+                    'vendor_id' => $vendor->id,
+                    'source' => 'vendor_portal',
+                ])
+                ->log('Work Order #'.$workOrder->work_order_no.' - New Vendor Message');
+
             DB::commit();
 
             return back()->with('success', 'Message sent to your coordinator.');
