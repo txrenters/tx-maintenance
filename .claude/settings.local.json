@@ -61,7 +61,10 @@
       "Bash(sed -n '923,1003p' resources/js/Pages/WorkOrder/LawnCare.vue)",
       "Bash(sed -n '919,999p' resources/js/Pages/WorkOrder/Inspections.vue)",
       "Read(//tmp/**)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git rev-list *)",
+      "Bash(git check-ignore *)",
+      "Bash(git --no-pager diff .claude/settings.local.json)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
