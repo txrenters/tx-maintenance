@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -149,9 +150,8 @@ class WorkOrderImportCommand extends Command
                     } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
                         $work_order_data['additional_work_needed_reschedule'] = $customField['value'];
                     } elseif ($customField['fieldName'] == 'Management Plan') {
-                        $work_order_data['management_plan'] = $customField['value'] ;
-                    } 
-                    elseif ($customField['fieldName'] == 'closing comment') {
+                        $work_order_data['management_plan'] = $customField['value'];
+                    } elseif ($customField['fieldName'] == 'closing comment') {
                         $work_order_data['closing_comments'] = empty($work_order_data['closing_comments']) ? $customField['value'] : $work_order_data['closing_comments'];
                     }
                 }
@@ -176,9 +176,67 @@ class WorkOrderImportCommand extends Command
             $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();
+
+            // Pull documents PropertyWare has for this work order. Done after the
+            // commit because it makes an external API call and must not hold the
+            // transaction open; it is self-contained and never throws.
+            $this->syncWorkOrderDocuments($work_order_propertyware_id, $workOrder->id);
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order no: '.($data['number'] ?? 'unknown').' - '.$th->getMessage());
+        }
+    }
+
+    /**
+     * Pull the documents PropertyWare has for a work order and store their
+     * metadata locally, idempotently (keyed by the PropertyWare document id).
+     * Documents created by our own PropertyWare API user are skipped so files
+     * this app uploaded to PropertyWare are not re-imported as duplicates.
+     */
+    private function syncWorkOrderDocuments($propertywareWorkOrderId, int $workOrderId): void
+    {
+        if (! $propertywareWorkOrderId) {
+            return;
+        }
+
+        try {
+            $documents = $this->propertyWareService->getWorkOrderDocuments($propertywareWorkOrderId);
+            $ourPropertywareUser = config('services.propertyware.username');
+
+            foreach ($documents as $document) {
+                $doc = (array) $document;
+
+                if (empty($doc['id'])) {
+                    continue;
+                }
+
+                // Skip what this app uploaded to PropertyWare to avoid redundancy.
+                if ($ourPropertywareUser && ! empty($doc['createdBy']) && $doc['createdBy'] === $ourPropertywareUser) {
+                    continue;
+                }
+
+                WorkOrderDocuments::updateOrCreate(
+                    [
+                        'propertyware_id' => $doc['id'],
+                        'work_order_id' => $workOrderId,
+                    ],
+                    [
+                        'created_by_id' => $doc['createdBy'] ?? null,
+                        'description' => $doc['description'] ?? null,
+                        'file_name' => $doc['fileName'] ?? null,
+                        'file_type' => $doc['fileType'] ?? null,
+                        'is_publish_to_owner_portal' => $doc['publishToOwnerPortal'] ?? false,
+                        'is_publish_to_tenant_portal' => $doc['publishToTenantPortal'] ?? false,
+                        'system_id' => env('PROPERTYWARE_SYSTEM_ID'),
+                    ]
+                );
+            }
+        } catch (\Throwable $th) {
+            Log::error('Work order document sync failed', [
+                'work_order_id' => $workOrderId,
+                'work_order_pw_id' => $propertywareWorkOrderId,
+                'error' => $th->getMessage(),
+            ]);
         }
     }
 

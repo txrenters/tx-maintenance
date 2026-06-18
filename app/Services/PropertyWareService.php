@@ -73,6 +73,67 @@ class PropertyWareService
 
     }
 
+    /**
+     * Retrieve the metadata for a single PropertyWare document.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getDocument($documentId): ?array
+    {
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/docs/'.$documentId);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('Error retrieving document', [
+                'document_id' => $documentId,
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return null;
+        } catch (Exception $e) {
+            Log::error('PropertyWare getDocument failed: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * List the documents attached to a work order in PropertyWare.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getWorkOrderDocuments($workOrderId): array
+    {
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/docs', [
+                    'entityType' => 'WORK_ORDER',
+                    'entityId' => $workOrderId,
+                ]);
+
+            if ($response->successful()) {
+                return $response->json() ?? [];
+            }
+
+            Log::error('Error retrieving work order documents', [
+                'work_order_pw_id' => $workOrderId,
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [];
+        } catch (Exception $e) {
+            Log::error('PropertyWare getWorkOrderDocuments failed: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
     public function getWorkOrders()
     {
         try {
