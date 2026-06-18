@@ -1,12 +1,28 @@
 <script setup>
 import { Truck, Tag, UserRoundPen, CircleCheckBig } from "lucide-vue-next";
 import { DateTime } from "luxon";
+import { usePage } from "@inertiajs/vue3";
+
 const emit = defineEmits(["showWorkOrder"]);
 
 const props = defineProps({
     work_order: Object,
     service_status: Object,
 });
+
+const page = usePage();
+const authUser = page.props.auth?.user;
+const isVendor = (authUser?.roles ?? []).includes("vendor");
+const myVendorId = authUser?.vendor?.id;
+
+// A vendor must only see their own tag on a shared work order, never other vendors'.
+const displayVendors = (workOrder) => {
+    const vendors = workOrder?.vendors ?? [];
+    if (isVendor && myVendorId) {
+        return vendors.filter((v) => v.id === myVendorId);
+    }
+    return vendors;
+};
 
 const formatDate = (date) => {
     if (!date) return "------";
@@ -123,7 +139,7 @@ const checkDueTask = (tasks) => {
                 </div>
                 <p
                     class="text-xs text-gray-100"
-                    v-for="vendor in work_order.vendors"
+                    v-for="vendor in displayVendors(work_order)"
                     :key="vendor.id"
                 >
                     <span class="flex gap-1 text-left uppercase">
