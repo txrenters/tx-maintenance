@@ -29,15 +29,25 @@ const serviceScheduleForm = useForm({
 });
 const emit = defineEmits(["fetch-schedule"]);
 
+// Parse dates coming from the API, which may be ISO ("2026-06-22T14:30:00"),
+// MySQL datetime ("2026-06-22 14:30:00"), or date-only ("2026-06-22").
+const parseScheduleDate = (date) => {
+    const iso = DateTime.fromISO(date, { zone: "utc" });
+    if (iso.isValid) return iso;
+
+    const sql = DateTime.fromSQL(date, { zone: "utc" });
+    if (sql.isValid) return sql;
+
+    return DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+};
+
 const formatDate = (date) => {
     if (!date) return "------";
 
     let parsedDate;
 
     if (typeof date === "string") {
-        parsedDate = DateTime.fromISO(date, { zone: "utc" }).isValid
-            ? DateTime.fromISO(date, { zone: "utc" })
-            : DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+        parsedDate = parseScheduleDate(date);
     } else if (date instanceof Date) {
         parsedDate = DateTime.fromJSDate(date);
     } else {
@@ -92,9 +102,7 @@ const formatDateForInput = (date) => {
     let parsedDate;
 
     if (typeof date === "string") {
-        parsedDate = DateTime.fromISO(date, { zone: "utc" }).isValid
-            ? DateTime.fromISO(date, { zone: "utc" })
-            : DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+        parsedDate = parseScheduleDate(date);
     } else if (date instanceof Date) {
         parsedDate = DateTime.fromJSDate(date);
     } else {
