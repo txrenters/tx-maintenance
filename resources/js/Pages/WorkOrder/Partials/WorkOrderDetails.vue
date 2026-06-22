@@ -72,6 +72,11 @@ const isVendorUser = computed(() =>
     page.props.auth.user.roles.includes("vendor"),
 );
 
+const isWocOrAdmin = computed(() => {
+    const roles = page.props.auth.user.roles;
+    return roles.includes("admin") || roles.includes("woc");
+});
+
 const visibleWorkOrderVendors = computed(() => {
     const vendors = Array.isArray(props.workOrder?.vendors)
         ? props.workOrder.vendors
@@ -596,32 +601,32 @@ const handleCompleteSubmit = () => {
                     class="mt-5"
                     label="Zone:"
                     type="input"
-                    :editable="!isVendorUser"
+                    :editable="isWocOrAdmin"
                     v-model="workOrder.zone"
                 />
 
                 <EditableField
                     class="mt-5"
                     label="Management Plan"
-                    :editable="!isVendorUser"
+                    :editable="isWocOrAdmin"
                     v-model="workOrder.management_plan"
                 />
                 <EditableField
                     class="mt-5"
                     label="Additional Work Needed"
-                    :editable="!isVendorUser"
+                    :editable="isWocOrAdmin"
                     v-model="workOrder.additional_work_needed_reschedule"
                 />
                 <EditableField
                     class="mt-5"
                     label="Closing Comments"
-                    :editable="!isVendorUser"
+                    :editable="isWocOrAdmin"
                     v-model="workOrder.closing_comments"
                 />
                 <div class="mt-5 pb-12">
                     <EditableField
                         label="Description:"
-                        :editable="!isVendorUser"
+                        :editable="isWocOrAdmin"
                         v-model="workOrder.description"
                     />
                 </div>
