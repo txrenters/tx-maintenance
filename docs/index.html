@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TX Work Order — System Documentation</title>
+<style>
+  :root {
+    --bg: #f6f8fb;
+    --surface: #ffffff;
+    --ink: #1b2433;
+    --muted: #5b6b82;
+    --line: #e3e9f2;
+    --brand: #1f6feb;
+    --brand-dark: #1450b0;
+    --accent: #0b8f6a;
+    --warn-bg: #fff7e6;
+    --warn-border: #f0c36d;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+    --chip: #eef3fb;
+    --radius: 12px;
+    --maxw: 1180px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Header ---------- */
+  header.masthead {
+    background: linear-gradient(135deg, #16335f 0%, #1f6feb 100%);
+    color: #fff;
+    padding: 56px 24px 64px;
+  }
+  .masthead-inner { max-width: var(--maxw); margin: 0 auto; }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-size: 12px;
+    font-weight: 700;
+    opacity: .82;
+    margin: 0 0 12px;
+  }
+  header.masthead h1 { margin: 0 0 14px; font-size: 40px; line-height: 1.15; font-weight: 800; }
+  header.masthead p.lede { margin: 0; max-width: 760px; font-size: 17px; opacity: .95; }
+  .pill-row { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.28);
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    max-width: var(--maxw);
+    margin: -32px auto 0;
+    padding: 0 24px 80px;
+    display: grid;
+    grid-template-columns: 248px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  nav.toc {
+    position: sticky;
+    top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: 0 6px 24px rgba(22,51,95,.06);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  nav.toc h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--muted); margin: 0 0 12px;
+  }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+  nav.toc li { margin: 0; }
+  nav.toc a {
+    display: block;
+    text-decoration: none;
+    color: var(--ink);
+    font-size: 14px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    counter-increment: toc;
+  }
+  nav.toc a::before { content: counter(toc) ". "; color: var(--muted); font-variant-numeric: tabular-nums; }
+  nav.toc a:hover { background: var(--chip); color: var(--brand-dark); }
+
+  main { min-width: 0; }
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 24px rgba(22,51,95,.05);
+    scroll-margin-top: 18px;
+  }
+  section.card > h2:first-child { margin-top: 0; }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+    margin: 4px 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  h2 .num {
+    font-size: 14px;
+    color: #fff;
+    background: var(--brand);
+    border-radius: 8px;
+    padding: 2px 10px;
+    font-weight: 700;
+  }
+  h3 { font-size: 17px; font-weight: 700; margin: 26px 0 10px; color: var(--brand-dark); }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  a { color: var(--brand); }
+  strong { color: var(--ink); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  thead th {
+    background: #f1f5fb;
+    text-align: left;
+    padding: 11px 14px;
+    font-weight: 700;
+    color: var(--ink);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #fafcff; }
+
+  /* ---------- Code ---------- */
+  code {
+    font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: .88em;
+    background: var(--chip);
+    color: #1450b0;
+    padding: 1.5px 6px;
+    border-radius: 5px;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 18px 20px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 0 0 18px;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+
+  /* ---------- Callouts ---------- */
+  .note {
+    border-left: 4px solid var(--warn-border);
+    background: var(--warn-bg);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 0 0 18px;
+    font-size: 14px;
+  }
+  .note strong { color: #8a5a00; }
+  .tip {
+    border-left: 4px solid var(--accent);
+    background: #effaf5;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 0 0 18px;
+    font-size: 14px;
+  }
+
+  /* ---------- Role / capability cards ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 0 0 18px; }
+  .mini {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: #fbfdff;
+  }
+  .mini h4 { margin: 0 0 6px; font-size: 14.5px; color: var(--brand-dark); }
+  .mini p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--chip); color:var(--brand-dark); }
+  .tag.warn { background:#fdeeee; color:#b42318; }
+  .tag.ok { background:#e7f7f0; color:#0b8f6a; }
+
+  footer.foot {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    header.masthead h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <p class="eyebrow">TexasRenters · Internal IT Documentation</p>
+    <h1>TX Work Order — System Documentation</h1>
+    <p class="lede">A Laravel + Vue (Inertia) work order / maintenance management system. It is the operational hub that ties together PropertyWare (system of record), Twilio (SMS), Jobber (field-service scheduling), and an AI-assisted vendor-recommendation workflow.</p>
+    <p class="lede" style="margin-top:14px;">🌐 <strong>Live site:</strong> <a href="https://txrenters.azurewebsites.net" style="color:#fff;text-decoration:underline;">https://txrenters.azurewebsites.net</a> &nbsp;·&nbsp; hosted on Azure App Service</p>
+    <div class="pill-row">
+      <span class="pill">Laravel 13 · PHP 8.4</span>
+      <span class="pill">Vue 3 · Inertia v2</span>
+      <span class="pill">MySQL · Redis</span>
+      <span class="pill">Twilio · PropertyWare · Jobber</span>
+      <span class="pill">Reverb WebSockets</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">What the System Does</a></li>
+      <li><a href="#s2">Tech Stack</a></li>
+      <li><a href="#s3">Local Setup &amp; Running</a></li>
+      <li><a href="#s4">Environment Variables</a></li>
+      <li><a href="#s5">Data Model</a></li>
+      <li><a href="#s6">Roles &amp; Access Control</a></li>
+      <li><a href="#s7">Application Routes</a></li>
+      <li><a href="#s8">External Integrations</a></li>
+      <li><a href="#s9">Jobs, Commands &amp; Scheduling</a></li>
+      <li><a href="#s10">Frontend Architecture</a></li>
+      <li><a href="#s11">Operational Runbook</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- 1 -->
+    <section class="card" id="s1">
+      <h2><span class="num">1</span> What the System Does</h2>
+      <p>The central entity is the <strong>Work Order</strong> — a maintenance request tied to a property (Building), an Owner, a Tenant, and one or more Vendors. Work orders originate in <strong>PropertyWare</strong> and are imported on a schedule. Internal staff called <strong>WOCs</strong> (Work Order Coordinators) progress each work order through a configurable status workflow, assign vendors, schedule service, exchange SMS with all parties, collect invoices, and close the order back in PropertyWare.</p>
+      <div class="grid">
+        <div class="mini"><h4>PropertyWare sync</h4><p>Imports work orders, buildings, owners &amp; vendors; pushes assignments, estimates, schedules, status, approvals, documents &amp; invoices back.</p></div>
+        <div class="mini"><h4>Work-order queues</h4><p>Organizes open work by service status and specialized queues: inspections, lawn service, turnovers, waiting on payment, paid, closed.</p></div>
+        <div class="mini"><h4>Two-way SMS/MMS</h4><p>Threaded Twilio conversations between staff and tenants/owners/vendors, matched back to the right work order.</p></div>
+        <div class="mini"><h4>Vendor portal</h4><p>Passwordless, token-based dashboards: vendors view assignments, submit estimates, upload files/invoices, schedule visits, message coordinators.</p></div>
+        <div class="mini"><h4>Jobber integration</h4><p>Syncs field-service jobs/visits ("inspections") and texts clients reminders.</p></div>
+        <div class="mini"><h4>AI vendor recommendation</h4><p>Classifies a work order's issue and recommends a vendor, with deterministic heuristic fallback.</p></div>
+        <div class="mini"><h4>Reporting &amp; onboarding</h4><p>Calendar, KPI reports, dashboards, task automation, building onboarding incl. onboarding &amp; W-9 PDF generation.</p></div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="card" id="s2">
+      <h2><span class="num">2</span> Tech Stack</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+        <tbody>
+          <tr><td>Backend</td><td>Laravel 13.x (composer <code>^13.0</code>), PHP 8.4</td></tr>
+          <tr><td>Frontend</td><td>Vue 3 + Inertia.js v2 (SPA, no separate API client for the main app)</td></tr>
+          <tr><td>UI</td><td>Reka UI / Radix Vue (shadcn-vue-style design system), Tailwind CSS 3</td></tr>
+          <tr><td>Auth</td><td>Laravel Jetstream + Fortify (2FA capable), Sanctum tokens</td></tr>
+          <tr><td>Permissions</td><td>Spatie laravel-permission</td></tr>
+          <tr><td>Realtime</td><td>Laravel Reverb (WebSockets) + Laravel Echo</td></tr>
+          <tr><td>Database</td><td>MySQL (production), SQLite (local dev)</td></tr>
+          <tr><td>Queue / cache</td><td>Redis (predis) — configurable</td></tr>
+          <tr><td>AI</td><td><code>laravel/ai</code> (OpenAI / Azure OpenAI, with others available)</td></tr>
+          <tr><td>PDF</td><td><code>barryvdh/laravel-dompdf</code>, <code>mikehaertl/php-pdftk</code>, FPDF/FPDI</td></tr>
+          <tr><td>Other</td><td>PhpSpreadsheet (exports), Spatie activitylog, Spatie image-optimizer, Ziggy</td></tr>
+          <tr><td>Local dev env</td><td>Laravel Sail (Docker)</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="card" id="s3">
+      <h2><span class="num">3</span> Local Setup &amp; Running</h2>
+      <p>This project is configured to run inside <strong>Laravel Sail</strong> (Docker). Prefix PHP/Artisan/Composer/Node commands with <code>vendor/bin/sail</code>.</p>
+      <pre><code># First-time setup
+cp .env.example .env
+vendor/bin/sail up -d
+vendor/bin/sail composer install
+vendor/bin/sail artisan key:generate
+vendor/bin/sail artisan migrate --seed     # seeds roles &amp; permissions
+vendor/bin/sail npm install
+
+# Day-to-day development (server + queue + logs + vite together)
+vendor/bin/sail composer run dev
+
+# Or run pieces individually
+vendor/bin/sail artisan serve
+vendor/bin/sail artisan queue:listen
+vendor/bin/sail artisan pail               # live logs
+vendor/bin/sail npm run dev                # Vite dev server
+vendor/bin/sail artisan reverb:start       # WebSocket server (for realtime)</code></pre>
+      <h3>Build &amp; test</h3>
+      <pre><code>vendor/bin/sail npm run build              # production assets
+vendor/bin/sail artisan test --compact     # run test suite
+vendor/bin/sail artisan test --filter=Name # single test
+vendor/bin/sail bin pint                   # PHP code style (run before committing)</code></pre>
+      <div class="note"><strong>Vite manifest errors</strong> ("Unable to locate file in Vite manifest") mean assets aren't built — run <code>npm run dev</code> or <code>npm run build</code>.</div>
+    </section>
+
+    <!-- 4 -->
+    <section class="card" id="s4">
+      <h2><span class="num">4</span> Environment Variables</h2>
+      <p>Beyond the standard Laravel keys (<code>APP_*</code>, <code>DB_*</code>, <code>MAIL_*</code>, <code>SESSION_*</code>, <code>CACHE_*</code>, <code>REDIS_*</code>), the following service-specific vars must be populated per environment. They are surfaced through <code>config/services.php</code>, <code>config/ai.php</code>, <code>config/broadcasting.php</code>, and <code>config/filesystems.php</code>.</p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Integration</th><th>Env vars</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Twilio</strong></td><td><code>TWILIO_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_PHONE_NUMBER</code>, <code>TWILIO_STATUS_CALLBACK_URL</code>, <code>MAINTENANC_TWILIO_PHONE_NUMBER</code></td></tr>
+          <tr><td><strong>PropertyWare</strong></td><td><code>PROPERTYWARE_URL</code> (SOAP WSDL base), <code>PROPERTYWARE_USERNAME</code>, <code>PROPERTYWARE_PASSWORD</code>, <code>PROPERTYWARE_CLIENT_ID</code>, <code>PROPERTYWARE_CLIENT_SECRET_KEY</code>, <code>PROPERTYWARE_SYSTEM_ID</code></td></tr>
+          <tr><td><strong>Jobber</strong></td><td><code>JOBBER_CLIENT_ID</code>, <code>JOBBER_SECRET</code> (also the webhook HMAC key), <code>JOBBER_CALLBACK_URL</code>, <code>JOBBER_API_VERSION</code></td></tr>
+          <tr><td><strong>Asana</strong></td><td><code>ASANA_ACCESS_TOKEN</code>, <code>ASANA_PROJECT_ID_L_ON_THE_MARKET</code>, <code>ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET</code></td></tr>
+          <tr><td><strong>AWS S3 / SES</strong></td><td><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_DEFAULT_REGION</code>, <code>AWS_BUCKET</code>, <code>FILESYSTEM_DISK</code> (set to <code>s3</code> to make S3 the default disk)</td></tr>
+          <tr><td><strong>Reverb (WebSockets)</strong></td><td><code>BROADCAST_CONNECTION=reverb</code>, <code>REVERB_APP_ID</code>, <code>REVERB_APP_KEY</code>, <code>REVERB_APP_SECRET</code>, <code>REVERB_HOST</code>, <code>REVERB_PORT</code>, <code>REVERB_SCHEME</code>, plus <code>VITE_REVERB_*</code></td></tr>
+          <tr><td><strong>AI</strong></td><td><code>AI_DEFAULT_PROVIDER</code> (auto-selects Azure if <code>AZURE_OPENAI_*</code> set, else OpenAI), <code>OPENAI_API_KEY</code>, <code>OPENAI_MODEL</code> (default <code>gpt-5.1-mini</code>), or <code>AZURE_OPENAI_API_KEY</code> + <code>AZURE_OPENAI_URL</code> + <code>AZURE_OPENAI_DEPLOYMENT</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><strong>Security:</strong> Read the real <code>.env</code> for current values; never commit secrets. Verify the configured AI model id against currently available models before deploying.</div>
+    </section>
+
+    <!-- 5 -->
+    <section class="card" id="s5">
+      <h2><span class="num">5</span> Data Model</h2>
+      <div class="tip">Most models use <code>$guarded = []</code> (all attributes mass-assignable). Phone numbers on <code>User</code>/<code>Owner</code>/<code>Tenants</code> are normalized to E.164. <strong>Several models are filtered per logged-in user via global scopes</strong> — see Access Control.</div>
+
+      <h3>Entity relationship overview</h3>
+      <pre><code>User (roles: admin, woc, accounting, vendor, owner, tenant)
+ ├─ hasOne/hasMany → Vendor, Tenants, Owner       (a login may map to a domain party)
+ ├─ hasMany       → WorkOrder (as assigned WOC, FK user_id)
+ └─ hasMany       → WOCNumbers → TwilioPhoneNumber
+
+Building (one per PropertyWare property)
+ └─ hasMany → WorkOrder  (joined on building_id → buildings.propertyware_id)
+
+WorkOrder  (the hub)
+ ├─ belongsTo     → User (woc), ServiceStatus, Owner, Tenants, Building
+ ├─ belongsToMany → Owner, Tenants, Vendor (work_order_vendors pivot = estimates + access_token)
+ ├─ hasMany       → WorkOrderTask, WorkOrderNotes, Conversation, ServiceSchedule, Attachments, Invoice
+ └─ hasOne        → Invoice (latest), WorkOrderRecommendation (latestOfMany)
+
+Conversation → hasMany ConversationMedia
+ServiceStatus → hasMany WorkOrder            (the workflow stage)
+TaskTemplate → hasMany Task → hasMany TaskDetail   (task automation library)
+
+Jobber (jobber_jobs) ── belongsTo → JobberClient, JobberProperty
+ ├─ hasMany → JobberVisit, JobberTextMessage, ClientContact
+JobberToken (OAuth token storage)</code></pre>
+
+      <h3>Core domain entities</h3>
+      <ul>
+        <li><strong>WorkOrder</strong> (<code>work_orders</code>) — the hub. Globally scoped by <code>WorkOrderScope</code> (role-based visibility). Conversations split by <code>conversation_type</code> into typed relations. <em>Joins to Building on <code>propertyware_id</code>, not the local PK.</em></li>
+        <li><strong>Building</strong> (<code>buildings</code>) — a PropertyWare property, keyed by unique <code>propertyware_id</code>. Carries maintenance policy fields (notice, spending limits, surcharge, custom fields).</li>
+        <li><strong>Owner</strong> / <strong>Tenants</strong> — property owner / occupant; each <code>belongsTo User</code> and <code>belongsToMany WorkOrder</code>.</li>
+        <li><strong>Vendor</strong> (<code>vendors</code>) — contractor, keyed by <code>propertyware_id</code>. Passwordless portal via stable 48-char <code>portal_token</code>.</li>
+        <li><strong>FallbackVendor</strong> — backstop vendors for the AI recommendation flow (priority-ranked, keyword/issue-type arrays).</li>
+      </ul>
+
+      <h3>Task / workflow automation</h3>
+      <ul>
+        <li><strong>ServiceStatus</strong> — a stage in the work-order lifecycle (workflow state machine).</li>
+        <li><strong>TaskTemplate → Task → TaskDetail</strong> — reusable checklists tied to status transitions, with Yes/No branching.</li>
+        <li><strong>WorkOrderTask</strong> — a concrete task instance on a work order. Uses <strong>SoftDeletes</strong>; scoped by <code>TaskScope</code>.</li>
+      </ul>
+
+      <h3>Communications, documents, scheduling</h3>
+      <ul>
+        <li><strong>Conversation</strong> / <strong>ConversationMedia</strong> — a single SMS message in a thread + its MMS attachments.</li>
+        <li><strong>Attachments</strong>, <strong>WorkOrderNotes</strong>, <strong>WorkOrderDocuments</strong> — files &amp; notes on a work order.</li>
+        <li><strong>Invoice</strong> — vendor invoice; <code>status</code> (pending/approved/decline), <code>publish</code> flag, scoped by <code>InvoiceScope</code>.</li>
+        <li><strong>ServiceSchedule</strong> — a scheduled service appointment / calendar entry; scoped by <code>CalendarScope</code>.</li>
+        <li><strong>WorkOrderRecommendation</strong> — AI/heuristic vendor recommendation (one per work order).</li>
+      </ul>
+
+      <h3>Cross-cutting notes</h3>
+      <ul>
+        <li><strong>Activity logging</strong> (Spatie Activitylog) via explicit <code>activity()</code> calls. Table: <code>activity_log</code>.</li>
+        <li><strong>Soft deletes</strong> only on <code>WorkOrderTask</code>.</li>
+        <li><strong>Global scopes</strong> silently filter <code>WorkOrder</code>, <code>WorkOrderTask</code>, <code>Conversation</code>, <code>ServiceSchedule</code>, <code>Invoice</code>, <code>Attachments</code> per logged-in user/role — key when debugging "missing records."</li>
+        <li><strong>External keys:</strong> Building/Vendor/WorkOrder tie to PropertyWare via <code>propertyware_id</code>; Jobber models use <code>jobber_id</code>.</li>
+      </ul>
+    </section>
+
+    <!-- 6 -->
+    <section class="card" id="s6">
+      <h2><span class="num">6</span> Roles, Permissions &amp; Access Control</h2>
+      <p>Authentication is <strong>Jetstream + Fortify</strong> (email/password, optional 2FA, Sanctum tokens). Roles/permissions use <strong>Spatie laravel-permission</strong>, seeded in <code>RolesAndPermissionsSeeder.php</code> and <code>AccountingRoleSeeder.php</code>.</p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Role</th><th>Scope</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag">admin</span></td><td>Full access; bypasses all gates and <code>WorkOrderScope</code>.</td></tr>
+          <tr><td><span class="tag">woc</span></td><td>Work Order Coordinator (core internal staff); view/create/edit, sees all work orders.</td></tr>
+          <tr><td><span class="tag">accounting</span></td><td>Finance/invoices; sees all work orders, lands on the "waiting on payment" page after login.</td></tr>
+          <tr><td><span class="tag">vendor</span></td><td>Sees only work orders they are assigned to / have tasks or attachments on.</td></tr>
+          <tr><td><span class="tag">owner</span></td><td>Sees work orders for owners sharing their email.</td></tr>
+          <tr><td><span class="tag">tenant</span></td><td>Sees only their own work orders.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3>Three layers of authorization</h3>
+      <ol>
+        <li><strong>Global admin override</strong> — <code>AppServiceProvider::boot()</code> registers <code>Gate::before(... hasRole('admin') ...)</code>, so admins bypass all gates/policies.</li>
+        <li><strong>Policies</strong> (<code>app/Policies/</code>) invoked via <code>Gate::authorize(...)</code> with custom ability names (e.g. <code>view_vendors</code>, <code>update_user</code>).</li>
+        <li><strong>Row-level scoping</strong> via global Eloquent scopes (<code>app/Models/Scopes/</code>) — <code>WorkOrderScope</code> and siblings restrict which rows each role can query.</li>
+      </ol>
+      <h3>Vendor portal (passwordless)</h3>
+      <p>Two custom magic-link middlewares (aliased in <code>bootstrap/app.php</code>) gate the external vendor portal <strong>with no login</strong> — access is by possession of an unguessable token:</p>
+      <ul>
+        <li><code>vendor.account</code> → <code>ResolveVendorAccountToken</code>: resolves <code>Vendor.portal_token</code> (full dashboard of all the vendor's active work orders). Bad token → 404.</li>
+        <li><code>vendor.portal</code> → <code>ResolveVendorPortalToken</code>: resolves a single <code>WorkOrderVendor.access_token</code> (one assignment). Bad token → 404.</li>
+      </ul>
+    </section>
+
+    <!-- 7 -->
+    <section class="card" id="s7">
+      <h2><span class="num">7</span> Application Routes</h2>
+      <p>Routes live in <code>routes/web.php</code> (session-authenticated Inertia pages + most AJAX), <code>routes/api.php</code> (stateless AJAX + external webhooks), and <code>routes/channels.php</code> (broadcast channels). The main authenticated area is gated by <code>['auth:sanctum', jetstream.auth_session, 'verified']</code>.</p>
+
+      <h3>Web routes (authenticated)</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Area</th><th>Controller</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>Dashboard</td><td><code>DashboardController</code></td><td>KPI stat cards &amp; charts (accounting redirects to payments)</td></tr>
+          <tr><td>Work orders</td><td><code>WorkOrderController</code></td><td>Core entity + filtered queues (closed, paid, waiting-on-payment, inspections, lawn, turnovers); details, report, close, open, vendor change, import, export</td></tr>
+          <tr><td>WO recommendations</td><td><code>WorkOrderRecommendationController</code></td><td>AI/generated vendor recommendations</td></tr>
+          <tr><td>Buildings</td><td><code>BuildingController</code></td><td>List/detail/create + onboarding</td></tr>
+          <tr><td>Owners / Tenants / Vendors / Users</td><td>respective</td><td>CRUD (policy-gated)</td></tr>
+          <tr><td>Service status / Task templates / Tasks</td><td>respective</td><td>Workflow &amp; task automation config</td></tr>
+          <tr><td>Inspections (Jobber)</td><td><code>InspectionController</code>, <code>InspectionVisitController</code></td><td>Jobber jobs/visits, jobber-connect, jobber-sync</td></tr>
+          <tr><td>Conversations / SMS</td><td><code>ConversationController</code>, <code>TwilioMessageSearchController</code></td><td>Threads, sending, search/status sync</td></tr>
+          <tr><td>Calendar</td><td><code>CalendarController</code></td><td>Scheduled-service calendar</td></tr>
+          <tr><td>Reports</td><td><code>ReportController</code></td><td>unresolved-7-days, not-scheduled-3-days, tasks-on-time, open-over-30-days</td></tr>
+          <tr><td>Invoices / Attachments / Notes</td><td><code>InvoiceController</code>, API controllers</td><td>Per-work-order documents</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>Public web routes</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Route</th><th>Middleware</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /</code></td><td>none</td><td>Welcome/landing page</td></tr>
+          <tr><td><code>GET /vendor/{vendorToken}</code></td><td><code>vendor.account</code></td><td>Token-gated vendor dashboard</td></tr>
+          <tr><td><code>vendor-portal/{token}/*</code></td><td><code>vendor.portal</code></td><td>Token-gated single-WO portal</td></tr>
+          <tr><td><code>GET /onboarding/building</code></td><td>none</td><td><strong>Building onboarding form</strong> (public, no login) — see below</td></tr>
+          <tr><td><code>GET /conversation-media/{media}</code></td><td><code>signed</code></td><td>Signed-URL media access</td></tr>
+          <tr><td><code>GET /jobber/callback</code>, <code>/jobber/reconnect</code>, <code>/jobber/diagnose</code></td><td>none</td><td>Jobber OAuth &amp; diagnostics</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>Webhook routes</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Webhook</th><th>Route</th><th>Protection</th></tr></thead>
+        <tbody>
+          <tr><td>Twilio inbound SMS</td><td><code>POST /api/twilio/webhook</code></td><td>throttle 60/min</td></tr>
+          <tr><td>Twilio status callback</td><td><code>POST /api/twilio/status-callback</code></td><td>throttle 120/min</td></tr>
+          <tr><td>TEX app inbound SMS</td><td><code>POST /api/v1/tex/webhook</code></td><td>throttle 60/min</td></tr>
+          <tr><td>Jobber events</td><td><code>POST /api/jobber/webhook</code></td><td>throttle 60/min + <strong>HMAC-SHA256</strong> (<code>JOBBER_SECRET</code>)</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note">Most other <code>api.php</code> routes are <strong>not</strong> behind <code>auth:sanctum</code>; they share the SPA's session/CSRF context. Only <code>GET /api/user</code> requires Sanctum.</div>
+
+      <h3>Building Onboarding (public self-service form)</h3>
+      <p>A <strong>public, unauthenticated</strong> form that lets a new property owner onboard their building. Share this link directly with owners:</p>
+      <pre><code>{APP_URL}/onboarding/building
+
+# production: https://txrenters.azurewebsites.net/onboarding/building
+# local:      http://localhost:8080/onboarding/building</code></pre>
+      <p><strong>Route:</strong> <code>GET /onboarding/building</code> → <code>BuildingController@create</code> (route name <code>building.create</code>), renders the <code>Building/Create</code> Vue page. No login or token required — the URL itself is the entry point.</p>
+      <ol>
+        <li><strong>Find the building</strong> — owner enters property name, full name &amp; contact number; the form calls <code>POST /search-building</code>, which matches the property in PropertyWare on name + owner + phone.</li>
+        <li><strong>Complete details</strong> — maintenance preferences, pet fields, optional W-9 entity/business details, and an on-screen <strong>signature</strong>.</li>
+        <li><strong>Submit</strong> — calls <code>POST /buildings/{buildingId}/update-custom-fields</code>, writing custom fields, maintenance notice &amp; pet fields back to <strong>PropertyWare</strong>.</li>
+        <li><strong>PDF generation</strong> — dispatches <code>GenerateOnboardingPdfJob</code> (signed packet) and, if a W-9 name is provided, <code>GenerateW9PdfJob</code> — both on the queue, so a <strong>queue worker must be running</strong>.</li>
+      </ol>
+      <div class="note">The page is public — only share the link with the intended owner. The submit step writes to PropertyWare, so confirm PropertyWare credentials are configured in the target environment before sending the link.</div>
+      <h3>Broadcast channels (<code>routes/channels.php</code>)</h3>
+      <ul>
+        <li><code>App.Models.User.{id}</code> — private per-user channel (authorized only if <code>$user->id === $id</code>).</li>
+        <li><code>jobs</code>, <code>workOrders</code> — open to any authenticated user (power live list updates).</li>
+      </ul>
+    </section>
+
+    <!-- 8 -->
+    <section class="card" id="s8">
+      <h2><span class="num">8</span> External Integrations</h2>
+
+      <h3>Twilio (SMS / MMS)</h3>
+      <ul>
+        <li><code>TwilioService</code> wraps the Twilio SDK. <code>sendMessage()</code> queues outbound SMS (media URLs are appended to the body as text links, not true MMS) and attaches a status-callback URL.</li>
+        <li><code>InboundTwilioMessageProcessor::process()</code> handles inbound payloads: dedupes by <code>MessageSid</code>, forwards every inbound message to a PlusThis marketing webhook, matches to a work-order thread (parses <code>Ref: WO#&lt;n&gt;</code> or sender/receiver pairs) or a Jobber thread, downloads MMS media, and filters internal mirror echoes.</li>
+        <li><code>TwilioPhoneNumberSyncService::sync()</code> upserts the local Twilio number inventory.</li>
+      </ul>
+
+      <h3>PropertyWare (system of record)</h3>
+      <p>Dual transport via <code>PropertyWareService</code>:</p>
+      <ul>
+        <li><strong>REST</strong> (<code>api.propertyware.com/pw/api/rest/v1</code>) with <code>x-propertyware-*</code> headers — reads + PATCH updates + custom-field PUTs + document/invoice uploads.</li>
+        <li><strong>SOAP</strong> (<code>{PROPERTYWARE_URL}?wsdl</code>, TLS 1.2) — vendor assignment, full work-order detail updates, notes, document attach, approval.</li>
+      </ul>
+      <div class="note"><strong>Outbound side-effect:</strong> when vendor "Texas Home Maintenance Pros" is assigned, <code>changeWorkOrderVendors()</code> POSTs to an internal n8n automation webhook to create a matching Jobber job. (Hardcoded URL — consider redacting for external publication.)</div>
+
+      <h3>Jobber (field-service scheduling)</h3>
+      <p>OAuth 2.0 with refresh tokens stored in <code>jobber_tokens</code>: <code>/jobber-connect</code> → authorize, <code>/jobber/callback</code> → exchange code &amp; store token. <code>ensureValidToken()</code> refreshes within 5 min of expiry; <code>jobber:refresh-token</code> runs every 30 min. Data via GraphQL (<code>api.getjobber.com/api/graphql</code>). The HMAC-verified webhook dispatches <code>JOB_*</code> / <code>VISIT_*</code> topics to upsert local Jobber records.</p>
+
+      <h3>AI vendor recommendation (<code>laravel/ai</code>)</h3>
+      <p><code>WorkOrderRecommendationService</code> classifies a work order's issue and recommends a vendor (owner-preferred → building history → cross-site history → category → fallback). <strong>Degrades gracefully</strong>: if no AI provider is configured, it falls back to a deterministic keyword/heuristic engine. Provider auto-selects Azure (if <code>AZURE_OPENAI_*</code> set) else OpenAI.</p>
+
+      <h3>Asana, S3 &amp; Reverb</h3>
+      <ul>
+        <li><strong>Asana</strong> — a single command <code>asana:set-dues</code> sets due dates on subtasks in specific "lease on the market" projects. No webhook/route.</li>
+        <li><strong>S3</strong> — fully configured but the default disk is <code>local</code>; Twilio media → <code>local</code>, Jobber images → <code>public</code>. Set <code>FILESYSTEM_DISK=s3</code> to switch.</li>
+        <li><strong>Reverb</strong> — WebSocket broadcasting; frontend subscribes via Laravel Echo. Set <code>BROADCAST_CONNECTION=reverb</code> and run <code>reverb:start</code>.</li>
+      </ul>
+    </section>
+
+    <!-- 9 -->
+    <section class="card" id="s9">
+      <h2><span class="num">9</span> Background Jobs, Commands &amp; Scheduling</h2>
+
+      <h3>Queued jobs (<code>app/Jobs/</code>) — require a running queue worker</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Job</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>ImportWorkOrderJob</code></td><td>Bulk-imports work orders (chunks of 100) from PropertyWare; creates tenant/owner/user records; chains <code>GenerateWorkOrderRecommendationJob</code> for new orders.</td></tr>
+          <tr><td><code>GenerateWorkOrderRecommendationJob</code></td><td>Runs <code>WorkOrderRecommendationService-&gt;generate()</code>.</td></tr>
+          <tr><td><code>SyncWorkOrderDetails</code></td><td>Maps a PropertyWare payload onto an existing work order.</td></tr>
+          <tr><td><code>UpdateWorkOrder</code></td><td>Pushes local changes back to PropertyWare (transactional).</td></tr>
+          <tr><td><code>UploadAttachment</code></td><td>Optimizes an image then uploads to PropertyWare.</td></tr>
+          <tr><td><code>SendConversationMessageJob</code></td><td>Sends outbound SMS via Twilio, tracks status on <code>Conversation</code>.</td></tr>
+          <tr><td><code>SendJobberTextMessageJob</code></td><td>Sends Jobber SMS (with media); backoff 60/180/300s.</td></tr>
+          <tr><td><code>GenerateOnboardingPdfJob</code> / <code>GenerateW9PdfJob</code></td><td>Generate onboarding / W-9 PDFs from captured signatures.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>Scheduler (<code>routes/console.php</code>) — requires system cron running <code>schedule:run</code></h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Schedule</th><th>Command</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Every 10 min</td><td><code>import:work-orders</code></td><td>Core PropertyWare sync; chains <code>update:work-orders-status</code> on success.</td></tr>
+          <tr><td>Every 5 min</td><td><code>twilio:import-inbound-messages</code></td><td>Safety-net backfill for missed inbound SMS.</td></tr>
+          <tr><td>Every 30 min</td><td><code>jobber:refresh-token</code></td><td>Keeps Jobber OAuth alive.</td></tr>
+          <tr><td>Daily</td><td><code>import:buildings-from-work-orders</code></td><td>Fills missing building records.</td></tr>
+          <tr><td>Daily 16:00 CT</td><td><code>jobs:send-reminders</code></td><td>Tenant SMS reminders for upcoming jobs.</td></tr>
+          <tr><td>Daily 01:30 CT</td><td><code>twilio:sync-phone-numbers</code></td><td>Nightly Twilio number sync.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p><strong>Manual / triggered:</strong> <code>import:all-work-orders</code>, <code>import:all-vendors</code>, <code>sync:building-details</code>, <code>sync:work-order-closing-comments</code>, <code>jobber:import-jobs</code>, <code>asana:set-dues</code>.</p>
+    </section>
+
+    <!-- 10 -->
+    <section class="card" id="s10">
+      <h2><span class="num">10</span> Frontend Architecture</h2>
+      <p>A single-page app built with <strong>Inertia.js v2 + Vue 3</strong>. Controllers return <code>Inertia::render('PageName', [...props])</code>; Inertia mounts the matching Vue component from <code>resources/js/Pages/</code>. Bundled with Vite, styled with Tailwind.</p>
+      <ul>
+        <li><code>app.js</code> — bootstraps Inertia, registers <strong>Ziggy</strong> (<code>route()</code> in JS), pre-registers the UI component library + lucide icons.</li>
+        <li><code>echo.js</code> — configures Laravel Echo over the Reverb broadcaster (params from <code>VITE_REVERB_*</code>).</li>
+        <li><strong>Layouts</strong> — <code>AppLayout.vue</code> (authenticated shell: sidebar nav, header, user menu) and <code>AuthLayout.vue</code> (login/register).</li>
+        <li><strong><code>Components/ui/</code></strong> — shadcn-vue-style design system (~50 primitives) on Reka UI / Radix Vue: dialogs, forms (vee-validate + zod), tables, charts (Unovis &amp; Chart.js), sidebar, toast.</li>
+        <li><strong>Pages</strong> map 1:1 to controllers; each has a <code>Partials/</code> folder. The main work-order detail UI is <code>WorkOrder/Partials/WorkOrderDetails.vue</code> (details, tasks, notes, vendor edit, role-based conversation tabs, schedule, invoices, attachments).</li>
+        <li><strong>Forms</strong> use <code>vee-validate</code> + <code>@vee-validate/zod</code> with Inertia's <code>useForm</code>; specialized inputs include date pickers, multiselect, image cropper, signature capture.</li>
+        <li><strong>Realtime</strong> — pages subscribe via the <code>useEchoPublic</code> composable (e.g. <code>Inspection/Schedules.vue</code> listens for <code>VisitUpdated</code>/<code>VisitDeleted</code>; work-order lists refresh live when the importer ingests new data).</li>
+      </ul>
+    </section>
+
+    <!-- 11 -->
+    <section class="card" id="s11">
+      <h2><span class="num">11</span> Operational Runbook</h2>
+      <p>For the system to function fully in any environment, <strong>all three background processes</strong> must be running alongside the web server:</p>
+      <div class="grid">
+        <div class="mini"><h4>1 · Queue worker</h4><p><code>queue:work</code> — SMS, PropertyWare write-backs, attachment uploads, PDF generation, AI recommendations.</p></div>
+        <div class="mini"><h4>2 · Scheduler</h4><p>System cron running <code>php artisan schedule:run</code> every minute drives the import/sync loops.</p></div>
+        <div class="mini"><h4>3 · Reverb server</h4><p><code>reverb:start</code> — realtime UI updates.</p></div>
+      </div>
+
+      <h3>Common troubleshooting</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Likely cause</th></tr></thead>
+        <tbody>
+          <tr><td>"Missing" work orders / records in tinker or for a user</td><td>A global scope is filtering by role — query as admin or bypass the scope.</td></tr>
+          <tr><td>Outbound SMS stuck / not sent</td><td>Queue worker not running, or Twilio creds invalid; check <code>conversations.twilio_status</code> and <code>activity_log</code>.</td></tr>
+          <tr><td>Inbound SMS not appearing</td><td>Webhook misconfigured in Twilio console; the 5-min <code>twilio:import-inbound-messages</code> backfill should recover them.</td></tr>
+          <tr><td>Work orders not importing</td><td>PropertyWare creds/headers, or the 10-min <code>import:work-orders</code> schedule not running.</td></tr>
+          <tr><td>Jobber data not syncing</td><td>OAuth token expired — visit <code>/jobber/diagnose</code>, then <code>/jobber/reconnect</code>.</td></tr>
+          <tr><td>Frontend change not visible / Vite manifest exception</td><td>Assets not rebuilt — run <code>npm run dev</code> / <code>npm run build</code>.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>Webhooks to register with providers</h3>
+      <ul>
+        <li>Twilio inbound SMS → <code>POST {APP_URL}/api/twilio/webhook</code></li>
+        <li>Twilio status callback → <code>POST {APP_URL}/api/twilio/status-callback</code></li>
+        <li>Jobber → <code>POST {APP_URL}/api/jobber/webhook</code> (signed with <code>JOBBER_SECRET</code>)</li>
+        <li>Jobber OAuth redirect → <code>{APP_URL}/jobber/callback</code> (must equal <code>JOBBER_CALLBACK_URL</code>)</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<footer class="foot">
+  TX Work Order — Internal IT Documentation · Generated from a source-code scan. Verify specifics against the code when in doubt.
+</footer>
+
+</body>
+</html>

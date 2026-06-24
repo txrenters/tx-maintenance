@@ -208,7 +208,7 @@ class SendJobReminders extends Command
             return;
         }
 
-        $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
+        $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4377411585/JSON?1ADhXAA&shardKey=182255624';
         $response = Http::timeout(60)->get($TENANT_JSON_API_LINK);
 
         if ($response->failed()) {
@@ -242,33 +242,32 @@ class SendJobReminders extends Command
             $this->line('--- Visit ID: '.$visit->id.' | Jobber address: '.$client.' | Key (first 2 words): '.$jobberKey.' ---');
 
             $matched = collect($records)->filter(function ($record) use ($client) {
-                return $this->buildingReferenceMatches($client, (string) ($record[15] ?? ''));
+                return $this->buildingReferenceMatches($client, (string) ($record[4] ?? ''));
             })->values();
 
             if ($matched->isEmpty()) {
-                $this->warn('  No match in PropertyWare record[15]');
+                $this->warn('  No match in PropertyWare record[4]');
                 $this->outputJsonBuildingSample($records, $client);
             } else {
                 $this->info('  Matched '.$matched->count().' PropertyWare record(s):');
 
                 foreach ($matched as $record) {
                     $phone = collect([
-                        'Mobile' => (string) ($record[13] ?? ''),
-                        'Home' => (string) ($record[14] ?? ''),
-                        'Work' => (string) ($record[11] ?? ''),
-                        'Other' => (string) ($record[12] ?? ''),
+                        'Mobile' => (string) ($record[10] ?? ''),
+                        'Home' => (string) ($record[13] ?? ''),
+                        'Work' => (string) ($record[12] ?? ''),
                     ])->first(fn (string $v): bool => $v !== '');
 
-                    $pwKey = $this->normalizeBaseBuildingReference((string) ($record[15] ?? ''));
+                    $pwKey = $this->normalizeBaseBuildingReference((string) ($record[4] ?? ''));
 
-                    $this->line('    Building : '.($record[15] ?? 'N/A'));
+                    $this->line('    Building : '.($record[4] ?? 'N/A'));
                     $this->line('    PW Key   : '.$pwKey.' (matched Jobber key: '.$jobberKey.')');
                     $this->line('    Tenant   : '.($record[3] ?? 'N/A'));
                     $this->line('    Status   : '.($record[2] ?? 'N/A'));
                     $this->line('    Phone    : '.($phone ?: 'N/A'));
-                    $this->line('    Mobile   : '.($record[13] ?: 'N/A'));
-                    $this->line('    Home     : '.($record[14] ?: 'N/A'));
-                    $this->line('    Work     : '.($record[11] ?: 'N/A'));
+                    $this->line('    Mobile   : '.($record[10] ?: 'N/A'));
+                    $this->line('    Home     : '.($record[13] ?: 'N/A'));
+                    $this->line('    Work     : '.($record[12] ?: 'N/A'));
                     $this->line('    Address  : '.($record[4] ?? 'N/A'));
                     $this->line('    ---');
                 }
@@ -313,7 +312,7 @@ class SendJobReminders extends Command
         $hasVisitColumn = JobberTextMessage::hasVisitColumn();
         $messageColumns = $this->getMessageColumnAvailability();
 
-        $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4297818113/JSON?8xDmDzx&shardKey=182255624';
+        $TENANT_JSON_API_LINK = 'https://app.propertyware.com/pw/00a/4377411585/JSON?1ADhXAA&shardKey=182255624';
 
         $response = Http::timeout(60)->get($TENANT_JSON_API_LINK);
 
@@ -355,11 +354,11 @@ class SendJobReminders extends Command
                         '3' => $records[0][3] ?? 'N/A',
                         '4' => $records[0][4] ?? 'N/A',
                         '5' => $records[0][5] ?? 'N/A',
+                        '10' => $records[0][10] ?? 'N/A',
                         '11' => $records[0][11] ?? 'N/A',
                         '12' => $records[0][12] ?? 'N/A',
                         '13' => $records[0][13] ?? 'N/A',
                         '14' => $records[0][14] ?? 'N/A',
-                        '15' => $records[0][15] ?? 'N/A',
                     ],
                 ]);
                 $loggedSample = true;
@@ -368,7 +367,7 @@ class SendJobReminders extends Command
             $filtered = collect($records)->filter(function ($record) use ($client) {
                 return $this->buildingReferenceMatches(
                     $client ?? '',
-                    (string) ($record[15] ?? '')
+                    (string) ($record[4] ?? '')
                 );
             })->values();
 
@@ -376,7 +375,7 @@ class SendJobReminders extends Command
                 $candidateBuildings = $this->propertywareCandidatesWithSameNumber($records, $streetNumber);
                 $similarCandidates = $this->propertywareSimilarCandidates($records, $client ?? '');
                 $samplePropertywareRecordValue = collect($records)
-                    ->map(fn ($record): string => (string) ($record[15] ?? ''))
+                    ->map(fn ($record): string => (string) ($record[4] ?? ''))
                     ->filter(fn (string $value): bool => $value !== '')
                     ->first();
 
@@ -396,7 +395,7 @@ class SendJobReminders extends Command
 
                     $this->line('Comparison sample for this run:');
                     $this->line('  Jobber client: '.$client);
-                    $this->line('  PropertyWare record[15]: '.($samplePropertywareRecordValue ?: 'N/A'));
+                    $this->line('  PropertyWare record[4]: '.($samplePropertywareRecordValue ?: 'N/A'));
                     $this->line('  PropertyWare record[4]:  '.($sampleRecord4Value ?: 'N/A'));
 
                     $loggedComparisonSample = true;
@@ -464,13 +463,13 @@ class SendJobReminders extends Command
             foreach ($filtered as $record) {
                 $clientStatus = $record[2];
                 $clientName = $record[3];
-                $clientEmail = trim((string) ($record[22] ?? ''));
+                $clientEmail = trim((string) ($record[11] ?? ''));
 
                 Log::info('Processing PropertyWare tenant record', [
                     'jobber_client_name' => $client,
                     'propertyware_status' => $clientStatus,
                     'propertyware_tenant_name' => $clientName,
-                    'propertyware_client_reference' => $record[15] ?? 'N/A',
+                    'propertyware_client_reference' => $record[4] ?? 'N/A',
                     'propertyware_address' => $record[4] ?? 'N/A',
                 ]);
 
@@ -480,11 +479,21 @@ class SendJobReminders extends Command
                     continue;
                 }
 
+                $enrolledInTbp = strtolower(trim((string) ($record[14] ?? '')));
+
+                if ($enrolledInTbp !== 'yes') {
+                    Log::info('Skipping tenant not enrolled in Tenant Benefits Package', [
+                        'tenant_name' => $clientName,
+                        'enrolled_in_tbp' => $record[14] ?? '',
+                    ]);
+
+                    continue;
+                }
+
                 $workingPhoneNumber = collect([
-                    $record[11] ?? null,
-                    $record[12] ?? null,
+                    $record[10] ?? null,
                     $record[13] ?? null,
-                    $record[14] ?? null,
+                    $record[12] ?? null,
                 ])
                     ->map(fn ($number) => trim((string) $number))
                     ->first(fn ($number) => $number !== '');
@@ -509,7 +518,7 @@ class SendJobReminders extends Command
                             'phone' => $formattedNumber,
                             'name' => $clientName,
                             'lease_status' => $clientStatus,
-                            'propertyware_building' => (string) ($record[15] ?? ''),
+                            'propertyware_building' => (string) ($record[4] ?? ''),
                             'propertyware_address' => (string) ($record[4] ?? ''),
                         ];
                     }
@@ -523,7 +532,7 @@ class SendJobReminders extends Command
                             'email' => $clientEmail,
                             'name' => $clientName,
                             'lease_status' => $clientStatus,
-                            'propertyware_building' => (string) ($record[15] ?? ''),
+                            'propertyware_building' => (string) ($record[4] ?? ''),
                             'propertyware_address' => (string) ($record[4] ?? ''),
                         ];
                     }
@@ -779,7 +788,7 @@ class SendJobReminders extends Command
                     return false;
                 }
 
-                $building = (string) ($record[15] ?? '');
+                $building = (string) ($record[4] ?? '');
 
                 return $this->extractStreetNumber($building) === $streetNumber;
             })
@@ -809,7 +818,7 @@ class SendJobReminders extends Command
 
         return collect($records)
             ->filter(function ($record) use ($searchPhrase) {
-                $building = $this->normalizeBuildingReference((string) ($record[15] ?? ''));
+                $building = $this->normalizeBuildingReference((string) ($record[4] ?? ''));
 
                 return str_contains($building, $searchPhrase);
             })
@@ -876,7 +885,7 @@ class SendJobReminders extends Command
      */
     protected function mapPropertywareCandidate(array $record): array
     {
-        $building = (string) ($record[15] ?? '');
+        $building = (string) ($record[4] ?? '');
 
         return [
             'propertyware_building' => $building,
@@ -889,7 +898,7 @@ class SendJobReminders extends Command
 
     /**
      * For small batches, search the PropertyWare JSON 1-by-1 and output unique building
-     * values from record[15] that share any non-numeric word with the Jobber client name.
+     * values from record[4] that share any non-numeric word with the Jobber client name.
      *
      * @param  array<int, mixed>  $records
      */
@@ -905,7 +914,7 @@ class SendJobReminders extends Command
         }
 
         $matches = collect($records)
-            ->map(fn ($record): string => (string) ($record[15] ?? ''))
+            ->map(fn ($record): string => (string) ($record[4] ?? ''))
             ->filter(fn (string $building): bool => $building !== '')
             ->unique()
             ->filter(function (string $building) use ($words): bool {
@@ -924,20 +933,20 @@ class SendJobReminders extends Command
 
         if ($matches->isEmpty()) {
             $sample = collect($records)
-                ->map(fn ($record): string => (string) ($record[15] ?? ''))
+                ->map(fn ($record): string => (string) ($record[4] ?? ''))
                 ->filter(fn (string $building): bool => $building !== '')
                 ->unique()
                 ->take(5)
                 ->values();
 
-            $this->line('  JSON 1-by-1 search: no building in record[15] shares any word with "'.$jobberClientName.'"');
-            $this->line('  Sample record[15] values from JSON:');
+            $this->line('  JSON 1-by-1 search: no building in record[4] shares any word with "'.$jobberClientName.'"');
+            $this->line('  Sample record[4] values from JSON:');
 
             foreach ($sample as $building) {
                 $this->line('    - '.$building);
             }
         } else {
-            $this->line('  JSON 1-by-1 search — record[15] buildings sharing a word with "'.$jobberClientName.'":');
+            $this->line('  JSON 1-by-1 search — record[4] buildings sharing a word with "'.$jobberClientName.'":');
 
             foreach ($matches as $building) {
                 $this->line('    - '.$building);

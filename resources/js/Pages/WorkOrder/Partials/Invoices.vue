@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import { Loader2, File } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilesInvoice from "./FilesInvoice.vue";
@@ -45,6 +45,14 @@ const invoiceVendors = computed(() =>
         (vendor) => vendor && vendor.id && vendor.name,
     ),
 );
+
+// Only admin/WOC may choose where an invoice is published. Vendors (and any
+// other uploader) always default to "No" for both tenant and owner portals.
+const canPublishInvoice = computed(() => {
+    const roles = usePage().props.auth.user.roles;
+
+    return roles.includes("admin") || roles.includes("woc");
+});
 
 const handleExpandImage = (imageSelected) => {
     expandedImage.value = imageSelected.invoice_url;
@@ -258,40 +266,42 @@ const handleDeleteInvoice = (invoice) => {
                 >
                     {{ attachmentForm.progress.percentage }}%
                 </Progress>
-                <div class="mb-3">
-                    <Label>Publish to Tenant Portal</Label>
-                    <RadioGroup
-                        default-value="comfortable"
-                        class="flex gap-5 mt-2"
-                        v-model="attachmentForm.is_publish_to_tenant_portal"
-                    >
-                        <div class="flex items-center space-x-2">
-                            <RadioGroupItem id="r2" value="Yes" />
-                            <Label for="r2">Yes</Label>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <RadioGroupItem id="r3" value="No" />
-                            <Label for="r3">No</Label>
-                        </div>
-                    </RadioGroup>
-                </div>
-                <div class="mb-3">
-                    <Label>Publish to Owner Portal</Label>
-                    <RadioGroup
-                        default-value="comfortable"
-                        class="flex gap-5 mt-2"
-                        v-model="attachmentForm.is_publish_to_owner_portal"
-                    >
-                        <div class="flex items-center space-x-2">
-                            <RadioGroupItem id="r2" value="Yes" />
-                            <Label for="r2">Yes</Label>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <RadioGroupItem id="r3" value="No" />
-                            <Label for="r3">No</Label>
-                        </div>
-                    </RadioGroup>
-                </div>
+                <template v-if="canPublishInvoice">
+                    <div class="mb-3">
+                        <Label>Publish to Tenant Portal</Label>
+                        <RadioGroup
+                            default-value="comfortable"
+                            class="flex gap-5 mt-2"
+                            v-model="attachmentForm.is_publish_to_tenant_portal"
+                        >
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r2" value="Yes" />
+                                <Label for="r2">Yes</Label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r3" value="No" />
+                                <Label for="r3">No</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                    <div class="mb-3">
+                        <Label>Publish to Owner Portal</Label>
+                        <RadioGroup
+                            default-value="comfortable"
+                            class="flex gap-5 mt-2"
+                            v-model="attachmentForm.is_publish_to_owner_portal"
+                        >
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r2" value="Yes" />
+                                <Label for="r2">Yes</Label>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <RadioGroupItem id="r3" value="No" />
+                                <Label for="r3">No</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                </template>
             </div>
             <DialogFooter class="p-6 pt-0">
                 <Button

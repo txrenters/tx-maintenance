@@ -74,8 +74,11 @@ class InvoiceController extends Controller
 
         DB::beginTransaction();
         try {
-            $validatedData['is_publish_to_owner_portal'] = $request->is_publish_to_owner_portal === 'Yes';
-            $validatedData['is_publish_to_tenant_portal'] = $request->is_publish_to_tenant_portal === 'Yes';
+            // Only admin/WOC may publish an invoice to the owner or tenant
+            // portal. Any other uploader (e.g. a vendor) is always "No".
+            $canPublish = $user->hasRole('admin') || $user->hasRole('woc');
+            $validatedData['is_publish_to_owner_portal'] = $canPublish && $request->is_publish_to_owner_portal === 'Yes';
+            $validatedData['is_publish_to_tenant_portal'] = $canPublish && $request->is_publish_to_tenant_portal === 'Yes';
             $validatedData['status'] = 'approved';
 
             $invoice = Invoice::create($validatedData);

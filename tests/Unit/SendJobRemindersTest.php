@@ -142,12 +142,12 @@ class SendJobRemindersTest extends TestCase
             [
                 2 => 'Active',
                 3 => 'Jane Tenant',
-                15 => '10107 Mariposa Green Court',
+                4 => '10107 Mariposa Green Court',
             ],
             [
                 2 => 'Active',
                 3 => 'John Tenant',
-                15 => '8800 Different Street',
+                4 => '8800 Different Street',
             ],
         ], '10107 Mariposa Green Ct');
 
