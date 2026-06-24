@@ -95,7 +95,7 @@ class WorkOrderController extends Controller
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
@@ -132,7 +132,7 @@ class WorkOrderController extends Controller
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
@@ -591,7 +591,7 @@ class WorkOrderController extends Controller
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
@@ -622,7 +622,7 @@ class WorkOrderController extends Controller
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })

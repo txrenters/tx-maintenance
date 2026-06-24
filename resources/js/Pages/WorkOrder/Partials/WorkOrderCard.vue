@@ -55,7 +55,9 @@ const handleWorkOrder = (work_order) => {
 };
 
 const countCompletedTask = (tasks) => {
-    const completedTasks = tasks.filter((task) => task.status === "completed");
+    const completedTasks = (tasks ?? []).filter(
+        (task) => task.status === "completed"
+    );
     return completedTasks.length;
 };
 
@@ -71,7 +73,9 @@ const checkDueTask = (tasks, scheduled_end_date) => {
         if (scheduled_end_date > today) return "green"; // Upcoming
     }
 
-    const pendingTasks = tasks.filter((task) => task.status === "pending");
+    const pendingTasks = (tasks ?? []).filter(
+        (task) => task.status === "pending"
+    );
 
     // Check pending tasks
     if (pendingTasks.some((task) => task.due_date < today)) {
@@ -156,14 +160,14 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                         class="font-medium"
                                         >{{ work_order.building.name }}</span
                                     > -->
-                                    <template v-if="work_order.building.address">
-                                        {{ work_order.building.address
-                                        }}<template v-if="work_order.building.city"
-                                            >, {{ work_order.building.city }}</template
+                                    <template v-if="work_order.building?.address">
+                                        {{ work_order.building?.address
+                                        }}<template v-if="work_order.building?.city"
+                                            >, {{ work_order.building?.city }}</template
                                         ><template
-                                            v-if="work_order.building.state_region"
+                                            v-if="work_order.building?.state_region"
                                         >
-                                             {{ work_order.building.state_region }}</template
+                                             {{ work_order.building?.state_region }}</template
                                         >
                                     </template>
                                 </span>
@@ -215,7 +219,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                 <div class="flex gap-1 items-center">
                                     <p
                                         class="text-xs"
-                                        v-if="work_order.tasks.length > 0"
+                                        v-if="work_order.tasks?.length > 0"
                                     >
                                         {{
                                             countCompletedTask(
