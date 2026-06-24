@@ -155,4 +155,13 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Make native date/time picker icons and popups visible in dark mode */
+  .dark input[type="date"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"],
+  .dark input[type="week"],
+  .dark input[type="time"] {
+    color-scheme: dark;
+  }
 }
