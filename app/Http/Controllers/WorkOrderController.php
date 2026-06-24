@@ -715,7 +715,10 @@ class WorkOrderController extends Controller
 
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
-                    ->where('category', 'LIKE', '%lawn service%')
+                    ->where(function ($q) {
+                        $q->where('category', 'LIKE', '%lawn service%')
+                            ->orWhere('type', 'LIKE', '%biweekly lawn services%');
+                    })
                     ->where('status', 'Open');
             },
             'work_orders.service_status',
