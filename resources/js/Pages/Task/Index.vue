@@ -1,10 +1,16 @@
 <script setup>
 import AppLayout from "@/Layouts/AppLayout.vue";
 import TaskCard from "@/Components/TaskCard.vue";
-import { usePoll, router } from "@inertiajs/vue3";
-import { ref, watch } from "vue";
+import { router } from "@inertiajs/vue3";
+import { ref, watch, computed } from "vue";
 import { WhenVisible } from "@inertiajs/vue3";
 import debounce from "lodash/debounce";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/Components/ui/tabs";
+import { Checkbox } from "@/Components/ui/checkbox";
+import { Button } from "@/Components/ui/button";
+import { Badge } from "@/Components/ui/badge";
+import { Loader2 } from "lucide-vue-next";
+import { useToast } from "@/Components/ui/toast/use-toast";
 
 defineOptions({ layout: AppLayout });
 
@@ -19,9 +25,12 @@ const props = defineProps({
     total_pastDueTasks: Number,
     total_completedTasks: Number,
     assignableUsers: { type: Array, default: () => [] },
+    closedWorkOrders: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
     filter: { type: Object, default: () => ({}) },
 });
+
+const { toast } = useToast();
 
 const url = route("tasks.index");
 const search = ref(props.filter.search ?? "");
@@ -59,10 +68,132 @@ const applyFilters = () => {
 };
 
 watch(search, debounce(applyFilters, 400));
+
+/* ---- Closed work order cleanup tab ---- */
+
+// Local copy so we can keep the unfinished_count badge in sync after completing.
+const closedList = ref([...props.closedWorkOrders]);
+const cleanupSearch = ref("");
+const selectedWoId = ref("");
+const cleanupTasks = ref([]);
+const selectedTaskIds = ref([]);
+const loadingTasks = ref(false);
+const completing = ref(false);
+
+const filteredClosedList = computed(() => {
+    const term = cleanupSearch.value.trim().toLowerCase();
+    if (!term) return closedList.value;
+    return closedList.value.filter((wo) =>
+        String(wo.work_order_no).toLowerCase().includes(term)
+    );
+});
+
+const allSelected = computed(
+    () =>
+        cleanupTasks.value.length > 0 &&
+        selectedTaskIds.value.length === cleanupTasks.value.length
+);
+
+const toggleSelectAll = (checked) => {
+    selectedTaskIds.value = checked
+        ? cleanupTasks.value.map((t) => t.id)
+        : [];
+};
+
+const toggleTask = (taskId, checked) => {
+    if (checked) {
+        if (!selectedTaskIds.value.includes(taskId)) {
+            selectedTaskIds.value.push(taskId);
+        }
+    } else {
+        selectedTaskIds.value = selectedTaskIds.value.filter(
+            (id) => id !== taskId
+        );
+    }
+};
+
+const loadIncompleteTasks = async (woId) => {
+    selectedWoId.value = woId;
+    selectedTaskIds.value = [];
+    cleanupTasks.value = [];
+    if (!woId) return;
+
+    loadingTasks.value = true;
+    try {
+        const { data } = await window.axios.get(
+            route("tasks.incomplete", woId)
+        );
+        cleanupTasks.value = data;
+    } catch (e) {
+        toast({
+            title: "Could not load tasks",
+            description:
+                e?.response?.data?.message ?? "Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        loadingTasks.value = false;
+    }
+};
+
+const completeSelected = async () => {
+    if (selectedTaskIds.value.length === 0 || !selectedWoId.value) return;
+
+    if (
+        !window.confirm(
+            `Mark ${selectedTaskIds.value.length} task(s) complete? This won't reopen or change the work order.`
+        )
+    ) {
+        return;
+    }
+
+    completing.value = true;
+    try {
+        const { data } = await window.axios.post(
+            route("tasks.bulk_complete", selectedWoId.value),
+            { task_ids: selectedTaskIds.value }
+        );
+
+        // Drop completed rows and refresh the badge count.
+        const completedIds = new Set(selectedTaskIds.value);
+        cleanupTasks.value = cleanupTasks.value.filter(
+            (t) => !completedIds.has(t.id)
+        );
+        selectedTaskIds.value = [];
+
+        const wo = closedList.value.find(
+            (w) => String(w.id) === String(selectedWoId.value)
+        );
+        if (wo) {
+            wo.unfinished_count = cleanupTasks.value.length;
+        }
+
+        toast({
+            title: "Tasks completed",
+            description: `${data.completed_count} task(s) marked complete.`,
+        });
+    } catch (e) {
+        toast({
+            title: "Could not complete tasks",
+            description:
+                e?.response?.data?.message ?? "Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        completing.value = false;
+    }
+};
 </script>
 
 <template>
+    <div>
     <Head :title="title" />
+    <Tabs default-value="board" class="w-full">
+        <TabsList class="mb-3">
+            <TabsTrigger value="board">Active board</TabsTrigger>
+            <TabsTrigger value="cleanup">Closed cleanup</TabsTrigger>
+        </TabsList>
+        <TabsContent value="board">
     <div class="flex flex-col sm:flex-row gap-2 mb-3">
         <Input
             v-model="search"
@@ -169,5 +300,136 @@ watch(search, debounce(applyFilters, 400));
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
         </div>
+    </div>
+        </TabsContent>
+
+        <TabsContent value="cleanup">
+            <div class="max-w-3xl">
+                <p class="text-sm text-muted-foreground mb-3">
+                    Pick a closed work order to finish off any tasks that were
+                    left incomplete when it was closed. Completing them here
+                    won't reopen or otherwise change the work order.
+                </p>
+
+                <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                    <Input
+                        v-model="cleanupSearch"
+                        placeholder="Search closed work order #"
+                        class="w-full sm:w-[240px]"
+                    />
+                    <Select
+                        :modelValue="selectedWoId"
+                        @update:modelValue="(v) => loadIncompleteTasks(v)"
+                    >
+                        <SelectTrigger class="w-full sm:w-[320px]">
+                            <SelectValue placeholder="Select a closed work order" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem
+                                    v-for="wo in filteredClosedList"
+                                    :key="wo.id"
+                                    :value="String(wo.id)"
+                                >
+                                    WO-{{ wo.work_order_no }} ·
+                                    {{ wo.unfinished_count }} unfinished
+                                </SelectItem>
+                                <div
+                                    v-if="filteredClosedList.length === 0"
+                                    class="px-2 py-1.5 text-sm text-muted-foreground"
+                                >
+                                    No closed work orders found
+                                </div>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <!-- Loading skeleton -->
+                <div v-if="loadingTasks" class="space-y-2">
+                    <div
+                        v-for="n in 4"
+                        :key="n"
+                        class="h-10 rounded-md bg-muted animate-pulse"
+                    />
+                </div>
+
+                <!-- Task checklist -->
+                <div
+                    v-else-if="selectedWoId && cleanupTasks.length > 0"
+                    class="border rounded-md"
+                >
+                    <div
+                        class="flex items-center gap-3 p-3 border-b bg-muted/50"
+                    >
+                        <Checkbox
+                            :checked="allSelected"
+                            @update:checked="toggleSelectAll"
+                        />
+                        <span class="text-sm font-medium">
+                            Select all ({{ cleanupTasks.length }})
+                        </span>
+                        <Button
+                            class="ml-auto"
+                            size="sm"
+                            :disabled="
+                                selectedTaskIds.length === 0 || completing
+                            "
+                            @click="completeSelected"
+                        >
+                            <Loader2
+                                v-if="completing"
+                                class="w-4 h-4 mr-1 animate-spin"
+                            />
+                            Complete selected ({{ selectedTaskIds.length }})
+                        </Button>
+                    </div>
+                    <ul>
+                        <li
+                            v-for="task in cleanupTasks"
+                            :key="task.id"
+                            class="flex items-center gap-3 p-3 border-b last:border-b-0"
+                        >
+                            <Checkbox
+                                :checked="selectedTaskIds.includes(task.id)"
+                                @update:checked="
+                                    (c) => toggleTask(task.id, c)
+                                "
+                            />
+                            <div class="min-w-0">
+                                <p class="text-sm truncate">
+                                    {{ task.task?.name ?? task.description }}
+                                </p>
+                                <p
+                                    class="text-xs text-muted-foreground flex items-center gap-2"
+                                >
+                                    <span v-if="task.due_date">
+                                        Due {{ task.due_date }}
+                                    </span>
+                                    <Badge variant="secondary" class="capitalize">
+                                        {{ task.status }}
+                                    </Badge>
+                                </p>
+                            </div>
+                            <span
+                                v-if="task.assigned_user"
+                                class="ml-auto text-xs text-muted-foreground shrink-0"
+                            >
+                                {{ task.assigned_user.name }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Empty state -->
+                <div
+                    v-else-if="selectedWoId"
+                    class="border rounded-md p-8 text-center text-sm text-muted-foreground"
+                >
+                    No unfinished tasks 🎉
+                </div>
+            </div>
+        </TabsContent>
+    </Tabs>
     </div>
 </template>

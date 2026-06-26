@@ -126,6 +126,8 @@ Route::middleware([
     Route::resource('/tasks', ControllersTaskController::class);
 
     Route::get('/tasks/{workOrder}/work_order_task', [TaskController::class, 'tasks'])->name('api.work_order.tasks');
+    Route::get('/tasks/{workOrder}/incomplete', [ControllersTaskController::class, 'incompleteTasks'])->name('tasks.incomplete');
+    Route::post('/tasks/{workOrder}/bulk-complete', [ControllersTaskController::class, 'bulkComplete'])->name('tasks.bulk_complete');
     Route::delete('/tasks/{task}/destroy', [TaskController::class, 'destroy'])->name('api.task.destroy');
 
     Route::get('/attachments/{workOrder}', [AttachmentsController::class, 'show'])->name('api.attachments.show');

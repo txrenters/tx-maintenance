@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Scopes\TaskScope;
+use Database\Factories\WorkOrderTaskFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -11,6 +13,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[ScopedBy([TaskScope::class])]
 class WorkOrderTask extends Model
 {
+    /** @use HasFactory<WorkOrderTaskFactory> */
+    use HasFactory;
+
     use SoftDeletes;
 
     protected $table = 'work_order_tasks';
