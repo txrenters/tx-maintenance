@@ -17,7 +17,8 @@ them, and mark them all complete at once.
 
 Add a "Closed cleanup" view to the Task page where a user can:
 
-1. Pick a Closed work order (from a searchable list of only those that have unfinished tasks).
+1. Pick a Closed work order (from a searchable list of all closed WOs, each showing how many
+   tasks are still unfinished).
 2. See that work order's incomplete tasks as a checklist.
 3. Check all (or a subset) and complete them in one action.
 
@@ -32,7 +33,7 @@ Add a "Closed cleanup" view to the Task page where a user can:
 
 | Decision | Choice |
 |----------|--------|
-| How to pick the WO | Searchable dropdown of Closed WOs that have ≥1 incomplete task, each showing an unfinished-count badge |
+| How to pick the WO | Searchable dropdown of **all** Closed WOs, each showing an unfinished-count badge (count may be 0) |
 | Where it lives | A **separate tab/toggle** on the Task page: "Active board" \| "Closed cleanup" (full-width view) |
 | Completion behavior | **Just mark complete — no cascade.** Set `status = 'completed'` only; do NOT advance service status, do NOT regenerate tasks, leave WO `status = 'Closed'` |
 | What counts as incomplete | Any task with `status != 'completed'` (i.e. `pending` + `processing`) |
@@ -53,14 +54,15 @@ Add a "Closed cleanup" view to the Task page where a user can:
 
 ### Backend
 
-**1. Dropdown source — closed WOs needing cleanup**
+**1. Dropdown source — all closed WOs**
 
 Add to `TaskController::index()` a prop `closedWorkOrders` (loaded normally or via
-`Inertia::optional` — load eagerly since the list is small and used to populate the tab):
+`Inertia::optional` — load eagerly since the list is small and used to populate the tab).
+List **all** closed work orders (do NOT gate on having incomplete tasks); the
+`unfinished_count` badge may be 0:
 
 ```php
 $closedWorkOrders = WorkOrder::where('status', 'Closed')
-    ->whereHas('tasks', fn ($q) => $q->where('status', '!=', 'completed'))
     ->withCount(['tasks as unfinished_count' => fn ($q) => $q->where('status', '!=', 'completed')])
     ->orderByDesc('completed_date')
     ->get(['id', 'work_order_no', 'completed_date']);
@@ -126,10 +128,10 @@ public function rules(): array
   - **"Complete selected (N)"** button — disabled when `N === 0`. Clicking opens a confirm
     dialog ("Mark N tasks complete? This won't reopen or change the work order."), then POSTs
     `task_ids` to `tasks.bulk_complete`.
-  - On success: toast, remove completed rows, decrement/refresh the WO's `unfinished_count`
-    (and drop the WO from the dropdown if it hits 0).
-  - **Empty state:** if a selected WO has no incomplete tasks (edge: completed elsewhere
-    meanwhile) show "No unfinished tasks 🎉".
+  - On success: toast, remove completed rows, refresh the WO's `unfinished_count` badge to its
+    new value (it stays in the dropdown even when the count reaches 0).
+  - **Empty state:** if a selected WO has no incomplete tasks (count is 0, all already done, or
+    no tasks at all) show "No unfinished tasks 🎉" with no checklist/button.
 
 ## Routes summary
 
@@ -144,9 +146,9 @@ Both inside the existing authenticated web route group, alongside `tasks.index`.
 
 `tests/Feature/ClosedWorkOrderBulkCompleteTest.php`:
 
-1. **Dropdown listing** — `index` returns a closed WO with incomplete tasks in `closedWorkOrders`
-   with correct `unfinished_count`; excludes closed WOs whose tasks are all completed; excludes
-   open WOs.
+1. **Dropdown listing** — `index` returns **all** closed WOs in `closedWorkOrders` with the
+   correct `unfinished_count`, including a closed WO whose tasks are all completed (count 0) and
+   one with no tasks at all (count 0); excludes open WOs.
 2. **Incomplete endpoint** — returns only `status != 'completed'` tasks for a closed WO;
    404/422 for a non-closed WO.
 3. **Bulk-complete happy path** — given task ids, those tasks become `completed`; response
