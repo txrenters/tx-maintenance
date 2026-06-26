@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\StoreTaskTemplateRequest;
 use App\Models\ServiceStatus;
 use App\Models\Task;
 use App\Models\TaskTemplate;
@@ -10,6 +11,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\TaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Validator;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -22,6 +24,21 @@ class TaskTemplateUserAssignmentTest extends TestCase
         parent::setUp();
 
         Role::query()->create(['name' => 'woc', 'guard_name' => 'web']);
+        Role::query()->create(['name' => 'admin', 'guard_name' => 'web']);
+    }
+
+    private function assignedUserIdHasError($userId): bool
+    {
+        $rules = (new StoreTaskTemplateRequest)->rules();
+
+        $validator = Validator::make(
+            ['tasks' => [['assigned_user_id' => $userId]]],
+            ['tasks.*.assigned_user_id' => $rules['tasks.*.assigned_user_id']]
+        );
+
+        $validator->passes();
+
+        return $validator->errors()->has('tasks.0.assigned_user_id');
     }
 
     private function makeTemplateWithWocTask(ServiceStatus $status, ?int $assignedUserId): Task
@@ -83,5 +100,22 @@ class TaskTemplateUserAssignmentTest extends TestCase
             'work_order_id' => $workOrder->id,
             'assigned_user_id' => $wocUser->id,
         ]);
+    }
+
+    public function test_assigned_user_id_rule_allows_woc_and_admin_but_rejects_others(): void
+    {
+        $wocUser = User::factory()->create();
+        $wocUser->assignRole('woc');
+
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+
+        $otherUser = User::factory()->create();
+
+        $this->assertFalse($this->assignedUserIdHasError(null));
+        $this->assertFalse($this->assignedUserIdHasError($wocUser->id));
+        $this->assertFalse($this->assignedUserIdHasError($adminUser->id));
+        $this->assertTrue($this->assignedUserIdHasError($otherUser->id));
+        $this->assertTrue($this->assignedUserIdHasError(999999));
     }
 }

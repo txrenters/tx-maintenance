@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTaskTemplateRequest extends FormRequest
 {
@@ -34,7 +36,12 @@ class StoreTaskTemplateRequest extends FormRequest
             'tasks.*.is_option' => 'required|string|in:Yes,No',
             'tasks.*.is_mandatory' => 'required|string|in:Yes,No',
             'tasks.*.task_for' => 'required|string',
-            'tasks.*.assigned_user_id' => 'nullable|integer|exists:users,id',
+            'tasks.*.assigned_user_id' => [
+                'nullable', 'integer',
+                Rule::exists('users', 'id')->where(
+                    fn ($query) => $query->whereIn('id', User::role(['woc', 'admin'])->pluck('id'))
+                ),
+            ],
             'tasks.*.due_date' => 'required|string',
             'tasks.*.task_service_status_id' => 'required_if:tasks.*.is_option,No',
             'tasks.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,No',
