@@ -8,6 +8,7 @@ use App\Models\ServiceStatus;
 use App\Models\Task;
 use App\Models\TaskDetail;
 use App\Models\TaskTemplate;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -61,7 +62,18 @@ class TaskTemplateController extends Controller
         return inertia('TaskTemplate/Create', [
             'title' => 'Create Task Template',
             'statuses' => $statuses,
+            'assignableUsers' => $this->assignableUsers(),
         ]);
+    }
+
+    /**
+     * Users that can be directly assigned to a WOC task on a template.
+     */
+    private function assignableUsers()
+    {
+        return User::role(['woc', 'admin'])
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
@@ -92,6 +104,7 @@ class TaskTemplateController extends Controller
                     'is_optional' => $task['is_option'] == 'Yes' ? true : false,
                     'is_mandatory' => $task['is_mandatory'] == 'Yes' ? true : false,
                     'type' => $task['task_for'],
+                    'assigned_user_id' => $task['task_for'] === 'Woc' ? ($task['assigned_user_id'] ?? null) : null,
                     'due_date' => $task['due_date'],
                     'next_service_status_id' => $task['task_service_status_id'],
                     'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
@@ -162,6 +175,7 @@ class TaskTemplateController extends Controller
             'title' => 'Edit Task Template',
             'template' => $taskTemplate,
             'statuses' => $statuses,
+            'assignableUsers' => $this->assignableUsers(),
         ]);
     }
 
@@ -195,6 +209,7 @@ class TaskTemplateController extends Controller
                     'is_optional' => $task['is_option'] == 'Yes',
                     'is_mandatory' => $task['is_mandatory'] == 'Yes',
                     'type' => $task['task_for'],
+                    'assigned_user_id' => $task['task_for'] === 'Woc' ? ($task['assigned_user_id'] ?? null) : null,
                     'due_date' => $task['due_date'],
                     'next_service_status_id' => $task['task_service_status_id'] ?? null,
                     'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency',

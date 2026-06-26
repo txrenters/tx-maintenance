@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateTaskTemplateRequest extends FormRequest
@@ -17,7 +18,7 @@ class UpdateTaskTemplateRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -33,6 +34,7 @@ class UpdateTaskTemplateRequest extends FormRequest
             'tasks.*.is_option' => 'required|string|in:Yes,No',
             'tasks.*.is_mandatory' => 'required|string|in:Yes,No',
             'tasks.*.task_for' => 'required|string',
+            'tasks.*.assigned_user_id' => 'nullable|integer|exists:users,id',
             'tasks.*.due_date' => 'required|string',
             'tasks.*.task_service_status_id' => 'required_if:tasks.*.is_option,No',
             'tasks.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,No',
