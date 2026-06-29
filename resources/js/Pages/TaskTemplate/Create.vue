@@ -11,6 +11,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({
   title: String,
   statuses: Object,
+  assignableUsers: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -30,6 +31,7 @@ const tasks = reactive([
     is_option: "No",
     is_mandatory: "Yes",
     task_for: "Woc",
+    assigned_user_id: "",
     due_date: "same day",
     task_service_status_id: "18",
     is_task_service_status_emergency: "Non-emergency",
@@ -55,6 +57,7 @@ const addTask = () => {
     is_option: "No",
     is_mandatory: "Yes",
     task_for: "Woc",
+    assigned_user_id: "",
     due_date: "same day",
     task_service_status_id: "18",
     is_task_service_status_emergency: "Non-emergency",
@@ -274,6 +277,40 @@ const submitForm = () => {
               </Select>
               <Label class="mt-1 text-destructive text-xs">
                 {{ form.errors[`tasks.${index}.task_for`] }}
+              </Label>
+            </div>
+            <div
+              v-if="task.task_for === 'Woc'"
+              class="mt-2 w-full flex flex-col gap-2"
+            >
+              <Label>Assign to specific user</Label>
+              <Select
+                :modelValue="task.assigned_user_id || '__auto__'"
+                @update:modelValue="
+                  (v) => (task.assigned_user_id = v === '__auto__' ? '' : v)
+                "
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Auto-assign (first WOC)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>WOC user</SelectLabel>
+                    <SelectItem value="__auto__">
+                      Auto-assign (first WOC)
+                    </SelectItem>
+                    <SelectItem
+                      v-for="user in assignableUsers"
+                      :key="user.id"
+                      :value="String(user.id)"
+                    >
+                      {{ user.name }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Label class="mt-1 text-destructive text-xs">
+                {{ form.errors[`tasks.${index}.assigned_user_id`] }}
               </Label>
             </div>
             <div class="mt-2 w-full flex flex-col gap-2">

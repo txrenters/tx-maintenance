@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BulkCompleteTasksRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -91,9 +92,15 @@ class TaskController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $closedWorkOrders = WorkOrder::where('status', 'Closed')
+            ->withCount(['tasks as unfinished_count' => fn ($query) => $query->where('status', '!=', 'completed')])
+            ->orderByDesc('completed_date')
+            ->get(['id', 'work_order_no', 'completed_date']);
+
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
             'assignableUsers' => $assignableUsers,
+            'closedWorkOrders' => $closedWorkOrders,
             'statuses' => ['pending', 'processing', 'completed'],
             'filter' => $request->only(['search', 'assigned', 'status']),
             'total_dueTodayTasks' => count($dueTodayTasks),
@@ -147,6 +154,42 @@ class TaskController extends Controller
         $workOrder->load(['tasks.task.taskDetails.taskServiceStatus', 'tasks.task.nextServiceStatus', 'tasks.assigned_user']);
 
         return response()->json($workOrder, 200);
+    }
+
+    /**
+     * Return the incomplete (non-completed) tasks for a closed work order,
+     * used by the "Closed cleanup" tab to populate its checklist.
+     */
+    public function incompleteTasks(WorkOrder $workOrder)
+    {
+        abort_unless($workOrder->status === 'Closed', 422, 'Work order is not closed.');
+
+        $tasks = $workOrder->tasks()
+            ->with(['assigned_user:id,name', 'task:id,name,is_optional'])
+            ->where('status', '!=', 'completed')
+            ->get(['id', 'work_order_id', 'task_id', 'assigned_user_id', 'description', 'due_date', 'status', 'option']);
+
+        return response()->json($tasks, 200);
+    }
+
+    /**
+     * Bulk-mark the given tasks of a closed work order as completed.
+     *
+     * This deliberately skips the normal completion cascade (service-status
+     * transitions and task regeneration via TaskService): it only flips the
+     * task status. Updates are scoped to the work order's own tasks so callers
+     * cannot complete tasks belonging to a different work order.
+     */
+    public function bulkComplete(BulkCompleteTasksRequest $request, WorkOrder $workOrder)
+    {
+        abort_unless($workOrder->status === 'Closed', 422, 'Work order is not closed.');
+
+        $completedCount = $workOrder->tasks()
+            ->whereIn('id', $request->validated('task_ids'))
+            ->where('status', '!=', 'completed')
+            ->update(['status' => 'completed']);
+
+        return response()->json(['completed_count' => $completedCount], 200);
     }
 
     public function service_status_change(Request $request, WorkOrder $workOrder)

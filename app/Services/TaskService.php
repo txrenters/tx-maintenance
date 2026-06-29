@@ -68,13 +68,18 @@ class TaskService
 
             // Assign task to WOC (Work Order Coordinator)
             if ($task->type === 'Woc') {
-                $assignedUserId = User::role('woc')->first();
-                if ($assignedUserId) {
+                // Prefer a user specifically assigned on the template task; otherwise
+                // fall back to the first user with the 'woc' role (legacy behaviour).
+                $assignedUser = $task->assigned_user_id
+                    ? User::find($task->assigned_user_id)
+                    : User::role('woc')->first();
+
+                if ($assignedUser) {
                     $tasks[] = [
                         'description' => $task->name,
                         'due_date' => $taskDueDate,
                         'work_order_id' => $workOrder->id,
-                        'assigned_user_id' => $assignedUserId->id,
+                        'assigned_user_id' => $assignedUser->id,
                         'task_id' => $task->id,
                         'created_at' => $now,
                         'updated_at' => $now,

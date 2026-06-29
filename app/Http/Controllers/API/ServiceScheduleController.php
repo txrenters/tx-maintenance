@@ -87,7 +87,9 @@ class ServiceScheduleController extends Controller
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
 
-            return redirect()->back()->with('success', 'Service schedule updated successfully!');
+            // 303 so Inertia treats the follow-up request as a GET; these routes are
+            // in the api middleware group, which lacks Inertia's automatic 302->303 conversion.
+            return redirect()->back(303)->with('success', 'Service schedule updated successfully!');
         } catch (\Exception $e) {
             Log::error('Failed to update service schedule', [
                 'service_schedule_id' => $serviceSchedule->id,
@@ -97,7 +99,7 @@ class ServiceScheduleController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to update service schedule. Please try again.');
+            return redirect()->back(303)->with('error', 'Failed to update service schedule. Please try again.');
         }
     }
 
@@ -203,14 +205,16 @@ class ServiceScheduleController extends Controller
             // Sync to PropertyWare after deletion
             $this->syncAfterDeletion($workOrderId, $vendorId);
 
-            return redirect()->back()->with('success', 'Service schedule deleted successfully!');
+            // 303 so Inertia treats the follow-up DELETE redirect as a GET (api group
+            // lacks Inertia's automatic 302->303 conversion).
+            return redirect()->back(303)->with('success', 'Service schedule deleted successfully!');
         } catch (\Exception $e) {
             Log::error('Failed to delete service schedule', [
                 'service_schedule_id' => $serviceSchedule->id,
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to delete service schedule. Please try again.');
+            return redirect()->back(303)->with('error', 'Failed to delete service schedule. Please try again.');
         }
     }
 

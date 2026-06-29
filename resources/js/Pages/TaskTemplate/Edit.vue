@@ -12,6 +12,7 @@ const props = defineProps({
   title: String,
   template: Object,
   statuses: Object,
+  assignableUsers: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -42,6 +43,7 @@ const addTask = () => {
     is_option: "No",
     is_mandatory: "Yes",
     task_for: "",
+    assigned_user_id: "",
     due_date: "",
     task_service_status_id: "",
     is_task_service_status_emergency: "",
@@ -98,6 +100,7 @@ onMounted(() => {
         is_option: task.is_optional === 1 ? "Yes" : "No",
         is_mandatory: task.is_mandatory === 1 ? "Yes" : "No",
         task_for: task.type || "",
+        assigned_user_id: task.assigned_user_id ? String(task.assigned_user_id) : "",
         due_date: task.due_date || "",
         task_service_status_id: String(task.next_service_status_id),
         is_task_service_status_emergency:
@@ -314,6 +317,40 @@ onMounted(() => {
               </Select>
               <Label class="mt-1 text-destructive text-xs">
                 {{ form.errors[`tasks.${index}.task_for`] }}
+              </Label>
+            </div>
+            <div
+              v-if="task.task_for === 'Woc'"
+              class="mt-2 w-full flex flex-col gap-2"
+            >
+              <Label>Assign to specific user</Label>
+              <Select
+                :modelValue="task.assigned_user_id || '__auto__'"
+                @update:modelValue="
+                  (v) => (task.assigned_user_id = v === '__auto__' ? '' : v)
+                "
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Auto-assign (first WOC)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>WOC user</SelectLabel>
+                    <SelectItem value="__auto__">
+                      Auto-assign (first WOC)
+                    </SelectItem>
+                    <SelectItem
+                      v-for="user in assignableUsers"
+                      :key="user.id"
+                      :value="String(user.id)"
+                    >
+                      {{ user.name }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Label class="mt-1 text-destructive text-xs">
+                {{ form.errors[`tasks.${index}.assigned_user_id`] }}
               </Label>
             </div>
             <div class="mt-2 w-full flex flex-col gap-2">
