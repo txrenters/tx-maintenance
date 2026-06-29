@@ -154,17 +154,37 @@ class AttachmentsController extends Controller
      */
     public function downloadDocument(WorkOrderDocuments $workOrderDocument, PropertyWareService $propertyWareService)
     {
+        // Re-resolve the parent work order through the (scoped) model so a user can
+        // only fetch documents for work orders they're allowed to see. WorkOrderScope
+        // hides it for vendors/owners/tenants without access, giving a 404 — the same
+        // protection the attachments show() endpoint gets via route-model binding.
+        abort_unless(
+            WorkOrder::whereKey($workOrderDocument->work_order_id)->exists(),
+            404
+        );
+
         $file = $propertyWareService->downloadDocument($workOrderDocument->propertyware_id);
 
         if (! $file) {
             abort(404, 'Document is not available from PropertyWare.');
         }
 
-        $fileName = $workOrderDocument->file_name ?: 'document';
+        // The mime comes from PropertyWare (external), so allowlist it: render known
+        // safe types inline, force anything else to download as an opaque blob, and
+        // never sniff. This prevents serving attacker-controlled HTML/JS inline.
+        $inlineMimes = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif'];
+        $mime = in_array($file['mime'], $inlineMimes, true) ? $file['mime'] : 'application/octet-stream';
+        $disposition = $mime === 'application/octet-stream' ? 'attachment' : 'inline';
+
+        // The filename is external (PropertyWare). Strip path separators and any
+        // control/quote characters so it can't break out of the header or inject one.
+        $fileName = preg_replace('/[\x00-\x1f"\\\\\/]/', '', basename($workOrderDocument->file_name ?: 'document'));
+        $fileName = $fileName !== '' ? $fileName : 'document';
 
         return response($file['content'], 200)
-            ->header('Content-Type', $file['mime'])
-            ->header('Content-Disposition', 'inline; filename="'.addslashes($fileName).'"');
+            ->header('Content-Type', $mime)
+            ->header('X-Content-Type-Options', 'nosniff')
+            ->header('Content-Disposition', $disposition.'; filename="'.$fileName.'"');
     }
 
     /**
