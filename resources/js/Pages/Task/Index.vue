@@ -169,16 +169,15 @@ const loadIncompleteTasks = async (woId) => {
     }
 };
 
-const completeSelected = async () => {
-    if (selectedTaskIds.value.length === 0 || !selectedWoId.value) return;
+const showConfirmModal = ref(false);
 
-    if (
-        !window.confirm(
-            `Mark ${selectedTaskIds.value.length} task(s) complete? This won't reopen or change the work order.`
-        )
-    ) {
-        return;
-    }
+const completeSelected = () => {
+    if (selectedTaskIds.value.length === 0 || !selectedWoId.value) return;
+    showConfirmModal.value = true;
+};
+
+const confirmComplete = async () => {
+    if (selectedTaskIds.value.length === 0 || !selectedWoId.value) return;
 
     completing.value = true;
     try {
@@ -214,6 +213,7 @@ const completeSelected = async () => {
         });
     } finally {
         completing.value = false;
+        showConfirmModal.value = false;
     }
 };
 </script>
@@ -471,5 +471,33 @@ const completeSelected = async () => {
             </div>
         </TabsContent>
     </Tabs>
+
+    <Dialog v-model:open="showConfirmModal">
+        <DialogContent class="sm:max-w-[420px]">
+            <DialogHeader>
+                <DialogTitle>Complete selected tasks?</DialogTitle>
+                <DialogDescription>
+                    Mark {{ selectedTaskIds.length }} task(s) complete. This
+                    won't reopen or otherwise change the work order.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <Button
+                    variant="outline"
+                    @click="showConfirmModal = false"
+                    :disabled="completing"
+                >
+                    Cancel
+                </Button>
+                <Button @click="confirmComplete" :disabled="completing">
+                    <Loader2
+                        v-if="completing"
+                        class="w-4 h-4 mr-2 animate-spin"
+                    />
+                    Complete tasks
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     </div>
 </template>
