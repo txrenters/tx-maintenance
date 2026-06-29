@@ -231,6 +231,7 @@ const isLoading = ref(false);
 const workOrderTasks = ref(props.tasks ?? []);
 const workOrderNotes = ref(props.notes ?? []);
 const workOrderAttachments = ref(props.attachments ?? []);
+const workOrderDocuments = ref([]);
 const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
@@ -367,6 +368,7 @@ const fetchAttachments = async () => {
             route("api.attachments.show", workOrderForm.id),
         );
         workOrderAttachments.value = res.data.attachments;
+        workOrderDocuments.value = res.data.documents ?? [];
     } catch (e) {
         console.error(e);
     } finally {
@@ -765,6 +767,7 @@ const handleCloseOrderSubmit = () => {
             <Attachments
                 v-if="activeTab === 'attachments'"
                 :workOrderAttachments="workOrderAttachments"
+                :workOrderDocuments="workOrderDocuments"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-attachments="fetchAttachments"

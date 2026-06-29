@@ -18,6 +18,7 @@ const { toast } = useToast();
 
 const props = defineProps({
     workOrderAttachments: Object,
+    workOrderDocuments: { type: Array, default: () => [] },
     isLoading: Boolean,
     workOrder: Object,
 });
@@ -240,6 +241,61 @@ function handleFiles(event) {
                     @expandImage="handleExpandImage"
                     @deleteImage="handleDeleteImage"
                 />
+            </div>
+            <div class="mb-3">
+                <p
+                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
+                >
+                    PropertyWare Documents
+                </p>
+
+                <div v-if="isLoading" class="space-y-2">
+                    <div
+                        v-for="n in 2"
+                        :key="n"
+                        class="h-10 rounded-md bg-muted animate-pulse"
+                    />
+                </div>
+                <p
+                    v-else-if="workOrderDocuments.length === 0"
+                    class="text-sm text-muted-foreground"
+                >
+                    No PropertyWare documents for this work order.
+                </p>
+                <ul v-else class="divide-y rounded-md border">
+                    <li
+                        v-for="doc in workOrderDocuments"
+                        :key="doc.id"
+                        class="flex items-center gap-3 p-3"
+                    >
+                        <FileText class="w-4 h-4 shrink-0 text-primary" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium truncate">
+                                {{ doc.file_name || "Document" }}
+                            </p>
+                            <p
+                                v-if="doc.description"
+                                class="text-xs text-muted-foreground truncate"
+                            >
+                                {{ doc.description }}
+                            </p>
+                        </div>
+                        <a
+                            :href="
+                                route(
+                                    'api.work_order_documents.download',
+                                    doc.id
+                                )
+                            "
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 text-sm text-primary hover:underline shrink-0"
+                        >
+                            <Download class="w-4 h-4" />
+                            View
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
         <CameraModal

@@ -140,6 +140,8 @@ Route::middleware([
 
     Route::delete('/attachments/{attachment}', [AttachmentsController::class, 'destroy'])->name('api.attachments.destroy');
 
+    Route::get('/work-order-documents/{workOrderDocument}/download', [AttachmentsController::class, 'downloadDocument'])->name('api.work_order_documents.download');
+
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
 
     Route::get('/buildings', [BuildingController::class, 'index'])->name('buildings.index');

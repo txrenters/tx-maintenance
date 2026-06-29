@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderDocuments;
+use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class AttachmentsController extends Controller
 {
@@ -40,7 +43,7 @@ class AttachmentsController extends Controller
             UploadAttachment::dispatch($attachment);
 
             return redirect()->back()->with('success', 'Attachment uploaded successfully. PropertyWare sync is processing in the background.');
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('Attachment validation failed', [
                 'errors' => $e->errors(),
                 'user_id' => auth()->id(),
@@ -114,7 +117,7 @@ class AttachmentsController extends Controller
                 : "{$fileCount} attachments uploaded successfully. PropertyWare sync is processing in the background.";
 
             return redirect()->back()->with('success', $message);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             Log::error('Multiple attachments validation failed', [
                 'errors' => $e->errors(),
                 'user_id' => auth()->id(),
@@ -139,9 +142,29 @@ class AttachmentsController extends Controller
      */
     public function show(WorkOrder $workOrder)
     {
-        $workOrder->load(['attachments']);
+        $workOrder->load(['attachments', 'documents']);
 
         return response()->json($workOrder, 200);
+    }
+
+    /**
+     * Stream a PropertyWare-synced work order document (e.g. "Work Order
+     * Information.pdf") for inline viewing/download. The bytes are not stored
+     * locally, so they are fetched from PropertyWare on demand.
+     */
+    public function downloadDocument(WorkOrderDocuments $workOrderDocument, PropertyWareService $propertyWareService)
+    {
+        $file = $propertyWareService->downloadDocument($workOrderDocument->propertyware_id);
+
+        if (! $file) {
+            abort(404, 'Document is not available from PropertyWare.');
+        }
+
+        $fileName = $workOrderDocument->file_name ?: 'document';
+
+        return response($file['content'], 200)
+            ->header('Content-Type', $file['mime'])
+            ->header('Content-Disposition', 'inline; filename="'.addslashes($fileName).'"');
     }
 
     /**

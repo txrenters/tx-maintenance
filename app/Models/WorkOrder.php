@@ -111,6 +111,11 @@ class WorkOrder extends Model
         return $this->hasMany(Attachments::class, 'work_order_id');
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(WorkOrderDocuments::class, 'work_order_id');
+    }
+
     public function invoice(): HasOne
     {
         return $this->hasOne(Invoice::class);
