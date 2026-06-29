@@ -541,24 +541,31 @@ class PropertyWareService
 
         $this->approvedWorkOrder($workOrder);
 
-        if ($res->status() == 200) {
+        if ($response->successful() && $res->successful()) {
             Log::info('Success in updating work order', [
                 'work order' => $workOrder->work_order_no,
                 'status_code' => $res->status(),
             ]);
 
             return true;
-        } else {
-            Log::error('Error updating Work Order', [
-                'error' => 'Unable to update work order',
-                'error_details' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->body(),
-                ],
-            ]);
-
-            return false;
         }
+
+        // Log BOTH responses separately so the actually-failing call is visible.
+        // (Previously the error reported the main update's response, which masked
+        // a failing custom-fields call behind a 200 + work order body.)
+        Log::error('Error updating Work Order', [
+            'work_order' => $workOrder->work_order_no,
+            'work_order_update' => [
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+            ],
+            'custom_fields_update' => [
+                'status_code' => $res->status(),
+                'body' => $res->body(),
+            ],
+        ]);
+
+        return false;
     }
 
     public function updateServiceStatus(object $workOrder, object $service_status)
