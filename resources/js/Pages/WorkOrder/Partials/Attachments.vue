@@ -215,54 +215,19 @@ function handleFiles(event) {
                     @expandImage="handleExpandImage"
                     @deleteImage="handleDeleteImage"
                 />
-            </div>
-            <div class="mb-3">
-                <p
-                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
-                >
-                    Before Pictures
-                </p>
-                <Files
-                    :files="beforePics"
-                    :loading="isLoading"
-                    @expandImage="handleExpandImage"
-                    @deleteImage="handleDeleteImage"
-                />
-            </div>
-            <div class="mb-3">
-                <p
-                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
-                >
-                    After Pictures
-                </p>
-                <Files
-                    :files="afterPics"
-                    :loading="isLoading"
-                    @expandImage="handleExpandImage"
-                    @deleteImage="handleDeleteImage"
-                />
-            </div>
-            <div class="mb-3">
-                <p
-                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
-                >
-                    PropertyWare Documents
-                </p>
 
-                <div v-if="isLoading" class="space-y-2">
+                <!-- PropertyWare-synced documents (e.g. Work Order Information.pdf) -->
+                <div v-if="isLoading" class="space-y-2 mt-3">
                     <div
                         v-for="n in 2"
                         :key="n"
                         class="h-10 rounded-md bg-muted animate-pulse"
                     />
                 </div>
-                <p
-                    v-else-if="workOrderDocuments.length === 0"
-                    class="text-sm text-muted-foreground"
+                <ul
+                    v-else-if="workOrderDocuments.length"
+                    class="divide-y rounded-md border mt-3"
                 >
-                    No PropertyWare documents for this work order.
-                </p>
-                <ul v-else class="divide-y rounded-md border">
                     <li
                         v-for="doc in workOrderDocuments"
                         :key="doc.id"
@@ -296,6 +261,32 @@ function handleFiles(event) {
                         </a>
                     </li>
                 </ul>
+            </div>
+            <div class="mb-3">
+                <p
+                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
+                >
+                    Before Pictures
+                </p>
+                <Files
+                    :files="beforePics"
+                    :loading="isLoading"
+                    @expandImage="handleExpandImage"
+                    @deleteImage="handleDeleteImage"
+                />
+            </div>
+            <div class="mb-3">
+                <p
+                    class="font-semibold uppercase mb-4 p-2 bg-primary text-white"
+                >
+                    After Pictures
+                </p>
+                <Files
+                    :files="afterPics"
+                    :loading="isLoading"
+                    @expandImage="handleExpandImage"
+                    @deleteImage="handleDeleteImage"
+                />
             </div>
         </div>
         <CameraModal
