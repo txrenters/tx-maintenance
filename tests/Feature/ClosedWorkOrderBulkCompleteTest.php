@@ -26,7 +26,7 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
         return User::factory()->create()->assignRole('woc');
     }
 
-    public function test_index_lists_all_closed_work_orders_with_unfinished_counts(): void
+    public function test_index_lists_only_closed_work_orders_with_unfinished_tasks(): void
     {
         $user = $this->actingUser();
 
@@ -34,9 +34,11 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
         WorkOrderTask::factory()->count(2)->create(['work_order_id' => $closedWithTasks->id]);
         WorkOrderTask::factory()->completed()->create(['work_order_id' => $closedWithTasks->id]);
 
+        // Closed but everything already done — must NOT appear in the selector.
         $closedAllDone = WorkOrder::factory()->create(['status' => 'Closed', 'completed_date' => now()]);
         WorkOrderTask::factory()->completed()->create(['work_order_id' => $closedAllDone->id]);
 
+        // Closed with no tasks at all — must NOT appear.
         $closedNoTasks = WorkOrder::factory()->create(['status' => 'Closed', 'completed_date' => now()]);
 
         $open = WorkOrder::factory()->create(['status' => 'Open']);
@@ -57,12 +59,12 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
         $response->assertOk();
 
         $closedWorkOrders = $response->json('props.closedWorkOrders');
-        $this->assertCount(3, $closedWorkOrders);
+        $this->assertCount(1, $closedWorkOrders);
 
         $byId = collect($closedWorkOrders)->keyBy('id');
         $this->assertSame(2, $byId[$closedWithTasks->id]['unfinished_count']);
-        $this->assertSame(0, $byId[$closedAllDone->id]['unfinished_count']);
-        $this->assertSame(0, $byId[$closedNoTasks->id]['unfinished_count']);
+        $this->assertArrayNotHasKey($closedAllDone->id, $byId->all());
+        $this->assertArrayNotHasKey($closedNoTasks->id, $byId->all());
         $this->assertArrayNotHasKey($open->id, $byId->all());
     }
 

@@ -114,9 +114,14 @@ const loadingTasks = ref(false);
 const completing = ref(false);
 
 const filteredClosedList = computed(() => {
+    // Only WOs that still have leftover tasks (matches the server-side filter and
+    // drops WOs the moment their tasks are completed here).
+    const withLeftovers = closedList.value.filter(
+        (wo) => (wo.unfinished_count || 0) > 0
+    );
     const term = cleanupSearch.value.trim().toLowerCase();
-    if (!term) return closedList.value;
-    return closedList.value.filter((wo) =>
+    if (!term) return withLeftovers;
+    return withLeftovers.filter((wo) =>
         String(wo.work_order_no).toLowerCase().includes(term)
     );
 });

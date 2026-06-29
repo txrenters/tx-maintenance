@@ -101,6 +101,9 @@ class TaskController extends Controller
             // production scale, so it is fetched on demand when that tab is opened.
             'closedWorkOrders' => Inertia::optional(function () {
                 return WorkOrder::where('status', 'Closed')
+                    // Only closed work orders that actually have leftover tasks — listing
+                    // every closed WO made the selector huge and slow at scale.
+                    ->whereHas('tasks', fn ($query) => $query->where('status', '!=', 'completed'))
                     ->withCount(['tasks as unfinished_count' => fn ($query) => $query->where('status', '!=', 'completed')])
                     ->orderByDesc('completed_date')
                     ->get(['id', 'work_order_no', 'completed_date']);
