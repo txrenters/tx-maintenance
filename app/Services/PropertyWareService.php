@@ -6,9 +6,13 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class PropertyWareService
 {
@@ -74,6 +78,22 @@ class PropertyWareService
     }
 
     /**
+     * Build a PropertyWare document request that retries transient failures —
+     * connection errors and 5xx responses (e.g. the 503 PropertyWare returns
+     * during maintenance/capacity windows) — before giving up. With throw:false
+     * the final failed response is returned so callers keep degrading gracefully.
+     */
+    private function documentRequest(): PendingRequest
+    {
+        return Http::withHeaders($this->headers)
+            ->retry(3, 300, function (Throwable $exception): bool {
+                return $exception instanceof ConnectionException
+                    || ($exception instanceof RequestException
+                        && in_array($exception->response->status(), [500, 502, 503, 504], true));
+            }, throw: false);
+    }
+
+    /**
      * Retrieve the metadata for a single PropertyWare document.
      *
      * @return array<string, mixed>|null
@@ -81,7 +101,7 @@ class PropertyWareService
     public function getDocument($documentId): ?array
     {
         try {
-            $response = Http::withHeaders($this->headers)
+            $response = $this->documentRequest()
                 ->get('https://api.propertyware.com/pw/api/rest/v1/docs/'.$documentId);
 
             if ($response->successful()) {
@@ -110,7 +130,7 @@ class PropertyWareService
     public function getWorkOrderDocuments($workOrderId): array
     {
         try {
-            $response = Http::withHeaders($this->headers)
+            $response = $this->documentRequest()
                 ->get('https://api.propertyware.com/pw/api/rest/v1/docs', [
                     'entityType' => 'WORK_ORDER',
                     'entityId' => $workOrderId,
@@ -142,7 +162,7 @@ class PropertyWareService
     public function downloadDocument($documentId): ?array
     {
         try {
-            $response = Http::withHeaders($this->headers)
+            $response = $this->documentRequest()
                 ->get('https://api.propertyware.com/pw/api/rest/v1/docs/'.$documentId.'/download');
 
             if ($response->successful()) {
@@ -400,7 +420,7 @@ class PropertyWareService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('PropertyWare getVendor failed: '.$e->getMessage(), ['vendor_id' => $vendorId]);
         }
 
