@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateTaskRequest extends FormRequest
 {
@@ -20,13 +23,22 @@ class UpdateTaskRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
             'description' => 'required|string|max:1000',
             'due_date' => 'required|date',
+            // Only users who can legitimately hold a task (staff/vendor roles) may be
+            // assigned — prevents reassigning a task to an arbitrary user id (e.g. a tenant).
+            'assigned_user_id' => [
+                'required',
+                'integer',
+                Rule::exists('users', 'id')->where(
+                    fn ($query) => $query->whereIn('id', User::role(['woc', 'admin', 'vendor'])->pluck('id'))
+                ),
+            ],
         ];
     }
 }

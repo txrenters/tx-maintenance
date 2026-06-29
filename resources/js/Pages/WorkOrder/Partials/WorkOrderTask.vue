@@ -318,6 +318,7 @@ const handleGenerateTasksFromServiceStatus = () => {
             <TaskCard
                 :tasks="workOrderTasks"
                 :workorder="workOrder"
+                :assignable-users="users"
                 @update-task-status="handleEmits"
             />
         </div>

@@ -9,6 +9,7 @@ const { toast } = useToast();
 const props = defineProps({
     tasks: Object,
     workorder: Object,
+    assignableUsers: { type: Array, default: () => [] },
 });
 const page = usePage();
 
@@ -85,6 +86,7 @@ const editTaskForm = useForm({
     description: "",
     due_date: "",
     status: "",
+    assigned_user_id: "",
 });
 
 const handleEditForm = (task) => {
@@ -102,6 +104,9 @@ const handleEditForm = (task) => {
     editTaskForm.id = task.id;
     editTaskForm.description = task.description;
     editTaskForm.due_date = task.due_date;
+    editTaskForm.assigned_user_id = task.assigned_user_id
+        ? String(task.assigned_user_id)
+        : "";
 };
 
 const handleUndoTask = (taskId) => {
@@ -431,6 +436,32 @@ const checkDueTask = (task) => {
                 <div class="mb-3">
                     <Label>Description</Label>
                     <Textarea class="mt-1" v-model="editTaskForm.description" />
+                </div>
+                <div class="mb-3" v-if="assignableUsers.length">
+                    <Label>Assigned User</Label>
+                    <Select v-model="editTaskForm.assigned_user_id">
+                        <SelectTrigger class="w-full mt-1">
+                            <SelectValue placeholder="Select a user to assign" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <template
+                                    v-for="user in assignableUsers"
+                                    :key="user.id"
+                                >
+                                    <SelectItem :value="String(user.id)">
+                                        {{ user.name }}
+                                    </SelectItem>
+                                </template>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    <p
+                        v-if="editTaskForm.errors.assigned_user_id"
+                        class="text-xs text-red-500 mt-1"
+                    >
+                        {{ editTaskForm.errors.assigned_user_id }}
+                    </p>
                 </div>
             </div>
             <DialogFooter class="p-6 pt-0">
