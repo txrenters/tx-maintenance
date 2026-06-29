@@ -92,15 +92,18 @@ class TaskController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $closedWorkOrders = WorkOrder::where('status', 'Closed')
-            ->withCount(['tasks as unfinished_count' => fn ($query) => $query->where('status', '!=', 'completed')])
-            ->orderByDesc('completed_date')
-            ->get(['id', 'work_order_no', 'completed_date']);
-
         return inertia('Task/Index', [
             'title' => 'Work Order Task',
             'assignableUsers' => $assignableUsers,
-            'closedWorkOrders' => $closedWorkOrders,
+            // Deferred: the full list of closed work orders is only needed by the
+            // "Closed cleanup" tab. Loading it on every /tasks render is expensive at
+            // production scale, so it is fetched on demand when that tab is opened.
+            'closedWorkOrders' => Inertia::optional(function () {
+                return WorkOrder::where('status', 'Closed')
+                    ->withCount(['tasks as unfinished_count' => fn ($query) => $query->where('status', '!=', 'completed')])
+                    ->orderByDesc('completed_date')
+                    ->get(['id', 'work_order_no', 'completed_date']);
+            }),
             'statuses' => ['pending', 'processing', 'completed'],
             'filter' => $request->only(['search', 'assigned', 'status']),
             'total_dueTodayTasks' => count($dueTodayTasks),

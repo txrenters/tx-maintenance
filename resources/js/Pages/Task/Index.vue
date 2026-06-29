@@ -71,8 +71,41 @@ watch(search, debounce(applyFilters, 400));
 
 /* ---- Closed work order cleanup tab ---- */
 
+// `closedWorkOrders` is a deferred (Inertia::optional) prop — it is not present on
+// the initial /tasks render and is fetched only when the cleanup tab is opened.
+const activeTab = ref("board");
+const closedLoading = ref(false);
+const closedLoaded = ref(false);
+
 // Local copy so we can keep the unfinished_count badge in sync after completing.
 const closedList = ref([...props.closedWorkOrders]);
+
+// Keep the local copy in sync whenever the deferred prop arrives/refreshes.
+watch(
+    () => props.closedWorkOrders,
+    (list) => {
+        closedList.value = [...(list ?? [])];
+    }
+);
+
+const loadClosedWorkOrders = () => {
+    if (closedLoaded.value || closedLoading.value) return;
+    closedLoading.value = true;
+    router.reload({
+        only: ["closedWorkOrders"],
+        onSuccess: () => {
+            closedLoaded.value = true;
+        },
+        onFinish: () => {
+            closedLoading.value = false;
+        },
+    });
+};
+
+watch(activeTab, (tab) => {
+    if (tab === "cleanup") loadClosedWorkOrders();
+});
+
 const cleanupSearch = ref("");
 const selectedWoId = ref("");
 const cleanupTasks = ref([]);
@@ -188,7 +221,7 @@ const completeSelected = async () => {
 <template>
     <div>
     <Head :title="title" />
-    <Tabs default-value="board" class="w-full">
+    <Tabs v-model="activeTab" default-value="board" class="w-full">
         <TabsList class="mb-3">
             <TabsTrigger value="board">Active board</TabsTrigger>
             <TabsTrigger value="cleanup">Closed cleanup</TabsTrigger>
@@ -262,7 +295,7 @@ const completeSelected = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="pastDueTasks" />
+                    <TaskCard :tasks="pastDueTasks" :assignable-users="assignableUsers" />
                 </WhenVisible>
 
                 <ScrollBar orientation="vertical" />
@@ -279,7 +312,7 @@ const completeSelected = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="dueTodayTasks" />
+                    <TaskCard :tasks="dueTodayTasks" :assignable-users="assignableUsers" />
                 </WhenVisible>
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
@@ -295,7 +328,7 @@ const completeSelected = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="upcomingTasks" />
+                    <TaskCard :tasks="upcomingTasks" :assignable-users="assignableUsers" />
                 </WhenVisible>
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
@@ -335,7 +368,14 @@ const completeSelected = async () => {
                                     {{ wo.unfinished_count }} unfinished
                                 </SelectItem>
                                 <div
-                                    v-if="filteredClosedList.length === 0"
+                                    v-if="closedLoading"
+                                    class="px-2 py-1.5 text-sm text-muted-foreground flex items-center gap-2"
+                                >
+                                    <Loader2 class="w-3 h-3 animate-spin" />
+                                    Loading closed work orders…
+                                </div>
+                                <div
+                                    v-else-if="filteredClosedList.length === 0"
                                     class="px-2 py-1.5 text-sm text-muted-foreground"
                                 >
                                     No closed work orders found
