@@ -442,6 +442,7 @@ const fetchVendorServiceSchedules = async (workOrderId) => {
 };
 
 const workOrderAttachments = ref([]);
+const workOrderDocuments = ref([]);
 const fetchAttachments = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -450,6 +451,7 @@ const fetchAttachments = async (workOrderId) => {
         );
 
         workOrderAttachments.value = response.data.attachments;
+        workOrderDocuments.value = response.data.documents ?? [];
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -1127,6 +1129,7 @@ const page = usePage();
 
             <Attachments
                 :workOrderAttachments="workOrderAttachments"
+                :workOrderDocuments="workOrderDocuments"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-attachments="fetchAttachments(workOrderForm.id)"
