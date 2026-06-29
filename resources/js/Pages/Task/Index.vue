@@ -121,6 +121,14 @@ const filteredClosedList = computed(() => {
     );
 });
 
+// Totals for the "complete all closed" sweep, derived from the loaded list.
+const totalUnfinishedAll = computed(() =>
+    closedList.value.reduce((sum, wo) => sum + (wo.unfinished_count || 0), 0)
+);
+const affectedWoCount = computed(
+    () => closedList.value.filter((wo) => (wo.unfinished_count || 0) > 0).length
+);
+
 const allSelected = computed(
     () =>
         cleanupTasks.value.length > 0 &&
@@ -214,6 +222,40 @@ const confirmComplete = async () => {
     } finally {
         completing.value = false;
         showConfirmModal.value = false;
+    }
+};
+
+/* ---- Complete ALL incomplete tasks across every closed work order ---- */
+const showCompleteAllModal = ref(false);
+const completingAll = ref(false);
+
+const confirmCompleteAll = async () => {
+    completingAll.value = true;
+    try {
+        const { data } = await window.axios.post(
+            route("tasks.bulk_complete_all_closed")
+        );
+
+        // Everything closed is now done — zero the badges and clear any open checklist.
+        closedList.value.forEach((wo) => {
+            wo.unfinished_count = 0;
+        });
+        cleanupTasks.value = [];
+        selectedTaskIds.value = [];
+
+        toast({
+            title: "All closed work orders cleaned up",
+            description: `${data.completed_count} task(s) marked complete.`,
+        });
+    } catch (e) {
+        toast({
+            title: "Could not complete tasks",
+            description: e?.response?.data?.message ?? "Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        completingAll.value = false;
+        showCompleteAllModal.value = false;
     }
 };
 </script>
@@ -343,6 +385,33 @@ const confirmComplete = async () => {
                     left incomplete when it was closed. Completing them here
                     won't reopen or otherwise change the work order.
                 </p>
+
+                <div
+                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 p-3 border rounded-md bg-muted/40"
+                >
+                    <p class="text-sm">
+                        <span class="font-medium">{{ totalUnfinishedAll }}</span>
+                        incomplete task(s) across
+                        <span class="font-medium">{{ affectedWoCount }}</span>
+                        closed work order(s).
+                    </p>
+                    <Button
+                        size="sm"
+                        variant="destructive"
+                        :disabled="
+                            closedLoading ||
+                            completingAll ||
+                            totalUnfinishedAll === 0
+                        "
+                        @click="showCompleteAllModal = true"
+                    >
+                        <Loader2
+                            v-if="completingAll"
+                            class="w-4 h-4 mr-2 animate-spin"
+                        />
+                        Complete all
+                    </Button>
+                </div>
 
                 <div class="flex flex-col sm:flex-row gap-2 mb-4">
                     <Input
@@ -495,6 +564,42 @@ const confirmComplete = async () => {
                         class="w-4 h-4 mr-2 animate-spin"
                     />
                     Complete tasks
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="showCompleteAllModal">
+        <DialogContent class="sm:max-w-[440px]">
+            <DialogHeader>
+                <DialogTitle>Complete all closed work order tasks?</DialogTitle>
+                <DialogDescription>
+                    This will mark
+                    <span class="font-medium">{{ totalUnfinishedAll }}</span>
+                    incomplete task(s) across
+                    <span class="font-medium">{{ affectedWoCount }}</span>
+                    closed work order(s) as complete. It won't reopen or
+                    otherwise change the work orders, and it can't be undone.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <Button
+                    variant="outline"
+                    @click="showCompleteAllModal = false"
+                    :disabled="completingAll"
+                >
+                    Cancel
+                </Button>
+                <Button
+                    variant="destructive"
+                    @click="confirmCompleteAll"
+                    :disabled="completingAll"
+                >
+                    <Loader2
+                        v-if="completingAll"
+                        class="w-4 h-4 mr-2 animate-spin"
+                    />
+                    Complete all
                 </Button>
             </DialogFooter>
         </DialogContent>

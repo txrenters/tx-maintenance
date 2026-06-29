@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BulkCompleteTasksRequest;
+use App\Http\Requests\CompleteAllClosedTasksRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -190,6 +191,21 @@ class TaskController extends Controller
         $completedCount = $workOrder->tasks()
             ->whereIn('id', $request->validated('task_ids'))
             ->where('status', '!=', 'completed')
+            ->update(['status' => 'completed']);
+
+        return response()->json(['completed_count' => $completedCount], 200);
+    }
+
+    /**
+     * Bulk-mark every incomplete task belonging to any closed work order as
+     * completed, in a single sweep. Like bulkComplete this only flips the task
+     * status — it does not run the completion cascade or reopen anything.
+     */
+    public function bulkCompleteAllClosed(CompleteAllClosedTasksRequest $request)
+    {
+        $completedCount = WorkOrderTask::query()
+            ->where('status', '!=', 'completed')
+            ->whereIn('work_order_id', WorkOrder::query()->where('status', 'Closed')->select('id'))
             ->update(['status' => 'completed']);
 
         return response()->json(['completed_count' => $completedCount], 200);

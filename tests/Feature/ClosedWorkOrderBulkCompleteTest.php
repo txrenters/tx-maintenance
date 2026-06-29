@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ClosedWorkOrderBulkCompleteTest extends TestCase
@@ -16,6 +17,13 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
     private function actingUser(): User
     {
         return User::factory()->create();
+    }
+
+    private function wocUser(): User
+    {
+        Role::findOrCreate('woc', 'web');
+
+        return User::factory()->create()->assignRole('woc');
     }
 
     public function test_index_lists_all_closed_work_orders_with_unfinished_counts(): void
@@ -34,19 +42,28 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
         $open = WorkOrder::factory()->create(['status' => 'Open']);
         WorkOrderTask::factory()->create(['work_order_id' => $open->id]);
 
-        $response = $this->actingAs($user)->get(route('tasks.index'));
+        // closedWorkOrders is a deferred (Inertia::optional) prop, so it is only
+        // present on a partial reload that explicitly requests it. Pass the asset
+        // version so the partial request isn't rejected with a 409 version conflict.
+        $version = app(HandleInertiaRequests::class)->version(request());
+
+        $response = $this->actingAs($user)->withHeaders([
+            'X-Inertia' => true,
+            'X-Inertia-Version' => $version,
+            'X-Inertia-Partial-Component' => 'Task/Index',
+            'X-Inertia-Partial-Data' => 'closedWorkOrders',
+        ])->get(route('tasks.index'));
 
         $response->assertOk();
-        $response->assertInertia(function (Assert $page) use ($closedWithTasks, $closedAllDone, $closedNoTasks, $open) {
-            $page->has('closedWorkOrders', 3);
 
-            $byId = collect($page->toArray()['props']['closedWorkOrders'])->keyBy('id');
+        $closedWorkOrders = $response->json('props.closedWorkOrders');
+        $this->assertCount(3, $closedWorkOrders);
 
-            $this->assertSame(2, $byId[$closedWithTasks->id]['unfinished_count']);
-            $this->assertSame(0, $byId[$closedAllDone->id]['unfinished_count']);
-            $this->assertSame(0, $byId[$closedNoTasks->id]['unfinished_count']);
-            $this->assertArrayNotHasKey($open->id, $byId->all());
-        });
+        $byId = collect($closedWorkOrders)->keyBy('id');
+        $this->assertSame(2, $byId[$closedWithTasks->id]['unfinished_count']);
+        $this->assertSame(0, $byId[$closedAllDone->id]['unfinished_count']);
+        $this->assertSame(0, $byId[$closedNoTasks->id]['unfinished_count']);
+        $this->assertArrayNotHasKey($open->id, $byId->all());
     }
 
     public function test_incomplete_endpoint_returns_only_non_completed_tasks(): void
@@ -164,5 +181,46 @@ class ClosedWorkOrderBulkCompleteTest extends TestCase
         $this->actingAs($user)
             ->postJson(route('tasks.bulk_complete', $workOrder), ['task_ids' => []])
             ->assertStatus(422);
+    }
+
+    public function test_bulk_complete_all_closed_completes_only_closed_work_order_tasks(): void
+    {
+        $woc = $this->wocUser();
+
+        $closedA = WorkOrder::factory()->create(['status' => 'Closed', 'completed_date' => now()]);
+        $closedB = WorkOrder::factory()->create(['status' => 'Closed', 'completed_date' => now()]);
+        $open = WorkOrder::factory()->create(['status' => 'Open']);
+
+        $closedTaskA = WorkOrderTask::factory()->count(2)->create(['work_order_id' => $closedA->id]);
+        $closedTaskB = WorkOrderTask::factory()->create(['work_order_id' => $closedB->id]);
+        $alreadyDone = WorkOrderTask::factory()->completed()->create(['work_order_id' => $closedA->id]);
+        $openTask = WorkOrderTask::factory()->create(['work_order_id' => $open->id]);
+
+        $response = $this->actingAs($woc)->postJson(route('tasks.bulk_complete_all_closed'));
+
+        $response->assertOk();
+        // 2 + 1 incomplete closed tasks; the already-completed one is not re-counted.
+        $response->assertJson(['completed_count' => 3]);
+
+        foreach ($closedTaskA as $task) {
+            $this->assertSame('completed', $task->fresh()->status);
+        }
+        $this->assertSame('completed', $closedTaskB->fresh()->status);
+        $this->assertSame('completed', $alreadyDone->fresh()->status);
+        // Tasks on a non-closed work order must be left untouched.
+        $this->assertSame('pending', $openTask->fresh()->status);
+    }
+
+    public function test_bulk_complete_all_closed_is_forbidden_for_non_privileged_users(): void
+    {
+        $user = $this->actingUser();
+        $closed = WorkOrder::factory()->create(['status' => 'Closed', 'completed_date' => now()]);
+        $task = WorkOrderTask::factory()->create(['work_order_id' => $closed->id]);
+
+        $this->actingAs($user)
+            ->postJson(route('tasks.bulk_complete_all_closed'))
+            ->assertStatus(403);
+
+        $this->assertSame('pending', $task->fresh()->status);
     }
 }
