@@ -362,7 +362,29 @@ class WorkOrderService
     {
         $documentsData = [];
         if (! empty($data['documents']) && is_array($data['documents'])) {
+            // Names this app uploaded to PropertyWare for this work order — skip
+            // re-importing our own uploads as documents.
+            $uploadedNames = DB::table('attachments')
+                ->where('work_order_id', $work_order)
+                ->whereNotNull('pw_file_name')
+                ->pluck('pw_file_name')
+                ->all();
+
+            $seenFileNames = [];
+
             foreach ($data['documents'] as $document) {
+                $fileName = $document['fileName'] ?? null;
+
+                // Collapse duplicate file names within this batch (e.g. repeated
+                // "Work Order Information.pdf") and drop our own uploads.
+                if ($fileName && (in_array($fileName, $seenFileNames, true) || in_array($fileName, $uploadedNames, true))) {
+                    continue;
+                }
+
+                if ($fileName) {
+                    $seenFileNames[] = $fileName;
+                }
+
                 $documentsData[] = [
                     'propertyware_id' => $document['ID'] ?? null,
                     'client_data' => $document['clientData'] ?? null,
@@ -370,7 +392,7 @@ class WorkOrderService
                     'created_by_id' => $document['createdById'] ?? null,
                     'file_data' => $document['fileData'] ?? null,
                     'file_type' => $document['fileType'] ?? null,
-                    'file_name' => $document['fileName'] ?? null,
+                    'file_name' => $fileName,
                     'is_private' => $document['private'] ?? false,
                     'is_publish_to_owner_portal' => $document['publishToOwnerPortal'] ?? null,
                     'is_publish_to_tenant_portal' => $document['publishToTenantPortal'] ?? null,
@@ -382,7 +404,9 @@ class WorkOrderService
             }
         }
         DB::table('work_order_documents')->where('work_order_id', $work_order)->delete();
-        DB::table('work_order_documents')->insert($documentsData);
+        if ($documentsData) {
+            DB::table('work_order_documents')->insert($documentsData);
+        }
         // Log::info('Work Order Documents: ', ['data' => $documentsData]);
 
     }

@@ -52,6 +52,11 @@ class UploadAttachment implements ShouldQueue
         try {
             $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
 
+            // Record the exact PropertyWare filename so the document pull can skip
+            // re-importing this upload as a duplicate work order document.
+            if (is_string($uploaded) && $uploaded !== '') {
+                $this->data->forceFill(['pw_file_name' => $uploaded])->save();
+            }
         } catch (Exception $e) {
             Log::error('Upload failed', [
                 'filename' => $this->data->filename,

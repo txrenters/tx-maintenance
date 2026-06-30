@@ -994,7 +994,9 @@ class PropertyWareService
                     'doc_id' => $postData['id'],
                 ]);
 
-                return true;
+                // Return the exact name stored in PropertyWare so the caller can
+                // record it and later skip re-pulling this upload as a document.
+                return $fileName;
             }
 
             Log::error('Error uploading work order attachment', [

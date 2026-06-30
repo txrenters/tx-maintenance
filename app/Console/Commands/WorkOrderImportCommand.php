@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Mail\VendorServiceRequestMail;
+use App\Models\Attachments;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
@@ -299,6 +300,25 @@ class WorkOrderImportCommand extends Command
                 // Skip what this app uploaded to PropertyWare to avoid redundancy.
                 if ($ourPropertywareUser && ! empty($doc['createdBy']) && $doc['createdBy'] === $ourPropertywareUser) {
                     continue;
+                }
+
+                $fileName = $doc['fileName'] ?? null;
+
+                // Skip our own uploads (matched by name) and PropertyWare's repeated
+                // system files — same file name under a different document id.
+                if ($fileName) {
+                    $duplicateName = WorkOrderDocuments::where('work_order_id', $workOrderId)
+                        ->where('file_name', $fileName)
+                        ->where('propertyware_id', '!=', $doc['id'])
+                        ->exists()
+                        || Attachments::withoutGlobalScopes()
+                            ->where('work_order_id', $workOrderId)
+                            ->where('pw_file_name', $fileName)
+                            ->exists();
+
+                    if ($duplicateName) {
+                        continue;
+                    }
                 }
 
                 WorkOrderDocuments::updateOrCreate(

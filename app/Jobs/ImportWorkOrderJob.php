@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Owner;
 use App\Models\User;
+use App\Models\WorkOrderDocuments;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -394,12 +395,9 @@ class ImportWorkOrderJob implements ShouldQueue
                         'updated_at' => $now,
                     ];
 
-                    $fileDocumentExist = DB::table('work_order_documents')
-                        ->where('propertyware_id', $document['ID'])
-                        ->whereIn('file_name', $this->sanitizeFileName($document['fileName'] ?? 'document_'.time().'_'.$index))
-                        ->exists();
-
-                    if (! $fileDocumentExist) { // don't insert if exists
+                    // Skip re-pulled uploads and PropertyWare's repeated system
+                    // files (e.g. multiple "Work Order Information.pdf") by name.
+                    if (! WorkOrderDocuments::isDuplicateForWorkOrder($work_order, $documentsData['file_name'])) {
                         DB::table('work_order_documents')->insert($documentsData);
                         $this->storeDocumentsOnDisk($documentsData);
                     }
