@@ -153,23 +153,13 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                                 {{ work_order.location }}
                             </p>
 
-                            <!-- Property name & address -->
+                            <!-- Property name -->
                               <span class="text-center text-xs text-gray-200">
-                                    <!-- <span
-                                        v-if="work_order.building.name"
+                                    <span
+                                        v-if="work_order.building?.name"
                                         class="font-medium"
                                         >{{ work_order.building.name }}</span
-                                    > -->
-                                    <template v-if="work_order.building?.address">
-                                        {{ work_order.building?.address
-                                        }}<template v-if="work_order.building?.city"
-                                            >, {{ work_order.building?.city }}</template
-                                        ><template
-                                            v-if="work_order.building?.state_region"
-                                        >
-                                             {{ work_order.building?.state_region }}</template
-                                        >
-                                    </template>
+                                    >
                                 </span>
                                 <p
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"
