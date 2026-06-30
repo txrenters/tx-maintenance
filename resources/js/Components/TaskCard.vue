@@ -1,9 +1,25 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
-import { Loader2, Undo2, Ellipsis, Pencil, Trash2 } from "lucide-vue-next";
+import {
+    Loader2,
+    Undo2,
+    Ellipsis,
+    Pencil,
+    Trash2,
+    Search,
+} from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import {
+    Combobox,
+    ComboboxAnchor,
+    ComboboxEmpty,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+} from "@/Components/ui/combobox";
 const { toast } = useToast();
 
 const props = defineProps({
@@ -89,6 +105,34 @@ const editTaskForm = useForm({
     assigned_user_id: "",
 });
 
+const userSearchTerm = ref("");
+
+const selectedAssignedUser = computed({
+    get() {
+        return (
+            props.assignableUsers.find(
+                (user) =>
+                    String(user.id) === String(editTaskForm.assigned_user_id)
+            ) || null
+        );
+    },
+    set(user) {
+        editTaskForm.assigned_user_id = user ? String(user.id) : "";
+    },
+});
+
+const filteredAssignableUsers = computed(() => {
+    const term = userSearchTerm.value.trim().toLowerCase();
+
+    if (!term) {
+        return props.assignableUsers;
+    }
+
+    return props.assignableUsers.filter((user) =>
+        user.name.toLowerCase().includes(term)
+    );
+});
+
 const handleEditForm = (task) => {
     if (task.status === "completed") {
         // if complete dont edit task
@@ -101,6 +145,7 @@ const handleEditForm = (task) => {
     }
 
     openEditModal.value = true;
+    userSearchTerm.value = "";
     editTaskForm.id = task.id;
     editTaskForm.description = task.description;
     editTaskForm.due_date = task.due_date;
@@ -439,23 +484,45 @@ const checkDueTask = (task) => {
                 </div>
                 <div class="mb-3" v-if="assignableUsers.length">
                     <Label>Assigned User</Label>
-                    <Select v-model="editTaskForm.assigned_user_id">
-                        <SelectTrigger class="w-full mt-1">
-                            <SelectValue placeholder="Select a user to assign" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <template
-                                    v-for="user in assignableUsers"
+                    <Combobox
+                        v-model="selectedAssignedUser"
+                        by="id"
+                        :ignore-filter="true"
+                    >
+                        <ComboboxAnchor class="w-full mt-1">
+                            <div
+                                class="relative flex w-full items-center border rounded-md"
+                            >
+                                <Search
+                                    class="absolute left-2 h-4 w-4 text-muted-foreground"
+                                />
+                                <ComboboxInput
+                                    class="w-full pl-8 pr-2 border-none focus-visible:ring-0"
+                                    :display-value="(user) => user?.name ?? ''"
+                                    :model-value="userSearchTerm"
+                                    @update:model-value="
+                                        userSearchTerm = $event
+                                    "
+                                    placeholder="Search a user to assign..."
+                                />
+                            </div>
+                        </ComboboxAnchor>
+                        <ComboboxList
+                            class="w-[--reka-popper-anchor-width] max-h-48"
+                        >
+                            <ComboboxEmpty>No user found.</ComboboxEmpty>
+                            <ComboboxGroup>
+                                <ComboboxItem
+                                    v-for="user in filteredAssignableUsers"
                                     :key="user.id"
+                                    :value="user"
+                                    @select="userSearchTerm = ''"
                                 >
-                                    <SelectItem :value="String(user.id)">
-                                        {{ user.name }}
-                                    </SelectItem>
-                                </template>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                                    {{ user.name }}
+                                </ComboboxItem>
+                            </ComboboxGroup>
+                        </ComboboxList>
+                    </Combobox>
                     <p
                         v-if="editTaskForm.errors.assigned_user_id"
                         class="text-xs text-red-500 mt-1"
