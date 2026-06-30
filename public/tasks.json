@@ -657,7 +657,7 @@
         "is_optional": "0",
         "is_emergency": "0",
         "type": "Woc",
-        "next_service_status_id": "18",
+        "next_service_status_id": "17",
         "task_template_id": "9",
         "created_at": "2025-03-26 13:42:05",
         "updated_at": "2025-03-26 13:42:05"

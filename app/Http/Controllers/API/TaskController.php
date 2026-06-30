@@ -117,7 +117,17 @@ class TaskController extends Controller
     {
         $service_status = ServiceStatus::find($next_service_id);
 
-        $statusChanged = ! in_array($service_status->name, ['Not Changed', 'Closed']);
+        if (! $service_status) {
+            return;
+        }
+
+        if ($service_status->name === 'Closed') {
+            $this->closeWorkOrder($work_order, $service_status);
+
+            return;
+        }
+
+        $statusChanged = $service_status->name !== 'Not Changed';
 
         if ($statusChanged) {
             $work_order->update([
@@ -130,6 +140,28 @@ class TaskController extends Controller
 
             $propertyWare->updateServiceStatus($work_order, $service_status);
         }
+    }
+
+    /**
+     * Close the work order when a "Close Work Order" task is completed.
+     *
+     * This mirrors the manual close (status, service status and completion
+     * date) and syncs the closure to PropertyWare.
+     */
+    private function closeWorkOrder(WorkOrder $work_order, ServiceStatus $service_status): void
+    {
+        $work_order->update([
+            'status' => 'Closed',
+            'service_status_id' => $service_status->id,
+            'completed_date' => now()->toDateString(),
+        ]);
+
+        $conversation_url = route('conversation.show', $work_order->id);
+
+        $propertyWare = new PropertyWareService;
+        $propertyWare->closeWorkOrder($work_order, $conversation_url);
+
+        Log::info('Work order closed via task completion: ', ['work_order_id' => $work_order->id]);
     }
 
     public function undo(Request $request, WorkOrderTask $task)
