@@ -5,9 +5,9 @@ import {
     Loader2,
     Camera,
     File,
-    FileText,
     FileSpreadsheet,
     Download,
+    Expand,
 } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import Files from "./Files.vue";
@@ -53,6 +53,36 @@ const afterPics = computed(() => {
         (file) => file?.type === "after"
     );
 });
+
+// PropertyWare documents are streamed through our download route (images are
+// served inline), so the same URL works for both the thumbnail and the link.
+const documentUrl = (doc) =>
+    route("api.work_order_documents.download", doc.id);
+
+const isImageDocument = (doc) => {
+    if (doc.file_type) {
+        return doc.file_type.startsWith("image/");
+    }
+    return /\.(jpe?g|png|gif|webp)$/i.test(doc.file_name || "");
+};
+
+// Icon shown for non-image documents, matching the before/after Files component.
+const documentIcon = (doc) => {
+    const ext = (doc.file_name || "").split(".").pop().toLowerCase();
+    switch (ext) {
+        case "pdf":
+            return "/icons/pdf.png";
+        case "doc":
+        case "docx":
+            return "/icons/docx.png";
+        case "xls":
+        case "xlsx":
+        case "txt":
+            return "/icons/excel.png";
+        default:
+            return "/icons/file.png";
+    }
+};
 
 const openCropper = ref(false);
 const selectedImage = ref("");
@@ -224,43 +254,80 @@ function handleFiles(event) {
                         class="h-10 rounded-md bg-muted animate-pulse"
                     />
                 </div>
-                <ul
+                <div
                     v-else-if="workOrderDocuments.length"
-                    class="divide-y rounded-md border mt-3"
+                    class="flex gap-5 flex-wrap mt-3"
                 >
-                    <li
+                    <div
                         v-for="doc in workOrderDocuments"
                         :key="doc.id"
-                        class="flex items-center gap-3 p-3"
+                        class="rounded cursor-pointer hover:opacity-75"
                     >
-                        <FileText class="w-4 h-4 shrink-0 text-primary" />
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium truncate">
+                        <!-- Image documents show a thumbnail; opens full size in a new tab -->
+                        <a
+                            v-if="isImageDocument(doc)"
+                            :href="documentUrl(doc)"
+                            target="_blank"
+                            rel="noopener"
+                            class="relative group inline-block p-3 border"
+                            title="View"
+                        >
+                            <div
+                                class="relative flex items-center justify-center w-32 h-32"
+                            >
+                                <Expand
+                                    width="40"
+                                    height="40"
+                                    stroke-width="1"
+                                    class="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                />
+                                <img
+                                    :src="documentUrl(doc)"
+                                    :alt="doc.file_name"
+                                    class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
+                                />
+                            </div>
+                        </a>
+
+                        <!-- Non-image documents show a file-type icon -->
+                        <a
+                            v-else
+                            :href="documentUrl(doc)"
+                            target="_blank"
+                            rel="noopener"
+                            class="relative group inline-block p-3 border"
+                            title="View / Download"
+                        >
+                            <div
+                                class="relative flex items-center justify-center w-32 h-32"
+                            >
+                                <Download
+                                    width="40"
+                                    height="40"
+                                    stroke-width="1"
+                                    class="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                />
+                                <img
+                                    :src="documentIcon(doc)"
+                                    class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
+                                    alt="File Icon"
+                                />
+                            </div>
+                        </a>
+
+                        <div class="w-32 text-wrap">
+                            <p class="text-xs mt-2" :title="doc.file_name">
                                 {{ doc.file_name || "Document" }}
                             </p>
                             <p
                                 v-if="doc.description"
-                                class="text-xs text-muted-foreground truncate"
+                                class="text-xs text-muted-foreground"
                             >
                                 {{ doc.description }}
                             </p>
                         </div>
-                        <a
-                            :href="
-                                route(
-                                    'api.work_order_documents.download',
-                                    doc.id
-                                )
-                            "
-                            target="_blank"
-                            rel="noopener"
-                            class="inline-flex items-center gap-1 text-sm text-primary hover:underline shrink-0"
-                        >
-                            <Download class="w-4 h-4" />
-                            View
-                        </a>
-                    </li>
-                </ul>
+                    </div>
+                </div>
             </div>
             <div class="mb-3">
                 <p
