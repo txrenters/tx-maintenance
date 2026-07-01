@@ -55,6 +55,10 @@ class WorkOrderController extends Controller
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
                     })
+                    // Apply category filter
+                    ->when(request('category'), function ($query, $category) {
+                        $query->where('category', $category);
+                    })
                     // Apply date range filter
                     ->when(request()->filled(['start_date', 'end_date']), function ($query) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -106,6 +110,10 @@ class WorkOrderController extends Controller
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
                 })
+                // Apply category filter
+                ->when(request('category'), function ($query, $category) {
+                    $query->where('category', $category);
+                })
                 // Apply date range filter
                 ->when(request()->filled(['start_date', 'end_date']), function ($query) {
                     $date = request()->only(['start_date', 'end_date']);
@@ -142,6 +150,10 @@ class WorkOrderController extends Controller
                     $query->whereHas('vendors', function ($q) use ($vendorId) {
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
+                })
+                // Apply category filter
+                ->when(request('category'), function ($query, $category) {
+                    $query->where('category', $category);
                 })
                 // Apply date range filter
                 ->when(request()->filled(['start_date', 'end_date']), function ($query) {
@@ -206,7 +218,7 @@ class WorkOrderController extends Controller
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
             'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -358,14 +370,25 @@ class WorkOrderController extends Controller
         try {
             $workOrder->update($validatedData);
 
-            UpdateWorkOrder::dispatch($workOrder->id, $validatedData);
+            // Run the PropertyWare sync inline so we can tell the user whether it
+            // actually synced. PropertyWare refuses edits to closed work orders, so a
+            // successful local save does not guarantee the change reached PropertyWare.
+            $result = (new UpdateWorkOrder($workOrder->id, $validatedData))->handle(app(PropertyWareService::class));
 
-            // Broadcast the work order update
             $workOrder->load('service_status');
 
-            Log::info('Work Order Update Dispatched', ['work_order_no' => $workOrder->work_order_no]);
+            if (! ($result['ok'] ?? false)) {
+                Log::warning('Work order saved locally but not synced to PropertyWare', [
+                    'work_order_no' => $workOrder->work_order_no,
+                    'message' => $result['message'] ?? null,
+                ]);
 
-            return redirect()->back()->with('success', 'Work order update has been queued.');
+                return redirect()->back()->with('error', 'Saved locally, but PropertyWare did not accept the update: '.($result['message'] ?? 'Unknown error.'));
+            }
+
+            Log::info('Work Order Update Synced', ['work_order_no' => $workOrder->work_order_no]);
+
+            return redirect()->back()->with('success', 'Work order updated and synced to PropertyWare.');
 
         } catch (\Throwable $th) {
             Log::error('Work Order update failed: '.$th->getMessage(), [
@@ -373,11 +396,8 @@ class WorkOrderController extends Controller
                 'exception' => $th->getTraceAsString(),
             ]);
 
-            return redirect()->back()->with('error', 'Failed to queue work order update.');
+            return redirect()->back()->with('error', 'Failed to update work order.');
         }
-
-        return redirect()->back()->with('error', 'Failed to queue work order update.');
-
     }
 
     public function closed_work_orders(Request $request)
@@ -393,6 +413,9 @@ class WorkOrderController extends Controller
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
+                    })
+                    ->when(request('category'), function ($q, $category) {
+                        $q->where('category', $category);
                     })
                     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -441,7 +464,7 @@ class WorkOrderController extends Controller
             'vendors' => $vendors,
             'categories' => $categories,
             'users' => $users,
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -457,6 +480,9 @@ class WorkOrderController extends Controller
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
+                    })
+                    ->when(request('category'), function ($q, $category) {
+                        $q->where('category', $category);
                     })
                     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -484,11 +510,14 @@ class WorkOrderController extends Controller
             ->orderBy('name')
             ->get();
 
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+
         return inertia('WorkOrder/WaitingOnPayment', [
             'title' => 'Waiting on Payment',
             'service_status' => Inertia::defer(fn () => $waitingOnPaymentStatus),
             'vendors' => $vendors,
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'categories' => $categories,
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -507,6 +536,9 @@ class WorkOrderController extends Controller
                     $query->whereHas('vendors', function ($q) use ($vendorId) {
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
+                })
+                ->when(request('category'), function ($query, $category) {
+                    $query->where('category', $category);
                 })
                 ->when(request()->filled(['start_date', 'end_date']), function ($query) {
                     $date = request()->only(['start_date', 'end_date']);
@@ -530,11 +562,14 @@ class WorkOrderController extends Controller
             ->orderBy('name')
             ->get();
 
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+
         return inertia('WorkOrder/Paid', [
             'title' => 'Paid Work Orders',
             'service_status' => Inertia::defer(fn () => collect([$paidStatus])),
             'vendors' => $vendors,
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'categories' => $categories,
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -552,6 +587,9 @@ class WorkOrderController extends Controller
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
+                    })
+                    ->when(request('category'), function ($q, $category) {
+                        $q->where('category', $category);
                     })
                     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -600,6 +638,9 @@ class WorkOrderController extends Controller
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
                 })
+                ->when(request('category'), function ($query, $category) {
+                    $query->where('category', $category);
+                })
                 ->when(request()->filled(['start_date', 'end_date']), function ($query) {
                     $date = request()->only(['start_date', 'end_date']);
                     $start = Carbon::parse($date['start_date'])->startOfDay();
@@ -630,6 +671,9 @@ class WorkOrderController extends Controller
                     $query->whereHas('vendors', function ($q) use ($vendorId) {
                         $q->where('work_order_vendors.vendor_id', $vendorId);
                     });
+                })
+                ->when(request('category'), function ($query, $category) {
+                    $query->where('category', $category);
                 })
                 ->when(request()->filled(['start_date', 'end_date']), function ($query) {
                     $date = request()->only(['start_date', 'end_date']);
@@ -689,7 +733,7 @@ class WorkOrderController extends Controller
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
             'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -707,6 +751,9 @@ class WorkOrderController extends Controller
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
+                    })
+                    ->when(request('category'), function ($q, $category) {
+                        $q->where('category', $category);
                     })
                     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -761,7 +808,7 @@ class WorkOrderController extends Controller
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
             'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
@@ -779,6 +826,9 @@ class WorkOrderController extends Controller
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
                         });
+                    })
+                    ->when(request('category'), function ($q, $category) {
+                        $q->where('category', $category);
                     })
                     ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                         $date = request()->only(['start_date', 'end_date']);
@@ -829,7 +879,7 @@ class WorkOrderController extends Controller
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
             'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 

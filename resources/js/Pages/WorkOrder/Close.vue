@@ -68,6 +68,7 @@ const props = defineProps({
 const url = ref(route("work_orders.closed_work_orders"));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
+const filter_category = ref(props.filter.category ?? "");
 
 const openWorkOrder = ref(false);
 
@@ -664,6 +665,19 @@ const filterVendor = debounce(() => {
     });
 }, 2000);
 
+const filterCategory = debounce(() => {
+    const newQuery = { category: filter_category.value || null };
+
+    router.visit(url.value, {
+        method: "get",
+        data: newQuery,
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ["service_status"],
+    });
+}, 2000);
+
 const fetchFilteredData = debounce(() => {
     const startDate = formatDate(date_range.value?.start);
     const endDate = formatDate(date_range.value?.end);
@@ -681,6 +695,7 @@ const fetchFilteredData = debounce(() => {
 }, 2000);
 watch(date_range, fetchFilteredData, { deep: true });
 watch(filter_vendor, filterVendor);
+watch(filter_category, filterCategory);
 </script>
 <template>
     <Head :title="title" />
@@ -706,6 +721,27 @@ watch(filter_vendor, filterVendor);
                         <template v-for="vendor in vendors" :key="vendor.id">
                             <SelectItem :value="String(vendor.id)">
                                 {{ vendor.name }}
+                            </SelectItem>
+                        </template>
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
+
+            <Select
+                :modelValue="String(filter_category)"
+                @update:modelValue="(value) => (filter_category = value)"
+            >
+                <SelectTrigger class="w-full sm:w-[250px]">
+                    <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                        <template
+                            v-for="category in categories"
+                            :key="category.id"
+                        >
+                            <SelectItem :value="String(category.name)">
+                                {{ category.name }}
                             </SelectItem>
                         </template>
                     </SelectGroup>

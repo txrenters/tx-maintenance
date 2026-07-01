@@ -494,32 +494,24 @@ class PropertyWareService
 
     }
 
-    public function updateWorkOrder($workOrder)
+    public function updateWorkOrder($workOrder, array $changes = [])
     {
-        $response = Http::withHeaders($this->headers)->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, [
-            'authorizedToEnter' => strtoupper(str_replace(' ', '', $workOrder->authorized_to_enter)),
-            'buildingID' => $workOrder->building_id,
-            'category' => $workOrder->category,
-            'costEstimate' => $workOrder->cost_estimate,
-            'dateToEnter' => $workOrder->date_to_enter ? Carbon::parse($workOrder->date_to_enter)->format('Y-m-d') : '',
-            'description' => $workOrder->description,
-            'hourEstimate' => $workOrder->hour_estimate,
-            'priority' => strtoupper($workOrder->priority),
-            'requiredMaterials' => $workOrder->required_materials,
-            'scheduledEndDate' => $workOrder->scheduled_end_date ? Carbon::parse($workOrder->scheduled_end_date)->format('Y-m-d') : '',
-            'source' => $workOrder->source,
-            'specificLocation' => $workOrder->specific_location,
-            'startDate' => $workOrder->start_date ? Carbon::parse($workOrder->start_date)->format('Y-m-d') : '',
-            'type' => $workOrder->type,
-        ]);
+        // PropertyWare's updateWorkOrder endpoint uses JSON Merge Patch, so we send ONLY
+        // the fields we intend to change (see buildWorkOrderPatchPayload). PropertyWare
+        // rejects edits to work orders it considers closed with a 400 ("...already
+        // closed") and can also return a 500; we return that outcome to the caller so it
+        // can be surfaced to the user instead of failing silently.
+        $payload = $this->buildWorkOrderPatchPayload($workOrder, $changes);
 
-        if ($response->status() == 200) {
-            Log::info('Success in updating work order', [
-                'work order' => $workOrder->work_order_no,
-                'status_code' => $response->status(),
-                'headers' => $response->headers(),
-            ]);
-        }
+        $response = Http::withHeaders($this->headers)->patch('https://api.propertyware.com/pw/api/rest/v1/workorders/'.$workOrder->propertyware_id, $payload);
+
+        Log::info('PropertyWare updateWorkOrder patch', [
+            'work_order_no' => $workOrder->work_order_no,
+            'propertyware_id' => $workOrder->propertyware_id,
+            'payload_sent' => $payload,
+            'status_code' => $response->status(),
+            'response_body' => $response->body(),
+        ]);
 
         $res = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
             'entityId' => $workOrder->propertyware_id,
@@ -541,31 +533,82 @@ class PropertyWareService
 
         $this->approvedWorkOrder($workOrder);
 
-        if ($response->successful() && $res->successful()) {
+        $ok = $response->successful() && $res->successful();
+
+        if ($ok) {
             Log::info('Success in updating work order', [
                 'work order' => $workOrder->work_order_no,
                 'status_code' => $res->status(),
             ]);
-
-            return true;
+        } else {
+            // Log BOTH responses separately so the actually-failing call is visible.
+            // (Previously the error reported the main update's response, which masked
+            // a failing custom-fields call behind a 200 + work order body.)
+            Log::error('Error updating Work Order', [
+                'work_order' => $workOrder->work_order_no,
+                'work_order_update' => [
+                    'status_code' => $response->status(),
+                    'body' => $response->body(),
+                ],
+                'custom_fields_update' => [
+                    'status_code' => $res->status(),
+                    'body' => $res->body(),
+                ],
+            ]);
         }
 
-        // Log BOTH responses separately so the actually-failing call is visible.
-        // (Previously the error reported the main update's response, which masked
-        // a failing custom-fields call behind a 200 + work order body.)
-        Log::error('Error updating Work Order', [
-            'work_order' => $workOrder->work_order_no,
-            'work_order_update' => [
-                'status_code' => $response->status(),
-                'body' => $response->body(),
-            ],
-            'custom_fields_update' => [
-                'status_code' => $res->status(),
-                'body' => $res->body(),
-            ],
-        ]);
+        // Surface PropertyWare's own message (e.g. "Can not edit work order. It is
+        // already closed") from whichever call failed.
+        $failed = ! $response->successful() ? $response : (! $res->successful() ? $res : null);
 
-        return false;
+        return [
+            'ok' => $ok,
+            'status' => $response->status(),
+            'message' => $ok
+                ? 'Synced to PropertyWare.'
+                : ($failed?->json('userMessage') ?: 'PropertyWare rejected the update (HTTP '.($failed?->status() ?? 0).').'),
+        ];
+    }
+
+    /**
+     * Build a JSON Merge Patch body for PropertyWare's updateWorkOrder endpoint.
+     *
+     * Only the standard work order fields our UI can edit are mapped here; custom
+     * fields (Zone, Management Plan, Additional work needed) are synced separately via
+     * the customfields endpoint. Empty values are omitted so we never send an invalid
+     * enum/date or clobber existing PropertyWare data.
+     *
+     * @param  array<string, mixed>  $changes  The fields that were updated locally.
+     * @return array<string, mixed>
+     */
+    private function buildWorkOrderPatchPayload($workOrder, array $changes): array
+    {
+        // Local column => PropertyWare PATCH field.
+        $map = [
+            'category' => 'category',
+            'description' => 'description',
+        ];
+
+        // Patch only what changed when we know it; otherwise fall back to the
+        // editable standard fields currently on the model.
+        $source = ! empty($changes) ? $changes : $workOrder->only(array_keys($map));
+
+        $payload = [];
+        foreach ($map as $local => $pwField) {
+            if (! array_key_exists($local, $source)) {
+                continue;
+            }
+
+            $value = $source[$local];
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $payload[$pwField] = $value;
+        }
+
+        return $payload;
     }
 
     public function updateServiceStatus(object $workOrder, object $service_status)
@@ -1342,23 +1385,22 @@ class PropertyWareService
 
     public function approvedWorkOrder($workOrder): void
     {
-        $client = $this->initiate();
-
-        if ($workOrder->is_approved) {
-
-            $work_order_no = $workOrder->work_order_no;
-            $approved = $workOrder->is_approved;
-            $approvedDate = $workOrder->approved_date ?? '';
-            $approvalComment = $workOrder->approval_comments ?? '';
-
-            $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
-
-            Log::info('Work order approval has been added!', [
-                'Work order no' => $work_order_no,
-            ]);
-
+        if (! $workOrder->is_approved) {
+            return;
         }
 
+        $client = $this->initiate();
+
+        $work_order_no = $workOrder->work_order_no;
+        $approved = $workOrder->is_approved;
+        $approvedDate = $workOrder->approved_date ?? '';
+        $approvalComment = $workOrder->approval_comments ?? '';
+
+        $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
+
+        Log::info('Work order approval has been added!', [
+            'Work order no' => $work_order_no,
+        ]);
     }
 
     public function execute($xmlPayload)

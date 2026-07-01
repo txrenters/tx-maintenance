@@ -32,21 +32,31 @@ class UpdateWorkOrder implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(PropertyWareService $propertyware): void
+    /**
+     * @return array{ok: bool, status: int, message: string}
+     */
+    public function handle(PropertyWareService $propertyware): array
     {
         $workOrder = WorkOrder::findOrFail($this->workOrderId);
 
         DB::beginTransaction();
         try {
-            $propertyware->updateWorkOrder($workOrder);
+            $result = $propertyware->updateWorkOrder($workOrder, $this->data ?? []);
             DB::commit();
+
+            return $result;
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work Order update failed: '.$th->getMessage(), [
                 'word_order_no' => $workOrder->work_order_no,
                 'exception' => $th->getTraceAsString(),
             ]);
-        }
 
+            return [
+                'ok' => false,
+                'status' => 0,
+                'message' => 'Could not reach PropertyWare: '.$th->getMessage(),
+            ];
+        }
     }
 }
