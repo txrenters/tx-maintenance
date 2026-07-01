@@ -1,8 +1,8 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { router } from "@inertiajs/vue3";
 import { useFilter } from "reka-ui";
 import axios from "axios";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import { Search, Loader2, AlertCircle } from "lucide-vue-next";
 import {
     Dialog,
@@ -30,6 +30,7 @@ const isLoading = ref(false);
 const buildingSearchTerm = ref("");
 
 const { contains } = useFilter({ sensitivity: "base" });
+const { open: openWorkOrderModal } = useWorkOrderModal();
 
 const filteredBuildings = computed(() => {
     if (!buildingSearchTerm.value) {
@@ -99,9 +100,12 @@ watch(isOpen, (value) => {
     }
 });
 
-const navigateToWorkOrder = (id) => {
+const selectWorkOrder = (id) => {
+    // Show the work order in the shared modal instead of navigating to a page.
+    // Open the modal first, then close the search dialog so we never leave the
+    // page without an active dialog (avoids a stuck scroll lock between the two).
+    openWorkOrderModal(id);
     close();
-    router.visit(route("work_orders.details", { workOrder: id }));
 };
 
 const getPriorityVariant = (priority) => {
@@ -240,7 +244,7 @@ onUnmounted(() => {
                         v-for="result in results"
                         :key="result.id"
                         class="group relative flex flex-col gap-1.5 px-4 py-3 cursor-pointer transition-colors hover:bg-accent/60 hover:text-accent-foreground"
-                        @click="navigateToWorkOrder(result.id)"
+                        @click="selectWorkOrder(result.id)"
                     >
                         <span
                             class="pointer-events-none absolute left-0 top-0 h-full w-1 bg-primary opacity-0 transition-opacity group-hover:opacity-100"

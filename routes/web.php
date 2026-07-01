@@ -126,6 +126,7 @@ Route::middleware([
     Route::resource('/tasks', ControllersTaskController::class);
 
     Route::get('/tasks/{workOrder}/work_order_task', [TaskController::class, 'tasks'])->name('api.work_order.tasks');
+    Route::get('/work-order-modal/meta', [WorkOrderController::class, 'modalMeta'])->name('api.work_order_modal.meta');
     Route::get('/tasks/{workOrder}/incomplete', [ControllersTaskController::class, 'incompleteTasks'])->name('tasks.incomplete');
     Route::post('/tasks/{workOrder}/bulk-complete', [ControllersTaskController::class, 'bulkComplete'])->name('tasks.bulk_complete');
     Route::post('/tasks/closed/bulk-complete-all', [ControllersTaskController::class, 'bulkCompleteAllClosed'])->name('tasks.bulk_complete_all_closed');

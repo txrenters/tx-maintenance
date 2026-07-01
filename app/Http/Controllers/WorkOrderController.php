@@ -237,6 +237,36 @@ class WorkOrderController extends Controller
         return response()->json($workOrder, 200);
     }
 
+    /**
+     * Supporting lists (categories, vendors, users, service statuses) the reusable
+     * work order modal needs to render from anywhere in the app (e.g. the global
+     * notification panel), independent of any page's Inertia props.
+     */
+    public function modalMeta(Request $request)
+    {
+        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
+
+        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
+
+        $vendorUserIds = $vendors->pluck('user_id')->toArray();
+
+        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
+            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
+                ->whereIn('id', $vendorUserIds)
+            )
+            ->orderBy('name', 'ASC')
+            ->get();
+
+        $service_status = ServiceStatus::whereNot('name', 'Not Changed')->orderBy('name')->get();
+
+        return response()->json([
+            'categories' => $categories,
+            'vendors' => $vendors,
+            'users' => $users,
+            'service_status' => $service_status,
+        ]);
+    }
+
     public function details(WorkOrder $workOrder)
     {
         $workOrder->load([

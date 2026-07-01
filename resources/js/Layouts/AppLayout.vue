@@ -7,8 +7,11 @@ import { Icon } from "@iconify/vue";
 import { useColorMode } from "@vueuse/core";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import WorkOrderModal from "@/Components/WorkOrder/WorkOrderModal.vue";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
 const { toast } = useToast();
+const { open: openWorkOrderModal } = useWorkOrderModal();
 
 import {
     Popover,
@@ -562,9 +565,8 @@ const handleFailedModal = (notification) => {
 
 const openNotificationTarget = (notification) => {
     if (notification.work_order_id) {
-        router.visit(
-            route("work_orders.details", { workOrder: notification.work_order_id }),
-        );
+        // Show the work order in the reusable modal instead of navigating away.
+        openWorkOrderModal(notification.work_order_id);
         return;
     }
 
@@ -1768,5 +1770,7 @@ onUnmounted(() => {
             </div>
         </DialogContent>
     </Dialog>
+
+    <WorkOrderModal />
 </template>
 
