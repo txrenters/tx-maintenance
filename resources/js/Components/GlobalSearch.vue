@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useFilter } from "reka-ui";
 import axios from "axios";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
@@ -23,6 +23,7 @@ import {
 
 const isOpen = ref(false);
 const query = ref("");
+const searchInput = ref(null);
 const selectedBuilding = ref(null);
 const results = ref([]);
 const buildings = ref([]);
@@ -45,6 +46,11 @@ let debounceTimer = null;
 
 const open = () => {
     isOpen.value = true;
+    // Make sure the main search box (not the property filter) has focus so the
+    // user's first keystrokes go into the actual search.
+    nextTick(() => {
+        setTimeout(() => searchInput.value?.focus(), 50);
+    });
 };
 
 const close = () => {
@@ -101,11 +107,10 @@ watch(isOpen, (value) => {
 });
 
 const selectWorkOrder = (id) => {
-    // Show the work order in the shared modal instead of navigating to a page.
-    // Open the modal first, then close the search dialog so we never leave the
-    // page without an active dialog (avoids a stuck scroll lock between the two).
+    // Show the work order in the shared modal. Per the lead's request, keep the
+    // search dialog open in the background so the user can return to their
+    // results after closing the work order modal.
     openWorkOrderModal(id);
-    close();
 };
 
 const getPriorityVariant = (priority) => {
@@ -165,6 +170,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
                 <Search class="w-4 h-4 text-muted-foreground shrink-0" />
                 <input
+                    ref="searchInput"
                     v-model="query"
                     type="text"
                     placeholder="Search work orders, description, category or location..."
