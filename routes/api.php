@@ -22,6 +22,7 @@ Route::post('/work_orders/{task}/task/change', [TaskController::class, 'update']
 Route::post('/work_orders/{workOrder}/service_status/change', [TaskController::class, 'service_status_change'])->name('api.work_order.service_status_change');
 Route::post('/work_orders/{workOrder}/generate_tasks', [TaskController::class, 'generate_tasks'])->name('api.work_order.generate_tasks');
 Route::post('/work_orders/tasks/{task}/undo', [TaskController::class, 'undo'])->name('api.task.undo');
+Route::post('/work_orders/{workOrder}/tasks/bulk-complete', [TaskController::class, 'bulkComplete'])->name('api.work_order.tasks.bulk_complete');
 
 Route::get('/work_orders/{workOrder}/conversation/vendors', [ConversationController::class, 'get_vendor_conversation'])->name('work_order.vendor_conversation');
 Route::get('/work_orders/{workOrder}/conversation/vendor_tenant', [ConversationController::class, 'get_vendor_tenant_conversation'])->name('work_order.vendor_tenant_conversation');

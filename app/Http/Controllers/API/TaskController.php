@@ -86,31 +86,153 @@ class TaskController extends Controller
             return redirect()->back();
         }
 
-        $work_order = $currentTask->work_order;
-
-        if (! empty($request->option)) {
-
-            if ($request->option == 'Yes') {
-                $next_service_id = $currentTask->task->taskDetailYesOption?->task_service_status_id;
-                $is_emergency = $currentTask->task->taskDetailYesOption?->is_task_service_status_emergency;
-
-                WorkOrderTask::where('work_order_id', $work_order->id)->whereNot('status', 'completed')->delete();
-
-            } else {
-                $next_service_id = $currentTask->task->taskDetailNoOption?->task_service_status_id;
-                $is_emergency = $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency;
-            }
-
-        } else {
-            $next_service_id = $currentTask->task->next_service_status_id;
-            $is_emergency = $currentTask->task->is_emergency;
-        }
-
-        $this->changeTaskStatus($work_order, $next_service_id, $is_emergency);
+        $this->applyTaskCompletionEffects($currentTask, $request->option);
 
         Log::info('Task updated successfully: ', ['task_id' => $task->id]);
 
         return redirect()->back();
+    }
+
+    /**
+     * Complete several selected tasks for a work order in a single action.
+     *
+     * Routine "Not Changed" tasks are completed first; a single status-changing
+     * task is applied last because it regenerates the work order's task list, so
+     * any remaining status-changing tasks in the batch can no longer apply and
+     * are reported as skipped.
+     */
+    public function bulkComplete(Request $request, WorkOrder $workOrder)
+    {
+        $validated = $request->validate([
+            'tasks' => 'required|array|min:1',
+            'tasks.*.id' => 'required|integer',
+            'tasks.*.option' => 'nullable|string|in:Yes,No',
+        ]);
+
+        $routine = [];
+        $statusChanging = [];
+        $skipped = 0;
+
+        foreach ($validated['tasks'] as $entry) {
+            $currentTask = WorkOrderTask::with(['work_order', 'task.taskDetails', 'task.taskDetailYesOption', 'task.taskDetailNoOption'])
+                ->where('work_order_id', $workOrder->id)
+                ->whereKey($entry['id'])
+                ->first();
+
+            // Skip anything already completed, missing, or belonging to another
+            // work order (scoped by the where above).
+            if (! $currentTask || $currentTask->status === 'completed') {
+                $skipped++;
+
+                continue;
+            }
+
+            $option = $entry['option'] ?? $currentTask->option;
+
+            // Manually-created tasks (no template) and "Not Changed" template tasks
+            // are routine — they only flip status. Anything that transitions the
+            // work order's service status is deferred to run last.
+            if ($currentTask->task && $this->changesServiceStatus($currentTask, $option)) {
+                $statusChanging[] = ['task' => $currentTask, 'option' => $option];
+            } else {
+                $routine[] = ['task' => $currentTask, 'option' => $option];
+            }
+        }
+
+        $completed = 0;
+
+        // Routine tasks only flip status — their transition is "Not Changed".
+        foreach ($routine as $item) {
+            $item['task']->update([
+                'status' => 'completed',
+                'option' => $item['option'],
+            ]);
+            $completed++;
+        }
+
+        // Apply only the first status-changing task; completing it regenerates the
+        // task list, so any others in the batch are counted as skipped.
+        if (! empty($statusChanging)) {
+            $first = array_shift($statusChanging);
+            $first['task']->update([
+                'status' => 'completed',
+                'option' => $first['option'],
+            ]);
+            $completed++;
+            $this->applyTaskCompletionEffects($first['task'], $first['option']);
+            $skipped += count($statusChanging);
+        }
+
+        Log::info('Bulk task completion: ', [
+            'work_order_id' => $workOrder->id,
+            'completed' => $completed,
+            'skipped' => $skipped,
+        ]);
+
+        return response()->json([
+            'completed' => $completed,
+            'skipped' => $skipped,
+        ], 200);
+    }
+
+    /**
+     * Resolve the service status a completed task transitions the work order to,
+     * using the task template (and the Yes/No option for optional tasks).
+     *
+     * @return array{0: int|null, 1: bool|null} [next_service_status_id, is_emergency]
+     */
+    private function resolveNextStatus(WorkOrderTask $currentTask, ?string $option): array
+    {
+        if (! empty($option)) {
+            if ($option === 'Yes') {
+                return [
+                    $currentTask->task->taskDetailYesOption?->task_service_status_id,
+                    $currentTask->task->taskDetailYesOption?->is_task_service_status_emergency,
+                ];
+            }
+
+            return [
+                $currentTask->task->taskDetailNoOption?->task_service_status_id,
+                $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency,
+            ];
+        }
+
+        return [
+            $currentTask->task->next_service_status_id,
+            $currentTask->task->is_emergency,
+        ];
+    }
+
+    /**
+     * Whether completing this task (with the given option) moves the work order
+     * to a different service status — i.e. it is not a "Not Changed" task.
+     */
+    private function changesServiceStatus(WorkOrderTask $currentTask, ?string $option): bool
+    {
+        [$nextServiceId] = $this->resolveNextStatus($currentTask, $option);
+
+        $status = ServiceStatus::find($nextServiceId);
+
+        return $status !== null && $status->name !== 'Not Changed';
+    }
+
+    /**
+     * Apply the side effects of completing a task: transition the work order's
+     * service status (which regenerates tasks and syncs PropertyWare) when the
+     * template calls for it. Optional "Yes" tasks first clear the remaining
+     * pending tasks, mirroring the manual completion flow.
+     */
+    private function applyTaskCompletionEffects(WorkOrderTask $currentTask, ?string $option): void
+    {
+        [$nextServiceId, $isEmergency] = $this->resolveNextStatus($currentTask, $option);
+
+        if ($option === 'Yes') {
+            WorkOrderTask::where('work_order_id', $currentTask->work_order->id)
+                ->whereNot('status', 'completed')
+                ->delete();
+        }
+
+        $this->changeTaskStatus($currentTask->work_order, $nextServiceId, $isEmergency);
     }
 
     private function changeTaskStatus($work_order, $next_service_id, $is_emergency)

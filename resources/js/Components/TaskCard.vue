@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
+import { useTaskSelection } from "@/composables/useTaskSelection";
 import {
     Loader2,
     Undo2,
@@ -10,6 +11,7 @@ import {
     Search,
 } from "lucide-vue-next";
 import { DateTime } from "luxon";
+import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import {
     Combobox,
@@ -30,6 +32,128 @@ const props = defineProps({
 const page = usePage();
 
 const emit = defineEmits(["update-task-status"]);
+
+// --- Bulk task selection & completion -------------------------------------
+// Checking a task no longer completes it immediately; it selects the task so it
+// can be completed in bulk via the "Complete All" action bar. Selection lives in
+// a shared store so it survives the Tasks tab being unmounted on tab switches.
+const {
+    state: selection,
+    ensureWorkOrder,
+    isSelected,
+    toggle: toggleSelection,
+    setMany,
+    clear: clearSelection,
+    prune,
+} = useTaskSelection();
+
+ensureWorkOrder(props.workorder.id);
+
+const selectedTaskIds = computed(() => selection.selectedTaskIds);
+
+// Keep the selection in sync with the tasks actually present (dropping ids for
+// deleted/regenerated tasks) whenever the list changes or the tab re-mounts.
+const syncSelection = () => {
+    ensureWorkOrder(props.workorder.id);
+    prune(props.tasks.map((task) => task.id));
+};
+
+onMounted(syncSelection);
+watch(() => props.tasks, syncSelection, { deep: false });
+
+// A task can be completed if it isn't done and (for optional tasks) has an option.
+const isCompletable = (task) =>
+    task.status !== "completed" &&
+    (task.task?.is_optional ? !!task.option : true);
+
+// The service status a task transitions to, given its (selected) option.
+const resolvedNextStatusName = (task) => {
+    if (task.task?.is_optional) {
+        const detail = (task.task?.task_details || []).find(
+            (d) => d.task_for === task.option
+        );
+        return detail?.task_service_status?.name ?? null;
+    }
+    return task.task?.next_service_status?.name ?? null;
+};
+
+// A task changes the work order's service status when it has a template and its
+// resolved next status isn't "Not Changed".
+const changesStatus = (task) => {
+    const name = resolvedNextStatusName(task);
+    return name !== null && name !== "Not Changed";
+};
+
+// Routine tasks just mark done (manual tasks or "Not Changed" template tasks);
+// these are what "Select all" targets.
+const isRoutineTask = (task) => !changesStatus(task);
+
+const routineCompletableTasks = computed(() =>
+    props.tasks.filter((task) => isCompletable(task) && isRoutineTask(task))
+);
+
+const allRoutineSelected = computed(
+    () =>
+        routineCompletableTasks.value.length > 0 &&
+        routineCompletableTasks.value.every((task) =>
+            selectedTaskIds.value.includes(task.id)
+        )
+);
+
+const toggleSelectAll = (checked) => {
+    const routineIds = routineCompletableTasks.value.map((task) => task.id);
+    if (checked) {
+        // Keep any manually-selected tasks, add all routine ones.
+        setMany(Array.from(new Set([...selectedTaskIds.value, ...routineIds])));
+    } else {
+        setMany(
+            selectedTaskIds.value.filter((id) => !routineIds.includes(id))
+        );
+    }
+};
+
+const selectedTasks = computed(() =>
+    props.tasks.filter((task) => selectedTaskIds.value.includes(task.id))
+);
+
+const openCompleteModal = ref(false);
+const completing = ref(false);
+
+const submitBulkComplete = async () => {
+    completing.value = true;
+    try {
+        const payload = {
+            tasks: selectedTasks.value.map((task) => ({
+                id: task.id,
+                option: task.task?.is_optional ? task.option : null,
+            })),
+        };
+
+        const { data } = await axios.post(
+            route("api.work_order.tasks.bulk_complete", props.workorder.id),
+            payload
+        );
+
+        const skippedNote = data.skipped ? ` ${data.skipped} skipped.` : "";
+        toast({
+            title: "Success",
+            description: `${data.completed} task(s) completed.${skippedNote}`,
+        });
+
+        clearSelection();
+        openCompleteModal.value = false;
+        emit("update-task-status");
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+                "There was a problem completing the tasks. Please try again!",
+        });
+    } finally {
+        completing.value = false;
+    }
+};
 
 const formatDate = (date) => {
     if (!date) return "------";
@@ -67,32 +191,6 @@ const formatDate = (date) => {
         console.error("Date formatting error:", error);
         return "Invalid Date";
     }
-};
-
-const updateTaskStatus = async (taskId, status, option) => {
-    router.post(
-        route("api.work_order.task.change", taskId),
-        { status: status, option: option },
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                toast({
-                    title: "Success",
-                    description: "Task completed successfully!",
-                });
-                emit("update-task-status"); // use this to notify parent component that I need the new task to be fetch
-            },
-            onError: () => {
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description:
-                        "There was a problem with your request. Please try again!",
-                });
-            },
-        }
-    );
 };
 
 const openEditModal = ref(false);
@@ -277,6 +375,18 @@ const checkDueTask = (task) => {
 </script>
 
 <template>
+    <div
+        v-if="routineCompletableTasks.length"
+        class="flex items-center gap-2 mb-2 px-1"
+    >
+        <Checkbox
+            :checked="allRoutineSelected"
+            @update:checked="toggleSelectAll"
+        />
+        <span class="text-xs text-muted-foreground">
+            Select all completable tasks
+        </span>
+    </div>
     <div v-for="task in tasks" :key="task.id" class="hover:bg-opacity-50">
         <Card
             class="w-full p-2 mb-2 cursor-pointer hover:shadow-lg transition-all"
@@ -339,22 +449,12 @@ const checkDueTask = (task) => {
                         {{ task.description }}
                     </p>
                 </div>
-                <div
-                    v-if="
-                        task.status !== 'completed' &&
-                        (task.task?.is_optional ? task.option : true)
-                    "
-                    class="mr-2"
-                >
+                <div v-if="isCompletable(task)" class="mr-2">
                     <Checkbox
                         class="bg-white"
-                        @click="
-                            () =>
-                                updateTaskStatus(
-                                    task.id,
-                                    'completed',
-                                    task.option
-                                )
+                        :checked="isSelected(task.id)"
+                        @update:checked="
+                            (checked) => toggleSelection(task.id, checked)
                         "
                     />
                 </div>
@@ -363,7 +463,7 @@ const checkDueTask = (task) => {
                         type="button"
                         v-if="
                             task.status === 'completed' &&
-                            task.task.next_service_status.name === 'Not Changed'
+                            task.task?.next_service_status?.name === 'Not Changed'
                         "
                         class="hover:text-red-500"
                         title="Undo"
@@ -455,6 +555,51 @@ const checkDueTask = (task) => {
             </div>
         </Card>
     </div>
+    <div
+        v-if="selectedTaskIds.length"
+        class="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-background/95 backdrop-blur px-2 py-2 mt-2"
+    >
+        <span class="text-xs font-medium">
+            {{ selectedTaskIds.length }} selected
+        </span>
+        <div class="flex gap-2">
+            <Button variant="outline" size="sm" @click="clearSelection">
+                Cancel
+            </Button>
+            <Button size="sm" @click="openCompleteModal = true">
+                Complete All ({{ selectedTaskIds.length }})
+            </Button>
+        </div>
+    </div>
+
+    <Dialog v-model:open="openCompleteModal">
+        <DialogContent class="sm:max-w-[420px]">
+            <DialogHeader>
+                <DialogTitle>Complete selected tasks</DialogTitle>
+                <DialogDescription>
+                    Are you sure you want to mark
+                    {{ selectedTaskIds.length }} task(s) as completed?
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="gap-2">
+                <Button
+                    variant="outline"
+                    @click="openCompleteModal = false"
+                    :disabled="completing"
+                >
+                    Cancel
+                </Button>
+                <Button @click="submitBulkComplete" :disabled="completing">
+                    <Loader2
+                        v-if="completing"
+                        class="w-4 h-4 mr-2 animate-spin"
+                    />
+                    Complete All
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="openEditModal">
         <DialogContent
             class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
