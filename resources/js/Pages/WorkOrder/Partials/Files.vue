@@ -156,8 +156,13 @@ const formatDate = (date) => {
                     class="w-32 h-32 bg-gray-200 animate-pulse p-3 border"
                 ></div>
             </template>
-            <div class="w-32 text-wrap">
-                <p class="text-xs mt-2">{{ file.title }}</p>
+            <div class="w-32">
+                <p
+                    class="text-xs mt-2 break-all line-clamp-2"
+                    :title="file.title"
+                >
+                    {{ file.title }}
+                </p>
                 <p class="text-xs">Date: {{ formatDate(file.created_at) }}</p>
             </div>
         </div>

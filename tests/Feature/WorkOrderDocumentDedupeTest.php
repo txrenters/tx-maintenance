@@ -95,6 +95,26 @@ class WorkOrderDocumentDedupeTest extends TestCase
         $this->assertDatabaseHas('work_order_documents', ['id' => $unrelated->id]);
     }
 
+    public function test_thumbnail_file_names_are_detected(): void
+    {
+        $this->assertTrue(WorkOrderDocuments::isThumbnailFileName('THMP_Invoice INV-4803_WO#43114.pdf'));
+        $this->assertFalse(WorkOrderDocuments::isThumbnailFileName('Invoice INV-4803_WO#43114.pdf'));
+        $this->assertFalse(WorkOrderDocuments::isThumbnailFileName('Work Order Information.pdf'));
+        $this->assertFalse(WorkOrderDocuments::isThumbnailFileName(null));
+    }
+
+    public function test_dedupe_command_removes_thumbnail_documents(): void
+    {
+        $workOrder = $this->makeWorkOrder();
+        $thumbnail = $this->makeDocument($workOrder, 'THMP_Invoice INV-4803_WO#43114.pdf');
+        $genuine = $this->makeDocument($workOrder, 'Invoice INV-4803_WO#43114.pdf');
+
+        $this->artisan('work-order-documents:dedupe')->assertSuccessful();
+
+        $this->assertDatabaseMissing('work_order_documents', ['id' => $thumbnail->id]);
+        $this->assertDatabaseHas('work_order_documents', ['id' => $genuine->id]);
+    }
+
     public function test_dedupe_command_removes_documents_matching_uploaded_attachments(): void
     {
         $workOrder = $this->makeWorkOrder();

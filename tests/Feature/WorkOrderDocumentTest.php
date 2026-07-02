@@ -8,8 +8,10 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
+use ReflectionMethod;
 use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -50,6 +52,30 @@ class WorkOrderDocumentTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('documents.0.id', $document->id);
         $response->assertJsonPath('documents.0.file_name', 'Work Order Information.pdf');
+    }
+
+    public function test_import_does_not_pull_propertyware_thumbnails(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+
+        $service = new WorkOrderService;
+        $processDocuments = new ReflectionMethod($service, 'processDocuments');
+        $processDocuments->setAccessible(true);
+        $processDocuments->invoke($service, [
+            'documents' => [
+                ['ID' => 111, 'fileName' => 'Invoice INV-4803.pdf', 'fileType' => 'application/pdf', 'publishToOwnerPortal' => false, 'publishToTenantPortal' => false],
+                ['ID' => 222, 'fileName' => 'THMP_Invoice INV-4803.pdf', 'fileType' => 'application/pdf', 'publishToOwnerPortal' => false, 'publishToTenantPortal' => false],
+            ],
+        ], $workOrder->id, now()->format('Y-m-d H:i:s'));
+
+        $this->assertDatabaseHas('work_order_documents', [
+            'work_order_id' => $workOrder->id,
+            'file_name' => 'Invoice INV-4803.pdf',
+        ]);
+        $this->assertDatabaseMissing('work_order_documents', [
+            'work_order_id' => $workOrder->id,
+            'file_name' => 'THMP_Invoice INV-4803.pdf',
+        ]);
     }
 
     public function test_document_download_streams_content_inline_for_safe_mime(): void

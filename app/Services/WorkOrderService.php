@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Models\Owner;
 use App\Models\User;
+use App\Models\WorkOrderDocuments;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -374,6 +375,12 @@ class WorkOrderService
 
             foreach ($data['documents'] as $document) {
                 $fileName = $document['fileName'] ?? null;
+
+                // Skip PropertyWare's auto-generated thumbnails (THMP_ previews of
+                // a document we already sync); they only clutter the attachments tab.
+                if (WorkOrderDocuments::isThumbnailFileName($fileName)) {
+                    continue;
+                }
 
                 // Collapse duplicate file names within this batch (e.g. repeated
                 // "Work Order Information.pdf") and drop our own uploads.

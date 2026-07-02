@@ -20,7 +20,7 @@ class DedupeWorkOrderDocuments extends Command
      *
      * @var string
      */
-    protected $description = 'Remove duplicate work order documents: collapse repeated file names per work order (keeping the oldest) and drop documents matching attachments this app uploaded to PropertyWare.';
+    protected $description = 'Remove duplicate work order documents: collapse repeated file names per work order (keeping the oldest), drop documents matching attachments this app uploaded to PropertyWare, and remove PropertyWare thumbnails (THMP_).';
 
     /**
      * Execute the console command.
@@ -31,11 +31,13 @@ class DedupeWorkOrderDocuments extends Command
 
         $collapsedDuplicateNames = $this->collapseDuplicateFileNames($dryRun);
         $removedUploadMatches = $this->removeDocumentsMatchingUploads($dryRun);
+        $removedThumbnails = $this->removeThumbnailDocuments($dryRun);
         $this->reportUnmatchedImageDuplicates();
 
         $verb = $dryRun ? 'Would remove' : 'Removed';
         $this->info("{$verb} {$collapsedDuplicateNames} duplicate-named document(s).");
         $this->info("{$verb} {$removedUploadMatches} document(s) matching our own uploads.");
+        $this->info("{$verb} {$removedThumbnails} PropertyWare thumbnail(s).");
 
         return self::SUCCESS;
     }
@@ -102,6 +104,28 @@ class DedupeWorkOrderDocuments extends Command
         }
 
         return $removed;
+    }
+
+    /**
+     * Delete PropertyWare's auto-generated thumbnail documents (THMP_ prefix).
+     * These are previews of a document we already sync, so they only duplicate
+     * the attachments tab.
+     */
+    private function removeThumbnailDocuments(bool $dryRun): int
+    {
+        // Cheap, portable prefilter, then match the exact "THMP_" prefix via the
+        // shared helper (avoids database-specific LIKE escaping of the underscore).
+        $ids = WorkOrderDocuments::query()
+            ->where('file_name', 'like', 'THMP%')
+            ->get(['id', 'file_name'])
+            ->filter(fn ($doc) => WorkOrderDocuments::isThumbnailFileName($doc->file_name))
+            ->pluck('id');
+
+        if (! $dryRun && $ids->isNotEmpty()) {
+            WorkOrderDocuments::whereIn('id', $ids)->delete();
+        }
+
+        return $ids->count();
     }
 
     /**

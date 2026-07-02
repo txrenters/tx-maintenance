@@ -315,13 +315,17 @@ function handleFiles(event) {
                             </div>
                         </a>
 
-                        <div class="w-32 text-wrap">
-                            <p class="text-xs mt-2" :title="doc.file_name">
+                        <div class="w-32">
+                            <p
+                                class="text-xs mt-2 break-all line-clamp-2"
+                                :title="doc.file_name"
+                            >
                                 {{ doc.file_name || "Document" }}
                             </p>
                             <p
                                 v-if="doc.description"
-                                class="text-xs text-muted-foreground"
+                                class="text-xs text-muted-foreground break-all line-clamp-2"
+                                :title="doc.description"
                             >
                                 {{ doc.description }}
                             </p>
