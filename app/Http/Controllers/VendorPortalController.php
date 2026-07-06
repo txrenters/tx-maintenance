@@ -16,6 +16,8 @@ use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -31,7 +33,7 @@ class VendorPortalController extends Controller
         $vendor = $request->attributes->get('portal_vendor');
 
         $workOrders = $vendor->workOrders()
-            ->with('service_status')
+            ->with(['service_status', 'building', 'tasks'])
             ->where('work_orders.status', 'Open')
             ->orderByDesc('created_date')
             ->get();
@@ -48,13 +50,23 @@ class VendorPortalController extends Controller
                 ->where(fn ($q) => $this->scopeToVendorThread($q, $vendor, $vendorPhoneDigits))
                 ->count();
 
+            // Match the system: a vendor's card only reflects their own tasks.
+            $ownTasks = $workOrder->tasks->where('assigned_user_id', $vendor->user_id);
+
             return [
                 'work_order_no' => $workOrder->work_order_no,
                 'description' => $workOrder->description,
                 'priority' => $workOrder->priority,
                 'location' => $workOrder->location,
+                'category' => $workOrder->category,
+                'building' => $workOrder->building?->name,
+                'created_date' => $workOrder->created_date,
+                'service_status_id' => $workOrder->service_status_id,
                 'status' => $workOrder->service_status?->name ?? $workOrder->status,
                 'is_emergency' => (bool) $workOrder->is_emergency,
+                'completed_tasks' => $ownTasks->where('status', 'completed')->count(),
+                'total_tasks' => $ownTasks->count(),
+                'accent' => $this->cardAccent($workOrder, $ownTasks),
                 'unread' => $unread,
                 'url' => $token ? route('vendor.portal.show', $token) : null,
             ];
@@ -63,6 +75,7 @@ class VendorPortalController extends Controller
         return inertia('VendorPortal/Dashboard', [
             'title' => 'My Work Orders',
             'vendorName' => $vendor->name,
+            'loginUrl' => route('login'),
             'workOrders' => $cards,
         ]);
     }
@@ -504,6 +517,47 @@ class VendorPortalController extends Controller
             ->update(['read_by_vendor' => true]);
 
         return back();
+    }
+
+    /**
+     * Urgency accent for a dashboard card, mirroring the in-app WorkOrderCard:
+     * red = emergency / overdue, blue = due today, green = upcoming.
+     *
+     * @param  Collection<int, WorkOrderTask>  $ownTasks
+     */
+    private function cardAccent(WorkOrder $workOrder, $ownTasks): string
+    {
+        if ($workOrder->is_emergency) {
+            return 'red';
+        }
+
+        $today = now()->toDateString();
+
+        if ($workOrder->scheduled_end_date) {
+            $scheduled = Carbon::parse($workOrder->scheduled_end_date)->toDateString();
+
+            if ($scheduled === $today) {
+                return 'blue';
+            }
+
+            return $scheduled < $today ? 'red' : 'green';
+        }
+
+        $pendingDueDates = $ownTasks
+            ->where('status', 'pending')
+            ->pluck('due_date')
+            ->filter()
+            ->map(fn ($date) => Carbon::parse($date)->toDateString());
+
+        if ($pendingDueDates->contains(fn ($date) => $date < $today)) {
+            return 'red';
+        }
+
+        if ($pendingDueDates->contains($today)) {
+            return 'blue';
+        }
+
+        return 'green';
     }
 
     /**

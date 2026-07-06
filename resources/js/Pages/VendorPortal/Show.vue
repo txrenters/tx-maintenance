@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import {
@@ -17,6 +17,8 @@ import {
     ChevronDown,
     Home,
     X,
+    Sun,
+    Moon,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -36,6 +38,22 @@ const props = defineProps({
 
 const page = usePage();
 const { toast } = useToast();
+
+// Dark/light theme, shared with the dashboard via the same localStorage key so
+// the vendor's choice carries across the whole portal. Defaults to dark.
+const isDark = ref(true);
+
+onMounted(() => {
+    const saved = localStorage.getItem("vendorPortalTheme");
+    if (saved) {
+        isDark.value = saved === "dark";
+    }
+});
+
+const toggleTheme = () => {
+    isDark.value = !isDark.value;
+    localStorage.setItem("vendorPortalTheme", isDark.value ? "dark" : "light");
+};
 
 // Image lightbox (modal) for viewing photos in-page.
 const lightbox = ref(null);
@@ -315,13 +333,23 @@ const toggleGroup = (type) => {
 
 // --- Mark a task complete ---
 const completingTask = ref(null);
-const completeTask = (taskId) => {
-    if (!window.confirm("Mark this task complete?")) return;
-    completingTask.value = taskId;
+// The task awaiting confirmation in the styled modal (null = modal closed).
+const taskToComplete = ref(null);
+
+const completeTask = (task) => {
+    taskToComplete.value = task;
+};
+
+const confirmCompleteTask = () => {
+    const task = taskToComplete.value;
+    if (!task) return;
+
+    taskToComplete.value = null;
+    completingTask.value = task.id;
     router.post(
         route("vendor.portal.tasks.complete", {
             token: props.token,
-            task: taskId,
+            task: task.id,
         }),
         {},
         {
@@ -333,9 +361,53 @@ const completeTask = (taskId) => {
 </script>
 
 <template>
+    <div :class="isDark ? 'dark' : ''">
     <Head :title="`Work Order #${workOrder.work_order_no}`" />
 
     <Toaster />
+
+    <!-- Confirm task completion -->
+    <div
+        v-if="taskToComplete"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        @click.self="taskToComplete = null"
+    >
+        <div class="w-full max-w-sm rounded-lg bg-card p-5 shadow-xl">
+            <div class="flex items-start gap-3">
+                <div
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100"
+                >
+                    <CheckCircle2 class="h-5 w-5 text-green-600" />
+                </div>
+                <div class="min-w-0">
+                    <h3 class="text-base font-semibold text-foreground">
+                        Mark task complete?
+                    </h3>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        “{{ taskToComplete.name }}” will be marked as completed
+                        and your coordinator will be notified.
+                    </p>
+                </div>
+            </div>
+            <div class="mt-5 flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                    @click="taskToComplete = null"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+                    @click="confirmCompleteTask"
+                >
+                    <CheckCircle2 class="h-4 w-4" />
+                    Complete
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Photo lightbox -->
     <div
@@ -357,17 +429,30 @@ const completeTask = (taskId) => {
         />
     </div>
 
-    <div class="min-h-screen bg-muted">
+    <div class="min-h-screen bg-muted dark:bg-neutral-950">
         <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
-            <!-- Home -->
-            <a
-                v-if="dashboardUrl"
-                :href="dashboardUrl"
-                class="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground active:text-foreground"
-            >
-                <Home class="w-4 h-4" />
-                All my work orders
-            </a>
+            <!-- Home + theme toggle -->
+            <div class="flex items-center justify-between gap-3">
+                <a
+                    v-if="dashboardUrl"
+                    :href="dashboardUrl"
+                    class="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground active:text-foreground"
+                >
+                    <Home class="w-4 h-4" />
+                    All my work orders
+                </a>
+                <button
+                    type="button"
+                    @click="toggleTheme"
+                    :title="
+                        isDark ? 'Switch to light mode' : 'Switch to dark mode'
+                    "
+                    class="inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
+                >
+                    <Sun v-if="isDark" class="w-4 h-4" />
+                    <Moon v-else class="w-4 h-4" />
+                </button>
+            </div>
 
             <!-- Two columns on desktop, single stack on mobile -->
             <div
@@ -457,7 +542,7 @@ const completeTask = (taskId) => {
                                 class="shrink-0"
                                 :disabled="completingTask === task.id"
                                 title="Mark complete"
-                                @click="completeTask(task.id)"
+                                @click="completeTask(task)"
                             >
                                 <Loader2
                                     v-if="completingTask === task.id"
@@ -1100,5 +1185,6 @@ const completeTask = (taskId) => {
                 TX Maintenance · Vendor Portal
             </p>
         </div>
+    </div>
     </div>
 </template>
