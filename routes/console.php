@@ -1,15 +1,38 @@
 <?php
 
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+// Work order sync runs as three independent schedules so the fast lane
+// (Schedule 1) is never blocked by the bulk REST sync or the per-work-order
+// document API calls. Overlap locks expire quickly so a crashed run cannot
+// stall the schedule for hours (the default lock lasts 24h).
+
+// Schedule 1 — fast lane: newest work orders + SOAP-only nested data
+// (tenant/owner/lease/notes). Lightweight, so new/emergency work orders
+// reach the dashboard within minutes.
+//
+// Kept at every 10 minutes (the frequency this has run at safely for months)
+// so the deploy adds no extra SOAP call volume against PropertyWare's
+// undocumented rate limit and Akamai edge protection. It can be tightened to
+// every 5 minutes later once PropertyWare support confirms the limit is safe.
 Schedule::command('import:work-orders')
     ->everyTenMinutes()
-    ->withoutOverlapping()
-    ->runInBackground()
-    ->then(function () {
-        Artisan::call('update:work-orders-status');
-    });
+    ->withoutOverlapping(15)
+    ->runInBackground();
+
+// Schedule 2 — bulk sync: status/category/vendors for the wider (~5000) set
+// via REST. Independent of the fast lane.
+Schedule::command('update:work-orders-status')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
+// Schedule 3 — documents: one PropertyWare call per work order, the slowest
+// part of the old combined run, now isolated on its own schedule.
+Schedule::command('import:work-order-documents')
+    ->everyTenMinutes()
+    ->withoutOverlapping(30)
+    ->runInBackground();
 
 Schedule::command('import:buildings-from-work-orders')
     ->daily();

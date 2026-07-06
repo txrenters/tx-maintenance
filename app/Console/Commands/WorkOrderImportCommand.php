@@ -2,18 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\VendorServiceRequestMail;
-use App\Models\Attachments;
 use App\Models\User;
 use App\Models\WorkOrder;
-use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 
 class WorkOrderImportCommand extends Command
 {
@@ -29,15 +24,14 @@ class WorkOrderImportCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Import work orders from PropertyWare API every minute';
+    protected $description = 'Import the newest work orders (with SOAP-only nested data) from PropertyWare';
 
     protected PropertyWareService $propertyWareService;
 
     /**
-     * Memoized check for the service_request_sent_at column so we never email
-     * vendors before the migration that tracks "already sent" has run.
+     * WOC user resolved once per run instead of once per work order.
      */
-    private ?bool $canTrackServiceRequest = null;
+    private ?User $wocUser = null;
 
     public function __construct(PropertyWareService $propertyWareService)
     {
@@ -47,10 +41,19 @@ class WorkOrderImportCommand extends Command
 
     /**
      * Execute the console command.
+     *
+     * This is the "fast lane": it only imports the newest work orders and the
+     * nested data the REST API cannot provide (tenant/owner/lease/notes).
+     * Document retrieval and the bulk REST status sync run on their own
+     * schedules so a new work order is never stuck waiting behind them.
      */
     public function handle(): void
     {
+        $startedAt = microtime(true);
+
+        $fetchStart = microtime(true);
         $work_orders = $this->propertyWareService->getWorkOrders() ?? [];
+        $fetchMs = (int) round((microtime(true) - $fetchStart) * 1000);
 
         if (empty($work_orders)) {
             Log::warning('No work orders returned from Propertyware API.');
@@ -59,7 +62,12 @@ class WorkOrderImportCommand extends Command
         }
 
         $now = now()->format('Y-m-d H:i:s');
-        Log::info('Work Orders import is running.');
+        Log::info('Work Orders import is running.', [
+            'soap_fetch_ms' => $fetchMs,
+            'work_order_count' => count($work_orders),
+        ]);
+
+        $this->wocUser = User::role('woc')->first();
 
         foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
             foreach ($workOrderChunk as $order) {
@@ -82,7 +90,11 @@ class WorkOrderImportCommand extends Command
             }
         }
 
-        Log::info('Work order imported successfully!');
+        Log::info('Work order imported successfully!', [
+            'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'soap_fetch_ms' => $fetchMs,
+            'work_order_count' => count($work_orders),
+        ]);
     }
 
     private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
@@ -90,7 +102,7 @@ class WorkOrderImportCommand extends Command
         DB::beginTransaction();
         try {
             $work_order_propertyware_id = $data['ID'] ?? null;
-            $woc = User::role('woc')->first();
+            $woc = $this->wocUser;
 
             DB::table('work_order_categories')->updateOrInsert(
                 ['name' => $data['category']],
@@ -187,162 +199,13 @@ class WorkOrderImportCommand extends Command
 
             DB::commit();
 
-            // Pull documents PropertyWare has for this work order. Done after the
-            // commit because it makes an external API call and must not hold the
-            // transaction open; it is self-contained and never throws.
-            $this->syncWorkOrderDocuments($work_order_propertyware_id, $workOrder->id);
-
-            // Email the service request PDF to the assigned vendor(s), once.
-            $this->sendServiceRequestToVendors($workOrder);
+            // Documents (and the vendor service-request email that depends on
+            // them) are synced by the separate import:work-order-documents
+            // schedule so this fast lane is never blocked by per-work-order
+            // document API calls.
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order no: '.($data['number'] ?? 'unknown').' - '.$th->getMessage());
-        }
-    }
-
-    /**
-     * If the work order has a "Work Order Information.pdf" document and a vendor
-     * with an email is assigned, email that PDF to the vendor(s) with the
-     * standard service-request message — exactly once per work order.
-     */
-    private function sendServiceRequestToVendors(WorkOrder $workOrder): void
-    {
-        try {
-            // Without the tracking column we cannot record that we've sent, which
-            // would make the every-minute import re-email. Do nothing until the
-            // migration has run (deploy-order safe).
-            $this->canTrackServiceRequest ??= Schema::hasColumn('work_orders', 'service_request_sent_at');
-            if (! $this->canTrackServiceRequest) {
-                return;
-            }
-
-            // Already sent for this work order.
-            if ($workOrder->service_request_sent_at) {
-                return;
-            }
-
-            $document = WorkOrderDocuments::where('work_order_id', $workOrder->id)
-                ->where('file_name', 'Work Order Information.pdf')
-                ->first();
-
-            // No service request document yet — nothing to send.
-            if (! $document) {
-                return;
-            }
-
-            $vendors = $workOrder->vendors()->get()->filter(fn ($vendor) => filled($vendor->email));
-
-            // No vendor with an email assigned yet — try again on a later import.
-            if ($vendors->isEmpty()) {
-                return;
-            }
-
-            $pdf = $this->propertyWareService->downloadDocument($document->propertyware_id);
-
-            // Couldn't fetch the file — leave unsent so a later import retries.
-            if (! $pdf) {
-                return;
-            }
-
-            foreach ($vendors as $vendor) {
-                // Each vendor's own magic-link to this work order in the portal,
-                // where they can upload photos. Null token => no button shown.
-                $portalUrl = filled($vendor->pivot->access_token ?? null)
-                    ? route('vendor.portal.show', $vendor->pivot->access_token)
-                    : null;
-
-                Mail::to($vendor->email)->send(new VendorServiceRequestMail(
-                    vendorName: $vendor->name ?? 'Vendor',
-                    workOrderNo: (string) $workOrder->work_order_no,
-                    pdfContent: $pdf['content'],
-                    portalUrl: $portalUrl,
-                ));
-            }
-
-            $workOrder->forceFill(['service_request_sent_at' => now()])->save();
-
-            Log::info('Service request emailed to vendor(s)', [
-                'work_order_id' => $workOrder->id,
-                'work_order_no' => $workOrder->work_order_no,
-                'vendor_count' => $vendors->count(),
-            ]);
-        } catch (\Throwable $th) {
-            Log::error('Failed to email service request to vendors', [
-                'work_order_id' => $workOrder->id,
-                'error' => $th->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Pull the documents PropertyWare has for a work order and store their
-     * metadata locally, idempotently (keyed by the PropertyWare document id).
-     * Documents created by our own PropertyWare API user are skipped so files
-     * this app uploaded to PropertyWare are not re-imported as duplicates.
-     */
-    private function syncWorkOrderDocuments($propertywareWorkOrderId, int $workOrderId): void
-    {
-        if (! $propertywareWorkOrderId) {
-            return;
-        }
-
-        try {
-            $documents = $this->propertyWareService->getWorkOrderDocuments($propertywareWorkOrderId);
-            $ourPropertywareUser = config('services.propertyware.username');
-
-            foreach ($documents as $document) {
-                $doc = (array) $document;
-
-                if (empty($doc['id'])) {
-                    continue;
-                }
-
-                // Skip what this app uploaded to PropertyWare to avoid redundancy.
-                if ($ourPropertywareUser && ! empty($doc['createdBy']) && $doc['createdBy'] === $ourPropertywareUser) {
-                    continue;
-                }
-
-                $fileName = $doc['fileName'] ?? null;
-
-                // Skip our own uploads (matched by name) and PropertyWare's repeated
-                // system files — same file name under a different document id.
-                if ($fileName) {
-                    $duplicateName = WorkOrderDocuments::where('work_order_id', $workOrderId)
-                        ->where('file_name', $fileName)
-                        ->where('propertyware_id', '!=', $doc['id'])
-                        ->exists()
-                        || Attachments::withoutGlobalScopes()
-                            ->where('work_order_id', $workOrderId)
-                            ->where('pw_file_name', $fileName)
-                            ->exists();
-
-                    if ($duplicateName) {
-                        continue;
-                    }
-                }
-
-                WorkOrderDocuments::updateOrCreate(
-                    [
-                        'propertyware_id' => $doc['id'],
-                        'work_order_id' => $workOrderId,
-                    ],
-                    [
-                        'created_by_id' => $doc['createdBy'] ?? null,
-                        'description' => $doc['description'] ?? null,
-                        'file_name' => $doc['fileName'] ?? null,
-                        'file_type' => $doc['fileType'] ?? null,
-                        'is_publish_to_owner_portal' => $doc['publishToOwnerPortal'] ?? false,
-                        'is_publish_to_tenant_portal' => $doc['publishToTenantPortal'] ?? false,
-                        'system_id' => env('PROPERTYWARE_SYSTEM_ID'),
-                    ]
-                );
-            }
-        } catch (\Throwable $th) {
-            Log::error('Work order document sync failed', [
-                'work_order_id' => $workOrderId,
-                'work_order_pw_id' => $propertywareWorkOrderId,
-                'error' => $th->getMessage(),
-            ]);
         }
     }
 
@@ -378,7 +241,6 @@ class WorkOrderImportCommand extends Command
             'phone' => $data['requestedByContact']['mobilePhone'] ?? $data['requestedByContact']['homePhone'],
             'company' => $data['requestedByContact']['company'] ?? null,
             'address' => $address,
-            'password' => bcrypt($tenantEmail),
         ];
 
         $user = $this->createOrUpdateUser($usersData, 'tenant');
@@ -448,7 +310,6 @@ class WorkOrderImportCommand extends Command
             'phone' => $data['owner']['mobile'] ?? null,
             'company' => $data['owner']['company'] ?? null,
             'address' => $address,
-            'password' => bcrypt($ownerEmail),
         ];
 
         $user = $this->createOrUpdateUser($usersData, 'owner');
@@ -490,6 +351,10 @@ class WorkOrderImportCommand extends Command
         $user = User::where('email', $data['email'])->first();
 
         if (! $user) {
+            // bcrypt is expensive (~200ms); only hash when actually creating a
+            // user instead of computing a throwaway hash for every work order.
+            $data['password'] = bcrypt($data['email']);
+
             $user = User::create($data);
             $user->assignRole($role);
         }
@@ -544,7 +409,6 @@ class WorkOrderImportCommand extends Command
                     'phone' => $tenant['mobile'] ?? $tenant['homePhone'],
                     'company' => $tenant['company'] ?? null,
                     'address' => $address,
-                    'password' => bcrypt($tenantEmail),
                 ];
 
                 $user = $this->createOrUpdateUser($usersData, 'tenant');
@@ -628,7 +492,6 @@ class WorkOrderImportCommand extends Command
                     'phone' => $owner['homePhone'] ?? null,
                     'company' => $owner['company'] ?? null,
                     'address' => $address,
-                    'password' => bcrypt($ownerEmail),
                 ];
 
                 $user = $this->createOrUpdateUser($usersData, 'owner');

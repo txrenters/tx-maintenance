@@ -42,8 +42,11 @@ class UpdateWorkOrderStatus extends Command
      */
     public function handle(): void
     {
+        $startedAt = microtime(true);
 
+        $fetchStart = microtime(true);
         $work_orders = $this->propertyWareService->getWorkOrdersViaRestAPI() ?? [];
+        $fetchMs = (int) round((microtime(true) - $fetchStart) * 1000);
 
         if (empty($work_orders)) {
             Log::warning('No work orders returned from Propertyware API.');
@@ -51,7 +54,10 @@ class UpdateWorkOrderStatus extends Command
             return;
         }
 
-        Log::info('Work Orders updates are running.');
+        Log::info('Work Orders updates are running.', [
+            'rest_fetch_ms' => $fetchMs,
+            'work_order_count' => count($work_orders),
+        ]);
 
         try {
             foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
@@ -98,7 +104,7 @@ class UpdateWorkOrderStatus extends Command
                                     } elseif ($customField['fieldName'] == 'Zone') {
                                         $work_order_data['zone'] = $customField['value'];
                                     } elseif ($customField['fieldName'] == 'Additional work needed- Reschedule') {
-                                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ;
+                                        $work_order_data['additional_work_needed_reschedule'] = $customField['value'];
                                     } elseif ($customField['fieldName'] == 'Management Plan') {
                                         $work_order_data['management_plan'] = $customField['value'];
                                     } elseif ($customField['fieldName'] == 'closing comment') {
@@ -151,7 +157,10 @@ class UpdateWorkOrderStatus extends Command
                 }
             }
 
-            Log::info('Successfully updated Work order details! Work Order Count: '.count($work_orders));
+            Log::info('Successfully updated Work order details! Work Order Count: '.count($work_orders), [
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'rest_fetch_ms' => $fetchMs,
+            ]);
         } catch (\Throwable $th) {
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
