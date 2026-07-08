@@ -19,6 +19,7 @@ class WorkOrderRecommendation extends Model
             'raw_response' => 'array',
             'generated_at' => 'datetime',
             'needs_human_review' => 'boolean',
+            'is_emergency' => 'boolean',
         ];
     }
 

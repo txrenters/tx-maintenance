@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\EmergencyCriteria;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
@@ -25,6 +26,7 @@ class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
             'Prefer concise summaries grounded in the supplied work order text.',
             'If the issue is ambiguous, lower confidence and set needs_human_review to true.',
             'Only use a vendor_category that is present in this allowed list: '.implode(', ', $this->vendorTypes),
+            ...EmergencyCriteria::agentInstructions(),
         ]);
     }
 
@@ -32,12 +34,16 @@ class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
     {
         return [
             'issue_type' => $schema->string()->required(),
-            'issue_subtype' => $schema->string()->nullable(),
-            'vendor_category' => $schema->string()->nullable(),
-            'keywords' => $schema->array($schema->string())->required(),
+            'issue_subtype' => $schema->string()->nullable()->required(),
+            'vendor_category' => $schema->string()->nullable()->required(),
+            'keywords' => $schema->array()->items($schema->string())->required(),
             'summary' => $schema->string()->required(),
             'confidence' => $schema->integer()->required(),
             'needs_human_review' => $schema->boolean()->required(),
+            'is_emergency' => $schema->boolean()->required(),
+            'emergency_category' => $schema->string()->nullable()->required(),
+            'emergency_confidence' => $schema->integer()->required(),
+            'emergency_reason' => $schema->string()->required(),
         ];
     }
 }
