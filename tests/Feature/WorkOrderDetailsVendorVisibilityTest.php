@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -56,5 +57,73 @@ class WorkOrderDetailsVendorVisibilityTest extends TestCase
         $response->assertOk()
             ->assertSee('Visible Vendor HVAC')
             ->assertDontSee('Hidden Vendor Electric');
+    }
+
+    public function test_logged_in_vendor_only_sees_their_own_conversation_thread(): void
+    {
+        Role::query()->create(['name' => 'vendor', 'guard_name' => 'web']);
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'New',
+            'description' => 'New',
+        ]);
+
+        $ownVendorUser = User::factory()->create(['phone' => '+15125550101']);
+        $ownVendorUser->assignRole('vendor');
+        $ownVendor = Vendor::query()->create([
+            'propertyware_id' => 'V-401',
+            'name' => 'Own Vendor',
+            'vendor_type' => 'HVAC',
+            'is_active' => true,
+            'user_id' => $ownVendorUser->id,
+        ]);
+
+        $otherVendorUser = User::factory()->create(['phone' => '+15125550202']);
+        $otherVendor = Vendor::query()->create([
+            'propertyware_id' => 'V-402',
+            'name' => 'Other Vendor',
+            'vendor_type' => 'Electrical',
+            'is_active' => true,
+            'user_id' => $otherVendorUser->id,
+        ]);
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 7788,
+        ]);
+        $workOrder->vendors()->attach([$ownVendor->id, $otherVendor->id]);
+
+        // Tagged to this vendor -> visible.
+        Conversation::query()->create([
+            'message' => 'OWN_VENDOR_TAGGED_MESSAGE',
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $ownVendor->id,
+            'conversation_type' => 'vendor',
+        ]);
+
+        // Tagged to the other vendor -> must never appear.
+        Conversation::query()->create([
+            'message' => 'OTHER_VENDOR_TAGGED_MESSAGE',
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $otherVendor->id,
+            'conversation_type' => 'vendor',
+        ]);
+
+        // Legacy untagged message on the other vendor's number -> must never appear.
+        Conversation::query()->create([
+            'message' => 'OTHER_VENDOR_LEGACY_MESSAGE',
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => null,
+            'sender_number' => '+15125550202',
+            'conversation_type' => 'vendor',
+        ]);
+
+        $response = $this->actingAs($ownVendorUser)
+            ->getJson(route('work_order.vendor_conversation', $workOrder));
+
+        $response->assertOk()
+            ->assertSee('OWN_VENDOR_TAGGED_MESSAGE')
+            ->assertDontSee('OTHER_VENDOR_TAGGED_MESSAGE')
+            ->assertDontSee('OTHER_VENDOR_LEGACY_MESSAGE');
     }
 }

@@ -162,6 +162,7 @@ const sendMessage = () => {
         formData.append("receiver_phone_number", woc_phone_number.value);
         formData.append("work_order_id", props.workOrder.id);
         formData.append("conversation_type", "vendor");
+        formData.append("vendor_id", page.props.auth.user.vendor.id);
 
         selectedImages.value.forEach((img) => {
             formData.append("images[]", img.file);

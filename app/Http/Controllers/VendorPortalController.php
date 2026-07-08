@@ -38,16 +38,14 @@ class VendorPortalController extends Controller
             ->orderByDesc('created_date')
             ->get();
 
-        $vendorPhoneDigits = $this->lastTenDigits($vendor->user?->phone);
-
-        $cards = $workOrders->map(function (WorkOrder $workOrder) use ($vendor, $vendorPhoneDigits) {
+        $cards = $workOrders->map(function (WorkOrder $workOrder) use ($vendor) {
             $token = $workOrder->pivot->access_token;
 
             $unread = Conversation::query()
                 ->where('work_order_id', $workOrder->id)
                 ->where('conversation_type', 'vendor')
                 ->where('read_by_vendor', false)
-                ->where(fn ($q) => $this->scopeToVendorThread($q, $vendor, $vendorPhoneDigits))
+                ->forVendorThread($vendor)
                 ->count();
 
             // Match the system: a vendor's card only reflects their own tasks.
@@ -97,7 +95,11 @@ class VendorPortalController extends Controller
 
         $workOrder->load(['service_status', 'building', 'tasks', 'woc.wocNumber.twilioPhoneNumber']);
 
-        $vendorPhoneDigits = $this->lastTenDigits($vendor->user?->phone);
+        // The vendor's own numbers, used to attribute each message to them vs the coordinator.
+        $vendorNumberDigits = collect([$vendor->twilio_number, $vendor->user?->phone])
+            ->map(fn ($number) => Conversation::lastTenDigits($number))
+            ->filter()
+            ->unique();
 
         // Only this vendor's thread with the coordinator: messages tagged to this
         // vendor, plus legacy messages matched by their phone number.
@@ -105,7 +107,7 @@ class VendorPortalController extends Controller
             ->with('media')
             ->where('work_order_id', $workOrder->id)
             ->where('conversation_type', 'vendor')
-            ->where(fn ($q) => $this->scopeToVendorThread($q, $vendor, $vendorPhoneDigits))
+            ->forVendorThread($vendor)
             ->orderBy('created_at')
             ->get();
 
@@ -199,8 +201,8 @@ class VendorPortalController extends Controller
             'messages' => $messages->map(fn ($m) => [
                 'id' => $m->id,
                 'message' => $m->message,
-                'is_from_vendor' => ($vendorPhoneDigits && $this->lastTenDigits($m->sender_number) === $vendorPhoneDigits)
-                    || $m->sender_number === 'portal',
+                'is_from_vendor' => $m->sender_number === 'portal'
+                    || $vendorNumberDigits->contains(Conversation::lastTenDigits($m->sender_number)),
                 'created_at' => $m->created_at,
                 'media' => $m->media->map(fn ($media) => [
                     'url' => $media->public_url,
@@ -513,7 +515,7 @@ class VendorPortalController extends Controller
             ->where('work_order_id', $workOrder->id)
             ->where('conversation_type', 'vendor')
             ->where('read_by_vendor', false)
-            ->where(fn ($q) => $this->scopeToVendorThread($q, $vendor, $this->lastTenDigits($vendor->user?->phone)))
+            ->forVendorThread($vendor)
             ->update(['read_by_vendor' => true]);
 
         return back();
@@ -558,37 +560,5 @@ class VendorPortalController extends Controller
         }
 
         return 'green';
-    }
-
-    /**
-     * Constrain a "vendor" conversation query to one vendor's thread: messages
-     * tagged with their vendor_id, plus legacy messages matched by phone number.
-     */
-    private function scopeToVendorThread($query, Vendor $vendor, ?string $vendorPhoneDigits): void
-    {
-        $query->where('vendor_id', $vendor->id);
-
-        if ($vendorPhoneDigits) {
-            $query->orWhere('sender_number', 'LIKE', '%'.$vendorPhoneDigits)
-                ->orWhere('receiver_number', 'LIKE', '%'.$vendorPhoneDigits);
-        }
-    }
-
-    /**
-     * Reduce a phone number to its final 10 digits for tolerant matching.
-     */
-    private function lastTenDigits(?string $number): ?string
-    {
-        if (! $number) {
-            return null;
-        }
-
-        $digits = preg_replace('/\D+/', '', $number);
-
-        if (strlen($digits) < 10) {
-            return null;
-        }
-
-        return substr($digits, -10);
     }
 }

@@ -27,9 +27,11 @@ class ConversationScope implements Scope
         }
 
         if ($user->hasRole('vendor') && $user->vendor) {
+            // Limit to work orders this vendor is assigned to, then to this
+            // vendor's own thread so they never see another vendor's messages.
             $builder->whereHas('work_order.vendors', function ($query) use ($user) {
                 $query->where('vendors.id', $user->vendor->id);
-            });
+            })->forVendorThread($user->vendor);
         }
 
         if ($user->hasRole('tenant') && $user->tenant) {
