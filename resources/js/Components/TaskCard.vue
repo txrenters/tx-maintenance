@@ -375,17 +375,37 @@ const checkDueTask = (task) => {
 </script>
 
 <template>
+    <!-- Top action bar: select-all plus the bulk Complete All actions, kept at
+         the top (and sticky) so staff never scroll past completed tasks just
+         to reach the button. -->
     <div
-        v-if="routineCompletableTasks.length"
-        class="flex items-center gap-2 mb-2 px-1"
+        v-if="routineCompletableTasks.length || selectedTaskIds.length"
+        class="sticky top-0 z-10 -mx-1 mb-2 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-2 py-2 backdrop-blur"
     >
-        <Checkbox
-            :checked="allRoutineSelected"
-            @update:checked="toggleSelectAll"
-        />
-        <span class="text-xs text-muted-foreground">
-            Select all completable tasks
-        </span>
+        <div class="flex items-center gap-2">
+            <Checkbox
+                v-if="routineCompletableTasks.length"
+                :checked="allRoutineSelected"
+                @update:checked="toggleSelectAll"
+            />
+            <span
+                v-if="routineCompletableTasks.length"
+                class="text-xs text-muted-foreground"
+            >
+                Select all completable tasks
+            </span>
+        </div>
+        <div v-if="selectedTaskIds.length" class="flex items-center gap-2">
+            <span class="text-xs font-medium">
+                {{ selectedTaskIds.length }} selected
+            </span>
+            <Button variant="outline" size="sm" @click="clearSelection">
+                Cancel
+            </Button>
+            <Button size="sm" @click="openCompleteModal = true">
+                Complete All ({{ selectedTaskIds.length }})
+            </Button>
+        </div>
     </div>
     <div v-for="task in tasks" :key="task.id" class="hover:bg-opacity-50">
         <Card
@@ -555,23 +575,6 @@ const checkDueTask = (task) => {
             </div>
         </Card>
     </div>
-    <div
-        v-if="selectedTaskIds.length"
-        class="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-background/95 backdrop-blur px-2 py-2 mt-2"
-    >
-        <span class="text-xs font-medium">
-            {{ selectedTaskIds.length }} selected
-        </span>
-        <div class="flex gap-2">
-            <Button variant="outline" size="sm" @click="clearSelection">
-                Cancel
-            </Button>
-            <Button size="sm" @click="openCompleteModal = true">
-                Complete All ({{ selectedTaskIds.length }})
-            </Button>
-        </div>
-    </div>
-
     <Dialog v-model:open="openCompleteModal">
         <DialogContent class="sm:max-w-[420px]">
             <DialogHeader>
