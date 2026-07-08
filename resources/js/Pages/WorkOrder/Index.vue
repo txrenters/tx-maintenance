@@ -41,6 +41,7 @@ import {
     Loader2,
     Sparkles,
     ExternalLink,
+    History,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -58,6 +59,17 @@ import SearchBar from "@/Components/SearchBar.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import { Skeleton } from "@/Components/ui/skeleton";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/Components/ui/dropdown-menu";
+import { useRecentWorkOrders } from "@/composables/useRecentWorkOrders";
+
+const { recentWorkOrders, rememberWorkOrder } = useRecentWorkOrders();
 
 const props = defineProps({
     title: String,
@@ -694,6 +706,8 @@ const handleWorkOrder = async (orderId) => {
         // Reset close form
         closeWorkOrderForm.reset();
         closeWorkOrderForm.id = order.id;
+
+        rememberWorkOrder(order);
     } catch (error) {
         console.error("Failed to fetch work order:", error);
     }
@@ -840,6 +854,39 @@ const page = usePage();
         </div>
 
         <div class="flex gap-2 w-full justify-end">
+            <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                    <Button variant="outline" class="shrink-0">
+                        <History class="mr-2 h-4 w-4" />
+                        Recent
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-80">
+                    <DropdownMenuLabel>Recently opened work orders</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <template v-if="recentWorkOrders.length">
+                        <DropdownMenuItem
+                            v-for="recent in recentWorkOrders"
+                            :key="recent.id"
+                            class="cursor-pointer"
+                            @click="handleWorkOrder(recent.id)"
+                        >
+                            <div class="flex w-full items-center justify-between gap-3">
+                                <span class="shrink-0 font-semibold">
+                                    #{{ recent.work_order_no }}
+                                </span>
+                                <span class="truncate text-xs text-muted-foreground">
+                                    {{ recent.location || recent.category }}
+                                </span>
+                            </div>
+                        </DropdownMenuItem>
+                    </template>
+                    <DropdownMenuItem v-else disabled>
+                        Nothing opened yet
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
