@@ -2,6 +2,7 @@
 import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
+import { nextTick, onMounted, ref, watch } from "vue";
 
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -9,6 +10,60 @@ const props = defineProps({
     work_order: Object,
     service_status: Object,
 });
+
+// Remembers each column's scroll offset for the whole SPA session, keyed by
+// service status id. Module-scoped on purpose: updating a work order from the
+// modal re-fetches the deferred `service_status` prop, which tears this board
+// down to its skeleton and remounts it with every column back at the top —
+// component state would be lost, module state survives.
+const columnScrollPositions = new Map();
+
+const boardRoot = ref(null);
+
+// Scroll events don't bubble, so a capture-phase listener on the board root
+// hears every column viewport without wiring a listener per column.
+const rememberColumnScroll = (event) => {
+    if (event.target === boardRoot.value) {
+        columnScrollPositions.set("__board", event.target.scrollLeft);
+
+        return;
+    }
+
+    const column = event.target?.closest?.("[data-scroll-column]");
+
+    if (column) {
+        columnScrollPositions.set(column.dataset.scrollColumn, event.target.scrollTop);
+    }
+};
+
+const restoreColumnScroll = async () => {
+    await nextTick();
+
+    if (!boardRoot.value) return;
+
+    for (const [columnId, scrollTop] of columnScrollPositions) {
+        if (columnId === "__board") {
+            boardRoot.value.scrollLeft = scrollTop;
+            continue;
+        }
+
+        const column = boardRoot.value.querySelector(
+            `[data-scroll-column="${columnId}"]`,
+        );
+
+        if (!column || !scrollTop) continue;
+
+        // The scrollable element is the reka-ui viewport; setting scrollTop on
+        // the non-scrolling wrapper as well is a harmless no-op either way.
+        const viewport = column.querySelector("[data-reka-scroll-area-viewport]");
+        [column, viewport].filter(Boolean).forEach((el) => {
+            el.scrollTop = scrollTop;
+        });
+    }
+};
+
+onMounted(restoreColumnScroll);
+watch(() => props.service_status, restoreColumnScroll, { flush: "post" });
 
 const page = usePage();
 const authUser = page.props.auth?.user;
@@ -90,7 +145,9 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 
 <template>
     <div
+        ref="boardRoot"
         class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
+        @scroll.capture="rememberColumnScroll"
     >
         <template v-for="status in service_status" :key="status.id">
             <div
@@ -109,6 +166,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 
                     <!-- Work Orders List -->
                     <ScrollArea
+                        :data-scroll-column="status.id"
                         class="h-[70vh] overflow-y-auto border-t pt-2 mb-5"
                     >
                         <div
