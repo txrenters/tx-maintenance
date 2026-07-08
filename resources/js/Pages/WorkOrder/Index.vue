@@ -69,7 +69,8 @@ import {
 } from "@/Components/ui/dropdown-menu";
 import { useRecentWorkOrders } from "@/composables/useRecentWorkOrders";
 
-const { recentWorkOrders, rememberWorkOrder } = useRecentWorkOrders();
+const { recentWorkOrders, rememberWorkOrder, forgetWorkOrder, openedAgo } =
+    useRecentWorkOrders();
 
 const props = defineProps({
     title: String,
@@ -710,6 +711,25 @@ const handleWorkOrder = async (orderId) => {
         rememberWorkOrder(order);
     } catch (error) {
         console.error("Failed to fetch work order:", error);
+
+        // A stale Recent entry (or link) can point at a deleted work order —
+        // don't leave a broken empty modal open.
+        openWorkOrder.value = false;
+
+        if (error.response?.status === 404) {
+            forgetWorkOrder(typeof orderId === "object" ? orderId?.id : orderId);
+            toast({
+                variant: "destructive",
+                title: "Work order not found",
+                description: "It may have been deleted. Removed it from your Recent list.",
+            });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: "Failed to load the work order. Please try again!",
+            });
+        }
     }
     isLoading.value = false;
 };
@@ -861,7 +881,7 @@ const page = usePage();
                         Recent
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="w-80">
+                <DropdownMenuContent align="end" class="w-80 max-h-96 overflow-y-auto">
                     <DropdownMenuLabel>Recently opened work orders</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <template v-if="recentWorkOrders.length">
@@ -875,8 +895,11 @@ const page = usePage();
                                 <span class="shrink-0 font-semibold">
                                     #{{ recent.work_order_no }}
                                 </span>
-                                <span class="truncate text-xs text-muted-foreground">
+                                <span class="min-w-0 truncate text-xs text-muted-foreground">
                                     {{ recent.location || recent.category }}
+                                </span>
+                                <span class="shrink-0 text-[10px] text-muted-foreground">
+                                    {{ openedAgo(recent) }}
                                 </span>
                             </div>
                         </DropdownMenuItem>
