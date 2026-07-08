@@ -114,6 +114,77 @@ class EmergencyClassificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->is_emergency, 'Ambiguous emergency signals must go to human review, not auto-apply.');
     }
 
+    public function test_auto_applied_assessment_is_marked_and_payload_includes_work_order_state(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = $this->newServiceStatus();
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Suspected gas leak near the water heater.',
+            'is_emergency' => null,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        $response->assertOk()
+            ->assertJsonPath('recommendation.emergency_auto_applied', true)
+            ->assertJsonPath('recommendation.work_order.id', $workOrder->id)
+            ->assertJsonPath('recommendation.work_order.is_emergency', 1);
+    }
+
+    public function test_low_confidence_assessment_is_not_marked_auto_applied(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = $this->newServiceStatus();
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Tenant says there is no ac since yesterday.',
+            'is_emergency' => null,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        $response->assertOk()
+            ->assertJsonPath('recommendation.emergency_auto_applied', false)
+            ->assertJsonPath('recommendation.work_order.is_emergency', null);
+    }
+
+    public function test_emergency_filter_scope_splits_work_orders_by_classification_state(): void
+    {
+        $serviceStatus = $this->newServiceStatus();
+
+        $emergency = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'is_emergency' => true,
+        ]);
+        $nonEmergency = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'is_emergency' => false,
+        ]);
+        $unclassified = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'is_emergency' => null,
+        ]);
+
+        $this->assertSame(
+            [$emergency->id],
+            WorkOrder::query()->emergencyFilter('emergency')->pluck('id')->all()
+        );
+        $this->assertSame(
+            [$nonEmergency->id],
+            WorkOrder::query()->emergencyFilter('non_emergency')->pluck('id')->all()
+        );
+        $this->assertSame(
+            [$unclassified->id],
+            WorkOrder::query()->emergencyFilter('needs_review')->pluck('id')->all()
+        );
+        $this->assertCount(3, WorkOrder::query()->emergencyFilter('')->get());
+    }
+
     public function test_auto_apply_regenerates_pending_tasks_like_the_manual_toggle(): void
     {
         $user = User::factory()->create();

@@ -66,6 +66,7 @@ class WorkOrderController extends Controller
                         $end = Carbon::parse($date['end_date'])->endOfDay();
                         $query->whereBetween('created_date', [$start, $end]);
                     })
+                    ->emergencyFilter()
                     ->where('status', 'Open')
                     ->where('category', 'NOT LIKE', '%move out inspection%')
                     ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
@@ -121,6 +122,7 @@ class WorkOrderController extends Controller
                     $end = Carbon::parse($date['end_date'])->endOfDay();
                     $query->whereBetween('created_date', [$start, $end]);
                 })
+                ->emergencyFilter()
                 // Work orders with non-zero total_cost completed within 30 days
                 ->whereNotNull('total_cost')
                 ->where('total_cost', '>', 0)
@@ -162,6 +164,7 @@ class WorkOrderController extends Controller
                     $end = Carbon::parse($date['end_date'])->endOfDay();
                     $query->whereBetween('created_date', [$start, $end]);
                 })
+                ->emergencyFilter()
                 ->where('status', 'Closed')
                 ->whereNotNull('completed_date')
                 // While searching, surface matching closed work orders regardless of age.
@@ -218,7 +221,7 @@ class WorkOrderController extends Controller
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
             'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category', 'emergency']),
         ]);
     }
 

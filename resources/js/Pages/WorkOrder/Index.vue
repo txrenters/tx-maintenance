@@ -72,6 +72,7 @@ const url = ref(route("work_orders.index"));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 const filter_category = ref(props.filter.category ?? "");
+const filter_emergency = ref(props.filter.emergency ?? "");
 
 const openWorkOrder = ref(false);
 
@@ -781,9 +782,26 @@ const filterCategory = debounce(() => {
     });
 }, 2000);
 
+const filterEmergency = () => {
+    const value =
+        filter_emergency.value && filter_emergency.value !== "all"
+            ? filter_emergency.value
+            : null;
+
+    router.visit(url.value, {
+        method: "get",
+        data: { emergency: value },
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ["service_status"],
+    });
+};
+
 watch(date_range, fetchFilteredData, { deep: true });
 watch(filter_vendor, filterVendor);
 watch(filter_category, filterCategory);
+watch(filter_emergency, filterEmergency);
 
 const page = usePage();
 </script>
@@ -834,6 +852,27 @@ const page = usePage();
                                 {{ category.name }}
                             </SelectItem>
                         </template>
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
+
+            <Select
+                :modelValue="String(filter_emergency)"
+                @update:modelValue="(value) => (filter_emergency = value)"
+            >
+                <SelectTrigger class="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Emergency status" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="emergency">Emergency</SelectItem>
+                        <SelectItem value="non_emergency">
+                            Non-emergency
+                        </SelectItem>
+                        <SelectItem value="needs_review">
+                            Needs review
+                        </SelectItem>
                     </SelectGroup>
                 </SelectContent>
             </Select>

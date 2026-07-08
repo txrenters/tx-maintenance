@@ -20,6 +20,7 @@ class WorkOrderRecommendation extends Model
             'generated_at' => 'datetime',
             'needs_human_review' => 'boolean',
             'is_emergency' => 'boolean',
+            'emergency_auto_applied' => 'boolean',
         ];
     }
 

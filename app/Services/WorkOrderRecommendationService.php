@@ -82,7 +82,9 @@ class WorkOrderRecommendationService
 
     public function latest(WorkOrder $workOrder): ?WorkOrderRecommendation
     {
-        return $workOrder->recommendation()->with('recommendedVendor')->first();
+        return $workOrder->recommendation()
+            ->with(['recommendedVendor', 'workOrder:id,is_emergency'])
+            ->first();
     }
 
     public function generate(WorkOrder $workOrder): WorkOrderRecommendation
@@ -133,6 +135,7 @@ class WorkOrderRecommendationService
                 'emergency_category' => $classification['emergency_category'] ?? null,
                 'emergency_confidence' => $classification['emergency_confidence'] ?? null,
                 'emergency_reason' => $classification['emergency_reason'] ?? null,
+                'emergency_auto_applied' => false,
                 'summary' => $classification['summary'],
                 'reasoning' => $vendorReasoning ?? $this->buildReasoning($recommendedVendor, $matchedHistory, $classification),
                 'keywords' => $classification['keywords'],
@@ -151,9 +154,9 @@ class WorkOrderRecommendationService
             ]
         )->load('recommendedVendor');
 
-        $this->applyEmergencyAssessment($workOrder, $classification);
+        $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
 
-        return $recommendation;
+        return $recommendation->load('workOrder:id,is_emergency');
     }
 
     /**
@@ -167,7 +170,7 @@ class WorkOrderRecommendationService
      *
      * @param  array<string, mixed>  $classification
      */
-    private function applyEmergencyAssessment(WorkOrder $workOrder, array $classification): void
+    private function applyEmergencyAssessment(WorkOrder $workOrder, array $classification, WorkOrderRecommendation $recommendation): void
     {
         if ($workOrder->is_emergency !== null) {
             return;
@@ -182,6 +185,7 @@ class WorkOrderRecommendationService
         $isEmergency = (bool) ($classification['is_emergency'] ?? false);
 
         $workOrder->update(['is_emergency' => $isEmergency]);
+        $recommendation->update(['emergency_auto_applied' => true]);
 
         WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', 'pending')->delete();
 

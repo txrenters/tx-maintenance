@@ -179,8 +179,28 @@ class WorkOrder extends Model
                 $end_date = Carbon::parse($date['end_date'])->endOfDay();
 
                 $q->whereBetween('created_date', [$start_date, $end_date]);
-            });
+            })
+            ->emergencyFilter($filters['emergency'] ?? '');
 
+    }
+
+    /**
+     * Filter by emergency classification state. Accepts 'emergency',
+     * 'non_emergency', or 'needs_review' (unclassified, awaiting a human
+     * or AI decision); any other value leaves the query untouched.
+     */
+    public function scopeEmergencyFilter($query, ?string $emergency = null)
+    {
+        $emergency ??= request('emergency');
+
+        return $query->when($emergency, function ($q, $value) {
+            match ($value) {
+                'emergency' => $q->where('is_emergency', true),
+                'non_emergency' => $q->where('is_emergency', false),
+                'needs_review' => $q->whereNull('is_emergency'),
+                default => $q,
+            };
+        });
     }
 
     public function scopeFiltered($query)
