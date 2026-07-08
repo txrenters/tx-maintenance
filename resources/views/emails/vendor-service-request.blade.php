@@ -8,7 +8,7 @@ Please be sure to contact the tenants within 2 business hours of the receipt of 
 Finally, please be advised that you may not proceed with any work where the total bill is in excess of $250.00 without prior written approval.
 
 Best regards,
-The TexasRenters.com Property Management Team
+The [TexasRenters.com](https://www.texasrenters.com/) Property Management Team
 
 Please be sure to take before and after pictures of ALL repairs. You can upload these pictures directly through your maintenance dashboard upon completion of the repair. Please title each photo with the property address. We cannot process an invoice for payment without photos.
 

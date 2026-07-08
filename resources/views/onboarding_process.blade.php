@@ -289,7 +289,7 @@
 
         <div class="alert alert-info">
             <strong>Initial Lease Term:</strong> The following items are only for the initial lease term. After the
-            initial tenant moves out, if TexasRenters.com is still managing the property, will handle utilities, lawn
+            initial tenant moves out, if <a href="https://www.texasrenters.com/" style="color: #007bff; text-decoration: underline;">TexasRenters.com</a> is still managing the property, will handle utilities, lawn
             care, carpet clearning and cleaning unless otherwise instructed at that tme, per the property management
             agreement.
         </div>
@@ -313,7 +313,7 @@
                 it.
                 We do however, allow you to choose between us providing the service, and you arranging the service on
                 your
-                own. If you arrange the service, please provide receipts for our records. TexasRenters.com, LLC will
+                own. If you arrange the service, please provide receipts for our records. <a href="https://www.texasrenters.com/" style="color: #007bff; text-decoration: underline;">TexasRenters.com</a>, LLC will
                 arrange
                 for and pay for, at the owner's expense, a final cleaning just prior to tenant move in. You may have the
                 lawn and pest control done at your discretion. For standard treatment of roaches and bugs (excluding
@@ -428,7 +428,7 @@
 
         <div class="alert alert-warning">
             All Homes will be brought up to the standards required by Texas Property Code at the owner's expense (smoke
-            detectors, locks, and peep holes). All properties will also be re-keyed to the TexasRenters.com key system
+            detectors, locks, and peep holes). All properties will also be re-keyed to the <a href="https://www.texasrenters.com/" style="color: #007bff; text-decoration: underline;">TexasRenters.com</a> key system
             so that in the event of an emergency we can more quickly protect the value of your property.
         </div>
 
@@ -1063,7 +1063,7 @@
                     {{ isset($formData['e_1099_consent']) && $formData['e_1099_consent'] ? 'checked' : '' }} />
                 I hereby consent to receive my IRS Form
                 1099 electronically via the email
-                address provided to TexasRenters.com,
+                address provided to <a href="https://www.texasrenters.com/" style="color: #007bff; text-decoration: underline;">TexasRenters.com</a>,
                 LLC. I understand that no paper copy
                 will be mailed unless I revoke this
                 consent in writing.
@@ -1097,7 +1097,7 @@
 
     <!-- Footer -->
     <div class="footer">
-        <p>This document was generated electronically by TexasRenters.com Onboarding Portal.</p>
+        <p>This document was generated electronically by <a href="https://www.texasrenters.com/" style="color: #007bff; text-decoration: underline;">TexasRenters.com</a> Onboarding Portal.</p>
         <p>For questions about this onboarding process form, please contact us at 281-248-8018.</p>
         <p>Developed and maintained by Texas Renters IT Department.</p>
         <p>Generated on: {{ $generated_at }}</p>
