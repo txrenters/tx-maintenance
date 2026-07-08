@@ -578,7 +578,7 @@ const openNotificationTarget = (notification) => {
 };
 
 const handleChatModal = async (model, shouldReverse = true) => {
-    const response = await axios.post("/api/notification/messages", {
+    const response = await axios.post(route("work_order.notification_messages"), {
         data: model,
     });
 

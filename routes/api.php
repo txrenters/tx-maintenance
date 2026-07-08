@@ -24,11 +24,10 @@ Route::post('/work_orders/{workOrder}/generate_tasks', [TaskController::class, '
 Route::post('/work_orders/tasks/{task}/undo', [TaskController::class, 'undo'])->name('api.task.undo');
 Route::post('/work_orders/{workOrder}/tasks/bulk-complete', [TaskController::class, 'bulkComplete'])->name('api.work_order.tasks.bulk_complete');
 
-Route::get('/work_orders/{workOrder}/conversation/vendors', [ConversationController::class, 'get_vendor_conversation'])->name('work_order.vendor_conversation');
-Route::get('/work_orders/{workOrder}/conversation/vendor_tenant', [ConversationController::class, 'get_vendor_tenant_conversation'])->name('work_order.vendor_tenant_conversation');
-Route::get('/work_orders/{workOrder}/conversation/vendors_owner', [ConversationController::class, 'get_vendor_owner_conversation'])->name('work_order.vendor_owner_conversation');
-Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
-Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
+// NOTE: The conversation read endpoints live in routes/web.php under the
+// authenticated (session) group so auth() resolves and ConversationScope can
+// isolate each role's — and each vendor's — messages. Keeping them on the
+// stateless api group left auth() null, disabling all per-vendor scoping.
 
 Route::delete('/work_orders/convesation/{conversation}', [ConversationController::class, 'delete'])->name('workorder.message.delete');
 
@@ -64,7 +63,8 @@ Route::get('/jobbers/{jobber}/client-contacts', [ClientContactController::class,
 Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'store'])->name('client-contacts.store');
 Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');
 
-Route::post('/notification/messages', [ConversationController::class, 'get_conversation']);
+// '/notification/messages' (get_conversation) moved to the authenticated web
+// group so a vendor cannot read another vendor's thread via notifications.
 Route::post('/notification/jobber/messages', [JobberTextMessageController::class, 'get_conversation']);
 
 // TEX App API Routes

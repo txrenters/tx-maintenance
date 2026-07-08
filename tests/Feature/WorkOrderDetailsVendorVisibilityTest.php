@@ -126,4 +126,24 @@ class WorkOrderDetailsVendorVisibilityTest extends TestCase
             ->assertDontSee('OTHER_VENDOR_TAGGED_MESSAGE')
             ->assertDontSee('OTHER_VENDOR_LEGACY_MESSAGE');
     }
+
+    public function test_conversation_endpoint_requires_authentication(): void
+    {
+        $status = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $status->id,
+            'work_order_no' => 9911,
+        ]);
+
+        Conversation::query()->create([
+            'message' => 'SECRET_VENDOR_MESSAGE',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'vendor',
+        ]);
+
+        // Without a resolved user the scope cannot isolate anyone, so the
+        // endpoint must reject the request rather than serve every message.
+        $this->getJson(route('work_order.vendor_conversation', $workOrder))
+            ->assertUnauthorized();
+    }
 }

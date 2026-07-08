@@ -116,6 +116,15 @@ Route::middleware([
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
 
+    // Conversation read endpoints: authenticated (session) so ConversationScope
+    // resolves the current user and isolates each vendor's thread.
+    Route::get('/work_orders/{workOrder}/conversation/vendors', [ConversationController::class, 'get_vendor_conversation'])->name('work_order.vendor_conversation');
+    Route::get('/work_orders/{workOrder}/conversation/vendor_tenant', [ConversationController::class, 'get_vendor_tenant_conversation'])->name('work_order.vendor_tenant_conversation');
+    Route::get('/work_orders/{workOrder}/conversation/vendors_owner', [ConversationController::class, 'get_vendor_owner_conversation'])->name('work_order.vendor_owner_conversation');
+    Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
+    Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
+    Route::post('/notification/messages', [ConversationController::class, 'get_conversation'])->name('work_order.notification_messages');
+
     Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');
 
