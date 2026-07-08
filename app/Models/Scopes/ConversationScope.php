@@ -20,10 +20,11 @@ class ConversationScope implements Scope
             return;
         }
 
-        if ($user->hasRole('woc')) {
-            $builder->whereHas('work_order', function ($query) use ($user) {
-                $query->where('user_id', $user->id);
-            });
+        // Staff (admin/woc/accounting) have full conversation access, matching
+        // ConversationController::assertCanViewConversation. Only external parties
+        // — vendors and tenants — are scoped to their own threads/work orders.
+        if ($user->hasAnyRole(['admin', 'woc', 'accounting'])) {
+            return;
         }
 
         if ($user->hasRole('vendor') && $user->vendor) {

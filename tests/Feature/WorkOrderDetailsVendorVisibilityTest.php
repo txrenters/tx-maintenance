@@ -3,17 +3,30 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Scopes\WorkOrderScope;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class WorkOrderDetailsVendorVisibilityTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // WorkOrderScope caches the resolved user in a static property; reset it so
+        // it cannot leak between tests in the same process.
+        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
+        $cached->setAccessible(true);
+        $cached->setValue(null, null);
+    }
 
     public function test_vendor_only_receives_their_own_vendor_assignment_on_work_order_details(): void
     {
@@ -125,6 +138,34 @@ class WorkOrderDetailsVendorVisibilityTest extends TestCase
             ->assertSee('OWN_VENDOR_TAGGED_MESSAGE')
             ->assertDontSee('OTHER_VENDOR_TAGGED_MESSAGE')
             ->assertDontSee('OTHER_VENDOR_LEGACY_MESSAGE');
+    }
+
+    public function test_woc_sees_conversations_on_work_orders_they_do_not_coordinate(): void
+    {
+        Role::findOrCreate('woc', 'web');
+        $status = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+
+        $viewingWoc = User::factory()->create();
+        $viewingWoc->assignRole('woc');
+        $otherCoordinator = User::factory()->create();
+
+        // Work order coordinated by a different WOC.
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $status->id,
+            'work_order_no' => 5150,
+            'user_id' => $otherCoordinator->id,
+        ]);
+
+        Conversation::query()->create([
+            'message' => 'COORDINATOR_VISIBLE_MESSAGE',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'vendor',
+        ]);
+
+        $this->actingAs($viewingWoc)
+            ->getJson(route('work_order.vendor_conversation', $workOrder))
+            ->assertOk()
+            ->assertSee('COORDINATOR_VISIBLE_MESSAGE');
     }
 
     public function test_conversation_endpoint_requires_authentication(): void
