@@ -82,6 +82,48 @@ const woc_phone_number = ref(
 
 const loading = ref(false);
 
+// Reduce a phone number to its final 10 digits, mirroring the backend match.
+const lastTenDigits = (value) => {
+    if (!value) return null;
+    const digits = String(value).replace(/\D+/g, "");
+    return digits.length >= 10 ? digits.slice(-10) : null;
+};
+
+const hasSingleVendor = computed(() => props.workOrderVendors?.length === 1);
+
+// Messages belonging to one vendor: tagged by vendor_id, plus legacy untagged
+// messages matched by that vendor's number or on a single-vendor work order.
+const messagesForVendor = (vendorId) => {
+    const vendor = props.workOrderVendors?.find(
+        (v) => String(v.id) === String(vendorId)
+    );
+    const numbers = vendor
+        ? [vendor.twilio_number, vendor.user?.phone]
+              .map(lastTenDigits)
+              .filter(Boolean)
+        : [];
+
+    return (props.vendorConversation ?? []).filter((m) => {
+        if (String(m.vendor_id) === String(vendorId)) return true;
+        if (m.vendor_id == null) {
+            if (
+                numbers.includes(lastTenDigits(m.sender_number)) ||
+                numbers.includes(lastTenDigits(m.receiver_number))
+            ) {
+                return true;
+            }
+            if (hasSingleVendor.value) return true;
+        }
+        return false;
+    });
+};
+
+// Default view: a single-vendor work order shows its thread; with multiple
+// vendors the tab stays empty until the coordinator picks one.
+const displayedMessages = computed(() =>
+    selectedVendor.value ? messagesForVendor(selectedVendor.value) : []
+);
+
 // Auto-resize textarea
 const autoResize = (event) => {
     const textarea = event.target;
@@ -237,7 +279,20 @@ watch(selectedVendor, (newVendor) => {
         );
         vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
     }
+    scrollToBottom();
 });
+
+// Preselect the only vendor so their thread shows by default; leave the tab
+// empty when there are multiple vendors so threads never blur together.
+watch(
+    () => props.workOrderVendors,
+    (vendors) => {
+        if (!selectedVendor.value && vendors?.length === 1) {
+            selectedVendor.value = String(vendors[0].id);
+        }
+    },
+    { immediate: true }
+);
 
 // Scroll to the bottom when the component mounts or when the conversation updates
 onMounted(() => {
@@ -316,9 +371,15 @@ onMounted(() => {
                     >
                         <Loader2 class="w-12 h-12 animate-spin text-primary" />
                     </div>
+                    <div
+                        v-else-if="!selectedVendor"
+                        class="flex h-full min-h-[200px] items-center justify-center px-6 text-center text-sm text-muted-foreground"
+                    >
+                        Select a vendor to view their conversation.
+                    </div>
                     <MessageCard
                         v-else
-                        :messages="vendorConversation"
+                        :messages="displayedMessages"
                         :sender="woc_phone_number"
                     />
                 </ScrollArea>
