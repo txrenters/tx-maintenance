@@ -13,6 +13,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Notifications\NewWorkOrderAssignNotification;
+use App\Services\EmergencyAlertService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\WorkOrderService;
@@ -1009,6 +1010,7 @@ class WorkOrderController extends Controller
         ]);
 
         $isEmergency = $request->is_emergency == 'Emergency';
+        $wasEmergency = (bool) $workOrder->is_emergency;
 
         $workOrder->update(['is_emergency' => $isEmergency]);
 
@@ -1018,6 +1020,10 @@ class WorkOrderController extends Controller
         WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', 'pending')->delete();
 
         TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $serviceStatusId);
+
+        if ($isEmergency && ! $wasEmergency) {
+            app(EmergencyAlertService::class)->workOrderMarkedEmergency($workOrder, 'staff');
+        }
 
         // $propertyWare = new PropertyWareService;
         // $propertyWare->updateServiceStatus($workOrder, $service_status);

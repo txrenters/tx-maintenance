@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class EmergencyClassificationTest extends TestCase
@@ -183,6 +184,85 @@ class EmergencyClassificationTest extends TestCase
             WorkOrder::query()->emergencyFilter('needs_review')->pluck('id')->all()
         );
         $this->assertCount(3, WorkOrder::query()->emergencyFilter('')->get());
+    }
+
+    public function test_emergency_auto_apply_creates_a_staff_alert_once(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = $this->newServiceStatus();
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Sewage backup flooding the hallway bathroom.',
+            'is_emergency' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder))
+            ->assertOk();
+
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'work_order_emergency',
+            'subject_id' => $workOrder->id,
+        ]);
+        $this->assertSame(1, Activity::where('event', 'work_order_emergency')->count());
+        $this->assertSame(
+            'ai',
+            Activity::where('event', 'work_order_emergency')->first()->properties['classified_by']
+        );
+
+        // Re-classifying (or staff confirming afterwards) must not duplicate the alert.
+        $this->actingAs($user)->put(
+            route('work_orders.emergency.change', $workOrder),
+            ['is_emergency' => 'Emergency']
+        );
+
+        $this->assertSame(1, Activity::where('event', 'work_order_emergency')->count());
+    }
+
+    public function test_staff_emergency_change_creates_an_alert(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = $this->newServiceStatus();
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Tenant reports a broken cabinet hinge.',
+            'is_emergency' => null,
+        ]);
+
+        $this->actingAs($user)->put(
+            route('work_orders.emergency.change', $workOrder),
+            ['is_emergency' => 'Emergency']
+        );
+
+        $alert = Activity::where('event', 'work_order_emergency')->first();
+        $this->assertNotNull($alert);
+        $this->assertSame('staff', $alert->properties['classified_by']);
+        $this->assertSame($workOrder->id, $alert->properties['work_order_id']);
+    }
+
+    public function test_non_emergency_classification_creates_no_alert(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = $this->newServiceStatus();
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Dripping faucet in the hall bathroom.',
+            'is_emergency' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder))
+            ->assertOk();
+
+        $this->actingAs($user)->put(
+            route('work_orders.emergency.change', $workOrder),
+            ['is_emergency' => 'Non-emergency']
+        );
+
+        $this->assertDatabaseMissing('activity_log', ['event' => 'work_order_emergency']);
     }
 
     public function test_auto_apply_regenerates_pending_tasks_like_the_manual_toggle(): void

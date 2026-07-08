@@ -190,6 +190,10 @@ class WorkOrderRecommendationService
         WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', 'pending')->delete();
 
         TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $workOrder->service_status_id);
+
+        if ($isEmergency) {
+            app(EmergencyAlertService::class)->workOrderMarkedEmergency($workOrder, 'ai');
+        }
     }
 
     /**
