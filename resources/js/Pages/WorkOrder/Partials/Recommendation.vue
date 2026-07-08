@@ -30,9 +30,37 @@ const props = defineProps({
     recommendation: Object,
 });
 
-defineEmits(["generate", "assign"]);
+const emit = defineEmits(["generate", "assign"]);
 
 const { toast } = useToast();
+
+// Auto-generate on first open: when the parent's fetch finishes and there is
+// no stored recommendation yet, kick off generation without requiring a
+// click. Armed once per fetch cycle so a failed generation does not loop —
+// the button then acts as a manual retry.
+const autoGenerateArmed = ref(true);
+
+watch(
+    () => props.isLoading,
+    (loading) => {
+        if (loading) autoGenerateArmed.value = true;
+    },
+);
+
+watch(
+    [
+        () => props.isLoading,
+        () => props.isGenerating,
+        () => props.recommendation,
+    ],
+    ([loading, generating, recommendation]) => {
+        if (!loading && !generating && !recommendation && autoGenerateArmed.value) {
+            autoGenerateArmed.value = false;
+            emit("generate");
+        }
+    },
+    { immediate: true },
+);
 
 const matchedWorkOrders = computed(
     () => props.recommendation?.matched_work_orders ?? [],
@@ -188,20 +216,38 @@ const formatDate = (date) => {
                         :class="{ 'animate-spin': isGenerating }"
                         class="mr-2 h-4 w-4"
                     />
-                    {{ recommendation ? "Refresh" : "Generate" }}
+                    {{ recommendation ? "Refresh" : "Retry" }}
                 </Button>
             </div>
 
-            <!-- Empty state -->
+            <!-- Generating state: shown while the AI analyzes the work order -->
             <div
-                v-if="!recommendation && !isLoading"
+                v-if="!recommendation && (isGenerating || isLoading)"
+                class="animate-pulse rounded-lg border border-dashed px-6 py-12 text-center"
+            >
+                <Sparkles class="mx-auto mb-3 h-8 w-8 text-primary" />
+                <p class="font-medium">
+                    {{ isGenerating ? "Analyzing this work order with AI…" : "Loading recommendation…" }}
+                </p>
+                <p class="text-sm text-muted-foreground">
+                    Classifying the issue, assessing emergency status, and ranking vendors.
+                </p>
+            </div>
+
+            <!-- Retry state: auto-generation did not produce a recommendation -->
+            <div
+                v-else-if="!recommendation"
                 class="rounded-lg border border-dashed px-6 py-12 text-center"
             >
                 <Sparkles class="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p class="font-medium">No recommendation has been generated yet.</p>
+                <p class="font-medium">The recommendation could not be generated.</p>
                 <p class="text-sm text-muted-foreground">
-                    Generate one to classify the issue, inspect similar past work, and rank vendors.
+                    Something went wrong while analyzing this work order. Please retry.
                 </p>
+                <Button class="mt-4" variant="outline" @click="$emit('generate')">
+                    <RefreshCw class="mr-2 h-4 w-4" />
+                    Retry
+                </Button>
             </div>
 
             <template v-else-if="recommendation">
