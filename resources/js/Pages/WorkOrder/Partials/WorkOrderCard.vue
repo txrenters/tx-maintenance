@@ -138,7 +138,7 @@ const focusWorkOrder = async (id) => {
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = setTimeout(() => {
         if (flashId.value === id) flashId.value = null;
-    }, 2000);
+    }, 4100);
 };
 
 watch(
@@ -401,6 +401,6 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 }
 
 .wo-flash {
-    animation: wo-flash 1.9s ease-out;
+    animation: wo-flash 4s ease-out;
 }
 </style>
