@@ -62,12 +62,14 @@ const restoreColumnScroll = async () => {
 
         if (!column || !scrollTop) continue;
 
-        // The scrollable element is the reka-ui viewport; setting scrollTop on
-        // the non-scrolling wrapper as well is a harmless no-op either way.
+        // Only the reka-ui viewport may carry the offset. The overflow-hidden
+        // wrapper is programmatically scrollable too (despite hiding its
+        // scrollbars), but the mouse wheel can't move it — any offset left on
+        // it shifts the column's content permanently out of view (clipped
+        // cards at the top, blank band at the bottom).
         const viewport = column.querySelector("[data-reka-scroll-area-viewport]");
-        [column, viewport].filter(Boolean).forEach((el) => {
-            el.scrollTop = scrollTop;
-        });
+        (viewport ?? column).scrollTop = scrollTop;
+        if (viewport) column.scrollTop = 0;
     }
 };
 
@@ -88,11 +90,48 @@ const focusWorkOrder = async (id) => {
 
     if (!card) return;
 
-    // "nearest" on both axes: if the card is already visible, nothing scrolls
-    // (the preserved column positions stay put and we only flash); if it moved
-    // off-screen — e.g. to the New column — scroll the minimum needed to reveal
-    // it, never yanking the column to a mid-card position.
-    card.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    // Minimal "nearest" scroll done by hand: scrollIntoView() would also
+    // scroll the overflow-hidden ScrollArea wrapper (and the page), leaving
+    // offsets the mouse wheel can't undo — so only touch the two containers
+    // users actually scroll: the column viewport (vertical) and the board
+    // (horizontal). If the card is already visible, nothing moves.
+    const column = card.closest("[data-scroll-column]");
+    const viewport = column?.querySelector("[data-reka-scroll-area-viewport]");
+
+    // Clear any stray wrapper offset before measuring.
+    if (column) column.scrollTop = 0;
+
+    const cardRect = card.getBoundingClientRect();
+
+    if (viewport) {
+        const viewportRect = viewport.getBoundingClientRect();
+
+        if (cardRect.top < viewportRect.top) {
+            viewport.scrollBy({
+                top: cardRect.top - viewportRect.top,
+                behavior: "smooth",
+            });
+        } else if (cardRect.bottom > viewportRect.bottom) {
+            viewport.scrollBy({
+                top: cardRect.bottom - viewportRect.bottom,
+                behavior: "smooth",
+            });
+        }
+    }
+
+    const boardRect = boardRoot.value.getBoundingClientRect();
+
+    if (cardRect.left < boardRect.left) {
+        boardRoot.value.scrollBy({
+            left: cardRect.left - boardRect.left,
+            behavior: "smooth",
+        });
+    } else if (cardRect.right > boardRect.right) {
+        boardRoot.value.scrollBy({
+            left: cardRect.right - boardRect.right,
+            behavior: "smooth",
+        });
+    }
 
     flashId.value = id;
 
