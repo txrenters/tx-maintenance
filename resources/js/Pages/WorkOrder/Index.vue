@@ -72,6 +72,12 @@ import { useRecentWorkOrders } from "@/composables/useRecentWorkOrders";
 const { recentWorkOrders, rememberWorkOrder, forgetWorkOrder, openedAgo } =
     useRecentWorkOrders();
 
+// When the work order modal closes, take the user back to that card on the
+// board and flash it — it may have moved to another column (e.g. New) after a
+// status change, and this saves them from hunting for it.
+const focusSignal = ref(null);
+let focusToken = 0;
+
 const props = defineProps({
     title: String,
     service_status: Object,
@@ -636,6 +642,14 @@ const handleCloseOrderSubmit = () => {
     });
 };
 
+// On modal close, flash the card of the work order that was open so it is easy
+// to find again after it may have moved columns.
+watch(openWorkOrder, (isOpen, wasOpen) => {
+    if (wasOpen && !isOpen && workOrderForm.id) {
+        focusSignal.value = { id: workOrderForm.id, token: ++focusToken };
+    }
+});
+
 const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
     activeTab.value = "details";
@@ -1031,6 +1045,7 @@ const page = usePage();
             </template>
             <WorkOrderCard
                 :service_status="service_status"
+                :focus-signal="focusSignal"
                 @showWorkOrder="handleWorkOrder"
             />
         </Deferred>
