@@ -870,9 +870,6 @@ const page = usePage();
                         <SelectItem value="non_emergency">
                             Non-emergency
                         </SelectItem>
-                        <SelectItem value="needs_review">
-                            Needs review
-                        </SelectItem>
                     </SelectGroup>
                 </SelectContent>
             </Select>
