@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, watch } from "vue";
-import { router } from "@inertiajs/vue3";
 import { Button } from "@/Components/ui/button";
 import {
     Card,
@@ -10,7 +9,6 @@ import {
     CardTitle,
 } from "@/Components/ui/card";
 import { Badge } from "@/Components/ui/badge";
-import { useToast } from "@/Components/ui/toast/use-toast";
 import {
     Sparkles,
     Wrench,
@@ -31,8 +29,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["generate", "assign"]);
-
-const { toast } = useToast();
 
 // Auto-generate on first open: when the parent's fetch finishes and there is
 // no stored recommendation yet, kick off generation without requiring a
@@ -106,19 +102,6 @@ const confidenceTone = computed(() => {
 
 // --- Emergency assessment ---
 
-// Local override so the card updates immediately after Confirm/Override,
-// without waiting for a recommendation re-fetch. Reset when a new
-// recommendation payload arrives.
-const localEmergency = ref(undefined);
-const isSettingEmergency = ref(false);
-
-watch(
-    () => props.recommendation,
-    () => {
-        localEmergency.value = undefined;
-    },
-);
-
 const hasEmergencyAssessment = computed(
     () =>
         props.recommendation?.is_emergency !== null &&
@@ -132,61 +115,21 @@ const emergencyConfidence = computed(() =>
     Number(props.recommendation?.emergency_confidence ?? 0),
 );
 
-// The work order's current flag: null = unclassified (needs review).
+// The work order's current flag: null only for legacy work orders classified
+// before automatic labeling existed.
 const workOrderEmergency = computed(() => {
-    if (localEmergency.value !== undefined) return localEmergency.value;
     const value = props.recommendation?.work_order?.is_emergency;
     if (value === null || value === undefined) return null;
     return Boolean(Number(value));
 });
 
-const needsEmergencyReview = computed(
-    () => hasEmergencyAssessment.value && workOrderEmergency.value === null,
-);
-
 const emergencyClassifiedBy = computed(() => {
     if (workOrderEmergency.value === null) return null;
-    if (localEmergency.value !== undefined) return "staff";
     return props.recommendation?.emergency_auto_applied &&
         workOrderEmergency.value === aiSaysEmergency.value
         ? "ai"
         : "staff";
 });
-
-const setEmergency = (isEmergency) => {
-    const workOrderId =
-        props.recommendation?.work_order?.id ?? props.recommendation?.work_order_id;
-
-    if (!workOrderId || isSettingEmergency.value) return;
-
-    isSettingEmergency.value = true;
-
-    router.put(
-        route("work_orders.emergency.change", workOrderId),
-        { is_emergency: isEmergency ? "Emergency" : "Non-emergency" },
-        {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                localEmergency.value = isEmergency;
-                toast({
-                    title: "Success",
-                    description: `Work order marked as ${isEmergency ? "Emergency" : "Non-emergency"}. Tasks were regenerated.`,
-                });
-            },
-            onError: () => {
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description: "Failed to update the emergency status. Please try again!",
-                });
-            },
-            onFinish: () => {
-                isSettingEmergency.value = false;
-            },
-        },
-    );
-};
 
 const formatDate = (date) => {
     if (!date) return "Unknown";
@@ -299,50 +242,9 @@ const formatDate = (date) => {
                             {{ emergencyReason }}
                         </p>
 
-                        <!-- Needs review: low confidence, waiting for a human decision -->
-                        <div
-                            v-if="needsEmergencyReview"
-                            class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3"
-                        >
-                            <p class="text-sm font-medium text-amber-700 dark:text-amber-400">
-                                Needs review — confidence was too low to apply this
-                                automatically. Please confirm:
-                            </p>
-                            <div class="mt-2.5 flex flex-wrap gap-2">
-                                <Button
-                                    size="sm"
-                                    :disabled="isSettingEmergency"
-                                    :class="
-                                        aiSaysEmergency
-                                            ? 'bg-red-600 text-white hover:bg-red-700'
-                                            : ''
-                                    "
-                                    :variant="aiSaysEmergency ? 'default' : 'outline'"
-                                    @click="setEmergency(true)"
-                                >
-                                    <AlertTriangle class="mr-1.5 h-3.5 w-3.5" />
-                                    Emergency
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    :disabled="isSettingEmergency"
-                                    :class="
-                                        !aiSaysEmergency
-                                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                                            : ''
-                                    "
-                                    :variant="!aiSaysEmergency ? 'default' : 'outline'"
-                                    @click="setEmergency(false)"
-                                >
-                                    <ShieldCheck class="mr-1.5 h-3.5 w-3.5" />
-                                    Non-emergency
-                                </Button>
-                            </div>
-                        </div>
-
-                        <!-- Already classified: show current status + who set it -->
+                        <!-- Current status + who set it -->
                         <p
-                            v-else-if="workOrderEmergency !== null"
+                            v-if="workOrderEmergency !== null"
                             class="border-t pt-2 text-xs text-muted-foreground"
                         >
                             Work order is marked

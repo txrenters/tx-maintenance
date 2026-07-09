@@ -14,13 +14,6 @@ use Illuminate\Support\Str;
  */
 class EmergencyCriteria
 {
-    /**
-     * Minimum emergency confidence (0-100) required before a classification
-     * is automatically applied to work_orders.is_emergency. Anything below
-     * this is stored as a suggestion for human review instead.
-     */
-    public const AUTO_APPLY_MIN_CONFIDENCE = 75;
-
     public const DEFINITION = 'An emergency maintenance issue is any condition that threatens the safety of occupants, '
         .'causes active damage to the property, renders the property uninhabitable, or creates a significant risk of '
         .'further damage if not addressed immediately.';
@@ -124,8 +117,11 @@ class EmergencyCriteria
         }
 
         $lines[] = 'The following are urgent maintenance issues but NOT emergencies: '.implode('; ', self::nonEmergencies()).'.';
-        $lines[] = 'Set is_emergency accordingly. When it is an emergency, set emergency_category to the single best matching category name from the list above; otherwise set it to null.';
-        $lines[] = 'Set emergency_confidence from 0 to 100 based on how clearly the work order text supports the assessment, and lower it when the text is vague or missing key details (such as whether a leak is active).';
+        $lines[] = 'You MUST always decide is_emergency one way or the other — your label is applied automatically with no human review, so be careful and judge strictly by the criteria above, not by the tone or urgency of the tenant\'s wording.';
+        $lines[] = 'When a detail is missing, judge by the most likely real-world reading for a Houston rental property. In particular: complete loss of air conditioning during hot months is typically an emergency in Houston even when the tenant does not state the indoor temperature, per the criteria; a leak described without saying it stopped should be treated as active.';
+        $lines[] = 'If, after applying the criteria, the text still genuinely supports either reading, prefer is_emergency=true when the ambiguity involves possible active damage or occupant safety (missing a real emergency is worse than over-flagging one), and is_emergency=false when the ambiguity is only about convenience or comfort.';
+        $lines[] = 'When it is an emergency, set emergency_category to the single best matching category name from the list above; otherwise set it to null.';
+        $lines[] = 'Set emergency_confidence from 0 to 100 based on how clearly the work order text supports the assessment.';
         $lines[] = 'Set emergency_reason to one short sentence grounded in the work order text.';
 
         return $lines;
@@ -134,9 +130,9 @@ class EmergencyCriteria
     /**
      * Keyword needles per category used by the heuristic fallback when the AI
      * provider is unavailable, with a conservative confidence per category.
-     * Ambiguous signals (e.g. loss of A/C, which is only an emergency in
-     * health-risk temperatures) score below AUTO_APPLY_MIN_CONFIDENCE so they
-     * are surfaced for human review instead of auto-applied.
+     * The fallback leans toward flagging: a matched signal labels the work
+     * order Emergency (missing a real one is worse than over-flagging), and
+     * staff can always correct the label from the work order page.
      *
      * @return array<string, array{confidence: int, keywords: array<int, string>}>
      */

@@ -71,7 +71,7 @@ class EmergencyClassificationTest extends TestCase
         $this->assertEquals(0, $workOrder->fresh()->is_emergency, 'A staff classification must survive AI re-classification.');
     }
 
-    public function test_non_emergency_text_leaves_the_work_order_unclassified(): void
+    public function test_non_emergency_text_labels_the_work_order_non_emergency(): void
     {
         $user = User::factory()->create();
         $serviceStatus = $this->newServiceStatus();
@@ -88,17 +88,16 @@ class EmergencyClassificationTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('recommendation.is_emergency', false);
 
-        $this->assertNull($workOrder->fresh()->is_emergency, 'Low-confidence non-emergency should be left for human review.');
+        $this->assertEquals(0, $workOrder->fresh()->is_emergency, 'Every work order is labeled automatically — no review state.');
     }
 
-    public function test_ambiguous_hvac_signal_is_recorded_but_not_auto_applied(): void
+    public function test_ambiguous_hvac_signal_is_labeled_emergency(): void
     {
         $user = User::factory()->create();
         $serviceStatus = $this->newServiceStatus();
 
-        // Loss of A/C is only an emergency in health-risk temperatures, which
-        // keyword matching cannot judge, so its confidence sits below the
-        // auto-apply threshold.
+        // Loss of A/C: the fallback leans toward flagging (missing a real
+        // emergency is worse than over-flagging one) and staff can correct it.
         $workOrder = WorkOrder::factory()->create([
             'service_status_id' => $serviceStatus->id,
             'description' => 'Tenant says there is no ac since yesterday.',
@@ -112,7 +111,7 @@ class EmergencyClassificationTest extends TestCase
             ->assertJsonPath('recommendation.is_emergency', true)
             ->assertJsonPath('recommendation.emergency_category', 'HVAC');
 
-        $this->assertNull($workOrder->fresh()->is_emergency, 'Ambiguous emergency signals must go to human review, not auto-apply.');
+        $this->assertEquals(1, $workOrder->fresh()->is_emergency, 'Ambiguous emergency signals are labeled Emergency automatically.');
     }
 
     public function test_auto_applied_assessment_is_marked_and_payload_includes_work_order_state(): void
@@ -135,7 +134,7 @@ class EmergencyClassificationTest extends TestCase
             ->assertJsonPath('recommendation.work_order.is_emergency', 1);
     }
 
-    public function test_low_confidence_assessment_is_not_marked_auto_applied(): void
+    public function test_low_confidence_assessment_is_still_auto_applied(): void
     {
         $user = User::factory()->create();
         $serviceStatus = $this->newServiceStatus();
@@ -150,8 +149,8 @@ class EmergencyClassificationTest extends TestCase
             ->post(route('work_orders.recommendation.generate', $workOrder));
 
         $response->assertOk()
-            ->assertJsonPath('recommendation.emergency_auto_applied', false)
-            ->assertJsonPath('recommendation.work_order.is_emergency', null);
+            ->assertJsonPath('recommendation.emergency_auto_applied', true)
+            ->assertJsonPath('recommendation.work_order.is_emergency', 1);
     }
 
     public function test_emergency_filter_scope_splits_work_orders_by_classification_state(): void

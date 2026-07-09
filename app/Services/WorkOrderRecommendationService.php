@@ -160,25 +160,19 @@ class WorkOrderRecommendationService
     }
 
     /**
-     * Auto-apply the AI emergency assessment to the work order, mirroring the
-     * manual emergency toggle (WorkOrderController::emergency_change): set the
-     * flag and regenerate the task checklist from the matching template.
-     *
-     * A work order that has already been classified (manually or by a prior
-     * run) is never overwritten, and low-confidence assessments are left for
-     * human review.
+     * Automatically label the work order from the emergency assessment,
+     * mirroring the manual emergency toggle (WorkOrderController::
+     * emergency_change): set the flag and regenerate the task checklist from
+     * the matching template. Every new work order is labeled — there is no
+     * human-review step — but a work order that has already been classified
+     * (manually or by a prior run) is never overwritten, so staff corrections
+     * always stand.
      *
      * @param  array<string, mixed>  $classification
      */
     private function applyEmergencyAssessment(WorkOrder $workOrder, array $classification, WorkOrderRecommendation $recommendation): void
     {
         if ($workOrder->is_emergency !== null) {
-            return;
-        }
-
-        $confidence = (int) ($classification['emergency_confidence'] ?? 0);
-
-        if ($confidence < EmergencyCriteria::AUTO_APPLY_MIN_CONFIDENCE) {
             return;
         }
 
