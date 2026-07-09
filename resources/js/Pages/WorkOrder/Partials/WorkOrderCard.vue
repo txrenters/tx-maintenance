@@ -88,7 +88,11 @@ const focusWorkOrder = async (id) => {
 
     if (!card) return;
 
-    card.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    // "nearest" on both axes: if the card is already visible, nothing scrolls
+    // (the preserved column positions stay put and we only flash); if it moved
+    // off-screen — e.g. to the New column — scroll the minimum needed to reveal
+    // it, never yanking the column to a mid-card position.
+    card.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 
     flashId.value = id;
 
