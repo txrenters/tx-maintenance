@@ -9,15 +9,6 @@ const emit = defineEmits(["showWorkOrder"]);
 const props = defineProps({
     work_order: Object,
     service_status: Object,
-    // Signal to scroll to and flash a work order's card — set by the parent
-    // when the modal closes so staff are taken straight to the card they were
-    // just handling, wherever it landed (e.g. it moved to the New column after
-    // a status change). Shape: { id, token }; token changes so re-focusing the
-    // same work order re-triggers.
-    focusSignal: {
-        type: Object,
-        default: null,
-    },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -73,42 +64,6 @@ const restoreColumnScroll = async () => {
 
 onMounted(restoreColumnScroll);
 watch(() => props.service_status, restoreColumnScroll, { flush: "post" });
-
-// Scroll to and briefly flash the card the user was just working on, wherever
-// it now lives on the board.
-const flashId = ref(null);
-let flashTimer = null;
-
-const focusWorkOrder = async (id) => {
-    if (!id) return;
-
-    await nextTick();
-
-    const card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
-
-    if (!card) return;
-
-    // "nearest" on both axes: if the card is already visible, nothing scrolls
-    // (the preserved column positions stay put and we only flash); if it moved
-    // off-screen — e.g. to the New column — scroll the minimum needed to reveal
-    // it, never yanking the column to a mid-card position.
-    card.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-
-    flashId.value = id;
-
-    if (flashTimer) clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => {
-        if (flashId.value === id) flashId.value = null;
-    }, 2000);
-};
-
-watch(
-    () => props.focusSignal,
-    (signal) => {
-        if (signal?.id) focusWorkOrder(signal.id);
-    },
-    { flush: "post" },
-);
 
 const page = usePage();
 const authUser = page.props.auth?.user;
@@ -219,10 +174,8 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             v-motion-slide-visible-once-right
                             v-for="work_order in status.work_orders"
                             :key="work_order.id"
-                            :data-work-order-id="work_order.id"
                             class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"
                             :class="{
-                                'wo-flash': work_order.id === flashId,
                                 'bg-destructive':
                                     checkDueTask(
                                         work_order.tasks,
@@ -346,22 +299,3 @@ const checkDueTask = (tasks, scheduled_end_date) => {
         </template>
     </div>
 </template>
-
-<style scoped>
-/* Brief ring that pulses then fades on the card the user was just working on. */
-@keyframes wo-flash {
-    0% {
-        box-shadow: 0 0 0 0 rgba(250, 204, 21, 0);
-    }
-    15% {
-        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.95);
-    }
-    100% {
-        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0);
-    }
-}
-
-.wo-flash {
-    animation: wo-flash 1.9s ease-out;
-}
-</style>
