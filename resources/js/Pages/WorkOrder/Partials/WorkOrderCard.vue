@@ -81,57 +81,85 @@ watch(() => props.service_status, restoreColumnScroll, { flush: "post" });
 const flashId = ref(null);
 let flashTimer = null;
 
+// Walk up from an element to the nearest ancestor that actually scrolls on
+// the given axis. The board's horizontal scroller may be this component's
+// root or the reka ScrollArea viewport that wraps it depending on layout, so
+// we find it at run time instead of assuming which element it is.
+const scrollableAncestor = (el, axis) => {
+    const overflowProp = axis === "x" ? "overflowX" : "overflowY";
+    const scrollProp = axis === "x" ? "scrollWidth" : "scrollHeight";
+    const clientProp = axis === "x" ? "clientWidth" : "clientHeight";
+
+    let node = el?.parentElement;
+
+    while (node) {
+        const overflow = getComputedStyle(node)[overflowProp];
+
+        if (/(auto|scroll)/.test(overflow) && node[scrollProp] > node[clientProp]) {
+            return node;
+        }
+
+        node = node.parentElement;
+    }
+
+    return null;
+};
+
+// Bring the card fully into view along one axis by nudging its scroll
+// container the minimum distance — never using scrollIntoView(), which would
+// also scroll the overflow-hidden wrapper and the page, leaving offsets the
+// mouse wheel can't undo.
+const revealAlong = (scroller, cardRect, axis) => {
+    if (!scroller) return;
+
+    const box = scroller.getBoundingClientRect();
+    const start = axis === "x" ? "left" : "top";
+    const end = axis === "x" ? "right" : "bottom";
+
+    if (cardRect[start] < box[start]) {
+        scroller.scrollBy({
+            [axis === "x" ? "left" : "top"]: cardRect[start] - box[start],
+            behavior: "smooth",
+        });
+    } else if (cardRect[end] > box[end]) {
+        scroller.scrollBy({
+            [axis === "x" ? "left" : "top"]: cardRect[end] - box[end],
+            behavior: "smooth",
+        });
+    }
+};
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
 const focusWorkOrder = async (id) => {
     if (!id) return;
 
     await nextTick();
 
-    const card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
+    // A status change can move the card to another column, which reloads the
+    // board (deferred service_status). That re-render may not be done when the
+    // modal closes, so wait a few frames for the card to appear rather than
+    // silently giving up on the first miss.
+    let card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
+
+    for (let tries = 0; !card && tries < 30; tries++) {
+        await nextFrame();
+        card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
+    }
 
     if (!card) return;
 
-    // Minimal "nearest" scroll done by hand: scrollIntoView() would also
-    // scroll the overflow-hidden ScrollArea wrapper (and the page), leaving
-    // offsets the mouse wheel can't undo — so only touch the two containers
-    // users actually scroll: the column viewport (vertical) and the board
-    // (horizontal). If the card is already visible, nothing moves.
     const column = card.closest("[data-scroll-column]");
-    const viewport = column?.querySelector("[data-reka-scroll-area-viewport]");
 
     // Clear any stray wrapper offset before measuring.
     if (column) column.scrollTop = 0;
 
     const cardRect = card.getBoundingClientRect();
 
-    if (viewport) {
-        const viewportRect = viewport.getBoundingClientRect();
-
-        if (cardRect.top < viewportRect.top) {
-            viewport.scrollBy({
-                top: cardRect.top - viewportRect.top,
-                behavior: "smooth",
-            });
-        } else if (cardRect.bottom > viewportRect.bottom) {
-            viewport.scrollBy({
-                top: cardRect.bottom - viewportRect.bottom,
-                behavior: "smooth",
-            });
-        }
-    }
-
-    const boardRect = boardRoot.value.getBoundingClientRect();
-
-    if (cardRect.left < boardRect.left) {
-        boardRoot.value.scrollBy({
-            left: cardRect.left - boardRect.left,
-            behavior: "smooth",
-        });
-    } else if (cardRect.right > boardRect.right) {
-        boardRoot.value.scrollBy({
-            left: cardRect.right - boardRect.right,
-            behavior: "smooth",
-        });
-    }
+    // Vertical: the column's own scroll viewport. Horizontal: whichever
+    // ancestor really scrolls sideways (board root or the reka viewport).
+    revealAlong(scrollableAncestor(card, "y"), cardRect, "y");
+    revealAlong(scrollableAncestor(card, "x"), cardRect, "x");
 
     flashId.value = id;
 
