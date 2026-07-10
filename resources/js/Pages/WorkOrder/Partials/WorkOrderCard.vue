@@ -18,6 +18,12 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    // "all" | "red" | "blue" | "green" — narrows the board to cards of one
+    // color, matching the same rules that paint the cards below.
+    colorFilter: {
+        type: String,
+        default: "all",
+    },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -253,6 +259,30 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 
     return bgColor;
 };
+
+// The color a card is actually painted with: closed work orders render gray
+// regardless of due dates, and emergencies render red on top of checkDueTask.
+const cardColor = (work_order) => {
+    if (work_order.status === "Closed") {
+        return "gray";
+    }
+
+    if (work_order.is_emergency) {
+        return "red";
+    }
+
+    return checkDueTask(work_order.tasks, work_order.scheduled_end_date);
+};
+
+const visibleWorkOrders = (status) => {
+    if (!props.colorFilter || props.colorFilter === "all") {
+        return status.work_orders;
+    }
+
+    return status.work_orders.filter(
+        (work_order) => cardColor(work_order) === props.colorFilter
+    );
+};
 </script>
 
 <template>
@@ -263,7 +293,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
     >
         <template v-for="status in service_status" :key="status.id">
             <div
-                v-if="status.work_orders.length !== 0"
+                v-if="visibleWorkOrders(status).length !== 0"
                 class="overflow-hidden min-w-[240px]"
             >
                 <div class="text-center font-semibol">
@@ -272,7 +302,9 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                         class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
                     >
                         <p>
-                            {{ status.name }} ({{ status.work_orders.length }})
+                            {{ status.name }} ({{
+                                visibleWorkOrders(status).length
+                            }})
                         </p>
                     </div>
 
@@ -284,7 +316,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                         <div
                             @click="handleWorkOrder(work_order)"
                             v-motion-slide-visible-once-right
-                            v-for="work_order in status.work_orders"
+                            v-for="work_order in visibleWorkOrders(status)"
                             :key="work_order.id"
                             :data-work-order-id="work_order.id"
                             class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"

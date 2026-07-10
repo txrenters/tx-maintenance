@@ -76,6 +76,10 @@ const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 const filter_category = ref(props.filter.category ?? "");
+// Card color filter (red = overdue/emergency, blue = due today, green =
+// upcoming). Colors are computed client-side per card, so this filter is
+// applied on the board itself rather than via a server query.
+const filter_color = ref("all");
 
 const openWorkOrder = ref(false);
 
@@ -790,7 +794,7 @@ const page = usePage();
     <div class="flex gap-3 flex-col sm:flex-row items-center">
         <SearchBar :url="url" v-model="search" />
         <div
-            class="flex gap-2 items-center w-full"
+            class="flex gap-2 items-center w-full flex-wrap"
             v-if="
                 $page.props.auth.user.roles.includes('admin') ||
                 $page.props.auth.user.roles.includes('woc')
@@ -831,6 +835,44 @@ const page = usePage();
                                 {{ category.name }}
                             </SelectItem>
                         </template>
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
+
+            <Select
+                :modelValue="String(filter_color)"
+                @update:modelValue="(value) => (filter_color = value)"
+            >
+                <SelectTrigger class="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Card color" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                        <SelectItem value="all">All colors</SelectItem>
+                        <SelectItem value="red">
+                            <span class="flex items-center gap-2">
+                                <span
+                                    class="h-3 w-3 rounded-full bg-destructive"
+                                ></span>
+                                Red — Overdue / Emergency
+                            </span>
+                        </SelectItem>
+                        <SelectItem value="blue">
+                            <span class="flex items-center gap-2">
+                                <span
+                                    class="h-3 w-3 rounded-full bg-primary"
+                                ></span>
+                                Blue — Due today
+                            </span>
+                        </SelectItem>
+                        <SelectItem value="green">
+                            <span class="flex items-center gap-2">
+                                <span
+                                    class="h-3 w-3 rounded-full bg-green-500"
+                                ></span>
+                                Green — Upcoming
+                            </span>
+                        </SelectItem>
                     </SelectGroup>
                 </SelectContent>
             </Select>
@@ -958,6 +1000,7 @@ const page = usePage();
             </template>
             <WorkOrderCard
                 :service_status="service_status"
+                :color-filter="filter_color"
                 @showWorkOrder="handleWorkOrder"
             />
         </Deferred>
