@@ -56,6 +56,10 @@ return [
         'sid' => env('TWILIO_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
         'status_callback_url' => env('TWILIO_STATUS_CALLBACK_URL'),
+        // SMS alert to the WOC when a work order is classified as an
+        // emergency. Off by default so local/testing environments never
+        // text real people; set EMERGENCY_SMS_ENABLED=true in production.
+        'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
     ],
 
     'openai' => [

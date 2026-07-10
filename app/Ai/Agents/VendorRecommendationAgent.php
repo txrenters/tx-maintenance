@@ -38,8 +38,8 @@ class VendorRecommendationAgent implements Agent, HasStructuredOutput
     public function schema(JsonSchema $schema): array
     {
         return [
-            'vendor_id' => $schema->integer()->nullable(),
-            'vendor_name' => $schema->string()->nullable(),
+            'vendor_id' => $schema->integer()->nullable()->required(),
+            'vendor_name' => $schema->string()->nullable()->required(),
             'vendor_source' => $schema->string()->required(),
             'confidence' => $schema->integer()->required(),
             'reasoning' => $schema->string()->required(),

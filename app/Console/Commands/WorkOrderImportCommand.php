@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -184,10 +185,12 @@ class WorkOrderImportCommand extends Command
             //     $work_order_data
             // );
 
-            WorkOrder::updateOrCreate(
+            $savedWorkOrder = WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
+
+            $isNewWorkOrder = $savedWorkOrder->wasRecentlyCreated;
 
             $workOrder = WorkOrder::where('propertyware_id', $work_order_propertyware_id)
                 ->with('service_status')
@@ -203,6 +206,15 @@ class WorkOrderImportCommand extends Command
             // them) are synced by the separate import:work-order-documents
             // schedule so this fast lane is never blocked by per-work-order
             // document API calls.
+
+            // Queue the AI classification (vendor recommendation + emergency
+            // assessment) for NEW work orders only. Existing work orders are
+            // never re-classified, so a paid AI call runs at most once per
+            // work order and an emergency status that is already set is never
+            // updated again.
+            if ($isNewWorkOrder) {
+                GenerateWorkOrderRecommendationJob::dispatch($workOrder->id);
+            }
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order no: '.($data['number'] ?? 'unknown').' - '.$th->getMessage());

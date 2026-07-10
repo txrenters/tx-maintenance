@@ -24,6 +24,10 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_DATABASE" value="txrenter_test"/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="OPENAI_API_KEY" value=""/>
+        <env name="ANTHROPIC_API_KEY" value=""/>
+        <env name="AZURE_OPENAI_API_KEY" value=""/>
+        <env name="AZURE_OPENAI_URL" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Button } from "@/Components/ui/button";
 import {
     Card,
@@ -18,6 +18,8 @@ import {
     Star,
     FileText,
     ArrowRight,
+    AlertTriangle,
+    ShieldCheck,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -26,7 +28,35 @@ const props = defineProps({
     recommendation: Object,
 });
 
-defineEmits(["generate", "assign"]);
+const emit = defineEmits(["generate", "assign"]);
+
+// Auto-generate on first open: when the parent's fetch finishes and there is
+// no stored recommendation yet, kick off generation without requiring a
+// click. Armed once per fetch cycle so a failed generation does not loop —
+// the button then acts as a manual retry.
+const autoGenerateArmed = ref(true);
+
+watch(
+    () => props.isLoading,
+    (loading) => {
+        if (loading) autoGenerateArmed.value = true;
+    },
+);
+
+watch(
+    [
+        () => props.isLoading,
+        () => props.isGenerating,
+        () => props.recommendation,
+    ],
+    ([loading, generating, recommendation]) => {
+        if (!loading && !generating && !recommendation && autoGenerateArmed.value) {
+            autoGenerateArmed.value = false;
+            emit("generate");
+        }
+    },
+    { immediate: true },
+);
 
 const matchedWorkOrders = computed(
     () => props.recommendation?.matched_work_orders ?? [],
@@ -70,6 +100,37 @@ const confidenceTone = computed(() => {
     return "bg-red-500";
 });
 
+// --- Emergency assessment ---
+
+const hasEmergencyAssessment = computed(
+    () =>
+        props.recommendation?.is_emergency !== null &&
+        props.recommendation?.is_emergency !== undefined,
+);
+
+const aiSaysEmergency = computed(() => Boolean(props.recommendation?.is_emergency));
+const emergencyCategory = computed(() => props.recommendation?.emergency_category ?? null);
+const emergencyReason = computed(() => props.recommendation?.emergency_reason ?? null);
+const emergencyConfidence = computed(() =>
+    Number(props.recommendation?.emergency_confidence ?? 0),
+);
+
+// The work order's current flag: null only for legacy work orders classified
+// before automatic labeling existed.
+const workOrderEmergency = computed(() => {
+    const value = props.recommendation?.work_order?.is_emergency;
+    if (value === null || value === undefined) return null;
+    return Boolean(Number(value));
+});
+
+const emergencyClassifiedBy = computed(() => {
+    if (workOrderEmergency.value === null) return null;
+    return props.recommendation?.emergency_auto_applied &&
+        workOrderEmergency.value === aiSaysEmergency.value
+        ? "ai"
+        : "staff";
+});
+
 const formatDate = (date) => {
     if (!date) return "Unknown";
     return new Date(date).toLocaleDateString();
@@ -98,23 +159,111 @@ const formatDate = (date) => {
                         :class="{ 'animate-spin': isGenerating }"
                         class="mr-2 h-4 w-4"
                     />
-                    {{ recommendation ? "Refresh" : "Generate" }}
+                    {{ recommendation ? "Refresh" : "Retry" }}
                 </Button>
             </div>
 
-            <!-- Empty state -->
+            <!-- Generating state: shown while the AI analyzes the work order -->
             <div
-                v-if="!recommendation && !isLoading"
-                class="rounded-lg border border-dashed px-6 py-12 text-center"
+                v-if="!recommendation && (isGenerating || isLoading)"
+                class="animate-pulse rounded-lg border border-dashed px-6 py-12 text-center"
             >
-                <Sparkles class="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p class="font-medium">No recommendation has been generated yet.</p>
+                <Sparkles class="mx-auto mb-3 h-8 w-8 text-primary" />
+                <p class="font-medium">
+                    {{ isGenerating ? "Analyzing this work order with AI…" : "Loading recommendation…" }}
+                </p>
                 <p class="text-sm text-muted-foreground">
-                    Generate one to classify the issue, inspect similar past work, and rank vendors.
+                    Classifying the issue, assessing emergency status, and ranking vendors.
                 </p>
             </div>
 
+            <!-- Retry state: auto-generation did not produce a recommendation -->
+            <div
+                v-else-if="!recommendation"
+                class="rounded-lg border border-dashed px-6 py-12 text-center"
+            >
+                <Sparkles class="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                <p class="font-medium">The recommendation could not be generated.</p>
+                <p class="text-sm text-muted-foreground">
+                    Something went wrong while analyzing this work order. Please retry.
+                </p>
+                <Button class="mt-4" variant="outline" @click="$emit('generate')">
+                    <RefreshCw class="mr-2 h-4 w-4" />
+                    Retry
+                </Button>
+            </div>
+
             <template v-else-if="recommendation">
+                <!-- Emergency Assessment -->
+                <Card
+                    v-if="hasEmergencyAssessment"
+                    class="overflow-hidden border-2"
+                    :class="
+                        aiSaysEmergency
+                            ? 'border-red-500/50 bg-red-500/5'
+                            : 'border-emerald-500/40 bg-emerald-500/5'
+                    "
+                >
+                    <CardContent class="space-y-3 p-5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div
+                                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider"
+                                :class="aiSaysEmergency ? 'text-red-600' : 'text-emerald-600'"
+                            >
+                                <AlertTriangle v-if="aiSaysEmergency" class="h-3.5 w-3.5" />
+                                <ShieldCheck v-else class="h-3.5 w-3.5" />
+                                Emergency Assessment
+                            </div>
+                            <span class="text-xs tabular-nums text-muted-foreground">
+                                {{ emergencyConfidence }}% confidence
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <Badge
+                                :class="
+                                    aiSaysEmergency
+                                        ? 'bg-red-600 text-white hover:bg-red-600'
+                                        : 'bg-emerald-600 text-white hover:bg-emerald-600'
+                                "
+                            >
+                                {{ aiSaysEmergency ? "Emergency" : "Non-emergency" }}
+                            </Badge>
+                            <Badge v-if="emergencyCategory" variant="outline">
+                                {{ emergencyCategory }}
+                            </Badge>
+                        </div>
+
+                        <p
+                            v-if="emergencyReason"
+                            class="border-l-2 pl-3 text-sm italic leading-6 text-muted-foreground"
+                            :class="aiSaysEmergency ? 'border-red-500/40' : 'border-emerald-500/40'"
+                        >
+                            {{ emergencyReason }}
+                        </p>
+
+                        <!-- Current status + who set it -->
+                        <p
+                            v-if="workOrderEmergency !== null"
+                            class="border-t pt-2 text-xs text-muted-foreground"
+                        >
+                            Work order is marked
+                            <span
+                                class="font-semibold"
+                                :class="workOrderEmergency ? 'text-red-600' : 'text-emerald-600'"
+                            >
+                                {{ workOrderEmergency ? "Emergency" : "Non-emergency" }}
+                            </span>
+                            ·
+                            {{
+                                emergencyClassifiedBy === "ai"
+                                    ? "applied automatically by AI"
+                                    : "set by staff"
+                            }}
+                        </p>
+                    </CardContent>
+                </Card>
+
                 <!-- HERO: Recommended Vendor -->
                 <Card
                     class="overflow-hidden border-2 border-primary/40 bg-gradient-to-br from-primary/5 via-background to-background shadow-sm"

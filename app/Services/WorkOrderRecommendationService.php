@@ -4,14 +4,17 @@ namespace App\Services;
 
 use App\Ai\Agents\VendorRecommendationAgent;
 use App\Ai\Agents\WorkOrderRecommendationAgent;
+use App\Ai\EmergencyCriteria;
 use App\Models\FallbackVendor;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderRecommendation;
+use App\Models\WorkOrderTask;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Ai\Promptable;
 
@@ -22,7 +25,7 @@ class WorkOrderRecommendationService
      */
     public function aiStatus(): array
     {
-        if (! class_exists(Promptable::class)) {
+        if (! trait_exists(Promptable::class)) {
             return [
                 'ready' => false,
                 'provider' => null,
@@ -55,6 +58,10 @@ class WorkOrderRecommendationService
      *     summary: string,
      *     confidence: int,
      *     needs_human_review: bool,
+     *     is_emergency: bool,
+     *     emergency_category: ?string,
+     *     emergency_confidence: int,
+     *     emergency_reason: ?string,
      *     source: string,
      *     model: ?string,
      *     raw_response: array<string, mixed>|null
@@ -62,7 +69,7 @@ class WorkOrderRecommendationService
      */
     public function classify(WorkOrder $workOrder, Collection $activeVendors): array
     {
-        if (class_exists(Promptable::class)) {
+        if ($this->aiStatus()['ready']) {
             $classification = $this->classifyWithLaravelAi($workOrder, $activeVendors);
 
             if ($classification !== null) {
@@ -75,7 +82,9 @@ class WorkOrderRecommendationService
 
     public function latest(WorkOrder $workOrder): ?WorkOrderRecommendation
     {
-        return $workOrder->recommendation()->with('recommendedVendor')->first();
+        return $workOrder->recommendation()
+            ->with(['recommendedVendor', 'workOrder:id,is_emergency'])
+            ->first();
     }
 
     public function generate(WorkOrder $workOrder): WorkOrderRecommendation
@@ -109,7 +118,7 @@ class WorkOrderRecommendationService
         $alternateVendors = $this->alternateVendors($recommendedVendor, $classification['vendor_category'], $activeVendors, $matchedHistory);
         $fallbackVendorDetails = $this->fallbackVendorDetails($classification['issue_type'], $classification['keywords'], $recommendedVendor, $alternateVendors);
 
-        return WorkOrderRecommendation::query()->updateOrCreate(
+        $recommendation = WorkOrderRecommendation::query()->updateOrCreate(
             ['work_order_id' => $workOrder->id],
             [
                 'recommended_vendor_id' => $recommendedVendor?->id,
@@ -122,6 +131,11 @@ class WorkOrderRecommendationService
                 'vendor_source' => $vendorSource,
                 'confidence' => $classification['confidence'],
                 'needs_human_review' => $classification['needs_human_review'],
+                'is_emergency' => $classification['is_emergency'] ?? null,
+                'emergency_category' => $classification['emergency_category'] ?? null,
+                'emergency_confidence' => $classification['emergency_confidence'] ?? null,
+                'emergency_reason' => $classification['emergency_reason'] ?? null,
+                'emergency_auto_applied' => false,
                 'summary' => $classification['summary'],
                 'reasoning' => $vendorReasoning ?? $this->buildReasoning($recommendedVendor, $matchedHistory, $classification),
                 'keywords' => $classification['keywords'],
@@ -139,6 +153,41 @@ class WorkOrderRecommendationService
                 'generated_at' => now(),
             ]
         )->load('recommendedVendor');
+
+        $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
+
+        return $recommendation->load('workOrder:id,is_emergency');
+    }
+
+    /**
+     * Automatically label the work order from the emergency assessment,
+     * mirroring the manual emergency toggle (WorkOrderController::
+     * emergency_change): set the flag and regenerate the task checklist from
+     * the matching template. Every new work order is labeled — there is no
+     * human-review step — but a work order that has already been classified
+     * (manually or by a prior run) is never overwritten, so staff corrections
+     * always stand.
+     *
+     * @param  array<string, mixed>  $classification
+     */
+    private function applyEmergencyAssessment(WorkOrder $workOrder, array $classification, WorkOrderRecommendation $recommendation): void
+    {
+        if ($workOrder->is_emergency !== null) {
+            return;
+        }
+
+        $isEmergency = (bool) ($classification['is_emergency'] ?? false);
+
+        $workOrder->update(['is_emergency' => $isEmergency]);
+        $recommendation->update(['emergency_auto_applied' => true]);
+
+        WorkOrderTask::where('work_order_id', $workOrder->id)->where('status', 'pending')->delete();
+
+        TaskService::createTasksForWorkOrder($workOrder, $isEmergency, $workOrder->service_status_id);
+
+        if ($isEmergency) {
+            app(EmergencyAlertService::class)->workOrderMarkedEmergency($workOrder, 'ai');
+        }
     }
 
     /**
@@ -176,7 +225,7 @@ class WorkOrderRecommendationService
         Collection $buildingHistory,
         Collection $activeVendors,
     ): ?array {
-        if (! class_exists(Promptable::class)) {
+        if (! $this->aiStatus()['ready']) {
             return null;
         }
 
@@ -697,11 +746,20 @@ class WorkOrderRecommendationService
                 'summary' => (string) data_get($response, 'summary', $this->fallbackSummary($workOrder)),
                 'confidence' => max(0, min(100, (int) data_get($response, 'confidence', 0))),
                 'needs_human_review' => (bool) data_get($response, 'needs_human_review', false),
+                'is_emergency' => (bool) data_get($response, 'is_emergency', false),
+                'emergency_category' => EmergencyCriteria::normalizeCategory(data_get($response, 'emergency_category')),
+                'emergency_confidence' => max(0, min(100, (int) data_get($response, 'emergency_confidence', 0))),
+                'emergency_reason' => data_get($response, 'emergency_reason'),
                 'source' => 'laravel_ai',
                 'model' => $this->aiModelName(),
                 'raw_response' => method_exists($response, 'toArray') ? $response->toArray() : (array) $response,
             ];
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            Log::warning('AI work order classification failed; falling back to heuristic.', [
+                'work_order_id' => $workOrder->id,
+                'error' => $exception->getMessage(),
+            ]);
+
             return null;
         }
     }
@@ -715,6 +773,10 @@ class WorkOrderRecommendationService
      *     summary: string,
      *     confidence: int,
      *     needs_human_review: bool,
+     *     is_emergency: bool,
+     *     emergency_category: ?string,
+     *     emergency_confidence: int,
+     *     emergency_reason: ?string,
      *     source: string,
      *     model: ?string,
      *     raw_response: array<string, mixed>|null
@@ -739,6 +801,8 @@ class WorkOrderRecommendationService
         $vendorCategory = $this->guessVendorCategory($bestIssueType, $activeVendors);
         $confidence = $bestScore > 0 ? min(90, 45 + ($bestScore * 15)) : 25;
 
+        $emergency = EmergencyCriteria::scan($text);
+
         return [
             'issue_type' => $bestIssueType,
             'issue_subtype' => $keywords->first(),
@@ -747,6 +811,12 @@ class WorkOrderRecommendationService
             'summary' => $this->fallbackSummary($workOrder),
             'confidence' => $confidence,
             'needs_human_review' => $confidence < 60,
+            'is_emergency' => $emergency['is_emergency'],
+            'emergency_category' => $emergency['category'],
+            'emergency_confidence' => $emergency['confidence'],
+            'emergency_reason' => $emergency['is_emergency']
+                ? 'Matched emergency keywords: '.implode(', ', $emergency['matched'])
+                : 'No emergency indicators found in the work order text',
             'source' => 'heuristic',
             'model' => null,
             'raw_response' => null,
