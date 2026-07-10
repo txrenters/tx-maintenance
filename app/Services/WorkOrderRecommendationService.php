@@ -163,7 +163,7 @@ class WorkOrderRecommendationService
 
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
         $this->applyRepeatAssessment($workOrder, $repeat);
-        $this->maybeAutoAssignRepeatVendor($workOrder, $recommendedVendor, $vendorSource, $repeat);
+        $this->maybeAutoAssignRepeatVendor($workOrder, $repeat);
 
         return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
     }
@@ -209,23 +209,30 @@ class WorkOrderRecommendationService
      *
      * @param  array<string, mixed>  $classification
      * @param  Collection<int, WorkOrder>  $matchedHistory
-     * @return array{is_repeat: bool, count: int}
+     *                                                      Also returns the vendor to reuse for auto-assignment, taken strictly from
+     *                                                      one of the SAME-issue priors (never from an unrelated job at the building),
+     *                                                      so a repeat plumbing issue can never be handed to an HVAC vendor.
+     * @param  array<string, mixed>  $classification
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @return array{is_repeat: bool, count: int, vendor: ?Vendor}
      */
     private function determineRepeatIssue(WorkOrder $workOrder, array $classification, Collection $matchedHistory): array
     {
         if (! $workOrder->building_id) {
-            return ['is_repeat' => false, 'count' => 0];
+            return ['is_repeat' => false, 'count' => 0, 'vendor' => null];
         }
 
         $issueType = Str::lower(trim((string) ($classification['issue_type'] ?? '')));
 
         if ($issueType === '') {
-            return ['is_repeat' => false, 'count' => 0];
+            return ['is_repeat' => false, 'count' => 0, 'vendor' => null];
         }
 
         $cutoff = now()->subMonths(self::REPEAT_WINDOW_MONTHS);
 
-        $count = $matchedHistory
+        // Prior jobs of the SAME issue type at the SAME building, within the
+        // window. matchedHistory is already sorted best-match first.
+        $sameIssuePriors = $matchedHistory
             ->filter(function (WorkOrder $history) use ($workOrder, $issueType, $cutoff) {
                 if ($history->building_id !== $workOrder->building_id) {
                     return false;
@@ -242,9 +249,41 @@ class WorkOrderRecommendationService
 
                 return $completed !== null && $completed->greaterThanOrEqualTo($cutoff);
             })
-            ->count();
+            ->values();
 
-        return ['is_repeat' => $count > 0, 'count' => $count];
+        return [
+            'is_repeat' => $sameIssuePriors->isNotEmpty(),
+            'count' => $sameIssuePriors->count(),
+            'vendor' => $this->reusableVendorFromPriors($sameIssuePriors),
+        ];
+    }
+
+    /**
+     * The vendor to reuse for a repeat: the first still-active vendor from a
+     * cleanly-completed same-issue prior, falling back to any active vendor on
+     * the same-issue priors. Returns null when none of the matching priors has
+     * an active vendor — in which case auto-assign stays hands-off rather than
+     * reaching for an unrelated vendor.
+     *
+     * @param  Collection<int, WorkOrder>  $priors
+     */
+    private function reusableVendorFromPriors(Collection $priors): ?Vendor
+    {
+        foreach ([true, false] as $requireClean) {
+            foreach ($priors as $prior) {
+                if ($requireClean && ! $this->wasCompletedCleanly($prior)) {
+                    continue;
+                }
+
+                $vendor = $prior->vendors->first(fn (Vendor $candidate) => $candidate->is_active);
+
+                if ($vendor instanceof Vendor) {
+                    return $vendor;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -264,22 +303,25 @@ class WorkOrderRecommendationService
     }
 
     /**
-     * For a confident repeat, automatically assign the vendor who handled it
-     * before — "same building, same vendor" per operations. Only fires when the
-     * recommended vendor came from this building's own history (vendor_source
-     * building_history), so it never auto-assigns on a guess. Never overrides a
-     * vendor a human already chose, and is gated behind config so it never
-     * emails a vendor or writes to PropertyWare in local/testing.
+     * For a confident repeat, automatically assign the vendor who handled the
+     * SAME issue at this building before — "same building, same vendor" per
+     * operations. The vendor comes strictly from the matching same-issue priors
+     * (see determineRepeatIssue), so it can never reach for an unrelated vendor;
+     * if none of those priors has an active vendor it does nothing. Never
+     * overrides a vendor a human already chose, and is gated behind config so it
+     * never emails a vendor or writes to PropertyWare in local/testing.
      *
-     * @param  array{is_repeat: bool, count: int}  $repeat
+     * @param  array{is_repeat: bool, count: int, vendor: ?Vendor}  $repeat
      */
-    private function maybeAutoAssignRepeatVendor(WorkOrder $workOrder, ?Vendor $recommendedVendor, string $vendorSource, array $repeat): void
+    private function maybeAutoAssignRepeatVendor(WorkOrder $workOrder, array $repeat): void
     {
         if (! config('services.work_order.auto_assign_vendor')) {
             return;
         }
 
-        if (! ($repeat['is_repeat'] ?? false) || $vendorSource !== 'building_history' || ! $recommendedVendor instanceof Vendor) {
+        $vendor = $repeat['vendor'] ?? null;
+
+        if (! ($repeat['is_repeat'] ?? false) || ! $vendor instanceof Vendor) {
             return;
         }
 
@@ -288,10 +330,9 @@ class WorkOrderRecommendationService
             return;
         }
 
-        // The recommended vendor is loaded with a trimmed column set for ranking;
-        // reload the full record so the assignment has the email (to notify) and
+        // Reload the full record so the assignment has the email (to notify) and
         // propertyware_id (to sync).
-        $vendor = Vendor::query()->find($recommendedVendor->id);
+        $vendor = Vendor::query()->find($vendor->id);
 
         if (! $vendor instanceof Vendor) {
             return;
@@ -301,7 +342,7 @@ class WorkOrderRecommendationService
             app(VendorAssignmentService::class)->autoAssign(
                 $workOrder,
                 $vendor,
-                sprintf('Repeat issue at this building (%d prior job(s)) — reusing the vendor who handled it before.', $repeat['count']),
+                sprintf('Repeat issue at this building (%d prior job(s)) — reusing the vendor who handled the same issue here before.', $repeat['count']),
             );
         } catch (\Throwable $e) {
             Log::error('Repeat-vendor auto-assign failed.', [

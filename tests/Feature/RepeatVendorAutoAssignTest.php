@@ -153,4 +153,110 @@ class RepeatVendorAutoAssignTest extends TestCase
         $this->assertDatabaseCount('work_order_vendors', 0);
         Notification::assertNothingSent();
     }
+
+    private function makeTypedVendor(string $pwId, string $name, string $type, bool $active): Vendor
+    {
+        return Vendor::query()->create([
+            'propertyware_id' => $pwId,
+            'name' => $name,
+            'vendor_type' => $type,
+            'is_active' => $active,
+            'email' => strtolower(str_replace(' ', '', $name)).'@example.com',
+            'user_id' => User::factory()->create()->id,
+        ]);
+    }
+
+    private function completedJob(int $buildingId, string $type, Vendor $vendor, int $monthsAgo): void
+    {
+        $serviceStatus = ServiceStatus::query()->firstWhere('name', 'New')
+            ?? ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+
+        $job = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => $type.' job at this building.',
+            'closing_comments' => 'Completed.',
+            'type' => $type,
+            'category' => $type,
+            'completed_date' => now()->subMonths($monthsAgo),
+            'building_id' => $buildingId,
+            'location' => 'Austin',
+            'status' => 'Closed',
+        ]);
+        $job->vendors()->attach($vendor->id);
+    }
+
+    private function currentPlumbingWorkOrder(int $buildingId): WorkOrder
+    {
+        $serviceStatus = ServiceStatus::query()->firstWhere('name', 'New')
+            ?? ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+
+        return WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Kitchen sink drain is backing up and the faucet is leaking under the sink.',
+            'type' => 'Plumbing',
+            'category' => 'Plumbing',
+            'building_id' => $buildingId,
+            'location' => 'Austin',
+            'is_emergency' => null,
+        ]);
+    }
+
+    public function test_it_reuses_the_same_issue_vendor_not_a_more_recent_different_issue_vendor(): void
+    {
+        config(['services.work_order.auto_assign_vendor' => true]);
+        Notification::fake();
+        $this->mock(PropertyWareService::class)
+            ->shouldReceive('changeWorkOrderVendors')->once();
+
+        // Same-issue plumbing job (older) with the right vendor; a more RECENT
+        // HVAC job at the same building with a different active vendor.
+        $plumber = $this->makeTypedVendor('V-910', 'Correct Plumbing', 'Plumbing', true);
+        $hvac = $this->makeTypedVendor('V-911', 'Wrong HVAC', 'HVAC', true);
+        $this->completedJob(10, 'Plumbing', $plumber, 6);
+        $this->completedJob(10, 'HVAC', $hvac, 1);
+
+        $current = $this->currentPlumbingWorkOrder(10);
+        $this->generate($current);
+
+        $this->assertDatabaseHas('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $plumber->id,
+        ]);
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $hvac->id,
+        ]);
+        Notification::assertSentTo($plumber, NewWorkOrderAssignNotification::class);
+        Notification::assertNotSentTo($hvac, NewWorkOrderAssignNotification::class);
+    }
+
+    public function test_it_stays_hands_off_when_the_same_issue_prior_vendor_is_inactive(): void
+    {
+        config(['services.work_order.auto_assign_vendor' => true]);
+        Notification::fake();
+        $this->mock(PropertyWareService::class)
+            ->shouldReceive('changeWorkOrderVendors')->never();
+
+        // The plumbing vendor who handled it before is now inactive; an active
+        // HVAC vendor also worked this building. Neither may be auto-assigned.
+        $inactivePlumber = $this->makeTypedVendor('V-920', 'Gone Plumbing', 'Plumbing', false);
+        $hvac = $this->makeTypedVendor('V-921', 'Wrong HVAC', 'HVAC', true);
+        $this->completedJob(10, 'Plumbing', $inactivePlumber, 3);
+        $this->completedJob(10, 'HVAC', $hvac, 1);
+
+        $current = $this->currentPlumbingWorkOrder(10);
+        $this->generate($current);
+
+        // Still flagged a repeat, but nobody is auto-assigned.
+        $this->assertEquals(1, $current->fresh()->is_repeat_issue);
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $hvac->id,
+        ]);
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $inactivePlumber->id,
+        ]);
+        Notification::assertNothingSent();
+    }
 }
