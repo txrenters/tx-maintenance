@@ -127,6 +127,8 @@ const workOrderForm = useForm({
     description: "",
     vendor_notes: "",
     is_emergency: "",
+    is_repeat_issue: "",
+    repeat_count: 0,
     is_approved: "",
     vendor_id: "",
     vendors: [],
@@ -692,6 +694,8 @@ const handleWorkOrder = async (orderId) => {
                 : order.is_emergency
                 ? "Emergency"
                 : "Non-emergency";
+        workOrderForm.is_repeat_issue = order.is_repeat_issue;
+        workOrderForm.repeat_count = order.repeat_count ?? 0;
 
         workOrderForm.local_status = order.local_status;
 
@@ -1176,6 +1180,15 @@ const page = usePage();
                                     : 'destructive'
                             "
                             >{{ workOrderForm.is_emergency }}</Badge
+                        >
+                        <Badge
+                            v-if="workOrderForm.is_repeat_issue"
+                            class="bg-amber-500 text-white hover:bg-amber-500"
+                            >Repeat{{
+                                Number(workOrderForm.repeat_count) > 1
+                                    ? ` · ${workOrderForm.repeat_count}×`
+                                    : ""
+                            }}</Badge
                         >
                         <Badge
                             v-if="workOrderForm.is_approved"

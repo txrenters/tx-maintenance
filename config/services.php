@@ -67,4 +67,13 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-5.1-mini'),
     ],
 
+    'work_order' => [
+        // Automatically assign the prior vendor when a new work order is a
+        // confident repeat (same issue type + same building -> same vendor).
+        // Off by default so local/testing never emails a real vendor or pushes
+        // an assignment to PropertyWare; set VENDOR_AUTO_ASSIGN_ENABLED=true in
+        // production to turn it on.
+        'auto_assign_vendor' => env('VENDOR_AUTO_ASSIGN_ENABLED', false),
+    ],
+
 ];

@@ -163,6 +163,7 @@ class WorkOrderRecommendationService
 
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
         $this->applyRepeatAssessment($workOrder, $repeat);
+        $this->maybeAutoAssignRepeatVendor($workOrder, $recommendedVendor, $vendorSource, $repeat);
 
         return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
     }
@@ -260,6 +261,55 @@ class WorkOrderRecommendationService
             'is_repeat_issue' => $repeat['is_repeat'],
             'repeat_count' => $repeat['count'],
         ]);
+    }
+
+    /**
+     * For a confident repeat, automatically assign the vendor who handled it
+     * before — "same building, same vendor" per operations. Only fires when the
+     * recommended vendor came from this building's own history (vendor_source
+     * building_history), so it never auto-assigns on a guess. Never overrides a
+     * vendor a human already chose, and is gated behind config so it never
+     * emails a vendor or writes to PropertyWare in local/testing.
+     *
+     * @param  array{is_repeat: bool, count: int}  $repeat
+     */
+    private function maybeAutoAssignRepeatVendor(WorkOrder $workOrder, ?Vendor $recommendedVendor, string $vendorSource, array $repeat): void
+    {
+        if (! config('services.work_order.auto_assign_vendor')) {
+            return;
+        }
+
+        if (! ($repeat['is_repeat'] ?? false) || $vendorSource !== 'building_history' || ! $recommendedVendor instanceof Vendor) {
+            return;
+        }
+
+        // Respect a human's choice — only auto-assign an unassigned work order.
+        if ($workOrder->vendors()->exists()) {
+            return;
+        }
+
+        // The recommended vendor is loaded with a trimmed column set for ranking;
+        // reload the full record so the assignment has the email (to notify) and
+        // propertyware_id (to sync).
+        $vendor = Vendor::query()->find($recommendedVendor->id);
+
+        if (! $vendor instanceof Vendor) {
+            return;
+        }
+
+        try {
+            app(VendorAssignmentService::class)->autoAssign(
+                $workOrder,
+                $vendor,
+                sprintf('Repeat issue at this building (%d prior job(s)) — reusing the vendor who handled it before.', $repeat['count']),
+            );
+        } catch (\Throwable $e) {
+            Log::error('Repeat-vendor auto-assign failed.', [
+                'work_order_id' => $workOrder->id,
+                'vendor_id' => $recommendedVendor->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
