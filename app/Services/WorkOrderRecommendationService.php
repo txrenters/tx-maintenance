@@ -21,6 +21,12 @@ use Laravel\Ai\Promptable;
 class WorkOrderRecommendationService
 {
     /**
+     * How far back to look for prior work at the same property when deciding
+     * whether a new work order is a repeat issue.
+     */
+    private const REPEAT_WINDOW_MONTHS = 12;
+
+    /**
      * @return array{ready: bool, provider: ?string}
      */
     public function aiStatus(): array
@@ -83,7 +89,7 @@ class WorkOrderRecommendationService
     public function latest(WorkOrder $workOrder): ?WorkOrderRecommendation
     {
         return $workOrder->recommendation()
-            ->with(['recommendedVendor', 'workOrder:id,is_emergency'])
+            ->with(['recommendedVendor', 'workOrder:id,is_emergency,is_repeat_issue,repeat_count'])
             ->first();
     }
 
@@ -99,6 +105,7 @@ class WorkOrderRecommendationService
         $classification = $this->classify($workOrder, $activeVendors);
         $matchedHistory = $this->findMatchedHistory($workOrder, $classification['keywords'], $classification['issue_type']);
         $buildingHistory = $this->filterBuildingHistory($matchedHistory, $workOrder);
+        $repeat = $this->determineRepeatIssue($workOrder, $classification, $matchedHistory);
 
         [$recommendedVendor, $vendorSource, $vendorReasoning] = $this->pickVendor(
             $workOrder,
@@ -155,8 +162,9 @@ class WorkOrderRecommendationService
         )->load('recommendedVendor');
 
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
+        $this->applyRepeatAssessment($workOrder, $repeat);
 
-        return $recommendation->load('workOrder:id,is_emergency');
+        return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
     }
 
     /**
@@ -188,6 +196,70 @@ class WorkOrderRecommendationService
         if ($isEmergency) {
             app(EmergencyAlertService::class)->workOrderMarkedEmergency($workOrder, 'ai');
         }
+    }
+
+    /**
+     * Decide whether this work order is a repeat of prior maintenance at the
+     * same property: the same classified issue type worked before at the same
+     * building within the lookback window. Derived from the history already
+     * fetched for the vendor recommendation, so it costs no extra query.
+     * Property identity is keyed on building_id — the same reliable "same
+     * property" key the history scoring already uses.
+     *
+     * @param  array<string, mixed>  $classification
+     * @param  Collection<int, WorkOrder>  $matchedHistory
+     * @return array{is_repeat: bool, count: int}
+     */
+    private function determineRepeatIssue(WorkOrder $workOrder, array $classification, Collection $matchedHistory): array
+    {
+        if (! $workOrder->building_id) {
+            return ['is_repeat' => false, 'count' => 0];
+        }
+
+        $issueType = Str::lower(trim((string) ($classification['issue_type'] ?? '')));
+
+        if ($issueType === '') {
+            return ['is_repeat' => false, 'count' => 0];
+        }
+
+        $cutoff = now()->subMonths(self::REPEAT_WINDOW_MONTHS);
+
+        $count = $matchedHistory
+            ->filter(function (WorkOrder $history) use ($workOrder, $issueType, $cutoff) {
+                if ($history->building_id !== $workOrder->building_id) {
+                    return false;
+                }
+
+                $matchesIssue = Str::contains(Str::lower((string) $history->type), $issueType)
+                    || Str::contains(Str::lower((string) $history->category), $issueType);
+
+                if (! $matchesIssue) {
+                    return false;
+                }
+
+                $completed = $this->normalizeDate($history->completed_date);
+
+                return $completed !== null && $completed->greaterThanOrEqualTo($cutoff);
+            })
+            ->count();
+
+        return ['is_repeat' => $count > 0, 'count' => $count];
+    }
+
+    /**
+     * Persist the repeat determination onto the work order so the board card
+     * and work order header can surface a "repeat issue" badge without loading
+     * the recommendation. Unlike the emergency flag there is no manual override
+     * to protect, so this is recomputed on every generation.
+     *
+     * @param  array{is_repeat: bool, count: int}  $repeat
+     */
+    private function applyRepeatAssessment(WorkOrder $workOrder, array $repeat): void
+    {
+        $workOrder->update([
+            'is_repeat_issue' => $repeat['is_repeat'],
+            'repeat_count' => $repeat['count'],
+        ]);
     }
 
     /**
