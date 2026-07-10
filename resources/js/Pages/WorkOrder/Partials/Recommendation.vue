@@ -131,6 +131,27 @@ const emergencyClassifiedBy = computed(() => {
         : "staff";
 });
 
+// --- Repeat issue ---
+
+// Whether the engine flagged this as a repeat of prior work at the same
+// property, and how many prior matches it found within the lookback window.
+const isRepeatIssue = computed(() => {
+    const value = props.recommendation?.work_order?.is_repeat_issue;
+    return value === null || value === undefined ? false : Boolean(Number(value));
+});
+const repeatCount = computed(() =>
+    Number(props.recommendation?.work_order?.repeat_count ?? 0),
+);
+
+// The current work order is the (repeatCount + 1)th occurrence at this
+// property. Render that as a correct English ordinal ("2nd time", "3rd time"…).
+const occurrenceLabel = computed(() => {
+    const n = repeatCount.value + 1;
+    const suffixes = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]} time`;
+});
+
 const formatDate = (date) => {
     if (!date) return "Unknown";
     return new Date(date).toLocaleDateString();
@@ -260,6 +281,36 @@ const formatDate = (date) => {
                                     ? "applied automatically by AI"
                                     : "set by staff"
                             }}
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <!-- Repeat Issue -->
+                <Card
+                    v-if="isRepeatIssue"
+                    class="overflow-hidden border-2 border-amber-500/50 bg-amber-500/5"
+                >
+                    <CardContent class="space-y-2 p-5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div
+                                class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-600"
+                            >
+                                <History class="h-3.5 w-3.5" />
+                                Repeat Issue
+                            </div>
+                            <Badge class="bg-amber-600 text-white hover:bg-amber-600">
+                                {{ occurrenceLabel }}
+                            </Badge>
+                        </div>
+                        <p class="text-sm leading-6 text-muted-foreground">
+                            This looks like a repeat of prior maintenance at this
+                            property —
+                            <span class="font-semibold text-foreground">
+                                {{ repeatCount }} similar
+                                {{ repeatCount === 1 ? "job" : "jobs" }}
+                            </span>
+                            found in the last 12 months. See the matching history
+                            below.
                         </p>
                     </CardContent>
                 </Card>
