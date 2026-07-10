@@ -2,13 +2,180 @@
 import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
+import { nextTick, onMounted, ref, watch } from "vue";
 
 const emit = defineEmits(["showWorkOrder"]);
 
 const props = defineProps({
     work_order: Object,
     service_status: Object,
+    // Signal to scroll to and flash a work order's card — set by the parent
+    // when the modal closes so staff are taken straight to the card they were
+    // just handling, wherever it landed (e.g. it moved to the New column after
+    // a status change). Shape: { id, token }; token changes so re-focusing the
+    // same work order re-triggers.
+    focusSignal: {
+        type: Object,
+        default: null,
+    },
 });
+
+// Remembers each column's scroll offset for the whole SPA session, keyed by
+// service status id. Module-scoped on purpose: updating a work order from the
+// modal re-fetches the deferred `service_status` prop, which tears this board
+// down to its skeleton and remounts it with every column back at the top —
+// component state would be lost, module state survives.
+const columnScrollPositions = new Map();
+
+const boardRoot = ref(null);
+
+// Scroll events don't bubble, so a capture-phase listener on the board root
+// hears every column viewport without wiring a listener per column.
+const rememberColumnScroll = (event) => {
+    if (event.target === boardRoot.value) {
+        columnScrollPositions.set("__board", event.target.scrollLeft);
+
+        return;
+    }
+
+    const column = event.target?.closest?.("[data-scroll-column]");
+
+    if (column) {
+        columnScrollPositions.set(column.dataset.scrollColumn, event.target.scrollTop);
+    }
+};
+
+const restoreColumnScroll = async () => {
+    await nextTick();
+
+    if (!boardRoot.value) return;
+
+    for (const [columnId, scrollTop] of columnScrollPositions) {
+        if (columnId === "__board") {
+            boardRoot.value.scrollLeft = scrollTop;
+            continue;
+        }
+
+        const column = boardRoot.value.querySelector(
+            `[data-scroll-column="${columnId}"]`,
+        );
+
+        if (!column || !scrollTop) continue;
+
+        // Only the reka-ui viewport may carry the offset. The overflow-hidden
+        // wrapper is programmatically scrollable too (despite hiding its
+        // scrollbars), but the mouse wheel can't move it — any offset left on
+        // it shifts the column's content permanently out of view (clipped
+        // cards at the top, blank band at the bottom).
+        const viewport = column.querySelector("[data-reka-scroll-area-viewport]");
+        (viewport ?? column).scrollTop = scrollTop;
+        if (viewport) column.scrollTop = 0;
+    }
+};
+
+onMounted(restoreColumnScroll);
+watch(() => props.service_status, restoreColumnScroll, { flush: "post" });
+
+// Scroll to and briefly flash the card the user was just working on, wherever
+// it now lives on the board.
+const flashId = ref(null);
+let flashTimer = null;
+
+// Walk up from an element to the nearest ancestor that actually scrolls on
+// the given axis. The board's horizontal scroller may be this component's
+// root or the reka ScrollArea viewport that wraps it depending on layout, so
+// we find it at run time instead of assuming which element it is.
+const scrollableAncestor = (el, axis) => {
+    const overflowProp = axis === "x" ? "overflowX" : "overflowY";
+    const scrollProp = axis === "x" ? "scrollWidth" : "scrollHeight";
+    const clientProp = axis === "x" ? "clientWidth" : "clientHeight";
+
+    let node = el?.parentElement;
+
+    while (node) {
+        const overflow = getComputedStyle(node)[overflowProp];
+
+        if (/(auto|scroll)/.test(overflow) && node[scrollProp] > node[clientProp]) {
+            return node;
+        }
+
+        node = node.parentElement;
+    }
+
+    return null;
+};
+
+// Bring the card fully into view along one axis by nudging its scroll
+// container the minimum distance — never using scrollIntoView(), which would
+// also scroll the overflow-hidden wrapper and the page, leaving offsets the
+// mouse wheel can't undo.
+const revealAlong = (scroller, cardRect, axis) => {
+    if (!scroller) return;
+
+    const box = scroller.getBoundingClientRect();
+    const start = axis === "x" ? "left" : "top";
+    const end = axis === "x" ? "right" : "bottom";
+
+    if (cardRect[start] < box[start]) {
+        scroller.scrollBy({
+            [axis === "x" ? "left" : "top"]: cardRect[start] - box[start],
+            behavior: "smooth",
+        });
+    } else if (cardRect[end] > box[end]) {
+        scroller.scrollBy({
+            [axis === "x" ? "left" : "top"]: cardRect[end] - box[end],
+            behavior: "smooth",
+        });
+    }
+};
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+const focusWorkOrder = async (id) => {
+    if (!id) return;
+
+    await nextTick();
+
+    // A status change can move the card to another column, which reloads the
+    // board (deferred service_status). That re-render may not be done when the
+    // modal closes, so wait a few frames for the card to appear rather than
+    // silently giving up on the first miss.
+    let card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
+
+    for (let tries = 0; !card && tries < 30; tries++) {
+        await nextFrame();
+        card = boardRoot.value?.querySelector(`[data-work-order-id="${id}"]`);
+    }
+
+    if (!card) return;
+
+    const column = card.closest("[data-scroll-column]");
+
+    // Clear any stray wrapper offset before measuring.
+    if (column) column.scrollTop = 0;
+
+    const cardRect = card.getBoundingClientRect();
+
+    // Vertical: the column's own scroll viewport. Horizontal: whichever
+    // ancestor really scrolls sideways (board root or the reka viewport).
+    revealAlong(scrollableAncestor(card, "y"), cardRect, "y");
+    revealAlong(scrollableAncestor(card, "x"), cardRect, "x");
+
+    flashId.value = id;
+
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => {
+        if (flashId.value === id) flashId.value = null;
+    }, 4100);
+};
+
+watch(
+    () => props.focusSignal,
+    (signal) => {
+        if (signal?.id) focusWorkOrder(signal.id);
+    },
+    { flush: "post" },
+);
 
 const page = usePage();
 const authUser = page.props.auth?.user;
@@ -90,7 +257,9 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 
 <template>
     <div
+        ref="boardRoot"
         class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
+        @scroll.capture="rememberColumnScroll"
     >
         <template v-for="status in service_status" :key="status.id">
             <div
@@ -109,6 +278,7 @@ const checkDueTask = (tasks, scheduled_end_date) => {
 
                     <!-- Work Orders List -->
                     <ScrollArea
+                        :data-scroll-column="status.id"
                         class="h-[70vh] overflow-y-auto border-t pt-2 mb-5"
                     >
                         <div
@@ -116,8 +286,10 @@ const checkDueTask = (tasks, scheduled_end_date) => {
                             v-motion-slide-visible-once-right
                             v-for="work_order in status.work_orders"
                             :key="work_order.id"
+                            :data-work-order-id="work_order.id"
                             class="mb-2 rounded-lg p-4 text-white cursor-pointer hover:shadow-lg transition-all"
                             :class="{
+                                'wo-flash': work_order.id === flashId,
                                 'bg-destructive':
                                     checkDueTask(
                                         work_order.tasks,
@@ -241,3 +413,22 @@ const checkDueTask = (tasks, scheduled_end_date) => {
         </template>
     </div>
 </template>
+
+<style scoped>
+/* Brief ring that pulses then fades on the card the user was just working on. */
+@keyframes wo-flash {
+    0% {
+        box-shadow: 0 0 0 0 rgba(250, 204, 21, 0);
+    }
+    15% {
+        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.95);
+    }
+    100% {
+        box-shadow: 0 0 0 4px rgba(250, 204, 21, 0);
+    }
+}
+
+.wo-flash {
+    animation: wo-flash 4s ease-out;
+}
+</style>

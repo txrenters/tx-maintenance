@@ -131,10 +131,10 @@ const loading = ref(false);
 
 const handleEmergencySubmit = () => {
     router.put(
-        route("work_orders.emergency.change", {
-            workOrder: props.workOrder.id, // Ensure workOrder ID is included
+        route("work_orders.emergency.change", props.workOrder.id),
+        {
             is_emergency: props.workOrder.is_emergency,
-        }),
+        },
         {
             preserveState: true,
             preserveScroll: true,

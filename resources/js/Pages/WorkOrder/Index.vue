@@ -41,6 +41,7 @@ import {
     Loader2,
     Sparkles,
     ExternalLink,
+    History,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -58,6 +59,24 @@ import SearchBar from "@/Components/SearchBar.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import { Skeleton } from "@/Components/ui/skeleton";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/Components/ui/dropdown-menu";
+import { useRecentWorkOrders } from "@/composables/useRecentWorkOrders";
+
+const { recentWorkOrders, rememberWorkOrder, forgetWorkOrder, openedAgo } =
+    useRecentWorkOrders();
+
+// When the work order modal closes, take the user back to that card on the
+// board and flash it — it may have moved to another column (e.g. New) after a
+// status change, and this saves them from hunting for it.
+const focusSignal = ref(null);
+let focusToken = 0;
 
 const props = defineProps({
     title: String,
@@ -624,6 +643,14 @@ const handleCloseOrderSubmit = () => {
     });
 };
 
+// On modal close, flash the card of the work order that was open so it is easy
+// to find again after it may have moved columns.
+watch(openWorkOrder, (isOpen, wasOpen) => {
+    if (wasOpen && !isOpen && workOrderForm.id) {
+        focusSignal.value = { id: workOrderForm.id, token: ++focusToken };
+    }
+});
+
 const handleWorkOrder = async (orderId) => {
     workOrderForm.reset();
     activeTab.value = "details";
@@ -695,8 +722,29 @@ const handleWorkOrder = async (orderId) => {
         // Reset close form
         closeWorkOrderForm.reset();
         closeWorkOrderForm.id = order.id;
+
+        rememberWorkOrder(order);
     } catch (error) {
         console.error("Failed to fetch work order:", error);
+
+        // A stale Recent entry (or link) can point at a deleted work order —
+        // don't leave a broken empty modal open.
+        openWorkOrder.value = false;
+
+        if (error.response?.status === 404) {
+            forgetWorkOrder(typeof orderId === "object" ? orderId?.id : orderId);
+            toast({
+                variant: "destructive",
+                title: "Work order not found",
+                description: "It may have been deleted. Removed it from your Recent list.",
+            });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: "Failed to load the work order. Please try again!",
+            });
+        }
     }
     isLoading.value = false;
 };
@@ -876,6 +924,42 @@ const page = usePage();
         </div>
 
         <div class="flex gap-2 w-full justify-end">
+            <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                    <Button variant="outline" class="shrink-0">
+                        <History class="mr-2 h-4 w-4" />
+                        Recent
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-80 max-h-96 overflow-y-auto">
+                    <DropdownMenuLabel>Recently opened work orders</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <template v-if="recentWorkOrders.length">
+                        <DropdownMenuItem
+                            v-for="recent in recentWorkOrders"
+                            :key="recent.id"
+                            class="cursor-pointer"
+                            @click="handleWorkOrder(recent.id)"
+                        >
+                            <div class="flex w-full items-center justify-between gap-3">
+                                <span class="shrink-0 font-semibold">
+                                    #{{ recent.work_order_no }}
+                                </span>
+                                <span class="min-w-0 truncate text-xs text-muted-foreground">
+                                    {{ recent.location || recent.category }}
+                                </span>
+                                <span class="shrink-0 text-[10px] text-muted-foreground">
+                                    {{ openedAgo(recent) }}
+                                </span>
+                            </div>
+                        </DropdownMenuItem>
+                    </template>
+                    <DropdownMenuItem v-else disabled>
+                        Nothing opened yet
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
@@ -997,6 +1081,7 @@ const page = usePage();
             </template>
             <WorkOrderCard
                 :service_status="service_status"
+                :focus-signal="focusSignal"
                 @showWorkOrder="handleWorkOrder"
             />
         </Deferred>
