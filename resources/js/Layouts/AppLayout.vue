@@ -179,14 +179,9 @@ const navs = computed(() => {
                               isActive: page.component === "WorkOrder/Close",
                           },
                       ],
-                requires: [
-                    "admin",
-                    "woc",
-                    "vendor",
-                    "tenant",
-                    "owner",
-                    "accounting",
-                ],
+                // Vendors get a single "My Work Orders" link (in `menu`) instead
+                // of this split group, so they are intentionally excluded here.
+                requires: ["admin", "woc", "tenant", "owner", "accounting"],
             },
             {
                 title: "Jobs (Jobber)",
@@ -278,6 +273,13 @@ const navs = computed(() => {
                 isActive: page.url.startsWith("/dashboard"),
                 icon: LayoutDashboard,
                 requires: ["admin", "woc", "vendor", "owner", "tenant"],
+            },
+            {
+                name: "My Work Orders",
+                url: route("work_orders.vendor"),
+                isActive: page.component === "WorkOrder/VendorWorkOrders",
+                icon: Wrench,
+                requires: ["vendor"],
             },
         ],
         menu2: [

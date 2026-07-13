@@ -29,11 +29,59 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkOrderController extends Controller
 {
+    /**
+     * Service statuses vendors must never see. Matches the seeder spelling
+     * exactly (notably "Followup", not "Follow Up").
+     *
+     * @var array<int, string>
+     */
+    public const VENDOR_HIDDEN_STATUSES = [
+        'Service Completed - Call Tenant for Followup',
+        'Completed - Verified - Updating Owner',
+        'Owner Completing Work',
+        'Closed',
+        'Paid',
+    ];
+
     protected $propertyWareServices;
 
     public function __construct(PropertyWareService $propertyWareServices)
     {
         $this->propertyWareServices = $propertyWareServices;
+    }
+
+    /**
+     * A vendor's own work orders as a single flat list for the vendor "My Work
+     * Orders" page. Vendor scoping is applied automatically by WorkOrderScope;
+     * the statuses vendors may never see are stripped out here. The page filters
+     * by status client-side, so every visible status is also returned for the
+     * dropdown.
+     */
+    public function vendorWorkOrders(Request $request)
+    {
+        $workOrders = WorkOrder::query()
+            ->with(['service_status', 'building'])
+            ->orderByDesc('created_date')
+            ->get()
+            ->reject(fn (WorkOrder $workOrder) => in_array(
+                $workOrder->service_status?->name,
+                self::VENDOR_HIDDEN_STATUSES,
+                true,
+            ))
+            ->values();
+
+        $statuses = ServiceStatus::query()
+            ->whereNot('name', 'Not Changed')
+            ->whereNotIn('name', self::VENDOR_HIDDEN_STATUSES)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return inertia('WorkOrder/VendorWorkOrders', [
+            'title' => 'My Work Orders',
+            'workOrders' => Inertia::defer(fn () => $workOrders),
+            'statuses' => $statuses,
+            'filter' => $request->only(['status', 'search']),
+        ]);
     }
 
     /**
