@@ -18,7 +18,13 @@ class WorkOrderInformationPdf
      */
     public function render(WorkOrder $workOrder): string
     {
-        $workOrder->loadMissing(['woc', 'requested_by', 'building', 'vendors.user']);
+        $workOrder->loadMissing([
+            'managed_by',
+            'woc.wocNumber.twilioPhoneNumber',
+            'requested_by',
+            'building',
+            'vendors.user',
+        ]);
 
         return Pdf::loadView('pdf.work-order-information', [
             'workOrder' => $workOrder,

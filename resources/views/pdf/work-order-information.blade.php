@@ -16,21 +16,45 @@
         }
     };
 
+    // Format a US phone number as (XXX) XXX-XXXX; leave anything else untouched.
+    $fmtPhone = function ($value) {
+        $digits = preg_replace('/\D+/', '', (string) $value);
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            $digits = substr($digits, 1);
+        }
+        if (strlen($digits) === 10) {
+            return '('.substr($digits, 0, 3).') '.substr($digits, 3, 3).'-'.substr($digits, 6);
+        }
+
+        return filled($value) ? $value : null;
+    };
+
     $tenant = $workOrder->requested_by;
 
     $requesterName = $workOrder->service_request_contact_name
         ?: trim(($tenant->first_name ?? '').' '.($tenant->last_name ?? ''));
 
-    $workPhone = $tenant->work_phone ?? null;
-    $mobilePhone = $tenant->mobile_phone ?? ($workOrder->service_request_contact_phone ?? null);
-    $homePhone = $tenant->home_phone ?? null;
+    $workPhone = $fmtPhone($tenant->work_phone ?? null);
+    $mobilePhone = $fmtPhone($tenant->mobile_phone ?? ($workOrder->service_request_contact_phone ?? null));
+    $homePhone = $fmtPhone($tenant->home_phone ?? null);
+    // Don't repeat the same number under both Mobile and Home.
+    if ($homePhone && $homePhone === $mobilePhone) {
+        $homePhone = null;
+    }
 
-    $coordinatorName = trim(($workOrder->woc->name ?? ''));
-    $coordinatorPhone = $workOrder->woc->phone ?? null;
-    $coordinatorEmail = $workOrder->woc->email ?? null;
+    // "Managed By" is the coordinator on the work order (matches the app's
+    // managed_by relation), NOT the generic work-order-coordinator login.
+    $coordinator = $workOrder->managed_by;
+    $coordinatorName = trim(($coordinator->first_name ?? '').' '.($coordinator->last_name ?? ''))
+        ?: trim($workOrder->woc->name ?? '');
+    $coordinatorPhone = $fmtPhone(
+        $workOrder->woc->wocNumber->twilioPhoneNumber->phone_number ?? ($workOrder->woc->phone ?? null)
+    );
+    $coordinatorEmail = $coordinator->email ?? ($workOrder->woc->email ?? null);
 
     $buildingLine = collect([
         $workOrder->building->address ?? null,
+        $workOrder->building->address_cont ?? null,
         $workOrder->building->city ?? null,
         $workOrder->building->state_region ?? null,
     ])->filter()->implode(', ');
@@ -40,7 +64,9 @@
     $age = null;
     if ($workOrder->created_date) {
         try {
-            $age = (int) \Illuminate\Support\Carbon::parse($workOrder->created_date)->diffInDays(now());
+            $age = (int) \Illuminate\Support\Carbon::parse($workOrder->created_date)
+                ->startOfDay()
+                ->diffInDays(\Illuminate\Support\Carbon::now()->startOfDay());
         } catch (\Throwable $e) {
             $age = null;
         }
@@ -140,12 +166,7 @@
         <tr>
             <td colspan="2" style="width: 100%;">
                 <div class="lbl">Location</div>
-                <div class="val">
-                    {{ $or($workOrder->location) }}
-                    @if ($buildingLine)
-                        <br><span style="color:#6b7280;">{{ $buildingLine }}</span>
-                    @endif
-                </div>
+                <div class="val">{{ $buildingLine ?: $or($workOrder->location) }}</div>
             </td>
         </tr>
         <tr>
@@ -232,7 +253,7 @@
                 <tr>
                     <td>{{ $or($vendor->name) }}</td>
                     <td>{{ $or($vendor->address ?? null) }}</td>
-                    <td>{{ $or($vendor->phone) }}</td>
+                    <td>{{ $or($fmtPhone($vendor->phone)) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" style="color:#9aa5b1;">No vendor assigned.</td></tr>

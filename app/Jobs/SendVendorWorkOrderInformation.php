@@ -6,6 +6,7 @@ use App\Mail\VendorServiceRequestMail;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Bus\Queueable;
@@ -60,13 +61,32 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             ));
         }
 
-        // 2) Upload the generated PDF back to PropertyWare.
-        $propertyWare->uploadWorkOrderPdf(
+        // 2) Upload the generated PDF back to PropertyWare, then record it locally
+        //    so it shows in the work order's Attachments tab (downloadable — the
+        //    bytes stream from PropertyWare by this document id). The scheduled
+        //    sync skips re-importing it because it was created by our PW API user.
+        $docId = $propertyWare->uploadWorkOrderPdf(
             $workOrder->propertyware_id,
             $pdf,
             $fileName,
             'Work Order Information',
         );
+
+        if ($docId) {
+            WorkOrderDocuments::updateOrCreate(
+                [
+                    'propertyware_id' => $docId,
+                    'work_order_id' => $workOrder->id,
+                ],
+                [
+                    'file_name' => $fileName,
+                    'file_type' => 'application/pdf',
+                    'description' => 'Work Order Information',
+                    'created_by_id' => config('services.propertyware.username'),
+                    'system_id' => env('PROPERTYWARE_SYSTEM_ID'),
+                ],
+            );
+        }
 
         // 3) Text the vendor and log it in the WOC↔Vendor conversation.
         $this->textVendor($workOrder, $vendor);

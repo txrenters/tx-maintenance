@@ -1064,7 +1064,7 @@ class PropertyWareService
      * disk, for documents we generate ourselves (e.g. the Work Order
      * Information sheet).
      *
-     * @return string|false the stored file name on success, false on failure
+     * @return string|false the created PropertyWare document id on success, false on failure
      */
     public function uploadWorkOrderPdf(?string $propertywareWorkOrderId, string $contents, string $fileName, string $description): string|false
     {
@@ -1116,7 +1116,9 @@ class PropertyWareService
                 'doc_id' => $docId,
             ]);
 
-            return $fileName;
+            // Return the PropertyWare document id so the caller can record a
+            // local WorkOrderDocuments row that streams this file back on demand.
+            return $docId ? (string) $docId : false;
         } catch (Exception $e) {
             Log::error('Error uploading work order PDF: '.$e->getMessage());
 

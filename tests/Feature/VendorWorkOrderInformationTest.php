@@ -52,8 +52,8 @@ class VendorWorkOrderInformationTest extends TestCase
     {
         Mail::fake();
         Http::fake([
-            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-123'], 200),
-            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-123'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 987654321], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 987654321], 200),
         ]);
 
         $vendor = $this->makeVendor(['email' => 'vendor@example.com']);
@@ -69,6 +69,14 @@ class VendorWorkOrderInformationTest extends TestCase
 
         Http::assertSent(fn ($request) => $request->url() === 'https://api.propertyware.com/pw/api/rest/v1/docs'
             && $request->method() === 'POST');
+
+        // The uploaded PDF is recorded locally so it shows in the Attachments tab.
+        $this->assertDatabaseHas('work_order_documents', [
+            'work_order_id' => $workOrder->id,
+            'propertyware_id' => 987654321,
+            'file_name' => 'Work Order Information.pdf',
+            'file_type' => 'application/pdf',
+        ]);
     }
 
     public function test_job_uploads_to_propertyware_even_without_vendor_email(): void
