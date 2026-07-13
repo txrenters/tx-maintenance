@@ -27,6 +27,10 @@ const { toast } = useToast();
 const props = defineProps({
     tasks: Object,
     workorder: Object,
+    // Isolates this card's bulk selection. The modal falls back to the work
+    // order id; the /tasks page passes a distinct scope per list (Past Due /
+    // Due Today / Upcoming) so their selections don't bleed into each other.
+    scope: { type: String, default: null },
     assignableUsers: { type: Array, default: () => [] },
 });
 const page = usePage();
@@ -36,28 +40,20 @@ const emit = defineEmits(["update-task-status"]);
 // --- Bulk task selection & completion -------------------------------------
 // Checking a task no longer completes it immediately; it selects the task so it
 // can be completed in bulk via the "Complete All" action bar. Selection lives in
-// a shared store so it survives the Tasks tab being unmounted on tab switches.
+// a shared, per-scope store so it survives the Tasks tab being unmounted on tab
+// switches without leaking between independent lists.
 const {
-    state: selection,
-    ensureWorkOrder,
+    selectedTaskIds,
     isSelected,
     toggle: toggleSelection,
     setMany,
     clear: clearSelection,
     prune,
-} = useTaskSelection();
-
-// `workorder` is absent on the standalone /tasks list (tasks span many work
-// orders there), so guard every access — selection then keys off `undefined`,
-// which useTaskSelection handles as a single shared bucket.
-ensureWorkOrder(props.workorder?.id);
-
-const selectedTaskIds = computed(() => selection.selectedTaskIds);
+} = useTaskSelection(() => props.scope ?? props.workorder?.id);
 
 // Keep the selection in sync with the tasks actually present (dropping ids for
 // deleted/regenerated tasks) whenever the list changes or the tab re-mounts.
 const syncSelection = () => {
-    ensureWorkOrder(props.workorder?.id);
     prune(props.tasks.map((task) => task.id));
 };
 

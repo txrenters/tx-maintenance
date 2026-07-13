@@ -342,7 +342,11 @@ const confirmCompleteAll = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="pastDueTasks" :assignable-users="assignableUsers" />
+                    <TaskCard
+                        :tasks="pastDueTasks"
+                        scope="past-due"
+                        :assignable-users="assignableUsers"
+                    />
                 </WhenVisible>
 
                 <ScrollBar orientation="vertical" />
@@ -359,7 +363,11 @@ const confirmCompleteAll = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="dueTodayTasks" :assignable-users="assignableUsers" />
+                    <TaskCard
+                        :tasks="dueTodayTasks"
+                        scope="due-today"
+                        :assignable-users="assignableUsers"
+                    />
                 </WhenVisible>
                 <ScrollBar orientation="vertical" />
             </ScrollArea>
@@ -375,7 +383,11 @@ const confirmCompleteAll = async () => {
                         <div>Loading...</div>
                     </template>
 
-                    <TaskCard :tasks="upcomingTasks" :assignable-users="assignableUsers" />
+                    <TaskCard
+                        :tasks="upcomingTasks"
+                        scope="upcoming"
+                        :assignable-users="assignableUsers"
+                    />
                 </WhenVisible>
                 <ScrollBar orientation="vertical" />
             </ScrollArea>

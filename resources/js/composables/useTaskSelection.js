@@ -1,52 +1,53 @@
-import { reactive } from "vue";
+import { computed, reactive, unref } from "vue";
 
-// Shared, module-level task selection so checked tasks survive the Tasks tab
-// being unmounted (tabs use v-if). Scoped to a single work order: opening a
-// different work order resets the selection.
-const state = reactive({
-    workOrderId: null,
-    selectedTaskIds: [],
-});
+// Per-scope task selection, shared at module level so a scope's checked tasks
+// survive its component being unmounted (the modal Tasks tab uses v-if and
+// remounts on tab switches). Each scope has its own bucket, so selections never
+// bleed between independent lists — e.g. the Past Due / Due Today / Upcoming
+// TaskCards on the /tasks page, or different work orders in the modal.
+const buckets = reactive({});
 
-export function useTaskSelection() {
-    // Bind the selection to a work order; switching work orders clears it.
-    const ensureWorkOrder = (workOrderId) => {
-        if (state.workOrderId !== workOrderId) {
-            state.workOrderId = workOrderId;
-            state.selectedTaskIds = [];
-        }
-    };
+const scopeKey = (scope) => String(scope ?? "__default__");
 
-    const isSelected = (taskId) => state.selectedTaskIds.includes(taskId);
+// `scope` may be a plain value, a ref, or a getter — so the bucket re-keys
+// reactively when the scope changes (e.g. the modal opening a different work
+// order), which starts that scope with a fresh, empty selection.
+export function useTaskSelection(scope) {
+    const key = computed(() =>
+        scopeKey(typeof scope === "function" ? scope() : unref(scope))
+    );
+
+    const selectedTaskIds = computed(() => buckets[key.value] ?? []);
+
+    const isSelected = (taskId) => (buckets[key.value] ?? []).includes(taskId);
 
     const toggle = (taskId, checked) => {
+        const list = buckets[key.value] ?? [];
         if (checked) {
-            if (!state.selectedTaskIds.includes(taskId)) {
-                state.selectedTaskIds.push(taskId);
+            if (!list.includes(taskId)) {
+                buckets[key.value] = [...list, taskId];
             }
         } else {
-            state.selectedTaskIds = state.selectedTaskIds.filter(
-                (id) => id !== taskId
-            );
+            buckets[key.value] = list.filter((id) => id !== taskId);
         }
     };
 
     const setMany = (ids) => {
-        state.selectedTaskIds = ids;
+        buckets[key.value] = ids;
     };
 
     const clear = () => {
-        state.selectedTaskIds = [];
+        buckets[key.value] = [];
     };
 
     // Drop any selected ids that no longer exist in the given task list (e.g. a
     // task was deleted or regenerated), keeping the count accurate.
     const prune = (availableTaskIds) => {
         const available = new Set(availableTaskIds);
-        state.selectedTaskIds = state.selectedTaskIds.filter((id) =>
+        buckets[key.value] = (buckets[key.value] ?? []).filter((id) =>
             available.has(id)
         );
     };
 
-    return { state, ensureWorkOrder, isSelected, toggle, setMany, clear, prune };
+    return { selectedTaskIds, isSelected, toggle, setMany, clear, prune };
 }
