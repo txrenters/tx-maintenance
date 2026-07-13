@@ -735,52 +735,8 @@ const date_range = ref({
     end: "",
 });
 
-const formatDate = (d) => (d ? d.toString() : null);
-
-const filterVendor = debounce(() => {
-    const newQuery = { vendor: filter_vendor.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const filterCategory = debounce(() => {
-    const newQuery = { category: filter_category.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const fetchFilteredData = debounce(() => {
-    const startDate = formatDate(date_range.value?.start);
-    const endDate = formatDate(date_range.value?.end);
-
-    const newQuery = { start_date: startDate, end_date: endDate };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-watch(date_range, fetchFilteredData, { deep: true });
-watch(filter_vendor, filterVendor);
-watch(filter_category, filterCategory);
+// Vendor, category, search and date filtering are applied client-side on the
+// already-loaded board (see WorkOrderCard) — no server round-trips on change.
 
 const page = usePage();
 </script>
@@ -788,7 +744,7 @@ const page = usePage();
     <Head :title="title" />
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <SearchBar :url="url" v-model="search" />
+        <SearchBar v-model="search" />
         <div
             class="flex gap-2 items-center w-full flex-wrap"
             v-if="
@@ -997,6 +953,10 @@ const page = usePage();
             <WorkOrderCard
                 :service_status="service_status"
                 :color-filter="filter_color"
+                :search-term="search"
+                :vendor-filter="filter_vendor"
+                :category-filter="filter_category"
+                :date-range="date_range"
                 @showWorkOrder="handleWorkOrder"
             />
         </Deferred>
