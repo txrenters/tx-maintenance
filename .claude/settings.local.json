@@ -132,7 +132,9 @@
       "Bash(git --no-pager log --oneline origin/master..HEAD)",
       "mcp__plugin_laravel-boost_laravel-boost__database-connections",
       "Bash(vendor/bin/sail bin *)",
-      "Bash(python3 -c \"import json; d=json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('valid JSON,', len\\(d['permissions']['allow']\\), 'allow entries'\\)\")"
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('valid JSON,', len\\(d['permissions']['allow']\\), 'allow entries'\\)\")",
+      "Bash(python3 -c 'import sys; *)",
+      "Bash(sips -s format png tx-logo.webp --out tx-logo.png)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
