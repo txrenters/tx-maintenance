@@ -1058,6 +1058,72 @@ class PropertyWareService
         }
     }
 
+    /**
+     * Upload raw PDF bytes as a document on a PropertyWare work order. Mirrors
+     * uploadVendorAttachment but takes in-memory content instead of a file on
+     * disk, for documents we generate ourselves (e.g. the Work Order
+     * Information sheet).
+     *
+     * @return string|false the stored file name on success, false on failure
+     */
+    public function uploadWorkOrderPdf(?string $propertywareWorkOrderId, string $contents, string $fileName, string $description): string|false
+    {
+        if (! $propertywareWorkOrderId) {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->attach('file', $contents, $fileName)
+                ->post('https://api.propertyware.com/pw/api/rest/v1/docs', [
+                    'entityId' => $propertywareWorkOrderId,
+                    'entityType' => 'Work Order',
+                ]);
+
+            if (! $response->successful()) {
+                Log::error('Error uploading work order PDF', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'fileName' => $fileName,
+                ]);
+
+                return false;
+            }
+
+            $docId = $response->json('id');
+
+            $putResponse = Http::withHeaders($this->headers)
+                ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$docId, [
+                    'fileName' => $fileName,
+                    'description' => $description,
+                    'publishToOwnerPortal' => 'false',
+                    'publishToTenantPortal' => 'false',
+                ]);
+
+            if (! $putResponse->successful()) {
+                Log::error('Failed to update work order PDF metadata', [
+                    'doc_id' => $docId,
+                    'status' => $putResponse->status(),
+                    'body' => $putResponse->body(),
+                ]);
+
+                return false;
+            }
+
+            Log::info('Work order information PDF uploaded to PropertyWare', [
+                'entity_id' => $propertywareWorkOrderId,
+                'file_name' => $fileName,
+                'doc_id' => $docId,
+            ]);
+
+            return $fileName;
+        } catch (Exception $e) {
+            Log::error('Error uploading work order PDF: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
     public function uploadVendorInvoice($workOrderId, $invoice)
     {
         try {

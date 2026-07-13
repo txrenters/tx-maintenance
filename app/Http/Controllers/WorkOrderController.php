@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
 use App\Models\User;
@@ -12,7 +13,6 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
-use App\Notifications\NewWorkOrderAssignNotification;
 use App\Services\EmergencyAlertService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
@@ -1031,20 +1031,10 @@ class WorkOrderController extends Controller
                         'access_token' => $token,
                     ]);
 
-                    if ($vendor->email) {
-                        try {
-                            $portalUrl = route('vendor.portal.show', $token);
-                            $vendor->notify(
-                                new NewWorkOrderAssignNotification($workOrder, $portalUrl)
-                            );
-                        } catch (\Throwable $e) {
-                            Log::error('Vendor notification failed', [
-                                'vendor_id' => $vendor->id,
-                                'work_order_id' => $workOrder->id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
+                    // Generate the Work Order Information PDF, email it to the
+                    // vendor, and upload it to PropertyWare. Queued so the assign
+                    // request stays fast; the token above is read by the job.
+                    SendVendorWorkOrderInformation::dispatch($workOrder->id, $vendor->id);
                 });
             }
 

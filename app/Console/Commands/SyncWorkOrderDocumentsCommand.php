@@ -74,9 +74,13 @@ class SyncWorkOrderDocumentsCommand extends Command
         foreach ($workOrders as $workOrder) {
             $this->syncWorkOrderDocuments($workOrder->propertyware_id, $workOrder->id);
 
-            // Email the service request PDF to the assigned vendor(s), once —
-            // this depends on the documents synced above, so it lives here.
-            $this->sendServiceRequestToVendors($workOrder);
+            // Vendor service-request emails now fire instantly on assignment in
+            // WorkOrderController::vendor_change (generated PDF + upload to
+            // PropertyWare) via SendVendorWorkOrderInformation. The old batch
+            // email below is disabled to avoid a second, outdated email. Re-enable
+            // it (and the sendServiceRequestToVendors method) if PropertyWare-side
+            // (import) assignments should also be auto-emailed.
+            // $this->sendServiceRequestToVendors($workOrder);
 
             $synced++;
         }

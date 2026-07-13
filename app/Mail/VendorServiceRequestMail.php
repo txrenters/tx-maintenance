@@ -34,7 +34,7 @@ class VendorServiceRequestMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.vendor-service-request');
+        return new Content(view: 'emails.vendor-service-request');
     }
 
     /**

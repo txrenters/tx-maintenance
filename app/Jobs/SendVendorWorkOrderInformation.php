@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Mail\VendorServiceRequestMail;
+use App\Models\Conversation;
+use App\Models\Vendor;
+use App\Models\WorkOrder;
+use App\Services\PropertyWareService;
+use App\Services\WorkOrderInformationPdf;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+
+/**
+ * When a vendor is newly assigned to a work order: generate the Work Order
+ * Information PDF, email it to the vendor, upload it to PropertyWare, and text
+ * the vendor a short notification that is also saved into the WOC↔Vendor
+ * conversation thread (sent as the coordinator/WOC).
+ */
+class SendVendorWorkOrderInformation implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public function __construct(
+        public int $workOrderId,
+        public int $vendorId,
+    ) {}
+
+    public function handle(WorkOrderInformationPdf $pdfService, PropertyWareService $propertyWare): void
+    {
+        $workOrder = WorkOrder::with('woc.wocNumber.twilioPhoneNumber')->find($this->workOrderId);
+        $vendor = Vendor::find($this->vendorId);
+
+        if (! $workOrder || ! $vendor) {
+            return;
+        }
+
+        $fileName = WorkOrderInformationPdf::FILE_NAME;
+        $pdf = $pdfService->render($workOrder);
+
+        $accessToken = $workOrder->vendors()
+            ->where('vendors.id', $vendor->id)
+            ->first()?->pivot?->access_token;
+
+        $portalUrl = $accessToken ? route('vendor.portal.show', $accessToken) : null;
+
+        // 1) Email the vendor (only when we have an address to send to).
+        if (filled($vendor->email)) {
+            Mail::to($vendor->email)->send(new VendorServiceRequestMail(
+                vendorName: $vendor->name,
+                workOrderNo: (string) $workOrder->work_order_no,
+                pdfContent: $pdf,
+                portalUrl: $portalUrl,
+                pdfFileName: $fileName,
+            ));
+        }
+
+        // 2) Upload the generated PDF back to PropertyWare.
+        $propertyWare->uploadWorkOrderPdf(
+            $workOrder->propertyware_id,
+            $pdf,
+            $fileName,
+            'Work Order Information',
+        );
+
+        // 3) Text the vendor and log it in the WOC↔Vendor conversation.
+        $this->textVendor($workOrder, $vendor);
+    }
+
+    /**
+     * Send the assignment SMS to the vendor, sent from (and recorded as) the
+     * WOC, and persist it to the vendor conversation thread so it shows up in
+     * the coordinator and vendor-portal views.
+     */
+    private function textVendor(WorkOrder $workOrder, Vendor $vendor): void
+    {
+        $vendorNumber = $this->toE164($vendor->phone);
+
+        // Nothing to text — skip (the email already went out).
+        if (! $vendorNumber) {
+            return;
+        }
+
+        $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
+            ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
+
+        if (! $wocNumber) {
+            return;
+        }
+
+        $body = $this->buildSmsBody($workOrder, $vendor);
+
+        // sender_number is the WOC's number (not the vendor's), so the portal
+        // renders this as a message from the coordinator.
+        $conversation = Conversation::create([
+            'message' => $body,
+            'sender_number' => $wocNumber,
+            'receiver_number' => $vendorNumber,
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+            'conversation_type' => 'vendor',
+            'is_read' => true,
+            'read_by_vendor' => false,
+            'is_mms' => false,
+        ]);
+
+        SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $body, null, $conversation->id);
+    }
+
+    private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor): string
+    {
+        $lines = [
+            'Hello '.$vendor->name.',',
+            'You have been assigned Work Order #'.$workOrder->work_order_no.'.',
+        ];
+
+        if ($workOrder->priority) {
+            $lines[] = 'Priority: '.strtoupper($workOrder->priority);
+        }
+
+        if ($workOrder->description) {
+            $lines[] = Str::limit($workOrder->description, 160);
+        }
+
+        $lines[] = '— TX Maintenance Team';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Normalize a US phone number to E.164 (+1XXXXXXXXXX); null if unusable.
+     */
+    private function toE164(?string $number): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $number);
+
+        if (strlen($digits) === 10) {
+            return '+1'.$digits;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return '+'.$digits;
+        }
+
+        return $digits ? '+'.$digits : null;
+    }
+}

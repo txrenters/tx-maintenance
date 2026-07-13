@@ -1,7 +1,15 @@
 <script setup>
 import { ref } from "vue";
 import { useForm, usePage } from "@inertiajs/vue3";
-import { Plus, SquarePen, Copy, Check, Mail, MailX } from "lucide-vue-next";
+import {
+    Plus,
+    SquarePen,
+    Copy,
+    Check,
+    Mail,
+    MailX,
+    ExternalLink,
+} from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 
@@ -158,6 +166,18 @@ const handleFetchVendor = () => {
                         <span class="text-sm truncate">{{ link.name }}</span>
                     </div>
                     <div class="flex gap-1 shrink-0">
+                        <Button
+                            v-if="link.url"
+                            as="a"
+                            :href="link.url"
+                            target="_blank"
+                            rel="noopener"
+                            size="sm"
+                            @click.stop
+                        >
+                            <ExternalLink class="w-3.5 h-3.5 mr-1" />
+                            View Work Order
+                        </Button>
                         <Button
                             size="sm"
                             variant="outline"
