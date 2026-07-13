@@ -29,7 +29,7 @@ const openDeleteDialog = (user) => {
         <TableHeader>
             <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>File</TableHead>
+                <TableHead class="hidden md:table-cell"> File </TableHead>
                 <TableHead class="hidden md:table-cell"> Amount </TableHead>
                 <TableHead class="hidden md:table-cell"> Status </TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
