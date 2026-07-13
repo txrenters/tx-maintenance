@@ -4,6 +4,13 @@ import { router, useForm, usePoll, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import FilterChip from "@/Components/FilterChip.vue";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/Components/ui/tooltip";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
@@ -42,6 +49,11 @@ import {
     Sparkles,
     ExternalLink,
     History,
+    Users2,
+    Tag,
+    TriangleAlert,
+    Palette,
+    X,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -96,6 +108,45 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // upcoming). Colors are computed client-side per card, so this filter is
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
+
+// Faceted filter chip options, derived from the loaded board data.
+const vendorOptions = computed(() =>
+    (props.vendors ?? []).map((v) => ({ value: String(v.id), label: v.name }))
+);
+const categoryOptions = computed(() =>
+    (props.categories ?? []).map((c) => ({
+        value: String(c.name),
+        label: c.name,
+    }))
+);
+const emergencyOptions = [
+    { value: "all", label: "All priorities" },
+    { value: "emergency", label: "Emergency" },
+    { value: "non_emergency", label: "Non-emergency" },
+];
+const colorOptions = [
+    { value: "all", label: "All colors" },
+    { value: "red", label: "Overdue", dot: "bg-destructive" },
+    { value: "blue", label: "Due today", dot: "bg-primary" },
+    { value: "green", label: "Upcoming", dot: "bg-green-500" },
+];
+
+const hasActiveFilters = computed(
+    () =>
+        !!search.value ||
+        !!filter_vendor.value ||
+        !!filter_category.value ||
+        (filter_emergency.value && filter_emergency.value !== "all") ||
+        (filter_color.value && filter_color.value !== "all")
+);
+
+const clearAllFilters = () => {
+    search.value = "";
+    filter_vendor.value = "";
+    filter_category.value = "";
+    filter_emergency.value = "all";
+    filter_color.value = "all";
+};
 
 const openWorkOrder = ref(false);
 
@@ -803,109 +854,62 @@ const page = usePage();
     <div class="flex gap-3 flex-col sm:flex-row items-center">
         <SearchBar v-model="search" />
         <div
-            class="flex gap-2 items-center w-full flex-wrap"
+            class="flex flex-1 min-w-0 flex-wrap items-center gap-2"
             v-if="
                 $page.props.auth.user.roles.includes('admin') ||
                 $page.props.auth.user.roles.includes('woc')
             "
         >
-            <Select
-                :modelValue="String(filter_vendor)"
+            <FilterChip
+                label="Vendor"
+                :icon="Users2"
+                :model-value="filter_vendor"
+                :options="vendorOptions"
+                searchable
+                search-placeholder="Search vendors…"
                 @update:modelValue="(value) => (filter_vendor = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[250px]">
-                    <SelectValue placeholder="Select a vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <template v-for="vendor in vendors" :key="vendor.id">
-                            <SelectItem :value="String(vendor.id)">
-                                {{ vendor.name }}
-                            </SelectItem>
-                        </template>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-
-            <Select
-                :modelValue="String(filter_category)"
+            />
+            <FilterChip
+                label="Category"
+                :icon="Tag"
+                :model-value="filter_category"
+                :options="categoryOptions"
+                searchable
+                search-placeholder="Search categories…"
                 @update:modelValue="(value) => (filter_category = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[250px]">
-                    <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <template
-                            v-for="category in categories"
-                            :key="category.id"
-                        >
-                            <SelectItem :value="String(category.name)">
-                                {{ category.name }}
-                            </SelectItem>
-                        </template>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-
-            <Select
-                :modelValue="String(filter_emergency)"
+            />
+            <FilterChip
+                label="Priority"
+                :icon="TriangleAlert"
+                :model-value="filter_emergency"
+                :options="emergencyOptions"
                 @update:modelValue="(value) => (filter_emergency = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Emergency status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="emergency">Emergency</SelectItem>
-                        <SelectItem value="non_emergency">
-                            Non-emergency
-                        </SelectItem>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-
-            <Select
-                :modelValue="String(filter_color)"
+            />
+            <FilterChip
+                label="Color"
+                :icon="Palette"
+                :model-value="filter_color"
+                :options="colorOptions"
                 @update:modelValue="(value) => (filter_color = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Card color" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <SelectItem value="all">All colors</SelectItem>
-                        <SelectItem value="red">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-destructive"
-                                ></span>
-                                Red — Overdue / Emergency
-                            </span>
-                        </SelectItem>
-                        <SelectItem value="blue">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-primary"
-                                ></span>
-                                Blue — Due today
-                            </span>
-                        </SelectItem>
-                        <SelectItem value="green">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-green-500"
-                                ></span>
-                                Green — Upcoming
-                            </span>
-                        </SelectItem>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
+            />
+            <TooltipProvider v-if="hasActiveFilters">
+                <Tooltip>
+                    <TooltipTrigger as-child>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            @click="clearAllFilters"
+                        >
+                            <X class="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Clear all filters</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         </div>
 
-        <div class="flex gap-2 w-full justify-end">
+        <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
             <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                     <Button variant="outline" class="shrink-0">
