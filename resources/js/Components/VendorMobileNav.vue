@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
-import { Link, usePage } from "@inertiajs/vue3";
+import { Link, usePage, router } from "@inertiajs/vue3";
 import {
     LayoutDashboard,
     Wrench,
@@ -74,14 +74,25 @@ const onScroll = () => {
     }, 250);
 };
 
+// AppLayout is a persistent Inertia layout, so this bar is not remounted between
+// pages. Without this, arriving on a short (non-scrollable) page after having
+// scrolled down elsewhere would leave the bar stuck hidden. Reset on every
+// navigation so it is always shown on the new page.
+let stopNavigationListener = null;
+
 onMounted(() => {
     lastScrollY = window.scrollY;
     window.addEventListener("scroll", onScroll, { passive: true });
+    stopNavigationListener = router.on("navigate", () => {
+        hidden.value = false;
+        lastScrollY = 0;
+    });
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener("scroll", onScroll);
     clearTimeout(stopTimer);
+    stopNavigationListener?.();
 });
 </script>
 

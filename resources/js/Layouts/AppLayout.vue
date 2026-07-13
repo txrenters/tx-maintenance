@@ -1552,7 +1552,7 @@ onUnmounted(() => {
             </div>
             <Separator />
             <div
-                class="flex flex-1 flex-col gap-4 p-4 pt-4"
+                class="flex flex-1 flex-col gap-4 overflow-x-clip p-4 pt-4"
                 :class="{ 'pb-24 md:pb-4': canAccess(['vendor']) }"
             >
                 <Toaster />
