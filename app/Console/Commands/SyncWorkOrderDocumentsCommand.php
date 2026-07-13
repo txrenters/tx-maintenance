@@ -28,6 +28,11 @@ class SyncWorkOrderDocumentsCommand extends Command
      */
     protected $description = 'Sync PropertyWare documents (and send pending vendor service requests) for the newest work orders, on its own schedule so the fast work order import is never blocked by per-work-order document API calls';
 
+    /**
+     * PropertyWare system/automation user whose files should never be imported.
+     */
+    private const SKIP_CREATED_BY_USER = 'a0e71e98';
+
     protected PropertyWareService $propertyWareService;
 
     /**
@@ -111,6 +116,11 @@ class SyncWorkOrderDocumentsCommand extends Command
 
                 // Skip what this app uploaded to PropertyWare to avoid redundancy.
                 if ($ourPropertywareUser && ! empty($doc['createdBy']) && $doc['createdBy'] === $ourPropertywareUser) {
+                    continue;
+                }
+
+                // Skip files created by the PropertyWare system/automation user.
+                if (! empty($doc['createdBy']) && $doc['createdBy'] === self::SKIP_CREATED_BY_USER) {
                     continue;
                 }
 
