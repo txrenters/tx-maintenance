@@ -70,11 +70,12 @@ class WorkOrderController extends Controller
                 ->with(['service_status', 'building', 'tasks'])
                 ->orderByDesc('created_date')
                 ->get()
-                ->reject(fn (WorkOrder $workOrder) => in_array(
-                    $workOrder->service_status?->name,
-                    self::VENDOR_HIDDEN_STATUSES,
-                    true,
-                ))
+                ->reject(fn (WorkOrder $workOrder) => $workOrder->status === 'Closed'
+                    || in_array(
+                        $workOrder->service_status?->name,
+                        self::VENDOR_HIDDEN_STATUSES,
+                        true,
+                    ))
                 ->values()
             : collect();
 

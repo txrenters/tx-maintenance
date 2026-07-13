@@ -232,9 +232,11 @@ const getStatusColor = (index) => {
         </div>
     </div>
     <!-- Enhanced Analytics Cards -->
-    <!-- Mobile: one card per view, horizontal swipe with snap. md+: the grid. -->
+    <!-- Mobile: one card per view, horizontal swipe with snap. md+: the grid.
+         min-w-0 lets this flex item stay within the viewport so the row scrolls
+         inside the carousel instead of widening (and scrolling) the whole page. -->
     <div
-        class="mb-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [&>*]:min-w-full [&>*]:shrink-0 [&>*]:snap-center md:grid md:grid-cols-2 md:gap-6 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 lg:grid-cols-4"
+        class="mb-8 flex min-w-0 max-w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [&>*]:min-w-full [&>*]:shrink-0 [&>*]:snap-center md:grid md:max-w-none md:grid-cols-2 md:gap-6 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 lg:grid-cols-4"
     >
         <!-- Total Work Orders Card -->
         <Card

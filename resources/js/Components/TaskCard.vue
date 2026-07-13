@@ -47,14 +47,17 @@ const {
     prune,
 } = useTaskSelection();
 
-ensureWorkOrder(props.workorder.id);
+// `workorder` is absent on the standalone /tasks list (tasks span many work
+// orders there), so guard every access — selection then keys off `undefined`,
+// which useTaskSelection handles as a single shared bucket.
+ensureWorkOrder(props.workorder?.id);
 
 const selectedTaskIds = computed(() => selection.selectedTaskIds);
 
 // Keep the selection in sync with the tasks actually present (dropping ids for
 // deleted/regenerated tasks) whenever the list changes or the tab re-mounts.
 const syncSelection = () => {
-    ensureWorkOrder(props.workorder.id);
+    ensureWorkOrder(props.workorder?.id);
     prune(props.tasks.map((task) => task.id));
 };
 
@@ -130,7 +133,7 @@ const submitBulkComplete = async () => {
         };
 
         const { data } = await axios.post(
-            route("api.work_order.tasks.bulk_complete", props.workorder.id),
+            route("api.work_order.tasks.bulk_complete", props.workorder?.id),
             payload
         );
 

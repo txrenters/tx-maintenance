@@ -123,6 +123,36 @@ class VendorWorkOrdersPageTest extends TestCase
         $this->assertNotContains(7003, $numbers);
     }
 
+    public function test_closed_work_orders_are_hidden_even_with_a_visible_service_status(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        $openStatus = ServiceStatus::query()->create(['name' => 'In Progress', 'description' => 'In progress']);
+
+        $vendor = $this->makeVendorUser('V-660', 'Breasy Landscaping');
+
+        // Closed by the status column, but its service status is a visible one —
+        // it must still be hidden from the vendor's list.
+        $closed = WorkOrder::factory()->create([
+            'service_status_id' => $openStatus->id,
+            'work_order_no' => 6601,
+            'status' => 'Closed',
+        ]);
+        $closed->vendors()->attach($vendor->id);
+
+        $open = WorkOrder::factory()->create([
+            'service_status_id' => $openStatus->id,
+            'work_order_no' => 6602,
+            'status' => 'Open',
+        ]);
+        $open->vendors()->attach($vendor->id);
+
+        $numbers = $this->returnedWorkOrderNumbers($vendor->user);
+
+        $this->assertNotContains(6601, $numbers);
+        $this->assertContains(6602, $numbers);
+    }
+
     public function test_filter_options_reflect_only_values_present_in_vendor_work_orders(): void
     {
         Role::findOrCreate('vendor', 'web');
