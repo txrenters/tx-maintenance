@@ -8,6 +8,7 @@ import { useColorMode } from "@vueuse/core";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderModal from "@/Components/WorkOrder/WorkOrderModal.vue";
+import VendorMobileNav from "@/Components/VendorMobileNav.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
 const { toast } = useToast();
@@ -179,8 +180,8 @@ const navs = computed(() => {
                               isActive: page.component === "WorkOrder/Close",
                           },
                       ],
-                // Vendors get a single "My Work Orders" link (in `menu`) instead
-                // of this split group, so they are intentionally excluded here.
+                // Vendors get a single "Work Orders" link (in `menu`) instead of
+                // this split group, so they are intentionally excluded here.
                 requires: ["admin", "woc", "tenant", "owner", "accounting"],
             },
             {
@@ -275,7 +276,7 @@ const navs = computed(() => {
                 requires: ["admin", "woc", "vendor", "owner", "tenant"],
             },
             {
-                name: "My Work Orders",
+                name: "Work Orders",
                 url: route("work_orders.vendor"),
                 isActive: page.component === "WorkOrder/VendorWorkOrders",
                 icon: Wrench,
@@ -1550,7 +1551,10 @@ onUnmounted(() => {
                 </header>
             </div>
             <Separator />
-            <div class="flex flex-1 flex-col gap-4 p-4 pt-4">
+            <div
+                class="flex flex-1 flex-col gap-4 p-4 pt-4"
+                :class="{ 'pb-24 md:pb-4': canAccess(['vendor']) }"
+            >
                 <Toaster />
                 <slot />
             </div>
@@ -1774,5 +1778,7 @@ onUnmounted(() => {
     </Dialog>
 
     <WorkOrderModal />
+
+    <VendorMobileNav />
 </template>
 

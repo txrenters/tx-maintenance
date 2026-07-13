@@ -51,36 +51,57 @@ class WorkOrderController extends Controller
     }
 
     /**
-     * A vendor's own work orders as a single flat list for the vendor "My Work
-     * Orders" page. Vendor scoping is applied automatically by WorkOrderScope;
-     * the statuses vendors may never see are stripped out here. The page filters
-     * by status client-side, so every visible status is also returned for the
-     * dropdown.
+     * A vendor's own work orders as a single flat list for the vendor "Work
+     * Orders" page. The list is restricted to work orders the vendor is actually
+     * tagged on (the work_order_vendors pivot) — NOT the broader WorkOrderScope
+     * rule, which would also surface work orders the vendor merely has a task or
+     * attachment on. Statuses vendors may never see are stripped out here. The
+     * page filters by status client-side, so every visible status is also
+     * returned for the dropdown.
      */
     public function vendorWorkOrders(Request $request)
     {
-        $workOrders = WorkOrder::query()
-            ->with(['service_status', 'building'])
-            ->orderByDesc('created_date')
-            ->get()
-            ->reject(fn (WorkOrder $workOrder) => in_array(
-                $workOrder->service_status?->name,
-                self::VENDOR_HIDDEN_STATUSES,
-                true,
-            ))
+        $vendor = $request->user()->vendor;
+
+        // `tasks` is scoped to the vendor's own assignments by TaskScope, so the
+        // card can colour itself from the tasks that actually belong to them.
+        $workOrders = $vendor
+            ? $vendor->workOrders()
+                ->with(['service_status', 'building', 'tasks'])
+                ->orderByDesc('created_date')
+                ->get()
+                ->reject(fn (WorkOrder $workOrder) => in_array(
+                    $workOrder->service_status?->name,
+                    self::VENDOR_HIDDEN_STATUSES,
+                    true,
+                ))
+                ->values()
+            : collect();
+
+        // Build the filter dropdowns from the values that actually appear in the
+        // vendor's own work orders — so options they have none of (e.g. an "HOA
+        // Violation" category they never handle) never show up.
+        $statuses = $workOrders
+            ->map(fn (WorkOrder $workOrder) => $workOrder->service_status)
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values()
+            ->map(fn ($status) => ['id' => $status->id, 'name' => $status->name]);
+
+        $categories = $workOrders
+            ->pluck('category')
+            ->filter()
+            ->unique()
+            ->sort()
             ->values();
 
-        $statuses = ServiceStatus::query()
-            ->whereNot('name', 'Not Changed')
-            ->whereNotIn('name', self::VENDOR_HIDDEN_STATUSES)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
         return inertia('WorkOrder/VendorWorkOrders', [
-            'title' => 'My Work Orders',
+            'title' => 'Work Orders',
             'workOrders' => Inertia::defer(fn () => $workOrders),
             'statuses' => $statuses,
-            'filter' => $request->only(['status', 'search']),
+            'categories' => $categories,
+            'filter' => $request->only(['status', 'category', 'search']),
         ]);
     }
 

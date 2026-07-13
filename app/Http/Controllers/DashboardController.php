@@ -44,6 +44,7 @@ class DashboardController extends Controller
                 COUNT(CASE WHEN status = "Open" AND priority IN ("urgent", "high") THEN 1 END) as urgent_work_orders
             ')
             ->scoped()
+            ->taggedForVendor()
             ->whereIn('status', ['Open', 'Closed'])
             ->first();
 
@@ -74,11 +75,13 @@ class DashboardController extends Controller
         $lastMonthYear = $currentMonth > 1 ? $currentYear : $currentYear - 1;
 
         $thisMonthOrders = WorkOrder::scoped()
+            ->taggedForVendor()
             ->whereMonth('created_date', $currentMonth)
             ->whereYear('created_date', $currentYear)
             ->count();
 
         $lastMonthOrders = WorkOrder::scoped()
+            ->taggedForVendor()
             ->whereMonth('created_date', $lastMonth)
             ->whereYear('created_date', $lastMonthYear)
             ->count();
@@ -92,6 +95,7 @@ class DashboardController extends Controller
                 AVG({$dateDiffExpr}) as avg_completion_days
             ")
             ->scoped()
+            ->taggedForVendor()
             ->whereNotNull('completed_date')
             ->where('completed_date', '>', DB::raw('created_date'))
             ->first();
@@ -144,6 +148,7 @@ class DashboardController extends Controller
                     COUNT(id) as Created
                 ")
                 ->scoped()
+                ->taggedForVendor()
                 ->where('created_date', '>=', $startDate)
                 ->groupByRaw("{$yearExpr}, {$monthExpr}")
                 ->get()
@@ -177,6 +182,7 @@ class DashboardController extends Controller
                 COUNT(id) as Created
             ")
             ->scoped()
+            ->taggedForVendor()
             ->whereYear('created_date', $year)
             ->groupByRaw("{$monthNameExpr}, {$monthExpr}")
             ->orderByRaw("{$monthExpr}")
@@ -200,6 +206,7 @@ class DashboardController extends Controller
             'work_orders as total' => function ($q) {
                 $q->filtered()
                     ->scoped()
+                    ->taggedForVendor()
                     ->where('work_orders.status', 'Open');
             },
         ])

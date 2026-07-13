@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { ref, watch, computed } from "vue";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
@@ -223,6 +223,28 @@ const tabButtons = [
         requires: ["admin", "woc"],
     },
 ];
+
+const page = usePage();
+
+// A vendor can only message owners/tenants from their own Twilio number. When
+// the vendor has no number configured, hide the Owner and Tenant conversation
+// tabs so they can't open a thread they'd be unable to send from. Vendor-only —
+// other roles are unaffected.
+const visibleTabButtons = computed(() => {
+    const user = page.props.auth.user;
+    const isVendor = (user?.roles || []).includes("vendor");
+    const hasTwilioNumber = Boolean(user?.vendor?.twilio_number);
+
+    if (isVendor && !hasTwilioNumber) {
+        return tabButtons.filter(
+            (button) =>
+                button.name !== "vendor_owner_conversation" &&
+                button.name !== "vendor_tenant_conversation"
+        );
+    }
+
+    return tabButtons;
+});
 
 const isLoading = ref(false);
 
@@ -742,7 +764,7 @@ watch(
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="tabButtons"
+                        :buttons="visibleTabButtons"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />

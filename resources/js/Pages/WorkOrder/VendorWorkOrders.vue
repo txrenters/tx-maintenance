@@ -12,22 +12,25 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
-import { ClipboardList, Search, Tag, MapPin } from "lucide-vue-next";
+import { ClipboardList, Search, Tag, CircleCheckBig } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
-    title: { type: String, default: "My Work Orders" },
+    title: { type: String, default: "Work Orders" },
     workOrders: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
+    categories: { type: Array, default: () => [] },
     filter: { type: Object, default: () => ({}) },
 });
 
 const { open } = useWorkOrderModal();
 
-// Filtering is client-side: a vendor's list is small, so narrowing by status or
-// search is instant and needs no server round-trip.
+// Filtering is client-side: a vendor's list is small, so narrowing by status,
+// category, or search is instant and needs no server round-trip. The dropdown
+// options themselves are already limited server-side to what the vendor has.
 const selectedStatus = ref(props.filter.status ?? "all");
+const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
 const filteredWorkOrders = computed(() => {
@@ -38,7 +41,11 @@ const filteredWorkOrders = computed(() => {
             selectedStatus.value === "all" ||
             wo.service_status?.name === selectedStatus.value;
 
-        if (!matchesStatus) {
+        const matchesCategory =
+            selectedCategory.value === "all" ||
+            wo.category === selectedCategory.value;
+
+        if (!matchesStatus || !matchesCategory) {
             return false;
         }
 
@@ -60,6 +67,49 @@ const formatDate = (value) => {
     return new Date(String(value).replace(" ", "T")).toLocaleDateString(
         "en-US"
     );
+};
+
+const countCompletedTask = (tasks) =>
+    (tasks ?? []).filter((task) => task.status === "completed").length;
+
+// Mirror the admin board card: a card is painted from its tasks' due dates
+// (here the tasks are the vendor's own, scoped server-side) plus the emergency
+// and closed overrides.
+const checkDueTask = (tasks, scheduledEndDate) => {
+    const today = new Date().toISOString().split("T")[0];
+
+    if (scheduledEndDate) {
+        if (scheduledEndDate === today) return "blue";
+        if (scheduledEndDate < today) return "red";
+        if (scheduledEndDate > today) return "green";
+    }
+
+    const pending = (tasks ?? []).filter((task) => task.status === "pending");
+
+    if (pending.some((task) => task.due_date < today)) {
+        return "red";
+    }
+
+    if (pending.some((task) => task.due_date === today)) {
+        return "blue";
+    }
+
+    return "green";
+};
+
+const cardColorClass = (wo) => {
+    if (wo.status === "Closed") {
+        return "bg-gray-600";
+    }
+
+    const color = wo.is_emergency
+        ? "red"
+        : checkDueTask(wo.tasks, wo.scheduled_end_date);
+
+    if (color === "red") return "bg-destructive";
+    if (color === "blue") return "bg-primary";
+
+    return "bg-green-500";
 };
 </script>
 
@@ -84,10 +134,11 @@ const formatDate = (value) => {
                 </div>
 
                 <Select
+                    v-if="statuses.length"
                     :modelValue="selectedStatus"
                     @update:modelValue="(value) => (selectedStatus = value)"
                 >
-                    <SelectTrigger class="w-full sm:w-[240px]">
+                    <SelectTrigger class="w-full sm:w-[200px]">
                         <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -103,6 +154,28 @@ const formatDate = (value) => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
+
+                <Select
+                    v-if="categories.length"
+                    :modelValue="selectedCategory"
+                    @update:modelValue="(value) => (selectedCategory = value)"
+                >
+                    <SelectTrigger class="w-full sm:w-[200px]">
+                        <SelectValue placeholder="Filter by category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                            <SelectItem value="all">All categories</SelectItem>
+                            <SelectItem
+                                v-for="category in categories"
+                                :key="category"
+                                :value="category"
+                            >
+                                {{ category }}
+                            </SelectItem>
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
             </div>
         </div>
 
@@ -114,7 +187,7 @@ const formatDate = (value) => {
                     <Skeleton
                         v-for="n in 8"
                         :key="n"
-                        class="h-32 w-full rounded-lg"
+                        class="h-40 w-full rounded-lg"
                     />
                 </div>
             </template>
@@ -123,53 +196,79 @@ const formatDate = (value) => {
                 v-if="filteredWorkOrders.length"
                 class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             >
-                <button
+                <div
                     v-for="wo in filteredWorkOrders"
                     :key="wo.id"
-                    type="button"
                     @click="open(wo.id)"
-                    class="block rounded-lg border border-l-4 border-l-primary bg-card p-4 text-left text-card-foreground shadow-sm transition-all hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                    class="cursor-pointer rounded-lg p-4 text-white shadow-sm transition-all hover:shadow-lg"
+                    :class="cardColorClass(wo)"
                 >
+                    <!-- Work order number & created date -->
                     <div
-                        class="mb-2 flex items-center justify-between border-b border-border pb-2"
+                        class="mb-2 flex items-center justify-between border-b border-white/40 pb-2"
                     >
                         <h2 class="text-lg font-semibold">
                             {{ wo.work_order_no }}
                         </h2>
-                        <p class="shrink-0 text-xs text-muted-foreground">
+                        <p class="shrink-0 text-xs text-gray-200">
                             📅 {{ formatDate(wo.created_date) }}
                         </p>
                     </div>
 
-                    <p
-                        v-if="wo.service_status?.name"
-                        class="mb-2 inline-block rounded border px-2 py-0.5 text-[11px] font-medium uppercase text-muted-foreground"
-                    >
-                        {{ wo.service_status.name }}
-                    </p>
-
+                    <!-- Location -->
                     <p
                         v-if="wo.location"
-                        class="flex items-start gap-1 text-sm font-semibold text-foreground"
+                        class="text-sm font-semibold text-gray-100"
                     >
-                        <MapPin class="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         {{ wo.location }}
                     </p>
 
+                    <!-- Property name -->
                     <p
                         v-if="wo.building?.name"
-                        class="text-xs font-medium text-muted-foreground"
+                        class="text-center text-xs font-medium text-gray-200"
                     >
                         {{ wo.building.name }}
                     </p>
 
+                    <!-- Category -->
                     <p
                         v-if="wo.category"
-                        class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
+                        class="flex items-center justify-center gap-1 text-xs text-gray-100"
                     >
                         <Tag class="h-3 w-3" />{{ wo.category }}
                     </p>
-                </button>
+
+                    <!-- Approved -->
+                    <p
+                        v-if="wo.is_approved"
+                        class="flex items-center justify-center gap-1 text-xs text-gray-100"
+                    >
+                        <CircleCheckBig class="h-3 w-3" />Approved
+                    </p>
+
+                    <!-- Tasks + priority -->
+                    <div class="mt-2 flex items-center justify-between">
+                        <p v-if="wo.tasks?.length > 0" class="text-xs">
+                            {{ countCompletedTask(wo.tasks) }}/{{
+                                wo.tasks.length
+                            }}
+                            tasks
+                        </p>
+                        <span v-else></span>
+                        <span
+                            v-if="wo.priority"
+                            class="rounded border px-1 text-[10px] uppercase"
+                            :class="
+                                wo.priority === 'High'
+                                    ? 'bg-destructive'
+                                    : 'bg-primary'
+                            "
+                        >
+                            Priority: {{ wo.priority }}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <div
@@ -181,7 +280,9 @@ const formatDate = (value) => {
                 />
                 <p class="text-sm text-muted-foreground">
                     {{
-                        search || selectedStatus !== "all"
+                        search ||
+                        selectedStatus !== "all" ||
+                        selectedCategory !== "all"
                             ? "No work orders match your filters."
                             : "You have no work orders right now."
                     }}

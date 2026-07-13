@@ -160,6 +160,25 @@ class WorkOrder extends Model
         return $query;
     }
 
+    /**
+     * Constrain to work orders the current user is actually tagged on via the
+     * work_order_vendors pivot — but only when that user is a vendor. For every
+     * other role this is a no-op. Pair it with scoped() on aggregate/list
+     * queries so a vendor's figures never include work orders they merely have a
+     * task or attachment on (which WorkOrderScope's OR-branches would otherwise
+     * surface).
+     */
+    public function scopeTaggedForVendor($query)
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('vendor') && $user->vendor) {
+            $query->whereHas('vendors', fn ($q) => $q->where('work_order_vendors.vendor_id', $user->vendor->id));
+        }
+
+        return $query;
+    }
+
     public function scopeFilter($query, array $filters)
     {
         $query
