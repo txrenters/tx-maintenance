@@ -192,15 +192,18 @@ class WorkOrderController extends Controller
             $service_status->push($closedStatus);
         }
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
                 'Service Completed - Call Tenant for follow up',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -739,15 +742,18 @@ class WorkOrderController extends Controller
             $service_status->push($closedStatus);
         }
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
                 'Service Completed - Call Tenant for follow up',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -814,15 +820,18 @@ class WorkOrderController extends Controller
 
         $service_status = $query->get();
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
                 'Service Completed - Call Tenant for follow up',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
