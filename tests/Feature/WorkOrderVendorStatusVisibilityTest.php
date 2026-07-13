@@ -56,6 +56,8 @@ class WorkOrderVendorStatusVisibilityTest extends TestCase
         $openStatus = ServiceStatus::query()->create(['name' => 'In Progress', 'description' => 'In progress']);
         ServiceStatus::query()->create(['name' => 'Paid', 'description' => 'Paid']);
         ServiceStatus::query()->create(['name' => 'Closed', 'description' => 'Closed']);
+        // Canonical seeder spelling ("Followup"); the hide-list must match it exactly.
+        ServiceStatus::query()->create(['name' => 'Service Completed - Call Tenant for Followup', 'description' => 'Followup']);
 
         $vendorUser = User::factory()->create();
         $vendorUser->assignRole('vendor');
@@ -100,6 +102,7 @@ class WorkOrderVendorStatusVisibilityTest extends TestCase
 
         $this->assertNotContains('Paid', $statusNames);
         $this->assertNotContains('Closed', $statusNames);
+        $this->assertNotContains('Service Completed - Call Tenant for Followup', $statusNames);
         $this->assertContains('In Progress', $statusNames);
     }
 

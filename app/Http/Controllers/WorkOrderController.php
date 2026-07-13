@@ -198,7 +198,7 @@ class WorkOrderController extends Controller
         // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
             $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -321,7 +321,7 @@ class WorkOrderController extends Controller
         // Hide specific statuses from vendors
         if (request()->user()->hasRole('vendor')) {
             $serviceStatusesQuery->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Completed within 30 days',
@@ -480,7 +480,7 @@ class WorkOrderController extends Controller
         // Hide specific statuses from vendors
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -748,7 +748,7 @@ class WorkOrderController extends Controller
         // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
             $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -826,7 +826,7 @@ class WorkOrderController extends Controller
         // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
             $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -897,7 +897,7 @@ class WorkOrderController extends Controller
 
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
