@@ -48,6 +48,20 @@ class WorkOrder extends Model
         return $this->belongsToMany(Owner::class, 'work_order_owners');
     }
 
+    /**
+     * The property owner to treat as primary for notifications: the linked owner
+     * with the largest ownership stake. This deliberately reads from the
+     * work_order_owners pivot (the real property owners) rather than the
+     * owner_id column / managed_by relationship, which points at the internal
+     * management company (e.g. TexasRenters.com, LLC at 0% ownership).
+     */
+    public function primaryOwner(): ?Owner
+    {
+        return $this->owners
+            ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
+            ->first();
+    }
+
     public function owner(): HasOne
     {
         return $this->hasOne(Owner::class, 'work_order_owners', 'work_order_id', 'owner_id');

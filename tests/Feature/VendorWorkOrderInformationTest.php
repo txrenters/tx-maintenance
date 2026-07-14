@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Mail\VendorServiceRequestMail;
+use App\Models\Conversation;
+use App\Models\Owner;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -30,6 +32,21 @@ class VendorWorkOrderInformationTest extends TestCase
             'vendor_type' => 'Electrical',
             'is_active' => true,
             'email' => 'vendor@example.com',
+            'user_id' => $user->id,
+        ], $overrides));
+    }
+
+    private function makeOwner(array $overrides = []): Owner
+    {
+        $user = User::factory()->create();
+
+        return Owner::query()->create(array_merge([
+            'first_name' => 'Keith',
+            'last_name' => 'Howard',
+            'name' => 'Russell Keith Howard Jr',
+            'email' => 'owner@example.com',
+            'phone' => '7135030427',
+            'percentage_ownership' => 100,
             'user_id' => $user->id,
         ], $overrides));
     }
@@ -188,6 +205,107 @@ class VendorWorkOrderInformationTest extends TestCase
         $vendor = $this->makeVendor(['email' => 'vendor@example.com']); // user has no phone
         $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585]);
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Bus::assertNotDispatched(SendConversationMessageJob::class);
+    }
+
+    public function test_job_notifies_primary_owner_and_logs_owner_conversation(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-o'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-o'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+
+        $vendor = $this->makeVendor(['name' => 'Southwinds Electric LLC'], '3255550101');
+        $owner = $this->makeOwner(['name' => 'Russell Keith Howard Jr', 'phone' => '7135030427']);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43339]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-abc']);
+        $workOrder->owners()->attach($owner->id);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        // Logged on the owner thread, sent as the WOC (its number), to the owner.
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'sender_number' => '+15550001111',
+            'receiver_number' => '+17135030427',
+        ]);
+
+        $ownerMessage = Conversation::where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'owner')
+            ->value('message');
+
+        $this->assertStringContainsString('Russell Keith Howard Jr', $ownerMessage);
+        $this->assertStringContainsString('Southwinds Electric LLC', $ownerMessage);
+        $this->assertStringContainsString('#43339', $ownerMessage);
+        $this->assertStringContainsString('contact the tenant directly', $ownerMessage);
+
+        Bus::assertDispatched(SendConversationMessageJob::class);
+    }
+
+    public function test_owner_notification_targets_the_highest_ownership_stake(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-o2'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-o2'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+
+        $vendor = $this->makeVendor([], '3255550101');
+
+        // The real owner (100%) plus a 0% management company that must be ignored.
+        $realOwner = $this->makeOwner(['name' => 'Xiaochen Feng', 'phone' => '2145551234', 'percentage_ownership' => 100]);
+        $manager = $this->makeOwner(['name' => 'Tyssen Global Management LLC', 'phone' => '3465550000', 'percentage_ownership' => 0]);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43340]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
+        $workOrder->owners()->attach([$manager->id, $realOwner->id]);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'receiver_number' => '+12145551234',
+        ]);
+        $this->assertDatabaseMissing('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'receiver_number' => '+13465550000',
+        ]);
+    }
+
+    public function test_job_does_not_text_owner_without_a_phone(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-o3'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-o3'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+
+        // Vendor has no phone either, so no vendor conversation is created; the
+        // owner has no phone, so no owner conversation should be created.
+        $vendor = $this->makeVendor(['email' => 'vendor@example.com']);
+        $owner = $this->makeOwner(['phone' => null]);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
+        $workOrder->owners()->attach($owner->id);
 
         (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
             ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));

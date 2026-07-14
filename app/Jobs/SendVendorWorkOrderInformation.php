@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Mail\VendorServiceRequestMail;
 use App\Models\Conversation;
+use App\Models\Owner;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
@@ -35,7 +36,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
     public function handle(WorkOrderInformationPdf $pdfService, PropertyWareService $propertyWare): void
     {
-        $workOrder = WorkOrder::with('woc.wocNumber.twilioPhoneNumber')->find($this->workOrderId);
+        $workOrder = WorkOrder::with(['woc.wocNumber.twilioPhoneNumber', 'owners', 'building'])->find($this->workOrderId);
         $vendor = Vendor::find($this->vendorId);
 
         if (! $workOrder || ! $vendor) {
@@ -109,6 +110,101 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         // 3) Text the vendor and log it in the WOC↔Vendor conversation.
         $this->textVendor($workOrder, $vendor);
+
+        // 4) Notify the property owner and log it in the owner conversation thread.
+        $this->notifyOwner($workOrder, $vendor);
+    }
+
+    /**
+     * Text the primary property owner that a vendor has been assigned, sent from
+     * (and recorded as) the WOC, and persist it to the owner conversation thread
+     * so it shows in the coordinator's owner tab.
+     */
+    private function notifyOwner(WorkOrder $workOrder, Vendor $vendor): void
+    {
+        $owner = $workOrder->primaryOwner();
+
+        // No owner on file — nothing to notify.
+        if (! $owner) {
+            return;
+        }
+
+        $ownerNumber = $this->toE164($owner->phone);
+
+        // No usable phone number for the owner — skip (like the vendor path).
+        if (! $ownerNumber) {
+            return;
+        }
+
+        $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
+            ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
+
+        if (! $wocNumber) {
+            return;
+        }
+
+        $body = $this->buildOwnerMessage($workOrder, $vendor, $owner);
+
+        // sender_number is the WOC's number, so the portal renders this as a
+        // message from the coordinator on the owner thread.
+        $conversation = Conversation::create([
+            'message' => $body,
+            'sender_number' => $wocNumber,
+            'receiver_number' => $ownerNumber,
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'is_read' => true,
+            'is_mms' => false,
+        ]);
+
+        SendConversationMessageJob::dispatch($ownerNumber, $wocNumber, $body, null, $conversation->id);
+    }
+
+    private function buildOwnerMessage(WorkOrder $workOrder, Vendor $vendor, Owner $owner): string
+    {
+        $ownerName = trim((string) $owner->name) ?: trim($owner->first_name.' '.$owner->last_name);
+
+        $lines = [
+            'Hi '.$ownerName.',',
+            'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
+                .$this->propertyAddress($workOrder).' under Work Order #'.$workOrder->work_order_no.'.',
+            'The vendor will contact the tenant directly to coordinate and schedule the appointment. Thank you.',
+        ];
+
+        return implode("\n\n", $lines);
+    }
+
+    /**
+     * The vendor's name followed by their phone number when we have one.
+     */
+    private function vendorContactDetails(Vendor $vendor): string
+    {
+        if (filled($vendor->phone)) {
+            return $vendor->name.' ('.$vendor->phone.')';
+        }
+
+        return $vendor->name;
+    }
+
+    /**
+     * A human-readable property address from the work order's building, or a
+     * neutral fallback when the building has not been synced yet.
+     */
+    private function propertyAddress(WorkOrder $workOrder): string
+    {
+        $building = $workOrder->building;
+
+        if (! $building) {
+            return 'the property';
+        }
+
+        $parts = array_filter([
+            trim((string) $building->address),
+            trim((string) $building->city),
+            trim(($building->state_region ?? '').' '.($building->postal_code ?? '')),
+        ]);
+
+        return $parts === [] ? 'the property' : implode(', ', $parts);
     }
 
     /**
