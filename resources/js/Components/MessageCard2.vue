@@ -5,6 +5,21 @@ const props = defineProps({
     messages: Object,
 });
 
+// Classify an attachment so the row renders the right element. Prefer the
+// stored content_type; fall back to the file extension for older rows.
+const mediaKind = (media) => {
+    const type = (media?.content_type || "").toLowerCase();
+    const name = (media?.file_name || "").toLowerCase();
+
+    if (type.startsWith("video/") || /\.(mp4|mov|m4v|3gp|3gpp|webm)$/.test(name)) {
+        return "video";
+    }
+    if (type === "application/pdf" || name.endsWith(".pdf")) {
+        return "pdf";
+    }
+    return "image";
+};
+
 const formatDate = (date) => {
     if (!date) return "------";
 
@@ -47,12 +62,26 @@ const formatDate = (date) => {
         <p><strong>To:</strong> {{ conversation.receiver_number }}</p>
         <p><strong>Message:</strong> {{ conversation.message }}</p>
         <div v-if="conversation.is_mms" class="m-1">
-            <img
-                v-for="media in conversation.media"
-                :key="media.key"
-                :src="media.public_url"
-                width="350"
-            />
+            <template v-for="media in conversation.media" :key="media.key">
+                <video
+                    v-if="mediaKind(media) === 'video'"
+                    :src="media.public_url"
+                    controls
+                    playsinline
+                    width="350"
+                    class="bg-black"
+                />
+                <a
+                    v-else-if="mediaKind(media) === 'pdf'"
+                    :href="media.public_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-blue-600 underline"
+                >
+                    {{ media.file_name || "Document.pdf" }}
+                </a>
+                <img v-else :src="media.public_url" width="350" />
+            </template>
         </div>
         <small>{{ formatDate(conversation.created_at) }}</small>
     </div>

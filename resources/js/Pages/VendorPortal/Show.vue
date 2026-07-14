@@ -55,6 +55,21 @@ const toggleTheme = () => {
     localStorage.setItem("vendorPortalTheme", isDark.value ? "dark" : "light");
 };
 
+// Classify a message attachment so it renders as a video player, PDF link, or
+// image. Prefers content_type; falls back to the file extension for older rows.
+const mediaKind = (media) => {
+    const type = (media?.content_type || "").toLowerCase();
+    const name = (media?.file_name || "").toLowerCase();
+
+    if (type.startsWith("video/") || /\.(mp4|mov|m4v|3gp|3gpp|webm)$/.test(name)) {
+        return "video";
+    }
+    if (type === "application/pdf" || name.endsWith(".pdf")) {
+        return "pdf";
+    }
+    return "image";
+};
+
 // Image lightbox (modal) for viewing photos in-page.
 const lightbox = ref(null);
 
@@ -1099,17 +1114,39 @@ const confirmCompleteTask = () => {
                                             v-if="m.media && m.media.length"
                                             class="mt-1 grid grid-cols-2 gap-1"
                                         >
-                                            <a
+                                            <template
                                                 v-for="(media, i) in m.media"
                                                 :key="i"
-                                                :href="media.url"
-                                                target="_blank"
                                             >
-                                                <img
+                                                <video
+                                                    v-if="mediaKind(media) === 'video'"
                                                     :src="media.url"
-                                                    class="rounded-lg w-full h-20 object-cover"
+                                                    controls
+                                                    playsinline
+                                                    class="rounded-lg w-full h-20 object-cover bg-black"
                                                 />
-                                            </a>
+                                                <a
+                                                    v-else-if="mediaKind(media) === 'pdf'"
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="flex items-center gap-1 rounded-lg border px-2 py-3 text-xs truncate"
+                                                >
+                                                    <FileText class="h-4 w-4 shrink-0" />
+                                                    <span class="truncate">{{ media.file_name || "Document.pdf" }}</span>
+                                                </a>
+                                                <a
+                                                    v-else
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <img
+                                                        :src="media.url"
+                                                        class="rounded-lg w-full h-20 object-cover"
+                                                    />
+                                                </a>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>

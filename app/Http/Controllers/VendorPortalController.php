@@ -207,6 +207,7 @@ class VendorPortalController extends Controller
                 'media' => $m->media->map(fn ($media) => [
                     'url' => $media->public_url,
                     'content_type' => $media->content_type,
+                    'file_name' => $media->file_name,
                 ])->values(),
             ])->values(),
         ]);

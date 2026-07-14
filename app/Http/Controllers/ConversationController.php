@@ -155,7 +155,7 @@ class ConversationController extends Controller
 
         if (empty($validatedData['text']) && ! $hasImages) {
             return redirect()->back()->withErrors([
-                'message' => 'Please provide either a message or an image.',
+                'message' => 'Please provide either a message or an attachment.',
             ]);
         }
 
