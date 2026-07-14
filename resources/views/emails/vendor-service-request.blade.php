@@ -36,7 +36,7 @@
                         <td style="padding:10px 28px 4px; font-size:14px; line-height:1.55; color:#374151;">
                             <p style="margin:12px 0;">Dear {{ $vendorName }},</p>
                             <p style="margin:12px 0;">Please see the attached service request.</p>
-                            <p style="margin:12px 0;">Please be sure to contact the tenants within <strong>2 business hours</strong> of receipt of this request to schedule a time for repairs. To avoid trip charges, we advise scheduling with the tenants via email so you have written proof they confirmed the appointment time. If written proof cannot be provided and tenants are not home at the scheduled time, we cannot charge trip charges. As always, please keep Texas Renters updated on all progress (scheduling, progress, estimates, etc.).</p>
+                            <p style="margin:12px 0;">Please be sure to contact the tenants within <strong>2 business days</strong> of receipt of this request to schedule a time for repairs. To avoid trip charges, we advise scheduling with the tenants via email so you have written proof they confirmed the appointment time. If written proof cannot be provided and tenants are not home at the scheduled time, we cannot charge trip charges. As always, please keep Texas Renters updated on all progress (scheduling, progress, estimates, etc.).</p>
                             <p style="margin:12px 0;">Please take <strong>before and after pictures of ALL repairs</strong>. Upload them through your maintenance dashboard upon completion, and title each photo with the property address. We cannot process an invoice for payment without photos.</p>
                         </td>
                     </tr>

@@ -28,7 +28,7 @@ class VendorServiceRequestMail extends Mailable
     {
         return new Envelope(
             subject: 'New Service Request - Work Order #'.$this->workOrderNo,
-            cc: ['woc@texasrenters.com'],
+            cc: ['workorders@texasrenters.com'],
         );
     }
 
