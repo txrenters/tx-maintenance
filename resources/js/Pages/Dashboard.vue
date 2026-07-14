@@ -154,7 +154,7 @@ const getStatusColor = (index) => {
 <template>
     <Head :title="title" />
     <!-- Modern Hero Section -->
-    <div class="mb-8">
+    <div class="mb-2">
         <div
             class="relative overflow-hidden bg-gradient-to-br from-blue-500 via-indigo-700 to-blue-700 text-white rounded-xl shadow-2xl p-6 md:p-8"
         >
@@ -166,7 +166,7 @@ const getStatusColor = (index) => {
                             <Wrench class="h-6 w-6" />
                         </div>
                         <h1 class="text-2xl md:text-3xl font-bold">
-                            Maintenance Dashboard
+                         Dashboard
                         </h1>
                     </div>
                     <p class="text-lg opacity-90 mb-4">
@@ -236,7 +236,7 @@ const getStatusColor = (index) => {
          min-w-0 lets this flex item stay within the viewport so the row scrolls
          inside the carousel instead of widening (and scrolling) the whole page. -->
     <div
-        class="mb-8 flex min-w-0 max-w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [&>*]:min-w-full [&>*]:shrink-0 [&>*]:snap-center md:grid md:max-w-none md:grid-cols-2 md:gap-6 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 lg:grid-cols-4"
+        class="mb-2 flex min-w-0 max-w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [&>*]:min-w-full [&>*]:shrink-0 [&>*]:snap-center md:grid md:max-w-none md:grid-cols-2 md:gap-6 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 lg:grid-cols-4"
     >
         <!-- Total Work Orders Card -->
         <Card

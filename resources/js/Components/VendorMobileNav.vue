@@ -41,7 +41,7 @@ const items = computed(() => [
         active: page.url.startsWith("/work_order/invoices"),
     },
     {
-        name: "Calendar",
+        name: "Schedules",
         icon: CalendarDays,
         url: route("scheduled_service"),
         active: page.url.startsWith("/scheduled_service"),

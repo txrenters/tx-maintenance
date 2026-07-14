@@ -2,7 +2,7 @@
     <!-- A sized, relative wrapper is required for a responsive Chart.js canvas:
          without it the chart can drive the layout width and push the whole page
          wider than the viewport on mobile. -->
-    <div class="relative h-64 w-full sm:h-80">
+    <div class="relative w-full h-[320px] sm:h-[400px] md:h-[500px]">
         <Bar id="my-chart-id" :options="options" :data="barChartData" />
     </div>
 </template>
