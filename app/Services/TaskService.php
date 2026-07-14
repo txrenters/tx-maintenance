@@ -11,6 +11,18 @@ use Illuminate\Support\Facades\Log;
 
 class TaskService
 {
+    /**
+     * Work order types that route their WOC coordination tasks to a dedicated
+     * user instead of the general work-order coordinator. Each entry names the
+     * target user's email and the role that user must hold.
+     *
+     * @var array<string, array{email: string, role: string}>
+     */
+    private const WOC_ROUTING_BY_TYPE = [
+        'Biweekly Lawn Services' => ['email' => 'xservice@txhomemp.com', 'role' => 'woc'],
+        'Turnover' => ['email' => 'mc@texasrenters.com', 'role' => 'admin'],
+    ];
+
     public static function createTasksForWorkOrder(WorkOrder $workOrder, bool $isEmergency, $serviceStatus_Id)
     {
         // Skip task creation if automated tasks are disabled
@@ -68,11 +80,7 @@ class TaskService
 
             // Assign task to WOC (Work Order Coordinator)
             if ($task->type === 'Woc') {
-                // Prefer a user specifically assigned on the template task; otherwise
-                // fall back to the first user with the 'woc' role (legacy behaviour).
-                $assignedUser = $task->assigned_user_id
-                    ? User::find($task->assigned_user_id)
-                    : User::role('woc')->first();
+                $assignedUser = self::resolveWocAssignee($workOrder, $task);
 
                 if ($assignedUser) {
                     $tasks[] = [
@@ -115,5 +123,56 @@ class TaskService
         if (! empty($tasks)) {
             DB::table('work_order_tasks')->insert($tasks);
         }
+    }
+
+    /**
+     * Resolve the user a WOC coordination task should be assigned to. Some work
+     * order types route to a dedicated user (see WOC_ROUTING_BY_TYPE); otherwise
+     * we honour an explicit template assignment and fall back to the first user
+     * with the 'woc' role. The routed user must hold the configured role, and if
+     * they are not found we fall back to the default so task creation never
+     * silently drops a WOC task.
+     */
+    private static function resolveWocAssignee(WorkOrder $workOrder, $task): ?User
+    {
+        $routedUser = self::routedWocUserForType($workOrder->type);
+
+        if ($routedUser) {
+            return $routedUser;
+        }
+
+        // Prefer a user specifically assigned on the template task; otherwise
+        // fall back to the first user with the 'woc' role (legacy behaviour).
+        return $task->assigned_user_id
+            ? User::find($task->assigned_user_id)
+            : User::role('woc')->first();
+    }
+
+    /**
+     * The work order types that route WOC tasks to a dedicated user.
+     *
+     * @return array<int, string>
+     */
+    public static function routedTypes(): array
+    {
+        return array_keys(self::WOC_ROUTING_BY_TYPE);
+    }
+
+    /**
+     * The user WOC tasks for the given work order type should route to, or null
+     * when the type has no routing rule or the configured user does not exist
+     * with the required role.
+     */
+    public static function routedWocUserForType(?string $type): ?User
+    {
+        $routing = self::WOC_ROUTING_BY_TYPE[$type] ?? null;
+
+        if (! $routing) {
+            return null;
+        }
+
+        return User::role($routing['role'])
+            ->where('email', $routing['email'])
+            ->first();
     }
 }
