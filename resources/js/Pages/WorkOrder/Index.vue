@@ -5,6 +5,7 @@ import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilterChip from "@/Components/FilterChip.vue";
+import WorkOrderFilterBar from "@/Components/WorkOrderFilterBar.vue";
 import {
     Tooltip,
     TooltipContent,
@@ -109,44 +110,9 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
 
-// Faceted filter chip options, derived from the loaded board data.
-const vendorOptions = computed(() =>
-    (props.vendors ?? []).map((v) => ({ value: String(v.id), label: v.name }))
-);
-const categoryOptions = computed(() =>
-    (props.categories ?? []).map((c) => ({
-        value: String(c.name),
-        label: c.name,
-    }))
-);
-const emergencyOptions = [
-    { value: "all", label: "All priorities" },
-    { value: "emergency", label: "Emergency" },
-    { value: "non_emergency", label: "Non-emergency" },
-];
-const colorOptions = [
-    { value: "all", label: "All colors" },
-    { value: "red", label: "Overdue", dot: "bg-destructive" },
-    { value: "blue", label: "Due today", dot: "bg-primary" },
-    { value: "green", label: "Upcoming", dot: "bg-green-500" },
-];
-
-const hasActiveFilters = computed(
-    () =>
-        !!search.value ||
-        !!filter_vendor.value ||
-        !!filter_category.value ||
-        (filter_emergency.value && filter_emergency.value !== "all") ||
-        (filter_color.value && filter_color.value !== "all")
-);
-
-const clearAllFilters = () => {
-    search.value = "";
-    filter_vendor.value = "";
-    filter_category.value = "";
-    filter_emergency.value = "all";
-    filter_color.value = "all";
-};
+// Search, vendor, category, priority and color are filtered client-side on the
+// already-loaded board (see WorkOrderCard); the refs above are bound straight
+// through WorkOrderFilterBar to the card, so there are no server round-trips.
 
 const openWorkOrder = ref(false);
 
@@ -851,65 +817,17 @@ const page = usePage();
 <template>
     <Head :title="title" />
 
-    <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <SearchBar v-model="search" />
-        <div
-            class="flex flex-1 min-w-0 flex-wrap items-center gap-2"
-            v-if="
-                $page.props.auth.user.roles.includes('admin') ||
-                $page.props.auth.user.roles.includes('woc')
-            "
-        >
-            <FilterChip
-                label="Vendor"
-                :icon="Users2"
-                :model-value="filter_vendor"
-                :options="vendorOptions"
-                searchable
-                search-placeholder="Search vendors…"
-                @update:modelValue="(value) => (filter_vendor = value)"
-            />
-            <FilterChip
-                label="Category"
-                :icon="Tag"
-                :model-value="filter_category"
-                :options="categoryOptions"
-                searchable
-                search-placeholder="Search categories…"
-                @update:modelValue="(value) => (filter_category = value)"
-            />
-            <FilterChip
-                label="Priority"
-                :icon="TriangleAlert"
-                :model-value="filter_emergency"
-                :options="emergencyOptions"
-                @update:modelValue="(value) => (filter_emergency = value)"
-            />
-            <FilterChip
-                label="Color"
-                :icon="Palette"
-                :model-value="filter_color"
-                :options="colorOptions"
-                @update:modelValue="(value) => (filter_color = value)"
-            />
-            <TooltipProvider v-if="hasActiveFilters">
-                <Tooltip>
-                    <TooltipTrigger as-child>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            @click="clearAllFilters"
-                        >
-                            <X class="h-4 w-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Clear all filters</TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        </div>
-
-        <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
+    <WorkOrderFilterBar
+        v-model:search="search"
+        v-model:vendor="filter_vendor"
+        v-model:category="filter_category"
+        v-model:emergency="filter_emergency"
+        v-model:color="filter_color"
+        :vendors="vendors"
+        :categories="categories"
+    >
+        <template #actions>
+            <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
             <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                     <Button variant="outline" class="shrink-0">
@@ -1036,8 +954,9 @@ const page = usePage();
             >
                 <RefreshCw class="w-4 h-4" />
             </Link>
-        </div>
-    </div>
+            </div>
+        </template>
+    </WorkOrderFilterBar>
 
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
