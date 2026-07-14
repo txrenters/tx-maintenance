@@ -249,7 +249,7 @@
             </tr>
         </thead>
         <tbody>
-            @forelse ($workOrder->vendors as $vendor)
+            @forelse ($vendors as $vendor)
                 <tr>
                     <td>{{ $or($vendor->name) }}</td>
                     <td>{{ $or($vendor->address ?? null) }}</td>

@@ -14,6 +14,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -41,8 +42,26 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
+        // Atomically claim this notification. A double dispatch, or a retry after
+        // a worker timeout, would otherwise re-run every step below and the vendor
+        // would get a second email/text (and a duplicate PropertyWare doc). The
+        // conditional UPDATE only affects a row that hasn't been notified yet, so
+        // exactly one run proceeds; any other sees zero rows and bows out.
+        $claimed = DB::table('work_order_vendors')
+            ->where('work_order_id', $workOrder->id)
+            ->where('vendor_id', $vendor->id)
+            ->whereNull('information_sent_at')
+            ->update(['information_sent_at' => now()]);
+
+        if ($claimed === 0) {
+            return;
+        }
+
         $fileName = WorkOrderInformationPdf::FILE_NAME;
-        $pdf = $pdfService->render($workOrder);
+
+        // Scope the sheet to this recipient so co-assigned vendors aren't
+        // disclosed to one another.
+        $pdf = $pdfService->render($workOrder, $vendor);
 
         $accessToken = $workOrder->vendors()
             ->where('vendors.id', $vendor->id)

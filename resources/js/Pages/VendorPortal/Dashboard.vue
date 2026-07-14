@@ -8,6 +8,7 @@ import {
     LogIn,
     Sun,
     Moon,
+    Search,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -31,25 +32,60 @@ const toggleTheme = () => {
     localStorage.setItem("vendorPortalTheme", isDark.value ? "dark" : "light");
 };
 
-// Group the vendor's work orders into status columns, ordered like the
-// dashboard (by service-status id).
-const columns = computed(() => {
-    const map = new Map();
-    for (const wo of props.workOrders) {
-        const key = wo.status || "Other";
-        if (!map.has(key)) {
-            map.set(key, {
-                name: key,
-                order: wo.service_status_id ?? 9999,
-                work_orders: [],
-            });
+// Client-side filters: the vendor's list is already loaded, so narrowing by
+// search, status, or category is instant and needs no server round-trip.
+const search = ref("");
+const selectedStatus = ref("all");
+const selectedCategory = ref("all");
+
+// Dropdown options are built from the values that actually appear in the
+// vendor's own work orders, so empty options never show up.
+const statuses = computed(() =>
+    [...new Set(props.workOrders.map((wo) => wo.status).filter(Boolean))].sort()
+);
+
+const categories = computed(() =>
+    [
+        ...new Set(props.workOrders.map((wo) => wo.category).filter(Boolean)),
+    ].sort()
+);
+
+// Newest first, so the flat grid reads top-to-bottom like the in-app board.
+const sortedWorkOrders = computed(() =>
+    [...props.workOrders].sort(
+        (a, b) =>
+            new Date(String(b.created_date).replace(" ", "T")) -
+            new Date(String(a.created_date).replace(" ", "T"))
+    )
+);
+
+const filteredWorkOrders = computed(() => {
+    const term = search.value.trim().toLowerCase();
+
+    return sortedWorkOrders.value.filter((wo) => {
+        const matchesStatus =
+            selectedStatus.value === "all" || wo.status === selectedStatus.value;
+
+        const matchesCategory =
+            selectedCategory.value === "all" ||
+            wo.category === selectedCategory.value;
+
+        if (!matchesStatus || !matchesCategory) {
+            return false;
         }
-        map.get(key).work_orders.push(wo);
-    }
-    return [...map.values()].sort((a, b) => a.order - b.order);
+
+        if (!term) {
+            return true;
+        }
+
+        return [wo.work_order_no, wo.location, wo.building, wo.category]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(term));
+    });
 });
 
 const hasJobs = computed(() => props.workOrders.length > 0);
+const hasResults = computed(() => filteredWorkOrders.value.length > 0);
 
 // Left accent (light mode) + full colored background (dark mode), mirroring the
 // in-app WorkOrderCard: red = emergency/overdue, blue = due today, green = upcoming.
@@ -105,130 +141,163 @@ const accentClasses = (accent) => {
                     </div>
                 </div>
 
-                <!-- Status columns -->
+                <!-- Filters -->
                 <div
                     v-if="hasJobs"
-                    class="flex flex-row flex-nowrap gap-2 overflow-x-auto pb-3"
+                    class="flex flex-col gap-2 sm:flex-row sm:items-center"
                 >
-                    <div
-                        v-for="col in columns"
-                        :key="col.name"
-                        class="min-w-[260px] flex-shrink-0"
-                    >
-                        <!-- Column header -->
-                        <div
-                            class="h-16 flex items-center justify-center border p-3 text-center text-sm uppercase font-semibold text-foreground dark:text-white dark:border-neutral-800"
-                        >
-                            <p>{{ col.name }} ({{ col.work_orders.length }})</p>
-                        </div>
-
-                        <!-- Cards -->
-                        <div
-                            class="mt-2 space-y-2 max-h-[70vh] overflow-y-auto pr-1"
-                        >
-                            <a
-                                v-for="wo in col.work_orders"
-                                :key="wo.work_order_no"
-                                :href="wo.url"
-                                class="block rounded-lg border border-l-4 p-4 shadow-sm transition-all hover:shadow-lg bg-card text-card-foreground dark:border-0 dark:text-white"
-                                :class="accentClasses(wo.accent)"
-                            >
-                                <!-- Number & date -->
-                                <div
-                                    class="flex justify-between items-center border-b border-border dark:border-white/30 pb-2 mb-2"
-                                >
-                                    <h2 class="text-lg font-semibold">
-                                        {{ wo.work_order_no }}
-                                    </h2>
-                                    <p
-                                        class="text-xs text-muted-foreground dark:text-gray-200 shrink-0"
-                                    >
-                                        📅 {{
-                                            new Date(
-                                                String(wo.created_date).replace(
-                                                    " ",
-                                                    "T"
-                                                )
-                                            ).toLocaleDateString("en-US")
-                                        }}
-                                    </p>
-                                </div>
-
-                                <!-- Location -->
-                                <p
-                                    v-if="wo.location"
-                                    class="text-sm font-semibold text-foreground dark:text-gray-100"
-                                >
-                                    {{ wo.location }}
-                                </p>
-
-                                <!-- Property name -->
-                                <p
-                                    v-if="wo.building"
-                                    class="text-center text-xs font-medium text-muted-foreground dark:text-gray-200"
-                                >
-                                    {{ wo.building }}
-                                </p>
-
-                                <!-- Category -->
-                                <p
-                                    v-if="wo.category"
-                                    class="text-xs flex items-center gap-1 justify-center text-muted-foreground dark:text-gray-100"
-                                >
-                                    <Tag class="w-3 h-3" />{{ wo.category }}
-                                </p>
-
-                                <!-- Unread messages (portal-only) -->
-                                <p
-                                    v-if="wo.unread > 0"
-                                    class="mt-1 text-xs flex items-center gap-1 justify-center text-destructive dark:text-white font-medium"
-                                >
-                                    <MessageSquare class="w-3 h-3" />{{
-                                        wo.unread
-                                    }}
-                                    new message<span v-if="wo.unread > 1"
-                                        >s</span
-                                    >
-                                </p>
-
-                                <!-- Tasks + priority -->
-                                <div class="flex justify-between items-center mt-2">
-                                    <p
-                                        v-if="wo.total_tasks > 0"
-                                        class="text-xs"
-                                    >
-                                        {{ wo.completed_tasks }}/{{
-                                            wo.total_tasks
-                                        }}
-                                        tasks
-                                    </p>
-                                    <span v-else></span>
-                                    <span
-                                        v-if="wo.priority"
-                                        class="text-[10px] px-1 uppercase rounded border text-white"
-                                        :class="
-                                            wo.priority === 'High'
-                                                ? 'bg-destructive'
-                                                : 'bg-primary'
-                                        "
-                                    >
-                                        Priority: {{ wo.priority }}
-                                    </span>
-                                </div>
-                            </a>
-                        </div>
+                    <div class="relative flex-1">
+                        <Search
+                            class="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground dark:text-neutral-400"
+                        />
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Search work orders"
+                            class="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                        />
                     </div>
+
+                    <select
+                        v-if="statuses.length"
+                        v-model="selectedStatus"
+                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring dark:border-neutral-700 dark:bg-neutral-800 dark:text-white sm:w-[180px]"
+                    >
+                        <option value="all">All statuses</option>
+                        <option
+                            v-for="status in statuses"
+                            :key="status"
+                            :value="status"
+                        >
+                            {{ status }}
+                        </option>
+                    </select>
+
+                    <select
+                        v-if="categories.length"
+                        v-model="selectedCategory"
+                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring dark:border-neutral-700 dark:bg-neutral-800 dark:text-white sm:w-[180px]"
+                    >
+                        <option value="all">All categories</option>
+                        <option
+                            v-for="category in categories"
+                            :key="category"
+                            :value="category"
+                        >
+                            {{ category }}
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Flat card grid -->
+                <div
+                    v-if="hasResults"
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                >
+                    <a
+                        v-for="wo in filteredWorkOrders"
+                        :key="wo.work_order_no"
+                        :href="wo.url"
+                        class="block rounded-lg border border-l-4 p-4 shadow-sm transition-all hover:shadow-lg bg-card text-card-foreground dark:border-0 dark:text-white"
+                        :class="accentClasses(wo.accent)"
+                    >
+                        <!-- Number & date -->
+                        <div
+                            class="flex justify-between items-center border-b border-border dark:border-white/30 pb-2 mb-2"
+                        >
+                            <h2 class="text-lg font-semibold">
+                                {{ wo.work_order_no }}
+                            </h2>
+                            <p
+                                class="text-xs text-muted-foreground dark:text-gray-200 shrink-0"
+                            >
+                                📅 {{
+                                    new Date(
+                                        String(wo.created_date).replace(
+                                            " ",
+                                            "T"
+                                        )
+                                    ).toLocaleDateString("en-US")
+                                }}
+                            </p>
+                        </div>
+
+                        <!-- Status -->
+                        <p
+                            v-if="wo.status"
+                            class="mb-1 text-center text-[10px] uppercase font-semibold tracking-wide text-muted-foreground dark:text-gray-200"
+                        >
+                            {{ wo.status }}
+                        </p>
+
+                        <!-- Location -->
+                        <p
+                            v-if="wo.location"
+                            class="text-sm font-semibold text-foreground dark:text-gray-100"
+                        >
+                            {{ wo.location }}
+                        </p>
+
+                        <!-- Property name -->
+                        <p
+                            v-if="wo.building"
+                            class="text-center text-xs font-medium text-muted-foreground dark:text-gray-200"
+                        >
+                            {{ wo.building }}
+                        </p>
+
+                        <!-- Category -->
+                        <p
+                            v-if="wo.category"
+                            class="text-xs flex items-center gap-1 justify-center text-muted-foreground dark:text-gray-100"
+                        >
+                            <Tag class="w-3 h-3" />{{ wo.category }}
+                        </p>
+
+                        <!-- Unread messages (portal-only) -->
+                        <p
+                            v-if="wo.unread > 0"
+                            class="mt-1 text-xs flex items-center gap-1 justify-center text-destructive dark:text-white font-medium"
+                        >
+                            <MessageSquare class="w-3 h-3" />{{ wo.unread }}
+                            new message<span v-if="wo.unread > 1">s</span>
+                        </p>
+
+                        <!-- Tasks + priority -->
+                        <div class="flex justify-between items-center mt-2">
+                            <p v-if="wo.total_tasks > 0" class="text-xs">
+                                {{ wo.completed_tasks }}/{{ wo.total_tasks }}
+                                tasks
+                            </p>
+                            <span v-else></span>
+                            <span
+                                v-if="wo.priority"
+                                class="text-[10px] px-1 uppercase rounded border text-white"
+                                :class="
+                                    wo.priority === 'High'
+                                        ? 'bg-destructive'
+                                        : 'bg-primary'
+                                "
+                            >
+                                Priority: {{ wo.priority }}
+                            </span>
+                        </div>
+                    </a>
                 </div>
 
                 <div
-                    v-if="!hasJobs"
+                    v-if="!hasResults"
                     class="rounded-lg border bg-card text-card-foreground shadow-sm p-8 text-center dark:border-neutral-800 dark:bg-neutral-900"
                 >
                     <ClipboardList
                         class="w-10 h-10 text-muted-foreground/40 dark:text-neutral-600 mx-auto mb-3"
                     />
                     <p class="text-muted-foreground dark:text-neutral-400 text-sm">
-                        You have no active work orders right now.
+                        {{
+                            hasJobs
+                                ? "No work orders match your filters."
+                                : "You have no active work orders right now."
+                        }}
                     </p>
                 </div>
 

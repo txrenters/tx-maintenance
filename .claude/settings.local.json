@@ -134,7 +134,11 @@
       "Bash(vendor/bin/sail bin *)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('valid JSON,', len\\(d['permissions']['allow']\\), 'allow entries'\\)\")",
       "Bash(python3 -c 'import sys; *)",
-      "Bash(sips -s format png tx-logo.webp --out tx-logo.png)"
+      "Bash(sips -s format png tx-logo.webp --out tx-logo.png)",
+      "Bash(git --no-pager show --stat --oneline HEAD)",
+      "Bash(timeout 300 npx vite build)",
+      "Bash(npx vite *)",
+      "Bash(./vendor/bin/sail artisan *)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

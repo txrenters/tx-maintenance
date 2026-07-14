@@ -48,6 +48,22 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertStringStartsWith('%PDF', $bytes);
     }
 
+    public function test_pdf_only_lists_the_recipient_vendor(): void
+    {
+        $recipient = $this->makeVendor(['name' => 'Alpha Electric LLC']);
+        $coAssigned = $this->makeVendor(['name' => 'Beta Plumbing LLC']);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585]);
+        $workOrder->vendors()->attach([$recipient->id, $coAssigned->id]);
+
+        // A vendor must never learn who else is assigned to their work order.
+        $vendors = app(WorkOrderInformationPdf::class)
+            ->vendorsToShow($workOrder->fresh(), $recipient);
+
+        $this->assertCount(1, $vendors);
+        $this->assertSame($recipient->id, $vendors->first()->id);
+    }
+
     public function test_job_emails_vendor_and_uploads_pdf_to_propertyware(): void
     {
         Mail::fake();
@@ -77,6 +93,31 @@ class VendorWorkOrderInformationTest extends TestCase
             'file_name' => 'Work Order Information.pdf',
             'file_type' => 'application/pdf',
         ]);
+    }
+
+    public function test_job_is_idempotent_and_never_notifies_the_vendor_twice(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 987654321], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 987654321], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+
+        $vendor = $this->makeVendor(['email' => 'vendor@example.com'], '3255550101');
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43339]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-abc']);
+
+        // A double dispatch (or a retry after a worker timeout) must not re-notify.
+        foreach (range(1, 2) as $ignored) {
+            (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+                ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+        }
+
+        Mail::assertSent(VendorServiceRequestMail::class, 1);
+        $this->assertDatabaseCount('work_order_conversations', 1);
+        Bus::assertDispatchedTimes(SendConversationMessageJob::class, 1);
     }
 
     public function test_job_uploads_to_propertyware_even_without_vendor_email(): void
