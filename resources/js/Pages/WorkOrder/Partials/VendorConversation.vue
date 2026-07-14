@@ -139,24 +139,38 @@ const triggerFileInput = () => {
 
 const handleFileSelect = (event) => {
     const files = Array.from(event.target.files || []);
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const allowed = files.filter(
+        (file) =>
+            file.type.startsWith("image/") ||
+            file.type.startsWith("video/") ||
+            file.type === "application/pdf",
+    );
 
-    if (imageFiles.length !== files.length) {
+    if (allowed.length !== files.length) {
         toast({
             variant: "destructive",
             title: "Invalid file type",
-            description: "Only image files are allowed.",
+            description: "Only image, video, or PDF files are allowed.",
         });
     }
 
-    imageFiles.forEach((file) => {
-        if (file.size > 10 * 1024 * 1024) {
-            // 10MB limit
+    allowed.forEach((file) => {
+        if (file.size > 50 * 1024 * 1024) {
+            // 50MB limit
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: `${file.name} is too large. Maximum size is 10MB.`,
+                description: `${file.name} is too large. Maximum size is 50MB.`,
             });
+            return;
+        }
+
+        const isVideo = file.type.startsWith("video/");
+        const isPdf = file.type === "application/pdf";
+
+        // PDFs get a filename tile rather than a data-URL thumbnail.
+        if (isPdf) {
+            attachedImages.value.push({ file, url: null, name: file.name, isPdf: true });
             return;
         }
 
@@ -166,6 +180,7 @@ const handleFileSelect = (event) => {
                 file,
                 url: e.target.result,
                 name: file.name,
+                isVideo,
             });
         };
         reader.readAsDataURL(file);
@@ -395,7 +410,22 @@ onMounted(() => {
                         :key="index"
                         class="relative group"
                     >
+                        <video
+                            v-if="image.isVideo"
+                            :src="image.url"
+                            class="w-full h-20 object-cover rounded-lg border bg-black"
+                            muted
+                            playsinline
+                        />
+                        <div
+                            v-else-if="image.isPdf"
+                            class="w-full h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
+                        >
+                            <span class="text-2xl">📄</span>
+                            <span class="w-full truncate text-[10px] text-muted-foreground">{{ image.name }}</span>
+                        </div>
                         <img
+                            v-else
                             :src="image.url"
                             :alt="image.name"
                             class="w-full h-20 object-cover rounded-lg border"
@@ -454,7 +484,7 @@ onMounted(() => {
                     ref="fileInputRef"
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*,application/pdf"
                     @change="handleFileSelect"
                     class="hidden"
                 />

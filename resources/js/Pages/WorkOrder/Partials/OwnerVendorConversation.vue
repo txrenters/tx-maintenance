@@ -88,25 +88,33 @@ const owner_phone_number = page.props.auth.user.phone;
 const handleImageSelect = (event) => {
     const files = Array.from(event.target.files || []);
     files.forEach((file) => {
-        if (!file.type.startsWith("image/")) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        const isPdf = file.type === "application/pdf";
+        if (!isImage && !isVideo && !isPdf) {
             toast({
                 variant: "destructive",
                 title: "Invalid file type",
-                description: "Please select image files (JPG, PNG, GIF, etc.)",
+                description: "Please select an image, video, or PDF file",
             });
             return;
         }
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > 50 * 1024 * 1024) {
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: `${file.name} exceeds 5MB limit`,
+                description: `${file.name} exceeds 50MB limit`,
             });
+            return;
+        }
+        // PDFs get a filename tile rather than a data-URL thumbnail.
+        if (isPdf) {
+            selectedImages.value.push({ file, preview: null, isPdf: true });
             return;
         }
         const reader = new FileReader();
         reader.onload = (e) => {
-            selectedImages.value.push({ file, preview: e.target.result });
+            selectedImages.value.push({ file, preview: e.target.result, isVideo });
         };
         reader.readAsDataURL(file);
     });
@@ -289,7 +297,22 @@ onMounted(() => {
                         :key="index"
                         class="relative"
                     >
+                        <video
+                            v-if="img.isVideo"
+                            :src="img.preview"
+                            class="w-20 h-20 object-cover rounded-lg border bg-black"
+                            muted
+                            playsinline
+                        />
+                        <div
+                            v-else-if="img.isPdf"
+                            class="w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
+                        >
+                            <span class="text-2xl">📄</span>
+                            <span class="w-full truncate text-[10px] text-muted-foreground">{{ img.file.name }}</span>
+                        </div>
                         <img
+                            v-else
                             :src="img.preview"
                             :alt="img.file.name"
                             class="w-20 h-20 object-cover rounded-lg border"
@@ -315,7 +338,7 @@ onMounted(() => {
                 <input
                     ref="fileInput"
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*,application/pdf"
                     multiple
                     @change="handleImageSelect"
                     class="hidden"
