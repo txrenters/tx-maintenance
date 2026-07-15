@@ -48,6 +48,12 @@ Schedule::command('jobs:send-reminders')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('vendors:followup-unscheduled')
+    ->timezone('America/Chicago')
+    ->dailyAt('16:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('twilio:sync-phone-numbers')
     ->timezone('America/Chicago')
     ->dailyAt('01:30')

@@ -60,6 +60,11 @@ return [
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // Daily follow-up text to a vendor who still has no service schedule 3
+        // business days after being assigned. Off by default so local/testing
+        // never texts a real vendor; set SCHEDULE_FOLLOWUP_SMS_ENABLED=true in
+        // production to turn it on.
+        'schedule_followup_sms' => env('SCHEDULE_FOLLOWUP_SMS_ENABLED', false),
     ],
 
     'openai' => [
