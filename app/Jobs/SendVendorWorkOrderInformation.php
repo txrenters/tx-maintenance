@@ -36,7 +36,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
     public function handle(WorkOrderInformationPdf $pdfService, PropertyWareService $propertyWare): void
     {
-        $workOrder = WorkOrder::with(['woc.wocNumber.twilioPhoneNumber', 'owners', 'building'])->find($this->workOrderId);
+        $workOrder = WorkOrder::with(['woc.wocNumber.twilioPhoneNumber', 'owners', 'building', 'requested_by'])->find($this->workOrderId);
         $vendor = Vendor::find($this->vendorId);
 
         if (! $workOrder || ! $vendor) {
@@ -122,6 +122,12 @@ class SendVendorWorkOrderInformation implements ShouldQueue
      */
     private function notifyOwner(WorkOrder $workOrder, Vendor $vendor): void
     {
+        // Off by default so a deploy never texts a real owner until enabled;
+        // set OWNER_ASSIGNMENT_SMS_ENABLED=true in production to turn it on.
+        if (! config('services.twilio.owner_assignment_sms')) {
+            return;
+        }
+
         $owner = $workOrder->primaryOwner();
 
         // No owner on file — nothing to notify.
@@ -187,24 +193,26 @@ class SendVendorWorkOrderInformation implements ShouldQueue
     }
 
     /**
-     * A human-readable property address from the work order's building, or a
-     * neutral fallback when the building has not been synced yet.
+     * The property street address, matching the street-only form the WOC uses
+     * (e.g. "3326 Jane Way"). The tenant lives at the property, so their address
+     * is the primary source; fall back to the building's street address (filled
+     * by sync:building-details), then to a neutral phrase.
      */
     private function propertyAddress(WorkOrder $workOrder): string
     {
-        $building = $workOrder->building;
+        $tenantAddress = trim((string) ($workOrder->requested_by?->address ?? ''));
 
-        if (! $building) {
-            return 'the property';
+        if ($tenantAddress !== '') {
+            return $tenantAddress;
         }
 
-        $parts = array_filter([
-            trim((string) $building->address),
-            trim((string) $building->city),
-            trim(($building->state_region ?? '').' '.($building->postal_code ?? '')),
-        ]);
+        $buildingAddress = trim((string) ($workOrder->building?->address ?? ''));
 
-        return $parts === [] ? 'the property' : implode(', ', $parts);
+        if ($buildingAddress !== '') {
+            return $buildingAddress;
+        }
+
+        return 'the property';
     }
 
     /**

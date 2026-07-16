@@ -60,6 +60,10 @@ return [
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // Text the primary property owner via the owner<->WOC conversation when
+        // a vendor is assigned. Off by default so a deploy never texts a real
+        // owner until enabled; set OWNER_ASSIGNMENT_SMS_ENABLED=true in production.
+        'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', false),
     ],
 
     'openai' => [
