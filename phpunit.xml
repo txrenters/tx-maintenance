@@ -32,5 +32,12 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <!-- SMS features are ON by default in production; force them OFF in
+             tests so a test run can never text a real person. -->
+        <env name="SCHEDULE_FOLLOWUP_SMS_ENABLED" value="false"/>
+        <env name="OWNER_ASSIGNMENT_SMS_ENABLED" value="false"/>
+        <env name="OWNER_SCHEDULE_SMS_ENABLED" value="false"/>
+        <env name="OWNER_SERVICE_REQUEST_SMS_ENABLED" value="false"/>
+        <env name="TENANT_PORTAL_SMS_ENABLED" value="false"/>
     </php>
 </phpunit>

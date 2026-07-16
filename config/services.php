@@ -64,31 +64,28 @@ return [
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // The five SMS features below are ON by default so a production deploy
+        // works immediately. Local .env and phpunit.xml explicitly set every
+        // flag to false, so development and tests never text real people.
+        // Fresh-start backfill migrations guarantee that enabling them never
+        // blasts the pre-existing backlog — only events after the deploy.
+        //
         // Daily follow-up text to a vendor who still has no service schedule 3
-        // business days after being assigned. Off by default so local/testing
-        // never texts a real vendor; set SCHEDULE_FOLLOWUP_SMS_ENABLED=true in
-        // production to turn it on.
-        'schedule_followup_sms' => env('SCHEDULE_FOLLOWUP_SMS_ENABLED', false),
+        // business days after being assigned.
+        'schedule_followup_sms' => env('SCHEDULE_FOLLOWUP_SMS_ENABLED', true),
         // Text the primary property owner via the owner<->WOC conversation when
-        // a vendor is assigned. Off by default so a deploy never texts a real
-        // owner until enabled; set OWNER_ASSIGNMENT_SMS_ENABLED=true in production.
-        'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', false),
+        // a vendor is assigned.
+        'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', true),
         // Text the property owner via the owner<->WOC conversation when a vendor
         // sets the service appointment (details + ask if they want to join a
-        // call with the technician or approve the work order). Off by default so
-        // local/testing never texts a real owner; set OWNER_SCHEDULE_SMS_ENABLED=true
-        // in production to turn it on.
-        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', false),
+        // call with the technician or approve the work order).
+        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', true),
         // Text the primary property owner via the owner<->WOC conversation when
-        // a new service request comes in (confirmation + description). Off by
-        // default so local/testing never texts a real owner; set
-        // OWNER_SERVICE_REQUEST_SMS_ENABLED=true in production to turn it on.
-        'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', false),
+        // a new service request comes in (confirmation + description).
+        'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),
         // Text the tenant a no-login portal link (photo upload) when their work
-        // order is marked as a tenant easy fix, plus reminders until done. Off
-        // by default so local/testing never texts a real tenant; set
-        // TENANT_PORTAL_SMS_ENABLED=true in production to turn it on.
-        'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', false),
+        // order is marked as a tenant easy fix, plus reminders until done.
+        'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', true),
     ],
 
     'openai' => [
