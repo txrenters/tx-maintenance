@@ -9,7 +9,6 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -21,27 +20,13 @@ class VendorWorkOrdersPageTest extends TestCase
     {
         parent::setUp();
 
-        $this->resetWorkOrderScopeCache();
     }
 
     protected function tearDown(): void
     {
         // Acting as a vendor above populates WorkOrderScope's static cache; clear
         // it on the way out so the scoped vendor cannot leak into the next test.
-        $this->resetWorkOrderScopeCache();
-
         parent::tearDown();
-    }
-
-    /**
-     * WorkOrderScope caches the resolved user in a static property; reset it so
-     * it cannot leak between tests in the same process.
-     */
-    private function resetWorkOrderScopeCache(): void
-    {
-        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
-        $cached->setAccessible(true);
-        $cached->setValue(null, null);
     }
 
     /**

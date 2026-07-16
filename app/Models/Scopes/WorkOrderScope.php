@@ -10,25 +10,22 @@ use Illuminate\Database\Eloquent\Scope;
 
 class WorkOrderScope implements Scope
 {
-    // Cache the user and related data in static memory
-    protected static ?User $cachedUser = null;
-
     public function apply(Builder $builder, Model $model): void
     {
-        if (! auth()->check()) {
+        // Use the guard's user: the auth guard already caches the instance per
+        // request, and loadMissing() only queries relations the first time.
+        // (An earlier static cache here kept the FIRST authenticated user for
+        // the whole PHP process, leaking one user's visibility onto another in
+        // queue workers and tests.)
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
             return;
         }
 
-        // Only hit the DB once per request — but re-resolve if the
-        // authenticated user changed (tests, queue workers, long processes),
-        // otherwise one user's visibility leaks onto another.
-        if (! self::$cachedUser || self::$cachedUser->id !== auth()->id()) {
-            self::$cachedUser = User::with(['vendor', 'tenant', 'roles'])->find(auth()->id());
-        }
+        $user->loadMissing(['vendor', 'tenant', 'roles']);
 
-        $user = self::$cachedUser;
-
-        if (! $user || $user->hasRole('admin') || $user->hasRole('woc') || $user->hasRole('accounting')) {
+        if ($user->hasRole('admin') || $user->hasRole('woc') || $user->hasRole('accounting')) {
             return;
         }
 

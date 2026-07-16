@@ -4,14 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Attachments;
 use App\Models\Invoice;
-use App\Models\Scopes\WorkOrderScope;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -23,29 +21,9 @@ class TenantVisibilityScopeTest extends TestCase
     {
         parent::setUp();
 
-        $this->resetWorkOrderScopeCache();
-
         foreach (['admin', 'woc', 'tenant'] as $role) {
             Role::findOrCreate($role, 'web');
         }
-    }
-
-    protected function tearDown(): void
-    {
-        $this->resetWorkOrderScopeCache();
-
-        parent::tearDown();
-    }
-
-    /**
-     * WorkOrderScope caches the resolved user in a static (per-request in prod);
-     * reset it so one test's auth context never leaks into the next.
-     */
-    private function resetWorkOrderScopeCache(): void
-    {
-        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
-        $cached->setAccessible(true);
-        $cached->setValue(null, null);
     }
 
     private function newStatus(): ServiceStatus
