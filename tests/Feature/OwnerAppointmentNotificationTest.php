@@ -8,6 +8,7 @@ use App\Jobs\SendOwnerAppointmentNotificationJob;
 use App\Models\Owner;
 use App\Models\ServiceSchedule;
 use App\Models\ServiceStatus;
+use App\Models\Tenants;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -32,13 +33,25 @@ class OwnerAppointmentNotificationTest extends TestCase
         ]);
     }
 
-    private function makeOwner(?string $mobile = '5125551234'): Owner
+    private function makeOwner(?string $mobile = '5125551234', int $ownership = 100): Owner
     {
         return Owner::query()->create([
             'first_name' => 'Olivia',
             'last_name' => 'Owner',
-            'email' => 'owner@example.com',
+            'email' => 'owner'.$ownership.'@example.com',
             'mobile' => $mobile,
+            'percentage_ownership' => $ownership,
+            'user_id' => User::factory()->create()->id,
+        ]);
+    }
+
+    private function makeTenant(string $address): Tenants
+    {
+        return Tenants::query()->create([
+            'first_name' => 'Dana',
+            'last_name' => 'Tenant',
+            'email' => 'tenant@example.com',
+            'address' => $address,
             'user_id' => User::factory()->create()->id,
         ]);
     }
@@ -50,12 +63,18 @@ class OwnerAppointmentNotificationTest extends TestCase
             'description' => 'New',
         ]);
 
-        return WorkOrder::factory()->create([
+        $workOrder = WorkOrder::factory()->create([
             'service_status_id' => $serviceStatus->id,
             'work_order_no' => 4567,
             'location' => '123 Main St',
-            'owner_id' => $owner?->id,
         ]);
+
+        // The real property owner lives on the work_order_owners pivot.
+        if ($owner) {
+            $workOrder->owners()->attach($owner->id);
+        }
+
+        return $workOrder;
     }
 
     private function makeSchedule(WorkOrder $workOrder, Vendor $vendor, string $date = '2026-07-20 14:00:00'): ServiceSchedule
@@ -216,5 +235,44 @@ class OwnerAppointmentNotificationTest extends TestCase
         $this->assertStringContainsString('Monday, July 20, 2026 at 2:00 PM', $message);
         $this->assertStringContainsString('available at the appointment time', $message);
         $this->assertStringContainsString('approve the work order', $message);
+    }
+
+    public function test_it_texts_the_primary_owner_not_the_management_company(): void
+    {
+        config(['services.twilio.owner_schedule_sms' => true]);
+        config(['services.twilio.maintenance_from' => '+15120000000']);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $managementCompany = $this->makeOwner('2810000000', 0);
+        $realOwner = $this->makeOwner('5125551234', 100);
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->owners()->attach([$managementCompany->id, $realOwner->id]);
+        $schedule = $this->makeSchedule($workOrder, $vendor);
+
+        app(OwnerAppointmentNotificationService::class)->notify($schedule);
+
+        $this->assertSame('+15125551234', $workOrder->owner_conversation()->first()->receiver_number);
+    }
+
+    public function test_the_message_uses_the_tenant_address_and_carries_the_ref_tag(): void
+    {
+        config(['services.twilio.owner_schedule_sms' => true]);
+        config(['services.twilio.maintenance_from' => '+15120000000']);
+        Queue::fake();
+
+        $vendor = $this->makeVendor('Acme Plumbing');
+        $owner = $this->makeOwner('5125551234');
+        $tenant = $this->makeTenant('3326 Jane Way');
+        $workOrder = $this->makeWorkOrder($owner);
+        $workOrder->update(['tenant_id' => $tenant->id]);
+        $schedule = $this->makeSchedule($workOrder, $vendor);
+
+        app(OwnerAppointmentNotificationService::class)->notify($schedule);
+
+        $message = $workOrder->owner_conversation()->firstOrFail()->message;
+
+        $this->assertStringContainsString('for your property at 3326 Jane Way', $message);
+        $this->assertStringContainsString('(Ref: WO#4567)', $message);
     }
 }

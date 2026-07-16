@@ -54,7 +54,9 @@ class OwnerAppointmentNotificationService
     {
         $serviceSchedule->loadMissing([
             'vendor.user',
-            'work_order.managed_by',
+            'work_order.owners',
+            'work_order.requested_by',
+            'work_order.building',
             'work_order.woc.wocNumber.twilioPhoneNumber',
         ]);
 
@@ -64,7 +66,9 @@ class OwnerAppointmentNotificationService
             return;
         }
 
-        $owner = $workOrder->managed_by;
+        // Text the real property owner (highest ownership stake), never the
+        // management-company owner_id / managed_by.
+        $owner = $workOrder->primaryOwner();
 
         // No owner on file: nothing to notify.
         if (! $owner instanceof Owner) {
@@ -107,14 +111,32 @@ class OwnerAppointmentNotificationService
             ?: 'the assigned vendor'));
 
         $when = $this->formatAppointment($serviceSchedule);
-        $property = filled($workOrder->location) ? ' at '.$workOrder->location : '';
+        $address = $this->propertyAddress($workOrder);
+        $property = $address !== '' ? ' at '.$address : '';
 
         return "Hello,\n"
             ."We wanted to provide an update that the service appointment for your property{$property} has been scheduled with {$vendorName}.\n"
             .($when !== '' ? "Scheduled: {$when}\n" : '')
             ."The vendor will be proceeding with the service as scheduled. Will you be available at the appointment time for a phone call to speak with the technician directly, or to approve the work order? If so, please let us know and we can coordinate accordingly.\n"
             ."We will continue to provide updates once the service has been completed.\n"
-            .'Thank you!';
+            ."Thank you!\n"
+            ."(Ref: WO#{$workOrder->work_order_no})";
+    }
+
+    /**
+     * The property street address, matching the street-only form the WOC uses
+     * (e.g. "3326 Jane Way"): the tenant's address, then the building's street
+     * address, else empty so the message reads "for your property".
+     */
+    private function propertyAddress(WorkOrder $workOrder): string
+    {
+        $tenantAddress = trim((string) ($workOrder->requested_by?->address ?? ''));
+
+        if ($tenantAddress !== '') {
+            return $tenantAddress;
+        }
+
+        return trim((string) ($workOrder->building?->address ?? ''));
     }
 
     /**
