@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendOwnerAppointmentNotificationJob;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -46,6 +47,12 @@ class ServiceScheduleController extends Controller
 
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
+
+            // Only the vendor portal flags this, so the owner is notified when a
+            // vendor sets the appointment — not when a coordinator sets it.
+            if ($request->boolean('notify_owner_of_schedule')) {
+                SendOwnerAppointmentNotificationJob::dispatch($serviceSchedule->id);
+            }
 
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {

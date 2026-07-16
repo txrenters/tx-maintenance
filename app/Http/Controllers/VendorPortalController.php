@@ -369,9 +369,12 @@ class VendorPortalController extends Controller
         $vendor = $request->attributes->get('portal_vendor');
 
         // The vendor is known from the token, so inject it instead of asking.
+        // The flag tells store() this schedule came from the vendor, so the
+        // owner is notified of the appointment.
         $request->merge([
             'vendor_id' => $vendor->id,
             'work_order_id' => $workOrder->id,
+            'notify_owner_of_schedule' => true,
         ]);
 
         return app(ServiceScheduleController::class)->store($request);
