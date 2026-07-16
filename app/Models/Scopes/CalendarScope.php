@@ -42,8 +42,13 @@ class CalendarScope implements Scope
             $builder->where('vendor_id', $user->vendor->id);
         }
 
-        if ($user->hasRole('tenant') && $user->tenant) {
-            $builder->where('tenant_id', $user->tenant->id);
+        if ($user->hasRole('tenant')) {
+            // Fail closed: a tenant with no linked tenant record sees nothing.
+            if ($user->tenant) {
+                $builder->where('tenant_id', $user->tenant->id);
+            } else {
+                $builder->whereRaw('1 = 0');
+            }
         }
     }
 }
