@@ -19,8 +19,14 @@ class WorkOrderScope implements Scope
             return;
         }
 
-        // Only hit the DB once per request
-        $user = self::$cachedUser ??= User::with(['vendor', 'tenant', 'roles'])->find(auth()->id());
+        // Only hit the DB once per request — but re-resolve if the
+        // authenticated user changed (tests, queue workers, long processes),
+        // otherwise one user's visibility leaks onto another.
+        if (! self::$cachedUser || self::$cachedUser->id !== auth()->id()) {
+            self::$cachedUser = User::with(['vendor', 'tenant', 'roles'])->find(auth()->id());
+        }
+
+        $user = self::$cachedUser;
 
         if (! $user || $user->hasRole('admin') || $user->hasRole('woc') || $user->hasRole('accounting')) {
             return;
