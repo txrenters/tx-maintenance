@@ -65,6 +65,10 @@ return [
         // never texts a real vendor; set SCHEDULE_FOLLOWUP_SMS_ENABLED=true in
         // production to turn it on.
         'schedule_followup_sms' => env('SCHEDULE_FOLLOWUP_SMS_ENABLED', false),
+        // Text the primary property owner via the owner<->WOC conversation when
+        // a vendor is assigned. Off by default so a deploy never texts a real
+        // owner until enabled; set OWNER_ASSIGNMENT_SMS_ENABLED=true in production.
+        'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', false),
     ],
 
     'openai' => [
