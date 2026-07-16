@@ -60,6 +60,11 @@ return [
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // Text the tenant a no-login portal link (photo upload) when their work
+        // order is marked as a tenant easy fix, plus reminders until done. Off
+        // by default so local/testing never texts a real tenant; set
+        // TENANT_PORTAL_SMS_ENABLED=true in production to turn it on.
+        'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', false),
     ],
 
     'openai' => [
