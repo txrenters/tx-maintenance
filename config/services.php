@@ -56,10 +56,20 @@ return [
         'sid' => env('TWILIO_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
         'status_callback_url' => env('TWILIO_STATUS_CALLBACK_URL'),
+        // Sender numbers we own. `from` is the general line; `maintenance_from`
+        // is the dedicated maintenance line.
+        'from' => env('TWILIO_PHONE_NUMBER'),
+        'maintenance_from' => env('MAINTENANC_TWILIO_PHONE_NUMBER'),
         // SMS alert to the WOC when a work order is classified as an
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // Text the property owner via the owner<->WOC conversation when a vendor
+        // sets the service appointment (details + ask if they want to join a
+        // call with the technician or approve the work order). Off by default so
+        // local/testing never texts a real owner; set OWNER_SCHEDULE_SMS_ENABLED=true
+        // in production to turn it on.
+        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', false),
     ],
 
     'openai' => [
