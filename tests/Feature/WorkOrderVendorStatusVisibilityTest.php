@@ -2,30 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Models\Scopes\WorkOrderScope;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class WorkOrderVendorStatusVisibilityTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // WorkOrderScope caches the resolved user in a static property; reset it so
-        // it cannot leak between tests in the same process.
-        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
-        $cached->setAccessible(true);
-        $cached->setValue(null, null);
-    }
 
     /**
      * Names of the service-status buckets returned in the deferred `service_status`

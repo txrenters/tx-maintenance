@@ -56,10 +56,36 @@ return [
         'sid' => env('TWILIO_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
         'status_callback_url' => env('TWILIO_STATUS_CALLBACK_URL'),
+        // Sender numbers we own. `from` is the general line; `maintenance_from`
+        // is the dedicated maintenance line.
+        'from' => env('TWILIO_PHONE_NUMBER'),
+        'maintenance_from' => env('MAINTENANC_TWILIO_PHONE_NUMBER'),
         // SMS alert to the WOC when a work order is classified as an
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // The five SMS features below are ON by default so a production deploy
+        // works immediately. Local .env and phpunit.xml explicitly set every
+        // flag to false, so development and tests never text real people.
+        // Fresh-start backfill migrations guarantee that enabling them never
+        // blasts the pre-existing backlog — only events after the deploy.
+        //
+        // Daily follow-up text to a vendor who still has no service schedule 3
+        // business days after being assigned.
+        'schedule_followup_sms' => env('SCHEDULE_FOLLOWUP_SMS_ENABLED', true),
+        // Text the primary property owner via the owner<->WOC conversation when
+        // a vendor is assigned.
+        'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', true),
+        // Text the property owner via the owner<->WOC conversation when a vendor
+        // sets the service appointment (details + ask if they want to join a
+        // call with the technician or approve the work order).
+        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', true),
+        // Text the primary property owner via the owner<->WOC conversation when
+        // a new service request comes in (confirmation + description).
+        'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),
+        // Text the tenant a no-login portal link (photo upload) when their work
+        // order is marked as a tenant easy fix, plus reminders until done.
+        'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', true),
     ],
 
     'openai' => [

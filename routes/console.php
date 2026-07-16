@@ -37,6 +37,15 @@ Schedule::command('import:work-order-documents')
 Schedule::command('import:buildings-from-work-orders')
     ->daily();
 
+// Fill in each building's real street address from PropertyWare. Runs after the
+// buildings import above so newly-created buildings get their address the same
+// night; --force is omitted so it only fetches buildings still missing details.
+// Owner notifications use this address when a work order has no tenant address.
+Schedule::command('sync:building-details')
+    ->dailyAt('00:30')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
@@ -45,6 +54,12 @@ Schedule::command('jobber:refresh-token')
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
     ->dailyAt('16:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('vendors:followup-unscheduled')
+    ->timezone('America/Chicago')
+    ->dailyAt('16:30')
     ->withoutOverlapping()
     ->runInBackground();
 
@@ -57,4 +72,11 @@ Schedule::command('twilio:sync-phone-numbers')
 Schedule::command('twilio:import-inbound-messages')
     ->everyFiveMinutes()
     ->withoutOverlapping()
+    ->runInBackground();
+
+// Tenant-easy-fix photo links: initial sends + capped reminders. Gated off by
+// default (TENANT_PORTAL_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('tenant-portal:send-links')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping(15)
     ->runInBackground();

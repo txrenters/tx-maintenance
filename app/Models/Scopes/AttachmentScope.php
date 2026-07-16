@@ -41,5 +41,15 @@ class AttachmentScope implements Scope
                 $q->whereIn('work_order_id', $workOrderIds);
             });
         }
+
+        if ($user->hasRole('tenant')) {
+            // A tenant only sees attachments on their own work orders; fail
+            // closed when their account isn't linked to a tenant record.
+            if ($user->tenant) {
+                $builder->whereHas('work_order', fn ($q) => $q->where('tenant_id', $user->tenant->id));
+            } else {
+                $builder->whereRaw('1 = 0');
+            }
+        }
     }
 }

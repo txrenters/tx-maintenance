@@ -8,32 +8,12 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use ReflectionProperty;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DashboardVendorScopeTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->resetWorkOrderScopeCache();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->resetWorkOrderScopeCache();
-        parent::tearDown();
-    }
-
-    private function resetWorkOrderScopeCache(): void
-    {
-        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
-        $cached->setAccessible(true);
-        $cached->setValue(null, null);
-    }
 
     public function test_dashboard_stats_count_only_work_orders_the_vendor_is_tagged_on(): void
     {

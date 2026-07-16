@@ -2,28 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\Scopes\WorkOrderScope;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use ReflectionProperty;
 use Tests\TestCase;
 
 class WorkOrderTaskBulkCompleteTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // WorkOrderScope caches the resolved user in a static property; reset it so
-        // it cannot leak between tests in the same process.
-        $cached = new ReflectionProperty(WorkOrderScope::class, 'cachedUser');
-        $cached->setAccessible(true);
-        $cached->setValue(null, null);
-    }
 
     public function test_bulk_complete_marks_selected_routine_tasks_completed(): void
     {

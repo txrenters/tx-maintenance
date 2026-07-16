@@ -90,6 +90,11 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderNotes::class, 'work_order_id');
     }
 
+    public function tenantUploadTokens(): HasMany
+    {
+        return $this->hasMany(TenantUploadToken::class);
+    }
+
     public function tenant_conversation(): HasMany
     {
         return $this->hasMany(Conversation::class)->where('conversation_type', 'tenant');

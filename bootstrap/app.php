@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveTenantPortalToken;
 use App\Http\Middleware\ResolveVendorAccountToken;
 use App\Http\Middleware\ResolveVendorPortalToken;
 use App\Http\Middleware\UpgradeToHttpsUnderNgrok;
@@ -44,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.key' => ValidateApiKey::class,
             'vendor.portal' => ResolveVendorPortalToken::class,
             'vendor.account' => ResolveVendorAccountToken::class,
+            'tenant.portal' => ResolveTenantPortalToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

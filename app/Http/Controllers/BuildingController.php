@@ -17,6 +17,9 @@ class BuildingController extends Controller
 {
     public function index(Request $request): Response
     {
+        // Staff-only directory — never expose every property to a tenant/vendor/owner.
+        abort_unless((bool) $request->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
+
         $perPage = $request->per_page
             ? ($request->per_page === 'All' ? Building::count() : (int) $request->per_page)
             : 50;
@@ -48,6 +51,8 @@ class BuildingController extends Controller
 
     public function show(Building $building): Response
     {
+        abort_unless((bool) request()->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
+
         $workOrders = $building->workOrders()
             ->scoped()
             ->with('service_status')

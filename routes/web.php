@@ -26,6 +26,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
+use App\Http\Controllers\TenantPortalController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioMessageSearchController;
 use App\Http\Controllers\TwilioPhoneNumberController;
@@ -216,6 +217,14 @@ Route::middleware('vendor.portal')->prefix('vendor-portal/{token}')->group(funct
     Route::post('/message', [VendorPortalController::class, 'sendMessage'])->name('vendor.portal.message');
     Route::post('/messages/read', [VendorPortalController::class, 'markMessagesRead'])->name('vendor.portal.messages.read');
     Route::post('/tasks/{task}/complete', [VendorPortalController::class, 'completeTask'])->name('vendor.portal.tasks.complete');
+});
+
+// Public, no-login tenant portal (photo upload for tenant-easy-fix / HOA).
+// Access is gated entirely by the magic-link token, like the vendor portal.
+Route::middleware('tenant.portal')->prefix('tenant-portal/{token}')->group(function () {
+    Route::get('/', [TenantPortalController::class, 'show'])->name('tenant.portal.show');
+    Route::post('/attachments', [TenantPortalController::class, 'uploadAttachments'])->name('tenant.portal.attachments');
+    Route::post('/complete', [TenantPortalController::class, 'complete'])->name('tenant.portal.complete');
 });
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');

@@ -1,5 +1,5 @@
 <script setup>
-import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2 } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { nextTick, onMounted, ref, watch } from "vue";
@@ -422,6 +422,25 @@ const visibleWorkOrders = (status) => {
                                 <p class="text-xs text-gray-200">
                                     📅 {{ formatDate(work_order.created_date) }}
                                 </p>
+                            </div>
+
+                            <!-- Repeat issue: this problem has come up before
+                                 at this property -->
+                            <div
+                                v-if="work_order.is_repeat_issue"
+                                class="mb-2 flex justify-center"
+                            >
+                                <span
+                                    class="inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    title="This issue has come up before at this property"
+                                >
+                                    <Repeat2 class="w-3 h-3" />
+                                    Repeat<template
+                                        v-if="Number(work_order.repeat_count) > 1"
+                                    >
+                                        · {{ work_order.repeat_count }}×</template
+                                    >
+                                </span>
                             </div>
 
                             <!-- Location -->

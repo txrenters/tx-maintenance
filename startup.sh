@@ -31,7 +31,15 @@ service supervisor restart
 
 php /home/site/wwwroot/artisan down --refresh=15 --secret="1630542a-246b-4b66-afa1-dd72a4c43515"
 
-php /home/site/wwwroot/artisan migrate --force
+# If a migration fails, stop here LOUDLY: the site stays in maintenance mode
+# and the scheduler/queue never start. Running new code against an
+# un-migrated database is what caused past 500s (missing tables), and the
+# SMS features rely on fresh-start backfill migrations to avoid texting the
+# old backlog — so never continue past a failed migrate.
+if ! php /home/site/wwwroot/artisan migrate --force; then
+    echo "MIGRATION FAILED - site left in maintenance mode, workers not started" >&2
+    exit 1
+fi
 
 # Clear caches
 php /home/site/wwwroot/artisan cache:clear
