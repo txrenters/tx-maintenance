@@ -37,6 +37,15 @@ Schedule::command('import:work-order-documents')
 Schedule::command('import:buildings-from-work-orders')
     ->daily();
 
+// Fill in each building's real street address from PropertyWare. Runs after the
+// buildings import above so newly-created buildings get their address the same
+// night; --force is omitted so it only fetches buildings still missing details.
+// Owner notifications use this address when a work order has no tenant address.
+Schedule::command('sync:building-details')
+    ->dailyAt('00:30')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
