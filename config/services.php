@@ -79,6 +79,11 @@ return [
         // local/testing never texts a real owner; set OWNER_SCHEDULE_SMS_ENABLED=true
         // in production to turn it on.
         'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', false),
+        // Text the primary property owner via the owner<->WOC conversation when
+        // a new service request comes in (confirmation + description). Off by
+        // default so local/testing never texts a real owner; set
+        // OWNER_SERVICE_REQUEST_SMS_ENABLED=true in production to turn it on.
+        'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', false),
     ],
 
     'openai' => [
