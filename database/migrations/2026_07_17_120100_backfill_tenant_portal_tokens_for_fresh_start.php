@@ -15,7 +15,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $statusId = DB::table('service_statuses')
+        // NOTE: the table really is singular `service_status` (see the
+        // 2025_02_16 create migration) even though the model is ServiceStatus.
+        $statusId = DB::table('service_status')
             ->where('name', 'Checking for Tenant Easy Fix')
             ->value('id');
 
