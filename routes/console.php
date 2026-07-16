@@ -73,3 +73,10 @@ Schedule::command('twilio:import-inbound-messages')
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Tenant-easy-fix photo links: initial sends + capped reminders. Gated off by
+// default (TENANT_PORTAL_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('tenant-portal:send-links')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();
