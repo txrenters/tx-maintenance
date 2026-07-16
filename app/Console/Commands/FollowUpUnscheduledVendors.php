@@ -65,6 +65,19 @@ class FollowUpUnscheduledVendors extends Command
                 continue;
             }
 
+            // "OWNER VENDOR" is the owner handling the repair themselves — they
+            // have no vendor dashboard to update, so never nag (not even into
+            // the conversation thread). Stamp it so it is not rescanned daily.
+            if ($vendor->isOwnerPlaceholder()) {
+                DB::table('work_order_vendors')
+                    ->where('work_order_id', $assignment->work_order_id)
+                    ->where('vendor_id', $assignment->vendor_id)
+                    ->whereNull('schedule_followup_sent_at')
+                    ->update(['schedule_followup_sent_at' => now()]);
+
+                continue;
+            }
+
             // Claim this follow-up atomically so an overlapping run or a retry
             // never texts the same assignment twice.
             $claimed = DB::table('work_order_vendors')
