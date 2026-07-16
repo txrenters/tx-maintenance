@@ -357,6 +357,36 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertStringContainsString('handle the repairs at 3326 Jane Way', $ownerMessage);
     }
 
+    public function test_owner_is_not_texted_when_the_owner_vendor_placeholder_is_assigned(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-ov'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-ov'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+        config(['services.twilio.owner_assignment_sms' => true]);
+
+        // "OWNER VENDOR" = the owner handles the repair themselves; telling the
+        // owner we assigned them makes no sense, so no owner text goes out.
+        $vendor = $this->makeVendor(['name' => 'OWNER VENDOR', 'email' => null]);
+        $owner = $this->makeOwner(['phone' => '7135030427']);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43342]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-ov']);
+        $workOrder->owners()->attach($owner->id);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseMissing('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+        ]);
+        Bus::assertNotDispatched(SendConversationMessageJob::class);
+    }
+
     public function test_job_does_not_text_owner_without_a_phone(): void
     {
         Bus::fake();

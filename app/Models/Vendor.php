@@ -29,6 +29,17 @@ class Vendor extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * True when this record is the "OWNER VENDOR" placeholder, meaning the
+     * property owner handles the repair themselves. No automated vendor or
+     * owner texts should be sent for assignments to it. Matched by name so it
+     * works regardless of the record's id in any environment.
+     */
+    public function isOwnerPlaceholder(): bool
+    {
+        return Str::lower(trim((string) $this->name)) === 'owner vendor';
+    }
+
     public function workOrders(): BelongsToMany
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_vendors', 'vendor_id', 'work_order_id')

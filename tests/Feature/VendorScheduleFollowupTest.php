@@ -159,6 +159,27 @@ class VendorScheduleFollowupTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_it_never_nags_the_owner_vendor_placeholder(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        // "OWNER VENDOR" = the owner handles the repair themselves. They have no
+        // vendor dashboard, so no text AND no conversation-thread nag — and the
+        // assignment is stamped so it is not rescanned every day.
+        $vendor = $this->makeVendor(phone: null);
+        $vendor->update(['name' => 'OWNER VENDOR']);
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor, businessDaysAgo: 5);
+
+        $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNothingPushed();
+        $this->assertNotNull($this->followupSentAt($workOrder, $vendor), 'The placeholder assignment should be stamped so it is never rescanned.');
+    }
+
     public function test_it_never_texts_the_same_assignment_twice(): void
     {
         config(['services.twilio.schedule_followup_sms' => true]);

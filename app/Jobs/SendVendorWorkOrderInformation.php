@@ -128,6 +128,12 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
+        // "OWNER VENDOR" means the owner handles the repair themselves —
+        // telling the owner we assigned them makes no sense, so skip.
+        if ($vendor->isOwnerPlaceholder()) {
+            return;
+        }
+
         $owner = $workOrder->primaryOwner();
 
         // No owner on file — nothing to notify.
