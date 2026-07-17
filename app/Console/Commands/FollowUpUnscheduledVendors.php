@@ -6,7 +6,6 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,23 +14,28 @@ class FollowUpUnscheduledVendors extends Command
 {
     protected $signature = 'vendors:followup-unscheduled';
 
-    protected $description = 'Text vendors who still have no service schedule 3 business days after being assigned.';
-
-    /**
-     * Business days after assignment before the vendor is nudged.
-     */
-    private const FOLLOWUP_AFTER_BUSINESS_DAYS = 3;
+    protected $description = 'Text vendors every day, starting right after assignment, until they set a service schedule.';
 
     /**
      * The follow-up message, approved by operations (Chana).
      */
     private const MESSAGE = "Hello,\n"
-        ."We noticed that a service schedule has not yet been set for this work order after 3 days.\n"
+        ."We noticed that a service schedule has not yet been set for this work order.\n"
         ."Please make sure to update the work order by creating a schedule under the Service Schedule tab on your dashboard once confirmed with the tenant.\n"
         ."Once the appointment has been scheduled, please ensure that the completed tasks are checked off accordingly so the work order status can be updated to Scheduled.\n"
         ."Please complete this update as soon as possible and let us know once it has been done.\n"
         .'Thank you.';
 
+    /**
+     * Runs daily. Every unscheduled assignment created after go-live is nudged
+     * once per day until a service schedule appears (or the work order closes).
+     *
+     * Two columns keep this safe:
+     *  - schedule_followup_sent_at   permanent "handled / excluded" baseline —
+     *    the fresh-start backfill stamps the pre-existing backlog, and the OWNER
+     *    VENDOR placeholder is stamped here too, so neither is ever nagged.
+     *  - schedule_followup_last_sent_at  the once-per-day throttle.
+     */
     public function handle(): int
     {
         // Gated off by default so local/testing never texts a real vendor.
@@ -41,17 +45,21 @@ class FollowUpUnscheduledVendors extends Command
             return self::SUCCESS;
         }
 
+        $startOfToday = now()->startOfDay();
+
+        // Only assignments that are not excluded (sent_at is the backlog /
+        // placeholder baseline) and have not already been nudged today.
         $assignments = DB::table('work_order_vendors')
             ->whereNull('schedule_followup_sent_at')
-            ->get(['work_order_id', 'vendor_id', 'created_at']);
+            ->where(function ($query) use ($startOfToday) {
+                $query->whereNull('schedule_followup_last_sent_at')
+                    ->orWhere('schedule_followup_last_sent_at', '<', $startOfToday);
+            })
+            ->get(['work_order_id', 'vendor_id']);
 
         $sent = 0;
 
         foreach ($assignments as $assignment) {
-            if (! $this->isDueForFollowUp($assignment)) {
-                continue;
-            }
-
             $workOrder = WorkOrder::query()->find($assignment->work_order_id);
 
             // Only open work orders that still have no service schedule.
@@ -67,7 +75,8 @@ class FollowUpUnscheduledVendors extends Command
 
             // "OWNER VENDOR" is the owner handling the repair themselves — they
             // have no vendor dashboard to update, so never nag (not even into
-            // the conversation thread). Stamp it so it is not rescanned daily.
+            // the conversation thread). Stamp the exclusion baseline so it is
+            // never rescanned.
             if ($vendor->isOwnerPlaceholder()) {
                 DB::table('work_order_vendors')
                     ->where('work_order_id', $assignment->work_order_id)
@@ -78,13 +87,16 @@ class FollowUpUnscheduledVendors extends Command
                 continue;
             }
 
-            // Claim this follow-up atomically so an overlapping run or a retry
-            // never texts the same assignment twice.
+            // Claim today's nudge atomically so an overlapping run or a retry
+            // never texts the same assignment twice on the same day.
             $claimed = DB::table('work_order_vendors')
                 ->where('work_order_id', $assignment->work_order_id)
                 ->where('vendor_id', $assignment->vendor_id)
-                ->whereNull('schedule_followup_sent_at')
-                ->update(['schedule_followup_sent_at' => now()]);
+                ->where(function ($query) use ($startOfToday) {
+                    $query->whereNull('schedule_followup_last_sent_at')
+                        ->orWhere('schedule_followup_last_sent_at', '<', $startOfToday);
+                })
+                ->update(['schedule_followup_last_sent_at' => now()]);
 
             if ($claimed === 0) {
                 continue;
@@ -105,18 +117,6 @@ class FollowUpUnscheduledVendors extends Command
         $this->info("Vendor schedule follow-ups sent: {$sent}.");
 
         return self::SUCCESS;
-    }
-
-    /**
-     * At least 3 business days must have passed since the vendor was assigned.
-     */
-    private function isDueForFollowUp(object $assignment): bool
-    {
-        if (blank($assignment->created_at)) {
-            return false;
-        }
-
-        return Carbon::parse($assignment->created_at)->diffInWeekdays(now()) >= self::FOLLOWUP_AFTER_BUSINESS_DAYS;
     }
 
     /**
