@@ -54,6 +54,35 @@ class MicrosoftGraphMailServiceTest extends TestCase
         $this->assertSame(1, $tokenCalls);
     }
 
+    public function test_fetch_inbox_follows_pagination_next_link(): void
+    {
+        $inboxCalls = 0;
+
+        Http::fake(function ($request) use (&$inboxCalls) {
+            $url = $request->url();
+
+            if (str_contains($url, 'login.microsoftonline.com')) {
+                return Http::response(['access_token' => 'tok', 'expires_in' => 3600]);
+            }
+
+            $inboxCalls++;
+
+            if ($inboxCalls === 1) {
+                return Http::response([
+                    'value' => [['id' => 'M1', 'subject' => 'first']],
+                    '@odata.nextLink' => 'https://graph.microsoft.com/v1.0/users/mbx/mailFolders/inbox/messages?$skiptoken=ABC',
+                ]);
+            }
+
+            return Http::response(['value' => [['id' => 'M2', 'subject' => 'second']]]);
+        });
+
+        $messages = app(MicrosoftGraphMailService::class)->fetchInbox(now()->subHour());
+
+        $this->assertCount(2, $messages);
+        $this->assertSame(['M1', 'M2'], array_column($messages, 'id'));
+    }
+
     public function test_get_attachments_decodes_files_and_skips_non_files(): void
     {
         Http::fake([
