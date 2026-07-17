@@ -53,6 +53,7 @@ const props = defineProps({
     vendorLinks: Array,
     categories: Array,
     serviceStatuses: Array,
+    canViewJobberLink: Boolean,
 });
 
 const { toast } = useToast();
@@ -649,6 +650,16 @@ const handleCloseOrderSubmit = () => {
                 >
                     <ExternalLink class="h-3.5 w-3.5" />
                     PropertyWare
+                </a>
+                <a
+                    v-if="canViewJobberLink && workOrder.jobber_web_uri"
+                    :href="workOrder.jobber_web_uri"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                >
+                    <ExternalLink class="h-3.5 w-3.5" />
+                    Open in Jobber
                 </a>
             </div>
             <div class="flex gap-2 flex-wrap mt-2">

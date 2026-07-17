@@ -101,4 +101,18 @@ return [
         'job_reminder_mailbox' => env('MICROSOFT_JOB_REMINDER_MAILBOX', 'service@txhomemp.com'),
     ],
 
+    'jobber' => [
+        'graphql_url' => env('JOBBER_GRAPHQL_URL', 'https://api.getjobber.com/api/graphql'),
+        'api_version' => env('JOBBER_API_VERSION'),
+        // When THMP is assigned to a work order, create the matching job in
+        // Jobber and store its link on the work order. Off by default so local
+        // and test environments never create real Jobber jobs; set
+        // JOBBER_JOB_CREATE_ENABLED=true in production (coordinated with
+        // disabling the equivalent n8n "Create Job" workflow to avoid
+        // double-creating).
+        'job_create_enabled' => env('JOBBER_JOB_CREATE_ENABLED', false),
+        // The fixed Jobber user every THMP job is assigned to.
+        'thmp_assignee_gid' => env('JOBBER_THMP_ASSIGNEE_GID', 'Z2lkOi8vSm9iYmVyL1VzZXIvMjE1MjEwMQ=='),
+    ],
+
 ];

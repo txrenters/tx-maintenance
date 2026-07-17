@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\CreateJobberJobForWorkOrder;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
@@ -911,13 +912,18 @@ class PropertyWareService
             $this->approvedWorkOrder($workOrder);
         }
 
-        $vendor = DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->first();
-        $vendorName = Vendor::find($vendor->vendor_id);
+        // When THMP is among the assigned vendors, create the matching Jobber
+        // job and store its link on the work order. Queued + gated + idempotent,
+        // so this is safe to fire on every vendor change. Replaces the previous
+        // POST to the n8n "create-job" workflow (now owned in-app).
+        $hasThmp = DB::table('work_order_vendors')
+            ->join('vendors', 'vendors.id', '=', 'work_order_vendors.vendor_id')
+            ->where('work_order_vendors.work_order_id', $workOrder->id)
+            ->where('vendors.name', 'Texas Home Maintenance Pros')
+            ->exists();
 
-        if ($vendorName->name == 'Texas Home Maintenance Pros') {
-            Http::post('https://n8n.srv902502.hstgr.cloud/webhook/create-job', [
-                'work_order_no' => $workOrder->work_order_no,
-            ]);
+        if ($hasThmp) {
+            CreateJobberJobForWorkOrder::dispatch($workOrder->id);
         }
 
         Log::info('Work order vendor has been added successfully!', [
