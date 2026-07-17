@@ -49,4 +49,32 @@ class HtmlSanitizerTest extends TestCase
         $this->assertStringNotContainsString('<div>', $out);
         $this->assertStringNotContainsString('<span>', $out);
     }
+
+    public function test_strips_html_comments_including_abrupt_close_mxss(): void
+    {
+        $out = $this->sanitizer->clean('<!--><img src=x onerror=alert(1)>-->');
+
+        $this->assertStringNotContainsString('onerror', $out);
+        $this->assertStringNotContainsString('<img', $out);
+        $this->assertStringNotContainsString('alert', $out);
+
+        $out2 = $this->sanitizer->clean('<p>hi<!-- secret -->there</p>');
+
+        $this->assertStringNotContainsString('secret', $out2);
+        $this->assertStringContainsString('hi', $out2);
+        $this->assertStringContainsString('there', $out2);
+    }
+
+    public function test_empty_and_whitespace_input_return_empty(): void
+    {
+        $this->assertSame('', $this->sanitizer->clean(''));
+        $this->assertSame('', $this->sanitizer->clean('   '));
+    }
+
+    public function test_plain_text_is_preserved(): void
+    {
+        $out = $this->sanitizer->clean('just words');
+
+        $this->assertStringContainsString('just words', $out);
+    }
 }

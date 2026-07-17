@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use DOMComment;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -47,6 +48,12 @@ class HtmlSanitizer
     private function sanitizeChildren(DOMNode $node): void
     {
         foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child instanceof DOMComment) {
+                $node->removeChild($child);
+
+                continue;
+            }
+
             if (! $child instanceof DOMElement) {
                 continue;
             }
