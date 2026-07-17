@@ -23,6 +23,7 @@ import Invoices from "@/Pages/WorkOrder/Partials/Invoices.vue";
 import Notes from "@/Pages/WorkOrder/Partials/Notes.vue";
 import VendorEdit from "@/Pages/WorkOrder/Partials/VendorEdit.vue";
 import Recommendation from "@/Pages/WorkOrder/Partials/Recommendation.vue";
+import EmailNotifications from "@/Pages/WorkOrder/Partials/EmailNotifications.vue";
 
 import {
     ClipboardList,
@@ -35,6 +36,7 @@ import {
     MessagesSquare,
     Sparkles,
     ExternalLink,
+    Mail,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -217,6 +219,12 @@ const tabButtons = [
         requires: ["admin", "woc", "vendor"],
     },
     {
+        name: "email_notifications",
+        tooltip: "Email Notifications",
+        icon: Mail,
+        requires: ["admin", "woc"],
+    },
+    {
         name: "conversation",
         tooltip: "Conversation",
         icon: MessagesSquare,
@@ -265,6 +273,21 @@ const workOrderNotes = ref([]);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
 const isGeneratingRecommendation = ref(false);
+const emailNotifications = ref([]);
+const emailNotificationsLoading = ref(false);
+
+const fetchEmailNotifications = async (workOrderId) => {
+    emailNotificationsLoading.value = true;
+    try {
+        const response = await axios.get(route("work_order.email.notifications", workOrderId));
+        emailNotifications.value = response.data.emails ?? [];
+    } catch (error) {
+        console.error(error);
+        toast({ variant: "destructive", title: "Email history unavailable" });
+    } finally {
+        emailNotificationsLoading.value = false;
+    }
+};
 
 const switchTab = (tabName) => {
     activeTab.value = tabName;
@@ -280,6 +303,10 @@ const switchTab = (tabName) => {
 
     if (activeTab.value === "details" && workOrderForm.id) {
         handleWorkOrder(workOrderForm.id);
+    }
+
+    if (activeTab.value === "email_notifications" && workOrderForm.id) {
+        fetchEmailNotifications(workOrderForm.id);
     }
 
     if (activeTab.value === "vendor_tenant_conversation" && workOrderForm.id) {
@@ -634,7 +661,7 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = true;
 
     try {
-        const response = await axios.get(route("work_orders.show", orderId));
+        const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data;
 
         workOrderForm.id = order.id;
@@ -792,6 +819,12 @@ watch(
                 @delete="close()"
                 @update-workOrder="handleWorkOrder(workOrderForm.id)"
                 v-if="activeTab === 'details'"
+            />
+
+            <EmailNotifications
+                v-if="activeTab === 'email_notifications'"
+                :emails="emailNotifications"
+                :loading="emailNotificationsLoading"
             />
 
             <WorkOrderTask

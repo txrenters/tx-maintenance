@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendVendorWorkOrderInformation;
-use App\Mail\VendorServiceRequestMail;
 use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\Tenants;
@@ -15,6 +14,7 @@ use App\Services\PropertyWareService;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -22,6 +22,23 @@ use Tests\TestCase;
 class VendorWorkOrderInformationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['cache.default' => 'array']);
+        Cache::forget('microsoft.graph.token');
+        Http::fake([
+            'https://login.microsoftonline.com/*' => Http::response(['access_token' => 'test-token', 'expires_in' => 3600]),
+            'https://graph.microsoft.com/*/messages/*/send' => Http::response([], 202),
+            'https://graph.microsoft.com/*/messages' => Http::response([
+                'id' => 'TEST_GRAPH_ID',
+                'internetMessageId' => '<test@texasrenters.com>',
+                'conversationId' => 'TEST_CONVERSATION_ID',
+            ]),
+        ]);
+    }
 
     private function makeVendor(array $overrides = [], ?string $userPhone = null): Vendor
     {
@@ -97,9 +114,14 @@ class VendorWorkOrderInformationTest extends TestCase
         (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
             ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
 
-        Mail::assertSent(VendorServiceRequestMail::class, function ($mail) use ($vendor) {
-            return $mail->hasTo($vendor->email);
-        });
+        Mail::assertNothingSent();
+        $this->assertDatabaseHas('email_messages', [
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+            'direction' => 'outbound',
+            'from_email' => 'workorders@texasrenters.com',
+            'to_email' => $vendor->email,
+        ]);
 
         Http::assertSent(fn ($request) => $request->url() === 'https://api.propertyware.com/pw/api/rest/v1/docs'
             && $request->method() === 'POST');
@@ -134,7 +156,8 @@ class VendorWorkOrderInformationTest extends TestCase
                 ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
         }
 
-        Mail::assertSent(VendorServiceRequestMail::class, 1);
+        Mail::assertNothingSent();
+        $this->assertDatabaseCount('email_messages', 1);
         $this->assertDatabaseCount('work_order_conversations', 1);
         Bus::assertDispatchedTimes(SendConversationMessageJob::class, 1);
     }

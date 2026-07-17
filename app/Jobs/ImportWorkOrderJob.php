@@ -249,7 +249,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 'lease_id' => $data['lease']['ID'] ?? null,
                 'portfolio_id' => $data['portfolio']['ID'] ?? null,
                 'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
-                'owner_id' => $owner,
+                'property_manager_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
                 'user_id' => $woc?->id,
                 'created_at' => $now,

@@ -39,6 +39,26 @@ class MicrosoftGraphMailServiceTest extends TestCase
         Http::assertSent(fn ($r) => str_ends_with($r->url(), '/messages/GRAPH_ID/send'));
     }
 
+    public function test_send_mail_can_use_an_explicit_sender_mailbox(): void
+    {
+        $this->fakeGraph();
+
+        app(MicrosoftGraphMailService::class)->sendMail(
+            'tenant@example.com',
+            [],
+            'Reminder',
+            '<p>Reminder body</p>',
+            mailbox: 'service@txhomemp.com',
+        );
+
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://graph.microsoft.com/v1.0/users/service@txhomemp.com/messages'
+            && $request['toRecipients'][0]['emailAddress']['address'] === 'tenant@example.com'
+            && $request['ccRecipients'] === []);
+        Http::assertSent(fn ($request) => $request->url()
+            === 'https://graph.microsoft.com/v1.0/users/service@txhomemp.com/messages/GRAPH_ID/send');
+    }
+
     public function test_token_is_cached_across_calls(): void
     {
         $this->fakeGraph();

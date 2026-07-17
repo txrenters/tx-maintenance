@@ -1,12 +1,14 @@
 # Vendor Email System Implementation Plan
 
+**Implementation status (2026-07-18):** Complete on Laravel 13. The vendor Graph send/reply thread, attachment handling, manual composer, work-order tab, and tests are implemented. The same architecture was also extended to tenant Jobber-job threads using `service@txhomemp.com`, a dedicated reply-sync cursor, and the tenant show page.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Persist, display, manually compose, and receive vendor-reply emails on a work order — sent/received through the `workorders@` mailbox via Microsoft Graph, scoped to work order + vendor.
 
 **Architecture:** A dedicated `EmailMessage` (+ `EmailAttachment`) model stores every outbound/inbound email. Outbound goes through a `WorkOrderEmailSender` service that calls `MicrosoftGraphMailService` (draft-then-send, capturing Graph ids) and persists the row; the existing automated assignment email is re-routed through it while keeping its current Blade design. Inbound replies are pulled by a scheduled `emails:sync-replies` command that matches a `[TX-<wo>-<vendor>]` subject tag (with header/conversationId fallback) and threads them. A new "Emails" tab on the work order page shows the thread with a Tiptap rich-text compose box.
 
-**Tech Stack:** Laravel 12/PHP 8.4, Vue 3 + Inertia, Microsoft Graph REST (via `Http`/Guzzle), Tiptap (`@tiptap/vue-3`, `@tiptap/starter-kit`), PHPUnit.
+**Tech Stack:** Laravel 13/PHP 8.4, Vue 3 + Inertia, Microsoft Graph REST (via `Http`/Guzzle), Tiptap (`@tiptap/vue-3`, `@tiptap/starter-kit`), PHPUnit 12.
 
 ## Global Constraints
 

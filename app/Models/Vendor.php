@@ -47,6 +47,11 @@ class Vendor extends Model
             ->withTimestamps();
     }
 
+    public function emailMessages(): HasMany
+    {
+        return $this->hasMany(EmailMessage::class);
+    }
+
     /**
      * Return this vendor's stable no-login dashboard token, creating it if absent.
      */

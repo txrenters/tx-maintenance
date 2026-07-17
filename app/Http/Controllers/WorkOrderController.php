@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
@@ -300,6 +301,11 @@ class WorkOrderController extends Controller
     }
 
     public function show(WorkOrder $workOrder)
+    {
+        return redirect()->route('work_orders.details', $workOrder);
+    }
+
+    public function data(WorkOrder $workOrder)
     {
         $workOrder->load([
             'service_status',
@@ -1035,6 +1041,7 @@ class WorkOrderController extends Controller
                     // vendor, and upload it to PropertyWare. Queued so the assign
                     // request stays fast; the token above is read by the job.
                     SendVendorWorkOrderInformation::dispatch($workOrder->id, $vendor->id);
+                    SendOwnerVendorAssignmentEmail::dispatch($workOrder->id, $vendor->id);
                 });
             }
 

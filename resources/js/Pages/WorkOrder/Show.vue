@@ -22,6 +22,8 @@ import VendorEdit from "./Partials/VendorEdit.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import Recommendation from "./Partials/Recommendation.vue";
+import OwnerEmail from "./Partials/OwnerEmail.vue";
+import EmailNotifications from "./Partials/EmailNotifications.vue";
 import {
     ClipboardList,
     ListChecks,
@@ -34,6 +36,7 @@ import {
     ArrowLeft,
     Sparkles,
     ExternalLink,
+    Mail,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -118,6 +121,12 @@ const tabButtons = [
         requires: ["admin", "woc"],
     },
     {
+        name: "owner_email",
+        tooltip: "Owner Email",
+        icon: Mail,
+        requires: ["admin", "woc"],
+    },
+    {
         name: "tenant_conversation",
         tooltip: "Tenant Conversation",
         icon: "T",
@@ -164,6 +173,12 @@ const tabButtons = [
         tooltip: "Invoice",
         icon: FileText,
         requires: ["admin", "woc", "vendor"],
+    },
+    {
+        name: "email_notifications",
+        tooltip: "Email Notifications",
+        icon: Mail,
+        requires: ["admin", "woc"],
     },
     {
         name: "conversation",
@@ -236,13 +251,18 @@ const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
 const isGeneratingRecommendation = ref(false);
+const emailNotifications = ref([]);
+const emailNotificationsLoading = ref(false);
 
 const ownerConversation = ref([]);
 const tenantConversation = ref([]);
 const vendorConversation = ref([]);
 const vendorOwnerConversation = ref([]);
 const vendorTenantConversation = ref([]);
-const workOrderOwners = ref([]);
+const ownerEmails = ref([]);
+const selectedOwnerId = ref(null);
+const ownerEmailSender = ref("");
+const workOrderOwners = ref(order.owners ?? []);
 const workOrderTenants = ref([]);
 const workOrderVendors = ref(order.vendors ?? []);
 
@@ -264,6 +284,49 @@ const fetchOwnerConversation = async () => {
         workOrderOwners.value = res.data.owners;
     } catch (e) {
         console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const fetchEmailNotifications = async () => {
+    emailNotificationsLoading.value = true;
+
+    try {
+        const response = await axios.get(
+            route("work_order.email.notifications", workOrderForm.id),
+        );
+        emailNotifications.value = response.data.emails ?? [];
+    } catch (error) {
+        console.error(error);
+        toast({ variant: "destructive", title: "Email history unavailable" });
+    } finally {
+        emailNotificationsLoading.value = false;
+    }
+};
+
+const fetchOwnerEmails = async (ownerId = selectedOwnerId.value) => {
+    try {
+        isLoading.value = true;
+        selectedOwnerId.value = ownerId ?? workOrderOwners.value?.[0]?.id ?? null;
+
+        const res = await axios.get(
+            route("work_order.owner_email.index", workOrderForm.id),
+            {
+                params: selectedOwnerId.value
+                    ? { owner_id: selectedOwnerId.value }
+                    : {},
+            },
+        );
+        ownerEmails.value = res.data.owner_emails ?? [];
+        ownerEmailSender.value = res.data.sender_email ?? "";
+    } catch (e) {
+        console.error(e);
+        toast({
+            variant: "destructive",
+            title: "Email history unavailable",
+            description: "The owner email thread could not be loaded.",
+        });
     } finally {
         isLoading.value = false;
     }
@@ -493,8 +556,10 @@ const switchTab = (tabName) => {
     if (tabName === "notes") fetchNotes();
     if (tabName === "attachments") fetchAttachments();
     if (tabName === "invoices") fetchInvoices();
+    if (tabName === "email_notifications") fetchEmailNotifications();
     if (tabName === "service_schedule") fetchVendorServiceSchedules();
     if (tabName === "vendor_edit") fetchVendors();
+    if (tabName === "owner_email") fetchOwnerEmails();
     if (
         tabName === "vendor_conversation" ||
         tabName === "vendor_woc_conversation"
@@ -716,6 +781,17 @@ const handleCloseOrderSubmit = () => {
                 @update-owner-convo="fetchOwnerConversation"
             />
 
+            <OwnerEmail
+                v-if="activeTab === 'owner_email'"
+                :work-order="workOrderForm"
+                :owner-emails="ownerEmails"
+                :owners="workOrderOwners"
+                :owner-id="selectedOwnerId"
+                :sender-email="ownerEmailSender"
+                @select-owner="fetchOwnerEmails"
+                @update-owner-email="fetchOwnerEmails"
+            />
+
             <OwnerWocConversation
                 v-if="activeTab === 'owner_woc_conversation'"
                 :ownerConversation="ownerConversation"
@@ -780,6 +856,12 @@ const handleCloseOrderSubmit = () => {
                 :assignedVendors="workOrderVendors"
                 :isLoading="isLoading"
                 @fetch-invoices="fetchInvoices"
+            />
+
+            <EmailNotifications
+                v-if="activeTab === 'email_notifications'"
+                :emails="emailNotifications"
+                :loading="emailNotificationsLoading"
             />
 
             <Notes

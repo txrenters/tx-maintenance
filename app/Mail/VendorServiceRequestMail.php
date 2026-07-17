@@ -27,9 +27,9 @@ class VendorServiceRequestMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: 'workorders@texasrenters.com',
             subject: 'New Service Request - Work Order #'.$this->workOrderNo,
             cc: [
-                'workorders@texasrenters.com',
                 'mc@texasrenters.com',
                 'ofm@txhomemp.com',
             ],

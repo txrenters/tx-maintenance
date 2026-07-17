@@ -55,7 +55,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
             'work_order_no' => 43361,
             'description' => $description,
             'tenant_id' => $tenant?->id,
-            'owner_id' => $managementCompany?->id,
+            'property_manager_id' => $managementCompany?->id,
         ]);
     }
 
@@ -122,7 +122,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->enableGate();
         Queue::fake();
 
-        // owner_id / managed_by points at the management company (0% stake).
+        // property_manager_id / managed_by points at the management company (0% stake).
         $managementCompany = $this->makeOwner('2810000000', 0);
         $realOwner = $this->makeOwner('3466260693', 100);
         $tenant = $this->makeTenant();

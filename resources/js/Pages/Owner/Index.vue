@@ -2,7 +2,6 @@
 import { ref } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import TableData from "./Partials/TableData.vue";
-import { useToast } from "@/Components/ui/toast/use-toast";
 
 defineOptions({ layout: AppLayout });
 

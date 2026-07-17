@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\OwnerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Owner extends Model
 {
-    /** @use HasFactory<\Database\Factories\OwnerFactory> */
+    /** @use HasFactory<OwnerFactory> */
     use HasFactory;
 
     protected $table = 'owners';
@@ -29,6 +31,16 @@ class Owner extends Model
     public function work_orders(): BelongsToMany
     {
         return $this->belongsToMany(WorkOrder::class, 'work_order_owners');
+    }
+
+    public function managementWorkOrders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class, 'property_manager_id');
+    }
+
+    public function emailNotifications(): HasMany
+    {
+        return $this->hasMany(OwnerEmailNotification::class);
     }
 
     public function scopeFilter($query, array $filter): void

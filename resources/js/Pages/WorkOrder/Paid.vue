@@ -620,7 +620,7 @@ const handleWorkOrder = async (orderId) => {
     try {
         const response = await axios.get(
             route(
-                "work_orders.show",
+                "work_orders.data",
                 typeof orderId === "object" ? orderId.id : orderId
             )
         );

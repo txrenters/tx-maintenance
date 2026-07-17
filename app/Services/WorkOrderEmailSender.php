@@ -25,7 +25,7 @@ class WorkOrderEmailSender
      * @param  array<int, string>  $cc
      */
     public function sendVendorEmail(
-        WorkOrder $workOrder,
+        ?WorkOrder $workOrder,
         Vendor $vendor,
         string $subject,
         string $html,
@@ -33,8 +33,14 @@ class WorkOrderEmailSender
         ?User $sentBy = null,
         array $cc = self::DEFAULT_CC,
         bool $trustedHtml = false,
+        ?string $to = null,
+        ?string $mailbox = null,
     ): EmailMessage {
-        $tag = 'TX-'.$workOrder->work_order_no.'-'.$vendor->id;
+        $recipient = $to ?? $vendor->email;
+        $senderMailbox = $mailbox ?? (string) config('services.microsoft.mailbox');
+        $tag = $workOrder
+            ? 'TX-'.$workOrder->work_order_no.'-'.$vendor->id
+            : 'TX-GEN-'.$vendor->id;
         $subject = str_contains($subject, '['.$tag.']')
             ? $subject
             : trim($subject).' ['.$tag.']';
@@ -56,17 +62,17 @@ class WorkOrderEmailSender
             $storable[] = [$name, $mime, $bytes];
         }
 
-        $ids = $this->graph->sendMail($vendor->email, $cc, $subject, $finalHtml, $graphAttachments);
+        $ids = $this->graph->sendMail($recipient, $cc, $subject, $finalHtml, $graphAttachments, $senderMailbox);
 
         $message = EmailMessage::create([
-            'work_order_id' => $workOrder->id,
+            'work_order_id' => $workOrder?->id,
             'vendor_id' => $vendor->id,
             'direction' => 'outbound',
             'subject' => $subject,
             'body_html' => $finalHtml,
             'body_text' => trim(strip_tags($finalHtml)),
-            'from_email' => config('services.microsoft.mailbox'),
-            'to_email' => $vendor->email,
+            'from_email' => $senderMailbox,
+            'to_email' => $recipient,
             'cc' => array_values($cc),
             'correlation_tag' => $tag,
             'graph_message_id' => $ids['graph_message_id'],

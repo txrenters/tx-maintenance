@@ -34,8 +34,15 @@ class MicrosoftGraphMailService
      * @param  array<int, array{name: string, contentType: string, contentBytes: string}>  $attachments
      * @return array{graph_message_id: string, internet_message_id: ?string, graph_conversation_id: ?string}
      */
-    public function sendMail(string $to, array $cc, string $subject, string $html, array $attachments = []): array
-    {
+    public function sendMail(
+        string $to,
+        array $cc,
+        string $subject,
+        string $html,
+        array $attachments = [],
+        ?string $mailbox = null,
+    ): array {
+        $senderMailbox = $mailbox ?? $this->mailbox;
         $message = [
             'subject' => $subject,
             'body' => ['contentType' => 'HTML', 'content' => $html],
@@ -56,14 +63,14 @@ class MicrosoftGraphMailService
         }
 
         $draft = $this->request()
-            ->post("/users/{$this->mailbox}/messages", $message)
+            ->post("/users/{$senderMailbox}/messages", $message)
             ->throw()
             ->json();
 
         $id = (string) $draft['id'];
 
         $this->request()
-            ->post("/users/{$this->mailbox}/messages/{$id}/send")
+            ->post("/users/{$senderMailbox}/messages/{$id}/send")
             ->throw();
 
         return [
@@ -76,10 +83,11 @@ class MicrosoftGraphMailService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function fetchInbox(CarbonInterface $since): array
+    public function fetchInbox(CarbonInterface $since, ?string $mailbox = null): array
     {
         $messages = [];
-        $url = "/users/{$this->mailbox}/mailFolders/inbox/messages";
+        $senderMailbox = $mailbox ?? $this->mailbox;
+        $url = "/users/{$senderMailbox}/mailFolders/inbox/messages";
         $query = [
             '$select' => 'id,subject,from,receivedDateTime,hasAttachments,conversationId,internetMessageId,body,internetMessageHeaders',
             '$filter' => 'receivedDateTime ge '.$since->toIso8601ZuluString(),
@@ -100,10 +108,11 @@ class MicrosoftGraphMailService
     /**
      * @return array<int, array{name: string, contentType: string, bytes: string}>
      */
-    public function getAttachments(string $messageId): array
+    public function getAttachments(string $messageId, ?string $mailbox = null): array
     {
+        $senderMailbox = $mailbox ?? $this->mailbox;
         $response = $this->request()
-            ->get("/users/{$this->mailbox}/messages/{$messageId}/attachments")
+            ->get("/users/{$senderMailbox}/messages/{$messageId}/attachments")
             ->throw()
             ->json();
 
@@ -123,10 +132,11 @@ class MicrosoftGraphMailService
         return $files;
     }
 
-    public function markRead(string $messageId): void
+    public function markRead(string $messageId, ?string $mailbox = null): void
     {
+        $senderMailbox = $mailbox ?? $this->mailbox;
         $this->request()
-            ->patch("/users/{$this->mailbox}/messages/{$messageId}", ['isRead' => true])
+            ->patch("/users/{$senderMailbox}/messages/{$messageId}", ['isRead' => true])
             ->throw();
     }
 

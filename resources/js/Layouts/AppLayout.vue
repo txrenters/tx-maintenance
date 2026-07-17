@@ -829,7 +829,9 @@ onUnmounted(() => {
 <template>
     <SidebarProvider>
         <Sidebar collapsible="icon">
-            <SidebarHeader>
+            <SidebarHeader
+                class="px-4 group-data-[collapsible=icon]:px-2"
+            >
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <DropdownMenu>
@@ -850,9 +852,11 @@ onUnmounted(() => {
                 </SidebarMenu>
             </SidebarHeader>
             <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Menu</SidebarGroupLabel>
-                    <SidebarMenu>
+                <SidebarGroup
+                    class="px-4 group-data-[collapsible=icon]:px-2"
+                >
+                    <SidebarGroupLabel class="px-5">Menu</SidebarGroupLabel>
+                    <SidebarMenu class="gap-1.5 px-1">
                         <template v-for="item in navs.menu" :key="item?.name">
                             <SidebarMenuItem
                                 v-if="
@@ -876,7 +880,7 @@ onUnmounted(() => {
                             </SidebarMenuItem>
                         </template>
                     </SidebarMenu>
-                    <SidebarMenu class="mb-1">
+                    <SidebarMenu class="mb-1 gap-1.5 px-1">
                         <template
                             v-for="item in navs.navMain"
                             :key="item?.title"
@@ -931,7 +935,7 @@ onUnmounted(() => {
                             </Collapsible>
                         </template>
                     </SidebarMenu>
-                    <SidebarMenu>
+                    <SidebarMenu class="gap-1.5 px-1">
                         <template v-for="item in navs.menu2" :key="item?.name">
                             <SidebarMenuItem
                                 v-if="
@@ -955,6 +959,7 @@ onUnmounted(() => {
                         </template>
                     </SidebarMenu>
                     <SidebarMenu
+                        class="gap-1.5 px-1"
                         v-if="
                             !navs.reports.requires ||
                             canAccess(navs.reports.requires)
@@ -1006,10 +1011,11 @@ onUnmounted(() => {
                     </SidebarMenu>
                 </SidebarGroup>
                 <SidebarGroup
+                    class="px-4 group-data-[collapsible=icon]:px-2"
                     v-if="page.props.auth.user.roles.includes('admin')"
                 >
-                    <SidebarGroupLabel>Settings</SidebarGroupLabel>
-                    <SidebarMenu>
+                    <SidebarGroupLabel class="px-5">Settings</SidebarGroupLabel>
+                    <SidebarMenu class="gap-1.5 px-1">
                         <SidebarMenuItem
                             v-for="item in navs.settings"
                             :key="item.name"
@@ -1035,7 +1041,9 @@ onUnmounted(() => {
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>
-            <SidebarFooter>
+            <SidebarFooter
+                class="px-4 group-data-[collapsible=icon]:px-2"
+            >
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <DropdownMenu>
@@ -1811,4 +1819,3 @@ onUnmounted(() => {
 
     <VendorMobileNav />
 </template>
-

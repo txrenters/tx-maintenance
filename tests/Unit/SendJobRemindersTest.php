@@ -4,9 +4,10 @@ namespace Tests\Unit;
 
 use App\Console\Commands\SendJobReminders;
 use Carbon\Carbon;
-use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Tests\TestCase;
 
 class SendJobRemindersTest extends TestCase
 {
@@ -57,9 +58,11 @@ class SendJobRemindersTest extends TestCase
             }
         };
 
+        $command->setLaravel($this->app);
+
         $exitCode = $command->run(new ArrayInput([]), new BufferedOutput);
 
-        $this->assertSame(self::SUCCESS, $exitCode);
+        $this->assertSame(Command::SUCCESS, $exitCode);
         $this->assertSame([
             ['date' => '2026-04-03', 'field' => 'notified_3_days'],
             ['date' => '2026-04-07', 'field' => 'notified_7_days'],
@@ -86,11 +89,13 @@ class SendJobRemindersTest extends TestCase
             }
         };
 
+        $command->setLaravel($this->app);
+
         $exitCode = $command->run(new ArrayInput([
             '--days' => ['7'],
         ]), new BufferedOutput);
 
-        $this->assertSame(self::SUCCESS, $exitCode);
+        $this->assertSame(Command::SUCCESS, $exitCode);
         $this->assertSame([
             ['date' => '2026-04-07', 'field' => 'notified_7_days'],
         ], $command->calls);
@@ -112,12 +117,14 @@ class SendJobRemindersTest extends TestCase
             }
         };
 
+        $command->setLaravel($this->app);
+
         $output = new BufferedOutput;
         $exitCode = $command->run(new ArrayInput([
             '--days' => ['5'],
         ]), $output);
 
-        $this->assertSame(self::FAILURE, $exitCode);
+        $this->assertSame(Command::FAILURE, $exitCode);
         $this->assertFalse($command->wasCalled);
         $this->assertStringContainsString('Unsupported reminder day override(s): 5. Supported values: 3, 7.', $output->fetch());
 

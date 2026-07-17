@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Jobber extends Model
@@ -25,6 +26,12 @@ class Jobber extends Model
     public function visits(): HasMany
     {
         return $this->hasMany(JobberVisit::class, 'jobber_job_id');
+    }
+
+    public function tenants(): BelongsToMany
+    {
+        return $this->belongsToMany(Tenants::class, 'jobber_job_tenant', 'jobber_job_id', 'tenant_id')
+            ->withTimestamps();
     }
 
     public function textMessages(): HasMany

@@ -49,7 +49,7 @@ class OwnerServiceRequestNotificationService
         ]);
 
         // Text the real property owner (highest ownership stake), never the
-        // management-company owner_id / managed_by.
+        // management-company property_manager_id / managed_by.
         $owner = $workOrder->primaryOwner();
 
         if (! $owner instanceof Owner) {

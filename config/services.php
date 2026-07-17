@@ -98,6 +98,7 @@ return [
         'client_id' => env('MICROSOFT_CLIENT_ID'),
         'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
         'mailbox' => env('MICROSOFT_MAILBOX', 'workorders@texasrenters.com'),
+        'job_reminder_mailbox' => env('MICROSOFT_JOB_REMINDER_MAILBOX', 'service@txhomemp.com'),
     ],
 
 ];

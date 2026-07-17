@@ -80,3 +80,18 @@ Schedule::command('tenant-portal:send-links')
     ->everyThirtyMinutes()
     ->withoutOverlapping(15)
     ->runInBackground();
+
+Schedule::command('emails:sync-replies')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('tenant-emails:sync-replies')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('owner-emails:sync-replies')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();

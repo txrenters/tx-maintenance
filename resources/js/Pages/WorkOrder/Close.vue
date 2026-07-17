@@ -546,7 +546,7 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = true;
 
     try {
-        const response = await axios.get(route("work_orders.show", orderId));
+        const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data; // Assuming the API returns the work order details
 
         workOrderForm.id = order.id;

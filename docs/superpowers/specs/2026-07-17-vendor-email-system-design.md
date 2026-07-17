@@ -1,8 +1,8 @@
 # Vendor Email System — Design
 
 **Date:** 2026-07-17
-**Status:** Approved (pending spec review)
-**Scope:** Vendor emails only. Owner/tenant channels are explicitly out of scope but the data model leaves room for them.
+**Status:** Implemented on Laravel 13
+**Scope:** Vendor emails, plus the subsequently approved tenant/Jobber email-thread extension using the dedicated service mailbox.
 
 ## Problem
 

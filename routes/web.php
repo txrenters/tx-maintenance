@@ -20,12 +20,14 @@ use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
+use App\Http\Controllers\OwnerEmailController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
+use App\Http\Controllers\TenantEmailController;
 use App\Http\Controllers\TenantPortalController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioMessageSearchController;
@@ -36,6 +38,7 @@ use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\VendorPortalController;
 use App\Http\Controllers\WOCNumbersController;
 use App\Http\Controllers\WorkOrderController;
+use App\Http\Controllers\WorkOrderEmailController;
 use App\Http\Controllers\WorkOrderNotesController;
 use App\Http\Controllers\WorkOrderRecommendationController;
 use Illuminate\Support\Facades\Route;
@@ -70,12 +73,21 @@ Route::middleware([
 
     Route::resource('/owners', OwnerController::class);
     Route::post('/owners/bulkdelete', [OwnerController::class, 'bulkdelete'])->name('owners.bulkdelete');
+    Route::get('/owners/{owner}/emails', [OwnerEmailController::class, 'index'])->name('owner.email.index');
+    Route::post('/owners/{owner}/emails', [OwnerEmailController::class, 'store'])->name('owner.email.send');
+    Route::get('/work_orders/{workOrder}/owner-emails', [OwnerEmailController::class, 'workOrderIndex'])->name('work_order.owner_email.index');
+    Route::post('/work_orders/{workOrder}/owner-emails', [OwnerEmailController::class, 'workOrderStore'])->name('work_order.owner_email.send');
+    Route::get('/owner-email-attachments/{attachment}/download', [OwnerEmailController::class, 'download'])->name('owner.email.attachment');
 
     Route::resource('/tenants', TenantsController::class);
     Route::post('/tenants/bulkdelete', [TenantsController::class, 'bulkdelete'])->name('tenants.bulkdelete');
+    Route::get('/tenants/{tenant}/emails', [TenantEmailController::class, 'index'])->name('tenant.email.index');
+    Route::post('/tenants/{tenant}/emails', [TenantEmailController::class, 'store'])->name('tenant.email.send');
+    Route::get('/tenant-email-attachments/{attachment}/download', [TenantEmailController::class, 'download'])->name('tenant.email.attachment');
 
     Route::resource('/service_status', ServiceStatusController::class);
 
+    Route::get('/work_orders/{workOrder}/data', [WorkOrderController::class, 'data'])->name('work_orders.data');
     Route::resource('/work_orders', WorkOrderController::class);
     Route::get('/work_orders/closed/done', [WorkOrderController::class, 'closed_work_orders'])->name('work_orders.closed_work_orders');
     Route::get('/work_orders/waiting_on_payment/all', [WorkOrderController::class, 'waiting_on_payment_work_orders'])->name('work_orders.waiting_on_payment');
@@ -117,6 +129,11 @@ Route::middleware([
 
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
+    Route::get('/work_orders/{workOrder}/emails', [WorkOrderEmailController::class, 'index'])->name('work_order.email.index');
+    Route::get('/work_orders/{workOrder}/email-notifications', [WorkOrderEmailController::class, 'notifications'])->name('work_order.email.notifications');
+    Route::post('/work_orders/{workOrder}/emails', [WorkOrderEmailController::class, 'store'])->name('work_order.email.send');
+    Route::post('/vendors/{vendor}/emails', [WorkOrderEmailController::class, 'vendorStore'])->name('vendor.email.send');
+    Route::get('/email-attachments/{attachment}/download', [WorkOrderEmailController::class, 'download'])->name('work_order.email.attachment');
 
     // Conversation read endpoints: authenticated (session) so ConversationScope
     // resolves the current user and isolates each vendor's thread.
