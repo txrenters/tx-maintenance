@@ -12,6 +12,7 @@ use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\EmergencyAlertService;
@@ -444,6 +445,8 @@ class WorkOrderController extends Controller
             'vendorLinks' => $vendorLinks,
             'categories' => $categories,
             'serviceStatuses' => $serviceStatuses,
+            // Staff-only "Open in Jobber" link (THMP jobs). Never shown to vendors.
+            'canViewJobberLink' => $user->hasAnyRole(['admin', 'woc', 'accounting']),
         ]);
     }
 
@@ -479,6 +482,14 @@ class WorkOrderController extends Controller
     public function update(UpdateWorkOrderRequest $request, WorkOrder $workOrder)
     {
         $validatedData = $request->validated();
+
+        // Store the exact known spelling of the category (PropertyWare's
+        // picklist values can carry invisible whitespace, e.g. "HVAC "), so
+        // the sync below succeeds and board filters never split one category
+        // into two.
+        if (filled($validatedData['category'] ?? null)) {
+            $validatedData['category'] = WorkOrderCategory::canonicalName($validatedData['category']);
+        }
 
         try {
             $workOrder->update($validatedData);

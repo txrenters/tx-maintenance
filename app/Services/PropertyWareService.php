@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
@@ -603,6 +604,13 @@ class PropertyWareService
 
             if ($value === null || $value === '') {
                 continue;
+            }
+
+            // PropertyWare matches picklist values verbatim (its real HVAC
+            // value is "HVAC " with a trailing space), so always send the
+            // exact spelling from the categories table.
+            if ($local === 'category') {
+                $value = WorkOrderCategory::canonicalName($value);
             }
 
             $payload[$pwField] = $value;
