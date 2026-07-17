@@ -200,10 +200,7 @@ const workOrderForm = useForm({
     location: order.location,
     managed_by: order.managed_by,
     requested: order.requested_by,
-    vendors:
-        order.local_status === "Created"
-            ? Object.values(order.vendors ?? {}).map((v) => v.name)
-            : (order.vendors ?? []),
+    vendors: order.vendors ?? [],
     is_approved: order.is_approved,
     approved_date: order.approved_date,
     approval_comments: order.approval_comments,

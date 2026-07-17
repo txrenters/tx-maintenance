@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { Link, router, usePage } from "@inertiajs/vue3";
 import { useFilter } from "reka-ui";
 import { DateTime } from "luxon";
@@ -48,6 +48,18 @@ const { contains } = useFilter({ sensitivity: "base" }); // this is use for vend
 
 const selectedVendors = ref(
     (props.workOrder.vendors || []).map((v) => ({ id: v.id, name: v.name })),
+);
+
+// The board modal reuses this component while switching between cards, so
+// re-seed the picker with the newly opened work order's vendors.
+watch(
+    () => props.workOrder.id,
+    () => {
+        selectedVendors.value = (props.workOrder.vendors || []).map((v) => ({
+            id: v.id,
+            name: v.name,
+        }));
+    },
 );
 
 const selectedVendorNames = computed({
@@ -309,9 +321,8 @@ const handleCompleteSubmit = () => {
                         title="Assign vendor"
                         :disabled="loading"
                         v-if="
-                            workOrder.local_status === 'Created' &&
-                            ($page.props.auth.user.roles.includes('admin') ||
-                                $page.props.auth.user.roles.includes('woc'))
+                            $page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc')
                         "
                         @click.prevent="handleVendorSubmit"
                     >
@@ -322,19 +333,10 @@ const handleCompleteSubmit = () => {
 
                         Assign vendor
                     </Button>
-                    <template v-if="workOrder.local_status === 'Updated'">
-                        <p v-for="vendor in visibleWorkOrderVendors" :key="vendor.id ?? vendor">
-                            <span v-if="vendor.id"> {{ vendor.name }}</span>
-                            <span v-else> {{ vendor }}</span>
-                        </p>
-                        <br />
-                    </template>
-
                     <Combobox
                         v-model="selectedVendorNames"
                         v-model:open="open"
                         :ignore-filter="true"
-                        v-else
                     >
                         <ComboboxAnchor
                             as-child
