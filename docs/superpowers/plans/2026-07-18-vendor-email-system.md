@@ -10,7 +10,8 @@
 
 ## Global Constraints
 
-- All PHP/Artisan/Composer/Node commands run through Sail: `vendor/bin/sail ...`.
+- This environment has NO Docker/Sail. Run commands locally: `php artisan ...`, `./vendor/bin/pint ...`, `npm ...`. Tests run via `php artisan test` (works against the project's default test DB).
+- The `vendors` table requires `propertyware_id` (unique, NOT NULL) and `user_id` (NOT NULL FK). Every `Vendor::query()->create([...])` in tests MUST include a unique `propertyware_id` and a `user_id` (e.g. `\App\Models\User::factory()->create()->id`).
 - No new Composer dependencies. New npm deps limited to `@tiptap/vue-3` + `@tiptap/starter-kit` (approved).
 - Automated assignment email keeps the existing `emails.vendor-service-request` Blade view and subject **unchanged** — re-rendered via the existing `VendorServiceRequestMail` mailable; it is trusted HTML and MUST NOT be run through the sanitizer.
 - Graph mailbox + credentials come from config only: `services.microsoft.{tenant_id,client_id,client_secret,mailbox}`. Mailbox default `workorders@texasrenters.com`.
@@ -18,7 +19,7 @@
 - Correlation tag format: `TX-<work_order_no>-<vendor_id>`, embedded in the subject as `[TX-<work_order_no>-<vendor_id>]`.
 - Email HTML from untrusted sources (inbound replies) and from the compose editor MUST be passed through `HtmlSanitizer` before storing/displaying. Never `v-html` raw untrusted HTML.
 - Inbound reply attachments are downloaded via Graph and stored in `email_attachments` (both directions use this table). Image attachments (`image/jpeg|png|gif|webp`) are compressed via `AttachmentOptimizer` before saving; non-images stored unchanged; optimization failures fall back to original bytes.
-- Run `vendor/bin/sail bin pint --dirty --format agent` after PHP changes.
+- Run `./vendor/bin/pint --dirty --format agent` after PHP changes.
 
 ---
 
@@ -76,7 +77,7 @@
 
 - [ ] **Step 1: Create the migrations**
 
-Create `database/migrations/<ts>_create_email_messages_table.php` (use `vendor/bin/sail artisan make:migration create_email_messages_table --no-interaction`, then replace the body):
+Create `database/migrations/<ts>_create_email_messages_table.php` (use `php artisan make:migration create_email_messages_table --no-interaction`, then replace the body):
 
 ```php
 <?php
@@ -252,6 +253,7 @@ public function emailMessages(): HasMany
 namespace Database\Factories;
 
 use App\Models\EmailMessage;
+use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -268,9 +270,11 @@ class EmailMessageFactory extends Factory
         return [
             'work_order_id' => WorkOrder::factory(),
             'vendor_id' => fn () => Vendor::query()->create([
+                'propertyware_id' => $this->faker->unique()->uuid(),
                 'name' => $this->faker->company(),
                 'email' => $this->faker->unique()->safeEmail(),
                 'is_active' => true,
+                'user_id' => User::factory()->create()->id,
             ])->id,
             'direction' => 'outbound',
             'subject' => 'New Service Request [TX-1000-1]',
@@ -329,13 +333,13 @@ class WorkOrderEmailSenderTest extends TestCase
 
 - [ ] **Step 6: Run the migration + test**
 
-Run: `vendor/bin/sail artisan migrate --no-interaction && vendor/bin/sail artisan test --compact --filter=test_work_order_has_email_messages_relation`
+Run: `php artisan migrate --no-interaction && php artisan test --compact --filter=test_work_order_has_email_messages_relation`
 Expected: PASS.
 
 - [ ] **Step 7: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Models config database routes tests
 git commit -m "feat: email_messages + email_attachments data layer"
 ```
@@ -460,7 +464,7 @@ class MicrosoftGraphMailServiceTest extends TestCase
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/MicrosoftGraphMailServiceTest.php`
+Run: `php artisan test --compact tests/Unit/MicrosoftGraphMailServiceTest.php`
 Expected: FAIL (class `MicrosoftGraphMailService` not found).
 
 - [ ] **Step 4: Implement the service**
@@ -637,13 +641,13 @@ class MicrosoftGraphMailService
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/MicrosoftGraphMailServiceTest.php`
+Run: `php artisan test --compact tests/Unit/MicrosoftGraphMailServiceTest.php`
 Expected: PASS (all three tests).
 
 - [ ] **Step 6: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add config app/Services/MicrosoftGraphMailService.php tests/Unit/MicrosoftGraphMailServiceTest.php
 git commit -m "feat: MicrosoftGraphMailService (draft-then-send, inbox poll, token cache)"
 ```
@@ -720,7 +724,7 @@ class HtmlSanitizerTest extends TestCase
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/HtmlSanitizerTest.php`
+Run: `php artisan test --compact tests/Unit/HtmlSanitizerTest.php`
 Expected: FAIL (class not found).
 
 - [ ] **Step 3: Implement the sanitizer**
@@ -822,13 +826,13 @@ class HtmlSanitizer
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/HtmlSanitizerTest.php`
+Run: `php artisan test --compact tests/Unit/HtmlSanitizerTest.php`
 Expected: PASS.
 
 - [ ] **Step 5: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Services/HtmlSanitizer.php tests/Unit/HtmlSanitizerTest.php
 git commit -m "feat: HtmlSanitizer allowlist for email bodies"
 ```
@@ -896,7 +900,7 @@ class AttachmentOptimizerTest extends TestCase
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/AttachmentOptimizerTest.php`
+Run: `php artisan test --compact tests/Unit/AttachmentOptimizerTest.php`
 Expected: FAIL (class not found).
 
 - [ ] **Step 3: Implement AttachmentOptimizer**
@@ -992,7 +996,7 @@ class EmailAttachmentStore
 
 - [ ] **Step 5: Run the optimizer test to verify it passes**
 
-Run: `vendor/bin/sail artisan test --compact tests/Unit/AttachmentOptimizerTest.php`
+Run: `php artisan test --compact tests/Unit/AttachmentOptimizerTest.php`
 Expected: PASS.
 
 - [ ] **Step 6: Write the failing sender test**
@@ -1003,9 +1007,11 @@ Append to `tests/Feature/WorkOrderEmailSenderTest.php` (add imports `use App\Mod
     private function assignedVendor(WorkOrder $workOrder): Vendor
     {
         $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
             'name' => 'ABC Plumbing',
             'email' => 'abc@example.com',
             'is_active' => true,
+            'user_id' => \App\Models\User::factory()->create()->id,
         ]);
         $workOrder->vendors()->attach($vendor->id);
 
@@ -1073,7 +1079,7 @@ Append to `tests/Feature/WorkOrderEmailSenderTest.php` (add imports `use App\Mod
 
 - [ ] **Step 7: Run the sender test to verify it fails**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/WorkOrderEmailSenderTest.php`
+Run: `php artisan test --compact tests/Feature/WorkOrderEmailSenderTest.php`
 Expected: FAIL (class `WorkOrderEmailSender` not found).
 
 - [ ] **Step 8: Implement the sender**
@@ -1189,13 +1195,13 @@ class WorkOrderEmailSender
 
 - [ ] **Step 9: Run the test to verify it passes**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/WorkOrderEmailSenderTest.php`
+Run: `php artisan test --compact tests/Feature/WorkOrderEmailSenderTest.php`
 Expected: PASS (all three tests in the file).
 
 - [ ] **Step 10: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Services/AttachmentOptimizer.php app/Services/EmailAttachmentStore.php app/Services/WorkOrderEmailSender.php tests/Unit/AttachmentOptimizerTest.php tests/Feature/WorkOrderEmailSenderTest.php
 git commit -m "feat: attachment optimize+store services and WorkOrderEmailSender"
 ```
@@ -1255,7 +1261,9 @@ class VendorAssignmentEmailTest extends TestCase
 
         $workOrder = WorkOrder::factory()->create(['work_order_no' => 4321]);
         $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
             'name' => 'ABC Plumbing', 'email' => 'abc@example.com', 'is_active' => true,
+            'user_id' => \App\Models\User::factory()->create()->id,
         ]);
         $workOrder->vendors()->attach($vendor->id);
 
@@ -1274,7 +1282,7 @@ class VendorAssignmentEmailTest extends TestCase
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
+Run: `php artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
 Expected: FAIL (no `email_messages` row — job still uses SMTP `Mail::to`).
 
 - [ ] **Step 3: Swap the send path in the job**
@@ -1329,20 +1337,20 @@ Add `use App\Services\WorkOrderEmailSender;` to the imports. Leave the existing 
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
+Run: `php artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
 Expected: PASS.
 
 - [ ] **Step 5: Also update the second sender in the sync command**
 
 `app/Console/Commands/SyncWorkOrderDocumentsCommand.php:231` still calls `Mail::to($vendor->email)->send(new VendorServiceRequestMail(...))`. Replace it with the same `app(WorkOrderEmailSender::class)->sendVendorEmail(... trustedHtml: true)` pattern (rendering the mailable to HTML, attaching the PDF bytes it already has). Add the `use App\Services\WorkOrderEmailSender;` import there too. Run:
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
+Run: `php artisan test --compact tests/Feature/VendorAssignmentEmailTest.php`
 Expected: still PASS (no regression).
 
 - [ ] **Step 6: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Jobs/SendVendorWorkOrderInformation.php app/Console/Commands/SyncWorkOrderDocumentsCommand.php tests/Feature/VendorAssignmentEmailTest.php
 git commit -m "feat: route automated vendor email through Graph sender (design unchanged)"
 ```
@@ -1398,7 +1406,9 @@ class SyncEmailRepliesTest extends TestCase
     {
         $workOrder = WorkOrder::factory()->create(['work_order_no' => $workOrderNo]);
         $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
             'name' => 'ABC', 'email' => 'abc@example.com', 'is_active' => true,
+            'user_id' => \App\Models\User::factory()->create()->id,
         ]);
         $workOrder->vendors()->attach($vendor->id);
 
@@ -1514,7 +1524,7 @@ class SyncEmailRepliesTest extends TestCase
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/SyncEmailRepliesTest.php`
+Run: `php artisan test --compact tests/Feature/SyncEmailRepliesTest.php`
 Expected: FAIL (command `emails:sync-replies` not defined).
 
 - [ ] **Step 3: Implement the command**
@@ -1716,13 +1726,13 @@ Schedule::command('emails:sync-replies')
 
 - [ ] **Step 5: Run to verify pass**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/SyncEmailRepliesTest.php`
+Run: `php artisan test --compact tests/Feature/SyncEmailRepliesTest.php`
 Expected: PASS (all five tests).
 
 - [ ] **Step 6: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Console/Commands/SyncEmailReplies.php routes/console.php tests/Feature/SyncEmailRepliesTest.php
 git commit -m "feat: emails:sync-replies command + schedule"
 ```
@@ -1766,7 +1776,11 @@ class WorkOrderEmailControllerTest extends TestCase
 
     private function assignedVendor(WorkOrder $workOrder, string $email = 'abc@example.com'): Vendor
     {
-        $vendor = Vendor::query()->create(['name' => 'ABC', 'email' => $email, 'is_active' => true]);
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
+            'name' => 'ABC', 'email' => $email, 'is_active' => true,
+            'user_id' => \App\Models\User::factory()->create()->id,
+        ]);
         $workOrder->vendors()->attach($vendor->id);
 
         return $vendor;
@@ -1833,7 +1847,7 @@ class WorkOrderEmailControllerTest extends TestCase
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/WorkOrderEmailControllerTest.php`
+Run: `php artisan test --compact tests/Feature/WorkOrderEmailControllerTest.php`
 Expected: FAIL (route not defined).
 
 - [ ] **Step 3: Create the form request**
@@ -1946,13 +1960,13 @@ Add `use App\Http\Controllers\WorkOrderEmailController;` to the top of `routes/w
 
 - [ ] **Step 6: Run to verify pass**
 
-Run: `vendor/bin/sail artisan test --compact tests/Feature/WorkOrderEmailControllerTest.php`
+Run: `php artisan test --compact tests/Feature/WorkOrderEmailControllerTest.php`
 Expected: PASS (all three tests).
 
 - [ ] **Step 7: Pint + commit**
 
 ```bash
-vendor/bin/sail bin pint --dirty --format agent
+./vendor/bin/pint --dirty --format agent
 git add app/Http routes/web.php tests/Feature/WorkOrderEmailControllerTest.php
 git commit -m "feat: WorkOrderEmailController (index/store/download) + routes"
 ```
@@ -1972,7 +1986,7 @@ Note: the project has no JS test harness; verify via `npm run build` and manual 
 
 - [ ] **Step 1: Install Tiptap**
 
-Run: `vendor/bin/sail npm install @tiptap/vue-3 @tiptap/starter-kit @tiptap/extension-underline @tiptap/extension-link`
+Run: `npm install @tiptap/vue-3 @tiptap/starter-kit @tiptap/extension-underline @tiptap/extension-link`
 Expected: packages added to `package.json` dependencies.
 
 - [ ] **Step 2: Create the component**
@@ -2055,7 +2069,7 @@ Note: `window.prompt` is acceptable here (a browser prompt, not a JS `alert`/`co
 
 - [ ] **Step 3: Build to verify it compiles**
 
-Run: `vendor/bin/sail npm run build`
+Run: `npm run build`
 Expected: build succeeds with no unresolved-import errors for the tiptap packages.
 
 - [ ] **Step 4: Commit**
@@ -2200,7 +2214,7 @@ const send = () => {
 
 - [ ] **Step 2: Build to verify it compiles**
 
-Run: `vendor/bin/sail npm run build`
+Run: `npm run build`
 Expected: build succeeds.
 
 - [ ] **Step 3: Commit**
@@ -2297,7 +2311,7 @@ Find where `<VendorConversation ... />` is rendered in the template and add, fol
 
 - [ ] **Step 6: Build + manual verification**
 
-Run: `vendor/bin/sail npm run build`
+Run: `npm run build`
 Expected: build succeeds.
 
 Manual check (dev): open a work order with an assigned vendor as an admin/woc user, click the Vendor Email (`@`) tab, confirm the thread loads, compose a test email (Graph will attempt a real send — use a safe test vendor address or a mailbox that no-ops), and confirm a new outbound row appears after refetch.
@@ -2315,14 +2329,14 @@ git commit -m "feat: Emails tab on work order page"
 
 - [ ] **Run the full email test suite**
 
-Run: `vendor/bin/sail artisan test --compact --filter="Email|SyncEmailReplies|VendorAssignment"`
+Run: `php artisan test --compact --filter="Email|SyncEmailReplies|VendorAssignment"`
 Expected: all PASS.
 
 - [ ] **Run the broader suite to check for regressions**
 
-Run: `vendor/bin/sail artisan test --compact`
+Run: `php artisan test --compact`
 Expected: no new failures introduced by these changes.
 
 - [ ] **Final Pint pass**
 
-Run: `vendor/bin/sail bin pint --dirty --format agent`
+Run: `./vendor/bin/pint --dirty --format agent`
