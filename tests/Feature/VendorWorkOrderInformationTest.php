@@ -15,6 +15,7 @@ use App\Services\WorkOrderInformationPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -280,7 +281,7 @@ class VendorWorkOrderInformationTest extends TestCase
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
 
-    public function test_owner_notification_targets_the_highest_ownership_stake(): void
+    public function test_owner_notification_reaches_every_owner_on_the_work_order(): void
     {
         Bus::fake();
         Mail::fake();
@@ -293,13 +294,13 @@ class VendorWorkOrderInformationTest extends TestCase
 
         $vendor = $this->makeVendor([], '3255550101');
 
-        // The real owner (100%) plus a 0% management company that must be ignored.
+        // The real owner (100%) plus a 0% co-owner: BOTH must be texted.
         $realOwner = $this->makeOwner(['name' => 'Xiaochen Feng', 'phone' => '2145551234', 'percentage_ownership' => 100]);
-        $manager = $this->makeOwner(['name' => 'Tyssen Global Management LLC', 'phone' => '3465550000', 'percentage_ownership' => 0]);
+        $coOwner = $this->makeOwner(['name' => 'Tyssen Global Management LLC', 'phone' => '3465550000', 'percentage_ownership' => 0]);
 
         $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43340]);
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
-        $workOrder->owners()->attach([$manager->id, $realOwner->id]);
+        $workOrder->owners()->attach([$coOwner->id, $realOwner->id]);
 
         (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
             ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
@@ -309,10 +310,73 @@ class VendorWorkOrderInformationTest extends TestCase
             'conversation_type' => 'owner',
             'receiver_number' => '+12145551234',
         ]);
-        $this->assertDatabaseMissing('work_order_conversations', [
+        $this->assertDatabaseHas('work_order_conversations', [
             'work_order_id' => $workOrder->id,
             'conversation_type' => 'owner',
             'receiver_number' => '+13465550000',
+        ]);
+    }
+
+    public function test_owners_sharing_one_phone_number_get_a_single_text(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-o3'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-o3'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+        config(['services.twilio.owner_assignment_sms' => true]);
+
+        $vendor = $this->makeVendor([], '3255550101');
+
+        // A couple sharing one number, stored in different formats: one text only.
+        $husband = $this->makeOwner(['name' => 'Dewayne Lanier', 'phone' => '7138282297', 'percentage_ownership' => 0]);
+        $wife = $this->makeOwner(['name' => 'Elaine Lanier', 'phone' => '(713) 828-2297', 'percentage_ownership' => 0]);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411586, 'work_order_no' => 43341]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
+        $workOrder->owners()->attach([$husband->id, $wife->id]);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertSame(1, DB::table('work_order_conversations')
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'owner')
+            ->where('receiver_number', '+17138282297')
+            ->count());
+    }
+
+    public function test_zero_percent_owner_is_texted_when_the_llc_primary_owner_has_no_phone(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-o4'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-o4'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+        config(['services.twilio.owner_assignment_sms' => true]);
+
+        $vendor = $this->makeVendor([], '3255550101');
+
+        // LLC holds 100% with no phone; the human behind it sits at 0%. The old
+        // primary-owner-only logic texted nobody on these work orders.
+        $llc = $this->makeOwner(['name' => 'Series 4 Lanier Family LLC', 'phone' => '', 'percentage_ownership' => 100]);
+        $human = $this->makeOwner(['name' => 'Dewayne Lanier', 'phone' => '7138282297', 'percentage_ownership' => 0]);
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411587, 'work_order_no' => 43342]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok']);
+        $workOrder->owners()->attach([$llc->id, $human->id]);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+            'receiver_number' => '+17138282297',
         ]);
     }
 

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 
 #[ScopedBy([WorkOrderScope::class])]
 class WorkOrder extends Model
@@ -61,6 +62,44 @@ class WorkOrder extends Model
             ->sortBy(fn (Owner $owner): int => $owner->id)
             ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
             ->first();
+    }
+
+    /**
+     * Every owner on this work order who can be texted — ANY ownership
+     * percentage. 0% owners are usually spouses, family members, or the humans
+     * behind an LLC that holds the 100% stake (often with no phone of its own),
+     * so notifications must include them. Ordered primary-first and
+     * de-duplicated by normalized phone number, so two owners sharing one line
+     * (e.g. a couple) get a single text.
+     *
+     * @return Collection<int, Owner>
+     */
+    public function notifiableOwners(): Collection
+    {
+        return $this->owners
+            ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
+            ->filter(fn (Owner $owner): bool => $this->normalizedOwnerPhone($owner) !== null)
+            ->unique(fn (Owner $owner): string => (string) $this->normalizedOwnerPhone($owner))
+            ->values();
+    }
+
+    /**
+     * The owner's best phone number in E.164 (+1XXXXXXXXXX); null if unusable.
+     */
+    public function normalizedOwnerPhone(Owner $owner): ?string
+    {
+        $raw = filled($owner->mobile) ? $owner->mobile : $owner->phone;
+        $digits = preg_replace('/\D+/', '', (string) $raw);
+
+        if (strlen($digits) === 10) {
+            return '+1'.$digits;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return '+'.$digits;
+        }
+
+        return $digits !== '' ? '+'.$digits : null;
     }
 
     public function tenants(): BelongsToMany

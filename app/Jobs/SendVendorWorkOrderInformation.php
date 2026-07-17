@@ -132,9 +132,11 @@ class SendVendorWorkOrderInformation implements ShouldQueue
     }
 
     /**
-     * Text the primary property owner that a vendor has been assigned, sent from
-     * (and recorded as) the WOC, and persist it to the owner conversation thread
-     * so it shows in the coordinator's owner tab.
+     * Text every owner on the work order that a vendor has been assigned, sent
+     * from (and recorded as) the WOC, one conversation entry per owner so each
+     * reply threads correctly. All ownership percentages are included: 0%
+     * owners are typically spouses or the humans behind a phoneless LLC, and
+     * shared phone numbers get a single text (see notifiableOwners()).
      */
     private function notifyOwner(WorkOrder $workOrder, Vendor $vendor): void
     {
@@ -150,20 +152,6 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        $owner = $workOrder->primaryOwner();
-
-        // No owner on file — nothing to notify.
-        if (! $owner) {
-            return;
-        }
-
-        $ownerNumber = $this->toE164($owner->phone);
-
-        // No usable phone number for the owner — skip (like the vendor path).
-        if (! $ownerNumber) {
-            return;
-        }
-
         $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
 
@@ -171,21 +159,29 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        $body = $this->buildOwnerMessage($workOrder, $vendor, $owner);
+        foreach ($workOrder->notifiableOwners() as $owner) {
+            $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
 
-        // sender_number is the WOC's number, so the portal renders this as a
-        // message from the coordinator on the owner thread.
-        $conversation = Conversation::create([
-            'message' => $body,
-            'sender_number' => $wocNumber,
-            'receiver_number' => $ownerNumber,
-            'work_order_id' => $workOrder->id,
-            'conversation_type' => 'owner',
-            'is_read' => true,
-            'is_mms' => false,
-        ]);
+            if (! $ownerNumber) {
+                continue;
+            }
 
-        SendConversationMessageJob::dispatch($ownerNumber, $wocNumber, $body, null, $conversation->id);
+            $body = $this->buildOwnerMessage($workOrder, $vendor, $owner);
+
+            // sender_number is the WOC's number, so the portal renders this as a
+            // message from the coordinator on the owner thread.
+            $conversation = Conversation::create([
+                'message' => $body,
+                'sender_number' => $wocNumber,
+                'receiver_number' => $ownerNumber,
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'owner',
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
+
+            SendConversationMessageJob::dispatch($ownerNumber, $wocNumber, $body, null, $conversation->id);
+        }
     }
 
     private function buildOwnerMessage(WorkOrder $workOrder, Vendor $vendor, Owner $owner): string

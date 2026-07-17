@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
-use App\Models\Owner;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
@@ -14,9 +13,10 @@ use Illuminate\Support\Facades\Log;
 class OwnerAppointmentNotificationService
 {
     /**
-     * Notify the property owner that a vendor has set the service appointment.
+     * Notify every property owner on the work order that a vendor has set the
+     * service appointment.
      *
-     * Posts the update into the owner<->WOC conversation thread and texts the
+     * Posts the update into the owner<->WOC conversation thread and texts each
      * owner, asking whether they'd like to join a call with the technician at
      * the appointment time or to approve the work order. Gated off by default,
      * fired at most once per schedule, and wrapped so a failure is logged but
@@ -66,38 +66,49 @@ class OwnerAppointmentNotificationService
             return;
         }
 
-        // Text the real property owner (highest ownership stake), never the
-        // management-company property_manager_id / managed_by.
-        $owner = $workOrder->primaryOwner();
-
-        // No owner on file: nothing to notify.
-        if (! $owner instanceof Owner) {
-            return;
-        }
-
-        $ownerNumber = $this->firstFilled($owner->mobile, $owner->phone);
         $fromNumber = $this->fromNumber($workOrder);
         $message = $this->message($serviceSchedule, $workOrder);
 
-        // Log the update in the owner thread even when we cannot text, so the
-        // coordinator sees the appointment update went out.
-        $conversation = Conversation::create([
-            'message' => $message,
-            'sender_number' => $fromNumber ?: null,
-            'receiver_number' => $ownerNumber ?: null,
-            'work_order_id' => $workOrder->id,
-            'conversation_type' => 'owner',
-            'is_read' => true,
-            'is_mms' => false,
-        ]);
+        // Every owner on the work order, any ownership percentage (0% owners
+        // are usually spouses or the humans behind a phoneless LLC), one text
+        // and one conversation entry each, shared numbers de-duplicated.
+        $owners = $workOrder->notifiableOwners();
 
-        // No usable numbers: the message is logged in the owner thread, but there
-        // is nothing to text.
-        if (blank($ownerNumber) || blank($fromNumber)) {
+        // No textable owner: log the update once in the owner thread anyway, so
+        // the coordinator sees the appointment update went out.
+        if ($owners->isEmpty()) {
+            Conversation::create([
+                'message' => $message,
+                'sender_number' => $fromNumber ?: null,
+                'receiver_number' => null,
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'owner',
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
+
             return;
         }
 
-        SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+        foreach ($owners as $owner) {
+            $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
+
+            $conversation = Conversation::create([
+                'message' => $message,
+                'sender_number' => $fromNumber ?: null,
+                'receiver_number' => $ownerNumber,
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'owner',
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
+
+            if (blank($ownerNumber) || blank($fromNumber)) {
+                continue;
+            }
+
+            SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+        }
     }
 
     /**
@@ -166,16 +177,5 @@ class OwnerAppointmentNotificationService
         return $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_from')
             ?: config('services.twilio.from');
-    }
-
-    private function firstFilled(?string ...$values): ?string
-    {
-        foreach ($values as $value) {
-            if (filled($value)) {
-                return $value;
-            }
-        }
-
-        return null;
     }
 }

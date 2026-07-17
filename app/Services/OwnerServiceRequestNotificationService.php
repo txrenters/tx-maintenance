@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
-use App\Models\Owner;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -12,7 +11,8 @@ use Illuminate\Support\Facades\Log;
 class OwnerServiceRequestNotificationService
 {
     /**
-     * Notify the primary property owner that a new service request has come in.
+     * Notify every property owner on the work order that a new service request
+     * has come in.
      *
      * Sends two texts from (and logged as) the WOC on the owner<->WOC
      * conversation thread: a confirmation that points the owner at the emailed
@@ -48,25 +48,20 @@ class OwnerServiceRequestNotificationService
             'building',
         ]);
 
-        // Text the real property owner (highest ownership stake), never the
-        // management-company property_manager_id / managed_by.
-        $owner = $workOrder->primaryOwner();
-
-        if (! $owner instanceof Owner) {
-            return;
-        }
-
-        $ownerNumber = $this->firstFilled($owner->mobile, $owner->phone);
+        // Every owner on the work order, any ownership percentage (0% owners
+        // are usually spouses or the humans behind a phoneless LLC), shared
+        // numbers de-duplicated.
+        $owners = $workOrder->notifiableOwners();
         $fromNumber = $this->fromNumber($workOrder);
 
         // No usable numbers: nothing to text (mirrors the live vendor-assignment
         // owner notification, which also skips silently).
-        if (blank($ownerNumber) || blank($fromNumber)) {
+        if ($owners->isEmpty() || blank($fromNumber)) {
             return;
         }
 
         // Claim this work order atomically so a redelivery can never text the
-        // owner twice for the same request.
+        // owners twice for the same request.
         $claimed = DB::table('work_orders')
             ->where('id', $workOrder->id)
             ->whereNull('owner_service_request_notified_at')
@@ -77,13 +72,21 @@ class OwnerServiceRequestNotificationService
         }
 
         $address = $this->propertyAddress($workOrder);
-
-        $this->post($workOrder, $ownerNumber, $fromNumber, $this->confirmationMessage($workOrder, $address));
-
+        $confirmation = $this->confirmationMessage($workOrder, $address);
         $description = $this->descriptionMessage($workOrder);
 
-        if ($description !== null) {
-            $this->post($workOrder, $ownerNumber, $fromNumber, $description);
+        foreach ($owners as $owner) {
+            $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
+
+            if ($ownerNumber === null) {
+                continue;
+            }
+
+            $this->post($workOrder, $ownerNumber, $fromNumber, $confirmation);
+
+            if ($description !== null) {
+                $this->post($workOrder, $ownerNumber, $fromNumber, $description);
+            }
         }
     }
 
@@ -165,16 +168,5 @@ class OwnerServiceRequestNotificationService
     {
         return $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
-    }
-
-    private function firstFilled(?string ...$values): ?string
-    {
-        foreach ($values as $value) {
-            if (filled($value)) {
-                return $value;
-            }
-        }
-
-        return null;
     }
 }
