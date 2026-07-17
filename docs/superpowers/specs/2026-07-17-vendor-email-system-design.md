@@ -154,11 +154,16 @@ Responsibilities:
 
 ### (a) Automated assignment email
 
+The vendor-facing **design and content of the automated email are unchanged** —
+we keep the existing `emails.vendor-service-request` Blade view and its subject.
+Only the transport (Graph instead of SMTP), persistence, subject tag, and CC list
+change. The Tiptap editor applies to manual compose only, not this email.
+
 `App\Jobs\SendVendorWorkOrderInformation` currently does
 `Mail::to($vendor->email)->send(new VendorServiceRequestMail(...))`. Replace that
 block with a call to `WorkOrderEmailSender::sendVendorEmail(...)`:
 - Render the existing `emails.vendor-service-request` Blade view to an HTML string
-  for the body (reuse the view; do not duplicate copy).
+  for the body (reuse the view as-is; do not duplicate or restyle the copy).
 - Pass the generated WO-Information PDF bytes as an attachment.
 - `sentBy = null` (system).
 
