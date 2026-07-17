@@ -110,6 +110,11 @@ class WorkOrder extends Model
         return $this->hasMany(Conversation::class)->where('conversation_type', 'vendor');
     }
 
+    public function emailMessages(): HasMany
+    {
+        return $this->hasMany(EmailMessage::class);
+    }
+
     public function vendor_tenant_conversation(): HasMany
     {
         return $this->hasMany(Conversation::class)->where('conversation_type', 'vendor_tenant');
