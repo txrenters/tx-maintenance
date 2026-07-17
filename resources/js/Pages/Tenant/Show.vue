@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import { Link, useForm } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
 import { computed, ref } from "vue";
+import { ChevronDown } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -20,6 +21,7 @@ const props = defineProps({
 const { toast } = useToast();
 
 const activeTab = ref("emails");
+const detailsOpen = ref(false);
 const tabs = [
     { id: "emails", label: "Email History" },
     { id: "work-orders", label: "Work Orders" },
@@ -110,8 +112,18 @@ const sendTenantEmail = () => {
         </div>
 
         <Card>
-            <CardHeader><CardTitle>Tenant details</CardTitle></CardHeader>
-            <CardContent class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <CardHeader class="p-0">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 p-6 text-left"
+                    :aria-expanded="detailsOpen"
+                    @click="detailsOpen = !detailsOpen"
+                >
+                    <CardTitle>Tenant details</CardTitle>
+                    <ChevronDown class="size-5 shrink-0 transition-transform" :class="detailsOpen && 'rotate-180'" />
+                </button>
+            </CardHeader>
+            <CardContent v-if="detailsOpen" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div v-for="item in [
                     ['Email', tenant.email], ['Mobile phone', tenant.mobile_phone], ['Home phone', tenant.home_phone],
                     ['Work phone', tenant.work_phone], ['Address', tenant.address], ['Company', tenant.company],

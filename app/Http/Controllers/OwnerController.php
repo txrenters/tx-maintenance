@@ -60,12 +60,6 @@ class OwnerController extends Controller
             ->get()
             ->map(fn ($workOrder) => $this->workOrderData($workOrder));
 
-        $managementWorkOrders = $owner->managementWorkOrders()
-            ->with('service_status')
-            ->orderByDesc('created_date')
-            ->get()
-            ->map(fn ($workOrder) => $this->workOrderData($workOrder));
-
         $emailNotifications = OwnerEmailNotification::query()
             ->where('owner_id', $owner->id)
             ->with(['attachments', 'workOrder:id,work_order_no'])
@@ -127,7 +121,6 @@ class OwnerController extends Controller
                 'notes' => $owner->notes,
             ],
             'propertyWorkOrders' => $propertyWorkOrders,
-            'managementWorkOrders' => $managementWorkOrders,
             'emailHistory' => $emailHistory,
             'emailHistoryHasMore' => $emailHistoryHasMore,
         ]);

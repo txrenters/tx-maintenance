@@ -15,13 +15,13 @@ class OwnerShowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_show_separates_property_and_management_work_orders_and_includes_email_history(): void
+    public function test_show_includes_property_work_orders_and_email_history_without_management_work_orders(): void
     {
         Role::findOrCreate('woc', 'web');
         $user = User::factory()->create()->assignRole('woc');
         $owner = Owner::factory()->create(['name' => 'Property Owner']);
         $propertyWorkOrder = WorkOrder::factory()->create(['work_order_no' => 1001]);
-        $managementWorkOrder = WorkOrder::factory()->create([
+        WorkOrder::factory()->create([
             'work_order_no' => 1002,
             'property_manager_id' => $owner->id,
         ]);
@@ -39,7 +39,7 @@ class OwnerShowTest extends TestCase
                 ->component('Owner/Show')
                 ->where('owner.id', $owner->id)
                 ->where('propertyWorkOrders.0.id', $propertyWorkOrder->id)
-                ->where('managementWorkOrders.0.id', $managementWorkOrder->id)
+                ->missing('managementWorkOrders')
                 ->where('emailHistory.0.subject', 'Owner update'));
     }
 

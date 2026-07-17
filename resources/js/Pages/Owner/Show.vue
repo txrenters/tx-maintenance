@@ -5,6 +5,7 @@ import { DateTime } from "luxon";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import RichTextEditor from "@/Components/RichTextEditor.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { ChevronDown } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -15,11 +16,11 @@ const props = defineProps({
     emailHistory: { type: Array, default: () => [] },
     emailHistoryHasMore: Boolean,
     propertyWorkOrders: { type: Array, default: () => [] },
-    managementWorkOrders: { type: Array, default: () => [] },
 });
 
 const { toast } = useToast();
 const activeTab = ref("emails");
+const detailsOpen = ref(false);
 const selectedWorkOrderId = ref(null);
 const fileInput = ref(null);
 const composeOpen = ref(false);
@@ -31,7 +32,6 @@ const selectedEmail = ref(null);
 const tabs = [
     { id: "emails", label: "Email History" },
     { id: "property-work-orders", label: "Property Work Orders" },
-    { id: "managed-work-orders", label: "Managed Work Orders" },
 ];
 
 const emailForm = useForm({
@@ -140,8 +140,18 @@ const sendEmail = () => {
         </div>
 
         <Card>
-            <CardHeader><CardTitle>Owner details</CardTitle></CardHeader>
-            <CardContent class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <CardHeader class="p-0">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 p-6 text-left"
+                    :aria-expanded="detailsOpen"
+                    @click="detailsOpen = !detailsOpen"
+                >
+                    <CardTitle>Owner details</CardTitle>
+                    <ChevronDown class="size-5 shrink-0 transition-transform" :class="detailsOpen && 'rotate-180'" />
+                </button>
+            </CardHeader>
+            <CardContent v-if="detailsOpen" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div v-for="item in [
                     ['Email', owner.email], ['Mobile', owner.mobile], ['Phone', owner.phone],
                     ['Company', owner.company], ['Address', owner.address], ['Status', owner.status],
@@ -301,15 +311,15 @@ const sendEmail = () => {
             </DialogContent>
         </Dialog>
 
-        <Card v-if="activeTab === 'property-work-orders' || activeTab === 'managed-work-orders'">
+        <Card v-if="activeTab === 'property-work-orders'">
             <CardHeader>
-                <CardTitle>{{ activeTab === "property-work-orders" ? "Property work orders" : "Managed work orders" }}</CardTitle>
+                <CardTitle>Property work orders</CardTitle>
             </CardHeader>
             <CardContent class="overflow-x-auto">
                 <Table>
                     <TableHeader><TableRow><TableHead>Work order</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        <TableRow v-for="workOrder in activeTab === 'property-work-orders' ? propertyWorkOrders : managementWorkOrders" :key="workOrder.id">
+                        <TableRow v-for="workOrder in propertyWorkOrders" :key="workOrder.id">
                             <TableCell><Link :href="route('work_orders.details', workOrder.id)" class="font-medium text-primary hover:underline">#{{ workOrder.work_order_no }}</Link></TableCell>
                             <TableCell class="max-w-md truncate">{{ workOrder.description || "—" }}</TableCell>
                             <TableCell>{{ workOrder.status || "—" }}</TableCell>
