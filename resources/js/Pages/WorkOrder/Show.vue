@@ -52,6 +52,7 @@ const props = defineProps({
     vendors: Array,
     vendorLinks: Array,
     categories: Array,
+    types: Array,
     serviceStatuses: Array,
     canViewJobberLink: Boolean,
 });
@@ -716,6 +717,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'details'"
                 :workOrder="workOrderForm"
                 :categories="categories ?? []"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"

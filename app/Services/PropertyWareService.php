@@ -588,6 +588,7 @@ class PropertyWareService
         // Local column => PropertyWare PATCH field.
         $map = [
             'category' => 'category',
+            'type' => 'type',
             'description' => 'description',
         ];
 

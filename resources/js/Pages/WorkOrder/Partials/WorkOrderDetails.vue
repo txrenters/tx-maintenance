@@ -29,6 +29,7 @@ const { toast } = useToast();
 const props = defineProps({
     workOrder: Object,
     categories: Array,
+    types: Array,
     vendors: Array,
     isLoading: Boolean,
     closeWorkOrderForm: Object,
@@ -534,7 +535,32 @@ const handleCompleteSubmit = () => {
                         </p>
                     </div>
                 </div>
-                <div>
+                <div
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
+                >
+                    <Label for="message">Type:</Label>
+                    <Select v-model="workOrder.type">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem
+                                    :value="type"
+                                    v-for="type in types"
+                                    :key="type"
+                                >
+                                    {{ type }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div v-else>
                     <Label for="message">Type:</Label>
                     <p>{{ workOrder.type }}</p>
                 </div>

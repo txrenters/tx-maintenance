@@ -126,6 +126,34 @@ class PropertyWareWorkOrderPatchTest extends TestCase
         });
     }
 
+    public function test_update_sends_type_when_it_changes(): void
+    {
+        Http::fake();
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $this->serviceStatusId(),
+            'work_order_no' => 5004,
+            'propertyware_id' => 'PW-790',
+            'type' => 'Repair',
+        ]);
+
+        (new PropertyWareService)->updateWorkOrder($workOrder, [
+            'type' => 'Turnover',
+        ]);
+
+        Http::assertSent(function ($request) {
+            if ($request->method() !== 'PATCH') {
+                return false;
+            }
+
+            $body = $request->data();
+
+            $this->assertSame('Turnover', $body['type'] ?? null);
+
+            return true;
+        });
+    }
+
     public function test_canonical_name_matches_ignoring_case_and_whitespace(): void
     {
         WorkOrderCategory::query()->create(['name' => 'HVAC ']);

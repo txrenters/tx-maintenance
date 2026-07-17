@@ -392,6 +392,16 @@ class WorkOrderController extends Controller
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
+        // The work order "type" has no PropertyWare picklist table of its own, so
+        // the editable dropdown offers the distinct types already in use.
+        $types = WorkOrder::withoutGlobalScopes()
+            ->whereNotNull('type')
+            ->where('type', '!=', '')
+            ->distinct()
+            ->orderBy('type')
+            ->pluck('type')
+            ->values();
+
         // Get service statuses for potential updates
         $serviceStatusesQuery = ServiceStatus::query();
 
@@ -444,6 +454,7 @@ class WorkOrderController extends Controller
             'vendors' => $vendors,
             'vendorLinks' => $vendorLinks,
             'categories' => $categories,
+            'types' => $types,
             'serviceStatuses' => $serviceStatuses,
             // Staff-only "Open in Jobber" link (THMP jobs). Never shown to vendors.
             'canViewJobberLink' => $user->hasAnyRole(['admin', 'woc', 'accounting']),
