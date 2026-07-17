@@ -1674,7 +1674,7 @@ usePoll(15000, {
                         class="w-full resize-y rounded-2xl border py-3 pr-24"
                         rows="1"
                         :disabled="isSendingMessage"
-                        @keydown.enter.prevent="sendMessage"
+                        @keydown.enter.exact.prevent="sendMessage"
                     />
 
                     <div class="flex absolute top-1/2 right-2 -translate-y-1/2">

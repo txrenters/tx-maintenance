@@ -400,7 +400,7 @@ onUnmounted(() => {
 
         <div class="relative w-full">
           <input ref="fileInput" type="file" accept="image/*" multiple @change="handleImageSelect" class="hidden" />
-          <Textarea v-model="newMessage" placeholder="Type your message..." class="w-full resize-y rounded-2xl border py-3 pr-24" rows="1" :disabled="isSendingMessage" @keydown.enter.prevent="sendMessage" />
+          <Textarea v-model="newMessage" placeholder="Type your message..." class="w-full resize-y rounded-2xl border py-3 pr-24" rows="1" :disabled="isSendingMessage" @keydown.enter.exact.prevent="sendMessage" />
           <div class="flex absolute top-1/2 right-2 -translate-y-1/2">
             <Button size="icon" variant="ghost" @click="fileInput?.click()" :disabled="isSendingMessage" title="Attach image"><Paperclip class="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" @click.prevent="sendMessage" :disabled="isSendingMessage || isLoadingMessages">
