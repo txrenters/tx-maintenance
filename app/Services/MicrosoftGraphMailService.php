@@ -88,7 +88,7 @@ class MicrosoftGraphMailService
         ];
 
         do {
-            $response = $this->request()->get($url, $query)->throw()->json();
+            $response = $this->request()->get($url, $query ?: null)->throw()->json();
             $messages = array_merge($messages, $response['value'] ?? []);
             $url = $response['@odata.nextLink'] ?? null;
             $query = []; // nextLink already carries the query string
