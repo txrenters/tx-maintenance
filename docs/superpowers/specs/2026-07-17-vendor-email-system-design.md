@@ -22,7 +22,7 @@ We want to:
 - **Inbound:** a scheduled Artisan command polls the `workorders@` inbox via Graph and matches replies.
 - **Reply matching:** primary key is a subject correlation tag `[TX-<workOrderNo>-<vendorId>]` embedded in every outbound subject; the poll parses it from the inbound subject. Fallback: match the reply's `In-Reply-To`/`References`/`conversationId` against the captured outbound ids.
 - **Permissions:** `Mail.ReadWrite` + `Mail.Send` (application permissions).
-- **Inbound attachments:** **not** downloaded. The inbound row records `has_attachments = true` and the thread shows a "has attachments — view in your email" note. Only outbound attachments (what we send) are stored.
+- **Inbound attachments:** downloaded via Graph and stored on local disk (same `email_attachments` table as outbound), downloadable from the thread. **Image attachments (jpeg/png/gif/webp) are compressed before saving** via the existing `spatie/laravel-image-optimizer` (lossless-ish compression, no dimension resize), mirroring `app/Jobs/UploadAttachment.php`; non-images are stored as-is. Optimization failures fall back to the original bytes. The same optimize-then-store path applies to outbound attachments.
 - **UI:** a new "Emails" tab on the work order detail page (`Show.vue`), scoped to the assigned vendor.
 - **Send origin:** staff/coordinator side only. Vendor-portal sending is out of scope for now.
 
@@ -49,8 +49,9 @@ Add a `microsoft` block to `config/services.php`:
 ```
 
 No new Composer dependencies — Graph is called via the existing `Http`/Guzzle
-client. Two new **npm** dependencies (approved): `@tiptap/vue-3` and
-`@tiptap/starter-kit` for the rich-text compose editor.
+client, and image compression reuses the already-installed
+`spatie/laravel-image-optimizer`. Two new **npm** dependencies (approved):
+`@tiptap/vue-3` and `@tiptap/starter-kit` for the rich-text compose editor.
 
 ## Data model
 
@@ -73,7 +74,7 @@ client. Two new **npm** dependencies (approved): `@tiptap/vue-3` and
 | `graph_conversation_id` | string, nullable, indexed | captured on outbound; fallback match key for inbound |
 | `internet_message_id` | string, nullable, indexed | outbound: our sent Message-ID (fallback match target); inbound: the reply's own Message-ID |
 | `in_reply_to` | string, nullable, indexed | inbound: the Message-ID the reply is answering (fallback match) |
-| `has_attachments` | boolean, default false | inbound: reply carried attachments (flag only — files not downloaded) |
+| `has_attachments` | boolean, default false | convenience flag; the files themselves live in `email_attachments` |
 | `sent_by_user_id` | fk users, nullable | staff who composed a manual email; null = automated/inbound |
 | `emailed_at` | timestamp | sent time (outbound) / received time (inbound) |
 | `timestamps` | | |
@@ -92,10 +93,12 @@ Index notes: `(work_order_id, vendor_id)` composite for the thread query; unique
 | `path` | string | local disk path |
 | `timestamps` | | |
 
-Used for **outbound only**: manual uploads + the automated WO-Information PDF,
-stored as full bytes on local disk so staff can re-download what we sent. Inbound
-reply attachments are **not** stored — the inbound row's `has_attachments` flag
-drives a "view in your email" note instead.
+Used for **both directions**: outbound attachments (manual uploads + the automated
+WO-Information PDF) and downloaded inbound reply attachments. Files are stored as
+full bytes on local disk (not links to the mailbox), so they remain available even
+if the mailbox item is later moved or deleted, and the thread serves them via a
+download route. Image attachments are compressed before storage (see the
+attachment services below); non-images are stored unchanged.
 
 ### Models & relations
 
@@ -125,6 +128,10 @@ Thin wrapper over the Graph REST API using `Http`.
   `id,subject,from,receivedDateTime,hasAttachments,conversationId,internetMessageId,body`
   plus `internetMessageHeaders` (for `In-Reply-To`/`References`),
   `$filter=receivedDateTime ge {since}`, ordered ascending, paged.
+- **`getAttachments(string $messageId): array`**
+  `GET /users/{mailbox}/messages/{id}/attachments` → returns decoded file
+  attachments `[{name, contentType, bytes}]`, skipping non-file (item/reference)
+  attachment types. Requires `Mail.ReadWrite`.
 - **`markRead(string $messageId): void`**
   `PATCH /users/{mailbox}/messages/{id}` `{ isRead: true }` (allowed by ReadWrite);
   a best-effort extra guard on top of the cursor + dedupe.
@@ -151,6 +158,25 @@ Responsibilities:
    `correlation_tag`, the captured Graph ids, `from_email`=mailbox,
    `to_email`=vendor email, `sent_by_user_id`, `emailed_at=now()`).
 4. Persist `EmailAttachment` rows for any files (stored on local disk).
+
+### Attachment storage + image optimization
+
+Two small shared services keep attachment handling DRY across the outbound and
+inbound paths:
+
+- `App\Services\AttachmentOptimizer` — `optimize(string $bytes, string $mime): string`.
+  For `image/jpeg|png|gif|webp`, writes the bytes to a temp file, runs
+  `Spatie\ImageOptimizer\OptimizerChainFactory::create()->optimize($path)`
+  (the same chain used by `app/Jobs/UploadAttachment.php`), and returns the
+  compressed bytes; non-images and any failure return the original bytes.
+- `App\Services\EmailAttachmentStore` — `persist(EmailMessage $message, string $filename, string $mime, string $bytes): EmailAttachment`.
+  Writes the (already-optimized) bytes to `email-attachments/{id}/…` on the local
+  disk and creates the `EmailAttachment` row.
+
+Both the sender (outbound) and the sync command (inbound) call
+`AttachmentOptimizer::optimize(...)` then `EmailAttachmentStore::persist(...)`.
+The sender optimizes once and uses the same bytes for the Graph attachment and the
+stored copy.
 
 ### (a) Automated assignment email
 
@@ -203,8 +229,10 @@ Handled by the controller `store` action below.
    - Insert an inbound `EmailMessage` (`direction=inbound`, `from_email` = sender,
      `to_email` = mailbox, `subject`, `body_html`/`body_text` from Graph `body`,
      `graph_message_id`, `graph_conversation_id`, `internet_message_id`,
-     `in_reply_to`, `has_attachments` (from Graph `hasAttachments` — flag only,
-     files not downloaded), `emailed_at` = `receivedDateTime`).
+     `in_reply_to`, `has_attachments` (from Graph `hasAttachments`),
+     `emailed_at` = `receivedDateTime`).
+   - If `hasAttachments`, call `graph->getAttachments(id)`, and for each file
+     `AttachmentOptimizer::optimize(...)` then `EmailAttachmentStore::persist(...)`.
    - `graph->markRead(id)` (best-effort).
 4. Advance the cursor to the max `receivedDateTime` processed.
 
@@ -272,7 +300,10 @@ dedupe; marking read is an additional guard.
 Unit (`tests/Unit`):
 - `MicrosoftGraphMailService`: token is cached and reused; `sendMail`
   (draft-then-send) posts the draft then the send and returns the captured ids;
-  `fetchInbox` builds the correct query — all via `Http::fake`.
+  `fetchInbox` builds the correct query; `getAttachments` decodes file bytes and
+  skips non-file types — all via `Http::fake`.
+- `AttachmentOptimizer`: an image is compressed (or returned unchanged on failure);
+  a non-image is returned byte-for-byte.
 
 Feature (`tests/Feature`):
 - `SyncEmailReplies`: a reply whose subject carries `[TX-<wo>-<vendor>]` creates a
@@ -280,7 +311,8 @@ Feature (`tests/Feature`):
   matches a reply with a stripped subject tag; a message with no match is ignored;
   a message whose vendor is not assigned to the work order is ignored; a message
   with an already-stored `graph_message_id` is not duplicated; a reply with
-  attachments sets `has_attachments = true` without storing any files; cursor advances.
+  attachments downloads and stores them as `EmailAttachment` rows (image bytes
+  passed through the optimizer); cursor advances.
 - `WorkOrderEmailController@store`: persists an outbound `EmailMessage` with the
   captured Graph ids, calls the sender (Graph faked), and stores attachments.
 - `WorkOrderEmailController@index`: returns only the requested vendor's thread and
