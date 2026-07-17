@@ -41,6 +41,15 @@ class OwnerServiceRequestNotificationService
 
     private function send(WorkOrder $workOrder): void
     {
+        // Vacant units have no tenant who submitted the request, so the owner
+        // confirmation ("...the service request submitted by your tenant...")
+        // would be misleading. When the WOC has marked the work order vacant,
+        // skip the owner notification entirely (leaving it un-stamped so it
+        // never fires for this request).
+        if ($workOrder->skip_automated_tasks) {
+            return;
+        }
+
         $workOrder->loadMissing([
             'owners',
             'requested_by',
