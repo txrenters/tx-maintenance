@@ -93,4 +93,11 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-5.1-mini'),
     ],
 
+    'microsoft' => [
+        'tenant_id' => env('MICROSOFT_TENANT_ID'),
+        'client_id' => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'mailbox' => env('MICROSOFT_MAILBOX', 'workorders@texasrenters.com'),
+    ],
+
 ];
