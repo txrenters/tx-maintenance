@@ -48,7 +48,9 @@ Add a `microsoft` block to `config/services.php`:
 ],
 ```
 
-No new Composer dependencies — Graph is called via the existing `Http`/Guzzle client.
+No new Composer dependencies — Graph is called via the existing `Http`/Guzzle
+client. Two new **npm** dependencies (approved): `@tiptap/vue-3` and
+`@tiptap/starter-kit` for the rich-text compose editor.
 
 ## Data model
 
@@ -162,7 +164,8 @@ block with a call to `WorkOrderEmailSender::sendVendorEmail(...)`:
 
 The CC list currently on `VendorServiceRequestMail` (`workorders@`, `mc@`, `ofm@`)
 moves into the send call's `cc`. Because the From/mailbox is now `workorders@`,
-drop `workorders@` from CC to avoid self-CC.
+drop `workorders@` from CC to avoid self-CC — leaving `mc@texasrenters.com` and
+`ofm@txhomemp.com` (2 CCs).
 
 `VendorServiceRequestMail` (the Mailable) is retained only as the view/subject
 renderer, or its Blade view is rendered directly — implementation plan decides.
@@ -211,9 +214,11 @@ dedupe; marking read is an additional guard.
   (`{ vendor_emails: [...] }`), ordered by `emailed_at`, eager-loading attachments.
   Mirrors the existing `fetch*Conversation` axios pattern used by `Show.vue`.
 - `store(Request $request, WorkOrder $workOrder)` — validates `vendor_id`,
-  `subject`, `body` (required), `attachments[]` (optional files). Calls
-  `WorkOrderEmailSender::sendVendorEmail(...)` with the authenticated user as
-  `sentBy`. Returns the created message / redirects back like the SMS send.
+  `subject`, `body` (required; HTML from the Tiptap editor, sanitized per the
+  HTML-safety note below), `attachments[]` (optional files). Calls
+  `WorkOrderEmailSender::sendVendorEmail(...)`
+  with the authenticated user as `sentBy`. Returns the created message / redirects
+  back like the SMS send.
 
 ### Routes (`routes/web.php`)
 
@@ -228,9 +233,12 @@ dedupe; marking read is an additional guard.
     timestamp, body, outbound attachment download links, and — for inbound replies
     that carried attachments — a "has attachments — view in your email" note (no
     download).
-  - Compose box: `subject` input + `body` textarea + file input; posts via
-    `router.post(route('work_order.email.send'), formData)` and emits an
-    update event to refetch.
+  - Compose box: `subject` input + a **Tiptap rich-text editor** (bold, italic,
+    underline, bullet/ordered lists, link) whose HTML output becomes `body_html`
+    (a plain-text version is derived for `body_text`) + file input; posts via
+    `router.post(route('work_order.email.send'), formData)` and emits an update
+    event to refetch. Extract the editor into a reusable
+    `resources/js/Components/RichTextEditor.vue` so future channels/notes can share it.
 - `Show.vue`:
   - Add an "Emails" entry to the tab config (with tooltip), gated to the same
     roles that see the vendor conversation tab.
@@ -246,6 +254,13 @@ dedupe; marking read is an additional guard.
   one bad message does not stall the batch; the cursor only advances past
   successfully processed messages.
 - Duplicate protection: unique `graph_message_id` index + existence check.
+- **HTML safety:** email bodies are HTML and get rendered in the thread, so they
+  must not be dropped into `v-html` raw. Inbound bodies come from outside our
+  control (XSS surface) and outbound Tiptap HTML is still user-authored — sanitize
+  HTML to an allowlist (bold/italic/underline/lists/links/paragraphs/breaks) before
+  storing/displaying, or render inbound bodies inside a sandboxed iframe. The
+  implementation plan picks the mechanism; no unapproved dependency is added
+  without asking.
 
 ## Testing
 
@@ -273,5 +288,3 @@ Feature (`tests/Feature`):
 - Owner and tenant email channels (model supports it via nullable `vendor_id` +
   a future recipient-type discriminator).
 - Vendor-portal-side email composing.
-- Rich-text/WYSIWYG compose (MVP is plain-text body rendered into a simple HTML
-  wrapper).
