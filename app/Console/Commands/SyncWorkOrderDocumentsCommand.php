@@ -7,9 +7,9 @@ use App\Models\Attachments;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderEmailSender;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 
 class SyncWorkOrderDocumentsCommand extends Command
@@ -228,12 +228,28 @@ class SyncWorkOrderDocumentsCommand extends Command
                     ? route('vendor.portal.show', $vendor->pivot->access_token)
                     : null;
 
-                Mail::to($vendor->email)->send(new VendorServiceRequestMail(
+                // The Blade design is unchanged — render the existing mailable to
+                // HTML and hand it to the sender as trusted template HTML (no
+                // sanitize), which persists it as an outbound EmailMessage.
+                $mailable = new VendorServiceRequestMail(
                     vendorName: $vendor->name ?? 'Vendor',
                     workOrderNo: (string) $workOrder->work_order_no,
                     pdfContent: $pdf['content'],
                     portalUrl: $portalUrl,
-                ));
+                );
+
+                app(WorkOrderEmailSender::class)->sendVendorEmail(
+                    workOrder: $workOrder,
+                    vendor: $vendor,
+                    subject: 'New Service Request - Work Order #'.$workOrder->work_order_no,
+                    html: $mailable->render(),
+                    files: [[
+                        'name' => $mailable->pdfFileName,
+                        'contentType' => 'application/pdf',
+                        'bytes' => $pdf['content'],
+                    ]],
+                    trustedHtml: true,
+                );
             }
 
             $workOrder->forceFill(['service_request_sent_at' => now()])->save();

@@ -9,6 +9,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderEmailSender;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,7 +17,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 /**
@@ -70,15 +70,31 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         $portalUrl = $accessToken ? route('vendor.portal.show', $accessToken) : null;
 
-        // 1) Email the vendor (only when we have an address to send to).
+        // 1) Email the vendor via Microsoft Graph (only when we have an address).
+        //    The Blade design is unchanged — we render the existing mailable to
+        //    HTML and hand it to the sender as trusted template HTML (no sanitize),
+        //    which persists it as an outbound EmailMessage and threads replies.
         if (filled($vendor->email)) {
-            Mail::to($vendor->email)->send(new VendorServiceRequestMail(
+            $html = (new VendorServiceRequestMail(
                 vendorName: $vendor->name,
                 workOrderNo: (string) $workOrder->work_order_no,
                 pdfContent: $pdf,
                 portalUrl: $portalUrl,
                 pdfFileName: $fileName,
-            ));
+            ))->render();
+
+            app(WorkOrderEmailSender::class)->sendVendorEmail(
+                workOrder: $workOrder,
+                vendor: $vendor,
+                subject: 'New Service Request - Work Order #'.$workOrder->work_order_no,
+                html: $html,
+                files: [[
+                    'name' => $fileName,
+                    'contentType' => 'application/pdf',
+                    'bytes' => $pdf,
+                ]],
+                trustedHtml: true,
+            );
         }
 
         // 2) Upload the generated PDF back to PropertyWare, then record it locally
