@@ -231,7 +231,12 @@ const fmtMoney = (v) =>
         <Dialog :open="selectedEmail !== null" @update:open="!$event && (selectedEmail = null)">
             <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
                 <DialogHeader><DialogTitle>{{ selectedEmail?.subject || "Email message" }}</DialogTitle><DialogDescription>{{ selectedEmail?.from_email }} → {{ selectedEmail?.to_email }} · {{ fmtDateTime(selectedEmail?.emailed_at) }}</DialogDescription></DialogHeader>
-                <p class="whitespace-pre-wrap text-sm">{{ selectedEmail?.body_text || "No message content." }}</p>
+                <div
+                    v-if="selectedEmail?.body_html"
+                    class="rounded-md bg-white p-4 text-sm text-black [&_a]:text-blue-600 [&_a]:underline"
+                    v-html="selectedEmail.body_html"
+                />
+                <p v-else class="whitespace-pre-wrap text-sm">{{ selectedEmail?.body_text || "No message content." }}</p>
             </DialogContent>
         </Dialog>
 

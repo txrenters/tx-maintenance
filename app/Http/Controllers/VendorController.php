@@ -6,6 +6,7 @@ use App\Models\TwilioPhoneNumber;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\VendorTypes;
+use App\Services\HtmlSanitizer;
 use App\Services\PropertyWareService;
 use App\Services\VendorService;
 use Illuminate\Http\Request;
@@ -89,6 +90,9 @@ class VendorController extends Controller
                 'direction' => $email->direction,
                 'subject' => $email->subject,
                 'body_text' => $email->body_text,
+                'body_html' => filled($email->body_html)
+                    ? app(HtmlSanitizer::class)->clean($email->body_html)
+                    : null,
                 'from_email' => $email->from_email,
                 'to_email' => $email->to_email,
                 'cc' => $email->cc ?? [],
