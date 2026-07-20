@@ -229,14 +229,28 @@ const fmtMoney = (v) =>
         </Card>
 
         <Dialog :open="selectedEmail !== null" @update:open="!$event && (selectedEmail = null)">
-            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-                <DialogHeader><DialogTitle>{{ selectedEmail?.subject || "Email message" }}</DialogTitle><DialogDescription>{{ selectedEmail?.from_email }} → {{ selectedEmail?.to_email }} · {{ fmtDateTime(selectedEmail?.emailed_at) }}</DialogDescription></DialogHeader>
-                <div
-                    v-if="selectedEmail?.body_html"
-                    class="rounded-md bg-white p-4 text-sm text-black [&_a]:text-blue-600 [&_a]:underline"
-                    v-html="selectedEmail.body_html"
-                />
-                <p v-else class="whitespace-pre-wrap text-sm">{{ selectedEmail?.body_text || "No message content." }}</p>
+            <DialogContent class="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3xl">
+                <DialogHeader class="border-b px-6 py-4 pr-12 text-left">
+                    <DialogTitle class="text-base leading-snug">{{ selectedEmail?.subject || "Email message" }}</DialogTitle>
+                    <DialogDescription class="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
+                        <span class="font-medium text-foreground">{{ selectedEmail?.from_email }}</span>
+                        <span>→</span>
+                        <span>{{ selectedEmail?.to_email }}</span>
+                        <span class="text-muted-foreground/60">·</span>
+                        <span>{{ fmtDateTime(selectedEmail?.emailed_at) }}</span>
+                    </DialogDescription>
+                    <div v-if="selectedEmail?.cc?.length" class="mt-0.5 text-xs text-muted-foreground">
+                        CC: {{ selectedEmail.cc.join(", ") }}
+                    </div>
+                </DialogHeader>
+                <div class="overflow-y-auto bg-white px-8 py-6">
+                    <div
+                        v-if="selectedEmail?.body_html"
+                        class="mx-auto max-w-[65ch] text-[13.5px] leading-relaxed text-neutral-800 [&_a]:font-medium [&_a]:text-blue-600 [&_a]:underline [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_hr]:my-4 [&_hr]:border-neutral-200 [&_li]:mb-1 [&_p]:mb-3 [&_strong]:text-neutral-900 [&_table]:w-full [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5"
+                        v-html="selectedEmail.body_html"
+                    />
+                    <p v-else class="mx-auto max-w-[65ch] whitespace-pre-wrap text-[13.5px] leading-relaxed text-neutral-800">{{ selectedEmail?.body_text || "No message content." }}</p>
+                </div>
             </DialogContent>
         </Dialog>
 
