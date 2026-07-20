@@ -101,6 +101,22 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
+    public function test_job_skips_turnover_work_orders(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+
+        // Turnover properties are vacant — the "vendor will contact the tenant"
+        // email is wrong there, and the THMP coordinator emails those owners
+        // personally instead.
+        $workOrder->update(['type' => 'Turnover']);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldNotReceive('sendVendorAssignment');
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
     /** @return array{0: WorkOrder, 1: Vendor, 2: Owner} */
     private function records(): array
     {

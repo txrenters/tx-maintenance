@@ -249,6 +249,12 @@ class SyncWorkOrderDocumentsCommand extends Command
                         'bytes' => $pdf['content'],
                     ]],
                     trustedHtml: true,
+                    // Turnover jobs are coordinated by the THMP coordinator, so
+                    // their vendor emails go out from that mailbox instead of
+                    // the shared work-orders one.
+                    mailbox: $workOrder->type === 'Turnover'
+                        ? (string) config('services.microsoft.turnover_mailbox')
+                        : null,
                 );
             }
 

@@ -24,6 +24,13 @@ class SyncEmailRepliesTest extends TestCase
     {
         parent::setUp();
 
+        // Collapse both polled mailboxes to one so single-mailbox tests keep
+        // their one-fetch expectations; the multi-mailbox test overrides this.
+        config([
+            'services.microsoft.mailbox' => 'workorders@texasrenters.com',
+            'services.microsoft.turnover_mailbox' => 'workorders@texasrenters.com',
+        ]);
+
         $this->graph = Mockery::mock(MicrosoftGraphMailService::class);
         $this->graph->shouldReceive('markRead')->zeroOrMoreTimes()->andReturnNull();
         $this->app->instance(MicrosoftGraphMailService::class, $this->graph);
@@ -112,7 +119,7 @@ class SyncEmailRepliesTest extends TestCase
             'hasAttachments' => true,
         ]);
         $this->fakeInbox([$message]);
-        $this->graph->shouldReceive('getAttachments')->once()->with('WITH-FILE')->andReturn([
+        $this->graph->shouldReceive('getAttachments')->once()->with('WITH-FILE', 'workorders@texasrenters.com')->andReturn([
             ['name' => 'invoice.pdf', 'contentType' => 'application/pdf', 'bytes' => '%PDF-fake'],
         ]);
 
@@ -143,6 +150,34 @@ class SyncEmailRepliesTest extends TestCase
 
         $this->assertSame($startingCursor->toIso8601ZuluString(), Cache::get('emails.replies.cursor'));
         $this->assertDatabaseMissing('email_messages', ['graph_message_id' => 'FAILED-FILE']);
+    }
+
+    public function test_polls_the_turnover_mailbox_with_its_own_cursor(): void
+    {
+        config(['services.microsoft.turnover_mailbox' => 'thmp@texasrenters.com']);
+        [$workOrder, $vendor] = $this->assignedVendor(5007);
+
+        $this->graph->shouldReceive('fetchInbox')
+            ->once()->withArgs(fn ($since, $mailbox) => $mailbox === 'workorders@texasrenters.com')
+            ->andReturn([]);
+        $this->graph->shouldReceive('fetchInbox')
+            ->once()->withArgs(fn ($since, $mailbox) => $mailbox === 'thmp@texasrenters.com')
+            ->andReturn([$this->graphMessage([
+                'subject' => 'Re: New Service Request [TX-5007-'.$vendor->id.']',
+            ])]);
+
+        $this->artisan('emails:sync-replies')->assertSuccessful();
+
+        // The turnover-mailbox reply threads onto the work order and records
+        // which mailbox received it; each mailbox tracks its own cursor.
+        $this->assertDatabaseHas('email_messages', [
+            'direction' => 'inbound',
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+            'to_email' => 'thmp@texasrenters.com',
+        ]);
+        $this->assertNotNull(Cache::get('emails.replies.cursor'));
+        $this->assertNotNull(Cache::get('emails.replies.cursor:thmp@texasrenters.com'));
     }
 
     /**
