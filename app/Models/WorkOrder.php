@@ -34,6 +34,18 @@ class WorkOrder extends Model
         return $this->belongsTo(ServiceStatus::class, 'service_status_id');
     }
 
+    /**
+     * Whether this is a turnover job (vacant property). PropertyWare data is
+     * inconsistent about where "Turnover" lives — some work orders carry it as
+     * the type, others as the category — so turnover behavior (task workflow,
+     * THMP mailbox, no owner notifications) matches on either field.
+     */
+    public function isTurnover(): bool
+    {
+        return trim((string) $this->type) === 'Turnover'
+            || trim((string) $this->category) === 'Turnover';
+    }
+
     public function managed_by(): BelongsTo
     {
         return $this->belongsTo(Owner::class, 'property_manager_id');

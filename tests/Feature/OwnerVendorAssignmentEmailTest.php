@@ -115,6 +115,11 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         $sender->shouldNotReceive('sendVendorAssignment');
 
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+
+        // Turnover carried as the category (PropertyWare is inconsistent about
+        // which field holds it) must be skipped just the same.
+        $workOrder->update(['type' => 'Service Request', 'category' => 'Turnover']);
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
     /** @return array{0: WorkOrder, 1: Vendor, 2: Owner} */

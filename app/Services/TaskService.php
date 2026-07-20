@@ -48,9 +48,13 @@ class TaskService
         // Work order types with their own template set (e.g. Turnover) use only
         // that set: a status they skip generates no tasks rather than falling
         // back to the generic workflow. Types without a dedicated set use the
-        // generic (null work_order_type) templates as before.
-        $hasTypeSpecificTemplates = ! empty($workOrder->type)
-            && TaskTemplate::where('work_order_type', $workOrder->type)
+        // generic (null work_order_type) templates as before. Turnover is
+        // matched via isTurnover() (type OR category) since PropertyWare data
+        // carries it in either field.
+        $templateType = $workOrder->isTurnover() ? 'Turnover' : $workOrder->type;
+
+        $hasTypeSpecificTemplates = ! empty($templateType)
+            && TaskTemplate::where('work_order_type', $templateType)
                 ->where('is_current_service_status_emergency', $isEmergency)
                 ->exists();
 
@@ -61,7 +65,7 @@ class TaskService
             ->where('is_current_service_status_emergency', $isEmergency)
             ->when(
                 $hasTypeSpecificTemplates,
-                fn ($q) => $q->where('work_order_type', $workOrder->type),
+                fn ($q) => $q->where('work_order_type', $templateType),
                 fn ($q) => $q->whereNull('work_order_type')
             )
             ->first();
@@ -171,7 +175,9 @@ class TaskService
             }
         }
 
-        $routedUser = self::routedWocUserForType($workOrder->type);
+        $routedUser = self::routedWocUserForType(
+            $workOrder->isTurnover() ? 'Turnover' : $workOrder->type
+        );
 
         if ($routedUser) {
             return $routedUser;

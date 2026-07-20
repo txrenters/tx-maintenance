@@ -97,7 +97,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                 // Turnover jobs are coordinated by the THMP coordinator, so
                 // their vendor emails go out from (and replies land in) that
                 // mailbox instead of the shared work-orders one.
-                mailbox: $workOrder->type === 'Turnover'
+                mailbox: $workOrder->isTurnover()
                     ? (string) config('services.microsoft.turnover_mailbox')
                     : null,
             );
@@ -161,7 +161,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         // Turnover properties are vacant, so the "vendor will contact the
         // tenant" message is wrong; the THMP coordinator contacts those owners
         // personally instead of the automated notification.
-        if ($workOrder->type === 'Turnover') {
+        if ($workOrder->isTurnover()) {
             return;
         }
 

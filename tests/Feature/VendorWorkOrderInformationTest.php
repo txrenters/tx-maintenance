@@ -294,10 +294,14 @@ class VendorWorkOrderInformationTest extends TestCase
         ]);
 
         $vendor = $this->makeVendor(['email' => 'vendor@example.com']);
+
+        // Turnover carried in the category field (type differs) must behave the
+        // same — PropertyWare data is inconsistent about which field holds it.
         $workOrder = WorkOrder::factory()->create([
             'propertyware_id' => 4377411585,
             'work_order_no' => 43357,
-            'type' => 'Turnover',
+            'type' => 'Service Request',
+            'category' => 'Turnover',
         ]);
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-thmp']);
 

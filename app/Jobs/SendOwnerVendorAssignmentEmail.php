@@ -35,7 +35,7 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
         // Turnover properties are vacant, so the "vendor will contact the
         // tenant" message is wrong; the THMP coordinator emails those owners
         // personally instead of the automated notification.
-        if ($workOrder->type === 'Turnover') {
+        if ($workOrder->isTurnover()) {
             return;
         }
 

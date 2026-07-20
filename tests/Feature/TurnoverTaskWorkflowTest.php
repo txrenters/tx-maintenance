@@ -105,6 +105,25 @@ class TurnoverTaskWorkflowTest extends TestCase
         );
     }
 
+    public function test_turnover_by_category_also_gets_the_streamlined_tasks(): void
+    {
+        $this->makeGenericTemplateFor('New');
+
+        // PropertyWare data sometimes carries Turnover as the category rather
+        // than the type — both must hit the Turnover template set.
+        $workOrder = WorkOrder::factory()->create([
+            'type' => 'Service Request',
+            'category' => 'Turnover',
+        ]);
+
+        TaskService::createTasksForWorkOrder($workOrder, false, $this->statusId('New'));
+
+        $this->assertSame([
+            'Update Zone for Service Request (Look at Property)',
+            'Update Management Plan (Important for Charges)',
+        ], WorkOrderTask::query()->where('work_order_id', $workOrder->id)->pluck('description')->all());
+    }
+
     public function test_non_turnover_work_order_still_uses_the_generic_template(): void
     {
         $this->makeGenericTemplateFor('New', 'Check for tenant easy fix');
