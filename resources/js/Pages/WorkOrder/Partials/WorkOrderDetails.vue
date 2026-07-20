@@ -50,12 +50,14 @@ const selectedVendors = ref(
     (props.workOrder.vendors || []).map((v) => ({ id: v.id, name: v.name })),
 );
 
-// The board modal reuses this component while switching between cards, so
-// re-seed the picker with the newly opened work order's vendors.
+// Re-seed the picker whenever the work order's vendors are (re)loaded — the
+// board modal reuses this component across cards, and a successful assignment
+// refetches the work order, so keying on the vendors themselves keeps the
+// chips showing the saved assignment in every path.
 watch(
-    () => props.workOrder.id,
-    () => {
-        selectedVendors.value = (props.workOrder.vendors || []).map((v) => ({
+    () => props.workOrder.vendors,
+    (vendors) => {
+        selectedVendors.value = (vendors || []).map((v) => ({
             id: v.id,
             name: v.name,
         }));

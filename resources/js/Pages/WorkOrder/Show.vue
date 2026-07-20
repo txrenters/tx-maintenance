@@ -240,6 +240,17 @@ const workOrderForm = useForm({
 
 const closeWorkOrderForm = useForm({ id: order.id });
 
+// A successful vendor assignment partially reloads the `workOrder` prop; the
+// form object above was seeded once at page load, so mirror the refreshed
+// vendors (and the status that gates around them) back into it.
+watch(
+    () => props.workOrder,
+    (fresh) => {
+        workOrderForm.vendors = fresh.vendors ?? [];
+        workOrderForm.local_status = fresh.local_status;
+    },
+);
+
 // ── Reactive data for tab content ─────────────────────────────────────────────
 const isLoading = ref(false);
 const workOrderTasks = ref(props.tasks ?? []);
