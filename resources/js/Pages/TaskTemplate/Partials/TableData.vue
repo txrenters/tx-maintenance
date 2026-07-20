@@ -14,6 +14,7 @@ const openDeleteDialog = (user) => {
     <TableHeader>
       <TableRow>
         <TableHead>Name</TableHead>
+        <TableHead class="hidden md:table-cell"> Work Order Type </TableHead>
         <TableHead class="hidden md:table-cell"> Description </TableHead>
         <TableHead class="hidden md:table-cell"> Service Status </TableHead>
         <TableHead class="hidden md:table-cell"> Is Emergency </TableHead>
@@ -35,6 +36,12 @@ const openDeleteDialog = (user) => {
           >
             {{ template.is_emergency }}</Badge
           >
+        </TableCell>
+        <TableCell class="hidden md:table-cell">
+          <Badge v-if="template.work_order_type" variant="outline">
+            {{ template.work_order_type }}
+          </Badge>
+          <span v-else class="text-muted-foreground text-xs">Generic</span>
         </TableCell>
         <TableCell class="hidden md:table-cell">
           {{ template.description }}
@@ -77,7 +84,7 @@ const openDeleteDialog = (user) => {
         </TableCell>
       </TableRow>
       <TableRow v-if="data.length === 0">
-        <TableCell colspan="4">No templates found!</TableCell>
+        <TableCell colspan="5">No templates found!</TableCell>
       </TableRow>
     </TableBody>
   </Table>
