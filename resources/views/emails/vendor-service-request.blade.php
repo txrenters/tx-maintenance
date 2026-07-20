@@ -85,7 +85,7 @@
                     <tr>
                         <td style="padding:8px 28px 20px; font-size:14px; line-height:1.55; color:#374151;">
                             <p style="margin:14px 0 2px;">Best regards,</p>
-                            <p style="margin:0; font-weight:bold; color:#0f2c66;">The TexasRenters.com Property Management Team</p>
+                            <p style="margin:0; font-weight:bold; color:#0f2c66;">The TexasRenters.com Maintenance Team</p>
                         </td>
                     </tr>
 
@@ -93,7 +93,6 @@
                     <tr>
                         <td style="background-color:#f5f7fa; padding:16px 28px; border-top:1px solid #e5e7eb;">
                             <div style="font-size:11px; color:#9aa5b1; line-height:1.5;">
-                                This is an automated email notification, please do not respond.<br>
                                 <a href="https://www.texasrenters.com/" style="color:#2563EA; text-decoration:none;">TexasRenters.com</a>
                                 &middot; 5225 Katy Freeway, Ste 545, Houston, TX 77007
                             </div>

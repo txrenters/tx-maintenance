@@ -83,27 +83,35 @@ class OwnerWorkOrderEmailSender
         });
     }
 
-    /** @param array<string, mixed> $metadata */
-    public function sendVendorAssignment(WorkOrder $workOrder, Owner $owner, Vendor $vendor, string $subject, string $html, array $metadata = []): OwnerEmailNotification
+    /**
+     * @param  array<int, string>  $extraCc  Additional CC recipients (e.g. co-owners), merged with DEFAULT_CC.
+     * @param  array<string, mixed>  $metadata
+     */
+    public function sendVendorAssignment(WorkOrder $workOrder, Owner $owner, Vendor $vendor, string $subject, string $html, array $extraCc = [], array $metadata = []): OwnerEmailNotification
     {
         $mailbox = (string) config('services.microsoft.mailbox');
         $tag = 'TXO-'.$workOrder->work_order_no.'-'.$owner->id;
         $taggedSubject = str_contains($subject, '['.$tag.']') ? $subject : $subject.' ['.$tag.']';
         $idempotencyKey = 'vendor_assignment:'.$workOrder->id.':'.$vendor->id.':'.$owner->id;
 
+        $cc = array_values(array_filter(
+            array_unique(array_merge(self::DEFAULT_CC, $extraCc)),
+            fn (string $email): bool => strcasecmp($email, (string) $owner->email) !== 0,
+        ));
+
         $notification = OwnerEmailNotification::query()->createOrFirst(
             ['idempotency_key' => $idempotencyKey],
-            ['work_order_id' => $workOrder->id, 'vendor_id' => $vendor->id, 'owner_id' => $owner->id, 'type' => 'vendor_assignment', 'direction' => 'outbound', 'subject' => $taggedSubject, 'body_html' => $html, 'body_text' => trim(strip_tags($html)), 'from_email' => $mailbox, 'to_email' => $owner->email, 'cc' => self::DEFAULT_CC, 'correlation_tag' => $tag, 'metadata' => $metadata],
+            ['work_order_id' => $workOrder->id, 'vendor_id' => $vendor->id, 'owner_id' => $owner->id, 'type' => 'vendor_assignment', 'direction' => 'outbound', 'subject' => $taggedSubject, 'body_html' => $html, 'body_text' => trim(strip_tags($html)), 'from_email' => $mailbox, 'to_email' => $owner->email, 'cc' => $cc, 'correlation_tag' => $tag, 'metadata' => $metadata],
         );
 
-        return DB::transaction(function () use ($notification, $owner, $taggedSubject, $html, $mailbox): OwnerEmailNotification {
+        return DB::transaction(function () use ($notification, $owner, $taggedSubject, $html, $mailbox, $cc): OwnerEmailNotification {
             $locked = OwnerEmailNotification::query()->lockForUpdate()->findOrFail($notification->id);
 
             if ($locked->graph_message_id !== null) {
                 return $locked;
             }
 
-            $result = $this->graph->sendMail($owner->email, self::DEFAULT_CC, $taggedSubject, $html, mailbox: $mailbox);
+            $result = $this->graph->sendMail($owner->email, $cc, $taggedSubject, $html, mailbox: $mailbox);
             $locked->update([
                 'graph_message_id' => $result['graph_message_id'],
                 'graph_conversation_id' => $result['graph_conversation_id'],

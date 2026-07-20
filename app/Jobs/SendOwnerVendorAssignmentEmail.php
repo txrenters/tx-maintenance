@@ -38,6 +38,14 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             return;
         }
 
+        $coOwnerEmails = $workOrder->owners
+            ->reject(fn (Owner $coOwner): bool => $coOwner->is($owner))
+            ->pluck('email')
+            ->filter(fn (?string $email): bool => filter_var($email, FILTER_VALIDATE_EMAIL) !== false && ! str_ends_with(strtolower((string) $email), '@texasrenter.com'))
+            ->unique()
+            ->values()
+            ->all();
+
         $html = view('emails.owner-vendor-assignment', [
             'owner' => $owner,
             'vendor' => $vendor,
@@ -51,6 +59,7 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             $vendor,
             'Vendor Assigned - Work Order #'.$workOrder->work_order_no,
             $html,
+            $coOwnerEmails,
         );
     }
 }

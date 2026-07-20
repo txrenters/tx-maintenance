@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Models\Owner;
+use App\Models\OwnerEmailNotification;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -85,6 +86,26 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         $sender->shouldReceive('sendVendorAssignment')->once()->withArgs(fn ($wo, $target, $assignedVendor) => $target->is($owner) && $assignedVendor->is($vendor));
 
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
+    public function test_co_owners_are_cc_d_on_the_primary_owner_email(): void
+    {
+        config(['services.microsoft.mailbox' => 'workorders@texasrenters.com']);
+        [$workOrder, $vendor, $owner] = $this->records();
+        $coOwner = Owner::factory()->create(['email' => 'coowner@example.com', 'percentage_ownership' => 40]);
+        $placeholder = Owner::factory()->create(['email' => '999@texasrenter.com', 'percentage_ownership' => 10]);
+        $workOrder->owners()->attach([$owner->id, $coOwner->id, $placeholder->id]);
+
+        $graph = Mockery::mock(MicrosoftGraphMailService::class);
+        $graph->shouldReceive('sendMail')->once()->withArgs(fn ($to, $cc, $subject, $html, $files, $mailbox) => $to === $owner->email
+            && $cc === ['mc@texasrenters.com', 'ofm@txhomemp.com', 'coowner@example.com'])->andReturn([
+                'graph_message_id' => 'CO-G1', 'graph_conversation_id' => 'CO-C1', 'internet_message_id' => '<co-g1>',
+            ]);
+        $this->app->instance(MicrosoftGraphMailService::class, $graph);
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle(app(OwnerWorkOrderEmailSender::class));
+
+        $this->assertSame(['mc@texasrenters.com', 'ofm@txhomemp.com', 'coowner@example.com'], OwnerEmailNotification::query()->where('work_order_id', $workOrder->id)->sole()->cc);
     }
 
     public function test_job_skips_import_placeholder_email_and_owner_vendor(): void

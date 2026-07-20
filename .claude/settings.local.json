@@ -138,7 +138,21 @@
       "Bash(git --no-pager show --stat --oneline HEAD)",
       "Bash(timeout 300 npx vite build)",
       "Bash(npx vite *)",
-      "Bash(./vendor/bin/sail artisan *)"
+      "Bash(./vendor/bin/sail artisan *)",
+      "Bash(vendor/bin/sail ps *)",
+      "Bash(composer --version)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan test --compact --filter=test_work_order_has_email_messages_relation)",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(git -C /Users/texasrentersit/projects/tx-maintenance log --oneline -1 974fad1)",
+      "Bash(cp tests/Unit/MicrosoftGraphMailServiceTest.php /tmp_backup_test.php)",
+      "Bash(sed -i.bak 's/$this->assertCount\\(2, $messages\\);\\\\n/X/' tests/Unit/MicrosoftGraphMailServiceTest.php)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(git -C /Users/texasrentersit/projects/tx-maintenance log --oneline -1 c2a5b2b3617c6a224b9b2f34aceeac396fc3c1c2)",
+      "Bash(git -C /Users/texasrentersit/projects/tx-maintenance show c2a5b2b3617c6a224b9b2f34aceeac396fc3c1c2:resources/views/emails/vendor-service-request.blade.php)",
+      "Bash(md5)",
+      "Bash(git -C /Users/texasrentersit/projects/tx-maintenance show 1888bde:resources/views/emails/vendor-service-request.blade.php)",
+      "Skill(artifact-design)",
+      "Artifact"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
