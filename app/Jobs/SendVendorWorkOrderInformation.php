@@ -152,6 +152,13 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
+        // Turnover properties are vacant, so the "vendor will contact the
+        // tenant" message is wrong; the THMP coordinator contacts those owners
+        // personally instead of the automated notification.
+        if ($workOrder->type === 'Turnover') {
+            return;
+        }
+
         $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
 

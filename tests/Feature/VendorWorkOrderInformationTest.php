@@ -281,6 +281,43 @@ class VendorWorkOrderInformationTest extends TestCase
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
 
+    public function test_turnover_work_order_skips_the_owner_text_but_still_texts_the_vendor(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-t'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-t'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+        config(['services.twilio.owner_assignment_sms' => true]);
+
+        $vendor = $this->makeVendor(['phone' => '3255550101'], '3255550101');
+        $owner = $this->makeOwner(['phone' => '7135030427']);
+
+        // Turnover properties are vacant — the THMP coordinator handles the
+        // owner personally, so no automated owner message may go out.
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 4377411585,
+            'work_order_no' => 43356,
+            'type' => 'Turnover',
+        ]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-turn']);
+        $workOrder->owners()->attach($owner->id);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseMissing('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'owner',
+        ]);
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'vendor',
+        ]);
+    }
+
     public function test_owner_notification_reaches_every_owner_on_the_work_order(): void
     {
         Bus::fake();
