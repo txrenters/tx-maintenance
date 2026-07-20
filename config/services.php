@@ -105,12 +105,12 @@ return [
         'graphql_url' => env('JOBBER_GRAPHQL_URL', 'https://api.getjobber.com/api/graphql'),
         'api_version' => env('JOBBER_API_VERSION'),
         // When THMP is assigned to a work order, create the matching job in
-        // Jobber and store its link on the work order. Off by default so local
-        // and test environments never create real Jobber jobs; set
-        // JOBBER_JOB_CREATE_ENABLED=true in production (coordinated with
-        // disabling the equivalent n8n "Create Job" workflow to avoid
-        // double-creating).
-        'job_create_enabled' => env('JOBBER_JOB_CREATE_ENABLED', false),
+        // Jobber and store its link on the work order. ON by default so a
+        // production deploy creates jobs immediately (the n8n "Create Job"
+        // workflow that used to do this is disabled — this app owns it now).
+        // Local .env and phpunit.xml pin this false so development and tests
+        // never create real Jobber jobs.
+        'job_create_enabled' => env('JOBBER_JOB_CREATE_ENABLED', true),
         // The fixed Jobber user every THMP job is assigned to.
         'thmp_assignee_gid' => env('JOBBER_THMP_ASSIGNEE_GID', 'Z2lkOi8vSm9iYmVyL1VzZXIvMjE1MjEwMQ=='),
     ],
