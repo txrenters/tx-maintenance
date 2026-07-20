@@ -102,6 +102,7 @@ const workOrderForm = useForm({
     woc: "",
     building: null,
     propertyware_id: "",
+    jobber_web_uri: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -715,6 +716,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.woc = order.woc;
         workOrderForm.building = order.building ?? null;
         workOrderForm.propertyware_id = order.propertyware_id;
+        workOrderForm.jobber_web_uri = order.jobber_web_uri ?? "";
 
         closeWorkOrderForm.reset();
         closeWorkOrderForm.id = order.id;
@@ -754,6 +756,27 @@ watch(
                         >
                             <ExternalLink class="h-3.5 w-3.5" />
                             PropertyWare
+                        </a>
+                        <a
+                            v-if="
+                                workOrderForm.jobber_web_uri &&
+                                ($page.props.auth.user.roles.includes(
+                                    'admin',
+                                ) ||
+                                    $page.props.auth.user.roles.includes(
+                                        'woc',
+                                    ) ||
+                                    $page.props.auth.user.roles.includes(
+                                        'accounting',
+                                    ))
+                            "
+                            :href="workOrderForm.jobber_web_uri"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                        >
+                            <ExternalLink class="h-3.5 w-3.5" />
+                            Open in Jobber
                         </a>
                     </div>
                 </DialogTitle>
