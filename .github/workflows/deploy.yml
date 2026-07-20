@@ -119,36 +119,6 @@ jobs:
         with:
           name: php-app
 
-      # Azure runs /home/startup.sh on container start (it is what runs
-      # "php artisan migrate --force" on every deploy), but the zip deploy can
-      # only write /home/site/wwwroot — so the server copy silently drifts from
-      # the repo. Sync it here via the Kudu VFS API, backing up the existing
-      # copy first, so the startup script Azure executes is always the one in
-      # git and migrations never need a manual run after deploy.
-      - name: Sync startup.sh to /home (with backup)
-        run: |
-          CREDS='${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}'
-          USER=$(echo "$CREDS" | grep -oP 'userName="\K[^"]+' | head -1)
-          PASS=$(echo "$CREDS" | grep -oP 'userPWD="\K[^"]+' | head -1)
-          KUDU="https://txrenters.scm.azurewebsites.net/api/vfs"
-
-          unzip -o -p release.zip startup.sh > startup.sh
-
-          # Back up whatever is on the server now (404 on first run is fine).
-          curl -sf -u "$USER:$PASS" "$KUDU/startup.sh" -o current-startup.sh \
-            && curl -sf -u "$USER:$PASS" -X PUT --data-binary @current-startup.sh \
-                 -H "If-Match: *" "$KUDU/startup.sh.bak" \
-            || echo "No existing /home/startup.sh to back up"
-
-          # Skip the upload when the server already matches the repo.
-          if cmp -s startup.sh current-startup.sh; then
-            echo "/home/startup.sh already up to date"
-          else
-            curl -sf -u "$USER:$PASS" -X PUT --data-binary @startup.sh \
-              -H "If-Match: *" "$KUDU/startup.sh"
-            echo "/home/startup.sh updated from repo"
-          fi
-
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
