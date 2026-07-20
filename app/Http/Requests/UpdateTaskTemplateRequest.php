@@ -26,6 +26,7 @@ class UpdateTaskTemplateRequest extends FormRequest
     {
         return [
             'name' => 'required|string',
+            'work_order_type' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'current_service_status_id' => 'required',
             'is_current_service_status_emergency' => 'required|string|in:Emergency,Non-emergency',

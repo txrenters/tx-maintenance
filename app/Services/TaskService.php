@@ -44,15 +44,29 @@ class TaskService
         // Check if work order has a scheduled date
         $hasScheduledDate = ! empty($workOrder->scheduled_end_date);
 
-        // Fetch the task template based on emergency status and service status ID
+        // Fetch the task template based on emergency status and service status ID.
+        // Work order types with their own template set (e.g. Turnover) use only
+        // that set: a status they skip generates no tasks rather than falling
+        // back to the generic workflow. Types without a dedicated set use the
+        // generic (null work_order_type) templates as before.
+        $hasTypeSpecificTemplates = ! empty($workOrder->type)
+            && TaskTemplate::where('work_order_type', $workOrder->type)
+                ->where('is_current_service_status_emergency', $isEmergency)
+                ->exists();
+
         $taskTemplate = TaskTemplate::with(['currentServiceStatus', 'tasks'])
             ->whereHas('currentServiceStatus', function ($q) use ($serviceStatus_Id) {
                 $q->where('id', $serviceStatus_Id); // Use service_status_id
             })
             ->where('is_current_service_status_emergency', $isEmergency)
+            ->when(
+                $hasTypeSpecificTemplates,
+                fn ($q) => $q->where('work_order_type', $workOrder->type),
+                fn ($q) => $q->whereNull('work_order_type')
+            )
             ->first();
 
-        if (empty($taskTemplate->tasks)) {
+        if (empty($taskTemplate) || $taskTemplate->tasks->isEmpty()) {
             return;
         }
 
@@ -62,8 +76,18 @@ class TaskService
         $vendors = $workOrder->vendors; // Assuming a relationship exists between WorkOrder and Vendor
 
         foreach ($taskTemplate->tasks as $task) {
+            // "N days from start date" due dates are anchored to the work
+            // order's start date (falling back to today when it is missing),
+            // regardless of any scheduled end date.
+            if ($task->due_date && str_contains($task->due_date, 'from start date')) {
+                preg_match('/\d+/', $task->due_date, $matches);
+                $days = ! empty($matches) ? (int) $matches[0] : 0;
+
+                $taskDueDate = ($workOrder->start_date ? Carbon::parse($workOrder->start_date) : $now->copy())
+                    ->addDays($days);
+            }
             // If scheduled_end_date exists, use it directly; otherwise calculate from current date
-            if ($hasScheduledDate) {
+            elseif ($hasScheduledDate) {
                 $taskDueDate = Carbon::parse($workOrder->scheduled_end_date);
             } else {
                 $taskDueDate = $now;
@@ -80,7 +104,7 @@ class TaskService
 
             // Assign task to WOC (Work Order Coordinator)
             if ($task->type === 'Woc') {
-                $assignedUser = self::resolveWocAssignee($workOrder, $task);
+                $assignedUser = self::resolveWocAssignee($workOrder, $task, ! empty($taskTemplate->work_order_type));
 
                 if ($assignedUser) {
                     $tasks[] = [
@@ -132,9 +156,21 @@ class TaskService
      * with the 'woc' role. The routed user must hold the configured role, and if
      * they are not found we fall back to the default so task creation never
      * silently drops a WOC task.
+     *
+     * On type-specific templates (e.g. the Turnover workflow) an explicit
+     * per-task assignee wins over the type routing, since those templates name
+     * the exact person responsible for each step.
      */
-    private static function resolveWocAssignee(WorkOrder $workOrder, $task): ?User
+    private static function resolveWocAssignee(WorkOrder $workOrder, $task, bool $isTypeSpecificTemplate = false): ?User
     {
+        if ($isTypeSpecificTemplate && $task->assigned_user_id) {
+            $templateAssignee = User::find($task->assigned_user_id);
+
+            if ($templateAssignee) {
+                return $templateAssignee;
+            }
+        }
+
         $routedUser = self::routedWocUserForType($workOrder->type);
 
         if ($routedUser) {
