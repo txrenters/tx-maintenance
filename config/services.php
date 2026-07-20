@@ -99,6 +99,7 @@ return [
         'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
         'mailbox' => env('MICROSOFT_MAILBOX', 'workorders@texasrenters.com'),
         'job_reminder_mailbox' => env('MICROSOFT_JOB_REMINDER_MAILBOX', 'service@txhomemp.com'),
+        'turnover_mailbox' => env('MICROSOFT_TURNOVER_MAILBOX', 'thmp@texasrenters.com'),
     ],
 
     'jobber' => [

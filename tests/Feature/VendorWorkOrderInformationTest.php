@@ -281,6 +281,38 @@ class VendorWorkOrderInformationTest extends TestCase
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
 
+    public function test_turnover_vendor_email_sends_from_the_thmp_mailbox(): void
+    {
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 987654322], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 987654322], 200),
+        ]);
+        config([
+            'services.microsoft.mailbox' => 'workorders@texasrenters.com',
+            'services.microsoft.turnover_mailbox' => 'thmp@texasrenters.com',
+        ]);
+
+        $vendor = $this->makeVendor(['email' => 'vendor@example.com']);
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 4377411585,
+            'work_order_no' => 43357,
+            'type' => 'Turnover',
+        ]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-thmp']);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        // The THMP coordinator owns turnover vendor comms — email goes out from
+        // (and replies land in) her mailbox instead of the shared one.
+        $this->assertDatabaseHas('email_messages', [
+            'work_order_id' => $workOrder->id,
+            'direction' => 'outbound',
+            'from_email' => 'thmp@texasrenters.com',
+        ]);
+    }
+
     public function test_turnover_work_order_skips_the_owner_text_but_still_texts_the_vendor(): void
     {
         Bus::fake();

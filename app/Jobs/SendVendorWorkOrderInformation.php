@@ -94,6 +94,12 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                     'bytes' => $pdf,
                 ]],
                 trustedHtml: true,
+                // Turnover jobs are coordinated by the THMP coordinator, so
+                // their vendor emails go out from (and replies land in) that
+                // mailbox instead of the shared work-orders one.
+                mailbox: $workOrder->type === 'Turnover'
+                    ? (string) config('services.microsoft.turnover_mailbox')
+                    : null,
             );
         }
 

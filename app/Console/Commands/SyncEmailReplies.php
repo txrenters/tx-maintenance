@@ -31,11 +31,34 @@ class SyncEmailReplies extends Command
         AttachmentOptimizer $optimizer,
         EmailAttachmentStore $attachmentStore,
     ): int {
-        $cachedCursor = Cache::get(self::CURSOR_KEY);
+        // Vendor emails go out from the shared work-orders mailbox, except
+        // Turnover work orders which send from the THMP coordinator's mailbox —
+        // so replies must be collected from both.
+        $mailboxes = array_values(array_unique(array_filter([
+            (string) config('services.microsoft.mailbox'),
+            (string) config('services.microsoft.turnover_mailbox'),
+        ])));
+
+        foreach ($mailboxes as $mailbox) {
+            $this->syncMailbox($mailbox, $graph, $sanitizer, $optimizer, $attachmentStore);
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function syncMailbox(
+        string $mailbox,
+        MicrosoftGraphMailService $graph,
+        HtmlSanitizer $sanitizer,
+        AttachmentOptimizer $optimizer,
+        EmailAttachmentStore $attachmentStore,
+    ): void {
+        $cursorKey = $this->cursorKey($mailbox);
+        $cachedCursor = Cache::get($cursorKey);
         $since = is_string($cachedCursor) ? Carbon::parse($cachedCursor) : now()->subHour();
         $maxReceived = $since->copy();
 
-        foreach ($graph->fetchInbox($since) as $message) {
+        foreach ($graph->fetchInbox($since, $mailbox) as $message) {
             try {
                 $receivedAt = Carbon::parse($message['receivedDateTime'] ?? now());
                 $graphMessageId = $message['id'] ?? null;
@@ -59,7 +82,7 @@ class SyncEmailReplies extends Command
                 $bodyContent = (string) ($message['body']['content'] ?? '');
                 $hasAttachments = (bool) ($message['hasAttachments'] ?? false);
 
-                DB::transaction(function () use ($attachmentStore, $bodyContent, $bodyType, $graph, $graphMessageId, $hasAttachments, $message, $optimizer, $outbound, $receivedAt, $sanitizer): void {
+                DB::transaction(function () use ($attachmentStore, $bodyContent, $bodyType, $graph, $graphMessageId, $hasAttachments, $mailbox, $message, $optimizer, $outbound, $receivedAt, $sanitizer): void {
                     $inbound = EmailMessage::query()->create([
                         'work_order_id' => $outbound->work_order_id,
                         'vendor_id' => $outbound->vendor_id,
@@ -68,7 +91,7 @@ class SyncEmailReplies extends Command
                         'body_html' => $bodyType === 'html' ? $sanitizer->clean($bodyContent) : null,
                         'body_text' => $bodyType === 'html' ? trim(strip_tags($bodyContent)) : $bodyContent,
                         'from_email' => $message['from']['emailAddress']['address'] ?? null,
-                        'to_email' => config('services.microsoft.mailbox'),
+                        'to_email' => $mailbox,
                         'correlation_tag' => $outbound->correlation_tag,
                         'graph_message_id' => $graphMessageId,
                         'graph_conversation_id' => $message['conversationId'] ?? null,
@@ -79,7 +102,7 @@ class SyncEmailReplies extends Command
                     ]);
 
                     if ($hasAttachments) {
-                        foreach ($graph->getAttachments($graphMessageId) as $file) {
+                        foreach ($graph->getAttachments($graphMessageId, $mailbox) as $file) {
                             $bytes = $optimizer->optimize($file['bytes'], $file['contentType']);
                             $attachmentStore->persist($inbound, $file['name'], $file['contentType'], $bytes);
                         }
@@ -87,7 +110,7 @@ class SyncEmailReplies extends Command
                 });
 
                 try {
-                    $graph->markRead($graphMessageId);
+                    $graph->markRead($graphMessageId, $mailbox);
                 } catch (Throwable $exception) {
                     Log::notice('Unable to mark synced email as read', [
                         'id' => $graphMessageId,
@@ -105,9 +128,18 @@ class SyncEmailReplies extends Command
             }
         }
 
-        Cache::put(self::CURSOR_KEY, $maxReceived->toIso8601ZuluString());
+        Cache::put($cursorKey, $maxReceived->toIso8601ZuluString());
+    }
 
-        return self::SUCCESS;
+    /**
+     * The default mailbox keeps the legacy cursor key so an already-deployed
+     * cursor carries over; additional mailboxes get their own suffixed key.
+     */
+    private function cursorKey(string $mailbox): string
+    {
+        return $mailbox === (string) config('services.microsoft.mailbox')
+            ? self::CURSOR_KEY
+            : self::CURSOR_KEY.':'.$mailbox;
     }
 
     /**
