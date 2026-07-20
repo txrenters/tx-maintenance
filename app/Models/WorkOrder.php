@@ -6,6 +6,7 @@ use App\Models\Scopes\WorkOrderScope;
 use Carbon\Carbon;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,19 @@ class WorkOrder extends Model
     protected $table = 'work_orders';
 
     protected $guarded = [];
+
+    /**
+     * PropertyWare picklist values sometimes carry stray whitespace (e.g.
+     * "Turnover "). MySQL's padded comparisons hide that on the backend, but
+     * the frontend's exact string matching does not — the Type dropdown showed
+     * blank for such rows — so normalize on every write (imports and UI edits).
+     */
+    protected function type(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => $value === null ? null : trim((string) $value),
+        );
+    }
 
     public function woc(): BelongsTo
     {
