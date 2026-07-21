@@ -218,6 +218,26 @@ Route::middleware([
 
         return inertia('Guide/AdminGuide');
     })->name('guide.admin');
+
+    // TEMPORARY diagnostic for the 2026-07-22 500 incident: staff-only,
+    // read-only tail of the newest application log. Remove once resolved.
+    Route::get('/debug/log-tail', function () {
+        abort_unless(auth()->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        $files = glob(storage_path('logs/laravel*.log')) ?: [];
+        rsort($files);
+        $path = $files[0] ?? null;
+
+        abort_unless($path && is_readable($path), 404);
+
+        $size = filesize($path);
+        $handle = fopen($path, 'r');
+        fseek($handle, max(0, $size - 120000));
+        $tail = fread($handle, 120000) ?: '';
+        fclose($handle);
+
+        return response($tail, 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    })->name('debug.log_tail');
 });
 
 // Public, no-login vendor dashboard listing all of one vendor's active work orders.
