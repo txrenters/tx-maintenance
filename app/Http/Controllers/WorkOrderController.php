@@ -343,11 +343,21 @@ class WorkOrderController extends Controller
 
         $service_status = ServiceStatus::whereNot('name', 'Not Changed')->orderBy('name')->get();
 
+        // Same distinct-types list the full Show page uses for the editable dropdown.
+        $types = WorkOrder::withoutGlobalScopes()
+            ->whereNotNull('type')
+            ->where('type', '!=', '')
+            ->distinct()
+            ->orderBy('type')
+            ->pluck('type')
+            ->values();
+
         return response()->json([
             'categories' => $categories,
             'vendors' => $vendors,
             'users' => $users,
             'service_status' => $service_status,
+            'types' => $types,
         ]);
     }
 

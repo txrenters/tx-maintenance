@@ -22,6 +22,7 @@ class WorkOrderModalMetaTest extends TestCase
                 'vendors',
                 'users',
                 'service_status',
+                'types',
             ]);
     }
 
