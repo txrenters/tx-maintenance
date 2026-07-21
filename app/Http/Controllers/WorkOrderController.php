@@ -441,9 +441,7 @@ class WorkOrderController extends Controller
                 'vendor_id' => $vendor->id,
                 'name' => $vendor->name,
                 'has_email' => (bool) $vendor->email,
-                'url' => $vendor->pivot->access_token
-                    ? route('vendor.portal.show', $vendor->pivot->access_token)
-                    : null,
+                'url' => $workOrder->vendorPortalUrl($vendor->pivot->access_token),
                 'dashboard_url' => route('vendor.portal.dashboard', $vendor->ensurePortalToken()),
             ])->values()
             : collect();

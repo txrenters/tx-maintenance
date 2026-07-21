@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\UploadAttachment;
+use App\Models\Building;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\User;
@@ -67,7 +68,7 @@ class VendorPortalTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->has('vendorLinks', 1)
-                ->where('vendorLinks.0.url', route('vendor.portal.show', 'token-acme'))
+                ->where('vendorLinks.0.url', $workOrder->vendorPortalUrl('token-acme'))
                 ->where('vendorLinks.0.dashboard_url', route('vendor.portal.dashboard', 'vendor-acme'))
             );
     }
@@ -95,7 +96,7 @@ class VendorPortalTest extends TestCase
                 ->where('vendorName', 'Acme Plumbing')
                 ->has('workOrders', 1)
                 ->where('workOrders.0.work_order_no', 4567)
-                ->where('workOrders.0.url', route('vendor.portal.show', 'token-open'))
+                ->where('workOrders.0.url', $openWo->vendorPortalUrl('token-open'))
             );
     }
 
@@ -152,6 +153,57 @@ class VendorPortalTest extends TestCase
     public function test_invalid_token_returns_404(): void
     {
         $this->get(route('vendor.portal.show', 'does-not-exist'))
+            ->assertNotFound();
+    }
+
+    public function test_descriptive_portal_url_includes_work_order_number_and_property_name(): void
+    {
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-1001',
+            'name' => 'Maple Court',
+            'address' => '2927 Burning Tree Ln',
+        ]);
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->assertSame(
+            url('/vendor-portal/wo-4567/maple-court/token-acme'),
+            $workOrder->fresh()->vendorPortalUrl('token-acme')
+        );
+
+        $this->get('/vendor-portal/wo-4567/maple-court/token-acme')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('VendorPortal/Show')
+                ->where('vendorName', 'Acme Plumbing')
+                ->where('workOrder.work_order_no', 4567)
+            );
+    }
+
+    public function test_descriptive_url_falls_back_to_property_when_no_building(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->assertSame(
+            url('/vendor-portal/wo-4567/property/token-acme'),
+            $workOrder->vendorPortalUrl('token-acme')
+        );
+
+        $this->assertNull($workOrder->vendorPortalUrl(null));
+    }
+
+    public function test_descriptive_url_with_invalid_token_returns_404_even_with_real_slugs(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get('/vendor-portal/wo-4567/property/wrong-token')
             ->assertNotFound();
     }
 

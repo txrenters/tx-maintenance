@@ -224,6 +224,13 @@ Route::middleware([
 Route::middleware('vendor.account')->get('/vendor/{vendorToken}', [VendorPortalController::class, 'dashboard'])
     ->name('vendor.portal.dashboard');
 
+// Descriptive vendor-portal link: /vendor-portal/wo-1234/property-name/{token}.
+// The work-order/property segments are cosmetic only — access is still gated
+// entirely by the magic-link token, exactly like the legacy route below.
+Route::middleware('vendor.portal')
+    ->get('/vendor-portal/{workOrderSlug}/{propertySlug}/{token}', [VendorPortalController::class, 'show'])
+    ->name('vendor.portal.show.descriptive');
+
 // Public, no-login vendor portal. Access is gated entirely by the magic-link token.
 Route::middleware('vendor.portal')->prefix('vendor-portal/{token}')->group(function () {
     Route::get('/', [VendorPortalController::class, 'show'])->name('vendor.portal.show');
