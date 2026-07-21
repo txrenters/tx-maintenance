@@ -38,4 +38,14 @@ class WorkOrderTypeTrimTest extends TestCase
 
         $this->assertTrue($workOrder->fresh()->isTurnover());
     }
+
+    public function test_legacy_whitespace_rows_read_back_trimmed(): void
+    {
+        // Display must be clean even before the trim migration has run on the
+        // database — the accessor normalizes reads of legacy rows.
+        $workOrder = WorkOrder::factory()->create();
+        DB::table('work_orders')->where('id', $workOrder->id)->update(['type' => 'Turnover ']);
+
+        $this->assertSame('Turnover', $workOrder->fresh()->type);
+    }
 }

@@ -29,11 +29,14 @@ class WorkOrder extends Model
      * PropertyWare picklist values sometimes carry stray whitespace (e.g.
      * "Turnover "). MySQL's padded comparisons hide that on the backend, but
      * the frontend's exact string matching does not — the Type dropdown showed
-     * blank for such rows — so normalize on every write (imports and UI edits).
+     * blank for such rows — so normalize on every write (imports and UI edits)
+     * AND on read, so rows stored before the write guard (or before the trim
+     * migration has run) still display cleanly.
      */
     protected function type(): Attribute
     {
         return Attribute::make(
+            get: fn ($value) => $value === null ? null : trim((string) $value),
             set: fn ($value) => $value === null ? null : trim((string) $value),
         );
     }

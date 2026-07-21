@@ -393,13 +393,18 @@ class WorkOrderController extends Controller
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
         // The work order "type" has no PropertyWare picklist table of its own, so
-        // the editable dropdown offers the distinct types already in use.
+        // the editable dropdown offers the distinct types already in use. Values
+        // are trimmed (PropertyWare whitespace) and re-deduplicated, and blanks
+        // are dropped so the dropdown never renders empty options.
         $types = WorkOrder::withoutGlobalScopes()
             ->whereNotNull('type')
             ->where('type', '!=', '')
             ->distinct()
             ->orderBy('type')
             ->pluck('type')
+            ->map(fn ($type) => trim((string) $type))
+            ->filter()
+            ->unique()
             ->values();
 
         // Get service statuses for potential updates
