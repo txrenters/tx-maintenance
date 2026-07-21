@@ -72,8 +72,10 @@ jobs:
       # re-cache raced or failed would serve that poisoned config in production
       # — no DB, no integrations, 500s on every authenticated page. Shipping no
       # caches means the app always boots from Azure's real App Settings.
+      # (Plain rm, not `artisan optimize:clear` — that boots the app and hits
+      # the cache store, which the CI environment doesn't have.)
       - name: Clear Cached Bootstrap Files
-        run: php artisan optimize:clear
+        run: rm -f bootstrap/cache/*.php
 
       - name: Set Permissions for Storage and Cache
         run: |
