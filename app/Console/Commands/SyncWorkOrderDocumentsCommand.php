@@ -224,7 +224,9 @@ class SyncWorkOrderDocumentsCommand extends Command
             foreach ($vendors as $vendor) {
                 // Each vendor's own magic-link to this work order in the portal,
                 // where they can upload photos. Null token => no button shown.
-                $portalUrl = $workOrder->vendorPortalUrl($vendor->pivot->access_token ?? null);
+                $portalUrl = filled($vendor->pivot->access_token ?? null)
+                    ? route('vendor.portal.show', $vendor->pivot->access_token)
+                    : null;
 
                 // The Blade design is unchanged — render the existing mailable to
                 // HTML and hand it to the sender as trusted template HTML (no

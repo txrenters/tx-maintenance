@@ -68,7 +68,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             ->where('vendors.id', $vendor->id)
             ->first()?->pivot?->access_token;
 
-        $portalUrl = $workOrder->vendorPortalUrl($accessToken);
+        $portalUrl = $accessToken ? route('vendor.portal.show', $accessToken) : null;
 
         // 1) Email the vendor via Microsoft Graph (only when we have an address).
         //    The Blade design is unchanged — we render the existing mailable to

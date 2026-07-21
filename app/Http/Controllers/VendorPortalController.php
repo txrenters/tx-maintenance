@@ -66,7 +66,7 @@ class VendorPortalController extends Controller
                 'total_tasks' => $ownTasks->count(),
                 'accent' => $this->cardAccent($workOrder, $ownTasks),
                 'unread' => $unread,
-                'url' => $workOrder->vendorPortalUrl($token),
+                'url' => $token ? route('vendor.portal.show', $token) : null,
             ];
         })->filter(fn ($card) => $card['url'] !== null)->values();
 

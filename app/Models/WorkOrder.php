@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 #[ScopedBy([WorkOrderScope::class])]
 class WorkOrder extends Model
@@ -223,26 +222,6 @@ class WorkOrder extends Model
     public function building(): BelongsTo
     {
         return $this->belongsTo(Building::class, 'building_id', 'propertyware_id');
-    }
-
-    /**
-     * Build the descriptive magic-link portal URL for a vendor assignment, e.g.
-     * /vendor-portal/wo-1234/oakwood-villas/{token}. The work-order/property
-     * segments are informational only — the token still gates all access.
-     */
-    public function vendorPortalUrl(?string $accessToken): ?string
-    {
-        if (blank($accessToken)) {
-            return null;
-        }
-
-        $propertySlug = Str::slug((string) ($this->building?->name ?: $this->building?->address ?: '')) ?: 'property';
-
-        return route('vendor.portal.show.descriptive', [
-            'workOrderSlug' => 'wo-'.($this->work_order_no ?? $this->id),
-            'propertySlug' => $propertySlug,
-            'token' => $accessToken,
-        ]);
     }
 
     public function notes(): HasMany
