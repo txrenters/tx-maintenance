@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
+use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Conversation;
@@ -340,6 +341,12 @@ class VendorPortalController extends Controller
             ]);
 
             return back()->withErrors(['invoice' => 'Could not upload your invoice. Please try again.']);
+        }
+
+        // Turnover invoices are billed through Operation Accounting, so tell
+        // them the moment one lands.
+        if ($workOrder->isTurnover()) {
+            NotifyOperationAccountingOfTurnoverInvoice::dispatch($invoice->id);
         }
 
         // Sync to PropertyWare only after the invoice is safely stored.
