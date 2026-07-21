@@ -45,7 +45,6 @@ const { state, close } = useWorkOrderModal();
 // Supporting lists needed to render the modal, fetched once from the backend so this
 // component is self-contained and can be mounted globally (independent of page props).
 const categories = ref([]);
-const types = ref([]);
 const vendors = ref([]);
 const users = ref([]);
 const serviceStatuses = ref([]);
@@ -56,7 +55,6 @@ const loadMeta = async () => {
     try {
         const response = await axios.get(route("api.work_order_modal.meta"));
         categories.value = response.data.categories;
-        types.value = response.data.types ?? [];
         vendors.value = response.data.vendors;
         users.value = response.data.users;
         serviceStatuses.value = response.data.service_status;
@@ -833,7 +831,6 @@ watch(
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
-                :types="types"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"
