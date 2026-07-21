@@ -6,6 +6,13 @@ on:
       - master
   workflow_dispatch:
 
+# Runs queue one at a time. The build job deletes ALL repo artifacts, so two
+# overlapping runs raced: the newer run's cleanup deleted the older run's
+# release.zip before its deploy job could download it (Artifact not found).
+concurrency:
+  group: deploy-master
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -60,12 +67,13 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
-      - name: Optimize Laravel Application
-        run: |
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
-          php artisan optimize
+      # Never ship caches baked from the CI .env (a renamed .env.example with
+      # APP_ENV=local, sqlite, and empty credentials). A deploy whose boot-time
+      # re-cache raced or failed would serve that poisoned config in production
+      # — no DB, no integrations, 500s on every authenticated page. Shipping no
+      # caches means the app always boots from Azure's real App Settings.
+      - name: Clear Cached Bootstrap Files
+        run: php artisan optimize:clear
 
       - name: Set Permissions for Storage and Cache
         run: |
@@ -103,6 +111,7 @@ jobs:
         with:
           name: php-app
           path: release.zip
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
