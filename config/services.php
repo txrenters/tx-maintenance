@@ -102,6 +102,14 @@ return [
         'turnover_mailbox' => env('MICROSOFT_TURNOVER_MAILBOX', 'thmp@texasrenters.com'),
     ],
 
+    'operation_accounting' => [
+        'email' => env('OPERATION_ACCOUNTING_EMAIL', 'oa@texasrenters.com'),
+        // Email Operation Accounting whenever an invoice is uploaded on a
+        // Turnover work order. Internal-only mail that fires per new upload,
+        // so it is safe to have on by default.
+        'turnover_invoice_notifications' => env('OA_TURNOVER_INVOICE_NOTIFICATIONS', true),
+    ],
+
     'jobber' => [
         'graphql_url' => env('JOBBER_GRAPHQL_URL', 'https://api.getjobber.com/api/graphql'),
         'api_version' => env('JOBBER_API_VERSION'),

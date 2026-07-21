@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -87,6 +88,13 @@ class InvoiceController extends Controller
             $propertyware->uploadVendorInvoice($invoice->work_order_id, $invoice);
 
             DB::commit();
+
+            // Turnover invoices are billed through Operation Accounting, so
+            // tell them the moment one lands.
+            $invoiceWorkOrder = WorkOrder::withoutGlobalScopes()->find($invoice->work_order_id);
+            if ($invoiceWorkOrder?->isTurnover()) {
+                NotifyOperationAccountingOfTurnoverInvoice::dispatch($invoice->id);
+            }
 
             return redirect()->back()->with('success', 'Success uploading invoices');
         } catch (\Throwable $th) {
