@@ -45,11 +45,61 @@ class WorkOrderController extends Controller
         'Paid',
     ];
 
+    /**
+     * The only work_orders columns the kanban board cards render or filter on.
+     * The details modal fetches the full record separately (work_orders.data),
+     * so heavy columns (client_data, description, notes, remarks, …) must stay
+     * out of the board payload — serializing them for every open work order
+     * exhausted PHP's memory limit in production (2026-07-22).
+     *
+     * @var array<int, string>
+     */
+    public const BOARD_CARD_COLUMNS = [
+        'id',
+        'work_order_no',
+        'created_date',
+        'completed_date',
+        'scheduled_end_date',
+        'location',
+        'category',
+        'type',
+        'status',
+        'local_status',
+        'priority',
+        'is_approved',
+        'is_emergency',
+        'is_repeat_issue',
+        'repeat_count',
+        'total_cost',
+        'zone',
+        'service_status_id',
+        'building_id',
+        'tenant_id',
+    ];
+
     protected $propertyWareServices;
 
     public function __construct(PropertyWareService $propertyWareServices)
     {
         $this->propertyWareServices = $propertyWareServices;
+    }
+
+    /**
+     * Relation loads trimmed to the fields the board cards actually use.
+     * belongsToMany selects keep the pivot columns Eloquent appends itself.
+     *
+     * @return array<string, mixed>
+     */
+    private function boardCardRelations(string $prefix = ''): array
+    {
+        return [
+            $prefix.'service_status:id,name',
+            $prefix.'building:id,propertyware_id,name',
+            $prefix.'requested_by:id,first_name,last_name',
+            $prefix.'tasks:id,work_order_id,status,due_date',
+            $prefix.'vendors' => fn ($q) => $q->select('vendors.id', 'vendors.name'),
+            $prefix.'owners' => fn ($q) => $q->select('owners.id', 'owners.first_name', 'owners.last_name'),
+        ];
     }
 
     /**
@@ -114,10 +164,9 @@ class WorkOrderController extends Controller
     public function index(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($q) {
-                $q->scoped()
+                $q->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     // Apply search filter
                     ->when(request('search'), function ($query, $search) {
                         $query->where('work_order_no', $search);
@@ -145,13 +194,7 @@ class WorkOrderController extends Controller
                     ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
                     ->where('type', 'NOT LIKE', '%Turnover%');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -172,8 +215,9 @@ class WorkOrderController extends Controller
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
@@ -214,8 +258,9 @@ class WorkOrderController extends Controller
         $closedStatus = ServiceStatus::where('name', 'Closed')->first();
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
