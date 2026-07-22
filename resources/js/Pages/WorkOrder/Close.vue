@@ -61,6 +61,7 @@ const props = defineProps({
     service_status: Object,
     vendors: Object,
     categories: Object,
+    types: Array,
     users: Object,
     filter: Object,
 });
@@ -856,6 +857,7 @@ const date_range = ref({
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"

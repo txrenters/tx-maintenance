@@ -21,6 +21,7 @@ use App\Services\TaskService;
 use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -341,6 +342,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category', 'emergency']),
         ]);
@@ -390,10 +392,30 @@ class WorkOrderController extends Controller
 
         return response()->json([
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'vendors' => $vendors,
             'users' => $users,
             'service_status' => $service_status,
         ]);
+    }
+
+    /**
+     * Distinct, trimmed work-order "type" values already in use. Type has no
+     * PropertyWare picklist table of its own, so the editable dropdown offers
+     * these. Blanks are dropped so the dropdown never renders empty options.
+     */
+    private function workOrderTypeOptions(): Collection
+    {
+        return WorkOrder::withoutGlobalScopes()
+            ->whereNotNull('type')
+            ->where('type', '!=', '')
+            ->distinct()
+            ->orderBy('type')
+            ->pluck('type')
+            ->map(fn ($type) => trim((string) $type))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     public function details(WorkOrder $workOrder)
@@ -437,20 +459,7 @@ class WorkOrderController extends Controller
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
-        // The work order "type" has no PropertyWare picklist table of its own, so
-        // the editable dropdown offers the distinct types already in use. Values
-        // are trimmed (PropertyWare whitespace) and re-deduplicated, and blanks
-        // are dropped so the dropdown never renders empty options.
-        $types = WorkOrder::withoutGlobalScopes()
-            ->whereNotNull('type')
-            ->where('type', '!=', '')
-            ->distinct()
-            ->orderBy('type')
-            ->pluck('type')
-            ->map(fn ($type) => trim((string) $type))
-            ->filter()
-            ->unique()
-            ->values();
+        $types = $this->workOrderTypeOptions();
 
         // Get service statuses for potential updates
         $serviceStatusesQuery = ServiceStatus::query();
@@ -648,6 +657,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'users' => $users,
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -702,6 +712,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $waitingOnPaymentStatus),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -754,6 +765,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => collect([$paidStatus])),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -920,6 +932,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -998,6 +1011,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -1069,6 +1083,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);

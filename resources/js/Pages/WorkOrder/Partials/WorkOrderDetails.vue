@@ -29,7 +29,7 @@ const { toast } = useToast();
 const props = defineProps({
     workOrder: Object,
     categories: Array,
-    types: Array,
+    types: { type: Array, default: () => [] },
     vendors: Array,
     isLoading: Boolean,
     closeWorkOrderForm: Object,
