@@ -63,6 +63,16 @@ class WorkOrder extends Model
             || trim((string) $this->category) === 'Turnover';
     }
 
+    /**
+     * Whether the unit is vacant: either the WOC's manual "Vacant" toggle
+     * (skip_automated_tasks) or a turnover job. A vacant unit has no tenant, so
+     * owner/vendor messages drop the "vendor will contact the tenant" line.
+     */
+    public function isVacant(): bool
+    {
+        return (bool) $this->skip_automated_tasks || $this->isTurnover();
+    }
+
     public function managed_by(): BelongsTo
     {
         return $this->belongsTo(Owner::class, 'property_manager_id');

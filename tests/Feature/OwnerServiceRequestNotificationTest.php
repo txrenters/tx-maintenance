@@ -172,6 +172,27 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
+    public function test_it_does_not_notify_on_a_turnover_work_order(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->owners()->attach($owner->id);
+
+        // Turnover units are vacant — no tenant "submitted" the request, so the
+        // owner confirmation must not be sent, even without the manual toggle.
+        $workOrder->update(['type' => 'Turnover']);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
     public function test_it_notifies_at_most_once_per_work_order(): void
     {
         $this->enableGate();

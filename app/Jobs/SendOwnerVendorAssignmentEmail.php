@@ -32,13 +32,6 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             return;
         }
 
-        // Turnover properties are vacant, so the "vendor will contact the
-        // tenant" message is wrong; the THMP coordinator emails those owners
-        // personally instead of the automated notification.
-        if ($workOrder->isTurnover()) {
-            return;
-        }
-
         $owner = $workOrder->primaryOwner();
 
         if (! $owner instanceof Owner || ! filter_var($owner->email, FILTER_VALIDATE_EMAIL) || str_ends_with(strtolower($owner->email), '@texasrenter.com')) {
@@ -50,6 +43,10 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             'vendor' => $vendor,
             'workOrder' => $workOrder,
             'propertyAddress' => trim((string) ($workOrder->requested_by?->address ?: $workOrder->building?->address ?: 'the property')),
+            // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for
+            // the vendor to contact, so drop that line while still notifying the
+            // owner that a vendor was assigned.
+            'includeTenantLine' => ! $workOrder->isVacant(),
         ])->render();
 
         $sender->sendVendorAssignment(

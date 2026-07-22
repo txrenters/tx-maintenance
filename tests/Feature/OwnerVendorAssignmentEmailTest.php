@@ -101,24 +101,52 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
-    public function test_job_skips_turnover_work_orders(): void
+    public function test_turnover_work_orders_still_email_the_owner_without_the_tenant_line(): void
     {
         [$workOrder, $vendor, $owner] = $this->records();
         $workOrder->owners()->attach($owner->id);
 
-        // Turnover properties are vacant — the "vendor will contact the tenant"
-        // email is wrong there, and the THMP coordinator emails those owners
-        // personally instead.
+        // Turnover properties are vacant, so the owner still gets the
+        // vendor-assignment email but without the "contact the tenant" line.
         $workOrder->update(['type' => 'Turnover']);
 
         $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
-        $sender->shouldNotReceive('sendVendorAssignment');
+        $sender->shouldReceive('sendVendorAssignment')->twice()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => ! str_contains($html, 'contact the tenant directly'));
 
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
 
         // Turnover carried as the category (PropertyWare is inconsistent about
-        // which field holds it) must be skipped just the same.
+        // which field holds it) behaves the same.
         $workOrder->update(['type' => 'Service Request', 'category' => 'Turnover']);
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
+    public function test_vacant_toggle_drops_the_tenant_line_but_still_emails_the_owner(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+
+        // The WOC's "Vacant" toggle: no tenant to contact, so the owner still
+        // gets the vendor-assignment email but without the tenant line.
+        $workOrder->update(['skip_automated_tasks' => true]);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => ! str_contains($html, 'contact the tenant directly'));
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
+    public function test_occupied_work_order_keeps_the_tenant_line_in_the_email(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => str_contains($html, 'The vendor will contact the tenant directly'));
+
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
