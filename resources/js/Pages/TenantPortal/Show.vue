@@ -7,6 +7,8 @@ const props = defineProps({
     token: String,
     tenantName: String,
     completed: Boolean,
+    isHoa: Boolean,
+    deadline: String,
     workOrder: Object,
     attachments: Array,
 });
@@ -58,11 +60,28 @@ function markDone() {
                     TexasRenters.com Maintenance
                 </p>
                 <h1 class="mt-1 text-xl font-bold text-gray-900">
-                    Service Request #{{ workOrder.work_order_no }}
+                    <template v-if="isHoa">HOA Violation — #{{ workOrder.work_order_no }}</template>
+                    <template v-else>Service Request #{{ workOrder.work_order_no }}</template>
                 </h1>
-                <p v-if="tenantName" class="mt-1 text-sm text-gray-600">
+                <p v-if="isHoa" class="mt-1 text-sm text-gray-600">
+                    <template v-if="tenantName">Hi {{ tenantName }}, the</template>
+                    <template v-else>The</template>
+                    HOA has issued a violation notice for your property. Please
+                    correct the items listed below and upload proof photos so we
+                    can confirm the violation is resolved.
+                </p>
+                <p v-else-if="tenantName" class="mt-1 text-sm text-gray-600">
                     Hi {{ tenantName }}, please upload photos of the issue below so our team can help resolve it quickly.
                 </p>
+
+                <div
+                    v-if="isHoa && deadline"
+                    class="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800"
+                >
+                    <span class="font-semibold">Please complete by {{ deadline }}.</span>
+                    If the items are not corrected by then, a vendor may be sent
+                    to complete the work.
+                </div>
             </div>
 
             <!-- Request details -->
@@ -74,7 +93,7 @@ function markDone() {
                         <dd class="text-gray-900">{{ workOrder.address }}</dd>
                     </div>
                     <div v-if="workOrder.description">
-                        <dt class="font-medium text-gray-500">Issue</dt>
+                        <dt class="font-medium text-gray-500">{{ isHoa ? 'Violation' : 'Issue' }}</dt>
                         <dd class="whitespace-pre-line text-gray-900">{{ workOrder.description }}</dd>
                     </div>
                     <div>

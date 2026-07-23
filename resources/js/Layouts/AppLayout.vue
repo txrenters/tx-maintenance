@@ -175,6 +175,13 @@ const navs = computed(() => {
                               ),
                           },
                           {
+                              title: "HOA Violations",
+                              url: route("work_orders.hoa"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/hoa"
+                              ),
+                          },
+                          {
                               title: "Completed",
                               url: route("work_orders.closed_work_orders"),
                               isActive: page.component === "WorkOrder/Close",

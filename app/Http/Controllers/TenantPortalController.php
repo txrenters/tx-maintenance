@@ -37,11 +37,17 @@ class TenantPortalController extends Controller
             ->latest()
             ->get(['id', 'title', 'filename', 'filetype', 'created_at']);
 
+        $isHoa = $uploadToken->purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION;
+
         return inertia('TenantPortal/Show', [
             'title' => 'Service Request #'.$workOrder->work_order_no,
             'token' => $uploadToken->token,
             'tenantName' => trim((string) ($tenant?->first_name ?? '')),
             'completed' => $uploadToken->isCompleted(),
+            'isHoa' => $isHoa,
+            'deadline' => $isHoa
+                ? $uploadToken->hoa_deadline_at?->timezone('America/Chicago')->format('l, F j, Y')
+                : null,
             'workOrder' => [
                 'work_order_no' => $workOrder->work_order_no,
                 'description' => $workOrder->description,

@@ -86,6 +86,19 @@ return [
         // Text the tenant a no-login portal link (photo upload) when their work
         // order is marked as a tenant easy fix, plus reminders until done.
         'tenant_portal_sms' => env('TENANT_PORTAL_SMS_ENABLED', true),
+        // HOA violations: text the tenant their portal link + daily reminders
+        // until the 5-business-day deadline, and email the corrected
+        // confirmation to tenant + owner.
+        'hoa_violation_sms' => env('HOA_VIOLATION_SMS_ENABLED', true),
+    ],
+
+    'hoa' => [
+        // Business days the tenant has, counted from the notice date, to
+        // complete the violation items before staff are flagged to send a vendor.
+        'deadline_business_days' => (int) env('HOA_DEADLINE_BUSINESS_DAYS', 5),
+        // Try to create the work order in PropertyWare first; when disabled (or
+        // when the create call fails) the work order is created locally only.
+        'pw_create_enabled' => env('HOA_PW_CREATE_ENABLED', true),
     ],
 
     'openai' => [

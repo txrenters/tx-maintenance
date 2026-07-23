@@ -11,6 +11,8 @@ use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FallbackVendorController;
+use App\Http\Controllers\HoaPhotoGalleryController;
+use App\Http\Controllers\HoaViolationController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
@@ -104,6 +106,8 @@ Route::middleware([
     Route::put('/work_orders/{workOrder}/open', [WorkOrderController::class, 'open'])->name('work_orders.open');
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
     Route::put('/work_orders/{workOrder}/vendors', [WorkOrderController::class, 'vendor_change'])->name('work_orders.vendor.change');
+    Route::get('/work_orders/hoa/all', [HoaViolationController::class, 'index'])->name('work_orders.hoa');
+    Route::post('/work_orders/hoa/store', [HoaViolationController::class, 'store'])->name('work_orders.hoa.store');
     Route::post('/work_orders/import', [WorkOrderController::class, 'import'])->name('work_orders.import');
     Route::get('/work_orders/export/all', [WorkOrderController::class, 'export'])->name('work_orders.export');
 
@@ -269,6 +273,12 @@ Route::get('/onboarding/building', [BuildingController::class, 'create'])->name(
 Route::get('/conversations/{workOrder}', [ConversationController::class, 'show'])->name('conversation.show');
 Route::get('/conversation-media/{media}', [ConversationMediaController::class, 'show'])
     ->name('conversation.media.show')
+    ->middleware('signed');
+
+// Public, no-login before/after photo gallery for a corrected HOA violation,
+// linked from the tenant + owner confirmation email. Gated by a signed URL.
+Route::get('/hoa/photos/{workOrder}', [HoaPhotoGalleryController::class, 'show'])
+    ->name('hoa.photos.show')
     ->middleware('signed');
 
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');

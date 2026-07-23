@@ -35,12 +35,13 @@ class SendTenantPortalLinks extends Command
             return self::SUCCESS;
         }
 
-        // 1) Initial sends: easy-fix work orders that have never been sent a link.
+        // 1) Initial sends: easy-fix work orders that have never been sent a
+        // link. Any existing token counts — an HOA-violation work order sits in
+        // this same status and its tenant already got the HOA link, so it must
+        // not also receive the generic easy-fix text.
         $workOrders = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
             ->where('service_status_id', $statusId)
-            ->whereDoesntHave('tenantUploadTokens', function ($query) {
-                $query->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX);
-            })
+            ->whereDoesntHave('tenantUploadTokens')
             ->get();
 
         foreach ($workOrders as $workOrder) {

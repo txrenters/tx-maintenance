@@ -38,14 +38,30 @@ class TenantPortalLinkService
 
     public function remind(TenantUploadToken $token): void
     {
-        if (! config('services.twilio.tenant_portal_sms')) {
+        if (! $this->enabledFor($token->purpose)) {
             return;
         }
 
         try {
             $workOrder = $token->work_order;
 
-            if (! $workOrder || $token->isCompleted() || $token->notified_count >= self::MAX_NOTIFICATIONS) {
+            if (! $workOrder || $token->isCompleted()) {
+                return;
+            }
+
+            if ($token->purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION) {
+                // HOA reminders are daily and bounded by the notice deadline,
+                // not the easy-fix notification cap.
+                if ($token->hoa_deadline_at !== null && $token->hoa_deadline_at->isPast()) {
+                    return;
+                }
+
+                $this->text($workOrder, $token, $this->hoaReminderMessage($workOrder, $token));
+
+                return;
+            }
+
+            if ($token->notified_count >= self::MAX_NOTIFICATIONS) {
                 return;
             }
 
@@ -56,6 +72,39 @@ class TenantPortalLinkService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Text the tenant their HOA-violation portal link for a token the intake
+     * flow has already created (the token carries the notice deadline).
+     */
+    public function sendHoaLink(TenantUploadToken $token): void
+    {
+        if (! config('services.twilio.hoa_violation_sms')) {
+            return;
+        }
+
+        try {
+            $workOrder = $token->work_order;
+
+            if (! $workOrder || $token->isCompleted() || $token->notified_count > 0) {
+                return;
+            }
+
+            $this->text($workOrder, $token, $this->hoaInitialMessage($workOrder, $token));
+        } catch (\Throwable $exception) {
+            Log::error('HOA violation portal link failed to send.', [
+                'tenant_upload_token_id' => $token->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function enabledFor(?string $purpose): bool
+    {
+        return $purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION
+            ? (bool) config('services.twilio.hoa_violation_sms')
+            : (bool) config('services.twilio.tenant_portal_sms');
     }
 
     private function send(WorkOrder $workOrder): void
@@ -134,6 +183,36 @@ class TenantPortalLinkService
         $ref = $workOrder->work_order_no;
 
         return $greeting."a quick reminder from TexasRenters.com Maintenance: please upload photos for your service request (WO#{$ref}) using this secure link — no login needed: "
+            .route('tenant.portal.show', $token->token)
+            ."\n(Ref: WO#{$ref})";
+    }
+
+    private function hoaInitialMessage(WorkOrder $workOrder, TenantUploadToken $token): string
+    {
+        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
+        $ref = $workOrder->work_order_no ?? $workOrder->id;
+        $deadline = $token->hoa_deadline_at?->timezone('America/Chicago')->format('l, M j');
+
+        return $greeting.'this is TexasRenters.com Maintenance. The HOA has issued a violation notice for your property'
+            .' (WO#'.$ref.'). Please correct the items and upload proof photos'
+            .($deadline ? " by {$deadline}" : ' within 5 business days')
+            .' using this secure link — no login needed: '
+            .route('tenant.portal.show', $token->token)
+            ."\n(Ref: WO#{$ref})";
+    }
+
+    private function hoaReminderMessage(WorkOrder $workOrder, TenantUploadToken $token): string
+    {
+        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
+        $ref = $workOrder->work_order_no ?? $workOrder->id;
+        $deadline = $token->hoa_deadline_at?->timezone('America/Chicago')->format('l, M j');
+
+        return $greeting.'a reminder from TexasRenters.com Maintenance: the HOA violation items for your property'
+            .' (WO#'.$ref.') must be completed'
+            .($deadline ? " by {$deadline}" : ' within 5 business days of the notice')
+            .'. Please upload proof photos here — no login needed: '
             .route('tenant.portal.show', $token->token)
             ."\n(Ref: WO#{$ref})";
     }

@@ -496,6 +496,74 @@ class PropertyWareService
 
     }
 
+    /**
+     * Create a brand-new work order in PropertyWare (SOAP). Everything else in
+     * this service assumes work orders originate in PropertyWare, so HOA intake
+     * creates there first and imports the row back. Returns the new
+     * PropertyWare work order ID, or null when the create fails (callers fall
+     * back to a local-only work order).
+     *
+     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string}  $data
+     */
+    public function createWorkOrder(array $data): ?string
+    {
+        $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:createWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <building xsi:type="urn:Building">
+                        <ID xsi:type="xsd:long">'.(int) $data['building_id'].'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                        <ID xsi:type="xsd:long">'.(int) $data['portfolio_id'].'</ID>
+                        </portfolio>
+                        <category xsi:type="xsd:string">'.htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8').'</category>
+                        <description xsi:type="xsd:string">'.htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8').'</description>
+                        <type xsi:type="xsd:string">'.htmlspecialchars($data['type'] ?? '', ENT_XML1, 'UTF-8').'</type>
+                    </workOrder>
+                    </ser:createWorkOrder>
+                    </soapenv:Body>
+                </soapenv:Envelope>';
+
+        $res = $this->execute($xmlPayload);
+
+        if (! $res['success']) {
+            Log::error('Failed to create work order in PropertyWare', [
+                'building_id' => $data['building_id'] ?? null,
+                'portfolio_id' => $data['portfolio_id'] ?? null,
+                'category' => $data['category'] ?? null,
+                'error' => $res['error'] ?? null,
+                'message' => $res['message'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        // The response echoes the created WorkOrder; its first <ID> node is the
+        // new PropertyWare work order ID.
+        if (preg_match('/<ID[^>]*>(\d+)<\/ID>/', (string) ($res['response'] ?? ''), $matches)) {
+            Log::info('Work order created in PropertyWare', [
+                'propertyware_id' => $matches[1],
+                'building_id' => $data['building_id'] ?? null,
+            ]);
+
+            return $matches[1];
+        }
+
+        Log::error('PropertyWare createWorkOrder succeeded but no ID found in response.', [
+            'building_id' => $data['building_id'] ?? null,
+            'response_excerpt' => substr((string) ($res['response'] ?? ''), 0, 500),
+        ]);
+
+        return null;
+    }
+
     public function updateWorkOrder($workOrder, array $changes = [])
     {
         // PropertyWare's updateWorkOrder endpoint uses JSON Merge Patch, so we send ONLY

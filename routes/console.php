@@ -81,6 +81,15 @@ Schedule::command('tenant-portal:send-links')
     ->withoutOverlapping(15)
     ->runInBackground();
 
+// HOA violations: daily tenant reminders until the 5-business-day deadline,
+// overdue escalation flag, and the corrected-confirmation email. Gated off by
+// default (HOA_VIOLATION_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('hoa:send-reminders')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('emails:sync-replies')
     ->everyThreeMinutes()
     ->withoutOverlapping()

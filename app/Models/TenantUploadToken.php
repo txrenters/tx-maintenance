@@ -18,9 +18,15 @@ class TenantUploadToken extends Model
     protected $casts = [
         'completed_at' => 'datetime',
         'last_notified_at' => 'datetime',
+        'hoa_notice_date' => 'date',
+        'hoa_deadline_at' => 'datetime',
+        'escalation_flagged_at' => 'datetime',
+        'confirmation_sent_at' => 'datetime',
     ];
 
     public const PURPOSE_TENANT_EASY_FIX = 'tenant_easy_fix';
+
+    public const PURPOSE_HOA_VIOLATION = 'hoa_violation';
 
     public function work_order(): BelongsTo
     {
