@@ -103,6 +103,12 @@ return [
         // Try to create the work order in PropertyWare first; when disabled (or
         // when the create call fails) the work order is created locally only.
         'pw_create_enabled' => env('HOA_PW_CREATE_ENABLED', true),
+        // PropertyWare's type and category are curated picklists that reject
+        // unknown values, so HOA work orders are filed under an existing valid
+        // pair. HOA identity is tracked by the HOA upload token, not these
+        // strings (the PW import overwrites them on the next sync).
+        'pw_category' => env('HOA_PW_CATEGORY', 'General Maintenance'),
+        'pw_type' => env('HOA_PW_TYPE', 'General'),
     ],
 
     'openai' => [

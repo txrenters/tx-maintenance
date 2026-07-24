@@ -24,8 +24,6 @@ use Illuminate\Support\Str;
  */
 class HoaViolationIntakeService
 {
-    public const CATEGORY = 'HOA Violation';
-
     public const EASY_FIX_STATUS = 'Checking for Tenant Easy Fix';
 
     public function __construct(
@@ -104,7 +102,7 @@ class HoaViolationIntakeService
     {
         return WorkOrder::query()
             ->where('building_id', $building->propertyware_id)
-            ->where('category', self::CATEGORY)
+            ->hoaViolations()
             ->where('status', 'Open')
             ->latest('id')
             ->first();
@@ -125,9 +123,9 @@ class HoaViolationIntakeService
             $propertywareId = $this->propertyWare->createWorkOrder([
                 'building_id' => $building->propertyware_id,
                 'portfolio_id' => $building->portfolio_id,
-                'category' => self::CATEGORY,
+                'category' => config('services.hoa.pw_category'),
                 'description' => $description,
-                'type' => '',
+                'type' => config('services.hoa.pw_type'),
             ]);
 
             if ($propertywareId !== null) {
@@ -145,7 +143,8 @@ class HoaViolationIntakeService
 
         $workOrder = WorkOrder::create([
             'work_order_no' => null,
-            'category' => self::CATEGORY,
+            'category' => config('services.hoa.pw_category'),
+            'type' => config('services.hoa.pw_type'),
             'description' => $description,
             'status' => 'Open',
             'service_status_id' => ServiceStatus::query()->where('name', self::EASY_FIX_STATUS)->value('id')
@@ -228,8 +227,10 @@ class HoaViolationIntakeService
 
     /**
      * Straight to Tenant Easy Fix: the tenant portal machinery keys off this
-     * service status. Also make sure the local row carries the HOA category and
-     * the extracted description (the import may have brought back blanks).
+     * service status. Also make sure the local row carries the extracted
+     * description (the import may have brought back blanks). HOA identity lives
+     * on the upload token, not the type/category, so those are left as PW sent
+     * them.
      */
     private function applyEasyFixStatus(WorkOrder $workOrder, string $description, bool $created): void
     {
@@ -238,7 +239,6 @@ class HoaViolationIntakeService
         $updates = ['service_status_id' => $statusId ?? $workOrder->service_status_id];
 
         if ($created) {
-            $updates['category'] = self::CATEGORY;
             $updates['description'] = $description;
         }
 

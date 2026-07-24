@@ -71,7 +71,7 @@ class HoaViolationController extends Controller
         $statuses = ServiceStatus::with([
             'work_orders' => function ($query) use ($request) {
                 $query
-                    ->where('category', HoaViolationIntakeService::CATEGORY)
+                    ->hoaViolations()
                     ->when($request->filled('search'), fn ($q) => $q->where('work_order_no', $request->input('search')))
                     ->when($request->filled('vendor'), fn ($q) => $q->whereHas('vendors', fn ($v) => $v->where('work_order_vendors.vendor_id', $request->input('vendor'))))
                     ->latest('id');

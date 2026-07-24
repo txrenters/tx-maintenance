@@ -63,7 +63,7 @@ class HoaViolationWorkflowTest extends TestCase
         return WorkOrder::factory()->create([
             'service_status_id' => $this->easyFixStatus()->id,
             'work_order_no' => 60001,
-            'category' => 'HOA Violation',
+            'category' => 'General Maintenance',
             'description' => 'Trim the front lawn.',
             'tenant_id' => $tenant?->id,
         ]);

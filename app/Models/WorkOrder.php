@@ -343,6 +343,20 @@ class WorkOrder extends Model
         return $query;
     }
 
+    /**
+     * Constrain to HOA-violation work orders. Identity lives on the HOA upload
+     * token (purpose = hoa_violation), not the PW type/category — those are
+     * curated PropertyWare picklists that the periodic import overwrites.
+     */
+    public function scopeHoaViolations($query)
+    {
+        $query->whereHas('tenantUploadTokens', function ($tokens) {
+            $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
+        });
+
+        return $query;
+    }
+
     public function scopeFilter($query, array $filters)
     {
         $query

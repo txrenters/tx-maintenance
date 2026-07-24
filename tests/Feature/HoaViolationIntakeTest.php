@@ -103,7 +103,7 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        $workOrder = WorkOrder::query()->where('category', 'HOA Violation')->firstOrFail();
+        $workOrder = WorkOrder::query()->hoaViolations()->firstOrFail();
         $this->assertStringContainsString('Trim the front lawn', $workOrder->description);
         $this->assertEquals(
             ServiceStatus::query()->where('name', 'Checking for Tenant Easy Fix')->value('id'),
@@ -178,7 +178,7 @@ class HoaViolationIntakeTest extends TestCase
                 ],
             ])->assertRedirect();
 
-        $this->assertSame(2, WorkOrder::query()->where('category', 'HOA Violation')->count());
+        $this->assertSame(2, WorkOrder::query()->hoaViolations()->count());
         $this->assertSame(1, WorkOrder::query()->where('building_id', $first->propertyware_id)->count());
         $this->assertSame(1, WorkOrder::query()->where('building_id', $second->propertyware_id)->count());
     }
@@ -206,10 +206,53 @@ class HoaViolationIntakeTest extends TestCase
             ])->assertRedirect();
 
         $imported->refresh();
-        $this->assertSame('HOA Violation', $imported->category);
+        // The PW-sent category is left as-is (identity is the HOA token, not the
+        // category); the description is refreshed from the extracted notice.
         $this->assertStringContainsString('Trim the front lawn', $imported->description);
+        $this->assertTrue(
+            $imported->tenantUploadTokens()
+                ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+                ->exists(),
+        );
 
-        $this->assertSame(1, WorkOrder::query()->where('category', 'HOA Violation')->count());
+        $this->assertSame(1, WorkOrder::query()->hoaViolations()->count());
+    }
+
+    public function test_pw_create_sends_a_valid_type_and_category(): void
+    {
+        config(['services.hoa.pw_create_enabled' => true]);
+        Storage::fake('public');
+        Queue::fake();
+
+        $captured = null;
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('createWorkOrder')
+            ->once()
+            ->andReturnUsing(function (array $data) use (&$captured) {
+                $captured = $data;
+
+                return null; // fall back to local-only; we only assert the payload
+            });
+        $mock->shouldReceive('getWorkOrder')->andReturn(['number' => 55123]);
+        $mock->shouldReceive('getWorkOrderByNumber')->andReturn([]);
+        $mock->shouldReceive('uploadWorkOrderPdf')->andReturn('doc-1');
+        $mock->shouldReceive('updateServiceStatus')->andReturn(true);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        // PropertyWare rejects unknown picklist values, so the create must use an
+        // existing valid type/category — never the 'HOA Violation' label.
+        $this->assertSame('General Maintenance', $captured['category']);
+        $this->assertSame('General', $captured['type']);
+        $this->assertNotSame('HOA Violation', $captured['category']);
     }
 
     public function test_an_existing_open_hoa_work_order_is_reused_not_duplicated(): void
@@ -223,8 +266,14 @@ class HoaViolationIntakeTest extends TestCase
 
         $existing = WorkOrder::factory()->create([
             'building_id' => $building->propertyware_id,
-            'category' => 'HOA Violation',
             'status' => 'Open',
+        ]);
+        // HOA identity is the token, so the existing open HOA work order must
+        // carry one for the dedup to recognise it.
+        TenantUploadToken::create([
+            'token' => TenantUploadToken::generateUniqueToken(),
+            'work_order_id' => $existing->id,
+            'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
         ]);
 
         $user = User::factory()->create();
@@ -235,7 +284,7 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        $this->assertSame(1, WorkOrder::query()->where('category', 'HOA Violation')->count());
+        $this->assertSame(1, WorkOrder::query()->hoaViolations()->count());
         $this->assertDatabaseHas('attachments', ['work_order_id' => $existing->id]);
     }
 
@@ -287,9 +336,9 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        $this->assertSame(1, WorkOrder::query()->where('category', 'HOA Violation')->count());
+        $this->assertSame(1, WorkOrder::query()->hoaViolations()->count());
         $this->assertDatabaseHas('attachments', [
-            'work_order_id' => WorkOrder::query()->where('category', 'HOA Violation')->value('id'),
+            'work_order_id' => WorkOrder::query()->hoaViolations()->value('id'),
             'filetype' => 'image/jpeg',
         ]);
     }

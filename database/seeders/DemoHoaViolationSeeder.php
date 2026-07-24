@@ -342,8 +342,8 @@ class DemoHoaViolationSeeder extends Seeder
             ['work_order_no' => $workOrderNo],
             [
                 'description' => $description,
-                'category' => HoaViolationIntakeService::CATEGORY,
-                'type' => HoaViolationIntakeService::CATEGORY,
+                'category' => config('services.hoa.pw_category'),
+                'type' => config('services.hoa.pw_type'),
                 'location' => $building->name,
                 'building_id' => $building->propertyware_id,
                 'portfolio_id' => $building->portfolio_id,
