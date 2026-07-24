@@ -39,6 +39,7 @@ use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\VendorPortalController;
 use App\Http\Controllers\WOCNumbersController;
+use App\Http\Controllers\WorkOrderAutomationController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderEmailController;
 use App\Http\Controllers\WorkOrderNotesController;
@@ -107,6 +108,8 @@ Route::middleware([
     Route::put('/work_orders/{workOrder}/emergency', [WorkOrderController::class, 'emergency_change'])->name('work_orders.emergency.change');
     Route::put('/work_orders/{workOrder}/vendors', [WorkOrderController::class, 'vendor_change'])->name('work_orders.vendor.change');
     Route::get('/work_orders/hoa/all', [HoaViolationController::class, 'index'])->name('work_orders.hoa');
+    Route::post('/work_orders/hoa/detect', [HoaViolationController::class, 'detect'])->name('work_orders.hoa.detect');
+    Route::get('/work_orders/hoa/contacts', [HoaViolationController::class, 'contacts'])->name('work_orders.hoa.contacts');
     Route::post('/work_orders/hoa/store', [HoaViolationController::class, 'store'])->name('work_orders.hoa.store');
     Route::post('/work_orders/import', [WorkOrderController::class, 'import'])->name('work_orders.import');
     Route::get('/work_orders/export/all', [WorkOrderController::class, 'export'])->name('work_orders.export');
@@ -147,6 +150,8 @@ Route::middleware([
     Route::get('/work_orders/{workOrder}/conversation/tenants', [ConversationController::class, 'get_tenant_conversation'])->name('work_order.tenant_conversation');
     Route::get('/work_orders/{workOrder}/conversation/owners', [ConversationController::class, 'get_owner_conversation'])->name('work_order.owner_conversation');
     Route::post('/notification/messages', [ConversationController::class, 'get_conversation'])->name('work_order.notification_messages');
+    Route::get('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'show'])->name('work_order.automation.show');
+    Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
 
     Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');

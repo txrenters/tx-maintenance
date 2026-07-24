@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TenantPortalLinkService
 {
@@ -135,6 +136,12 @@ class TenantPortalLinkService
      */
     private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message): void
     {
+        // A WOC can mute this work order's tenant automation from the tenant
+        // conversation tab; manual sends are unaffected.
+        if ($workOrder->automationPausedFor('tenant')) {
+            return;
+        }
+
         $workOrder->loadMissing(['requested_by', 'woc.wocNumber.twilioPhoneNumber']);
 
         $tenant = $workOrder->requested_by;
@@ -192,29 +199,101 @@ class TenantPortalLinkService
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
         $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
-        $deadline = $token->hoa_deadline_at?->timezone('America/Chicago')->format('l, M j');
+        $summary = $this->hoaViolationSummary($workOrder);
 
-        return $greeting.'this is TexasRenters.com Maintenance. The HOA has issued a violation notice for your property'
-            .' (WO#'.$ref.'). Please correct the items and upload proof photos'
-            .($deadline ? " by {$deadline}" : ' within 5 business days')
-            .' using this secure link — no login needed: '
+        return $greeting.'this is TexasRenters.com Maintenance. We received an HOA notice for your home'
+            .' (WO#'.$ref.')'
+            .($summary
+                ? ' regarding the following: '.$summary
+                : ' listing a few items that need a little attention')
+            .'. Whenever you have a chance, we\'d truly appreciate it if you could take care of'
+            .($summary ? ' it' : ' them').' and send us a quick photo as proof.'
+            .' Here is your secure link — no login needed: '
             .route('tenant.portal.show', $token->token)
-            ."\n(Ref: WO#{$ref})";
+            .". Thank you so much for your help!\n(Ref: WO#{$ref})";
     }
 
     private function hoaReminderMessage(WorkOrder $workOrder, TenantUploadToken $token): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
-        $deadline = $token->hoa_deadline_at?->timezone('America/Chicago')->format('l, M j');
 
-        return $greeting.'a reminder from TexasRenters.com Maintenance: the HOA violation items for your property'
-            .' (WO#'.$ref.') must be completed'
-            .($deadline ? " by {$deadline}" : ' within 5 business days of the notice')
-            .'. Please upload proof photos here — no login needed: '
-            .route('tenant.portal.show', $token->token)
-            ."\n(Ref: WO#{$ref})";
+        $variants = self::hoaReminderVariants(
+            (string) ($workOrder->requested_by?->first_name ?? ''),
+            $ref,
+            $this->hoaViolationSummary($workOrder),
+            route('tenant.portal.show', $token->token),
+        );
+
+        // Rotate by how many notices have already gone out so a tenant getting
+        // daily reminders never receives the same wording twice in a row.
+        $index = max(0, (int) $token->notified_count) % count($variants);
+
+        return $variants[$index]."\n(Ref: WO#{$ref})";
+    }
+
+    /**
+     * Several natural phrasings of the daily HOA reminder so the follow-ups read
+     * like a person checking in, not a bot repeating one templated line. Public
+     * + static so the demo seeder can show the same rotation.
+     *
+     * @return array<int, string>
+     */
+    public static function hoaReminderVariants(string $firstName, int|string $ref, ?string $summary, string $link): array
+    {
+        $name = trim($firstName);
+        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
+        $about = filled($summary) ? " regarding {$summary}" : '';
+
+        return [
+            "{$greeting}just checking in from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Whenever you get a chance, please take care of it and send us a quick photo as proof using this secure link — no login needed: {$link}. Thanks so much for your help!",
+            "{$greeting}following up from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. If it works for you, go ahead and handle it, then snap a photo through this link so we can confirm it — no login needed: {$link}. We really appreciate it!",
+            "{$greeting}TexasRenters.com Maintenance here, touching base again about the HOA notice for your home (WO#{$ref}){$about}. Once it's sorted, a quick photo through this secure link lets us close it out: {$link}. Thank you!",
+            "{$greeting}a quick note from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. When you have a moment, please take care of it and share a photo here as confirmation: {$link}. Thanks for your help!",
+            "{$greeting}hope you're doing well — this is TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Any time this week is fine; just fix it up and send a photo through this secure link: {$link}. Much appreciated!",
+        ];
+    }
+
+    private function hoaViolationSummary(WorkOrder $workOrder): ?string
+    {
+        return self::violationSummaryFromDescription($workOrder->description);
+    }
+
+    /**
+     * A short, plain-English summary of the violation for the tenant text so
+     * they know exactly what to fix. Prefers the concrete "Items to correct:"
+     * list (collapsed inline); if the notice had none, falls back to the AI's
+     * lead summary sentence. Returns null when only the generic placeholder is
+     * on file. Public + static so the demo seeder builds the identical text.
+     */
+    public static function violationSummaryFromDescription(?string $description): ?string
+    {
+        $description = trim((string) $description);
+
+        if ($description === '') {
+            return null;
+        }
+
+        // The list of items is what the tenant actually needs to act on.
+        if (preg_match('/Items to correct:\s*(.+?)(?:\n\s*Notice issued by:|$)/is', $description, $matches)) {
+            $items = collect(preg_split('/\n+/', $matches[1]))
+                ->map(fn ($line) => trim((string) preg_replace('/^\s*[-*]\s*/', '', $line), " \t.-*"))
+                ->filter()
+                ->all();
+
+            if ($items !== []) {
+                return Str::limit(implode('; ', $items), 260);
+            }
+        }
+
+        // No item list — use the lead summary sentence instead.
+        $lead = (string) preg_split('/\n\s*(Items to correct:|Notice issued by:)/i', $description)[0];
+        $lead = trim((string) preg_replace('/\s+/', ' ', $lead));
+
+        if ($lead === '' || $lead === HoaNoticeExtractor::FALLBACK_DESCRIPTION) {
+            return null;
+        }
+
+        return Str::limit($lead, 220);
     }
 
     private function toE164(?string $number): ?string

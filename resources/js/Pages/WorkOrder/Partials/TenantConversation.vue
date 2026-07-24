@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from "@/Components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
+import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
 
 const props = defineProps({
     tenantConversation: Array,
@@ -239,9 +240,16 @@ console.log(props.workOrderTenants);
 <template>
     <div>
         <div class="grid gap-3 overflow-y-auto px-6">
-            <p class="font-semibold uppercase text-xs mb-3">
-                Tenant Conversation
-            </p>
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <p class="font-semibold uppercase text-xs">
+                    Tenant Conversation
+                </p>
+                <AutomationToggle
+                    v-if="workOrder?.id"
+                    :work-order-id="workOrder.id"
+                    channel="tenant"
+                />
+            </div>
             <div class="flex justify-between gap-2 mb-2">
                 <div>
                     <div class="flex gap-2">
@@ -289,10 +297,10 @@ console.log(props.workOrderTenants);
                                 :src="woc?.profile_photo_url || 'default.jpg'"
                             />
                             <AvatarFallback>
-                                {{ woc.name?.charAt(0) }}
+                                {{ woc?.name?.charAt(0) }}
                             </AvatarFallback>
                         </Avatar>
-                        {{ woc.name }}
+                        {{ woc?.name }}
                     </div>
                     {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>

@@ -8,15 +8,19 @@ use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
- * Turns an uploaded HOA violation notice into a working work order:
- * AI-read the notice, create the work order in PropertyWare (falling back to a
- * local-only row), attach the notice PDF, set the Tenant Easy Fix status, and
- * open the tenant portal token that drives the reminder/deadline workflow.
+ * Turns a single extracted HOA violation notice into a working work order:
+ * create it in PropertyWare (falling back to a local-only row), attach the
+ * notice page PDF, set the Tenant Easy Fix status, and open the tenant portal
+ * token that drives the reminder/deadline workflow.
+ *
+ * Extraction and property matching happen upstream (staff confirm the property
+ * on screen), so this service receives one confirmed notice at a time.
  */
 class HoaViolationIntakeService
 {
@@ -26,21 +30,26 @@ class HoaViolationIntakeService
 
     public function __construct(
         private readonly PropertyWareService $propertyWare,
-        private readonly HoaNoticeExtractor $extractor,
         private readonly TenantPortalLinkService $linkService,
     ) {}
 
     /**
+     * @param  array{
+     *     description?: ?string,
+     *     violation_items?: array<int, string>,
+     *     hoa_name?: ?string,
+     *     notice_date?: ?Carbon,
+     *     deadline_date?: ?Carbon,
+     *     deadline_days?: ?int,
+     *     file_name?: ?string,
+     *     mime?: ?string
+     * }  $notice
      * @return array{work_order: WorkOrder, created: bool, pw_created: bool, description: string}
      */
-    public function handle(Building $building, UploadedFile $noticeFile, ?Carbon $noticeDate): array
+    public function createFromNotice(Building $building, string $pagePdfContents, array $notice): array
     {
-        $pdfContents = (string) file_get_contents($noticeFile->getRealPath());
-
-        $extracted = $this->extractor->extract($pdfContents);
-
-        $description = $this->buildDescription($extracted);
-        $noticeDate = $noticeDate ?? $extracted['notice_date'] ?? now();
+        $description = $this->buildDescription($notice);
+        $noticeDate = ($notice['notice_date'] ?? null) instanceof Carbon ? $notice['notice_date'] : now();
 
         // An open HOA work order for the same property means this notice is a
         // follow-up — attach to it instead of creating a duplicate.
@@ -53,9 +62,9 @@ class HoaViolationIntakeService
             $created = true;
         }
 
-        $this->attachNotice($workOrder, $noticeFile, $pdfContents);
+        $this->attachNotice($workOrder, $pagePdfContents, $notice['file_name'] ?? null, $notice['mime'] ?? null);
         $this->applyEasyFixStatus($workOrder, $description, $created);
-        $this->openHoaToken($workOrder, Carbon::parse($noticeDate));
+        $this->openHoaToken($workOrder, $noticeDate, $notice);
 
         return [
             'work_order' => $workOrder->refresh(),
@@ -66,24 +75,26 @@ class HoaViolationIntakeService
     }
 
     /**
-     * @param  array{description: string, violation_items: array<int, string>, hoa_name: ?string}  $extracted
+     * @param  array{description?: ?string, violation_items?: array<int, string>, hoa_name?: ?string}  $notice
      */
-    private function buildDescription(array $extracted): string
+    private function buildDescription(array $notice): string
     {
-        $lines = [$extracted['description']];
+        $lines = [trim((string) ($notice['description'] ?? '')) ?: HoaNoticeExtractor::FALLBACK_DESCRIPTION];
 
-        if ($extracted['violation_items'] !== []) {
+        $items = array_values(array_filter($notice['violation_items'] ?? [], fn ($item) => filled($item)));
+
+        if ($items !== []) {
             $lines[] = '';
             $lines[] = 'Items to correct:';
 
-            foreach ($extracted['violation_items'] as $item) {
+            foreach ($items as $item) {
                 $lines[] = '- '.$item;
             }
         }
 
-        if (filled($extracted['hoa_name'])) {
+        if (filled($notice['hoa_name'] ?? null)) {
             $lines[] = '';
-            $lines[] = 'Notice issued by: '.$extracted['hoa_name'];
+            $lines[] = 'Notice issued by: '.$notice['hoa_name'];
         }
 
         return implode("\n", $lines);
@@ -172,14 +183,20 @@ class HoaViolationIntakeService
         return WorkOrder::query()->where('propertyware_id', $propertywareId)->first();
     }
 
-    private function attachNotice(WorkOrder $workOrder, UploadedFile $noticeFile, string $pdfContents): void
+    private function attachNotice(WorkOrder $workOrder, string $noticeContents, ?string $originalName, ?string $mime): void
     {
-        $fileName = 'HOA Notice - WO'.($workOrder->work_order_no ?? $workOrder->id).' - '.now()->format('Y-m-d').'.pdf';
+        $mime = $mime ?: 'application/pdf';
+        $extension = $this->extensionForMime($mime);
+
+        $fileName = 'HOA Notice - WO'.($workOrder->work_order_no ?? $workOrder->id).' - '.now()->format('Y-m-d').'.'.$extension;
+        $storedPath = 'attachments/'.Str::uuid()->toString().'.'.$extension;
+
+        Storage::disk('public')->put($storedPath, $noticeContents);
 
         Attachments::create([
             'title' => 'HOA violation notice',
-            'filename' => $noticeFile->store('attachments', 'public'),
-            'filetype' => $noticeFile->getMimeType() ?: 'application/pdf',
+            'filename' => $storedPath,
+            'filetype' => $mime,
             'type' => 'attachment',
             'work_order_id' => $workOrder->id,
             'user_id' => auth()->id() ?? $workOrder->requested_by?->user_id ?? User::query()->value('id'),
@@ -187,14 +204,26 @@ class HoaViolationIntakeService
             'created_at' => now(),
         ]);
 
-        if ($workOrder->propertyware_id) {
+        // PropertyWare's upload endpoint expects a PDF; only push when the notice
+        // is one (a photo upload still lives on the local work order).
+        if ($workOrder->propertyware_id && $mime === 'application/pdf') {
             $this->propertyWare->uploadWorkOrderPdf(
                 (string) $workOrder->propertyware_id,
-                $pdfContents,
+                $noticeContents,
                 $fileName,
                 'HOA violation notice uploaded via the maintenance app.'
             );
         }
+    }
+
+    private function extensionForMime(string $mime): string
+    {
+        return match ($mime) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'pdf',
+        };
     }
 
     /**
@@ -229,9 +258,13 @@ class HoaViolationIntakeService
 
     /**
      * The HOA token anchors the whole downstream workflow: portal link, daily
-     * reminders, the 5-business-day deadline, escalation, and confirmation.
+     * reminders, deadline, escalation, and confirmation. The deadline honours
+     * whatever the notice actually stated — an explicit "resolve by" date, or a
+     * "within N days" window — falling back to the configured business days.
+     *
+     * @param  array{deadline_date?: ?Carbon, deadline_days?: ?int}  $notice
      */
-    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate): void
+    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate, array $notice): void
     {
         $existing = TenantUploadToken::query()
             ->where('work_order_id', $workOrder->id)
@@ -248,13 +281,29 @@ class HoaViolationIntakeService
             'work_order_id' => $workOrder->id,
             'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
             'hoa_notice_date' => $noticeDate->toDateString(),
-            'hoa_deadline_at' => $noticeDate->copy()->addWeekdays(
-                (int) config('services.hoa.deadline_business_days', 5)
-            )->endOfDay(),
+            'hoa_deadline_at' => $this->resolveDeadline($noticeDate, $notice),
         ]);
 
         // Send the tenant their link right away; the daily command handles
         // reminders from here.
         $this->linkService->sendHoaLink($token);
+    }
+
+    /**
+     * @param  array{deadline_date?: ?Carbon, deadline_days?: ?int}  $notice
+     */
+    private function resolveDeadline(Carbon $noticeDate, array $notice): Carbon
+    {
+        if (($notice['deadline_date'] ?? null) instanceof Carbon) {
+            return $notice['deadline_date']->copy()->endOfDay();
+        }
+
+        if (filled($notice['deadline_days'] ?? null)) {
+            return $noticeDate->copy()->addDays((int) $notice['deadline_days'])->endOfDay();
+        }
+
+        return $noticeDate->copy()
+            ->addWeekdays((int) config('services.hoa.deadline_business_days', 5))
+            ->endOfDay();
     }
 }

@@ -32,6 +32,12 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             return;
         }
 
+        // A WOC can mute this work order's owner automation from the owner
+        // conversation tab; manual sends are unaffected.
+        if ($workOrder->automationPausedFor('owner')) {
+            return;
+        }
+
         $owner = $workOrder->primaryOwner();
 
         if (! $owner instanceof Owner || ! filter_var($owner->email, FILTER_VALIDATE_EMAIL) || str_ends_with(strtolower($owner->email), '@texasrenter.com')) {

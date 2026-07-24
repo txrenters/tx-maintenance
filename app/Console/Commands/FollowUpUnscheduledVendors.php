@@ -67,6 +67,13 @@ class FollowUpUnscheduledVendors extends Command
                 continue;
             }
 
+            // A WOC can mute this work order's vendor automation from the vendor
+            // conversation tab; skip the nudge while paused (it resumes if the
+            // WOC switches it back on and the schedule is still missing).
+            if ($workOrder->automationPausedFor('vendor')) {
+                continue;
+            }
+
             $vendor = Vendor::query()->with('user')->find($assignment->vendor_id);
 
             if (! $vendor) {

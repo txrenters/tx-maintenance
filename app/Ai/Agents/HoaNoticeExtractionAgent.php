@@ -8,6 +8,12 @@ use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+/**
+ * Reads an uploaded HOA violation document that may contain SEVERAL notices —
+ * different properties, different associations, different deadlines — and
+ * returns one structured entry per notice. A single-notice file simply yields
+ * an array of one.
+ */
 class HoaNoticeExtractionAgent implements Agent, HasStructuredOutput
 {
     use Promptable;
@@ -16,22 +22,34 @@ class HoaNoticeExtractionAgent implements Agent, HasStructuredOutput
     {
         return implode("\n", [
             'You read HOA (homeowners association) violation notices for a property management company.',
-            'From the notice text, extract what the HOA says must be corrected at the property.',
-            'Write the description as a short, plain-language summary of the violation(s) a tenant can act on, e.g. "Trim the front lawn and remove the trailer parked in the driveway."',
-            'List each individual item to fix separately in violation_items.',
-            'notice_date is the date printed on the notice (format YYYY-MM-DD); null if none is present.',
-            'hoa_name is the association or management company that issued the notice; null if unclear.',
-            'Ground everything strictly in the supplied notice text; never invent violations.',
+            'A single uploaded document may contain MULTIPLE separate notices — different properties, different associations, and different deadlines. Return one entry in "notices" for EACH distinct property notice you find. A document with only one notice yields exactly one entry.',
+            'The notice text is provided with "===== PAGE N =====" markers. For each notice, set "page" to the page number where that notice begins.',
+            'property_address: the street address the notice is about (the "Property:" line), e.g. "10107 Mariposa Green Ct". Do NOT use the mailing/recipient address. Null if none is present.',
+            'description: a short, plain-language summary of what the tenant must correct, e.g. "Store the trash bins out of view on non-trash days." Keep it actionable.',
+            'violation_items: each individual item to fix, listed separately.',
+            'hoa_name: the association or management company that issued the notice; null if unclear.',
+            'notice_date: the date printed on the notice (YYYY-MM-DD); null if none.',
+            'deadline_date: an explicit "remedy by / resolve by" calendar date if the notice states one (YYYY-MM-DD); null otherwise.',
+            'deadline_days: if the notice instead says to fix it within a number of days (e.g. "within the next 10 days"), the integer number of days; null otherwise.',
+            'Ground everything strictly in the supplied text; never invent properties, violations, or dates.',
         ]);
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
-            'description' => $schema->string()->required(),
-            'violation_items' => $schema->array()->items($schema->string())->required(),
-            'notice_date' => $schema->string()->nullable()->required(),
-            'hoa_name' => $schema->string()->nullable()->required(),
+            'notices' => $schema->array()->items(
+                $schema->object([
+                    'page' => $schema->integer()->required(),
+                    'property_address' => $schema->string()->nullable()->required(),
+                    'description' => $schema->string()->required(),
+                    'violation_items' => $schema->array()->items($schema->string())->required(),
+                    'hoa_name' => $schema->string()->nullable()->required(),
+                    'notice_date' => $schema->string()->nullable()->required(),
+                    'deadline_date' => $schema->string()->nullable()->required(),
+                    'deadline_days' => $schema->integer()->nullable()->required(),
+                ])->withoutAdditionalProperties()
+            )->required(),
         ];
     }
 }

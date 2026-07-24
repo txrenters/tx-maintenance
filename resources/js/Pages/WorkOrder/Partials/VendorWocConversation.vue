@@ -251,11 +251,11 @@ onMounted(() => {
                                     />
                                     <AvatarFallback>
                                         {{
-                                            props.workOrder.woc.name?.charAt(0)
+                                            props.workOrder.woc?.name?.charAt(0)
                                         }}
                                     </AvatarFallback>
                                 </Avatar>
-                                {{ props.workOrder.woc.name }}
+                                {{ props.workOrder.woc?.name }}
                             </div>
                             {{
                                 props.workOrder.woc?.woc_number

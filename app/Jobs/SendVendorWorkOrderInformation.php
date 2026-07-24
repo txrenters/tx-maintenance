@@ -70,11 +70,17 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         $portalUrl = $accessToken ? route('vendor.portal.show', $accessToken) : null;
 
+        // A WOC can mute this work order's vendor automation from the vendor
+        // conversation tab; the assignment email and text below are skipped while
+        // paused (manual sends are unaffected). The PropertyWare upload still runs
+        // — it is an internal document, not an outbound message.
+        $vendorPaused = $workOrder->automationPausedFor('vendor');
+
         // 1) Email the vendor via Microsoft Graph (only when we have an address).
         //    The Blade design is unchanged — we render the existing mailable to
         //    HTML and hand it to the sender as trusted template HTML (no sanitize),
         //    which persists it as an outbound EmailMessage and threads replies.
-        if (filled($vendor->email)) {
+        if (! $vendorPaused && filled($vendor->email)) {
             $html = (new VendorServiceRequestMail(
                 vendorName: $vendor->name,
                 workOrderNo: (string) $workOrder->work_order_no,
@@ -131,7 +137,9 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         }
 
         // 3) Text the vendor and log it in the WOC↔Vendor conversation.
-        $this->textVendor($workOrder, $vendor);
+        if (! $vendorPaused) {
+            $this->textVendor($workOrder, $vendor);
+        }
 
         // 4) Notify the property owner and log it in the owner conversation thread.
         $this->notifyOwner($workOrder, $vendor);
@@ -149,6 +157,12 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         // Off by default so a deploy never texts a real owner until enabled;
         // set OWNER_ASSIGNMENT_SMS_ENABLED=true in production to turn it on.
         if (! config('services.twilio.owner_assignment_sms')) {
+            return;
+        }
+
+        // A WOC can mute this work order's owner automation from the owner
+        // conversation tab; manual sends are unaffected.
+        if ($workOrder->automationPausedFor('owner')) {
             return;
         }
 

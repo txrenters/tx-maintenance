@@ -26,6 +26,43 @@ class WorkOrder extends Model
     protected $guarded = [];
 
     /**
+     * The channels whose automated messages a WOC has muted for this work order.
+     */
+    public const AUTOMATION_CHANNELS = ['tenant', 'owner', 'vendor'];
+
+    protected function casts(): array
+    {
+        return [
+            'paused_automations' => 'array',
+        ];
+    }
+
+    /**
+     * Whether automated (non-manual) messages on a given channel are muted for
+     * this work order. Manual sends never consult this. Unknown/blank channels
+     * are treated as active so a bad value never silences everything.
+     */
+    public function automationPausedFor(string $channel): bool
+    {
+        return in_array($channel, $this->paused_automations ?? [], true);
+    }
+
+    /**
+     * Mute or resume a channel's automated messages for this work order.
+     */
+    public function setAutomationPaused(string $channel, bool $paused): void
+    {
+        $channels = collect($this->paused_automations ?? []);
+
+        $channels = $paused
+            ? $channels->push($channel)->unique()
+            : $channels->reject(fn ($existing) => $existing === $channel);
+
+        $this->paused_automations = $channels->values()->all();
+        $this->save();
+    }
+
+    /**
      * PropertyWare picklist values sometimes carry stray whitespace (e.g.
      * "Turnover "). MySQL's padded comparisons hide that on the backend, but
      * the frontend's exact string matching does not — the Type dropdown showed

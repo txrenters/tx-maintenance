@@ -72,6 +72,13 @@ const props = defineProps({
         type: String,
         default: "work_orders.lawn_service",
     },
+    // HOA board: show the HOA deadline/state on each card and expose the
+    // #board-actions slot for the "Upload HOA Notice" button. Harmless (false)
+    // for every other board that reuses this page.
+    hoa: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const url = ref(route(props.listRouteName));
@@ -758,6 +765,8 @@ const page = usePage();
     >
         <template #actions>
             <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
+            <!-- Page-specific primary action (e.g. HOA "Upload Notice"). -->
+            <slot name="board-actions" />
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
@@ -880,6 +889,7 @@ const page = usePage();
             </template>
             <WorkOrderCard
                 :service_status="service_status"
+                :hoa="hoa"
                 :color-filter="filter_color"
                 :search-term="search"
                 :vendor-filter="filter_vendor"

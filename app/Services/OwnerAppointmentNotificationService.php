@@ -28,6 +28,12 @@ class OwnerAppointmentNotificationService
             return;
         }
 
+        // A WOC can mute this work order's owner automation from the owner
+        // conversation tab; manual sends are unaffected.
+        if ($serviceSchedule->work_order?->automationPausedFor('owner')) {
+            return;
+        }
+
         // Claim this schedule atomically so a retry or a reschedule can never
         // text the owner twice for the same appointment.
         $claimed = DB::table('service_schedules')

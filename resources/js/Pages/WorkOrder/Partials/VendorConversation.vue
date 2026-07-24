@@ -15,6 +15,7 @@ import {
 import { Input } from "@/Components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { ScrollArea } from "@/Components/ui/scroll-area";
+import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
 import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
 
@@ -318,9 +319,16 @@ onMounted(() => {
 <template>
     <div>
         <div class="grid gap-3 overflow-y-auto px-6">
-            <p class="font-semibold uppercase text-xs mb-3">
-                Vendor Conversation
-            </p>
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <p class="font-semibold uppercase text-xs">
+                    Vendor Conversation
+                </p>
+                <AutomationToggle
+                    v-if="workOrder?.id"
+                    :work-order-id="workOrder.id"
+                    channel="vendor"
+                />
+            </div>
             <div class="flex justify-between gap-2 mb-2">
                 <div>
                     <div class="flex gap-2">
@@ -364,10 +372,10 @@ onMounted(() => {
                                 :src="woc?.profile_photo_url || 'default.jpg'"
                             />
                             <AvatarFallback>
-                                {{ woc.name?.charAt(0) }}
+                                {{ woc?.name?.charAt(0) }}
                             </AvatarFallback>
                         </Avatar>
-                        {{ woc.name }}
+                        {{ woc?.name }}
                     </div>
                     {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>

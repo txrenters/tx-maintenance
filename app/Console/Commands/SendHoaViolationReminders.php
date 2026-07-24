@@ -59,6 +59,7 @@ class SendHoaViolationReminders extends Command
         $startOfToday = now()->startOfDay();
 
         $tokens = TenantUploadToken::query()
+            ->with('work_order')
             ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
             ->whereNull('completed_at')
             ->whereNotNull('hoa_deadline_at')
@@ -72,6 +73,20 @@ class SendHoaViolationReminders extends Command
         $sent = 0;
 
         foreach ($tokens as $token) {
+            // Stop reminders once the WOC closes the work order — she closes it
+            // after the tenant sends proof, so "closed" is the manual counterpart
+            // to the tenant's photo upload (completed_at). Either one ends them.
+            if (! $token->work_order || $token->work_order->status !== 'Open') {
+                continue;
+            }
+
+            // Stop reminders once a vendor is on the job: the tenant missed the
+            // self-fix window and staff scheduled a vendor to correct it, so
+            // there is no point nagging the tenant any further.
+            if ($token->work_order->vendors()->exists()) {
+                continue;
+            }
+
             // Claim today's reminder atomically before sending.
             $claimed = TenantUploadToken::query()
                 ->whereKey($token->id)
@@ -110,12 +125,24 @@ class SendHoaViolationReminders extends Command
         $flagged = 0;
 
         foreach ($tokens as $token) {
+            // A closed work order needs no vendor escalation — the WOC has
+            // already handled it (she closes it once the tenant complies).
+            if (! $token->work_order || $token->work_order->status !== 'Open') {
+                continue;
+            }
+
+            // Already has a vendor scheduled — the escalation's whole purpose
+            // (get a vendor assigned) is met, so don't flag it as needing one.
+            if ($token->work_order->vendors()->exists()) {
+                continue;
+            }
+
             $claimed = TenantUploadToken::query()
                 ->whereKey($token->id)
                 ->whereNull('escalation_flagged_at')
                 ->update(['escalation_flagged_at' => now()]);
 
-            if ($claimed === 0 || ! $token->work_order) {
+            if ($claimed === 0) {
                 continue;
             }
 
@@ -171,6 +198,12 @@ class SendHoaViolationReminders extends Command
 
         foreach ($tokens as $token) {
             if (! $token->work_order) {
+                continue;
+            }
+
+            // A WOC can mute this work order's tenant automation from the tenant
+            // conversation tab; skip (unstamped) so it resumes if switched back on.
+            if ($token->work_order->automationPausedFor('tenant')) {
                 continue;
             }
 

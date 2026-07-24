@@ -1,5 +1,5 @@
 <script setup>
-import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2 } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2, CalendarClock } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { nextTick, onMounted, ref, watch } from "vue";
@@ -31,6 +31,9 @@ const props = defineProps({
     categoryFilter: { type: String, default: "" },
     emergencyFilter: { type: String, default: "" },
     dateRange: { type: Object, default: null },
+    // HOA board: render the HOA deadline + state pill on each card (data comes
+    // from work_order.hoa, decorated server-side). No effect on other boards.
+    hoa: { type: Boolean, default: false },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -398,7 +401,9 @@ const visibleWorkOrders = (status) => {
                                     checkDueTask(
                                         work_order.tasks,
                                         work_order.scheduled_end_date
-                                    ) == 'red' || work_order.is_emergency,
+                                    ) == 'red' ||
+                                    work_order.is_emergency ||
+                                    (hoa && work_order.hoa?.overdue),
                                 'bg-primary':
                                     checkDueTask(
                                         work_order.tasks,
@@ -463,6 +468,24 @@ const visibleWorkOrders = (status) => {
                                         work_order.category
                                     }}
                                 </p>
+
+                                <!-- HOA deadline + state (HOA board only) -->
+                                <template v-if="hoa && work_order.hoa">
+                                    <p
+                                        v-if="work_order.hoa.deadline"
+                                        class="text-xs text-gray-100 flex items-center gap-1 justify-center mt-1"
+                                    >
+                                        <CalendarClock class="w-3 h-3" />Due
+                                        {{ work_order.hoa.deadline }}
+                                    </p>
+                                    <div class="mt-1 flex justify-center">
+                                        <span
+                                            class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                        >
+                                            {{ work_order.hoa.state }}
+                                        </span>
+                                    </div>
+                                </template>
                                 <p
                                     v-if="work_order.is_approved"
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"

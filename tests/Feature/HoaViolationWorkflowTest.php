@@ -9,6 +9,7 @@ use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\HoaViolationConfirmationSender;
 use App\Services\MicrosoftGraphMailService;
@@ -41,6 +42,18 @@ class HoaViolationWorkflowTest extends TestCase
             'email' => 'tenant@example.com',
             'mobile_phone' => '5125559999',
             'address' => '123 Oak Ridge Dr',
+            'user_id' => User::factory()->create()->id,
+        ]);
+    }
+
+    private function vendor(): Vendor
+    {
+        return Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
+            'name' => 'Reliable Repairs',
+            'vendor_type' => 'General',
+            'is_active' => true,
+            'email' => 'v'.uniqid().'@example.com',
             'user_id' => User::factory()->create()->id,
         ]);
     }
@@ -98,7 +111,109 @@ class HoaViolationWorkflowTest extends TestCase
         $this->assertTrue($token->fresh()->last_notified_at->isToday());
         Queue::assertPushed(SendConversationMessageJob::class, 1);
         $message = $workOrder->tenant_conversation()->firstOrFail();
-        $this->assertStringContainsString('HOA violation', $message->message);
+        $this->assertStringContainsString('HOA', $message->message);
+        $this->assertStringContainsString('TexasRenters.com Maintenance', $message->message);
+    }
+
+    public function test_no_reminder_once_the_tenant_has_uploaded_photos(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00')); // Tuesday, before the deadline
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // Deadline is still in the future, but the tenant already uploaded
+        // proof (completed_at set) — reminders must stop.
+        $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+            'completed_at' => Carbon::parse('2026-07-21 09:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    public function test_no_reminder_once_the_woc_closes_the_work_order(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00')); // Tuesday, before the deadline
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // The WOC closed it (she closes once the tenant sends proof back), so
+        // reminders must stop even though the deadline is still in the future.
+        $workOrder->update(['status' => 'Closed']);
+        $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    public function test_a_closed_work_order_is_not_escalated_as_overdue(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-28 10:00:00')); // after the deadline
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $workOrder->update(['status' => 'Closed']);
+        $token = $this->hoaToken($workOrder, ['hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay()]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        // The WOC already handled it by closing — no overdue flag, no activity.
+        $this->assertNull($token->fresh()->escalation_flagged_at);
+        $this->assertDatabaseMissing('activity_log', [
+            'event' => 'hoa_violation_overdue',
+            'subject_id' => $workOrder->id,
+        ]);
+    }
+
+    public function test_no_reminder_once_a_vendor_is_scheduled(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00')); // Tuesday, before the deadline
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // Tenant missed the self-fix window and staff scheduled a vendor, so the
+        // tenant reminders must stop even though the deadline is still ahead.
+        $vendor = $this->vendor();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok'.$vendor->id]);
+        $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    public function test_no_overdue_flag_once_a_vendor_is_scheduled(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-28 10:00:00')); // after the deadline
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $vendor = $this->vendor();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok'.$vendor->id]);
+        $token = $this->hoaToken($workOrder, ['hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay()]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        // A vendor is already on it — the escalation's goal is met, so no flag.
+        $this->assertNull($token->fresh()->escalation_flagged_at);
     }
 
     public function test_reminders_stop_at_the_gate(): void

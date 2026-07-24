@@ -29,6 +29,12 @@ class OwnerServiceRequestNotificationService
             return;
         }
 
+        // A WOC can mute this work order's owner automation from the owner
+        // conversation tab; manual sends are unaffected.
+        if ($workOrder->automationPausedFor('owner')) {
+            return;
+        }
+
         try {
             $this->send($workOrder);
         } catch (\Throwable $exception) {
