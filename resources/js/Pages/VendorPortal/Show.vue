@@ -207,15 +207,32 @@ const isImageFile = (file) =>
     file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic)$/i.test(file.name);
 
 const onPickFiles = (e) => {
-    selectedFiles.value = Array.from(e.target.files || []);
-    selectedPreviews.value = selectedFiles.value.map((file) => {
+    const picked = Array.from(e.target.files || []);
+    picked.forEach((file) => {
+        const isDuplicate = selectedFiles.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (isDuplicate) {
+            return;
+        }
+        selectedFiles.value.push(file);
         const image = isImageFile(file);
-        return {
+        selectedPreviews.value.push({
             name: file.name,
             isImage: image,
             url: image ? URL.createObjectURL(file) : null,
-        };
+        });
     });
+    // Reset so re-picking the same file still fires @change.
+    e.target.value = "";
+};
+
+const removeSelectedFile = (index) => {
+    const [removed] = selectedPreviews.value.splice(index, 1);
+    if (removed?.url) {
+        URL.revokeObjectURL(removed.url);
+    }
+    selectedFiles.value.splice(index, 1);
 };
 
 const uploadPhotos = () => {
@@ -276,7 +293,16 @@ const messageInput = ref(null);
 const sending = ref(false);
 
 const onPickMessageImages = (e) => {
-    messageImages.value = Array.from(e.target.files || []);
+    Array.from(e.target.files || []).forEach((file) => {
+        const isDuplicate = messageImages.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (!isDuplicate) {
+            messageImages.value.push(file);
+        }
+    });
+    // Reset so re-picking the same file still fires @change.
+    e.target.value = "";
 };
 
 const removeMessageImage = (index) => {
@@ -919,6 +945,10 @@ const confirmCompleteTask = () => {
                                 <span class="text-[10px] text-muted-foreground"
                                     >Images, PDF, Word, Excel or text</span
                                 >
+                                <span class="text-[10px] text-muted-foreground"
+                                    >Add as many as you like — pick more anytime and
+                                    they'll stack up</span
+                                >
                                 <input
                                     ref="photoInput"
                                     type="file"
@@ -937,7 +967,7 @@ const confirmCompleteTask = () => {
                                 <div
                                     v-for="(p, i) in selectedPreviews"
                                     :key="i"
-                                    class="aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
                                 >
                                     <img
                                         v-if="p.isImage"
@@ -954,6 +984,13 @@ const confirmCompleteTask = () => {
                                             >{{ p.name }}</span
                                         >
                                     </div>
+                                    <button
+                                        type="button"
+                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                        @click="removeSelectedFile(i)"
+                                    >
+                                        <X class="w-3 h-3" />
+                                    </button>
                                 </div>
                             </div>
 
