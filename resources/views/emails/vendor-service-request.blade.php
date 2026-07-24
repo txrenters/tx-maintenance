@@ -61,11 +61,14 @@
                     @endif
 
                     <!-- Secondary notes -->
+                    {{-- Vacant/turnover units have no tenant, so drop the "reaching the tenants" note. --}}
+                    @unless($isVacant ?? false)
                     <tr>
                         <td style="padding:8px 28px 4px; font-size:14px; line-height:1.55; color:#374151;">
                             <p style="margin:12px 0;">If you have any questions or issues reaching or communicating with the tenants, please contact us and let us know.</p>
                         </td>
                     </tr>
+                    @endunless
 
                     <!-- Payment policy callout -->
                     <tr>

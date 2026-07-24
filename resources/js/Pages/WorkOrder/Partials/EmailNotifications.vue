@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from "vue";
+import EmailViewerDialog from "@/Components/EmailViewerDialog.vue";
 
 defineProps({
     emails: { type: Array, default: () => [] },
@@ -37,15 +38,6 @@ const formatDate = (value) => value ? new Date(value).toLocaleString() : "—";
             </div>
         </button>
 
-        <Dialog :open="selectedEmail !== null" @update:open="!$event && (selectedEmail = null)">
-            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>{{ selectedEmail?.subject || "Email notification" }}</DialogTitle>
-                    <DialogDescription>{{ selectedEmail?.recipient_type }} · {{ selectedEmail?.from_email }} → {{ selectedEmail?.to_email }} · {{ formatDate(selectedEmail?.sent_at) }}</DialogDescription>
-                </DialogHeader>
-                <div v-if="selectedEmail?.body_html" class="prose prose-sm max-w-none" v-html="selectedEmail.body_html" />
-                <p v-else class="whitespace-pre-wrap text-sm">{{ selectedEmail?.body_text }}</p>
-            </DialogContent>
-        </Dialog>
+        <EmailViewerDialog v-model="selectedEmail" />
     </div>
 </template>

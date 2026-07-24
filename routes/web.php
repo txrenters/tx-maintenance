@@ -293,6 +293,53 @@ Route::get('/jobber/reconnect', [JobberAuthController::class, 'refreshAccessToke
 Route::get('/jobber/diagnose', [JobberDiagnosticController::class, 'diagnose'])->name('jobber.diagnose');
 Route::post('/jobber/clear-tokens', [JobberDiagnosticController::class, 'clearTokens'])->name('jobber.clearTokens');
 
+// TEMP dev-only email preview — remove before shipping.
+if (app()->environment('local')) {
+    Route::get('/dev/email-preview/{template?}', function (?string $template = null) {
+        $building = (object) [
+            'name' => 'Maple Court', 'address' => '12 Maple St',
+            'city' => 'Houston', 'state_region' => 'TX', 'postal_code' => '77007',
+        ];
+        $workOrder = (object) [
+            'id' => 5, 'work_order_no' => '43334', 'type' => 'Turnover', 'category' => 'HVAC',
+            'status' => 'New', 'service_status' => (object) ['name' => 'New'],
+            'description' => 'AC not cooling', 'building' => $building,
+        ];
+        $owner = (object) ['name' => 'SDM Home Services LLC', 'first_name' => 'SDM', 'last_name' => 'Home'];
+        $vendor = (object) ['name' => 'Cool Air Co', 'phone' => '555-1212'];
+        $invoice = (object) ['title' => 'AC Repair Invoice', 'amount' => 450.5, 'created_at' => now()];
+
+        $templates = [
+            'vendor-service-request' => ['emails.vendor-service-request', [
+                'workOrderNo' => $workOrder->work_order_no, 'vendorName' => $vendor->name, 'portalUrl' => 'https://x.test/portal',
+            ]],
+            'owner-vendor-assignment' => ['emails.owner-vendor-assignment', [
+                'owner' => $owner, 'vendor' => $vendor, 'workOrder' => $workOrder,
+                'propertyAddress' => '12 Maple St', 'includeTenantLine' => true,
+            ]],
+            'hoa-violation-corrected' => ['emails.hoa-violation-corrected', [
+                'workOrder' => $workOrder, 'property' => '12 Maple St', 'galleryUrl' => 'https://x.test/g/abc',
+            ]],
+            'operation-accounting-invoice' => ['emails.operation-accounting-invoice', [
+                'workOrder' => $workOrder, 'vendor' => $vendor, 'invoice' => $invoice,
+                'attached' => true, 'workOrderUrl' => 'https://x.test/wo/5',
+            ]],
+        ];
+
+        if ($template && isset($templates[$template])) {
+            [$view, $data] = $templates[$template];
+
+            return view($view, $data);
+        }
+
+        $links = collect($templates)->keys()
+            ->map(fn ($key) => '<li style="margin:8px 0;"><a href="/dev/email-preview/'.$key.'" style="color:#2563EA;">'.$key.'</a></li>')
+            ->implode('');
+
+        return '<div style="font-family:Arial;padding:32px;"><h2>Email previews</h2><ul style="list-style:none;padding:0;">'.$links.'</ul></div>';
+    })->name('dev.email.preview');
+}
+
 Route::fallback(function () {
     return inertia('Error', ['status' => 404])
         ->toResponse(request())

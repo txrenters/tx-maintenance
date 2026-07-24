@@ -1,6 +1,7 @@
 <script setup>
 import AppLayout from "@/Layouts/AppLayout.vue";
 import RichTextEditor from "@/Components/RichTextEditor.vue";
+import EmailViewerDialog from "@/Components/EmailViewerDialog.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Link, useForm } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
@@ -216,13 +217,7 @@ const sendTenantEmail = () => {
             </CardContent>
         </Card>
 
-        <Dialog :open="selectedEmail !== null" @update:open="!$event && (selectedEmail = null)">
-            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-                <DialogHeader><DialogTitle>{{ selectedEmail?.subject || "Email message" }}</DialogTitle><DialogDescription>{{ selectedEmail?.from_email }} → {{ selectedEmail?.to_email }} · {{ formatDate(selectedEmail?.sent_at) }}</DialogDescription></DialogHeader>
-                <div v-if="selectedEmail?.body_html" class="prose prose-sm max-w-none" v-html="selectedEmail.body_html" />
-                <p v-else class="whitespace-pre-wrap text-sm">{{ selectedEmail?.body_text }}</p>
-            </DialogContent>
-        </Dialog>
+        <EmailViewerDialog v-model="selectedEmail" />
 
         <Dialog v-model:open="composeOpen">
             <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">

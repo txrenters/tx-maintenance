@@ -1,26 +1,31 @@
-<!DOCTYPE html>
-<html lang="en">
-<body style="font-family: Arial, Helvetica, sans-serif; color: #1f2937;">
-    <p>Hello,</p>
-    <p>
+@php
+    $logoSrc = isset($message) ? $message->embed(public_path('tx-logo.png')) : asset('tx-logo.png');
+@endphp
+<x-mail.branded :logo="$logoSrc" eyebrow="HOA Violation Corrected" heading="Work Order #{{ $workOrder->work_order_no ?? $workOrder->id }}">
+    <p style="margin:12px 0;">Hello,</p>
+    <p style="margin:12px 0;">
         This is a confirmation from TexasRenters.com Maintenance that the HOA
         violation {{ $property ? 'at '.$property.' ' : '' }}(Work Order
         #{{ $workOrder->work_order_no ?? $workOrder->id }}) has been
-        <strong>corrected</strong>.
+        <strong style="color:#0f2c66;">corrected</strong>.
     </p>
-    <p>
-        You can view the photos of the completed work using the secure link below:
-    </p>
-    <p>
-        <a href="{{ $galleryUrl }}"
-           style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;">
-            View the photos
-        </a>
-    </p>
-    <p style="font-size: 12px; color: #6b7280;">
+    <p style="margin:12px 0;">You can view the photos of the completed work using the secure link below:</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+        <tr>
+            <td style="border-radius:8px; background-color:#2563EA;">
+                <a href="{{ $galleryUrl }}" target="_blank"
+                   style="display:inline-block; padding:13px 30px; font-size:15px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
+                    View the photos
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="font-size:12px; color:#6b7280; margin:12px 0;">
         If the button does not work, copy and paste this link into your browser:<br>
         {{ $galleryUrl }}
     </p>
-    <p>Thank you,<br>TexasRenters.com Maintenance</p>
-</body>
-</html>
+    <p style="margin:14px 0 2px;">Thank you,</p>
+    <p style="margin:0; font-weight:bold; color:#0f2c66;">TexasRenters.com Maintenance</p>
+</x-mail.branded>

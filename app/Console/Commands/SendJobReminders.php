@@ -668,7 +668,19 @@ class SendJobReminders extends Command
                 $recipientName = $recipient['name'];
                 $message = str_replace('{CLIENT_NAME}', $recipientName, $messageText);
                 $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+
+                // Lead the subject with the property so staff can tell at a
+                // glance which property an email is about; fall back to the
+                // Jobber job number when no property reference is available.
+                $propertyLabel = trim((string) ($recipient['propertyware_address'] ?? ''));
+                if ($propertyLabel === '' || strcasecmp($propertyLabel, 'N/A') === 0) {
+                    $propertyLabel = $visit->job->job_number ? 'Job #'.$visit->job->job_number : '';
+                }
+
                 $subjectLine = 'Reminder: Scheduled TBP Service on '.$visitDate;
+                if ($propertyLabel !== '') {
+                    $subjectLine = $propertyLabel.' - '.$subjectLine;
+                }
 
                 try {
                     Log::info('Sending job reminder email', [
