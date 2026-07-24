@@ -79,11 +79,15 @@ class FollowUpTenantVendorContact extends Command
                 continue;
             }
 
-            // "OWNER VENDOR" means the owner is handling the repair themselves —
-            // there is no third-party vendor to have "reached out", so asking the
-            // tenant makes no sense. A work order whose only vendor is that
-            // placeholder is excluded so it is never rescanned.
-            $realVendors = $workOrder->vendors->reject(fn ($vendor) => $vendor->isOwnerPlaceholder());
+            // "OWNER VENDOR" means the owner is handling the repair themselves,
+            // and THMP (in-house) does not reach out to schedule the way a
+            // third-party vendor does (THMP messages the tenant manually). In
+            // both cases asking the tenant "has the vendor reached out?" makes no
+            // sense, so a work order whose only vendors are these is excluded and
+            // never rescanned.
+            $realVendors = $workOrder->vendors->reject(
+                fn ($vendor) => $vendor->isOwnerPlaceholder() || $vendor->isThmp()
+            );
 
             if ($realVendors->isEmpty()) {
                 DB::table('work_orders')

@@ -15,6 +15,13 @@ class Vendor extends Model
 
     protected $table = 'vendors';
 
+    /**
+     * The exact name of the in-house vendor "Texas Home Maintenance Pros"
+     * (THMP). Matched by name so it works regardless of the record's id in any
+     * environment, mirroring how the Jobber integration detects THMP jobs.
+     */
+    public const THMP_NAME = 'Texas Home Maintenance Pros';
+
     protected $fillable = [
         'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
     ];
@@ -38,6 +45,18 @@ class Vendor extends Model
     public function isOwnerPlaceholder(): bool
     {
         return Str::lower(trim((string) $this->name)) === 'owner vendor';
+    }
+
+    /**
+     * True when this is the in-house vendor "Texas Home Maintenance Pros".
+     * THMP does not reach out to the tenant to schedule the way a third-party
+     * vendor does, so tenant-facing automations (assignment notice, the daily
+     * "has the vendor reached out?" follow-up) skip it — THMP staff message the
+     * tenant manually instead.
+     */
+    public function isThmp(): bool
+    {
+        return Str::lower(trim((string) $this->name)) === Str::lower(self::THMP_NAME);
     }
 
     public function workOrders(): BelongsToMany

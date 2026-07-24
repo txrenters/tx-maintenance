@@ -112,6 +112,16 @@ class WorkOrder extends Model
         return (bool) $this->skip_automated_tasks || $this->isTurnover();
     }
 
+    /**
+     * Whether the in-house vendor "Texas Home Maintenance Pros" (THMP) is among
+     * the assigned vendors. THMP jobs are excluded from tenant-facing
+     * automations because THMP messages the tenant manually.
+     */
+    public function hasThmpVendor(): bool
+    {
+        return $this->vendors->contains(fn (Vendor $vendor) => $vendor->isThmp());
+    }
+
     public function managed_by(): BelongsTo
     {
         return $this->belongsTo(Owner::class, 'property_manager_id');

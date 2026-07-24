@@ -232,6 +232,45 @@ class TenantVendorContactFollowupTest extends TestCase
         $this->assertNotNull($this->excludedAt($workOrder), 'The owner-handled work order should be excluded.');
     }
 
+    public function test_it_excludes_thmp_from_the_followup(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        // THMP (in-house) does not reach out to schedule the way a third-party
+        // vendor does — it messages the tenant manually — so a THMP-only work
+        // order is excluded and never asked "has the vendor reached out?".
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor('Texas Home Maintenance Pros'));
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNothingPushed();
+        $this->assertNotNull($this->excludedAt($workOrder), 'THMP work orders are excluded from the tenant follow-up.');
+    }
+
+    public function test_it_still_texts_when_thmp_and_a_third_party_are_both_assigned(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        // A third-party vendor alongside THMP still reaches out to schedule, so
+        // the follow-up should fire for it.
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor('Texas Home Maintenance Pros'));
+        $this->assignVendor($workOrder, $this->makeVendor('Reliable Plumbing'));
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+        ]);
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertNull($this->excludedAt($workOrder), 'A work order with a real third-party vendor is not excluded.');
+    }
+
     public function test_it_texts_at_most_once_per_day(): void
     {
         config(['services.twilio.tenant_vendor_followup_sms' => true]);

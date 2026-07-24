@@ -61,6 +61,50 @@ const displayMessage = computed({
 });
 const selectedTenant = ref("");
 const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
+
+// THMP (in-house) jobs are excluded from the automated tenant assignment
+// message — THMP staff message the tenant manually. This one-click button fills
+// the composer with the standard THMP wording (staff still review + Send; it
+// never sends on its own). Shown only when THMP is an assigned vendor.
+const THMP_NAME = "Texas Home Maintenance Pros";
+const hasThmpVendor = computed(
+    () =>
+        Array.isArray(props.workOrder?.vendors) &&
+        props.workOrder.vendors.some(
+            (vendor) =>
+                (vendor?.name || "").trim().toLowerCase() ===
+                THMP_NAME.toLowerCase()
+        )
+);
+const thmpRecipientFirstName = computed(() => {
+    const selected = props.workOrderTenants?.find(
+        (tenant) => tenant.id == selectedTenant.value
+    );
+    return (
+        selected?.first_name ||
+        props.workOrder?.requested?.first_name ||
+        props.workOrder?.requested_by?.first_name ||
+        ""
+    ).trim();
+});
+const thmpPropertyAddress = computed(
+    () =>
+        props.workOrder?.requested?.address ||
+        props.workOrder?.requested_by?.address ||
+        props.workOrder?.building?.address ||
+        props.workOrder?.building?.name ||
+        "your home"
+);
+const insertThmpTemplate = () => {
+    const name = thmpRecipientFirstName.value;
+    const greeting = name ? `Hi ${name},` : "Hi,";
+    const ref = props.workOrder?.work_order_no ?? props.workOrder?.id;
+    messageBody.value =
+        `${greeting}\n\nWe've assigned Texas Home Maintenance Pros to handle the repairs at ` +
+        `${thmpPropertyAddress.value} under Work Order #${ref}. We will let you know once we ` +
+        `receive the schedule updates from them. Thank you!`;
+    includeRefSuffix.value = true;
+};
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
 const page = usePage();
@@ -368,6 +412,19 @@ console.log(props.workOrderTenants);
                 <p class="text-xs text-muted-foreground mt-2">
                     {{ selectedImages.length }} image{{ selectedImages.length > 1 ? 's' : '' }} selected
                 </p>
+            </div>
+
+            <!-- Quick-insert templates -->
+            <div v-if="hasThmpVendor" class="flex flex-wrap gap-2 mt-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    @click="insertThmpTemplate"
+                >
+                    Insert THMP assignment message
+                </Button>
             </div>
 
             <!-- Message Input -->

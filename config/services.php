@@ -94,6 +94,10 @@ return [
         // assigned, asking whether the vendor has reached out to them. Stops
         // once a service schedule exists (or the cap is hit).
         'tenant_vendor_followup_sms' => env('TENANT_VENDOR_FOLLOWUP_SMS_ENABLED', true),
+        // Text the tenant via the tenant<->WOC conversation when a third-party
+        // vendor is assigned, telling them the vendor will contact them to
+        // schedule. THMP (in-house) jobs are skipped — THMP messages manually.
+        'tenant_assignment_sms' => env('TENANT_ASSIGNMENT_SMS_ENABLED', true),
     ],
 
     'hoa' => [

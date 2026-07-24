@@ -144,6 +144,94 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         // 4) Notify the property owner and log it in the owner conversation thread.
         $this->notifyOwner($workOrder, $vendor);
+
+        // 5) Notify the tenant that a (third-party) vendor is coming. A tenant
+        //    send failure must never break the owner/vendor notifications above,
+        //    so it is isolated in its own try/catch.
+        try {
+            $this->notifyTenant($workOrder, $vendor);
+        } catch (\Throwable $exception) {
+            Log::error('Vendor-assignment tenant notification failed.', [
+                'work_order_id' => $workOrder->id,
+                'vendor_id' => $vendor->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Text the tenant that a vendor has been assigned and will reach out to
+     * schedule, sent from (and recorded as) the WOC on the tenant conversation
+     * thread. Third-party vendors only — THMP (in-house) messages the tenant
+     * manually, so it is skipped here. Also skipped when the tenant automation
+     * is paused for this work order or the unit is vacant (no tenant).
+     */
+    private function notifyTenant(WorkOrder $workOrder, Vendor $vendor): void
+    {
+        // Live by default; set TENANT_ASSIGNMENT_SMS_ENABLED=false to disable.
+        if (! config('services.twilio.tenant_assignment_sms')) {
+            return;
+        }
+
+        // THMP handles tenant messaging manually; owner-placeholder means the
+        // owner does the repair themselves — no third-party vendor is coming.
+        if ($vendor->isThmp() || $vendor->isOwnerPlaceholder()) {
+            return;
+        }
+
+        // A WOC can mute this work order's tenant automation from the tenant tab.
+        if ($workOrder->automationPausedFor('tenant')) {
+            return;
+        }
+
+        // A vacant unit has no tenant to notify.
+        if ($workOrder->isVacant()) {
+            return;
+        }
+
+        $tenant = $workOrder->requested_by;
+        $tenantNumber = $this->toE164($tenant?->mobile_phone ?: $tenant?->home_phone);
+
+        if (! $tenantNumber) {
+            return;
+        }
+
+        $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
+            ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
+
+        if (! $wocNumber) {
+            return;
+        }
+
+        $body = $this->buildTenantMessage($workOrder, $vendor);
+
+        // sender_number is the WOC's number, so the portal renders this as a
+        // message from the coordinator on the tenant thread.
+        $conversation = Conversation::create([
+            'message' => $body,
+            'sender_number' => $wocNumber,
+            'receiver_number' => $tenantNumber,
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'is_read' => true,
+            'is_mms' => false,
+        ]);
+
+        SendConversationMessageJob::dispatch($tenantNumber, $wocNumber, $body, null, $conversation->id);
+    }
+
+    private function buildTenantMessage(WorkOrder $workOrder, Vendor $vendor): string
+    {
+        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $greeting = $name !== '' ? 'Hi '.$name.',' : 'Hi,';
+        $ref = $workOrder->work_order_no ?? $workOrder->id;
+
+        return $greeting."\n\n"
+            .'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
+            .$this->propertyAddress($workOrder).' under Work Order #'.$ref.'. '
+            .'They will contact you directly to arrange an appointment. '
+            .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.'
+            ."\n(Ref: WO#{$ref})";
     }
 
     /**
