@@ -32,6 +32,7 @@ class MicrosoftGraphMailService
     /**
      * @param  array<int, string>  $cc
      * @param  array<int, array{name: string, contentType: string, contentBytes: string}>  $attachments
+     * @param  array<int, string>  $replyTo  Reply-To addresses (e.g. a no-reply mailbox for one-way notifications)
      * @return array{graph_message_id: string, internet_message_id: ?string, graph_conversation_id: ?string}
      */
     public function sendMail(
@@ -41,6 +42,7 @@ class MicrosoftGraphMailService
         string $html,
         array $attachments = [],
         ?string $mailbox = null,
+        array $replyTo = [],
     ): array {
         $senderMailbox = $mailbox ?? $this->mailbox;
         $message = [
@@ -52,6 +54,13 @@ class MicrosoftGraphMailService
                 array_values($cc),
             ),
         ];
+
+        if ($replyTo !== []) {
+            $message['replyTo'] = array_map(
+                fn (string $addr) => ['emailAddress' => ['address' => $addr]],
+                array_values($replyTo),
+            );
+        }
 
         if ($attachments !== []) {
             $message['attachments'] = array_map(fn (array $a) => [

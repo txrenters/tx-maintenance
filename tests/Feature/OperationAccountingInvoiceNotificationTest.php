@@ -63,15 +63,18 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $graph = Mockery::mock(MicrosoftGraphMailService::class);
         $graph->shouldReceive('sendMail')
             ->once()
-            ->withArgs(function ($to, $cc, $subject, $html, $attachments) use ($workOrder) {
+            ->withArgs(function ($to, $cc, $subject, $html, $attachments, $mailbox = null, $replyTo = []) use ($workOrder) {
                 return $to === 'oa@texasrenters.com'
                     && $cc === []
+                    && str_starts_with($subject, '2927 Burning Tree Ln - ')
                     && str_contains($subject, 'Work Order #4567')
                     && str_contains($html, 'Maple Court')
                     && str_contains($html, '2927 Burning Tree Ln')
                     && str_contains($html, 'Acme Plumbing')
                     && str_contains($html, '$325.00')
                     && str_contains($html, route('work_orders.details', $workOrder))
+                    && str_contains($html, 'please do not reply')
+                    && $replyTo === ['no-reply@texasrenters.com']
                     && count($attachments) === 1
                     && str_ends_with($attachments[0]['name'], '.pdf')
                     && $attachments[0]['contentBytes'] === base64_encode('%PDF-1.4 fake invoice');

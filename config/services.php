@@ -90,6 +90,10 @@ return [
         // until the 5-business-day deadline, and email the corrected
         // confirmation to tenant + owner.
         'hoa_violation_sms' => env('HOA_VIOLATION_SMS_ENABLED', true),
+        // Daily follow-up text to the tenant, starting the day after a vendor is
+        // assigned, asking whether the vendor has reached out to them. Stops
+        // once a service schedule exists (or the cap is hit).
+        'tenant_vendor_followup_sms' => env('TENANT_VENDOR_FOLLOWUP_SMS_ENABLED', true),
     ],
 
     'hoa' => [
@@ -117,6 +121,9 @@ return [
 
     'operation_accounting' => [
         'email' => env('OPERATION_ACCOUNTING_EMAIL', 'oa@texasrenters.com'),
+        // These notifications are one-way. Replies are routed here so they
+        // never land in the monitored/synced workorders@ inbox.
+        'no_reply_email' => env('OA_NO_REPLY_EMAIL', 'no-reply@texasrenters.com'),
         // Email Operation Accounting whenever an invoice is uploaded on a
         // Turnover work order. Internal-only mail that fires per new upload,
         // so it is safe to have on by default.

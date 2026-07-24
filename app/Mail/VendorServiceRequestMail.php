@@ -22,6 +22,7 @@ class VendorServiceRequestMail extends Mailable
         public string $pdfContent,
         public ?string $portalUrl = null,
         public string $pdfFileName = 'Work Order Information.pdf',
+        public bool $isVacant = false,
     ) {}
 
     public function envelope(): Envelope

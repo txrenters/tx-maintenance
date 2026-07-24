@@ -24,4 +24,28 @@ class VendorServiceRequestMailTest extends TestCase
             'ofm@txhomemp.com',
         ], $cc);
     }
+
+    public function test_it_includes_the_tenant_contact_note_for_occupied_work_orders(): void
+    {
+        $html = (new VendorServiceRequestMail(
+            vendorName: 'Acme Plumbing',
+            workOrderNo: '43339',
+            pdfContent: '%PDF-fake',
+            isVacant: false,
+        ))->render();
+
+        $this->assertStringContainsString('reaching or communicating with the tenants', $html);
+    }
+
+    public function test_it_drops_the_tenant_contact_note_for_vacant_work_orders(): void
+    {
+        $html = (new VendorServiceRequestMail(
+            vendorName: 'Acme Plumbing',
+            workOrderNo: '43339',
+            pdfContent: '%PDF-fake',
+            isVacant: true,
+        ))->render();
+
+        $this->assertStringNotContainsString('reaching or communicating with the tenants', $html);
+    }
 }

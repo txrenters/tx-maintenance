@@ -236,12 +236,13 @@ class SyncWorkOrderDocumentsCommand extends Command
                     workOrderNo: (string) $workOrder->work_order_no,
                     pdfContent: $pdf['content'],
                     portalUrl: $portalUrl,
+                    isVacant: $workOrder->isVacant(),
                 );
 
                 app(WorkOrderEmailSender::class)->sendVendorEmail(
                     workOrder: $workOrder,
                     vendor: $vendor,
-                    subject: 'New Service Request - Work Order #'.$workOrder->work_order_no,
+                    subject: $workOrder->subjectWithProperty('New Service Request - Work Order #'.$workOrder->work_order_no),
                     html: $mailable->render(),
                     files: [[
                         'name' => $mailable->pdfFileName,

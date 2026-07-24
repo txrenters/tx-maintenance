@@ -83,12 +83,18 @@ class NotifyOperationAccountingOfTurnoverInvoice implements ShouldQueue
             'workOrderUrl' => route('work_orders.details', $workOrder),
         ])->render();
 
+        // One-way notification: route any reply to a no-reply address instead
+        // of the monitored/synced workorders@ inbox.
+        $replyTo = array_values(array_filter([(string) config('services.operation_accounting.no_reply_email')]));
+
         $graph->sendMail(
-            to: $to,
-            cc: [],
-            subject: 'Turnover Invoice Uploaded - Work Order #'.$workOrder->work_order_no,
-            html: $html,
-            attachments: $attachments,
+            $to,
+            [],
+            $workOrder->subjectWithProperty('Turnover Invoice Uploaded - Work Order #'.$workOrder->work_order_no),
+            $html,
+            $attachments,
+            null,
+            $replyTo,
         );
 
         Log::info('Operation Accounting notified of turnover invoice.', [

@@ -87,12 +87,13 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                 pdfContent: $pdf,
                 portalUrl: $portalUrl,
                 pdfFileName: $fileName,
+                isVacant: $workOrder->isVacant(),
             ))->render();
 
             app(WorkOrderEmailSender::class)->sendVendorEmail(
                 workOrder: $workOrder,
                 vendor: $vendor,
-                subject: 'New Service Request - Work Order #'.$workOrder->work_order_no,
+                subject: $workOrder->subjectWithProperty('New Service Request - Work Order #'.$workOrder->work_order_no),
                 html: $html,
                 files: [[
                     'name' => $fileName,

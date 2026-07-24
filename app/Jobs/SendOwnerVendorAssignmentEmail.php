@@ -59,7 +59,7 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             $workOrder,
             $owner,
             $vendor,
-            'Vendor Assigned - Work Order #'.$workOrder->work_order_no,
+            $workOrder->subjectWithProperty('Vendor Assigned - Work Order #'.$workOrder->work_order_no),
             $html,
         );
     }
