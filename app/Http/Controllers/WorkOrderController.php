@@ -597,12 +597,11 @@ class WorkOrderController extends Controller
     public function closed_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->when(request('search'), function ($q, $search) {
-                    $q->where('work_order_no', $search);
-                })
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->when(request('search'), function ($q, $search) {
+                        $q->where('work_order_no', $search);
+                    })
                     ->when(request('vendor'), function ($q, $vendorId) {
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
@@ -625,13 +624,7 @@ class WorkOrderController extends Controller
                     ->orderBy('work_order_no', 'ASC')
                     ->limit(50);
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ]);
 
         // Hide specific statuses from vendors
@@ -688,13 +681,7 @@ class WorkOrderController extends Controller
                     ->where('status', 'Open')
                     ->orderBy('work_order_no', 'DESC');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->where('name', 'Approved - Waiting on Payment')
             ->get();
@@ -773,10 +760,9 @@ class WorkOrderController extends Controller
     public function inspections_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -798,13 +784,7 @@ class WorkOrderController extends Controller
                     ->where('category', 'LIKE', '%move out inspection%')
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -825,8 +805,9 @@ class WorkOrderController extends Controller
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
@@ -859,8 +840,9 @@ class WorkOrderController extends Controller
         $closedStatus = ServiceStatus::where('name', 'Closed')->first();
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
@@ -941,10 +923,9 @@ class WorkOrderController extends Controller
     public function lawn_service_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -969,13 +950,7 @@ class WorkOrderController extends Controller
                     })
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -1020,10 +995,9 @@ class WorkOrderController extends Controller
     public function turnover_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -1045,13 +1019,7 @@ class WorkOrderController extends Controller
                     ->where('type', 'Turnover')
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
