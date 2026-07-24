@@ -53,13 +53,13 @@ Schedule::command('jobber:refresh-token')
 
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
-    ->dailyAt('16:00')
+    ->dailyAt('10:00')
     ->withoutOverlapping()
     ->runInBackground();
 
 Schedule::command('vendors:followup-unscheduled')
     ->timezone('America/Chicago')
-    ->dailyAt('16:30')
+    ->dailyAt('10:05')
     ->withoutOverlapping()
     ->runInBackground();
 
@@ -86,7 +86,17 @@ Schedule::command('tenant-portal:send-links')
 // default (HOA_VIOLATION_SMS_ENABLED), so this is a no-op until enabled.
 Schedule::command('hoa:send-reminders')
     ->timezone('America/Chicago')
-    ->dailyAt('10:00')
+    ->dailyAt('10:10')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Tenant vendor-contact follow-up: daily text to the tenant, starting the day
+// after a vendor is assigned, asking whether the vendor has reached out, until a
+// service schedule is set (or the cap is hit). Gated off by default
+// (TENANT_VENDOR_FOLLOWUP_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('tenants:followup-vendor-contact')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:15')
     ->withoutOverlapping()
     ->runInBackground();
 

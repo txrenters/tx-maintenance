@@ -34,6 +34,8 @@ class WorkOrder extends Model
     {
         return [
             'paused_automations' => 'array',
+            'tenant_contact_followup_last_sent_at' => 'datetime',
+            'tenant_contact_followup_excluded_at' => 'datetime',
         ];
     }
 
@@ -113,6 +115,33 @@ class WorkOrder extends Model
     public function managed_by(): BelongsTo
     {
         return $this->belongsTo(Owner::class, 'property_manager_id');
+    }
+
+    /**
+     * Concise property identifier for email subjects so staff can tell which
+     * property an automated email is about: the requested-by/unit address,
+     * else the building address, else the building name (empty if none known).
+     */
+    public function propertyLabel(): string
+    {
+        return trim((string) (
+            $this->requested_by?->address
+            ?: $this->building?->address
+            ?: $this->building?->name
+            ?: ''
+        ));
+    }
+
+    /**
+     * Prefix an email subject with the property so staff can tell at a glance
+     * which property it is about; returns the base subject unchanged when no
+     * property reference is known.
+     */
+    public function subjectWithProperty(string $base): string
+    {
+        $property = $this->propertyLabel();
+
+        return $property !== '' ? $property.' - '.$base : $base;
     }
 
     public function requested_by(): BelongsTo
