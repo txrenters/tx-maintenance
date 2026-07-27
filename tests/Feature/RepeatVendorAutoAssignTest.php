@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Notifications\NewWorkOrderAssignNotification;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderRecommendationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -65,7 +67,20 @@ class RepeatVendorAutoAssignTest extends TestCase
         return [$vendor, $current];
     }
 
+    /**
+     * Intake of a brand new work order — the only path allowed to auto-assign.
+     */
     private function generate(WorkOrder $workOrder): void
+    {
+        (new GenerateWorkOrderRecommendationJob($workOrder->id, allowAutoAssign: true))
+            ->handle(app(WorkOrderRecommendationService::class));
+    }
+
+    /**
+     * Generation triggered from the UI: the recommendation tab auto-generating
+     * on first open, or a staff "Regenerate" click.
+     */
+    private function generateFromRecommendationTab(WorkOrder $workOrder): void
     {
         $this->actingAs(User::factory()->create())
             ->post(route('work_orders.recommendation.generate', $workOrder))
@@ -119,6 +134,52 @@ class RepeatVendorAutoAssignTest extends TestCase
         // A coordinator already picked a different vendor.
         $other = $this->makeVendor('V-901', 'Other Plumbing');
         $current->vendors()->attach($other->id);
+
+        $this->generate($current);
+
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $vendor->id,
+        ]);
+        Notification::assertNothingSent();
+    }
+
+    public function test_opening_the_recommendation_tab_never_auto_assigns(): void
+    {
+        // The tab auto-generates on first open for any work order without a
+        // stored recommendation — the whole pre-existing backlog. That path
+        // must show the repeat badge but never email a vendor.
+        config(['services.work_order.auto_assign_vendor' => true]);
+        Notification::fake();
+        $this->mock(PropertyWareService::class)
+            ->shouldReceive('changeWorkOrderVendors')->never();
+
+        [$vendor, $current] = $this->repeatScenario();
+
+        $this->generateFromRecommendationTab($current);
+
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $vendor->id,
+        ]);
+        Notification::assertNothingSent();
+
+        // The repeat is still detected and surfaced, just not acted on.
+        $this->assertTrue((bool) $current->fresh()->is_repeat_issue);
+    }
+
+    public function test_a_backlog_work_order_is_never_auto_assigned(): void
+    {
+        // Fresh start: work orders that predate the feature going live stay
+        // untouched even on the intake path, so switching it on never reaches
+        // back into the backlog.
+        config(['services.work_order.auto_assign_vendor' => true]);
+        Notification::fake();
+        $this->mock(PropertyWareService::class)
+            ->shouldReceive('changeWorkOrderVendors')->never();
+
+        [$vendor, $current] = $this->repeatScenario();
+        $current->update(['created_at' => now()->subMonths(2)]);
 
         $this->generate($current);
 

@@ -27,6 +27,15 @@ class WorkOrderRecommendationService
     private const REPEAT_WINDOW_MONTHS = 12;
 
     /**
+     * How recently a work order must have been created to be eligible for
+     * repeat-vendor auto-assignment. This is the fresh-start guarantee: when
+     * the feature is switched on, the entire pre-existing backlog is already
+     * older than this, so turning it on can never assign or email a vendor for
+     * work that was sitting in the system before the deploy.
+     */
+    private const AUTO_ASSIGN_MAX_AGE_DAYS = 3;
+
+    /**
      * @return array{ready: bool, provider: ?string}
      */
     public function aiStatus(): array
@@ -93,7 +102,16 @@ class WorkOrderRecommendationService
             ->first();
     }
 
-    public function generate(WorkOrder $workOrder): WorkOrderRecommendation
+    /**
+     * Generate (or regenerate) the recommendation for a work order.
+     *
+     * $allowAutoAssign must only be true when generation is triggered by intake
+     * of a brand new work order. Every other caller — the recommendation tab's
+     * auto-generate on first open, a manual PropertyWare refresh, a staff
+     * "Regenerate" click — passes false, so browsing an old work order can
+     * never email a vendor. See maybeAutoAssignRepeatVendor().
+     */
+    public function generate(WorkOrder $workOrder, bool $allowAutoAssign = false): WorkOrderRecommendation
     {
         $workOrder->loadMissing(['vendors', 'managed_by', 'requested_by', 'recommendation.recommendedVendor', 'building']);
 
@@ -163,7 +181,9 @@ class WorkOrderRecommendationService
 
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
         $this->applyRepeatAssessment($workOrder, $repeat);
-        $this->maybeAutoAssignRepeatVendor($workOrder, $repeat);
+        if ($allowAutoAssign) {
+            $this->maybeAutoAssignRepeatVendor($workOrder, $repeat);
+        }
 
         return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
     }
@@ -325,11 +345,15 @@ class WorkOrderRecommendationService
         }
 
         // Only an open, not-yet-completed work order is ever auto-assigned.
-        // Generation can also fire later in a work order's life (recommendation
-        // tab auto-generate, manual PropertyWare refresh), including on old or
-        // closed work orders that simply have no vendor linked — those must
-        // never email a vendor.
         if ($workOrder->status !== 'Open' || $workOrder->completed_date !== null) {
+            return;
+        }
+
+        // Fresh start: only work orders created since the feature went live are
+        // eligible, so switching it on never reaches back into the backlog.
+        $createdAt = $this->normalizeDate($workOrder->created_at);
+
+        if ($createdAt === null || $createdAt->lessThan(now()->subDays(self::AUTO_ASSIGN_MAX_AGE_DAYS))) {
             return;
         }
 

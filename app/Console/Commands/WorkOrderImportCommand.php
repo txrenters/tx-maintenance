@@ -214,7 +214,9 @@ class WorkOrderImportCommand extends Command
             // work order and an emergency status that is already set is never
             // updated again.
             if ($isNewWorkOrder) {
-                GenerateWorkOrderRecommendationJob::dispatch($workOrder->id);
+                // Intake of a brand new work order is the only path allowed to
+                // auto-assign the repeat vendor.
+                GenerateWorkOrderRecommendationJob::dispatch($workOrder->id, allowAutoAssign: true);
 
                 // Notify the property owner that a new service request has come
                 // in (confirmation + description texts). Gated off by default, so
