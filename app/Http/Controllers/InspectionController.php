@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Jobber;
 use App\Models\JobberClient;
+use App\Models\JobberJobAttachment;
+use App\Models\JobberJobInvoice;
 use App\Models\JobberTextMessage;
 use App\Models\JobberToken;
 use App\Models\Owner;
 use App\Models\Tenants;
+use App\Models\Vendor;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -21,6 +24,8 @@ class InspectionController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorizeStaff($request);
+
         $jobsPerStatus = 20;
 
         $baseQuery = Jobber::query()
@@ -34,7 +39,7 @@ class InspectionController extends Controller
                         ->orWhereBetween('end_at', [$startDate, $endDate]);
                 });
             })
-            ->whereNotIn('job_status', ['archived', 'closed']);
+            ->active();
 
         $statusCounts = (clone $baseQuery)
             ->selectRaw('job_status, COUNT(*) as total')
@@ -46,7 +51,7 @@ class InspectionController extends Controller
         $jobsByStatus = $allStatuses->mapWithKeys(function ($status) use ($baseQuery, $jobsPerStatus) {
             $jobs = (clone $baseQuery)
                 ->where('job_status', $status)
-                ->with('client')
+                ->with(['client', 'vendors:id,name'])
                 ->withCount('visits')
                 ->orderBy('start_at', 'desc')
                 ->limit($jobsPerStatus)
@@ -62,6 +67,9 @@ class InspectionController extends Controller
                         'start_at' => $job->start_at,
                         'client_name' => trim(($job->client?->first_name ?? '').' '.($job->client?->last_name ?? '')) ?: 'No Client',
                         'visits_count' => $job->visits_count ?? 0,
+                        // Names only: this payload is deliberately slim after the
+                        // board memory-exhaustion incident.
+                        'vendor_names' => $job->vendors->pluck('name')->implode(', '),
                     ];
                 });
 
@@ -83,8 +91,10 @@ class InspectionController extends Controller
         ]);
     }
 
-    public function destroy(Jobber $inspection)
+    public function destroy(Request $request, Jobber $inspection)
     {
+        $this->authorizeStaff($request);
+
         $inspection->delete();
 
         return redirect()->back()->with('success', 'Deleted successfully!');
@@ -92,14 +102,37 @@ class InspectionController extends Controller
 
     public function jobDetails(Request $request, Jobber $job)
     {
+        $this->authorizeStaff($request);
+
         $payload = $this->buildJobDetailsPayload($job);
 
+        $vendorOptions = Vendor::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // Anyone in the office may assign a vendor and handle documentation on
+        // these jobs; only outside parties are kept out. One flag drives both
+        // so the two never drift apart.
+        $isStaff = (bool) $request->user()?->isStaff();
+
+        // The board modal fetches this as JSON and renders the same vendor,
+        // photo and invoice tabs, so it needs the picker and the gates too.
         if ($request->expectsJson() || $request->wantsJson() || $request->query('format') === 'json') {
-            return response()->json($payload);
+            return response()->json($payload + [
+                'vendor_options' => $vendorOptions,
+                'can_assign_vendors' => $isStaff,
+                'can_upload_invoices' => $isStaff,
+                'can_close' => $isStaff,
+            ]);
         }
 
         return inertia('Inspection/Show', [
             'title' => 'Job #'.$job->job_number,
+            'vendorOptions' => $vendorOptions,
+            'canAssignVendors' => $isStaff,
+            'canUploadInvoices' => $isStaff,
+            'canClose' => $isStaff,
             'job' => array_merge([
                 'id' => $job->id,
                 'job_number' => $job->job_number,
@@ -115,9 +148,40 @@ class InspectionController extends Controller
 
     protected function buildJobDetailsPayload(Jobber $job): array
     {
-        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts']);
+        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts', 'vendors', 'jobAttachments', 'jobInvoices.vendor', 'closedBy:id,name']);
 
         return [
+            'is_closed' => $job->isClosedLocally(),
+            'closed_at' => $job->closed_at,
+            'closed_by' => $job->closedBy?->name,
+            'close_reason' => $job->close_reason,
+            'vendors' => $job->vendors->map(fn (Vendor $vendor) => [
+                'id' => $vendor->id,
+                'name' => $vendor->name,
+                'has_email' => filled($vendor->email),
+                'portal_url' => $vendor->pivot->access_token
+                    ? route('jobber.portal.show', $vendor->pivot->access_token)
+                    : null,
+            ])->values(),
+            'vendor_ids' => $job->vendors->pluck('id')->values(),
+            'attachments' => $job->jobAttachments->sortByDesc('created_at')->map(fn (JobberJobAttachment $a) => [
+                'id' => $a->id,
+                'title' => $a->title,
+                'type' => $a->type,
+                'uploaded_via' => $a->uploaded_via,
+                'url' => asset('storage/'.$a->filename),
+                'is_image' => $a->isImage(),
+                'created_at' => $a->created_at,
+            ])->values(),
+            'invoices' => $job->jobInvoices->sortByDesc('created_at')->map(fn (JobberJobInvoice $i) => [
+                'id' => $i->id,
+                'title' => $i->title,
+                'amount' => $i->amount,
+                'status' => $i->status,
+                'vendor_name' => $i->vendor?->name,
+                'url' => asset('storage/'.$i->filename),
+                'created_at' => $i->created_at,
+            ])->values(),
             'jobber_web_uri' => $job->jobber_web_uri,
             'instructions' => $job->instructions,
             'end_at' => $job->end_at,
@@ -205,9 +269,56 @@ class InspectionController extends Controller
         ]);
     }
 
+    /**
+     * A logged-in vendor's own Jobber jobs.
+     *
+     * Fails closed to an empty list when the user has no vendor record, rather
+     * than 500-ing, matching how the attachment/invoice scopes behave.
+     */
+    public function vendorJobs(Request $request)
+    {
+        $vendor = Vendor::where('user_id', $request->user()->id)->first();
+
+        $jobs = $vendor
+            ? Jobber::query()
+                ->forVendor($vendor)
+                ->with(['client', 'property'])
+                ->active()
+                ->orderByDesc('start_at')
+                ->get()
+                ->map(fn (Jobber $job) => [
+                    'id' => $job->id,
+                    'job_number' => $job->job_number,
+                    'title' => $job->title,
+                    'job_status' => $job->job_status,
+                    'start_at' => $job->start_at,
+                    'property_address' => $job->property?->full_address,
+                    'client_name' => trim(($job->client?->first_name ?? '').' '.($job->client?->last_name ?? '')) ?: null,
+                    'portal_url' => $job->vendors->firstWhere('id', $vendor->id)?->pivot?->access_token
+                        ? route('jobber.portal.show', $job->vendors->firstWhere('id', $vendor->id)->pivot->access_token)
+                        : null,
+                ])->values()
+            : collect();
+
+        return inertia('Inspection/VendorJobs', [
+            'title' => 'My Jobs',
+            'jobs' => $jobs,
+        ]);
+    }
+
     public function accessTokenExist()
     {
         return JobberToken::whereNotNull('access_token')->exists();
+    }
+
+    /**
+     * The Jobs pages are unscoped across every outside client, so only staff
+     * may reach them. Vendors get their own scoped list via vendorJobs() and
+     * the magic-link portal; tenants and owners have no business here at all.
+     */
+    private function authorizeStaff(Request $request): void
+    {
+        abort_unless((bool) $request->user()?->isStaff(), 403);
     }
 
     public function searchClient(Request $request)

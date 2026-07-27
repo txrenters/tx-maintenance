@@ -30,6 +30,13 @@ class WorkOrder extends Model
      */
     public const AUTOMATION_CHANNELS = ['tenant', 'owner', 'vendor'];
 
+    /**
+     * The category a work order carries when it is an HOA violation rather than
+     * a repair request. Not a PropertyWare picklist value — it is only ever set
+     * inside this app.
+     */
+    public const HOA_VIOLATION_CATEGORY = 'HOA Violation';
+
     protected function casts(): array
     {
         return [
@@ -354,17 +361,38 @@ class WorkOrder extends Model
     }
 
     /**
-     * Constrain to HOA-violation work orders. Identity lives on the HOA upload
-     * token (purpose = hoa_violation), not the PW type/category — those are
-     * curated PropertyWare picklists that the periodic import overwrites.
+     * Constrain to HOA-violation work orders. Identity primarily lives on the
+     * HOA upload token (purpose = hoa_violation) because the PW type/category
+     * are curated picklists that the periodic import overwrites. Work orders
+     * categorized "HOA Violation" by hand (or imported that way) never get a
+     * token, so match on the category too — otherwise they vanish from the HOA
+     * board and get treated as ordinary service requests.
      */
     public function scopeHoaViolations($query)
     {
-        $query->whereHas('tenantUploadTokens', function ($tokens) {
-            $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
+        $query->where(function ($hoa) {
+            $hoa->whereHas('tenantUploadTokens', function ($tokens) {
+                $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
+            })->orWhere('category', self::HOA_VIOLATION_CATEGORY);
         });
 
         return $query;
+    }
+
+    /**
+     * Whether this work order is an HOA violation, without touching the
+     * database when the category alone already answers it. Used to keep
+     * tenant/owner repair automations off violation notices.
+     */
+    public function isHoaViolation(): bool
+    {
+        if (trim((string) $this->category) === self::HOA_VIOLATION_CATEGORY) {
+            return true;
+        }
+
+        return $this->tenantUploadTokens()
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->exists();
     }
 
     public function scopeFilter($query, array $filters)

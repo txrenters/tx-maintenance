@@ -56,6 +56,14 @@ class OwnerServiceRequestNotificationService
             return;
         }
 
+        // HOA violations are not tenant-submitted service requests. The generic
+        // wording ("submitted by your tenant") plus a raw dump of the notice's
+        // items and remedies reads to the owner as a repair request, so skip the
+        // intake notification entirely and leave the HOA flow to message them.
+        if ($workOrder->isHoaViolation()) {
+            return;
+        }
+
         $workOrder->loadMissing([
             'owners',
             'requested_by',

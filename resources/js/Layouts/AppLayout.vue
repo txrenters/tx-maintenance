@@ -289,6 +289,15 @@ const navs = computed(() => {
                 icon: Wrench,
                 requires: ["vendor"],
             },
+            // Jobber jobs (non-TexasRenters clients) assigned to this vendor.
+            // Scoped to their own jobs — unlike the staff "Jobs (Jobber)" board.
+            {
+                name: "Jobs",
+                url: route("jobber.vendor_jobs"),
+                isActive: page.component === "Inspection/VendorJobs",
+                icon: Briefcase,
+                requires: ["vendor"],
+            },
         ],
         menu2: [
             {

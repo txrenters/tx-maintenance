@@ -1,11 +1,15 @@
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { router, usePage, Head, Link } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
 import axios from "axios";
 import debounce from "lodash.debounce";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
+import JobPhotosTab from "./partials/JobPhotosTab.vue";
+import JobCloseAction from "./partials/JobCloseAction.vue";
+import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
@@ -17,21 +21,53 @@ import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/Components/ui/card";
 import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxList } from "@/Components/ui/combobox";
-import { ArrowLeft, Calendar, ClipboardList, Eye, Loader2, MapPin, MessageCircle, Paperclip, Plus, Search, Send, Tag, User, X } from "lucide-vue-next";
+import { Checkbox } from "@/Components/ui/checkbox";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/Components/ui/dropdown-menu";
+import { ArrowLeft, Calendar, ClipboardList, Copy, EllipsisVertical, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({ title: String, job: Object });
+const props = defineProps({
+  title: String,
+  job: Object,
+  vendorOptions: { type: Array, default: () => [] },
+  canAssignVendors: { type: Boolean, default: false },
+  canUploadInvoices: { type: Boolean, default: false },
+  canClose: { type: Boolean, default: false },
+});
 const { toast } = useToast();
 const page = usePage();
 
 const job = ref(props.job ? { ...props.job } : null);
 const activeTab = ref("details");
+
+// TabSwitcher hides any button whose `requires` doesn't match the user's roles,
+// so every tab declares its roles. Only staff reach this page at all.
+const STAFF = ["admin", "woc", "accounting"];
+
 const tabs = [
-  { name: "details", label: "Details", icon: ClipboardList },
-  { name: "visits", label: "Visits", icon: Calendar },
-  { name: "messages", label: "Messages", icon: MessageCircle },
+  { name: "details", tooltip: "Details", icon: ClipboardList, requires: STAFF },
+  { name: "vendors", tooltip: "Vendors", icon: Wrench, requires: STAFF },
+  { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
+  { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
+  { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
+  { name: "messages", tooltip: "Messages", icon: MessageCircle, requires: STAFF },
 ];
+
+const tabCount = (name) => {
+  if (name === "messages") return job.value?.text_messages_count;
+  if (name === "visits") return job.value?.visits_count;
+  if (name === "vendors") return job.value?.vendors?.length;
+  if (name === "photos") return job.value?.attachments?.length;
+  if (name === "invoices") return job.value?.invoices?.length;
+  return 0;
+};
+
+const visibleTabs = computed(() =>
+  tabs.map((tab) => ({ ...tab, count: tabCount(tab.name) }))
+);
 
 const senderPhoneNumber = ref(page.props.twilio_phone_number);
 const jobMessages = ref([]);
@@ -219,6 +255,136 @@ const switchTab = (tab) => {
   if (tab === "messages") fetchJobMessages();
 };
 
+/* ---------- Vendors ---------- */
+
+const selectedVendorIds = ref([...(props.job?.vendor_ids || [])]);
+const isSavingVendors = ref(false);
+
+const toggleVendor = (vendorId) => {
+  const index = selectedVendorIds.value.indexOf(vendorId);
+  if (index === -1) selectedVendorIds.value.push(vendorId);
+  else selectedVendorIds.value.splice(index, 1);
+};
+
+const saveVendors = () => {
+  if (!job.value?.id) return;
+  isSavingVendors.value = true;
+
+  router.put(route("jobber.vendors.change", job.value.id), { vendor_ids: selectedVendorIds.value }, {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Success", description: "Vendors updated." }),
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update vendors." }),
+    onFinish: () => (isSavingVendors.value = false),
+  });
+};
+
+const copyPortalLink = async (url) => {
+  try {
+    await navigator.clipboard.writeText(url);
+    toast({ title: "Copied", description: "Portal link copied to clipboard." });
+  } catch {
+    toast({ variant: "destructive", title: "Error", description: "Could not copy the link." });
+  }
+};
+
+/* ---------- Photos ---------- */
+
+const photoForm = ref({ title: "", type: "after", files: [] });
+// A file input can't be cleared by binding, and a ref on the shadcn <Input>
+// resolves to the component rather than the DOM node — so bump the key to
+// remount it after a successful upload.
+const photoInputKey = ref(0);
+const isUploadingPhotos = ref(false);
+
+const handlePhotoSelect = (event) => {
+  photoForm.value.files = Array.from(event.target.files || []);
+};
+
+const uploadPhotos = () => {
+  if (!job.value?.id) return;
+  if (!photoForm.value.title.trim() || photoForm.value.files.length === 0) {
+    toast({ variant: "destructive", title: "Error", description: "Add a title and choose at least one file." });
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("title", photoForm.value.title);
+  formData.append("type", photoForm.value.type);
+  photoForm.value.files.forEach((file) => formData.append("files[]", file));
+
+  isUploadingPhotos.value = true;
+  router.post(route("jobber.attachments.store", job.value.id), formData, {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({ title: "Success", description: "Photos uploaded." });
+      photoForm.value = { title: "", type: "after", files: [] };
+      photoInputKey.value++;
+    },
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload photos." }),
+    onFinish: () => (isUploadingPhotos.value = false),
+  });
+};
+
+const deletePhoto = (id) => {
+  router.delete(route("jobber.attachments.destroy", id), {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Deleted", description: "Photo removed." }),
+  });
+};
+
+/* ---------- Invoices ---------- */
+
+const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
+const invoiceInputKey = ref(0);
+const isUploadingInvoice = ref(false);
+
+const handleInvoiceSelect = (event) => {
+  invoiceForm.value.filename = event.target.files?.[0] || null;
+};
+
+const uploadInvoice = () => {
+  if (!job.value?.id) return;
+  if (!invoiceForm.value.title.trim() || !invoiceForm.value.filename) {
+    toast({ variant: "destructive", title: "Error", description: "Add a title and choose a file." });
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("title", invoiceForm.value.title);
+  formData.append("amount", invoiceForm.value.amount || 0);
+  if (invoiceForm.value.vendor_id) formData.append("vendor_id", invoiceForm.value.vendor_id);
+  formData.append("filename", invoiceForm.value.filename);
+
+  isUploadingInvoice.value = true;
+  router.post(route("jobber.invoices.store", job.value.id), formData, {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice uploaded." });
+      invoiceForm.value = { title: "", amount: "", vendor_id: "", filename: null };
+      invoiceInputKey.value++;
+    },
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload the invoice." }),
+    onFinish: () => (isUploadingInvoice.value = false),
+  });
+};
+
+const deleteInvoice = (id) => {
+  router.delete(route("jobber.invoices.destroy", id), {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Deleted", description: "Invoice removed." }),
+  });
+};
+
+// Invoices arrive already approved, matching the work-order flow; this is the
+// correction afterwards, not a gate in front of the upload.
+const updateInvoiceStatus = (id, status) => {
+  router.patch(route("jobber.invoices.update", id), { status }, {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Updated", description: `Invoice marked as ${status === "decline" ? "declined" : "approved"}.` }),
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Could not update the invoice." }),
+  });
+};
+
 const deleteJob = () => {
   if (!job.value?.id) return;
   router.delete(route("inspections.destroy", job.value.id), {
@@ -228,6 +394,7 @@ const deleteJob = () => {
 
 watch(() => props.job, (value) => {
   job.value = value ? { ...value } : null;
+  selectedVendorIds.value = [...(value?.vendor_ids || [])];
   hydrate();
   loadSavedContacts();
 });
@@ -257,29 +424,26 @@ onUnmounted(() => {
         </Button>
 
         <div class="flex gap-2 flex-wrap" v-if="job">
+          <Badge v-if="job.is_closed" class="px-3 py-1 font-medium border border-emerald-200 bg-emerald-50 text-emerald-900">Closed</Badge>
           <Badge :class="['px-3 py-1 font-medium border', statusClass(job)]">{{ formatStatus(job.job_status) }}</Badge>
           <Badge variant="outline" v-if="job.job_type">{{ job.job_type === 'ONE_OFF' ? 'One-off Job' : 'Recurring Job' }}</Badge>
         </div>
       </div>
 
+      <JobCloseAction
+        v-if="job"
+        :job-id="job.id"
+        :is-closed="job.is_closed"
+        :closed-at="job.closed_at"
+        :closed-by="job.closed_by"
+        :close-reason="job.close_reason"
+        :can-close="canClose"
+      />
+
       <CardTitle class="text-2xl text-primary">{{ job?.title || 'Job Details' }} - Job #{{ job?.job_number || 'N/A' }}</CardTitle>
 
-      <div class="flex justify-center gap-1 p-1 bg-muted rounded-lg self-center">
-        <button
-          v-for="tab in tabs"
-          :key="tab.name"
-          @click="switchTab(tab.name)"
-          :class="[
-            'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-            activeTab === tab.name ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
-          ]"
-        >
-          <component :is="tab.icon" class="h-4 w-4" />
-          {{ tab.label }}
-          <Badge v-if="(tab.name === 'messages' && job?.text_messages_count) || (tab.name === 'visits' && job?.visits_count)" variant="secondary" class="text-xs">
-            {{ tab.name === 'messages' ? job.text_messages_count : job.visits_count }}
-          </Badge>
-        </button>
+      <div class="flex justify-center gap-2 flex-wrap">
+        <TabSwitcher :buttons="visibleTabs" :activeTab="activeTab" @switchTab="switchTab" />
       </div>
     </CardHeader>
 
@@ -306,6 +470,63 @@ onUnmounted(() => {
           <p class="font-semibold mb-2">Instructions</p>
           <p v-html="job.instructions"></p>
         </div>
+      </div>
+
+      <div v-if="activeTab === 'vendors' && job" class="space-y-4">
+        <div v-if="job.vendors?.length" class="space-y-2">
+          <p class="font-semibold">Assigned</p>
+          <div v-for="vendor in job.vendors" :key="vendor.id" class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ vendor.name }}</p>
+              <p v-if="!vendor.has_email" class="text-xs text-amber-600">No email on file &mdash; send them the link below.</p>
+            </div>
+            <Button v-if="vendor.portal_url" variant="outline" size="sm" @click="copyPortalLink(vendor.portal_url)">
+              <Copy class="h-4 w-4" /> Copy portal link
+            </Button>
+          </div>
+        </div>
+        <p v-else class="text-muted-foreground">No vendor assigned yet &mdash; this job is with the in-house crew.</p>
+
+        <template v-if="canAssignVendors">
+          <Separator />
+          <div class="space-y-2">
+            <p class="font-semibold">Assign vendors</p>
+            <ScrollArea class="h-[260px] rounded-md border p-3">
+              <label
+                v-for="vendor in vendorOptions"
+                :key="vendor.id"
+                class="flex items-center gap-2 py-1.5 cursor-pointer"
+              >
+                <Checkbox
+                  :checked="selectedVendorIds.includes(vendor.id)"
+                  @update:checked="toggleVendor(vendor.id)"
+                />
+                <span class="text-sm">{{ vendor.name }}</span>
+              </label>
+            </ScrollArea>
+            <Button @click="saveVendors" :disabled="isSavingVendors">
+              <Loader2 v-if="isSavingVendors" class="h-4 w-4 animate-spin" />
+              Save vendors
+            </Button>
+          </div>
+        </template>
+      </div>
+
+      <div v-if="activeTab === 'photos' && job">
+        <JobPhotosTab
+          :job-id="job.id"
+          :attachments="job.attachments || []"
+          :can-manage="canAssignVendors"
+        />
+      </div>
+
+      <div v-if="activeTab === 'invoices' && job">
+        <JobInvoicesTab
+          :job-id="job.id"
+          :invoices="job.invoices || []"
+          :vendors="job.vendors || []"
+          :can-manage="canUploadInvoices"
+        />
       </div>
 
       <div v-if="activeTab === 'visits' && job" class="space-y-3">

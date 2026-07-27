@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
+use App\Http\Controllers\API\JobberAttachmentsController;
+use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
@@ -19,7 +21,10 @@ use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberDiagnosticController;
+use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberTextMessageController;
+use App\Http\Controllers\JobberVendorController;
+use App\Http\Controllers\JobberVendorPortalController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\OwnerEmailController;
@@ -126,6 +131,25 @@ Route::middleware([
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
     Route::get('/inspections/text/messages', [InspectionController::class, 'messages'])->name('jobber.messages');
+
+    // Vendor assignment and documentation on Jobber jobs (non-TexasRenters
+    // client properties). These jobs never become work orders, so they need
+    // their own assignment, photo and invoice endpoints.
+    Route::get('/inspections/vendor/jobs', [InspectionController::class, 'vendorJobs'])->name('jobber.vendor_jobs');
+    Route::put('/inspections/{job}/vendors', [JobberVendorController::class, 'update'])->name('jobber.vendors.change');
+    Route::post('/inspections/{job}/close', [JobberJobCloseController::class, 'store'])->name('jobber.close');
+    Route::delete('/inspections/{job}/close', [JobberJobCloseController::class, 'destroy'])->name('jobber.reopen');
+    Route::post('/inspections/{job}/attachments', [JobberAttachmentsController::class, 'store'])->name('jobber.attachments.store');
+    Route::delete('/jobber-attachments/{attachment}', [JobberAttachmentsController::class, 'destroy'])->name('jobber.attachments.destroy');
+    Route::post('/inspections/{job}/invoices', [JobberInvoiceController::class, 'store'])->name('jobber.invoices.store');
+    Route::patch('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'update'])->name('jobber.invoices.update');
+    Route::delete('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'destroy'])->name('jobber.invoices.destroy');
+
+    // Moved out of routes/api.php, where they sat outside every auth middleware:
+    // any guest could read and replace an outside client's contact list.
+    Route::get('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'index'])->name('client-contacts.index');
+    Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'store'])->name('client-contacts.store');
+    Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');
 
     Route::resource('/jobber-text-messages', JobberTextMessageController::class);
 
@@ -263,6 +287,14 @@ Route::middleware('vendor.portal')->prefix('vendor-portal/{token}')->group(funct
     Route::post('/message', [VendorPortalController::class, 'sendMessage'])->name('vendor.portal.message');
     Route::post('/messages/read', [VendorPortalController::class, 'markMessagesRead'])->name('vendor.portal.messages.read');
     Route::post('/tasks/{task}/complete', [VendorPortalController::class, 'completeTask'])->name('vendor.portal.tasks.complete');
+});
+
+// Public, no-login portal for a vendor assigned to a Jobber job. Gated entirely
+// by the magic-link token, like the vendor portal above.
+Route::middleware(['jobber.portal', 'throttle:60,1'])->prefix('jobber-portal/{token}')->group(function () {
+    Route::get('/', [JobberVendorPortalController::class, 'show'])->name('jobber.portal.show');
+    Route::post('/attachments', [JobberVendorPortalController::class, 'uploadAttachments'])->name('jobber.portal.attachments');
+    Route::post('/invoice', [JobberVendorPortalController::class, 'uploadInvoice'])->name('jobber.portal.invoice');
 });
 
 // Public, no-login tenant portal (photo upload for tenant-easy-fix / HOA).

@@ -56,7 +56,7 @@ class DashboardController extends Controller
 
         $inspectionStats = Jobber::selectRaw('
                 COUNT(*) as total_inspections,
-                COUNT(CASE WHEN job_status NOT IN ("archived", "closed", "completed", "cancelled", "done") THEN 1 END) as active_inspections
+                COUNT(CASE WHEN closed_at IS NULL AND job_status NOT IN ("archived", "closed", "completed", "cancelled", "done") THEN 1 END) as active_inspections
             ')
             ->first();
 

@@ -33,6 +33,14 @@ import {
     Calendar1,
     Plus,
     RefreshCw,
+    Wrench,
+    ExternalLink,
+    Image as ImageIcon,
+    Receipt,
+    Copy,
+    Trash2,
+    Upload,
+    EllipsisVertical,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -46,6 +54,10 @@ import {
 } from "@/Components/ui/combobox";
 
 import Navigation from "./partials/Navigation.vue";
+import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
+import JobPhotosTab from "./partials/JobPhotosTab.vue";
+import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
+import JobCloseAction from "./partials/JobCloseAction.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
@@ -70,6 +82,32 @@ import {
     DialogFooter,
 } from "@/Components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import { Checkbox } from "@/Components/ui/checkbox";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import { Input } from "@/Components/ui/input";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/Components/ui/dropdown-menu";
 import { Separator } from "@/Components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Label } from "@/Components/ui/label";
@@ -107,23 +145,37 @@ const activeTab = ref("details");
 // Remove virtual scrolling for now to fix data loading
 
 // Tab configuration
+// Only staff reach the Jobs board at all (InspectionController gates it), but
+// TabSwitcher hides any button whose `requires` doesn't match, so every tab has
+// to declare its roles explicitly.
+const STAFF = ["admin", "woc", "accounting"];
+
 const tabButtons = [
-    {
-        name: "details",
-        tooltip: "Details",
-        icon: ClipboardList,
-    },
-    {
-        name: "visits",
-        tooltip: "Visits",
-        icon: Calendar,
-    },
+    { name: "details", tooltip: "Details", icon: ClipboardList, requires: STAFF },
+    { name: "vendors", tooltip: "Vendors", icon: Wrench, requires: STAFF },
+    { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
+    { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
+    { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
     {
         name: "messages",
         tooltip: "Messages",
         icon: MessageCircle,
+        requires: STAFF,
     },
 ];
+
+const tabCount = (name) => {
+    if (name === "messages") return selectedJob.value?.text_messages_count;
+    if (name === "visits") return selectedJob.value?.visits_count;
+    if (name === "vendors") return selectedJob.value?.vendors?.length;
+    if (name === "photos") return selectedJob.value?.attachments?.length;
+    if (name === "invoices") return selectedJob.value?.invoices?.length;
+    return 0;
+};
+
+const visibleTabButtons = computed(() =>
+    tabButtons.map((tab) => ({ ...tab, count: tabCount(tab.name) }))
+);
 
 // Optimized job modal opening with lazy loading
 let jobDetailsController = null;
@@ -160,6 +212,7 @@ const openJobModal = async (job) => {
         selectedImages.value = [];
         selectedClient.value = job.client;
         contactPhoneNumber.value = job.client?.phone ?? "";
+        selectedVendorIds.value = [...(response.data.vendor_ids || [])];
 
         // Load saved contacts asynchronously
         loadSavedContacts(job.id);
@@ -223,6 +276,74 @@ const switchTab = (tabName) => {
     activeTab.value = tabName;
     if (tabName === "messages" && selectedJob.value?.id) {
         fetchJobMessages(selectedJob.value.id);
+    }
+};
+
+/* ---------- Vendors, photos and invoices (mirrors Inspection/Show.vue) ---------- */
+
+const selectedVendorIds = ref([]);
+const isSavingVendors = ref(false);
+
+// The modal holds job data in local state rather than Inertia props, so every
+// mutation below has to pull the job back down to refresh the tabs.
+const refreshSelectedJob = async () => {
+    if (!selectedJob.value?.id) return;
+
+    try {
+        const response = await axios.get(
+            route("jobber.jobDetails", {
+                job: selectedJob.value.id,
+                format: "json",
+            })
+        );
+        selectedJob.value = { ...selectedJob.value, ...response.data };
+        selectedVendorIds.value = [...(response.data.vendor_ids || [])];
+    } catch (error) {
+        console.error("Error refreshing job details:", error);
+    }
+};
+
+const toggleVendor = (vendorId) => {
+    const index = selectedVendorIds.value.indexOf(vendorId);
+    if (index === -1) selectedVendorIds.value.push(vendorId);
+    else selectedVendorIds.value.splice(index, 1);
+};
+
+const saveVendors = () => {
+    if (!selectedJob.value?.id) return;
+    isSavingVendors.value = true;
+
+    router.put(
+        route("jobber.vendors.change", selectedJob.value.id),
+        { vendor_ids: selectedVendorIds.value },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast({ title: "Success", description: "Vendors updated." });
+                await refreshSelectedJob();
+            },
+            onError: () =>
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to update vendors.",
+                }),
+            onFinish: () => (isSavingVendors.value = false),
+        }
+    );
+};
+
+const copyPortalLink = async (url) => {
+    try {
+        await navigator.clipboard.writeText(url);
+        toast({ title: "Copied", description: "Portal link copied." });
+    } catch {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not copy the link.",
+        });
     }
 };
 
@@ -992,6 +1113,16 @@ usePoll(15000, {
                                     {{ item.client_name }}
                                 </p>
                             </div>
+                            <div
+                                v-if="item.vendor_names"
+                                class="flex justify-start items-start gap-1 mb-1"
+                                :title="`Assigned vendor: ${item.vendor_names}`"
+                            >
+                                <Wrench class="w-4 h-4 opacity-80 shrink-0" />
+                                <p class="text-xs text-wrap opacity-90">
+                                    {{ item.vendor_names }}
+                                </p>
+                            </div>
                             <div class="flex justify-between items-center mt-2">
                                 <p class="text-xs flex gap-1 opacity-80">
                                     <Truck class="w-4 h-4" />
@@ -1028,6 +1159,12 @@ usePoll(15000, {
                 <DialogDescription>
                     <div class="flex gap-2 mb-2 flex-wrap" v-if="selectedJob">
                         <Badge
+                            v-if="selectedJob.is_closed"
+                            class="px-3 py-1 font-medium border border-emerald-200 bg-emerald-50 text-emerald-900"
+                        >
+                            Closed
+                        </Badge>
+                        <Badge
                             :class="[
                                 'px-3 py-1 font-medium border',
                                 getJobStatusBadgeClasses(selectedJob),
@@ -1044,40 +1181,24 @@ usePoll(15000, {
                         </Badge>
                     </div>
                 </DialogDescription>
+
+                <JobCloseAction
+                    v-if="selectedJob"
+                    :job-id="selectedJob.id"
+                    :is-closed="selectedJob.is_closed"
+                    :closed-at="selectedJob.closed_at"
+                    :closed-by="selectedJob.closed_by"
+                    :close-reason="selectedJob.close_reason"
+                    :can-close="selectedJob.can_close"
+                    @saved="refreshSelectedJob"
+                />
+
                 <div class="flex justify-center gap-2 flex-wrap">
-                    <!-- Tab Buttons -->
-                    <div class="flex gap-1 p-1 bg-muted rounded-lg">
-                        <button
-                            v-for="tab in tabButtons"
-                            :key="tab.name"
-                            @click="switchTab(tab.name)"
-                            :class="[
-                                'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                                activeTab === tab.name
-                                    ? 'bg-background text-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
-                            ]"
-                        >
-                            <component :is="tab.icon" class="h-4 w-4" />
-                            {{ tab.tooltip }}
-                            <Badge
-                                variant="secondary"
-                                class="text-xs ml-1"
-                                v-if="
-                                    (tab.name === 'messages' &&
-                                        selectedJob?.text_messages_count) ||
-                                    (tab.name === 'visits' &&
-                                        selectedJob?.visits_count)
-                                "
-                            >
-                                {{
-                                    tab.name === "messages"
-                                        ? selectedJob.text_messages_count
-                                        : selectedJob.visits_count
-                                }}
-                            </Badge>
-                        </button>
-                    </div>
+                    <TabSwitcher
+                        :buttons="visibleTabButtons"
+                        :activeTab="activeTab"
+                        @switchTab="switchTab"
+                    />
                 </div>
             </DialogHeader>
             <Separator />
@@ -1273,6 +1394,101 @@ usePoll(15000, {
                         ></p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Vendors View -->
+            <div
+                v-if="activeTab === 'vendors' && selectedJob"
+                class="p-6 space-y-4 overflow-y-auto"
+            >
+                <div v-if="selectedJob.vendors?.length" class="space-y-2">
+                    <h3 class="font-semibold text-lg flex items-center gap-2">
+                        <Wrench class="h-5 w-5 text-primary" />
+                        Assigned
+                    </h3>
+                    <div
+                        v-for="vendor in selectedJob.vendors"
+                        :key="vendor.id"
+                        class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
+                    >
+                        <div>
+                            <p class="font-medium">{{ vendor.name }}</p>
+                            <p
+                                v-if="!vendor.has_email"
+                                class="text-xs text-amber-600"
+                            >
+                                No email on file — send them the link.
+                            </p>
+                        </div>
+                        <Button
+                            v-if="vendor.portal_url"
+                            variant="outline"
+                            size="sm"
+                            @click="copyPortalLink(vendor.portal_url)"
+                        >
+                            <Copy class="h-4 w-4" /> Copy portal link
+                        </Button>
+                    </div>
+                </div>
+                <p v-else class="text-muted-foreground">
+                    No vendor assigned yet — this job is with the in-house crew.
+                </p>
+
+                <template v-if="selectedJob.can_assign_vendors">
+                    <Separator />
+                    <div class="space-y-2">
+                        <h3 class="font-semibold">Assign vendors</h3>
+                        <ScrollArea class="h-[220px] rounded-md border p-3">
+                            <label
+                                v-for="vendor in selectedJob.vendor_options"
+                                :key="vendor.id"
+                                class="flex items-center gap-2 py-1 cursor-pointer"
+                            >
+                                <Checkbox
+                                    :checked="
+                                        selectedVendorIds.includes(vendor.id)
+                                    "
+                                    @update:checked="toggleVendor(vendor.id)"
+                                />
+                                <span class="text-sm">{{ vendor.name }}</span>
+                            </label>
+                        </ScrollArea>
+                        <Button @click="saveVendors" :disabled="isSavingVendors">
+                            <Loader2
+                                v-if="isSavingVendors"
+                                class="h-4 w-4 animate-spin"
+                            />
+                            Save vendors
+                        </Button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Photos View -->
+            <div
+                v-if="activeTab === 'photos' && selectedJob"
+                class="p-6 overflow-y-auto"
+            >
+                <JobPhotosTab
+                    :job-id="selectedJob.id"
+                    :attachments="selectedJob.attachments || []"
+                    :can-manage="selectedJob.can_assign_vendors"
+                    @saved="refreshSelectedJob"
+                />
+            </div>
+
+            <!-- Invoices View -->
+            <div
+                v-if="activeTab === 'invoices' && selectedJob"
+                class="p-6 overflow-y-auto"
+            >
+                <JobInvoicesTab
+                    :job-id="selectedJob.id"
+                    :invoices="selectedJob.invoices || []"
+                    :vendors="selectedJob.vendors || []"
+                    :can-manage="selectedJob.can_upload_invoices"
+                    @saved="refreshSelectedJob"
+                />
             </div>
 
             <!-- Visits/Schedules View - Limited to first 10 visits -->
@@ -1718,10 +1934,24 @@ usePoll(15000, {
                     Close
                 </Button>
                 <Button
-                    v-if="selectedJob?.view_url || selectedJob?.id"
+                    v-if="selectedJob?.jobber_web_uri"
+                    variant="outline"
                     as-child
                 >
                     <a :href="selectedJob.jobber_web_uri" target="_blank">
+                        <ExternalLink class="h-4 w-4" />
+                        View in Jobber
+                    </a>
+                </Button>
+                <!-- Our own job page: vendor assignment, photos and invoices
+                     live there. This used to link out to Jobber's website, so
+                     those tabs were unreachable from the board. -->
+                <Button v-if="selectedJob?.id" as-child>
+                    <a
+                        :href="
+                            route('jobber.jobDetails', { job: selectedJob.id })
+                        "
+                    >
                         <Eye class="h-4 w-4" />
                         View Full Details
                     </a>

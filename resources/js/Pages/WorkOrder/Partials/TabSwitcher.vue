@@ -58,6 +58,18 @@ const canAccess = (requiredRoles) => {
 
           <!-- Text label (previously only shown in the tooltip) -->
           <span class="text-xs">{{ button.tooltip || button.label }}</span>
+
+          <!-- Optional count badge. Tabs that don't set `count` render as before. -->
+          <span
+            v-if="button.count"
+            class="ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+            :class="
+              activeTab === button.name
+                ? 'bg-background/20 text-current'
+                : 'bg-muted text-muted-foreground'
+            "
+            >{{ button.count }}</span
+          >
         </Button>
       </TooltipTrigger>
       <TooltipContent>
