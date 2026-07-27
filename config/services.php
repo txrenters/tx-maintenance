@@ -165,9 +165,11 @@ return [
         // Lets staff assign an outside vendor to a Jobber job. On by default:
         // it only writes a local pivot row and sends nothing outward.
         'vendor_assign_enabled' => env('JOBBER_VENDOR_ASSIGN_ENABLED', true),
-        // The assignment email + SMS to that vendor. Off by default so the first
-        // deploy and any backfill send nothing; flipped on after a dry run.
-        'vendor_notify_enabled' => env('JOBBER_VENDOR_NOTIFY_ENABLED', false),
+        // The assignment email + SMS to that vendor. ON by default after the
+        // dry run — assigning a vendor now messages them. Local .env and
+        // phpunit.xml pin this false so development and tests never message a
+        // real vendor.
+        'vendor_notify_enabled' => env('JOBBER_VENDOR_NOTIFY_ENABLED', true),
     ],
 
 ];

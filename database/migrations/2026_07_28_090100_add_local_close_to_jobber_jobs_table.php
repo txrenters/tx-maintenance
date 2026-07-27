@@ -36,6 +36,11 @@ return new class extends Migration
 
         Schema::table('jobber_jobs', function (Blueprint $table) {
             $table->dropConstrainedForeignId('closed_by_user_id');
+            // Drop the index before the column it covers. MySQL removes it with
+            // the column, but SQLite aborts the whole rollback mid-way, which
+            // leaves the table half-migrated and the migration still recorded
+            // as applied.
+            $table->dropIndex(['closed_at']);
             $table->dropColumn(['closed_at', 'close_reason']);
         });
     }
