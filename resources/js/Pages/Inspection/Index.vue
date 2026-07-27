@@ -53,6 +53,7 @@ import {
 } from "@/Components/ui/combobox";
 
 import Navigation from "./partials/Navigation.vue";
+import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
@@ -114,36 +115,22 @@ const activeTab = ref("details");
 // Remove virtual scrolling for now to fix data loading
 
 // Tab configuration
+// Only staff reach the Jobs board at all (InspectionController gates it), but
+// TabSwitcher hides any button whose `requires` doesn't match, so every tab has
+// to declare its roles explicitly.
+const STAFF = ["admin", "woc", "accounting"];
+
 const tabButtons = [
-    {
-        name: "details",
-        tooltip: "Details",
-        icon: ClipboardList,
-    },
-    {
-        name: "vendors",
-        tooltip: "Vendors",
-        icon: Wrench,
-    },
-    {
-        name: "visits",
-        tooltip: "Visits",
-        icon: Calendar,
-    },
-    {
-        name: "photos",
-        tooltip: "Photos",
-        icon: ImageIcon,
-    },
-    {
-        name: "invoices",
-        tooltip: "Invoices",
-        icon: Receipt,
-    },
+    { name: "details", tooltip: "Details", icon: ClipboardList, requires: STAFF },
+    { name: "vendors", tooltip: "Vendors", icon: Wrench, requires: STAFF },
+    { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
+    { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
+    { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
     {
         name: "messages",
         tooltip: "Messages",
         icon: MessageCircle,
+        requires: STAFF,
     },
 ];
 
@@ -155,6 +142,10 @@ const tabCount = (name) => {
     if (name === "invoices") return selectedJob.value?.invoices?.length;
     return 0;
 };
+
+const visibleTabButtons = computed(() =>
+    tabButtons.map((tab) => ({ ...tab, count: tabCount(tab.name) }))
+);
 
 // Optimized job modal opening with lazy loading
 let jobDetailsController = null;
@@ -1281,30 +1272,11 @@ usePoll(15000, {
                     </div>
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
-                    <!-- Tab Buttons -->
-                    <div class="flex gap-1 p-1 bg-muted rounded-lg">
-                        <button
-                            v-for="tab in tabButtons"
-                            :key="tab.name"
-                            @click="switchTab(tab.name)"
-                            :class="[
-                                'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                                activeTab === tab.name
-                                    ? 'bg-background text-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
-                            ]"
-                        >
-                            <component :is="tab.icon" class="h-4 w-4" />
-                            {{ tab.tooltip }}
-                            <Badge
-                                variant="secondary"
-                                class="text-xs ml-1"
-                                v-if="tabCount(tab.name)"
-                            >
-                                {{ tabCount(tab.name) }}
-                            </Badge>
-                        </button>
-                    </div>
+                    <TabSwitcher
+                        :buttons="visibleTabButtons"
+                        :activeTab="activeTab"
+                        @switchTab="switchTab"
+                    />
                 </div>
             </DialogHeader>
             <Separator />

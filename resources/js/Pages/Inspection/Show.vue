@@ -1,11 +1,12 @@
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { router, usePage, Head, Link } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
 import axios from "axios";
 import debounce from "lodash.debounce";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
@@ -33,13 +34,18 @@ const page = usePage();
 
 const job = ref(props.job ? { ...props.job } : null);
 const activeTab = ref("details");
+
+// TabSwitcher hides any button whose `requires` doesn't match the user's roles,
+// so every tab declares its roles. Only staff reach this page at all.
+const STAFF = ["admin", "woc", "accounting"];
+
 const tabs = [
-  { name: "details", label: "Details", icon: ClipboardList },
-  { name: "vendors", label: "Vendors", icon: Wrench },
-  { name: "visits", label: "Visits", icon: Calendar },
-  { name: "photos", label: "Photos", icon: ImageIcon },
-  { name: "invoices", label: "Invoices", icon: Receipt },
-  { name: "messages", label: "Messages", icon: MessageCircle },
+  { name: "details", tooltip: "Details", icon: ClipboardList, requires: STAFF },
+  { name: "vendors", tooltip: "Vendors", icon: Wrench, requires: STAFF },
+  { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
+  { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
+  { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
+  { name: "messages", tooltip: "Messages", icon: MessageCircle, requires: STAFF },
 ];
 
 const tabCount = (name) => {
@@ -50,6 +56,10 @@ const tabCount = (name) => {
   if (name === "invoices") return job.value?.invoices?.length;
   return 0;
 };
+
+const visibleTabs = computed(() =>
+  tabs.map((tab) => ({ ...tab, count: tabCount(tab.name) }))
+);
 
 const senderPhoneNumber = ref(page.props.twilio_phone_number);
 const jobMessages = ref([]);
@@ -400,22 +410,8 @@ onUnmounted(() => {
 
       <CardTitle class="text-2xl text-primary">{{ job?.title || 'Job Details' }} - Job #{{ job?.job_number || 'N/A' }}</CardTitle>
 
-      <div class="flex justify-center gap-1 p-1 bg-muted rounded-lg self-center">
-        <button
-          v-for="tab in tabs"
-          :key="tab.name"
-          @click="switchTab(tab.name)"
-          :class="[
-            'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-            activeTab === tab.name ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
-          ]"
-        >
-          <component :is="tab.icon" class="h-4 w-4" />
-          {{ tab.label }}
-          <Badge v-if="tabCount(tab.name)" variant="secondary" class="text-xs">
-            {{ tabCount(tab.name) }}
-          </Badge>
-        </button>
+      <div class="flex justify-center gap-2 flex-wrap">
+        <TabSwitcher :buttons="visibleTabs" :activeTab="activeTab" @switchTab="switchTab" />
       </div>
     </CardHeader>
 
