@@ -82,6 +82,7 @@ const props = defineProps({
     service_status: Object,
     vendors: Object,
     categories: Object,
+    types: Array,
     users: Object,
     filter: Object,
 });
@@ -620,7 +621,7 @@ const handleWorkOrder = async (orderId) => {
     try {
         const response = await axios.get(
             route(
-                "work_orders.show",
+                "work_orders.data",
                 typeof orderId === "object" ? orderId.id : orderId
             )
         );
@@ -633,10 +634,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.managed_by = order.managed_by;
         workOrderForm.requested = order.requested_by;
         workOrderVendors.value = order.vendors ?? [];
-        workOrderForm.vendors =
-            order.local_status === "Created"
-                ? Object.values(order.vendors).map((vendor) => vendor.name)
-                : order.vendors;
+        workOrderForm.vendors = order.vendors ?? [];
         workOrderForm.is_approved = order.is_approved;
         workOrderForm.approved_date = order.approved_date;
         workOrderForm.approval_comments = order.approval_comments;
@@ -1037,6 +1035,7 @@ const page = usePage();
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"

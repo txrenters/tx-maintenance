@@ -15,6 +15,7 @@ import {
 import { Input } from "@/Components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { ScrollArea } from "@/Components/ui/scroll-area";
+import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
 import { Textarea } from "@/Components/ui/textarea";
 import { Button } from "@/Components/ui/button";
 
@@ -139,24 +140,38 @@ const triggerFileInput = () => {
 
 const handleFileSelect = (event) => {
     const files = Array.from(event.target.files || []);
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const allowed = files.filter(
+        (file) =>
+            file.type.startsWith("image/") ||
+            file.type.startsWith("video/") ||
+            file.type === "application/pdf",
+    );
 
-    if (imageFiles.length !== files.length) {
+    if (allowed.length !== files.length) {
         toast({
             variant: "destructive",
             title: "Invalid file type",
-            description: "Only image files are allowed.",
+            description: "Only image, video, or PDF files are allowed.",
         });
     }
 
-    imageFiles.forEach((file) => {
-        if (file.size > 10 * 1024 * 1024) {
-            // 10MB limit
+    allowed.forEach((file) => {
+        if (file.size > 50 * 1024 * 1024) {
+            // 50MB limit
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: `${file.name} is too large. Maximum size is 10MB.`,
+                description: `${file.name} is too large. Maximum size is 50MB.`,
             });
+            return;
+        }
+
+        const isVideo = file.type.startsWith("video/");
+        const isPdf = file.type === "application/pdf";
+
+        // PDFs get a filename tile rather than a data-URL thumbnail.
+        if (isPdf) {
+            attachedImages.value.push({ file, url: null, name: file.name, isPdf: true });
             return;
         }
 
@@ -166,6 +181,7 @@ const handleFileSelect = (event) => {
                 file,
                 url: e.target.result,
                 name: file.name,
+                isVideo,
             });
         };
         reader.readAsDataURL(file);
@@ -303,9 +319,16 @@ onMounted(() => {
 <template>
     <div>
         <div class="grid gap-3 overflow-y-auto px-6">
-            <p class="font-semibold uppercase text-xs mb-3">
-                Vendor Conversation
-            </p>
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <p class="font-semibold uppercase text-xs">
+                    Vendor Conversation
+                </p>
+                <AutomationToggle
+                    v-if="workOrder?.id"
+                    :work-order-id="workOrder.id"
+                    channel="vendor"
+                />
+            </div>
             <div class="flex justify-between gap-2 mb-2">
                 <div>
                     <div class="flex gap-2">
@@ -349,10 +372,10 @@ onMounted(() => {
                                 :src="woc?.profile_photo_url || 'default.jpg'"
                             />
                             <AvatarFallback>
-                                {{ woc.name?.charAt(0) }}
+                                {{ woc?.name?.charAt(0) }}
                             </AvatarFallback>
                         </Avatar>
-                        {{ woc.name }}
+                        {{ woc?.name }}
                     </div>
                     {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>
@@ -395,7 +418,22 @@ onMounted(() => {
                         :key="index"
                         class="relative group"
                     >
+                        <video
+                            v-if="image.isVideo"
+                            :src="image.url"
+                            class="w-full h-20 object-cover rounded-lg border bg-black"
+                            muted
+                            playsinline
+                        />
+                        <div
+                            v-else-if="image.isPdf"
+                            class="w-full h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
+                        >
+                            <span class="text-2xl">📄</span>
+                            <span class="w-full truncate text-[10px] text-muted-foreground">{{ image.name }}</span>
+                        </div>
                         <img
+                            v-else
                             :src="image.url"
                             :alt="image.name"
                             class="w-full h-20 object-cover rounded-lg border"
@@ -454,7 +492,7 @@ onMounted(() => {
                     ref="fileInputRef"
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*,application/pdf"
                     @change="handleFileSelect"
                     class="hidden"
                 />

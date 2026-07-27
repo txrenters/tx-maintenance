@@ -55,6 +55,7 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
+import WorkOrderFilterBar from "@/Components/WorkOrderFilterBar.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import { Skeleton } from "@/Components/ui/skeleton";
@@ -64,11 +65,19 @@ const props = defineProps({
     service_status: Object,
     vendors: Object,
     categories: Object,
+    types: Array,
     users: Object,
     filter: Object,
     listRouteName: {
         type: String,
         default: "work_orders.lawn_service",
+    },
+    // HOA board: show the HOA deadline/state on each card and expose the
+    // #board-actions slot for the "Upload HOA Notice" button. Harmless (false)
+    // for every other board that reuses this page.
+    hoa: {
+        type: Boolean,
+        default: false,
     },
 });
 
@@ -76,6 +85,7 @@ const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
 const filter_category = ref(props.filter.category ?? "");
+const filter_emergency = ref(props.filter.emergency ?? "");
 // Card color filter (red = overdue/emergency, blue = due today, green =
 // upcoming). Colors are computed client-side per card, so this filter is
 // applied on the board itself rather than via a server query.
@@ -634,7 +644,7 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = true;
 
     try {
-        const response = await axios.get(route("work_orders.show", orderId));
+        const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data; // Assuming the API returns the work order details
 
         workOrderForm.id = order.id;
@@ -644,10 +654,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.managed_by = order.managed_by;
         workOrderForm.requested = order.requested_by;
         workOrderVendors.value = order.vendors ?? [];
-        workOrderForm.vendors =
-            order.local_status === "Created"
-                ? Object.values(order.vendors).map((vendor) => vendor.name)
-                : order.vendors;
+        workOrderForm.vendors = order.vendors ?? [];
         workOrderForm.is_approved = order.is_approved;
         workOrderForm.approved_date = order.approved_date;
         workOrderForm.approval_comments = order.approval_comments;
@@ -739,146 +746,27 @@ const date_range = ref({
     end: "",
 });
 
-const formatDate = (d) => (d ? d.toString() : null);
-
-const filterVendor = debounce(() => {
-    const newQuery = { vendor: filter_vendor.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const filterCategory = debounce(() => {
-    const newQuery = { category: filter_category.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const fetchFilteredData = debounce(() => {
-    const startDate = formatDate(date_range.value?.start);
-    const endDate = formatDate(date_range.value?.end);
-
-    const newQuery = { start_date: startDate, end_date: endDate };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-watch(date_range, fetchFilteredData, { deep: true });
-watch(filter_vendor, filterVendor);
-watch(filter_category, filterCategory);
+// Vendor, category, search and date filtering are applied client-side on the
+// already-loaded board (see WorkOrderCard) — no server round-trips on change.
 
 const page = usePage();
 </script>
 <template>
     <Head :title="title" />
 
-    <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <SearchBar :url="url" v-model="search" />
-        <div
-            class="flex gap-2 items-center w-full flex-wrap"
-            v-if="
-                $page.props.auth.user.roles.includes('admin') ||
-                $page.props.auth.user.roles.includes('woc')
-            "
-        >
-            <Select
-                :modelValue="String(filter_vendor)"
-                @update:modelValue="(value) => (filter_vendor = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[250px]">
-                    <SelectValue placeholder="Select a vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <template v-for="vendor in vendors" :key="vendor.id">
-                            <SelectItem :value="String(vendor.id)">
-                                {{ vendor.name }}
-                            </SelectItem>
-                        </template>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-
-            <Select
-                :modelValue="String(filter_category)"
-                @update:modelValue="(value) => (filter_category = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[250px]">
-                    <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <template
-                            v-for="category in categories"
-                            :key="category.id"
-                        >
-                            <SelectItem :value="String(category.name)">
-                                {{ category.name }}
-                            </SelectItem>
-                        </template>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-
-            <Select
-                :modelValue="String(filter_color)"
-                @update:modelValue="(value) => (filter_color = value)"
-            >
-                <SelectTrigger class="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Card color" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <SelectItem value="all">All colors</SelectItem>
-                        <SelectItem value="red">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-destructive"
-                                ></span>
-                                Red — Overdue / Emergency
-                            </span>
-                        </SelectItem>
-                        <SelectItem value="blue">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-primary"
-                                ></span>
-                                Blue — Due today
-                            </span>
-                        </SelectItem>
-                        <SelectItem value="green">
-                            <span class="flex items-center gap-2">
-                                <span
-                                    class="h-3 w-3 rounded-full bg-green-500"
-                                ></span>
-                                Green — Upcoming
-                            </span>
-                        </SelectItem>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-        </div>
-
-        <div class="flex gap-2 w-full justify-end">
+    <WorkOrderFilterBar
+        v-model:search="search"
+        v-model:vendor="filter_vendor"
+        v-model:category="filter_category"
+        v-model:emergency="filter_emergency"
+        v-model:color="filter_color"
+        :vendors="vendors"
+        :categories="categories"
+    >
+        <template #actions>
+            <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
+            <!-- Page-specific primary action (e.g. HOA "Upload Notice"). -->
+            <slot name="board-actions" />
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
@@ -969,8 +857,9 @@ const page = usePage();
             >
                 <RefreshCw class="w-4 h-4" />
             </Link>
-        </div>
-    </div>
+            </div>
+        </template>
+    </WorkOrderFilterBar>
 
     <ScrollArea
         class="w-[90vw] sm:w-[85vw] md:w-[75vw] lg:w-[70vw] xl:w-[75vw]"
@@ -1000,7 +889,13 @@ const page = usePage();
             </template>
             <WorkOrderCard
                 :service_status="service_status"
+                :hoa="hoa"
                 :color-filter="filter_color"
+                :search-term="search"
+                :vendor-filter="filter_vendor"
+                :category-filter="filter_category"
+                :emergency-filter="filter_emergency"
+                :date-range="date_range"
                 @showWorkOrder="handleWorkOrder"
             />
         </Deferred>
@@ -1082,6 +977,7 @@ const page = usePage();
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"

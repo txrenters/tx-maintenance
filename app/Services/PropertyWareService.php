@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Jobs\CreateJobberJobForWorkOrder;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
@@ -494,6 +496,74 @@ class PropertyWareService
 
     }
 
+    /**
+     * Create a brand-new work order in PropertyWare (SOAP). Everything else in
+     * this service assumes work orders originate in PropertyWare, so HOA intake
+     * creates there first and imports the row back. Returns the new
+     * PropertyWare work order ID, or null when the create fails (callers fall
+     * back to a local-only work order).
+     *
+     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string}  $data
+     */
+    public function createWorkOrder(array $data): ?string
+    {
+        $xmlPayload = '
+                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:ser="http://service.web.propertyware.realpage.com"
+                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+                <soapenv:Header/>
+                    <soapenv:Body>
+                    <ser:createWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
+                        <building xsi:type="urn:Building">
+                        <ID xsi:type="xsd:long">'.(int) $data['building_id'].'</ID>
+                        </building>
+                        <portfolio xsi:type="urn:Portfolio">
+                        <ID xsi:type="xsd:long">'.(int) $data['portfolio_id'].'</ID>
+                        </portfolio>
+                        <category xsi:type="xsd:string">'.htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8').'</category>
+                        <description xsi:type="xsd:string">'.htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8').'</description>
+                        <type xsi:type="xsd:string">'.htmlspecialchars($data['type'] ?? '', ENT_XML1, 'UTF-8').'</type>
+                    </workOrder>
+                    </ser:createWorkOrder>
+                    </soapenv:Body>
+                </soapenv:Envelope>';
+
+        $res = $this->execute($xmlPayload);
+
+        if (! $res['success']) {
+            Log::error('Failed to create work order in PropertyWare', [
+                'building_id' => $data['building_id'] ?? null,
+                'portfolio_id' => $data['portfolio_id'] ?? null,
+                'category' => $data['category'] ?? null,
+                'error' => $res['error'] ?? null,
+                'message' => $res['message'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        // The response echoes the created WorkOrder; its first <ID> node is the
+        // new PropertyWare work order ID.
+        if (preg_match('/<ID[^>]*>(\d+)<\/ID>/', (string) ($res['response'] ?? ''), $matches)) {
+            Log::info('Work order created in PropertyWare', [
+                'propertyware_id' => $matches[1],
+                'building_id' => $data['building_id'] ?? null,
+            ]);
+
+            return $matches[1];
+        }
+
+        Log::error('PropertyWare createWorkOrder succeeded but no ID found in response.', [
+            'building_id' => $data['building_id'] ?? null,
+            'response_excerpt' => substr((string) ($res['response'] ?? ''), 0, 500),
+        ]);
+
+        return null;
+    }
+
     public function updateWorkOrder($workOrder, array $changes = [])
     {
         // PropertyWare's updateWorkOrder endpoint uses JSON Merge Patch, so we send ONLY
@@ -586,6 +656,7 @@ class PropertyWareService
         // Local column => PropertyWare PATCH field.
         $map = [
             'category' => 'category',
+            'type' => 'type',
             'description' => 'description',
         ];
 
@@ -603,6 +674,13 @@ class PropertyWareService
 
             if ($value === null || $value === '') {
                 continue;
+            }
+
+            // PropertyWare matches picklist values verbatim (its real HVAC
+            // value is "HVAC " with a trailing space), so always send the
+            // exact spelling from the categories table.
+            if ($local === 'category') {
+                $value = WorkOrderCategory::canonicalName($value);
             }
 
             $payload[$pwField] = $value;
@@ -903,13 +981,18 @@ class PropertyWareService
             $this->approvedWorkOrder($workOrder);
         }
 
-        $vendor = DB::table('work_order_vendors')->where('work_order_id', $workOrder->id)->first();
-        $vendorName = Vendor::find($vendor->vendor_id);
+        // When THMP is among the assigned vendors, create the matching Jobber
+        // job and store its link on the work order. Queued + gated + idempotent,
+        // so this is safe to fire on every vendor change. Replaces the previous
+        // POST to the n8n "create-job" workflow (now owned in-app).
+        $hasThmp = DB::table('work_order_vendors')
+            ->join('vendors', 'vendors.id', '=', 'work_order_vendors.vendor_id')
+            ->where('work_order_vendors.work_order_id', $workOrder->id)
+            ->where('vendors.name', 'Texas Home Maintenance Pros')
+            ->exists();
 
-        if ($vendorName->name == 'Texas Home Maintenance Pros') {
-            Http::post('https://n8n.srv902502.hstgr.cloud/webhook/create-job', [
-                'work_order_no' => $workOrder->work_order_no,
-            ]);
+        if ($hasThmp) {
+            CreateJobberJobForWorkOrder::dispatch($workOrder->id);
         }
 
         Log::info('Work order vendor has been added successfully!', [
@@ -1053,6 +1136,74 @@ class PropertyWareService
 
         } catch (Exception $e) {
             Log::error('Error uploading work order attachment: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Upload raw PDF bytes as a document on a PropertyWare work order. Mirrors
+     * uploadVendorAttachment but takes in-memory content instead of a file on
+     * disk, for documents we generate ourselves (e.g. the Work Order
+     * Information sheet).
+     *
+     * @return string|false the created PropertyWare document id on success, false on failure
+     */
+    public function uploadWorkOrderPdf(?string $propertywareWorkOrderId, string $contents, string $fileName, string $description): string|false
+    {
+        if (! $propertywareWorkOrderId) {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->attach('file', $contents, $fileName)
+                ->post('https://api.propertyware.com/pw/api/rest/v1/docs', [
+                    'entityId' => $propertywareWorkOrderId,
+                    'entityType' => 'Work Order',
+                ]);
+
+            if (! $response->successful()) {
+                Log::error('Error uploading work order PDF', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'fileName' => $fileName,
+                ]);
+
+                return false;
+            }
+
+            $docId = $response->json('id');
+
+            $putResponse = Http::withHeaders($this->headers)
+                ->put('https://api.propertyware.com/pw/api/rest/v1/docs/'.$docId, [
+                    'fileName' => $fileName,
+                    'description' => $description,
+                    'publishToOwnerPortal' => 'false',
+                    'publishToTenantPortal' => 'false',
+                ]);
+
+            if (! $putResponse->successful()) {
+                Log::error('Failed to update work order PDF metadata', [
+                    'doc_id' => $docId,
+                    'status' => $putResponse->status(),
+                    'body' => $putResponse->body(),
+                ]);
+
+                return false;
+            }
+
+            Log::info('Work order information PDF uploaded to PropertyWare', [
+                'entity_id' => $propertywareWorkOrderId,
+                'file_name' => $fileName,
+                'doc_id' => $docId,
+            ]);
+
+            // Return the PropertyWare document id so the caller can record a
+            // local WorkOrderDocuments row that streams this file back on demand.
+            return $docId ? (string) $docId : false;
+        } catch (Exception $e) {
+            Log::error('Error uploading work order PDF: '.$e->getMessage());
 
             return false;
         }

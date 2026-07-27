@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { ref, watch, computed } from "vue";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
@@ -23,6 +23,7 @@ import Invoices from "@/Pages/WorkOrder/Partials/Invoices.vue";
 import Notes from "@/Pages/WorkOrder/Partials/Notes.vue";
 import VendorEdit from "@/Pages/WorkOrder/Partials/VendorEdit.vue";
 import Recommendation from "@/Pages/WorkOrder/Partials/Recommendation.vue";
+import EmailNotifications from "@/Pages/WorkOrder/Partials/EmailNotifications.vue";
 
 import {
     ClipboardList,
@@ -35,6 +36,7 @@ import {
     MessagesSquare,
     Sparkles,
     ExternalLink,
+    Mail,
 } from "lucide-vue-next";
 
 const { toast } = useToast();
@@ -43,6 +45,7 @@ const { state, close } = useWorkOrderModal();
 // Supporting lists needed to render the modal, fetched once from the backend so this
 // component is self-contained and can be mounted globally (independent of page props).
 const categories = ref([]);
+const types = ref([]);
 const vendors = ref([]);
 const users = ref([]);
 const serviceStatuses = ref([]);
@@ -53,6 +56,7 @@ const loadMeta = async () => {
     try {
         const response = await axios.get(route("api.work_order_modal.meta"));
         categories.value = response.data.categories;
+        types.value = response.data.types ?? [];
         vendors.value = response.data.vendors;
         users.value = response.data.users;
         serviceStatuses.value = response.data.service_status;
@@ -100,6 +104,7 @@ const workOrderForm = useForm({
     woc: "",
     building: null,
     propertyware_id: "",
+    jobber_web_uri: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -217,12 +222,40 @@ const tabButtons = [
         requires: ["admin", "woc", "vendor"],
     },
     {
+        name: "email_notifications",
+        tooltip: "Email Notifications",
+        icon: Mail,
+        requires: ["admin", "woc"],
+    },
+    {
         name: "conversation",
         tooltip: "Conversation",
         icon: MessagesSquare,
         requires: ["admin", "woc"],
     },
 ];
+
+const page = usePage();
+
+// A vendor can only message owners/tenants from their own Twilio number. When
+// the vendor has no number configured, hide the Owner and Tenant conversation
+// tabs so they can't open a thread they'd be unable to send from. Vendor-only —
+// other roles are unaffected.
+const visibleTabButtons = computed(() => {
+    const user = page.props.auth.user;
+    const isVendor = (user?.roles || []).includes("vendor");
+    const hasTwilioNumber = Boolean(user?.vendor?.twilio_number);
+
+    if (isVendor && !hasTwilioNumber) {
+        return tabButtons.filter(
+            (button) =>
+                button.name !== "vendor_owner_conversation" &&
+                button.name !== "vendor_tenant_conversation"
+        );
+    }
+
+    return tabButtons;
+});
 
 const isLoading = ref(false);
 
@@ -243,6 +276,21 @@ const workOrderNotes = ref([]);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
 const isGeneratingRecommendation = ref(false);
+const emailNotifications = ref([]);
+const emailNotificationsLoading = ref(false);
+
+const fetchEmailNotifications = async (workOrderId) => {
+    emailNotificationsLoading.value = true;
+    try {
+        const response = await axios.get(route("work_order.email.notifications", workOrderId));
+        emailNotifications.value = response.data.emails ?? [];
+    } catch (error) {
+        console.error(error);
+        toast({ variant: "destructive", title: "Email history unavailable" });
+    } finally {
+        emailNotificationsLoading.value = false;
+    }
+};
 
 const switchTab = (tabName) => {
     activeTab.value = tabName;
@@ -258,6 +306,10 @@ const switchTab = (tabName) => {
 
     if (activeTab.value === "details" && workOrderForm.id) {
         handleWorkOrder(workOrderForm.id);
+    }
+
+    if (activeTab.value === "email_notifications" && workOrderForm.id) {
+        fetchEmailNotifications(workOrderForm.id);
     }
 
     if (activeTab.value === "vendor_tenant_conversation" && workOrderForm.id) {
@@ -612,7 +664,7 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = true;
 
     try {
-        const response = await axios.get(route("work_orders.show", orderId));
+        const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data;
 
         workOrderForm.id = order.id;
@@ -622,10 +674,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.managed_by = order.managed_by;
         workOrderForm.requested = order.requested_by;
         workOrderVendors.value = order.vendors ?? [];
-        workOrderForm.vendors =
-            order.local_status === "Created"
-                ? Object.values(order.vendors).map((vendor) => vendor.name)
-                : order.vendors;
+        workOrderForm.vendors = order.vendors ?? [];
         workOrderForm.is_approved = order.is_approved;
         workOrderForm.approved_date = order.approved_date;
         workOrderForm.approval_comments = order.approval_comments;
@@ -669,6 +718,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.woc = order.woc;
         workOrderForm.building = order.building ?? null;
         workOrderForm.propertyware_id = order.propertyware_id;
+        workOrderForm.jobber_web_uri = order.jobber_web_uri ?? "";
 
         closeWorkOrderForm.reset();
         closeWorkOrderForm.id = order.id;
@@ -709,6 +759,27 @@ watch(
                             <ExternalLink class="h-3.5 w-3.5" />
                             PropertyWare
                         </a>
+                        <a
+                            v-if="
+                                workOrderForm.jobber_web_uri &&
+                                ($page.props.auth.user.roles.includes(
+                                    'admin',
+                                ) ||
+                                    $page.props.auth.user.roles.includes(
+                                        'woc',
+                                    ) ||
+                                    $page.props.auth.user.roles.includes(
+                                        'accounting',
+                                    ))
+                            "
+                            :href="workOrderForm.jobber_web_uri"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                        >
+                            <ExternalLink class="h-3.5 w-3.5" />
+                            Open in Jobber
+                        </a>
                     </div>
                 </DialogTitle>
                 <DialogDescription>
@@ -742,7 +813,7 @@ watch(
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="tabButtons"
+                        :buttons="visibleTabButtons"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />
@@ -762,6 +833,7 @@ watch(
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
+                :types="types"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"
@@ -770,6 +842,12 @@ watch(
                 @delete="close()"
                 @update-workOrder="handleWorkOrder(workOrderForm.id)"
                 v-if="activeTab === 'details'"
+            />
+
+            <EmailNotifications
+                v-if="activeTab === 'email_notifications'"
+                :emails="emailNotifications"
+                :loading="emailNotificationsLoading"
             />
 
             <WorkOrderTask

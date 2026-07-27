@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ServiceStatus;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use App\Services\PropertyWareService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -93,5 +94,75 @@ class PropertyWareWorkOrderPatchTest extends TestCase
 
             return true;
         });
+    }
+
+    public function test_update_sends_propertyware_exact_category_spelling(): void
+    {
+        Http::fake();
+
+        // PropertyWare's real picklist value carries a trailing space; the
+        // visually-identical clean spelling used to be rejected with an error.
+        WorkOrderCategory::query()->create(['name' => 'HVAC ']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $this->serviceStatusId(),
+            'work_order_no' => 5003,
+            'propertyware_id' => 'PW-789',
+            'category' => 'Plumbing',
+        ]);
+
+        (new PropertyWareService)->updateWorkOrder($workOrder, [
+            'category' => 'HVAC',
+        ]);
+
+        Http::assertSent(function ($request) {
+            if ($request->method() !== 'PATCH') {
+                return false;
+            }
+
+            $this->assertSame('HVAC ', $request->data()['category'] ?? null);
+
+            return true;
+        });
+    }
+
+    public function test_update_sends_type_when_it_changes(): void
+    {
+        Http::fake();
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $this->serviceStatusId(),
+            'work_order_no' => 5004,
+            'propertyware_id' => 'PW-790',
+            'type' => 'Repair',
+        ]);
+
+        (new PropertyWareService)->updateWorkOrder($workOrder, [
+            'type' => 'Turnover',
+        ]);
+
+        Http::assertSent(function ($request) {
+            if ($request->method() !== 'PATCH') {
+                return false;
+            }
+
+            $body = $request->data();
+
+            $this->assertSame('Turnover', $body['type'] ?? null);
+
+            return true;
+        });
+    }
+
+    public function test_canonical_name_matches_ignoring_case_and_whitespace(): void
+    {
+        WorkOrderCategory::query()->create(['name' => 'HVAC ']);
+        WorkOrderCategory::query()->create(['name' => 'Plumbing']);
+
+        $this->assertSame('HVAC ', WorkOrderCategory::canonicalName('HVAC'));
+        $this->assertSame('HVAC ', WorkOrderCategory::canonicalName('hvac  '));
+        $this->assertSame('Plumbing', WorkOrderCategory::canonicalName('plumbing'));
+        // Unknown categories pass through unchanged.
+        $this->assertSame('Roofing', WorkOrderCategory::canonicalName('Roofing'));
     }
 }

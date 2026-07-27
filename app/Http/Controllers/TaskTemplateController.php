@@ -37,6 +37,7 @@ class TaskTemplateController extends Controller
                 return [
                     'id' => $temlate->id,
                     'name' => $temlate->name,
+                    'work_order_type' => $temlate->work_order_type,
                     'description' => $temlate->description,
                     'current_service_status' => $temlate->currentServiceStatus->name,
                     'is_emergency' => $temlate->is_current_service_status_emergency ? 'Emergency' : 'Non-emergency',
@@ -91,6 +92,7 @@ class TaskTemplateController extends Controller
 
             $taskTemplate = TaskTemplate::create([
                 'name' => $request->name,
+                'work_order_type' => $request->filled('work_order_type') ? trim($request->work_order_type) : null,
                 'description' => $request->description,
                 'current_service_status_id' => $request->current_service_status_id,
                 'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency',
@@ -194,6 +196,7 @@ class TaskTemplateController extends Controller
 
             $taskTemplate->update([
                 'name' => $request->name,
+                'work_order_type' => $request->filled('work_order_type') ? trim($request->work_order_type) : null,
                 'description' => $request->description,
                 'current_service_status_id' => (int) $request->current_service_status_id,
                 'is_current_service_status_emergency' => $request->is_current_service_status_emergency == 'Emergency',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
+use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Conversation;
@@ -207,6 +208,7 @@ class VendorPortalController extends Controller
                 'media' => $m->media->map(fn ($media) => [
                     'url' => $media->public_url,
                     'content_type' => $media->content_type,
+                    'file_name' => $media->file_name,
                 ])->values(),
             ])->values(),
         ]);
@@ -341,6 +343,12 @@ class VendorPortalController extends Controller
             return back()->withErrors(['invoice' => 'Could not upload your invoice. Please try again.']);
         }
 
+        // Turnover invoices are billed through Operation Accounting, so tell
+        // them the moment one lands.
+        if ($workOrder->isTurnover()) {
+            NotifyOperationAccountingOfTurnoverInvoice::dispatch($invoice->id);
+        }
+
         // Sync to PropertyWare only after the invoice is safely stored.
         try {
             (new PropertyWareService)->uploadVendorInvoice($invoice->work_order_id, $invoice);
@@ -368,9 +376,12 @@ class VendorPortalController extends Controller
         $vendor = $request->attributes->get('portal_vendor');
 
         // The vendor is known from the token, so inject it instead of asking.
+        // The flag tells store() this schedule came from the vendor, so the
+        // owner is notified of the appointment.
         $request->merge([
             'vendor_id' => $vendor->id,
             'work_order_id' => $workOrder->id,
+            'notify_owner_of_schedule' => true,
         ]);
 
         return app(ServiceScheduleController::class)->store($request);

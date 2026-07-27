@@ -7,9 +7,9 @@ use App\Models\Attachments;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderEmailSender;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 
 class SyncWorkOrderDocumentsCommand extends Command
@@ -27,6 +27,11 @@ class SyncWorkOrderDocumentsCommand extends Command
      * @var string
      */
     protected $description = 'Sync PropertyWare documents (and send pending vendor service requests) for the newest work orders, on its own schedule so the fast work order import is never blocked by per-work-order document API calls';
+
+    /**
+     * PropertyWare system/automation user whose files should never be imported.
+     */
+    private const SKIP_CREATED_BY_USER = 'a0e71e98';
 
     protected PropertyWareService $propertyWareService;
 
@@ -69,9 +74,13 @@ class SyncWorkOrderDocumentsCommand extends Command
         foreach ($workOrders as $workOrder) {
             $this->syncWorkOrderDocuments($workOrder->propertyware_id, $workOrder->id);
 
-            // Email the service request PDF to the assigned vendor(s), once —
-            // this depends on the documents synced above, so it lives here.
-            $this->sendServiceRequestToVendors($workOrder);
+            // Vendor service-request emails now fire instantly on assignment in
+            // WorkOrderController::vendor_change (generated PDF + upload to
+            // PropertyWare) via SendVendorWorkOrderInformation. The old batch
+            // email below is disabled to avoid a second, outdated email. Re-enable
+            // it (and the sendServiceRequestToVendors method) if PropertyWare-side
+            // (import) assignments should also be auto-emailed.
+            // $this->sendServiceRequestToVendors($workOrder);
 
             $synced++;
         }
@@ -111,6 +120,11 @@ class SyncWorkOrderDocumentsCommand extends Command
 
                 // Skip what this app uploaded to PropertyWare to avoid redundancy.
                 if ($ourPropertywareUser && ! empty($doc['createdBy']) && $doc['createdBy'] === $ourPropertywareUser) {
+                    continue;
+                }
+
+                // Skip files created by the PropertyWare system/automation user.
+                if (! empty($doc['createdBy']) && $doc['createdBy'] === self::SKIP_CREATED_BY_USER) {
                     continue;
                 }
 
@@ -214,12 +228,35 @@ class SyncWorkOrderDocumentsCommand extends Command
                     ? route('vendor.portal.show', $vendor->pivot->access_token)
                     : null;
 
-                Mail::to($vendor->email)->send(new VendorServiceRequestMail(
+                // The Blade design is unchanged — render the existing mailable to
+                // HTML and hand it to the sender as trusted template HTML (no
+                // sanitize), which persists it as an outbound EmailMessage.
+                $mailable = new VendorServiceRequestMail(
                     vendorName: $vendor->name ?? 'Vendor',
                     workOrderNo: (string) $workOrder->work_order_no,
                     pdfContent: $pdf['content'],
                     portalUrl: $portalUrl,
-                ));
+                    isVacant: $workOrder->isVacant(),
+                );
+
+                app(WorkOrderEmailSender::class)->sendVendorEmail(
+                    workOrder: $workOrder,
+                    vendor: $vendor,
+                    subject: $workOrder->subjectWithProperty('New Service Request - Work Order #'.$workOrder->work_order_no),
+                    html: $mailable->render(),
+                    files: [[
+                        'name' => $mailable->pdfFileName,
+                        'contentType' => 'application/pdf',
+                        'bytes' => $pdf['content'],
+                    ]],
+                    trustedHtml: true,
+                    // Turnover jobs are coordinated by the THMP coordinator, so
+                    // their vendor emails go out from that mailbox instead of
+                    // the shared work-orders one.
+                    mailbox: $workOrder->isTurnover()
+                        ? (string) config('services.microsoft.turnover_mailbox')
+                        : null,
+                );
             }
 
             $workOrder->forceFill(['service_request_sent_at' => now()])->save();

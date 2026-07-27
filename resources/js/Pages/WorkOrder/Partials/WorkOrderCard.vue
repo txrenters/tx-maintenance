@@ -1,5 +1,5 @@
 <script setup>
-import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2 } from "lucide-vue-next";
+import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2, CalendarClock } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { nextTick, onMounted, ref, watch } from "vue";
@@ -24,6 +24,16 @@ const props = defineProps({
         type: String,
         default: "all",
     },
+    // Client-side filters applied to the already-loaded board so filtering is
+    // instant (no server round-trip). Each is a no-op when empty/"all".
+    searchTerm: { type: String, default: "" },
+    vendorFilter: { type: [String, Number], default: "" },
+    categoryFilter: { type: String, default: "" },
+    emergencyFilter: { type: String, default: "" },
+    dateRange: { type: Object, default: null },
+    // HOA board: render the HOA deadline + state pill on each card (data comes
+    // from work_order.hoa, decorated server-side). No effect on other boards.
+    hoa: { type: Boolean, default: false },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -274,13 +284,78 @@ const cardColor = (work_order) => {
     return checkDueTask(work_order.tasks, work_order.scheduled_end_date);
 };
 
-const visibleWorkOrders = (status) => {
-    if (!props.colorFilter || props.colorFilter === "all") {
-        return status.work_orders;
-    }
+// --- Client-side filters ---------------------------------------------------
+// Everything below narrows the already-loaded board in the browser, so vendor,
+// category, emergency, search, date, and color filtering are all instant.
 
-    return status.work_orders.filter(
-        (work_order) => cardColor(work_order) === props.colorFilter
+const matchesSearch = (work_order) => {
+    const term = (props.searchTerm || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return [work_order.work_order_no, work_order.location, work_order.building?.name]
+        .filter((value) => value != null)
+        .some((value) => String(value).toLowerCase().includes(term));
+};
+
+const matchesVendor = (work_order) => {
+    if (!props.vendorFilter || props.vendorFilter === "all") return true;
+
+    return (work_order.vendors || []).some(
+        (vendor) => String(vendor.id) === String(props.vendorFilter)
+    );
+};
+
+const matchesCategory = (work_order) => {
+    if (!props.categoryFilter || props.categoryFilter === "all") return true;
+
+    return work_order.category === props.categoryFilter;
+};
+
+const matchesEmergency = (work_order) => {
+    const filter = props.emergencyFilter;
+    if (!filter || filter === "all") return true;
+
+    const isEmergency = work_order.is_emergency;
+    if (filter === "emergency") return isEmergency === true || isEmergency === 1;
+    if (filter === "non_emergency") return isEmergency === false || isEmergency === 0;
+    if (filter === "needs_review") return isEmergency === null || isEmergency === undefined;
+
+    return true;
+};
+
+const matchesColor = (work_order) => {
+    if (!props.colorFilter || props.colorFilter === "all") return true;
+
+    return cardColor(work_order) === props.colorFilter;
+};
+
+const matchesDate = (work_order) => {
+    const start = props.dateRange?.start ? props.dateRange.start.toString() : null;
+    const end = props.dateRange?.end ? props.dateRange.end.toString() : null;
+    if (!start && !end) return true;
+
+    // created_date is an ISO-ish datetime; its first 10 chars are the YYYY-MM-DD
+    // date, which compares correctly against the calendar range as a string.
+    const created = work_order.created_date
+        ? String(work_order.created_date).slice(0, 10)
+        : null;
+    if (!created) return false;
+
+    if (start && created < start) return false;
+    if (end && created > end) return false;
+
+    return true;
+};
+
+const visibleWorkOrders = (status) => {
+    return (status.work_orders || []).filter(
+        (work_order) =>
+            matchesSearch(work_order) &&
+            matchesVendor(work_order) &&
+            matchesCategory(work_order) &&
+            matchesEmergency(work_order) &&
+            matchesColor(work_order) &&
+            matchesDate(work_order)
     );
 };
 </script>
@@ -326,7 +401,9 @@ const visibleWorkOrders = (status) => {
                                     checkDueTask(
                                         work_order.tasks,
                                         work_order.scheduled_end_date
-                                    ) == 'red' || work_order.is_emergency,
+                                    ) == 'red' ||
+                                    work_order.is_emergency ||
+                                    (hoa && work_order.hoa?.overdue),
                                 'bg-primary':
                                     checkDueTask(
                                         work_order.tasks,
@@ -391,6 +468,24 @@ const visibleWorkOrders = (status) => {
                                         work_order.category
                                     }}
                                 </p>
+
+                                <!-- HOA deadline + state (HOA board only) -->
+                                <template v-if="hoa && work_order.hoa">
+                                    <p
+                                        v-if="work_order.hoa.deadline"
+                                        class="text-xs text-gray-100 flex items-center gap-1 justify-center mt-1"
+                                    >
+                                        <CalendarClock class="w-3 h-3" />Due
+                                        {{ work_order.hoa.deadline }}
+                                    </p>
+                                    <div class="mt-1 flex justify-center">
+                                        <span
+                                            class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                        >
+                                            {{ work_order.hoa.state }}
+                                        </span>
+                                    </div>
+                                </template>
                                 <p
                                     v-if="work_order.is_approved"
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"

@@ -61,6 +61,7 @@ const props = defineProps({
     service_status: Object,
     vendors: Object,
     categories: Object,
+    types: Array,
     users: Object,
     filter: Object,
 });
@@ -546,7 +547,7 @@ const handleWorkOrder = async (orderId) => {
     isLoading.value = true;
 
     try {
-        const response = await axios.get(route("work_orders.show", orderId));
+        const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data; // Assuming the API returns the work order details
 
         workOrderForm.id = order.id;
@@ -556,10 +557,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.managed_by = order.managed_by;
         workOrderForm.requested = order.requested_by;
         workOrderVendors.value = order.vendors ?? [];
-        workOrderForm.vendors =
-            order.local_status === "Created"
-                ? Object.values(order.vendors).map((vendor) => vendor.name)
-                : order.vendors;
+        workOrderForm.vendors = order.vendors ?? [];
         workOrderForm.is_approved = order.is_approved;
         workOrderForm.approved_date = order.approved_date;
         workOrderForm.approval_comments = order.approval_comments;
@@ -650,58 +648,14 @@ const date_range = ref({
     end: "",
 });
 
-const formatDate = (d) => (d ? d.toString() : null);
-
-const filterVendor = debounce(() => {
-    const newQuery = { vendor: filter_vendor.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const filterCategory = debounce(() => {
-    const newQuery = { category: filter_category.value || null };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-
-const fetchFilteredData = debounce(() => {
-    const startDate = formatDate(date_range.value?.start);
-    const endDate = formatDate(date_range.value?.end);
-
-    const newQuery = { start_date: startDate, end_date: endDate };
-
-    router.visit(url.value, {
-        method: "get",
-        data: newQuery,
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-        only: ["service_status"],
-    });
-}, 2000);
-watch(date_range, fetchFilteredData, { deep: true });
-watch(filter_vendor, filterVendor);
-watch(filter_category, filterCategory);
+// Vendor, category, search and date filtering are applied client-side on the
+// already-loaded board (see WorkOrderClosedCard) — no server round-trips.
 </script>
 <template>
     <Head :title="title" />
 
     <div class="flex gap-3 flex-col sm:flex-row items-center">
-        <SearchBar :url="url" v-model="search" />
+        <SearchBar v-model="search" />
         <div
             class="flex gap-2 items-center w-full"
             v-if="
@@ -834,6 +788,10 @@ watch(filter_category, filterCategory);
 
         <WorkOrderClosedCard
             :service_status="service_status"
+            :search-term="search"
+            :vendor-filter="filter_vendor"
+            :category-filter="filter_category"
+            :date-range="date_range"
             @showWorkOrder="handleWorkOrder"
         />
     </Deferred>
@@ -899,6 +857,7 @@ watch(filter_category, filterCategory);
             <WorkOrderDetails
                 :workOrder="workOrderForm"
                 :categories="categories"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"

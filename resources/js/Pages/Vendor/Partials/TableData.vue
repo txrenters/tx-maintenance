@@ -43,7 +43,7 @@ const syncVendor = (vendor) => {
                 <TableCell class="font-medium">
                     <Link
                         :href="route('vendors.show', vendor.id)"
-                        class="hover:text-primary hover:underline"
+                        class="text-primary hover:underline"
                     >
                         {{ vendor.name }}
                     </Link>

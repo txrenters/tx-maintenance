@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from "@/Components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
+import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
 
 const props = defineProps({
     tenantConversation: Array,
@@ -60,6 +61,50 @@ const displayMessage = computed({
 });
 const selectedTenant = ref("");
 const tenant_phone_number = ref(props.workOrder?.requested?.mobile_phone);
+
+// THMP (in-house) jobs are excluded from the automated tenant assignment
+// message — THMP staff message the tenant manually. This one-click button fills
+// the composer with the standard THMP wording (staff still review + Send; it
+// never sends on its own). Shown only when THMP is an assigned vendor.
+const THMP_NAME = "Texas Home Maintenance Pros";
+const hasThmpVendor = computed(
+    () =>
+        Array.isArray(props.workOrder?.vendors) &&
+        props.workOrder.vendors.some(
+            (vendor) =>
+                (vendor?.name || "").trim().toLowerCase() ===
+                THMP_NAME.toLowerCase()
+        )
+);
+const thmpRecipientFirstName = computed(() => {
+    const selected = props.workOrderTenants?.find(
+        (tenant) => tenant.id == selectedTenant.value
+    );
+    return (
+        selected?.first_name ||
+        props.workOrder?.requested?.first_name ||
+        props.workOrder?.requested_by?.first_name ||
+        ""
+    ).trim();
+});
+const thmpPropertyAddress = computed(
+    () =>
+        props.workOrder?.requested?.address ||
+        props.workOrder?.requested_by?.address ||
+        props.workOrder?.building?.address ||
+        props.workOrder?.building?.name ||
+        "your home"
+);
+const insertThmpTemplate = () => {
+    const name = thmpRecipientFirstName.value;
+    const greeting = name ? `Hi ${name},` : "Hi,";
+    const ref = props.workOrder?.work_order_no ?? props.workOrder?.id;
+    messageBody.value =
+        `${greeting}\n\nWe've assigned Texas Home Maintenance Pros to handle the repairs at ` +
+        `${thmpPropertyAddress.value} under Work Order #${ref}. We will let you know once we ` +
+        `receive the schedule updates from them. Thank you!`;
+    includeRefSuffix.value = true;
+};
 const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
 
 const page = usePage();
@@ -86,25 +131,33 @@ const autoResize = (event) => {
 const handleImageSelect = (event) => {
     const files = Array.from(event.target.files || []);
     files.forEach((file) => {
-        if (!file.type.startsWith("image/")) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        const isPdf = file.type === "application/pdf";
+        if (!isImage && !isVideo && !isPdf) {
             toast({
                 variant: "destructive",
                 title: "Invalid file type",
-                description: "Please select image files (JPG, PNG, GIF, etc.)",
+                description: "Please select an image, video, or PDF file",
             });
             return;
         }
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > 50 * 1024 * 1024) {
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: `${file.name} exceeds 5MB limit`,
+                description: `${file.name} exceeds 50MB limit`,
             });
+            return;
+        }
+        // PDFs get a filename tile rather than a data-URL thumbnail.
+        if (isPdf) {
+            selectedImages.value.push({ file, preview: null, isPdf: true });
             return;
         }
         const reader = new FileReader();
         reader.onload = (e) => {
-            selectedImages.value.push({ file, preview: e.target.result });
+            selectedImages.value.push({ file, preview: e.target.result, isVideo });
         };
         reader.readAsDataURL(file);
     });
@@ -231,9 +284,16 @@ console.log(props.workOrderTenants);
 <template>
     <div>
         <div class="grid gap-3 overflow-y-auto px-6">
-            <p class="font-semibold uppercase text-xs mb-3">
-                Tenant Conversation
-            </p>
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <p class="font-semibold uppercase text-xs">
+                    Tenant Conversation
+                </p>
+                <AutomationToggle
+                    v-if="workOrder?.id"
+                    :work-order-id="workOrder.id"
+                    channel="tenant"
+                />
+            </div>
             <div class="flex justify-between gap-2 mb-2">
                 <div>
                     <div class="flex gap-2">
@@ -281,10 +341,10 @@ console.log(props.workOrderTenants);
                                 :src="woc?.profile_photo_url || 'default.jpg'"
                             />
                             <AvatarFallback>
-                                {{ woc.name?.charAt(0) }}
+                                {{ woc?.name?.charAt(0) }}
                             </AvatarFallback>
                         </Avatar>
-                        {{ woc.name }}
+                        {{ woc?.name }}
                     </div>
                     {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
                 </div>
@@ -319,7 +379,22 @@ console.log(props.workOrderTenants);
                         :key="index"
                         class="relative"
                     >
+                        <video
+                            v-if="img.isVideo"
+                            :src="img.preview"
+                            class="w-20 h-20 object-cover rounded-lg border bg-black"
+                            muted
+                            playsinline
+                        />
+                        <div
+                            v-else-if="img.isPdf"
+                            class="w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
+                        >
+                            <span class="text-2xl">📄</span>
+                            <span class="w-full truncate text-[10px] text-muted-foreground">{{ img.file.name }}</span>
+                        </div>
                         <img
+                            v-else
                             :src="img.preview"
                             :alt="img.file.name"
                             class="w-20 h-20 object-cover rounded-lg border"
@@ -339,13 +414,26 @@ console.log(props.workOrderTenants);
                 </p>
             </div>
 
+            <!-- Quick-insert templates -->
+            <div v-if="hasThmpVendor" class="flex flex-wrap gap-2 mt-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    @click="insertThmpTemplate"
+                >
+                    Insert THMP assignment message
+                </Button>
+            </div>
+
             <!-- Message Input -->
             <div class="relative w-full mt-4 mb-6">
                 <!-- Hidden file input -->
                 <input
                     ref="fileInput"
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*,application/pdf"
                     multiple
                     @change="handleImageSelect"
                     class="hidden"

@@ -30,7 +30,11 @@ class ConversationStoreRequest extends FormRequest
             'vendor_id' => 'nullable|integer|exists:vendors,id',
             'conversation_type' => 'required|string|max:50',
             'images' => 'nullable|array|max:10',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120', // 5MB max per image
+            // Images, videos, and PDFs are all accepted. Recipients receive the
+            // media as a link in the SMS body (not a true MMS attachment), so video
+            // and documents are safe to allow; the size cap only bounds
+            // upload/storage. 50MB per file.
+            'images.*' => 'file|mimes:jpeg,png,jpg,gif,svg,webp,mp4,mov,m4v,3gp,3gpp,webm,pdf|max:51200',
         ];
     }
 }

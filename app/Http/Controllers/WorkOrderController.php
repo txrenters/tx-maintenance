@@ -5,20 +5,23 @@ namespace App\Http\Controllers;
 use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\SendOwnerVendorAssignmentEmail;
+use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
-use App\Notifications\NewWorkOrderAssignNotification;
 use App\Services\EmergencyAlertService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -29,6 +32,52 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkOrderController extends Controller
 {
+    /**
+     * Service statuses vendors must never see. Matches the seeder spelling
+     * exactly (notably "Followup", not "Follow Up").
+     *
+     * @var array<int, string>
+     */
+    public const VENDOR_HIDDEN_STATUSES = [
+        'Service Completed - Call Tenant for Followup',
+        'Completed - Verified - Updating Owner',
+        'Owner Completing Work',
+        'Closed',
+        'Paid',
+    ];
+
+    /**
+     * The only work_orders columns the kanban board cards render or filter on.
+     * The details modal fetches the full record separately (work_orders.data),
+     * so heavy columns (client_data, description, notes, remarks, …) must stay
+     * out of the board payload — serializing them for every open work order
+     * exhausted PHP's memory limit in production (2026-07-22).
+     *
+     * @var array<int, string>
+     */
+    public const BOARD_CARD_COLUMNS = [
+        'id',
+        'work_order_no',
+        'created_date',
+        'completed_date',
+        'scheduled_end_date',
+        'location',
+        'category',
+        'type',
+        'status',
+        'local_status',
+        'priority',
+        'is_approved',
+        'is_emergency',
+        'is_repeat_issue',
+        'repeat_count',
+        'total_cost',
+        'zone',
+        'service_status_id',
+        'building_id',
+        'tenant_id',
+    ];
+
     protected $propertyWareServices;
 
     public function __construct(PropertyWareService $propertyWareServices)
@@ -37,15 +86,88 @@ class WorkOrderController extends Controller
     }
 
     /**
+     * Relation loads trimmed to the fields the board cards actually use.
+     * belongsToMany selects keep the pivot columns Eloquent appends itself.
+     *
+     * @return array<string, mixed>
+     */
+    private function boardCardRelations(string $prefix = ''): array
+    {
+        return [
+            $prefix.'service_status:id,name',
+            $prefix.'building:id,propertyware_id,name',
+            $prefix.'requested_by:id,first_name,last_name',
+            $prefix.'tasks:id,work_order_id,status,due_date',
+            $prefix.'vendors' => fn ($q) => $q->select('vendors.id', 'vendors.name'),
+            $prefix.'owners' => fn ($q) => $q->select('owners.id', 'owners.first_name', 'owners.last_name'),
+        ];
+    }
+
+    /**
+     * A vendor's own work orders as a single flat list for the vendor "Work
+     * Orders" page. The list is restricted to work orders the vendor is actually
+     * tagged on (the work_order_vendors pivot) — NOT the broader WorkOrderScope
+     * rule, which would also surface work orders the vendor merely has a task or
+     * attachment on. Statuses vendors may never see are stripped out here. The
+     * page filters by status client-side, so every visible status is also
+     * returned for the dropdown.
+     */
+    public function vendorWorkOrders(Request $request)
+    {
+        $vendor = $request->user()->vendor;
+
+        // `tasks` is scoped to the vendor's own assignments by TaskScope, so the
+        // card can colour itself from the tasks that actually belong to them.
+        $workOrders = $vendor
+            ? $vendor->workOrders()
+                ->with(['service_status', 'building', 'tasks'])
+                ->orderByDesc('created_date')
+                ->get()
+                ->reject(fn (WorkOrder $workOrder) => $workOrder->status === 'Closed'
+                    || in_array(
+                        $workOrder->service_status?->name,
+                        self::VENDOR_HIDDEN_STATUSES,
+                        true,
+                    ))
+                ->values()
+            : collect();
+
+        // Build the filter dropdowns from the values that actually appear in the
+        // vendor's own work orders — so options they have none of (e.g. an "HOA
+        // Violation" category they never handle) never show up.
+        $statuses = $workOrders
+            ->map(fn (WorkOrder $workOrder) => $workOrder->service_status)
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values()
+            ->map(fn ($status) => ['id' => $status->id, 'name' => $status->name]);
+
+        $categories = $workOrders
+            ->pluck('category')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        return inertia('WorkOrder/VendorWorkOrders', [
+            'title' => 'Work Orders',
+            'workOrders' => Inertia::defer(fn () => $workOrders),
+            'statuses' => $statuses,
+            'categories' => $categories,
+            'filter' => $request->only(['status', 'category', 'search']),
+        ]);
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($q) {
-                $q->scoped()
+                $q->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     // Apply search filter
                     ->when(request('search'), function ($query, $search) {
                         $query->where('work_order_no', $search);
@@ -73,13 +195,7 @@ class WorkOrderController extends Controller
                     ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
                     ->where('type', 'NOT LIKE', '%Turnover%');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -100,8 +216,9 @@ class WorkOrderController extends Controller
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
@@ -142,8 +259,9 @@ class WorkOrderController extends Controller
         $closedStatus = ServiceStatus::where('name', 'Closed')->first();
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 // Apply search filter
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
@@ -192,15 +310,18 @@ class WorkOrderController extends Controller
             $service_status->push($closedStatus);
         }
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -221,12 +342,18 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category', 'emergency']),
         ]);
     }
 
     public function show(WorkOrder $workOrder)
+    {
+        return redirect()->route('work_orders.details', $workOrder);
+    }
+
+    public function data(WorkOrder $workOrder)
     {
         $workOrder->load([
             'service_status',
@@ -265,10 +392,30 @@ class WorkOrderController extends Controller
 
         return response()->json([
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'vendors' => $vendors,
             'users' => $users,
             'service_status' => $service_status,
         ]);
+    }
+
+    /**
+     * Distinct, trimmed work-order "type" values already in use. Type has no
+     * PropertyWare picklist table of its own, so the editable dropdown offers
+     * these. Blanks are dropped so the dropdown never renders empty options.
+     */
+    private function workOrderTypeOptions(): Collection
+    {
+        return WorkOrder::withoutGlobalScopes()
+            ->whereNotNull('type')
+            ->where('type', '!=', '')
+            ->distinct()
+            ->orderBy('type')
+            ->pluck('type')
+            ->map(fn ($type) => trim((string) $type))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     public function details(WorkOrder $workOrder)
@@ -312,13 +459,15 @@ class WorkOrderController extends Controller
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
 
+        $types = $this->workOrderTypeOptions();
+
         // Get service statuses for potential updates
         $serviceStatusesQuery = ServiceStatus::query();
 
         // Hide specific statuses from vendors
         if (request()->user()->hasRole('vendor')) {
             $serviceStatusesQuery->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Completed within 30 days',
@@ -364,7 +513,10 @@ class WorkOrderController extends Controller
             'vendors' => $vendors,
             'vendorLinks' => $vendorLinks,
             'categories' => $categories,
+            'types' => $types,
             'serviceStatuses' => $serviceStatuses,
+            // Staff-only "Open in Jobber" link (THMP jobs). Never shown to vendors.
+            'canViewJobberLink' => $user->hasAnyRole(['admin', 'woc', 'accounting']),
         ]);
     }
 
@@ -400,6 +552,14 @@ class WorkOrderController extends Controller
     public function update(UpdateWorkOrderRequest $request, WorkOrder $workOrder)
     {
         $validatedData = $request->validated();
+
+        // Store the exact known spelling of the category (PropertyWare's
+        // picklist values can carry invisible whitespace, e.g. "HVAC "), so
+        // the sync below succeeds and board filters never split one category
+        // into two.
+        if (filled($validatedData['category'] ?? null)) {
+            $validatedData['category'] = WorkOrderCategory::canonicalName($validatedData['category']);
+        }
 
         try {
             $workOrder->update($validatedData);
@@ -437,12 +597,11 @@ class WorkOrderController extends Controller
     public function closed_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->when(request('search'), function ($q, $search) {
-                    $q->where('work_order_no', $search);
-                })
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->when(request('search'), function ($q, $search) {
+                        $q->where('work_order_no', $search);
+                    })
                     ->when(request('vendor'), function ($q, $vendorId) {
                         $q->whereHas('vendors', function ($q) use ($vendorId) {
                             $q->where('work_order_vendors.vendor_id', $vendorId);
@@ -465,19 +624,13 @@ class WorkOrderController extends Controller
                     ->orderBy('work_order_no', 'ASC')
                     ->limit(50);
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ]);
 
         // Hide specific statuses from vendors
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -497,6 +650,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'users' => $users,
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -527,13 +681,7 @@ class WorkOrderController extends Controller
                     ->where('status', 'Open')
                     ->orderBy('work_order_no', 'DESC');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->where('name', 'Approved - Waiting on Payment')
             ->get();
@@ -551,6 +699,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $waitingOnPaymentStatus),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -603,6 +752,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => collect([$paidStatus])),
             'vendors' => $vendors,
             'categories' => $categories,
+            'types' => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -610,10 +760,9 @@ class WorkOrderController extends Controller
     public function inspections_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -635,13 +784,7 @@ class WorkOrderController extends Controller
                     ->where('category', 'LIKE', '%move out inspection%')
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -662,8 +805,9 @@ class WorkOrderController extends Controller
         $paidStatus = ServiceStatus::where('name', 'Paid')->first();
         if ($paidStatus) {
             $paidWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
@@ -696,8 +840,9 @@ class WorkOrderController extends Controller
         $closedStatus = ServiceStatus::where('name', 'Closed')->first();
         if ($closedStatus) {
             $closedWorkOrders = WorkOrder::query()
+                ->select(self::BOARD_CARD_COLUMNS)
                 ->scoped()
-                ->with(['service_status', 'vendors', 'requested_by', 'managed_by', 'tasks', 'owners', 'building'])
+                ->with($this->boardCardRelations())
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
@@ -739,15 +884,18 @@ class WorkOrderController extends Controller
             $service_status->push($closedStatus);
         }
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -766,6 +914,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -774,10 +923,9 @@ class WorkOrderController extends Controller
     public function lawn_service_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -802,27 +950,24 @@ class WorkOrderController extends Controller
                     })
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
         $service_status = $query->get();
 
-        // Hide specific statuses from vendors
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized $service_status collection (including the Paid/Closed buckets
+        // pushed above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
                 'Paid',
-            ]);
+            ]))->values();
         }
 
         $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
@@ -841,6 +986,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -849,10 +995,9 @@ class WorkOrderController extends Controller
     public function turnover_work_orders(Request $request)
     {
         $query = ServiceStatus::with([
-            'work_order',
-            'work_order.owners',
             'work_orders' => function ($query) {
-                $query->scoped()
+                $query->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
@@ -874,13 +1019,7 @@ class WorkOrderController extends Controller
                     ->where('type', 'Turnover')
                     ->where('status', 'Open');
             },
-            'work_orders.service_status',
-            'work_orders.vendors.user',
-            'work_orders.building',
-            'work_orders.requested_by',
-            'work_orders.managed_by',
-            'work_orders.tasks',
-            'work_orders.owners',
+            ...$this->boardCardRelations('work_orders.'),
         ])
             ->whereNot('name', 'Not Changed');
 
@@ -888,7 +1027,7 @@ class WorkOrderController extends Controller
 
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for follow up',
+                'Service Completed - Call Tenant for Followup',
                 'Completed - Verified - Updating Owner',
                 'Owner Completing Work',
                 'Closed',
@@ -912,6 +1051,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(fn () => $service_status),
             'vendors' => Inertia::defer(fn () => $vendors),
             'categories' => Inertia::defer(fn () => $categories),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $users),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
@@ -952,20 +1092,11 @@ class WorkOrderController extends Controller
                         'access_token' => $token,
                     ]);
 
-                    if ($vendor->email) {
-                        try {
-                            $portalUrl = route('vendor.portal.show', $token);
-                            $vendor->notify(
-                                new NewWorkOrderAssignNotification($workOrder, $portalUrl)
-                            );
-                        } catch (\Throwable $e) {
-                            Log::error('Vendor notification failed', [
-                                'vendor_id' => $vendor->id,
-                                'work_order_id' => $workOrder->id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
+                    // Generate the Work Order Information PDF, email it to the
+                    // vendor, and upload it to PropertyWare. Queued so the assign
+                    // request stays fast; the token above is read by the job.
+                    SendVendorWorkOrderInformation::dispatch($workOrder->id, $vendor->id);
+                    SendOwnerVendorAssignmentEmail::dispatch($workOrder->id, $vendor->id);
                 });
             }
 

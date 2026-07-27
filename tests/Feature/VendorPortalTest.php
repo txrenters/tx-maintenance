@@ -155,6 +155,31 @@ class VendorPortalTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_magic_link_works_while_logged_in_as_an_unrelated_vendor(): void
+    {
+        // The public portal is gated only by its token. A different vendor being
+        // authenticated in the same browser must not affect resolution — the
+        // WorkOrder global scope (which restricts a logged-in vendor to their own
+        // work orders) must not leak into the token lookup and 404 the page.
+        Role::findOrCreate('vendor', 'web');
+
+        $assigned = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($assigned->id, ['access_token' => 'token-acme']);
+
+        $intruder = $this->makeVendor('V-2', 'Beta Electric');
+        $intruder->user->assignRole('vendor');
+
+        $this->actingAs($intruder->user)
+            ->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('VendorPortal/Show')
+                ->where('vendorName', 'Acme Plumbing')
+                ->where('workOrder.work_order_no', 4567)
+            );
+    }
+
     public function test_one_vendor_token_never_exposes_another_vendor(): void
     {
         $acme = $this->makeVendor('V-1', 'Acme Plumbing');

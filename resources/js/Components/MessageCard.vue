@@ -4,6 +4,7 @@ import {
     AlertCircle,
     CheckCheck,
     Clock3,
+    FileIcon,
     Loader2,
     RotateCw,
     Send,
@@ -140,6 +141,21 @@ const openMedia = (mediaUrl) => {
     }
 };
 
+// Classify an attachment so the bubble renders the right element. Prefer the
+// stored content_type; fall back to the file extension for older rows.
+const mediaKind = (media) => {
+    const type = (media?.content_type || "").toLowerCase();
+    const name = (media?.file_name || "").toLowerCase();
+
+    if (type.startsWith("video/") || /\.(mp4|mov|m4v|3gp|3gpp|webm)$/.test(name)) {
+        return "video";
+    }
+    if (type === "application/pdf" || name.endsWith(".pdf")) {
+        return "pdf";
+    }
+    return "image";
+};
+
 const resendingIds = ref(new Set());
 
 const isFailedStatus = (status) => {
@@ -247,15 +263,33 @@ const resendMessage = async (msg) => {
                 class="mt-2"
             >
                 <!-- Multiple media format (original conversation format) -->
-                <img
-                    v-for="media in msg.media || []"
-                    :key="media.id"
-                    :src="media.public_url"
-                    :alt="media.file_name || 'Attached image'"
-                    class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
-                    style="max-width: 300px; max-height: 200px"
-                    @click="openMedia(media.public_url)"
-                />
+                <template v-for="media in msg.media || []" :key="media.id">
+                    <video
+                        v-if="mediaKind(media) === 'video'"
+                        :src="media.public_url"
+                        controls
+                        playsinline
+                        class="max-w-full h-auto rounded-lg shadow-sm bg-black"
+                        style="max-width: 300px; max-height: 200px"
+                    />
+                    <button
+                        v-else-if="mediaKind(media) === 'pdf'"
+                        type="button"
+                        class="flex items-center gap-2 max-w-[300px] rounded-lg border bg-white/90 px-3 py-2 text-left text-sm text-gray-700 shadow-sm cursor-pointer hover:bg-white"
+                        @click="openMedia(media.public_url)"
+                    >
+                        <FileIcon class="h-5 w-5 shrink-0 text-red-500" />
+                        <span class="truncate">{{ media.file_name || "Document.pdf" }}</span>
+                    </button>
+                    <img
+                        v-else
+                        :src="media.public_url"
+                        :alt="media.file_name || 'Attached image'"
+                        class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
+                        style="max-width: 300px; max-height: 200px"
+                        @click="openMedia(media.public_url)"
+                    />
+                </template>
                 <!-- Single image format (jobber text message format) -->
                 <img
                     v-if="msg.image && !msg.media"

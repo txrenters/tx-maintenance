@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Scopes\WorkOrderScope;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderVendor;
@@ -28,7 +29,11 @@ class ResolveVendorPortalToken
             abort(404);
         }
 
-        $workOrder = WorkOrder::find($assignment->work_order_id);
+        // The magic-link portal is public and gated solely by the token. Bypass
+        // the WorkOrderScope global scope so an unrelated vendor who happens to be
+        // logged in (its scope restricts finds to their own work orders) doesn't
+        // cause an otherwise-valid token to resolve to nothing and 404.
+        $workOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)->find($assignment->work_order_id);
         $vendor = Vendor::with('user')->find($assignment->vendor_id);
 
         if (! $workOrder || ! $vendor) {

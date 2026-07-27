@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\TenantsFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Tenants extends Model
 {
-    /** @use HasFactory<\Database\Factories\TenantsFactory> */
+    /** @use HasFactory<TenantsFactory> */
     use HasFactory;
 
     protected $table = 'tenants';
@@ -28,7 +30,18 @@ class Tenants extends Model
 
     public function work_orders(): BelongsToMany
     {
-        return $this->belongsToMany(WorkOrder::class, 'work_order_tenants');
+        return $this->belongsToMany(WorkOrder::class, 'work_order_tenants', 'tenant_id', 'work_order_id');
+    }
+
+    public function emailNotifications(): HasMany
+    {
+        return $this->hasMany(TenantEmailNotification::class, 'tenant_id');
+    }
+
+    public function jobberJobs(): BelongsToMany
+    {
+        return $this->belongsToMany(Jobber::class, 'jobber_job_tenant', 'tenant_id', 'jobber_job_id')
+            ->withTimestamps();
     }
 
     public function scopeFilter($query, array $filter): void

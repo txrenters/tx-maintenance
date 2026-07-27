@@ -8,6 +8,7 @@ import { useColorMode } from "@vueuse/core";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderModal from "@/Components/WorkOrder/WorkOrderModal.vue";
+import VendorMobileNav from "@/Components/VendorMobileNav.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
 const { toast } = useToast();
@@ -174,19 +175,21 @@ const navs = computed(() => {
                               ),
                           },
                           {
+                              title: "HOA Violations",
+                              url: route("work_orders.hoa"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/hoa"
+                              ),
+                          },
+                          {
                               title: "Completed",
                               url: route("work_orders.closed_work_orders"),
                               isActive: page.component === "WorkOrder/Close",
                           },
                       ],
-                requires: [
-                    "admin",
-                    "woc",
-                    "vendor",
-                    "tenant",
-                    "owner",
-                    "accounting",
-                ],
+                // Vendors get a single "Work Orders" link (in `menu`) instead of
+                // this split group, so they are intentionally excluded here.
+                requires: ["admin", "woc", "tenant", "owner", "accounting"],
             },
             {
                 title: "Jobs (Jobber)",
@@ -279,6 +282,13 @@ const navs = computed(() => {
                 icon: LayoutDashboard,
                 requires: ["admin", "woc", "vendor", "owner", "tenant"],
             },
+            {
+                name: "Work Orders",
+                url: route("work_orders.vendor"),
+                isActive: page.component === "WorkOrder/VendorWorkOrders",
+                icon: Wrench,
+                requires: ["vendor"],
+            },
         ],
         menu2: [
             {
@@ -290,7 +300,7 @@ const navs = computed(() => {
             },
 
             {
-                name: "Calendar",
+                name: "Schedules",
                 url: route("scheduled_service"),
                 isActive: page.url.startsWith("/scheduled_service"),
                 icon: CalendarDays,
@@ -601,28 +611,43 @@ const loading = ref(false);
 const selectedImages = ref([]);
 const fileInput = ref(null);
 
+const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50MB — matches backend validation
+
 const handleImageSelect = (event) => {
     const files = Array.from(event.target.files || []);
     files.forEach((file) => {
-        if (!file.type.startsWith("image/")) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        const isPdf = file.type === "application/pdf";
+        if (!isImage && !isVideo && !isPdf) {
             toast({
                 variant: "destructive",
                 title: "Invalid file type",
-                description: "Please select image files (JPG, PNG, GIF, etc.)",
+                description: "Please select an image, video, or PDF file",
             });
             return;
         }
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
             toast({
                 variant: "destructive",
                 title: "File too large",
-                description: `${file.name} exceeds 5MB limit`,
+                description: `${file.name} exceeds 50MB limit`,
             });
+            return;
+        }
+        // PDFs get a filename tile rather than a data-URL thumbnail — no need to
+        // read (potentially large) bytes into memory just to preview.
+        if (isPdf) {
+            selectedImages.value.push({ file, preview: null, isPdf });
             return;
         }
         const reader = new FileReader();
         reader.onload = (e) => {
-            selectedImages.value.push({ file, preview: e.target.result });
+            selectedImages.value.push({
+                file,
+                preview: e.target.result,
+                isVideo,
+            });
         };
         reader.readAsDataURL(file);
     });
@@ -1129,7 +1154,7 @@ onUnmounted(() => {
             </SidebarFooter>
             <SidebarRail />
         </Sidebar>
-        <SidebarInset>
+        <SidebarInset class="min-w-0">
             <div>
                 <header
                     class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
@@ -1548,7 +1573,10 @@ onUnmounted(() => {
                 </header>
             </div>
             <Separator />
-            <div class="flex flex-1 flex-col gap-4 p-4 pt-4">
+            <div
+                class="flex flex-1 flex-col gap-4 overflow-x-clip p-4 pt-4"
+                :class="{ 'pb-24 md:pb-4': canAccess(['vendor']) }"
+            >
                 <Toaster />
                 <slot />
             </div>
@@ -1688,7 +1716,7 @@ onUnmounted(() => {
                     </ScrollArea>
                 </div>
 
-                <!-- Image Preview -->
+                <!-- Attachment Preview -->
                 <div
                     v-if="selectedImages.length > 0"
                     class="mb-3 p-3 border rounded-lg bg-muted/20"
@@ -1699,7 +1727,22 @@ onUnmounted(() => {
                             :key="index"
                             class="relative"
                         >
+                            <video
+                                v-if="img.isVideo"
+                                :src="img.preview"
+                                class="w-20 h-20 object-cover rounded-lg border bg-black"
+                                muted
+                                playsinline
+                            />
+                            <div
+                                v-else-if="img.isPdf"
+                                class="w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
+                            >
+                                <FileIcon class="h-6 w-6 text-muted-foreground" />
+                                <span class="w-full truncate text-[10px] text-muted-foreground">{{ img.file.name }}</span>
+                            </div>
                             <img
+                                v-else
                                 :src="img.preview"
                                 :alt="img.file.name"
                                 class="w-20 h-20 object-cover rounded-lg border"
@@ -1715,7 +1758,7 @@ onUnmounted(() => {
                         </div>
                     </div>
                     <p class="text-xs text-muted-foreground mt-2">
-                        {{ selectedImages.length }} image{{
+                        {{ selectedImages.length }} file{{
                             selectedImages.length > 1 ? "s" : ""
                         }}
                         selected
@@ -1726,7 +1769,7 @@ onUnmounted(() => {
                 <input
                     ref="fileInput"
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*,application/pdf"
                     multiple
                     @change="handleImageSelect"
                     class="hidden"
@@ -1772,5 +1815,6 @@ onUnmounted(() => {
     </Dialog>
 
     <WorkOrderModal />
-</template>
 
+    <VendorMobileNav />
+</template>

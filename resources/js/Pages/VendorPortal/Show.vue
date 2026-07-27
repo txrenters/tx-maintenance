@@ -55,6 +55,21 @@ const toggleTheme = () => {
     localStorage.setItem("vendorPortalTheme", isDark.value ? "dark" : "light");
 };
 
+// Classify a message attachment so it renders as a video player, PDF link, or
+// image. Prefers content_type; falls back to the file extension for older rows.
+const mediaKind = (media) => {
+    const type = (media?.content_type || "").toLowerCase();
+    const name = (media?.file_name || "").toLowerCase();
+
+    if (type.startsWith("video/") || /\.(mp4|mov|m4v|3gp|3gpp|webm)$/.test(name)) {
+        return "video";
+    }
+    if (type === "application/pdf" || name.endsWith(".pdf")) {
+        return "pdf";
+    }
+    return "image";
+};
+
 // Image lightbox (modal) for viewing photos in-page.
 const lightbox = ref(null);
 
@@ -192,15 +207,32 @@ const isImageFile = (file) =>
     file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic)$/i.test(file.name);
 
 const onPickFiles = (e) => {
-    selectedFiles.value = Array.from(e.target.files || []);
-    selectedPreviews.value = selectedFiles.value.map((file) => {
+    const picked = Array.from(e.target.files || []);
+    picked.forEach((file) => {
+        const isDuplicate = selectedFiles.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (isDuplicate) {
+            return;
+        }
+        selectedFiles.value.push(file);
         const image = isImageFile(file);
-        return {
+        selectedPreviews.value.push({
             name: file.name,
             isImage: image,
             url: image ? URL.createObjectURL(file) : null,
-        };
+        });
     });
+    // Reset so re-picking the same file still fires @change.
+    e.target.value = "";
+};
+
+const removeSelectedFile = (index) => {
+    const [removed] = selectedPreviews.value.splice(index, 1);
+    if (removed?.url) {
+        URL.revokeObjectURL(removed.url);
+    }
+    selectedFiles.value.splice(index, 1);
 };
 
 const uploadPhotos = () => {
@@ -261,7 +293,16 @@ const messageInput = ref(null);
 const sending = ref(false);
 
 const onPickMessageImages = (e) => {
-    messageImages.value = Array.from(e.target.files || []);
+    Array.from(e.target.files || []).forEach((file) => {
+        const isDuplicate = messageImages.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (!isDuplicate) {
+            messageImages.value.push(file);
+        }
+    });
+    // Reset so re-picking the same file still fires @change.
+    e.target.value = "";
 };
 
 const removeMessageImage = (index) => {
@@ -904,6 +945,10 @@ const confirmCompleteTask = () => {
                                 <span class="text-[10px] text-muted-foreground"
                                     >Images, PDF, Word, Excel or text</span
                                 >
+                                <span class="text-[10px] text-muted-foreground"
+                                    >Add as many as you like — pick more anytime and
+                                    they'll stack up</span
+                                >
                                 <input
                                     ref="photoInput"
                                     type="file"
@@ -922,7 +967,7 @@ const confirmCompleteTask = () => {
                                 <div
                                     v-for="(p, i) in selectedPreviews"
                                     :key="i"
-                                    class="aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
                                 >
                                     <img
                                         v-if="p.isImage"
@@ -939,6 +984,13 @@ const confirmCompleteTask = () => {
                                             >{{ p.name }}</span
                                         >
                                     </div>
+                                    <button
+                                        type="button"
+                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                        @click="removeSelectedFile(i)"
+                                    >
+                                        <X class="w-3 h-3" />
+                                    </button>
                                 </div>
                             </div>
 
@@ -1099,17 +1151,39 @@ const confirmCompleteTask = () => {
                                             v-if="m.media && m.media.length"
                                             class="mt-1 grid grid-cols-2 gap-1"
                                         >
-                                            <a
+                                            <template
                                                 v-for="(media, i) in m.media"
                                                 :key="i"
-                                                :href="media.url"
-                                                target="_blank"
                                             >
-                                                <img
+                                                <video
+                                                    v-if="mediaKind(media) === 'video'"
                                                     :src="media.url"
-                                                    class="rounded-lg w-full h-20 object-cover"
+                                                    controls
+                                                    playsinline
+                                                    class="rounded-lg w-full h-20 object-cover bg-black"
                                                 />
-                                            </a>
+                                                <a
+                                                    v-else-if="mediaKind(media) === 'pdf'"
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="flex items-center gap-1 rounded-lg border px-2 py-3 text-xs truncate"
+                                                >
+                                                    <FileText class="h-4 w-4 shrink-0" />
+                                                    <span class="truncate">{{ media.file_name || "Document.pdf" }}</span>
+                                                </a>
+                                                <a
+                                                    v-else
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <img
+                                                        :src="media.url"
+                                                        class="rounded-lg w-full h-20 object-cover"
+                                                    />
+                                                </a>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>

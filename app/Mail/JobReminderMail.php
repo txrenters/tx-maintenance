@@ -22,8 +22,8 @@ class JobReminderMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: 'service@txhomemp.com',
             subject: $this->subjectLine,
-            cc: ['service@txhomemp.com'],
         );
     }
 

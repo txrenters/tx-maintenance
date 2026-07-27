@@ -74,7 +74,7 @@ function handlePaste(event) {
             v-model="model"
             @keydown.enter.prevent
             @paste="handlePaste"
-            class="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
+            class="w-full rounded-lg bg-background pl-8 md:w-[180px] lg:w-[220px]"
         />
     </div>
 </template>

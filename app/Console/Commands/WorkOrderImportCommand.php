@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\GenerateWorkOrderRecommendationJob;
+use App\Jobs\SendOwnerServiceRequestNotificationJob;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -150,7 +151,7 @@ class WorkOrderImportCommand extends Command
                 'lease_id' => $data['lease']['ID'] ?? null,
                 'portfolio_id' => $data['portfolio']['ID'] ?? null,
                 'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
-                'owner_id' => $owner,
+                'property_manager_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
                 'user_id' => $woc?->id,
                 'created_at' => $now,
@@ -214,6 +215,11 @@ class WorkOrderImportCommand extends Command
             // updated again.
             if ($isNewWorkOrder) {
                 GenerateWorkOrderRecommendationJob::dispatch($workOrder->id);
+
+                // Notify the property owner that a new service request has come
+                // in (confirmation + description texts). Gated off by default, so
+                // this is a no-op until enabled in production.
+                SendOwnerServiceRequestNotificationJob::dispatch($workOrder->id);
             }
         } catch (\Throwable $th) {
             DB::rollBack();

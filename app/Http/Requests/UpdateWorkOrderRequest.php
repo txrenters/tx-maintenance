@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateWorkOrderRequest extends FormRequest
@@ -17,13 +18,14 @@ class UpdateWorkOrderRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
             'work_order_no' => 'required',
             'category' => 'nullable|string',
+            'type' => 'nullable|string',
             'zone' => 'nullable|string',
             'management_plan' => 'nullable|string',
             'additional_work_needed_reschedule' => 'nullable|string',

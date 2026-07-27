@@ -3,14 +3,17 @@
 namespace App\Console\Commands;
 
 use App\Mail\JobReminderMail;
+use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
+use App\Models\Tenants;
+use App\Services\MicrosoftGraphMailService;
+use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -168,7 +171,7 @@ class SendJobReminders extends Command
         $subjectLine = sprintf('[TEST %d-day] Reminder: Scheduled TBP Service on %s', $reminderDays, $sampleDate);
 
         try {
-            Mail::to($to)->send(new JobReminderMail(
+            $this->sendReminderEmail($to, new JobReminderMail(
                 tenantName: $sampleName,
                 visitDate: $sampleDate,
                 body: $body,
@@ -665,7 +668,19 @@ class SendJobReminders extends Command
                 $recipientName = $recipient['name'];
                 $message = str_replace('{CLIENT_NAME}', $recipientName, $messageText);
                 $message2 = str_replace('{SCHEDULED_DATE}', $visitDate, $message);
+
+                // Lead the subject with the property so staff can tell at a
+                // glance which property an email is about; fall back to the
+                // Jobber job number when no property reference is available.
+                $propertyLabel = trim((string) ($recipient['propertyware_address'] ?? ''));
+                if ($propertyLabel === '' || strcasecmp($propertyLabel, 'N/A') === 0) {
+                    $propertyLabel = $visit->job->job_number ? 'Job #'.$visit->job->job_number : '';
+                }
+
                 $subjectLine = 'Reminder: Scheduled TBP Service on '.$visitDate;
+                if ($propertyLabel !== '') {
+                    $subjectLine = $propertyLabel.' - '.$subjectLine;
+                }
 
                 try {
                     Log::info('Sending job reminder email', [
@@ -677,12 +692,18 @@ class SendJobReminders extends Command
                         'notification_type' => $notifiedField,
                     ]);
 
-                    Mail::to($emailAddress)->send(new JobReminderMail(
+                    $this->sendReminderEmail($emailAddress, new JobReminderMail(
                         tenantName: $recipientName,
                         visitDate: $visitDate,
                         body: $message2,
                         subjectLine: $subjectLine,
-                    ));
+                    ), true, [
+                        'jobber_visit_id' => $visit->id,
+                        'jobber_job_id' => $visit->job->id,
+                        'jobber_job_number' => $visit->job->job_number,
+                        'notification_type' => $notifiedField,
+                        'visit_date' => $visitDate,
+                    ]);
 
                     Log::info('Job reminder email sent successfully', [
                         'client_name' => $recipientName,
@@ -710,6 +731,58 @@ class SendJobReminders extends Command
         }
 
         Log::info('Number of visit: ('.count($visits).") for date: {$scheduled_date->toDateString()}");
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    protected function sendReminderEmail(string $to, JobReminderMail $mail, bool $recordHistory = false, array $metadata = []): void
+    {
+        $html = $mail->render();
+        $mailbox = (string) config('services.microsoft.job_reminder_mailbox');
+
+        if (! $recordHistory) {
+            app(MicrosoftGraphMailService::class)->sendMail($to, [], $mail->subjectLine, $html, mailbox: $mailbox);
+
+            return;
+        }
+
+        $matchingTenants = Tenants::query()
+            ->whereRaw('LOWER(email) = ?', [strtolower($to)])
+            ->get();
+        $tenant = $matchingTenants->count() === 1
+            ? $matchingTenants->first()
+            : $matchingTenants->first(fn (Tenants $candidate): bool => strtolower(trim($candidate->first_name.' '.$candidate->last_name))
+                === strtolower(trim($mail->tenantName)));
+
+        if (! $tenant || $matchingTenants->filter(fn (Tenants $candidate): bool => strtolower(trim($candidate->first_name.' '.$candidate->last_name))
+            === strtolower(trim($mail->tenantName)))->count() > 1) {
+            Log::warning('Job reminder email history could not be linked unambiguously to a tenant', ['to' => $to]);
+            app(MicrosoftGraphMailService::class)->sendMail($to, [], $mail->subjectLine, $html, mailbox: $mailbox);
+
+            return;
+        }
+
+        $job = isset($metadata['jobber_job_id'])
+            ? Jobber::query()->find((int) $metadata['jobber_job_id'])
+            : null;
+
+        if ($job === null) {
+            app(MicrosoftGraphMailService::class)->sendMail($to, [], $mail->subjectLine, $html, mailbox: $mailbox);
+            Log::warning('Job reminder email history could not be linked to a Jobber job', ['to' => $to]);
+
+            return;
+        }
+
+        app(TenantJobberEmailSender::class)->send(
+            tenant: $tenant,
+            job: $job,
+            to: $to,
+            subject: $mail->subjectLine,
+            html: $html,
+            metadata: $metadata,
+            trustedHtml: true,
+        );
     }
 
     protected function formatNumber(string $number): string
@@ -748,15 +821,32 @@ class SendJobReminders extends Command
 
     protected function normalizeBaseBuildingReference(string $value): string
     {
+        $streetSuffixes = [
+            'avenue' => 'ave', 'ave' => 'ave',
+            'boulevard' => 'blvd', 'blvd' => 'blvd',
+            'circle' => 'cir', 'cir' => 'cir',
+            'court' => 'ct', 'ct' => 'ct',
+            'drive' => 'dr', 'dr' => 'dr',
+            'highway' => 'hwy', 'hwy' => 'hwy',
+            'lane' => 'ln', 'ln' => 'ln',
+            'parkway' => 'pkwy', 'pkwy' => 'pkwy',
+            'place' => 'pl', 'pl' => 'pl',
+            'road' => 'rd', 'rd' => 'rd',
+            'street' => 'st', 'st' => 'st',
+            'terrace' => 'ter', 'ter' => 'ter',
+            'trail' => 'trl', 'trl' => 'trl',
+        ];
+
         $parts = collect(explode(' ', $this->normalizeBuildingReference($value)))
             ->filter()
+            ->map(fn (string $part): string => $streetSuffixes[$part] ?? $part)
             ->values();
 
         if ($parts->isEmpty()) {
             return '';
         }
 
-        return $parts->take(2)->implode(' ');
+        return $parts->implode(' ');
     }
 
     protected function extractStreetNumber(string $value): ?string

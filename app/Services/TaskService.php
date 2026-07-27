@@ -11,6 +11,18 @@ use Illuminate\Support\Facades\Log;
 
 class TaskService
 {
+    /**
+     * Work order types that route their WOC coordination tasks to a dedicated
+     * user instead of the general work-order coordinator. Each entry names the
+     * target user's email and the role that user must hold.
+     *
+     * @var array<string, array{email: string, role: string}>
+     */
+    private const WOC_ROUTING_BY_TYPE = [
+        'Biweekly Lawn Services' => ['email' => 'xservice@txhomemp.com', 'role' => 'woc'],
+        'Turnover' => ['email' => 'mc@texasrenters.com', 'role' => 'admin'],
+    ];
+
     public static function createTasksForWorkOrder(WorkOrder $workOrder, bool $isEmergency, $serviceStatus_Id)
     {
         // Skip task creation if automated tasks are disabled
@@ -32,15 +44,33 @@ class TaskService
         // Check if work order has a scheduled date
         $hasScheduledDate = ! empty($workOrder->scheduled_end_date);
 
-        // Fetch the task template based on emergency status and service status ID
+        // Fetch the task template based on emergency status and service status ID.
+        // Work order types with their own template set (e.g. Turnover) use only
+        // that set: a status they skip generates no tasks rather than falling
+        // back to the generic workflow. Types without a dedicated set use the
+        // generic (null work_order_type) templates as before. Turnover is
+        // matched via isTurnover() (type OR category) since PropertyWare data
+        // carries it in either field.
+        $templateType = $workOrder->isTurnover() ? 'Turnover' : $workOrder->type;
+
+        $hasTypeSpecificTemplates = ! empty($templateType)
+            && TaskTemplate::where('work_order_type', $templateType)
+                ->where('is_current_service_status_emergency', $isEmergency)
+                ->exists();
+
         $taskTemplate = TaskTemplate::with(['currentServiceStatus', 'tasks'])
             ->whereHas('currentServiceStatus', function ($q) use ($serviceStatus_Id) {
                 $q->where('id', $serviceStatus_Id); // Use service_status_id
             })
             ->where('is_current_service_status_emergency', $isEmergency)
+            ->when(
+                $hasTypeSpecificTemplates,
+                fn ($q) => $q->where('work_order_type', $templateType),
+                fn ($q) => $q->whereNull('work_order_type')
+            )
             ->first();
 
-        if (empty($taskTemplate->tasks)) {
+        if (empty($taskTemplate) || $taskTemplate->tasks->isEmpty()) {
             return;
         }
 
@@ -50,8 +80,18 @@ class TaskService
         $vendors = $workOrder->vendors; // Assuming a relationship exists between WorkOrder and Vendor
 
         foreach ($taskTemplate->tasks as $task) {
+            // "N days from start date" due dates are anchored to the work
+            // order's start date (falling back to today when it is missing),
+            // regardless of any scheduled end date.
+            if ($task->due_date && str_contains($task->due_date, 'from start date')) {
+                preg_match('/\d+/', $task->due_date, $matches);
+                $days = ! empty($matches) ? (int) $matches[0] : 0;
+
+                $taskDueDate = ($workOrder->start_date ? Carbon::parse($workOrder->start_date) : $now->copy())
+                    ->addDays($days);
+            }
             // If scheduled_end_date exists, use it directly; otherwise calculate from current date
-            if ($hasScheduledDate) {
+            elseif ($hasScheduledDate) {
                 $taskDueDate = Carbon::parse($workOrder->scheduled_end_date);
             } else {
                 $taskDueDate = $now;
@@ -68,11 +108,7 @@ class TaskService
 
             // Assign task to WOC (Work Order Coordinator)
             if ($task->type === 'Woc') {
-                // Prefer a user specifically assigned on the template task; otherwise
-                // fall back to the first user with the 'woc' role (legacy behaviour).
-                $assignedUser = $task->assigned_user_id
-                    ? User::find($task->assigned_user_id)
-                    : User::role('woc')->first();
+                $assignedUser = self::resolveWocAssignee($workOrder, $task, ! empty($taskTemplate->work_order_type));
 
                 if ($assignedUser) {
                     $tasks[] = [
@@ -115,5 +151,70 @@ class TaskService
         if (! empty($tasks)) {
             DB::table('work_order_tasks')->insert($tasks);
         }
+    }
+
+    /**
+     * Resolve the user a WOC coordination task should be assigned to. Some work
+     * order types route to a dedicated user (see WOC_ROUTING_BY_TYPE); otherwise
+     * we honour an explicit template assignment and fall back to the first user
+     * with the 'woc' role. The routed user must hold the configured role, and if
+     * they are not found we fall back to the default so task creation never
+     * silently drops a WOC task.
+     *
+     * On type-specific templates (e.g. the Turnover workflow) an explicit
+     * per-task assignee wins over the type routing, since those templates name
+     * the exact person responsible for each step.
+     */
+    private static function resolveWocAssignee(WorkOrder $workOrder, $task, bool $isTypeSpecificTemplate = false): ?User
+    {
+        if ($isTypeSpecificTemplate && $task->assigned_user_id) {
+            $templateAssignee = User::find($task->assigned_user_id);
+
+            if ($templateAssignee) {
+                return $templateAssignee;
+            }
+        }
+
+        $routedUser = self::routedWocUserForType(
+            $workOrder->isTurnover() ? 'Turnover' : $workOrder->type
+        );
+
+        if ($routedUser) {
+            return $routedUser;
+        }
+
+        // Prefer a user specifically assigned on the template task; otherwise
+        // fall back to the first user with the 'woc' role (legacy behaviour).
+        return $task->assigned_user_id
+            ? User::find($task->assigned_user_id)
+            : User::role('woc')->first();
+    }
+
+    /**
+     * The work order types that route WOC tasks to a dedicated user.
+     *
+     * @return array<int, string>
+     */
+    public static function routedTypes(): array
+    {
+        return array_keys(self::WOC_ROUTING_BY_TYPE);
+    }
+
+    /**
+     * The user WOC tasks for the given work order type should route to, or null
+     * when the type has no routing rule or the configured user does not exist
+     * with the required role.
+     */
+    public static function routedWocUserForType(?string $type): ?User
+    {
+        $routing = self::WOC_ROUTING_BY_TYPE[$type] ?? null;
+
+        if (! $routing) {
+            return null;
+        }
+
+        return User::role($routing['role'])
+            ->where('email', $routing['email'])
+            ->first();
     }
 }

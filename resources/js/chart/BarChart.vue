@@ -1,5 +1,10 @@
 <template>
-    <Bar id="my-chart-id" :options="options" :data="barChartData" />
+    <!-- A sized, relative wrapper is required for a responsive Chart.js canvas:
+         without it the chart can drive the layout width and push the whole page
+         wider than the viewport on mobile. -->
+    <div class="relative w-full h-[320px] sm:h-[400px] md:h-[500px]">
+        <Bar id="my-chart-id" :options="options" :data="barChartData" />
+    </div>
 </template>
 
 <script setup>
@@ -49,6 +54,9 @@ const barChartData = computed(() => {
 
 const options = {
     responsive: true,
+    // Fill the sized wrapper instead of locking to a width-driven aspect ratio,
+    // so a narrow mobile screen never forces the chart (and page) wider.
+    maintainAspectRatio: false,
     animations: {
         tension: {
             duration: 1000,

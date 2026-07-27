@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { Link, router, usePage } from "@inertiajs/vue3";
 import { useFilter } from "reka-ui";
 import { DateTime } from "luxon";
@@ -29,6 +29,7 @@ const { toast } = useToast();
 const props = defineProps({
     workOrder: Object,
     categories: Array,
+    types: { type: Array, default: () => [] },
     vendors: Array,
     isLoading: Boolean,
     closeWorkOrderForm: Object,
@@ -47,6 +48,20 @@ const { contains } = useFilter({ sensitivity: "base" }); // this is use for vend
 
 const selectedVendors = ref(
     (props.workOrder.vendors || []).map((v) => ({ id: v.id, name: v.name })),
+);
+
+// Re-seed the picker whenever the work order's vendors are (re)loaded — the
+// board modal reuses this component across cards, and a successful assignment
+// refetches the work order, so keying on the vendors themselves keeps the
+// chips showing the saved assignment in every path.
+watch(
+    () => props.workOrder.vendors,
+    (vendors) => {
+        selectedVendors.value = (vendors || []).map((v) => ({
+            id: v.id,
+            name: v.name,
+        }));
+    },
 );
 
 const selectedVendorNames = computed({
@@ -308,9 +323,8 @@ const handleCompleteSubmit = () => {
                         title="Assign vendor"
                         :disabled="loading"
                         v-if="
-                            workOrder.local_status === 'Created' &&
-                            ($page.props.auth.user.roles.includes('admin') ||
-                                $page.props.auth.user.roles.includes('woc'))
+                            $page.props.auth.user.roles.includes('admin') ||
+                            $page.props.auth.user.roles.includes('woc')
                         "
                         @click.prevent="handleVendorSubmit"
                     >
@@ -321,19 +335,10 @@ const handleCompleteSubmit = () => {
 
                         Assign vendor
                     </Button>
-                    <template v-if="workOrder.local_status === 'Updated'">
-                        <p v-for="vendor in visibleWorkOrderVendors" :key="vendor.id ?? vendor">
-                            <span v-if="vendor.id"> {{ vendor.name }}</span>
-                            <span v-else> {{ vendor }}</span>
-                        </p>
-                        <br />
-                    </template>
-
                     <Combobox
                         v-model="selectedVendorNames"
                         v-model:open="open"
                         :ignore-filter="true"
-                        v-else
                     >
                         <ComboboxAnchor
                             as-child
@@ -534,7 +539,32 @@ const handleCompleteSubmit = () => {
                         </p>
                     </div>
                 </div>
-                <div>
+                <div
+                    v-if="
+                        $page.props.auth.user.roles.includes('admin') ||
+                        $page.props.auth.user.roles.includes('woc')
+                    "
+                >
+                    <Label for="message">Type:</Label>
+                    <Select v-model="workOrder.type">
+                        <SelectTrigger class="w-full">
+                            <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem
+                                    :value="type"
+                                    v-for="type in types"
+                                    :key="type"
+                                >
+                                    {{ type }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div v-else>
                     <Label for="message">Type:</Label>
                     <p>{{ workOrder.type }}</p>
                 </div>

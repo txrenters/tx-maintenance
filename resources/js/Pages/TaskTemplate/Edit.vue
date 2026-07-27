@@ -18,6 +18,7 @@ const props = defineProps({
 const form = useForm({
   id: props.template.id,
   name: props.template.name,
+  work_order_type: props.template.work_order_type || "",
   description: props.template.description,
   current_service_status_id: String(props.template.current_service_status_id),
   is_current_service_status_emergency:
@@ -156,6 +157,18 @@ onMounted(() => {
           <Label for="name" class="mb-2">Name</Label>
           <Input id="name" type="text" v-model="form.name" />
           <Label class="mt-1 text-destructive text-xs">{{ form.errors.name }}</Label>
+        </div>
+        <div class="mt-5">
+          <Label for="work_order_type" class="mb-2">Work Order Type (optional)</Label>
+          <Input
+            id="work_order_type"
+            type="text"
+            v-model="form.work_order_type"
+            placeholder="e.g. Turnover — leave blank for the generic workflow"
+          />
+          <Label class="mt-1 text-destructive text-xs">{{
+            form.errors.work_order_type
+          }}</Label>
         </div>
         <div class="flex gap-3 mt-5 flex-col sm:flex-row">
           <div class="w-full flex flex-col gap-1">

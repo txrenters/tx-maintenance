@@ -25,6 +25,7 @@
         "predis/predis": "^3.4",
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6",
+        "smalot/pdfparser": "^2.12",
         "spatie/laravel-activitylog": "^4.10",
         "spatie/laravel-image-optimizer": "^1.8",
         "spatie/laravel-permission": "^6.14",

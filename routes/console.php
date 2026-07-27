@@ -37,6 +37,15 @@ Schedule::command('import:work-order-documents')
 Schedule::command('import:buildings-from-work-orders')
     ->daily();
 
+// Fill in each building's real street address from PropertyWare. Runs after the
+// buildings import above so newly-created buildings get their address the same
+// night; --force is omitted so it only fetches buildings still missing details.
+// Owner notifications use this address when a work order has no tenant address.
+Schedule::command('sync:building-details')
+    ->dailyAt('00:30')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Refresh Jobber token every 30 minutes to prevent expiration
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
@@ -44,7 +53,13 @@ Schedule::command('jobber:refresh-token')
 
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
-    ->dailyAt('16:00')
+    ->dailyAt('10:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('vendors:followup-unscheduled')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:05')
     ->withoutOverlapping()
     ->runInBackground();
 
@@ -56,5 +71,46 @@ Schedule::command('twilio:sync-phone-numbers')
 
 Schedule::command('twilio:import-inbound-messages')
     ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Tenant-easy-fix photo links: initial sends + capped reminders. Gated off by
+// default (TENANT_PORTAL_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('tenant-portal:send-links')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();
+
+// HOA violations: daily tenant reminders until the 5-business-day deadline,
+// overdue escalation flag, and the corrected-confirmation email. Gated off by
+// default (HOA_VIOLATION_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('hoa:send-reminders')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:10')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Tenant vendor-contact follow-up: daily text to the tenant, starting the day
+// after a vendor is assigned, asking whether the vendor has reached out, until a
+// service schedule is set (or the cap is hit). Gated off by default
+// (TENANT_VENDOR_FOLLOWUP_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('tenants:followup-vendor-contact')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:15')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('emails:sync-replies')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('tenant-emails:sync-replies')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('owner-emails:sync-replies')
+    ->everyThreeMinutes()
     ->withoutOverlapping()
     ->runInBackground();

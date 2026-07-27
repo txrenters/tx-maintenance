@@ -8,7 +8,61 @@ const emit = defineEmits(["showWorkOrder"]);
 const props = defineProps({
     work_order: Object,
     service_status: Object,
+    // Client-side filters applied to the already-loaded board (instant, no
+    // server round-trip). Each is a no-op when empty/"all".
+    searchTerm: { type: String, default: "" },
+    vendorFilter: { type: [String, Number], default: "" },
+    categoryFilter: { type: String, default: "" },
+    dateRange: { type: Object, default: null },
 });
+
+const matchesSearch = (work_order) => {
+    const term = (props.searchTerm || "").trim().toLowerCase();
+    if (!term) return true;
+
+    return [work_order.work_order_no, work_order.location, work_order.building?.name]
+        .filter((value) => value != null)
+        .some((value) => String(value).toLowerCase().includes(term));
+};
+
+const matchesVendor = (work_order) => {
+    if (!props.vendorFilter || props.vendorFilter === "all") return true;
+
+    return (work_order.vendors || []).some(
+        (vendor) => String(vendor.id) === String(props.vendorFilter)
+    );
+};
+
+const matchesCategory = (work_order) => {
+    if (!props.categoryFilter || props.categoryFilter === "all") return true;
+
+    return work_order.category === props.categoryFilter;
+};
+
+const matchesDate = (work_order) => {
+    const start = props.dateRange?.start ? props.dateRange.start.toString() : null;
+    const end = props.dateRange?.end ? props.dateRange.end.toString() : null;
+    if (!start && !end) return true;
+
+    const created = work_order.created_date
+        ? String(work_order.created_date).slice(0, 10)
+        : null;
+    if (!created) return false;
+
+    if (start && created < start) return false;
+    if (end && created > end) return false;
+
+    return true;
+};
+
+const visibleWorkOrders = (status) =>
+    (status.work_orders || []).filter(
+        (work_order) =>
+            matchesSearch(work_order) &&
+            matchesVendor(work_order) &&
+            matchesCategory(work_order) &&
+            matchesDate(work_order)
+    );
 
 const page = usePage();
 const authUser = page.props.auth?.user;
@@ -86,7 +140,7 @@ const checkDueTask = (tasks) => {
         <template v-for="status in service_status" :key="status.id">
             <div
                 @click="handleWorkOrder(work_order)"
-                v-for="work_order in status.work_orders"
+                v-for="work_order in visibleWorkOrders(status)"
                 :key="work_order.id"
                 class="rounded-lg bg-gray-700 p-4 min-w-[240px] text-white cursor-pointer hover:shadow-lg transition-all"
             >

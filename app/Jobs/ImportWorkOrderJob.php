@@ -249,7 +249,7 @@ class ImportWorkOrderJob implements ShouldQueue
                 'lease_id' => $data['lease']['ID'] ?? null,
                 'portfolio_id' => $data['portfolio']['ID'] ?? null,
                 'unit_id' => ! empty($data['unitIDs'][0]) ? $data['unitIDs'][0] : null,
-                'owner_id' => $owner,
+                'property_manager_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
                 'user_id' => $woc?->id,
                 'created_at' => $now,
@@ -340,9 +340,15 @@ class ImportWorkOrderJob implements ShouldQueue
         if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
             foreach ($data['vendorIDs'] as $vendor) {
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
-                $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
+                // Only skip when this vendor is already on THIS work order — the
+                // check must be scoped to $work_order, otherwise a vendor already
+                // assigned to any other work order would never be attached here.
+                $vendorExist = DB::table('work_order_vendors')
+                    ->where('work_order_id', $work_order)
+                    ->where('vendor_id', $vendorId)
+                    ->exists();
 
-                if (! $vendorExist && $vendorId) { // don't insert if exists
+                if (! $vendorExist && $vendorId) { // don't insert if already on this work order
                     $vendorsData[] = [
                         'work_order_id' => $work_order,
                         'vendor_id' => $vendorId,

@@ -22,6 +22,8 @@ import VendorEdit from "./Partials/VendorEdit.vue";
 import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
 import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import Recommendation from "./Partials/Recommendation.vue";
+import OwnerEmail from "./Partials/OwnerEmail.vue";
+import EmailNotifications from "./Partials/EmailNotifications.vue";
 import {
     ClipboardList,
     ListChecks,
@@ -34,6 +36,7 @@ import {
     ArrowLeft,
     Sparkles,
     ExternalLink,
+    Mail,
 } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -49,7 +52,9 @@ const props = defineProps({
     vendors: Array,
     vendorLinks: Array,
     categories: Array,
+    types: Array,
     serviceStatuses: Array,
+    canViewJobberLink: Boolean,
 });
 
 const { toast } = useToast();
@@ -118,6 +123,12 @@ const tabButtons = [
         requires: ["admin", "woc"],
     },
     {
+        name: "owner_email",
+        tooltip: "Owner Email",
+        icon: Mail,
+        requires: ["admin", "woc"],
+    },
+    {
         name: "tenant_conversation",
         tooltip: "Tenant Conversation",
         icon: "T",
@@ -166,6 +177,12 @@ const tabButtons = [
         requires: ["admin", "woc", "vendor"],
     },
     {
+        name: "email_notifications",
+        tooltip: "Email Notifications",
+        icon: Mail,
+        requires: ["admin", "woc"],
+    },
+    {
         name: "conversation",
         tooltip: "Conversation",
         icon: MessagesSquare,
@@ -183,10 +200,7 @@ const workOrderForm = useForm({
     location: order.location,
     managed_by: order.managed_by,
     requested: order.requested_by,
-    vendors:
-        order.local_status === "Created"
-            ? Object.values(order.vendors ?? {}).map((v) => v.name)
-            : (order.vendors ?? []),
+    vendors: order.vendors ?? [],
     is_approved: order.is_approved,
     approved_date: order.approved_date,
     approval_comments: order.approval_comments,
@@ -226,6 +240,17 @@ const workOrderForm = useForm({
 
 const closeWorkOrderForm = useForm({ id: order.id });
 
+// A successful vendor assignment partially reloads the `workOrder` prop; the
+// form object above was seeded once at page load, so mirror the refreshed
+// vendors (and the status that gates around them) back into it.
+watch(
+    () => props.workOrder,
+    (fresh) => {
+        workOrderForm.vendors = fresh.vendors ?? [];
+        workOrderForm.local_status = fresh.local_status;
+    },
+);
+
 // ── Reactive data for tab content ─────────────────────────────────────────────
 const isLoading = ref(false);
 const workOrderTasks = ref(props.tasks ?? []);
@@ -236,13 +261,18 @@ const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
 const recommendation = ref(null);
 const isGeneratingRecommendation = ref(false);
+const emailNotifications = ref([]);
+const emailNotificationsLoading = ref(false);
 
 const ownerConversation = ref([]);
 const tenantConversation = ref([]);
 const vendorConversation = ref([]);
 const vendorOwnerConversation = ref([]);
 const vendorTenantConversation = ref([]);
-const workOrderOwners = ref([]);
+const ownerEmails = ref([]);
+const selectedOwnerId = ref(null);
+const ownerEmailSender = ref("");
+const workOrderOwners = ref(order.owners ?? []);
 const workOrderTenants = ref([]);
 const workOrderVendors = ref(order.vendors ?? []);
 
@@ -264,6 +294,49 @@ const fetchOwnerConversation = async () => {
         workOrderOwners.value = res.data.owners;
     } catch (e) {
         console.error(e);
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+const fetchEmailNotifications = async () => {
+    emailNotificationsLoading.value = true;
+
+    try {
+        const response = await axios.get(
+            route("work_order.email.notifications", workOrderForm.id),
+        );
+        emailNotifications.value = response.data.emails ?? [];
+    } catch (error) {
+        console.error(error);
+        toast({ variant: "destructive", title: "Email history unavailable" });
+    } finally {
+        emailNotificationsLoading.value = false;
+    }
+};
+
+const fetchOwnerEmails = async (ownerId = selectedOwnerId.value) => {
+    try {
+        isLoading.value = true;
+        selectedOwnerId.value = ownerId ?? workOrderOwners.value?.[0]?.id ?? null;
+
+        const res = await axios.get(
+            route("work_order.owner_email.index", workOrderForm.id),
+            {
+                params: selectedOwnerId.value
+                    ? { owner_id: selectedOwnerId.value }
+                    : {},
+            },
+        );
+        ownerEmails.value = res.data.owner_emails ?? [];
+        ownerEmailSender.value = res.data.sender_email ?? "";
+    } catch (e) {
+        console.error(e);
+        toast({
+            variant: "destructive",
+            title: "Email history unavailable",
+            description: "The owner email thread could not be loaded.",
+        });
     } finally {
         isLoading.value = false;
     }
@@ -493,8 +566,10 @@ const switchTab = (tabName) => {
     if (tabName === "notes") fetchNotes();
     if (tabName === "attachments") fetchAttachments();
     if (tabName === "invoices") fetchInvoices();
+    if (tabName === "email_notifications") fetchEmailNotifications();
     if (tabName === "service_schedule") fetchVendorServiceSchedules();
     if (tabName === "vendor_edit") fetchVendors();
+    if (tabName === "owner_email") fetchOwnerEmails();
     if (
         tabName === "vendor_conversation" ||
         tabName === "vendor_woc_conversation"
@@ -585,6 +660,16 @@ const handleCloseOrderSubmit = () => {
                     <ExternalLink class="h-3.5 w-3.5" />
                     PropertyWare
                 </a>
+                <a
+                    v-if="canViewJobberLink && workOrder.jobber_web_uri"
+                    :href="workOrder.jobber_web_uri"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                >
+                    <ExternalLink class="h-3.5 w-3.5" />
+                    Open in Jobber
+                </a>
             </div>
             <div class="flex gap-2 flex-wrap mt-2">
                 <Badge
@@ -640,6 +725,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'details'"
                 :workOrder="workOrderForm"
                 :categories="categories ?? []"
+                :types="types ?? []"
                 :vendors="vendors"
                 :closeWorkOrderForm="closeWorkOrderForm"
                 :isLoading="isLoading"
@@ -716,6 +802,17 @@ const handleCloseOrderSubmit = () => {
                 @update-owner-convo="fetchOwnerConversation"
             />
 
+            <OwnerEmail
+                v-if="activeTab === 'owner_email'"
+                :work-order="workOrderForm"
+                :owner-emails="ownerEmails"
+                :owners="workOrderOwners"
+                :owner-id="selectedOwnerId"
+                :sender-email="ownerEmailSender"
+                @select-owner="fetchOwnerEmails"
+                @update-owner-email="fetchOwnerEmails"
+            />
+
             <OwnerWocConversation
                 v-if="activeTab === 'owner_woc_conversation'"
                 :ownerConversation="ownerConversation"
@@ -780,6 +877,12 @@ const handleCloseOrderSubmit = () => {
                 :assignedVendors="workOrderVendors"
                 :isLoading="isLoading"
                 @fetch-invoices="fetchInvoices"
+            />
+
+            <EmailNotifications
+                v-if="activeTab === 'email_notifications'"
+                :emails="emailNotifications"
+                :loading="emailNotificationsLoading"
             />
 
             <Notes

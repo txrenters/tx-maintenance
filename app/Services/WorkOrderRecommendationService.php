@@ -207,11 +207,10 @@ class WorkOrderRecommendationService
      * Property identity is keyed on building_id — the same reliable "same
      * property" key the history scoring already uses.
      *
-     * @param  array<string, mixed>  $classification
-     * @param  Collection<int, WorkOrder>  $matchedHistory
-     *                                                      Also returns the vendor to reuse for auto-assignment, taken strictly from
-     *                                                      one of the SAME-issue priors (never from an unrelated job at the building),
-     *                                                      so a repeat plumbing issue can never be handed to an HVAC vendor.
+     * Also returns the vendor to reuse for auto-assignment, taken strictly from
+     * one of the SAME-issue priors (never from an unrelated job at the building),
+     * so a repeat plumbing issue can never be handed to an HVAC vendor.
+     *
      * @param  array<string, mixed>  $classification
      * @param  Collection<int, WorkOrder>  $matchedHistory
      * @return array{is_repeat: bool, count: int, vendor: ?Vendor}
@@ -325,6 +324,15 @@ class WorkOrderRecommendationService
             return;
         }
 
+        // Only an open, not-yet-completed work order is ever auto-assigned.
+        // Generation can also fire later in a work order's life (recommendation
+        // tab auto-generate, manual PropertyWare refresh), including on old or
+        // closed work orders that simply have no vendor linked — those must
+        // never email a vendor.
+        if ($workOrder->status !== 'Open' || $workOrder->completed_date !== null) {
+            return;
+        }
+
         // Respect a human's choice — only auto-assign an unassigned work order.
         if ($workOrder->vendors()->exists()) {
             return;
@@ -347,7 +355,7 @@ class WorkOrderRecommendationService
         } catch (\Throwable $e) {
             Log::error('Repeat-vendor auto-assign failed.', [
                 'work_order_id' => $workOrder->id,
-                'vendor_id' => $recommendedVendor->id,
+                'vendor_id' => $vendor->id,
                 'error' => $e->getMessage(),
             ]);
         }

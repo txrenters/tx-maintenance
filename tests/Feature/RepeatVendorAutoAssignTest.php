@@ -72,10 +72,11 @@ class RepeatVendorAutoAssignTest extends TestCase
             ->assertOk();
     }
 
-    public function test_auto_assign_is_off_by_default(): void
+    public function test_auto_assign_stays_off_when_the_gate_is_disabled(): void
     {
-        // The gate defaults to false, so even a clear repeat is not auto-assigned
-        // and no vendor is emailed — nothing outward happens without opting in.
+        // phpunit.xml pins VENDOR_AUTO_ASSIGN_ENABLED=false (the code default is
+        // ON for production), so even a clear repeat is not auto-assigned and no
+        // vendor is emailed — nothing outward happens while the gate is off.
         Notification::fake();
         [$vendor, $current] = $this->repeatScenario();
 
@@ -118,6 +119,28 @@ class RepeatVendorAutoAssignTest extends TestCase
         // A coordinator already picked a different vendor.
         $other = $this->makeVendor('V-901', 'Other Plumbing');
         $current->vendors()->attach($other->id);
+
+        $this->generate($current);
+
+        $this->assertDatabaseMissing('work_order_vendors', [
+            'work_order_id' => $current->id,
+            'vendor_id' => $vendor->id,
+        ]);
+        Notification::assertNothingSent();
+    }
+
+    public function test_a_closed_work_order_is_never_auto_assigned(): void
+    {
+        // Generation can fire later in a work order's life (recommendation tab
+        // auto-generate, manual PropertyWare refresh) on old or closed work
+        // orders with no vendor linked — those must never email a vendor.
+        config(['services.work_order.auto_assign_vendor' => true]);
+        Notification::fake();
+        $this->mock(PropertyWareService::class)
+            ->shouldReceive('changeWorkOrderVendors')->never();
+
+        [$vendor, $current] = $this->repeatScenario();
+        $current->update(['status' => 'Closed', 'completed_date' => now()->subDay()]);
 
         $this->generate($current);
 

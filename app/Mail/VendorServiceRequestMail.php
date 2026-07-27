@@ -22,19 +22,24 @@ class VendorServiceRequestMail extends Mailable
         public string $pdfContent,
         public ?string $portalUrl = null,
         public string $pdfFileName = 'Work Order Information.pdf',
+        public bool $isVacant = false,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: 'workorders@texasrenters.com',
             subject: 'New Service Request - Work Order #'.$this->workOrderNo,
-            cc: ['woc@texasrenters.com'],
+            cc: [
+                'mc@texasrenters.com',
+                'ofm@txhomemp.com',
+            ],
         );
     }
 
     public function content(): Content
     {
-        return new Content(markdown: 'emails.vendor-service-request');
+        return new Content(view: 'emails.vendor-service-request');
     }
 
     /**

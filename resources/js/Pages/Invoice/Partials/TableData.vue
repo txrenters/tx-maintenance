@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from "vue";
+import { usePage } from "@inertiajs/vue3";
 import { FileDownIcon } from "lucide-vue-next";
 
 const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
@@ -6,6 +8,13 @@ const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
 defineProps({
     data: Object,
 });
+
+const page = usePage();
+
+// A vendor only ever sees their own invoices, so the Vendor column is redundant.
+const isVendor = computed(() =>
+    (page.props.auth.user?.roles || []).includes("vendor")
+);
 
 const openEditDialog = (user) => {
     emit("openEditDialog", true, user);
@@ -20,11 +29,13 @@ const openDeleteDialog = (user) => {
         <TableHeader>
             <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>File</TableHead>
+                <TableHead class="hidden md:table-cell"> File </TableHead>
                 <TableHead class="hidden md:table-cell"> Amount </TableHead>
                 <TableHead class="hidden md:table-cell"> Status </TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
-                <TableHead class="md:table-cell"> Vendor </TableHead>
+                <TableHead v-if="!isVendor" class="md:table-cell">
+                    Vendor
+                </TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
@@ -73,7 +84,7 @@ const openDeleteDialog = (user) => {
                 <TableCell class="md:table-cell">
                     {{ invoice.work_order_no }}
                 </TableCell>
-                <TableCell class="md:table-cell">
+                <TableCell v-if="!isVendor" class="md:table-cell">
                     {{ invoice.vendor }}
                 </TableCell>
                 <!-- <TableCell>
@@ -94,7 +105,9 @@ const openDeleteDialog = (user) => {
         </TableCell> -->
             </TableRow>
             <TableRow v-if="data.length === 0">
-                <TableCell colspan="5">No invoices found!</TableCell>
+                <TableCell :colspan="isVendor ? 5 : 6"
+                    >No invoices found!</TableCell
+                >
             </TableRow>
         </TableBody>
     </Table>

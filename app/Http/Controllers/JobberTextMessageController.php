@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use InvalidArgumentException;
 
 class JobberTextMessageController extends Controller
 {
@@ -45,9 +44,33 @@ class JobberTextMessageController extends Controller
             return response()->json(['error' => 'Please provide either a message or an image.'], 422);
         }
 
-        // Format phone numbers ensuring proper + prefix
+        // Format phone numbers ensuring proper + prefix. A recipient with no
+        // digits at all (e.g. a bare contact name like "Dean", sent when that
+        // person has no phone on file in Jobber) is rejected with a clear
+        // message — formatNumber used to throw here, before the try block,
+        // which surfaced as a 500 on every send that included them.
         $senderNumber = $validatedData['sender_number'];
-        $receiverNumbers = array_map([$this, 'formatNumber'], $validatedData['receiver_numbers']);
+        $receiverNumbers = [];
+        $invalidRecipients = [];
+
+        foreach ($validatedData['receiver_numbers'] as $rawNumber) {
+            $cleanedNumber = preg_replace('/[^0-9]/', '', $rawNumber);
+
+            if ($cleanedNumber === '') {
+                $invalidRecipients[] = trim($rawNumber) !== '' ? trim($rawNumber) : '(empty)';
+
+                continue;
+            }
+
+            $receiverNumbers[] = '+'.$cleanedNumber;
+        }
+
+        if (! empty($invalidRecipients)) {
+            return redirect()->back()->withErrors([
+                'error' => 'No valid phone number for: '.implode(', ', array_unique($invalidRecipients))
+                    .'. Add their phone number in Jobber and try again.',
+            ]);
+        }
 
         try {
             $hasVisitColumn = JobberTextMessage::hasVisitColumn();
@@ -187,17 +210,6 @@ class JobberTextMessageController extends Controller
                 'details' => $e->getMessage(),
             ]);
         }
-    }
-
-    protected function formatNumber(string $number): string
-    {
-        $cleanedNumber = preg_replace('/[^0-9]/', '', $number);
-
-        if (empty($cleanedNumber)) {
-            throw new InvalidArgumentException('The provided phone number is invalid.');
-        }
-
-        return '+'.$cleanedNumber;
     }
 
     protected function getMessageColumnAvailability(): array
