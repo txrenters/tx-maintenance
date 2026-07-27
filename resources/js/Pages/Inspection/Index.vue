@@ -33,6 +33,7 @@ import {
     Calendar1,
     Plus,
     RefreshCw,
+    Wrench,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -990,6 +991,16 @@ usePoll(15000, {
                                 <User class="w-4 h-4 opacity-80" />
                                 <p class="text-sm text-wrap opacity-90">
                                     {{ item.client_name }}
+                                </p>
+                            </div>
+                            <div
+                                v-if="item.vendor_names"
+                                class="flex justify-start items-start gap-1 mb-1"
+                                :title="`Assigned vendor: ${item.vendor_names}`"
+                            >
+                                <Wrench class="w-4 h-4 opacity-80 shrink-0" />
+                                <p class="text-xs text-wrap opacity-90">
+                                    {{ item.vendor_names }}
                                 </p>
                             </div>
                             <div class="flex justify-between items-center mt-2">

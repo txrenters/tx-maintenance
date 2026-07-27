@@ -44,6 +44,41 @@ class Jobber extends Model
         return $this->hasMany(ClientContact::class, 'jobber_id');
     }
 
+    /**
+     * Vendors assigned to work this job. Jobber jobs are for non-TexasRenters
+     * client properties, so this is the only record of who is doing the work
+     * once it leaves the in-house THMP crew.
+     */
+    public function vendors(): BelongsToMany
+    {
+        return $this->belongsToMany(Vendor::class, 'jobber_job_vendors', 'jobber_job_id', 'vendor_id')
+            ->using(JobberJobVendor::class)
+            ->withPivot('access_token', 'cost_estimate', 'scheduled_end_date', 'information_sent_at')
+            ->withTimestamps();
+    }
+
+    public function jobAttachments(): HasMany
+    {
+        return $this->hasMany(JobberJobAttachment::class, 'jobber_job_id');
+    }
+
+    public function jobInvoices(): HasMany
+    {
+        return $this->hasMany(JobberJobInvoice::class, 'jobber_job_id');
+    }
+
+    /**
+     * Limit the query to jobs the given vendor is assigned to.
+     *
+     * Deliberately a local scope rather than a global one: a global scope would
+     * silently change what the Jobber importer and webhook controller can see
+     * whenever a vendor session happens to be active.
+     */
+    public function scopeForVendor($query, Vendor $vendor): void
+    {
+        $query->whereHas('vendors', fn ($q) => $q->where('vendors.id', $vendor->id));
+    }
+
     public function scopeFilter($query, array $filter): void
     {
         if (! empty($filter['search'])) {

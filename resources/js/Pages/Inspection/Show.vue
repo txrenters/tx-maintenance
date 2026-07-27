@@ -17,11 +17,17 @@ import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/Components/ui/card";
 import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxList } from "@/Components/ui/combobox";
-import { ArrowLeft, Calendar, ClipboardList, Eye, Loader2, MapPin, MessageCircle, Paperclip, Plus, Search, Send, Tag, User, X } from "lucide-vue-next";
+import { ArrowLeft, Calendar, ClipboardList, Copy, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({ title: String, job: Object });
+const props = defineProps({
+  title: String,
+  job: Object,
+  vendorOptions: { type: Array, default: () => [] },
+  canAssignVendors: { type: Boolean, default: false },
+  canUploadInvoices: { type: Boolean, default: false },
+});
 const { toast } = useToast();
 const page = usePage();
 
@@ -29,9 +35,21 @@ const job = ref(props.job ? { ...props.job } : null);
 const activeTab = ref("details");
 const tabs = [
   { name: "details", label: "Details", icon: ClipboardList },
+  { name: "vendors", label: "Vendors", icon: Wrench },
   { name: "visits", label: "Visits", icon: Calendar },
+  { name: "photos", label: "Photos", icon: ImageIcon },
+  { name: "invoices", label: "Invoices", icon: Receipt },
   { name: "messages", label: "Messages", icon: MessageCircle },
 ];
+
+const tabCount = (name) => {
+  if (name === "messages") return job.value?.text_messages_count;
+  if (name === "visits") return job.value?.visits_count;
+  if (name === "vendors") return job.value?.vendors?.length;
+  if (name === "photos") return job.value?.attachments?.length;
+  if (name === "invoices") return job.value?.invoices?.length;
+  return 0;
+};
 
 const senderPhoneNumber = ref(page.props.twilio_phone_number);
 const jobMessages = ref([]);
@@ -219,6 +237,123 @@ const switchTab = (tab) => {
   if (tab === "messages") fetchJobMessages();
 };
 
+/* ---------- Vendors ---------- */
+
+const selectedVendorIds = ref([...(props.job?.vendor_ids || [])]);
+const isSavingVendors = ref(false);
+
+const toggleVendor = (vendorId) => {
+  const index = selectedVendorIds.value.indexOf(vendorId);
+  if (index === -1) selectedVendorIds.value.push(vendorId);
+  else selectedVendorIds.value.splice(index, 1);
+};
+
+const saveVendors = () => {
+  if (!job.value?.id) return;
+  isSavingVendors.value = true;
+
+  router.put(route("jobber.vendors.change", job.value.id), { vendor_ids: selectedVendorIds.value }, {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Success", description: "Vendors updated." }),
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update vendors." }),
+    onFinish: () => (isSavingVendors.value = false),
+  });
+};
+
+const copyPortalLink = async (url) => {
+  try {
+    await navigator.clipboard.writeText(url);
+    toast({ title: "Copied", description: "Portal link copied to clipboard." });
+  } catch {
+    toast({ variant: "destructive", title: "Error", description: "Could not copy the link." });
+  }
+};
+
+/* ---------- Photos ---------- */
+
+const photoForm = ref({ title: "", type: "after", files: [] });
+const photoInput = ref(null);
+const isUploadingPhotos = ref(false);
+
+const handlePhotoSelect = (event) => {
+  photoForm.value.files = Array.from(event.target.files || []);
+};
+
+const uploadPhotos = () => {
+  if (!job.value?.id) return;
+  if (!photoForm.value.title.trim() || photoForm.value.files.length === 0) {
+    toast({ variant: "destructive", title: "Error", description: "Add a title and choose at least one file." });
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("title", photoForm.value.title);
+  formData.append("type", photoForm.value.type);
+  photoForm.value.files.forEach((file) => formData.append("files[]", file));
+
+  isUploadingPhotos.value = true;
+  router.post(route("jobber.attachments.store", job.value.id), formData, {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({ title: "Success", description: "Photos uploaded." });
+      photoForm.value = { title: "", type: "after", files: [] };
+      if (photoInput.value) photoInput.value.value = "";
+    },
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload photos." }),
+    onFinish: () => (isUploadingPhotos.value = false),
+  });
+};
+
+const deletePhoto = (id) => {
+  router.delete(route("jobber.attachments.destroy", id), {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Deleted", description: "Photo removed." }),
+  });
+};
+
+/* ---------- Invoices ---------- */
+
+const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
+const invoiceInput = ref(null);
+const isUploadingInvoice = ref(false);
+
+const handleInvoiceSelect = (event) => {
+  invoiceForm.value.filename = event.target.files?.[0] || null;
+};
+
+const uploadInvoice = () => {
+  if (!job.value?.id) return;
+  if (!invoiceForm.value.title.trim() || !invoiceForm.value.filename) {
+    toast({ variant: "destructive", title: "Error", description: "Add a title and choose a file." });
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("title", invoiceForm.value.title);
+  formData.append("amount", invoiceForm.value.amount || 0);
+  if (invoiceForm.value.vendor_id) formData.append("vendor_id", invoiceForm.value.vendor_id);
+  formData.append("filename", invoiceForm.value.filename);
+
+  isUploadingInvoice.value = true;
+  router.post(route("jobber.invoices.store", job.value.id), formData, {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice uploaded." });
+      invoiceForm.value = { title: "", amount: "", vendor_id: "", filename: null };
+      if (invoiceInput.value) invoiceInput.value.value = "";
+    },
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload the invoice." }),
+    onFinish: () => (isUploadingInvoice.value = false),
+  });
+};
+
+const deleteInvoice = (id) => {
+  router.delete(route("jobber.invoices.destroy", id), {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Deleted", description: "Invoice removed." }),
+  });
+};
+
 const deleteJob = () => {
   if (!job.value?.id) return;
   router.delete(route("inspections.destroy", job.value.id), {
@@ -228,6 +363,7 @@ const deleteJob = () => {
 
 watch(() => props.job, (value) => {
   job.value = value ? { ...value } : null;
+  selectedVendorIds.value = [...(value?.vendor_ids || [])];
   hydrate();
   loadSavedContacts();
 });
@@ -276,8 +412,8 @@ onUnmounted(() => {
         >
           <component :is="tab.icon" class="h-4 w-4" />
           {{ tab.label }}
-          <Badge v-if="(tab.name === 'messages' && job?.text_messages_count) || (tab.name === 'visits' && job?.visits_count)" variant="secondary" class="text-xs">
-            {{ tab.name === 'messages' ? job.text_messages_count : job.visits_count }}
+          <Badge v-if="tabCount(tab.name)" variant="secondary" class="text-xs">
+            {{ tabCount(tab.name) }}
           </Badge>
         </button>
       </div>
@@ -306,6 +442,140 @@ onUnmounted(() => {
           <p class="font-semibold mb-2">Instructions</p>
           <p v-html="job.instructions"></p>
         </div>
+      </div>
+
+      <div v-if="activeTab === 'vendors' && job" class="space-y-4">
+        <div v-if="job.vendors?.length" class="space-y-2">
+          <p class="font-semibold">Assigned</p>
+          <div v-for="vendor in job.vendors" :key="vendor.id" class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ vendor.name }}</p>
+              <p v-if="!vendor.has_email" class="text-xs text-amber-600">No email on file &mdash; send them the link below.</p>
+            </div>
+            <Button v-if="vendor.portal_url" variant="outline" size="sm" @click="copyPortalLink(vendor.portal_url)">
+              <Copy class="h-4 w-4" /> Copy portal link
+            </Button>
+          </div>
+        </div>
+        <p v-else class="text-muted-foreground">No vendor assigned yet &mdash; this job is with the in-house crew.</p>
+
+        <template v-if="canAssignVendors">
+          <Separator />
+          <div class="space-y-2">
+            <p class="font-semibold">Assign vendors</p>
+            <ScrollArea class="h-[260px] rounded-md border p-3">
+              <label v-for="vendor in vendorOptions" :key="vendor.id" class="flex items-center gap-2 py-1 cursor-pointer">
+                <input type="checkbox" :value="vendor.id" :checked="selectedVendorIds.includes(vendor.id)" @change="toggleVendor(vendor.id)" class="rounded border-input" />
+                <span class="text-sm">{{ vendor.name }}</span>
+              </label>
+            </ScrollArea>
+            <Button @click="saveVendors" :disabled="isSavingVendors">
+              <Loader2 v-if="isSavingVendors" class="h-4 w-4 animate-spin" />
+              Save vendors
+            </Button>
+          </div>
+        </template>
+      </div>
+
+      <div v-if="activeTab === 'photos' && job" class="space-y-4">
+        <div v-if="job.attachments?.length" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div v-for="file in job.attachments" :key="file.id" class="border rounded-lg overflow-hidden">
+            <a :href="file.url" target="_blank">
+              <img v-if="file.is_image" :src="file.url" :alt="file.title" class="w-full h-32 object-cover" />
+              <div v-else class="w-full h-32 flex items-center justify-center bg-muted"><Paperclip class="h-8 w-8 text-muted-foreground" /></div>
+            </a>
+            <div class="p-2 space-y-1">
+              <p class="text-xs font-medium truncate" :title="file.title">{{ file.title }}</p>
+              <div class="flex items-center justify-between">
+                <Badge variant="secondary" class="text-[10px]">{{ file.type }}</Badge>
+                <button v-if="canAssignVendors" @click="deletePhoto(file.id)" class="text-destructive hover:opacity-70"><Trash2 class="h-3 w-3" /></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-muted-foreground">No photos uploaded yet.</p>
+
+        <template v-if="canAssignVendors">
+          <Separator />
+          <div class="space-y-2">
+            <p class="font-semibold">Upload photos</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div>
+                <Label class="text-sm">Title</Label>
+                <Input v-model="photoForm.title" placeholder="e.g. Kitchen sink - after" />
+              </div>
+              <div>
+                <Label class="text-sm">Type</Label>
+                <select v-model="photoForm.type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="before">Before</option>
+                  <option value="after">After</option>
+                  <option value="attachment">Attachment</option>
+                </select>
+              </div>
+              <div>
+                <Label class="text-sm">Files</Label>
+                <input ref="photoInput" type="file" multiple @change="handlePhotoSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+              </div>
+            </div>
+            <Button @click="uploadPhotos" :disabled="isUploadingPhotos">
+              <Loader2 v-if="isUploadingPhotos" class="h-4 w-4 animate-spin" />
+              <Upload v-else class="h-4 w-4" />
+              Upload
+            </Button>
+          </div>
+        </template>
+      </div>
+
+      <div v-if="activeTab === 'invoices' && job" class="space-y-4">
+        <div v-if="job.invoices?.length" class="space-y-2">
+          <div v-for="invoice in job.invoices" :key="invoice.id" class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-medium">{{ invoice.title }}</p>
+              <p class="text-sm text-muted-foreground">
+                {{ invoice.vendor_name || 'No vendor' }} &middot; {{ formatDate(invoice.created_at) }}
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="font-semibold">${{ invoice.amount }}</span>
+              <Button variant="outline" size="sm" as-child><a :href="invoice.url" target="_blank"><Eye class="h-4 w-4" /> View</a></Button>
+              <button v-if="canUploadInvoices" @click="deleteInvoice(invoice.id)" class="text-destructive hover:opacity-70"><Trash2 class="h-4 w-4" /></button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-muted-foreground">No invoices uploaded yet.</p>
+
+        <template v-if="canUploadInvoices">
+          <Separator />
+          <div class="space-y-2">
+            <p class="font-semibold">Upload invoice</p>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <div>
+                <Label class="text-sm">Title</Label>
+                <Input v-model="invoiceForm.title" placeholder="Invoice title" />
+              </div>
+              <div>
+                <Label class="text-sm">Amount</Label>
+                <Input v-model="invoiceForm.amount" type="number" step="0.01" min="0" placeholder="0.00" />
+              </div>
+              <div>
+                <Label class="text-sm">Vendor</Label>
+                <select v-model="invoiceForm.vendor_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="">&mdash;</option>
+                  <option v-for="vendor in job.vendors" :key="vendor.id" :value="vendor.id">{{ vendor.name }}</option>
+                </select>
+              </div>
+              <div>
+                <Label class="text-sm">File</Label>
+                <input ref="invoiceInput" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+              </div>
+            </div>
+            <Button @click="uploadInvoice" :disabled="isUploadingInvoice">
+              <Loader2 v-if="isUploadingInvoice" class="h-4 w-4 animate-spin" />
+              <Upload v-else class="h-4 w-4" />
+              Upload
+            </Button>
+          </div>
+        </template>
       </div>
 
       <div v-if="activeTab === 'visits' && job" class="space-y-3">

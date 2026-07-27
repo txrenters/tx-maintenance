@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveJobberPortalToken;
 use App\Http\Middleware\ResolveTenantPortalToken;
 use App\Http\Middleware\ResolveVendorAccountToken;
 use App\Http\Middleware\ResolveVendorPortalToken;
@@ -44,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.key' => ValidateApiKey::class,
             'vendor.portal' => ResolveVendorPortalToken::class,
+            'jobber.portal' => ResolveJobberPortalToken::class,
             'vendor.account' => ResolveVendorAccountToken::class,
             'tenant.portal' => ResolveTenantPortalToken::class,
         ]);

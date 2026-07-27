@@ -152,6 +152,12 @@ return [
         'job_create_enabled' => env('JOBBER_JOB_CREATE_ENABLED', true),
         // The fixed Jobber user every THMP job is assigned to.
         'thmp_assignee_gid' => env('JOBBER_THMP_ASSIGNEE_GID', 'Z2lkOi8vSm9iYmVyL1VzZXIvMjE1MjEwMQ=='),
+        // Lets staff assign an outside vendor to a Jobber job. On by default:
+        // it only writes a local pivot row and sends nothing outward.
+        'vendor_assign_enabled' => env('JOBBER_VENDOR_ASSIGN_ENABLED', true),
+        // The assignment email + SMS to that vendor. Off by default so the first
+        // deploy and any backfill send nothing; flipped on after a dry run.
+        'vendor_notify_enabled' => env('JOBBER_VENDOR_NOTIFY_ENABLED', false),
     ],
 
 ];

@@ -66,6 +66,17 @@ class Vendor extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Jobber jobs (non-TexasRenters client properties) assigned to this vendor.
+     */
+    public function jobberJobs(): BelongsToMany
+    {
+        return $this->belongsToMany(Jobber::class, 'jobber_job_vendors', 'vendor_id', 'jobber_job_id')
+            ->using(JobberJobVendor::class)
+            ->withPivot('access_token', 'cost_estimate', 'scheduled_end_date', 'information_sent_at')
+            ->withTimestamps();
+    }
+
     public function emailMessages(): HasMany
     {
         return $this->hasMany(EmailMessage::class);

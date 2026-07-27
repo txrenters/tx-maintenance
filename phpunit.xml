@@ -43,5 +43,6 @@
         <env name="TENANT_VENDOR_FOLLOWUP_SMS_ENABLED" value="false"/>
         <env name="TENANT_ASSIGNMENT_SMS_ENABLED" value="false"/>
         <env name="JOBBER_JOB_CREATE_ENABLED" value="false"/>
+        <env name="JOBBER_VENDOR_NOTIFY_ENABLED" value="false"/>
     </php>
 </phpunit>

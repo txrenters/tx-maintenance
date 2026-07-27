@@ -58,10 +58,10 @@ Route::post('/jobber-text-messages/{jobberTextMessage}/resend', [ResendTwilioMes
 Route::post('/search-building', [BuildingController::class, 'searchBuilding']);
 Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController::class, 'updateCustomFields']);
 
-// Client contacts routes
-Route::get('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'index'])->name('client-contacts.index');
-Route::post('/jobbers/{jobber}/client-contacts', [ClientContactController::class, 'store'])->name('client-contacts.store');
-Route::delete('/client-contacts/{clientContact}', [ClientContactController::class, 'destroy'])->name('client-contacts.destroy');
+// Client contacts routes moved to the authenticated web group: they sat here
+// outside every auth middleware, so any guest could read an outside client's
+// contact names and phone numbers, and the store endpoint replaces the whole
+// list. The frontend already calls them with session cookies.
 
 // '/notification/messages' (get_conversation) moved to the authenticated web
 // group so a vendor cannot read another vendor's thread via notifications.
