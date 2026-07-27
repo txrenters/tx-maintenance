@@ -55,6 +55,30 @@ class JobberInvoiceController extends Controller
         return redirect()->back()->with('success', 'Invoice uploaded successfully!');
     }
 
+    /**
+     * Approve or decline an invoice.
+     *
+     * Mirrors the work-order flow: an invoice is created already approved, and
+     * this is the correction afterwards rather than a gate in front of it.
+     * Unlike API\InvoiceController::update() the status is validated against a
+     * fixed set and the caller must be staff.
+     */
+    public function update(Request $request, JobberJobInvoice $invoice)
+    {
+        $this->authorizeStaff($request);
+
+        $validated = $request->validate([
+            'status' => 'required|in:approved,decline',
+        ]);
+
+        $invoice->update(['status' => $validated['status']]);
+
+        return redirect()->back()->with(
+            'success',
+            'Invoice marked as '.($validated['status'] === 'decline' ? 'declined' : 'approved').'!'
+        );
+    }
+
     public function destroy(Request $request, JobberJobInvoice $invoice)
     {
         $this->authorizeStaff($request);

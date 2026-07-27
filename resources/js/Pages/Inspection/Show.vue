@@ -21,7 +21,8 @@ import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, 
 import { Checkbox } from "@/Components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
-import { ArrowLeft, Calendar, ClipboardList, Copy, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/Components/ui/dropdown-menu";
+import { ArrowLeft, Calendar, ClipboardList, Copy, EllipsisVertical, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -370,6 +371,16 @@ const deleteInvoice = (id) => {
   });
 };
 
+// Invoices arrive already approved, matching the work-order flow; this is the
+// correction afterwards, not a gate in front of the upload.
+const updateInvoiceStatus = (id, status) => {
+  router.patch(route("jobber.invoices.update", id), { status }, {
+    preserveScroll: true,
+    onSuccess: () => toast({ title: "Updated", description: `Invoice marked as ${status === "decline" ? "declined" : "approved"}.` }),
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Could not update the invoice." }),
+  });
+};
+
 const deleteJob = () => {
   if (!job.value?.id) return;
   router.delete(route("inspections.destroy", job.value.id), {
@@ -548,6 +559,7 @@ onUnmounted(() => {
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Vendor</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Date</TableHead>
               <TableHead class="text-right">Amount</TableHead>
               <TableHead class="text-right">Actions</TableHead>
@@ -557,6 +569,11 @@ onUnmounted(() => {
             <TableRow v-for="invoice in job.invoices" :key="invoice.id">
               <TableCell class="font-medium">{{ invoice.title }}</TableCell>
               <TableCell>{{ invoice.vendor_name || '—' }}</TableCell>
+              <TableCell>
+                <Badge :variant="invoice.status === 'decline' ? 'destructive' : ''">
+                  {{ invoice.status === 'decline' ? 'declined' : invoice.status }}
+                </Badge>
+              </TableCell>
               <TableCell>{{ formatDate(invoice.created_at) }}</TableCell>
               <TableCell class="text-right font-semibold">${{ invoice.amount }}</TableCell>
               <TableCell class="text-right">
@@ -564,9 +581,27 @@ onUnmounted(() => {
                   <Button variant="outline" size="sm" as-child>
                     <a :href="invoice.url" target="_blank"><Eye class="h-4 w-4" /> View</a>
                   </Button>
-                  <Button v-if="canUploadInvoices" variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="deleteInvoice(invoice.id)">
-                    <Trash2 class="h-4 w-4" />
-                  </Button>
+                  <DropdownMenu v-if="canUploadInvoices">
+                    <DropdownMenuTrigger as-child>
+                      <Button variant="ghost" size="icon" class="h-8 w-8">
+                        <EllipsisVertical class="h-4 w-4" />
+                        <span class="sr-only">Toggle menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem class="cursor-pointer" @click="updateInvoiceStatus(invoice.id, 'approved')">
+                        Mark as Approved
+                      </DropdownMenuItem>
+                      <DropdownMenuItem class="cursor-pointer" @click="updateInvoiceStatus(invoice.id, 'decline')">
+                        Mark as Declined
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem class="cursor-pointer text-destructive" @click="deleteInvoice(invoice.id)">
+                        Delete Invoice
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>

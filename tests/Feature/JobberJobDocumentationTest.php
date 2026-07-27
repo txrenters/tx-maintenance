@@ -171,6 +171,69 @@ class JobberJobDocumentationTest extends TestCase
         $this->assertDatabaseCount('jobber_job_invoices', 0);
     }
 
+    public function test_staff_can_decline_and_re_approve_an_invoice(): void
+    {
+        $invoice = JobberJobInvoice::query()->create([
+            'jobber_job_id' => $this->makeJob()->id,
+            'title' => 'Fence invoice',
+            'amount' => 300,
+            'filename' => 'jobber-invoices/fence.pdf',
+        ]);
+
+        // Matching the work-order flow, an invoice is stored already approved
+        // (read back from the database — Eloquent doesn't hydrate DB defaults).
+        $this->assertSame('approved', $invoice->fresh()->status);
+
+        $accounting = User::factory()->create()->assignRole('accounting');
+
+        $this->actingAs($accounting)
+            ->patch(route('jobber.invoices.update', $invoice->id), ['status' => 'decline'])
+            ->assertRedirect();
+
+        $this->assertSame('decline', $invoice->fresh()->status);
+
+        $this->actingAs($accounting)
+            ->patch(route('jobber.invoices.update', $invoice->id), ['status' => 'approved']);
+
+        $this->assertSame('approved', $invoice->fresh()->status);
+    }
+
+    public function test_an_arbitrary_invoice_status_is_rejected(): void
+    {
+        $invoice = JobberJobInvoice::query()->create([
+            'jobber_job_id' => $this->makeJob()->id,
+            'title' => 'Fence invoice',
+            'amount' => 300,
+            'filename' => 'jobber-invoices/fence.pdf',
+        ]);
+
+        $admin = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($admin)
+            ->patch(route('jobber.invoices.update', $invoice->id), ['status' => 'whatever'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('approved', $invoice->fresh()->status);
+    }
+
+    public function test_a_vendor_cannot_approve_or_decline_an_invoice(): void
+    {
+        $invoice = JobberJobInvoice::query()->create([
+            'jobber_job_id' => $this->makeJob()->id,
+            'title' => 'Fence invoice',
+            'amount' => 300,
+            'filename' => 'jobber-invoices/fence.pdf',
+        ]);
+
+        $vendorUser = User::factory()->create()->assignRole('vendor');
+
+        $this->actingAs($vendorUser)
+            ->patch(route('jobber.invoices.update', $invoice->id), ['status' => 'decline'])
+            ->assertForbidden();
+
+        $this->assertSame('approved', $invoice->fresh()->status);
+    }
+
     public function test_jobber_invoices_do_not_appear_on_the_work_order_invoice_page(): void
     {
         $job = $this->makeJob();

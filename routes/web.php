@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
+use App\Http\Controllers\API\JobberAttachmentsController;
+use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
@@ -18,8 +20,6 @@ use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
-use App\Http\Controllers\API\JobberAttachmentsController;
-use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
@@ -139,6 +139,7 @@ Route::middleware([
     Route::post('/inspections/{job}/attachments', [JobberAttachmentsController::class, 'store'])->name('jobber.attachments.store');
     Route::delete('/jobber-attachments/{attachment}', [JobberAttachmentsController::class, 'destroy'])->name('jobber.attachments.destroy');
     Route::post('/inspections/{job}/invoices', [JobberInvoiceController::class, 'store'])->name('jobber.invoices.store');
+    Route::patch('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'update'])->name('jobber.invoices.update');
     Route::delete('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'destroy'])->name('jobber.invoices.destroy');
 
     // Moved out of routes/api.php, where they sat outside every auth middleware:

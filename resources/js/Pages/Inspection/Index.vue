@@ -40,6 +40,7 @@ import {
     Copy,
     Trash2,
     Upload,
+    EllipsisVertical,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -96,6 +97,14 @@ import {
     TableRow,
 } from "@/Components/ui/table";
 import { Input } from "@/Components/ui/input";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/Components/ui/dropdown-menu";
 import { Separator } from "@/Components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Label } from "@/Components/ui/label";
@@ -461,6 +470,34 @@ const deleteInvoice = (id) => {
             await refreshSelectedJob();
         },
     });
+};
+
+// Invoices arrive already approved, matching the work-order flow; this is the
+// correction afterwards, not a gate in front of the upload.
+const updateInvoiceStatus = (id, status) => {
+    router.patch(
+        route("jobber.invoices.update", id),
+        { status },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast({
+                    title: "Updated",
+                    description: `Invoice marked as ${
+                        status === "decline" ? "declined" : "approved"
+                    }.`,
+                });
+                await refreshSelectedJob();
+            },
+            onError: () =>
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Could not update the invoice.",
+                }),
+        }
+    );
 };
 
 const newMessage = ref("");
@@ -1688,6 +1725,7 @@ usePoll(15000, {
                         <TableRow>
                             <TableHead>Title</TableHead>
                             <TableHead>Vendor</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead class="text-right">Amount</TableHead>
                             <TableHead class="text-right">Actions</TableHead>
                         </TableRow>
@@ -1703,6 +1741,21 @@ usePoll(15000, {
                             <TableCell>{{
                                 invoice.vendor_name || "—"
                             }}</TableCell>
+                            <TableCell>
+                                <Badge
+                                    :variant="
+                                        invoice.status === 'decline'
+                                            ? 'destructive'
+                                            : ''
+                                    "
+                                >
+                                    {{
+                                        invoice.status === "decline"
+                                            ? "declined"
+                                            : invoice.status
+                                    }}
+                                </Badge>
+                            </TableCell>
                             <TableCell class="text-right font-semibold"
                                 >${{ invoice.amount }}</TableCell
                             >
@@ -1719,15 +1772,60 @@ usePoll(15000, {
                                             ><Eye class="h-4 w-4" /> View</a
                                         >
                                     </Button>
-                                    <Button
+                                    <DropdownMenu
                                         v-if="selectedJob.can_upload_invoices"
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8 text-destructive"
-                                        @click="deleteInvoice(invoice.id)"
                                     >
-                                        <Trash2 class="h-4 w-4" />
-                                    </Button>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                class="h-8 w-8"
+                                            >
+                                                <EllipsisVertical
+                                                    class="h-4 w-4"
+                                                />
+                                                <span class="sr-only"
+                                                    >Toggle menu</span
+                                                >
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel
+                                                >Actions</DropdownMenuLabel
+                                            >
+                                            <DropdownMenuItem
+                                                class="cursor-pointer"
+                                                @click="
+                                                    updateInvoiceStatus(
+                                                        invoice.id,
+                                                        'approved'
+                                                    )
+                                                "
+                                            >
+                                                Mark as Approved
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer"
+                                                @click="
+                                                    updateInvoiceStatus(
+                                                        invoice.id,
+                                                        'decline'
+                                                    )
+                                                "
+                                            >
+                                                Mark as Declined
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                class="cursor-pointer text-destructive"
+                                                @click="
+                                                    deleteInvoice(invoice.id)
+                                                "
+                                            >
+                                                Delete Invoice
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </TableCell>
                         </TableRow>
