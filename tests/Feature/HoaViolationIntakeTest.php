@@ -8,6 +8,7 @@ use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\HoaNoticeExtractor;
+use App\Services\HoaViolationIntakeService;
 use App\Services\PropertyWareService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -181,6 +182,104 @@ class HoaViolationIntakeTest extends TestCase
         $this->assertSame(2, WorkOrder::query()->hoaViolations()->count());
         $this->assertSame(1, WorkOrder::query()->where('building_id', $first->propertyware_id)->count());
         $this->assertSame(1, WorkOrder::query()->where('building_id', $second->propertyware_id)->count());
+    }
+
+    public function test_a_work_order_categorized_in_propertyware_starts_the_hoa_workflow(): void
+    {
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        // Raised straight in PropertyWare under the HOA category — no notice
+        // was ever uploaded here, so it has no token yet.
+        $workOrder = WorkOrder::factory()->create([
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
+            'status' => 'Open',
+            'description' => 'Grill(s) need to be stored out of public view.',
+            'created_date' => '2026-07-20',
+        ]);
+
+        $adopted = app(HoaViolationIntakeService::class)->adoptCategorizedWorkOrder($workOrder);
+
+        $this->assertTrue($adopted);
+        $this->assertTrue(WorkOrder::query()->hoaViolations()->whereKey($workOrder->id)->exists());
+
+        $workOrder->refresh();
+        $this->assertEquals(
+            ServiceStatus::query()->where('name', 'Checking for Tenant Easy Fix')->value('id'),
+            $workOrder->service_status_id,
+        );
+
+        // The PropertyWare description is left untouched — there is no notice
+        // to read — and the deadline counts from the work order's created date.
+        $this->assertSame('Grill(s) need to be stored out of public view.', $workOrder->description);
+
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->firstOrFail();
+
+        // 2026-07-20 (Mon) + 5 business days => 2026-07-27 (Mon).
+        $this->assertSame('2026-07-27', $token->hoa_deadline_at->toDateString());
+    }
+
+    public function test_adoption_is_idempotent_and_ignores_other_categories(): void
+    {
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $service = app(HoaViolationIntakeService::class);
+
+        $hoa = WorkOrder::factory()->create([
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
+            'status' => 'Open',
+        ]);
+
+        $this->assertTrue($service->adoptCategorizedWorkOrder($hoa));
+        // A second pass (re-import, retry) must not open a second token or
+        // re-text the tenant.
+        $this->assertFalse($service->adoptCategorizedWorkOrder($hoa->refresh()));
+        $this->assertSame(1, TenantUploadToken::query()
+            ->where('work_order_id', $hoa->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->count());
+
+        $plumbing = WorkOrder::factory()->create(['category' => 'Plumbing', 'status' => 'Open']);
+
+        $this->assertFalse($service->adoptCategorizedWorkOrder($plumbing));
+        $this->assertSame(0, TenantUploadToken::query()->where('work_order_id', $plumbing->id)->count());
+    }
+
+    public function test_a_hand_categorized_work_order_is_not_adopted_as_the_follow_up_target(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        // Staff categorized this one by hand, so it shows on the HOA board but
+        // carries no token — a new notice must still get its own work order
+        // rather than attaching to a possibly unrelated request.
+        $manual = WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
+            'status' => 'Open',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        $this->assertSame(2, WorkOrder::query()->hoaViolations()->count());
+        $this->assertFalse(
+            $manual->tenantUploadTokens()
+                ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+                ->exists(),
+        );
     }
 
     public function test_pw_create_path_imports_the_work_order_back(): void

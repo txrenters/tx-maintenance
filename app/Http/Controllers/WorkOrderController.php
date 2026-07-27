@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
 use App\Http\Requests\UpdateWorkOrderRequest;
+use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
@@ -570,6 +571,14 @@ class WorkOrderController extends Controller
             $result = (new UpdateWorkOrder($workOrder->id, $validatedData))->handle(app(PropertyWareService::class));
 
             $workOrder->load('service_status');
+
+            // Re-categorizing a work order as an HOA violation puts it on the
+            // HOA board, so start the same workflow the notice upload starts.
+            // The job is a no-op when it is any other category or the work
+            // order is already tracked.
+            if (($validatedData['category'] ?? null) === WorkOrder::HOA_VIOLATION_CATEGORY) {
+                AdoptCategorizedHoaViolationJob::dispatch($workOrder->id);
+            }
 
             if (! ($result['ok'] ?? false)) {
                 Log::warning('Work order saved locally but not synced to PropertyWare', [

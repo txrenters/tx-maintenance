@@ -8,6 +8,7 @@ use App\Models\Building;
 use App\Models\Owner;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
+use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\OwnerServiceRequestNotificationService;
@@ -187,6 +188,51 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $workOrder->update(['type' => 'Turnover']);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
+    public function test_it_does_not_notify_on_a_categorized_hoa_violation(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->owners()->attach($owner->id);
+
+        // A violation notice is not a tenant-submitted repair request — dumping
+        // its items and remedies into the intake text confuses the owner.
+        $workOrder->update(['category' => WorkOrder::HOA_VIOLATION_CATEGORY]);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
+    public function test_it_does_not_notify_on_an_hoa_violation_created_from_an_upload(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->owners()->attach($owner->id);
+
+        // Uploaded notices carry the HOA token instead of the category.
+        TenantUploadToken::query()->create([
+            'work_order_id' => $workOrder->id,
+            'token' => 'hoa-test-token',
+            'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
+        ]);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
 
         $this->assertSame(0, $workOrder->owner_conversation()->count());
         Queue::assertNotPushed(SendConversationMessageJob::class);

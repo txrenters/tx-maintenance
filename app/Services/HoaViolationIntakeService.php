@@ -73,6 +73,49 @@ class HoaViolationIntakeService
     }
 
     /**
+     * Adopt a work order that staff categorized "HOA Violation" straight in
+     * PropertyWare instead of uploading the notice PDF here.
+     *
+     * There is no notice document to read, so the description, type, and
+     * attachments stay exactly as PropertyWare sent them. This only starts the
+     * same downstream workflow the upload path starts: Tenant Easy Fix status,
+     * the deadline token, and the tenant's photo-upload link — after which the
+     * daily reminders, escalation, and confirmation all run unchanged, because
+     * they key off the token.
+     *
+     * The owner is deliberately not notified: they are usually the one who
+     * forwarded the HOA notice in the first place.
+     */
+    public function adoptCategorizedWorkOrder(WorkOrder $workOrder): bool
+    {
+        if (trim((string) $workOrder->category) !== WorkOrder::HOA_VIOLATION_CATEGORY) {
+            return false;
+        }
+
+        // Any HOA token at all — open or already completed — means this work
+        // order has been through the workflow, so never restart it.
+        $alreadyTracked = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->exists();
+
+        if ($alreadyTracked) {
+            return false;
+        }
+
+        // No notice date was extracted, so the deadline counts from when the
+        // work order was raised.
+        $noticeDate = $workOrder->created_date
+            ? Carbon::parse($workOrder->created_date)
+            : now();
+
+        $this->applyEasyFixStatus($workOrder, (string) $workOrder->description, false);
+        $this->openHoaToken($workOrder, $noticeDate, []);
+
+        return true;
+    }
+
+    /**
      * @param  array{description?: ?string, violation_items?: array<int, string>, hoa_name?: ?string}  $notice
      */
     private function buildDescription(array $notice): string
@@ -98,11 +141,20 @@ class HoaViolationIntakeService
         return implode("\n", $lines);
     }
 
+    /**
+     * Deliberately narrower than the hoaViolations() scope: only a work order
+     * this feature itself opened (it carries the HOA token) counts as the
+     * follow-up target. A work order merely categorized "HOA Violation" by hand
+     * shows on the HOA board, but adopting one here could attach a fresh notice
+     * to a stale or unrelated work order, so those still get their own.
+     */
     private function findExistingOpenHoaWorkOrder(Building $building): ?WorkOrder
     {
         return WorkOrder::query()
             ->where('building_id', $building->propertyware_id)
-            ->hoaViolations()
+            ->whereHas('tenantUploadTokens', function ($tokens) {
+                $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
+            })
             ->where('status', 'Open')
             ->latest('id')
             ->first();

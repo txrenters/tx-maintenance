@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Jobs\SendOwnerServiceRequestNotificationJob;
 use App\Models\User;
@@ -218,8 +219,16 @@ class WorkOrderImportCommand extends Command
 
                 // Notify the property owner that a new service request has come
                 // in (confirmation + description texts). Gated off by default, so
-                // this is a no-op until enabled in production.
+                // this is a no-op until enabled in production. HOA violations
+                // opt out inside the service — the owner is usually the one who
+                // forwarded the notice.
                 SendOwnerServiceRequestNotificationJob::dispatch($workOrder->id);
+
+                // A work order raised in PropertyWare under the "HOA Violation"
+                // category never passes through the notice upload screen, so
+                // start its HOA workflow (Tenant Easy Fix, deadline, tenant
+                // photo link) here instead. A no-op for every other category.
+                AdoptCategorizedHoaViolationJob::dispatch($workOrder->id);
             }
         } catch (\Throwable $th) {
             DB::rollBack();
