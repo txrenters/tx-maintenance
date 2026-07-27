@@ -19,7 +19,7 @@ class JobberAccessControlTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['admin', 'woc', 'accounting', 'vendor', 'tenant'] as $role) {
+        foreach (['admin', 'woc', 'accounting', 'vendor', 'tenant', 'owner'] as $role) {
             Role::findOrCreate($role, 'web');
         }
     }
@@ -144,7 +144,11 @@ class JobberAccessControlTest extends TestCase
             ->assertJsonStructure(['vendor_options', 'attachments', 'invoices']);
     }
 
-    public function test_accounting_can_view_a_job_but_cannot_assign_vendors(): void
+    /**
+     * Anyone in the office may work these jobs — only outside parties are kept
+     * out — so accounting gets the same abilities as admin and WOC.
+     */
+    public function test_accounting_can_assign_vendors_and_handle_invoices(): void
     {
         $job = $this->makeJob();
         $accounting = User::factory()->create()->assignRole('accounting');
@@ -153,9 +157,44 @@ class JobberAccessControlTest extends TestCase
             ->get(route('jobber.jobDetails', ['job' => $job->id]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('canAssignVendors', false)
+                ->where('canAssignVendors', true)
                 ->where('canUploadInvoices', true)
             );
+
+        $vendor = $this->makeVendor(User::factory()->create());
+
+        $this->actingAs($accounting)
+            ->put(route('jobber.vendors.change', $job->id), ['vendor_ids' => [$vendor->id]])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('jobber_job_vendors', [
+            'jobber_job_id' => $job->id,
+            'vendor_id' => $vendor->id,
+        ]);
+    }
+
+    public function test_a_user_with_no_role_cannot_reach_a_job(): void
+    {
+        $job = $this->makeJob();
+        $nobody = User::factory()->create();
+
+        $this->actingAs($nobody)
+            ->get(route('jobber.jobDetails', ['job' => $job->id]))
+            ->assertForbidden();
+    }
+
+    public function test_an_owner_cannot_upload_or_approve_invoices(): void
+    {
+        $job = $this->makeJob();
+        $owner = User::factory()->create()->assignRole('owner');
+
+        $this->actingAs($owner)
+            ->get(route('jobber.jobDetails', ['job' => $job->id]))
+            ->assertForbidden();
+
+        $this->actingAs($owner)
+            ->put(route('jobber.vendors.change', $job->id), ['vendor_ids' => []])
+            ->assertForbidden();
     }
 
     public function test_a_vendor_only_sees_their_own_assigned_jobs(): void

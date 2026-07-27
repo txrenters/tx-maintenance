@@ -91,6 +91,6 @@ class JobberInvoiceController extends Controller
 
     private function authorizeStaff(Request $request): void
     {
-        abort_unless((bool) $request->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
+        abort_unless((bool) $request->user()?->isStaff(), 403);
     }
 }

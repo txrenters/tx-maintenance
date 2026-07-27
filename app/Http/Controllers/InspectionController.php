@@ -22,14 +22,6 @@ class InspectionController extends Controller
     /**
      * Display a listing of the resource.
      */
-    /**
-     * Staff roles allowed to see every client's Jobber jobs. Vendors are
-     * deliberately excluded: these pages are unscoped, so a vendor here would
-     * see every outside client's job, contacts and phone numbers. Vendors get
-     * their own scoped list via vendorJobs() and the magic-link portal.
-     */
-    private const STAFF_ROLES = ['admin', 'woc', 'accounting'];
-
     public function index(Request $request)
     {
         $this->authorizeStaff($request);
@@ -119,24 +111,26 @@ class InspectionController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $canAssignVendors = (bool) $request->user()?->hasAnyRole(['admin', 'woc']);
-        $canUploadInvoices = (bool) $request->user()?->hasAnyRole(['admin', 'woc', 'accounting']);
+        // Anyone in the office may assign a vendor and handle documentation on
+        // these jobs; only outside parties are kept out. One flag drives both
+        // so the two never drift apart.
+        $isStaff = (bool) $request->user()?->isStaff();
 
         // The board modal fetches this as JSON and renders the same vendor,
         // photo and invoice tabs, so it needs the picker and the gates too.
         if ($request->expectsJson() || $request->wantsJson() || $request->query('format') === 'json') {
             return response()->json($payload + [
                 'vendor_options' => $vendorOptions,
-                'can_assign_vendors' => $canAssignVendors,
-                'can_upload_invoices' => $canUploadInvoices,
+                'can_assign_vendors' => $isStaff,
+                'can_upload_invoices' => $isStaff,
             ]);
         }
 
         return inertia('Inspection/Show', [
             'title' => 'Job #'.$job->job_number,
             'vendorOptions' => $vendorOptions,
-            'canAssignVendors' => $canAssignVendors,
-            'canUploadInvoices' => $canUploadInvoices,
+            'canAssignVendors' => $isStaff,
+            'canUploadInvoices' => $isStaff,
             'job' => array_merge([
                 'id' => $job->id,
                 'job_number' => $job->job_number,
@@ -313,11 +307,12 @@ class InspectionController extends Controller
 
     /**
      * The Jobs pages are unscoped across every outside client, so only staff
-     * may reach them.
+     * may reach them. Vendors get their own scoped list via vendorJobs() and
+     * the magic-link portal; tenants and owners have no business here at all.
      */
     private function authorizeStaff(Request $request): void
     {
-        abort_unless((bool) $request->user()?->hasAnyRole(self::STAFF_ROLES), 403);
+        abort_unless((bool) $request->user()?->isStaff(), 403);
     }
 
     public function searchClient(Request $request)

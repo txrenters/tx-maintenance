@@ -55,6 +55,7 @@ import {
 
 import Navigation from "./partials/Navigation.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
+import JobPhotos from "./partials/JobPhotos.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
@@ -1604,56 +1605,11 @@ usePoll(15000, {
                 v-if="activeTab === 'photos' && selectedJob"
                 class="p-6 space-y-4 overflow-y-auto"
             >
-                <div
-                    v-if="selectedJob.attachments?.length"
-                    class="grid grid-cols-2 md:grid-cols-4 gap-3"
-                >
-                    <div
-                        v-for="file in selectedJob.attachments"
-                        :key="file.id"
-                        class="border rounded-lg overflow-hidden"
-                    >
-                        <a :href="file.url" target="_blank">
-                            <img
-                                v-if="file.is_image"
-                                :src="file.url"
-                                :alt="file.title"
-                                class="w-full h-32 object-cover"
-                            />
-                            <div
-                                v-else
-                                class="w-full h-32 flex items-center justify-center bg-muted"
-                            >
-                                <Paperclip
-                                    class="h-8 w-8 text-muted-foreground"
-                                />
-                            </div>
-                        </a>
-                        <div class="p-2 space-y-1">
-                            <p
-                                class="text-xs font-medium truncate"
-                                :title="file.title"
-                            >
-                                {{ file.title }}
-                            </p>
-                            <div class="flex items-center justify-between">
-                                <Badge variant="secondary" class="text-[10px]">{{
-                                    file.type
-                                }}</Badge>
-                                <button
-                                    v-if="selectedJob.can_assign_vendors"
-                                    @click="deletePhoto(file.id)"
-                                    class="text-destructive hover:opacity-70"
-                                >
-                                    <Trash2 class="h-3 w-3" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <p v-else class="text-muted-foreground">
-                    No photos uploaded yet.
-                </p>
+                <JobPhotos
+                    :attachments="selectedJob.attachments || []"
+                    :can-manage="selectedJob.can_assign_vendors"
+                    @deleteImage="deletePhoto"
+                />
 
                 <template v-if="selectedJob.can_assign_vendors">
                     <Separator />

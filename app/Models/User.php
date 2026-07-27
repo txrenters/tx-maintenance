@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -17,7 +18,7 @@ class User extends Authenticatable
 {
     use HasApiTokens;
 
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory;
 
     use HasProfilePhoto;
@@ -64,6 +65,22 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * The in-office roles. Everyone else who can log in — vendors, tenants and
+     * owners — is an outside party, as is a user carrying no role at all.
+     */
+    public const STAFF_ROLES = ['admin', 'woc', 'accounting'];
+
+    /**
+     * True when this user works for the office rather than being a vendor,
+     * tenant or owner. Used to gate the Jobber job pages and every action on
+     * them, so the whole feature moves together.
+     */
+    public function isStaff(): bool
+    {
+        return $this->hasAnyRole(self::STAFF_ROLES);
     }
 
     public function vendor(): HasOne

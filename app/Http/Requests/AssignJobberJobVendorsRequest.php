@@ -8,7 +8,7 @@ class AssignJobberJobVendorsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user()?->hasAnyRole(['admin', 'woc']);
+        return (bool) $this->user()?->isStaff();
     }
 
     /**

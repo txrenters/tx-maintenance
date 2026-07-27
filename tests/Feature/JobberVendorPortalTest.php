@@ -25,7 +25,7 @@ class JobberVendorPortalTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['admin', 'woc', 'accounting', 'vendor', 'tenant'] as $role) {
+        foreach (['admin', 'woc', 'accounting', 'vendor', 'tenant', 'owner'] as $role) {
             Role::findOrCreate($role, 'web');
         }
     }

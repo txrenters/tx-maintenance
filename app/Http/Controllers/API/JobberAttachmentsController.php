@@ -54,6 +54,6 @@ class JobberAttachmentsController extends Controller
 
     private function authorizeStaff(Request $request): void
     {
-        abort_unless((bool) $request->user()?->hasAnyRole(['admin', 'woc']), 403);
+        abort_unless((bool) $request->user()?->isStaff(), 403);
     }
 }
