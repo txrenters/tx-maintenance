@@ -34,6 +34,12 @@ import {
     Plus,
     RefreshCw,
     Wrench,
+    ExternalLink,
+    Image as ImageIcon,
+    Receipt,
+    Copy,
+    Trash2,
+    Upload,
 } from "lucide-vue-next";
 import {
     Combobox,
@@ -115,9 +121,24 @@ const tabButtons = [
         icon: ClipboardList,
     },
     {
+        name: "vendors",
+        tooltip: "Vendors",
+        icon: Wrench,
+    },
+    {
         name: "visits",
         tooltip: "Visits",
         icon: Calendar,
+    },
+    {
+        name: "photos",
+        tooltip: "Photos",
+        icon: ImageIcon,
+    },
+    {
+        name: "invoices",
+        tooltip: "Invoices",
+        icon: Receipt,
     },
     {
         name: "messages",
@@ -125,6 +146,15 @@ const tabButtons = [
         icon: MessageCircle,
     },
 ];
+
+const tabCount = (name) => {
+    if (name === "messages") return selectedJob.value?.text_messages_count;
+    if (name === "visits") return selectedJob.value?.visits_count;
+    if (name === "vendors") return selectedJob.value?.vendors?.length;
+    if (name === "photos") return selectedJob.value?.attachments?.length;
+    if (name === "invoices") return selectedJob.value?.invoices?.length;
+    return 0;
+};
 
 // Optimized job modal opening with lazy loading
 let jobDetailsController = null;
@@ -161,6 +191,14 @@ const openJobModal = async (job) => {
         selectedImages.value = [];
         selectedClient.value = job.client;
         contactPhoneNumber.value = job.client?.phone ?? "";
+        selectedVendorIds.value = [...(response.data.vendor_ids || [])];
+        photoForm.value = { title: "", type: "after", files: [] };
+        invoiceForm.value = {
+            title: "",
+            amount: "",
+            vendor_id: "",
+            filename: null,
+        };
 
         // Load saved contacts asynchronously
         loadSavedContacts(job.id);
@@ -225,6 +263,193 @@ const switchTab = (tabName) => {
     if (tabName === "messages" && selectedJob.value?.id) {
         fetchJobMessages(selectedJob.value.id);
     }
+};
+
+/* ---------- Vendors, photos and invoices (mirrors Inspection/Show.vue) ---------- */
+
+const selectedVendorIds = ref([]);
+const isSavingVendors = ref(false);
+const photoForm = ref({ title: "", type: "after", files: [] });
+const photoInput = ref(null);
+const isUploadingPhotos = ref(false);
+const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
+const invoiceInput = ref(null);
+const isUploadingInvoice = ref(false);
+
+// The modal holds job data in local state rather than Inertia props, so every
+// mutation below has to pull the job back down to refresh the tabs.
+const refreshSelectedJob = async () => {
+    if (!selectedJob.value?.id) return;
+
+    try {
+        const response = await axios.get(
+            route("jobber.jobDetails", {
+                job: selectedJob.value.id,
+                format: "json",
+            })
+        );
+        selectedJob.value = { ...selectedJob.value, ...response.data };
+        selectedVendorIds.value = [...(response.data.vendor_ids || [])];
+    } catch (error) {
+        console.error("Error refreshing job details:", error);
+    }
+};
+
+const toggleVendor = (vendorId) => {
+    const index = selectedVendorIds.value.indexOf(vendorId);
+    if (index === -1) selectedVendorIds.value.push(vendorId);
+    else selectedVendorIds.value.splice(index, 1);
+};
+
+const saveVendors = () => {
+    if (!selectedJob.value?.id) return;
+    isSavingVendors.value = true;
+
+    router.put(
+        route("jobber.vendors.change", selectedJob.value.id),
+        { vendor_ids: selectedVendorIds.value },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast({ title: "Success", description: "Vendors updated." });
+                await refreshSelectedJob();
+            },
+            onError: () =>
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to update vendors.",
+                }),
+            onFinish: () => (isSavingVendors.value = false),
+        }
+    );
+};
+
+const copyPortalLink = async (url) => {
+    try {
+        await navigator.clipboard.writeText(url);
+        toast({ title: "Copied", description: "Portal link copied." });
+    } catch {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not copy the link.",
+        });
+    }
+};
+
+const handlePhotoSelect = (event) => {
+    photoForm.value.files = Array.from(event.target.files || []);
+};
+
+const uploadPhotos = () => {
+    if (!selectedJob.value?.id) return;
+    if (!photoForm.value.title.trim() || photoForm.value.files.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Add a title and choose at least one file.",
+        });
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", photoForm.value.title);
+    formData.append("type", photoForm.value.type);
+    photoForm.value.files.forEach((file) => formData.append("files[]", file));
+
+    isUploadingPhotos.value = true;
+    router.post(
+        route("jobber.attachments.store", selectedJob.value.id),
+        formData,
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: async () => {
+                toast({ title: "Success", description: "Photos uploaded." });
+                photoForm.value = { title: "", type: "after", files: [] };
+                if (photoInput.value) photoInput.value.value = "";
+                await refreshSelectedJob();
+            },
+            onError: () =>
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to upload photos.",
+                }),
+            onFinish: () => (isUploadingPhotos.value = false),
+        }
+    );
+};
+
+const deletePhoto = (id) => {
+    router.delete(route("jobber.attachments.destroy", id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: async () => {
+            toast({ title: "Deleted", description: "Photo removed." });
+            await refreshSelectedJob();
+        },
+    });
+};
+
+const handleInvoiceSelect = (event) => {
+    invoiceForm.value.filename = event.target.files?.[0] || null;
+};
+
+const uploadInvoice = () => {
+    if (!selectedJob.value?.id) return;
+    if (!invoiceForm.value.title.trim() || !invoiceForm.value.filename) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Add a title and choose a file.",
+        });
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", invoiceForm.value.title);
+    formData.append("amount", invoiceForm.value.amount || 0);
+    if (invoiceForm.value.vendor_id)
+        formData.append("vendor_id", invoiceForm.value.vendor_id);
+    formData.append("filename", invoiceForm.value.filename);
+
+    isUploadingInvoice.value = true;
+    router.post(route("jobber.invoices.store", selectedJob.value.id), formData, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: async () => {
+            toast({ title: "Success", description: "Invoice uploaded." });
+            invoiceForm.value = {
+                title: "",
+                amount: "",
+                vendor_id: "",
+                filename: null,
+            };
+            if (invoiceInput.value) invoiceInput.value.value = "";
+            await refreshSelectedJob();
+        },
+        onError: () =>
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to upload the invoice.",
+            }),
+        onFinish: () => (isUploadingInvoice.value = false),
+    });
+};
+
+const deleteInvoice = (id) => {
+    router.delete(route("jobber.invoices.destroy", id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: async () => {
+            toast({ title: "Deleted", description: "Invoice removed." });
+            await refreshSelectedJob();
+        },
+    });
 };
 
 const newMessage = ref("");
@@ -1074,18 +1299,9 @@ usePoll(15000, {
                             <Badge
                                 variant="secondary"
                                 class="text-xs ml-1"
-                                v-if="
-                                    (tab.name === 'messages' &&
-                                        selectedJob?.text_messages_count) ||
-                                    (tab.name === 'visits' &&
-                                        selectedJob?.visits_count)
-                                "
+                                v-if="tabCount(tab.name)"
                             >
-                                {{
-                                    tab.name === "messages"
-                                        ? selectedJob.text_messages_count
-                                        : selectedJob.visits_count
-                                }}
+                                {{ tabCount(tab.name) }}
                             </Badge>
                         </button>
                     </div>
@@ -1284,6 +1500,291 @@ usePoll(15000, {
                         ></p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Vendors View -->
+            <div
+                v-if="activeTab === 'vendors' && selectedJob"
+                class="p-6 space-y-4 overflow-y-auto"
+            >
+                <div v-if="selectedJob.vendors?.length" class="space-y-2">
+                    <h3 class="font-semibold text-lg flex items-center gap-2">
+                        <Wrench class="h-5 w-5 text-primary" />
+                        Assigned
+                    </h3>
+                    <div
+                        v-for="vendor in selectedJob.vendors"
+                        :key="vendor.id"
+                        class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
+                    >
+                        <div>
+                            <p class="font-medium">{{ vendor.name }}</p>
+                            <p
+                                v-if="!vendor.has_email"
+                                class="text-xs text-amber-600"
+                            >
+                                No email on file — send them the link.
+                            </p>
+                        </div>
+                        <Button
+                            v-if="vendor.portal_url"
+                            variant="outline"
+                            size="sm"
+                            @click="copyPortalLink(vendor.portal_url)"
+                        >
+                            <Copy class="h-4 w-4" /> Copy portal link
+                        </Button>
+                    </div>
+                </div>
+                <p v-else class="text-muted-foreground">
+                    No vendor assigned yet — this job is with the in-house crew.
+                </p>
+
+                <template v-if="selectedJob.can_assign_vendors">
+                    <Separator />
+                    <div class="space-y-2">
+                        <h3 class="font-semibold">Assign vendors</h3>
+                        <ScrollArea class="h-[220px] rounded-md border p-3">
+                            <label
+                                v-for="vendor in selectedJob.vendor_options"
+                                :key="vendor.id"
+                                class="flex items-center gap-2 py-1 cursor-pointer"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :value="vendor.id"
+                                    :checked="
+                                        selectedVendorIds.includes(vendor.id)
+                                    "
+                                    @change="toggleVendor(vendor.id)"
+                                    class="rounded border-input"
+                                />
+                                <span class="text-sm">{{ vendor.name }}</span>
+                            </label>
+                        </ScrollArea>
+                        <Button @click="saveVendors" :disabled="isSavingVendors">
+                            <Loader2
+                                v-if="isSavingVendors"
+                                class="h-4 w-4 animate-spin"
+                            />
+                            Save vendors
+                        </Button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Photos View -->
+            <div
+                v-if="activeTab === 'photos' && selectedJob"
+                class="p-6 space-y-4 overflow-y-auto"
+            >
+                <div
+                    v-if="selectedJob.attachments?.length"
+                    class="grid grid-cols-2 md:grid-cols-4 gap-3"
+                >
+                    <div
+                        v-for="file in selectedJob.attachments"
+                        :key="file.id"
+                        class="border rounded-lg overflow-hidden"
+                    >
+                        <a :href="file.url" target="_blank">
+                            <img
+                                v-if="file.is_image"
+                                :src="file.url"
+                                :alt="file.title"
+                                class="w-full h-32 object-cover"
+                            />
+                            <div
+                                v-else
+                                class="w-full h-32 flex items-center justify-center bg-muted"
+                            >
+                                <Paperclip
+                                    class="h-8 w-8 text-muted-foreground"
+                                />
+                            </div>
+                        </a>
+                        <div class="p-2 space-y-1">
+                            <p
+                                class="text-xs font-medium truncate"
+                                :title="file.title"
+                            >
+                                {{ file.title }}
+                            </p>
+                            <div class="flex items-center justify-between">
+                                <Badge variant="secondary" class="text-[10px]">{{
+                                    file.type
+                                }}</Badge>
+                                <button
+                                    v-if="selectedJob.can_assign_vendors"
+                                    @click="deletePhoto(file.id)"
+                                    class="text-destructive hover:opacity-70"
+                                >
+                                    <Trash2 class="h-3 w-3" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p v-else class="text-muted-foreground">
+                    No photos uploaded yet.
+                </p>
+
+                <template v-if="selectedJob.can_assign_vendors">
+                    <Separator />
+                    <div class="space-y-2">
+                        <h3 class="font-semibold">Upload photos</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div>
+                                <Label class="text-sm">Title</Label>
+                                <input
+                                    v-model="photoForm.title"
+                                    placeholder="e.g. Kitchen sink - after"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <Label class="text-sm">Type</Label>
+                                <select
+                                    v-model="photoForm.type"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                >
+                                    <option value="before">Before</option>
+                                    <option value="after">After</option>
+                                    <option value="attachment">
+                                        Attachment
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <Label class="text-sm">Files</Label>
+                                <input
+                                    ref="photoInput"
+                                    type="file"
+                                    multiple
+                                    @change="handlePhotoSelect"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm"
+                                />
+                            </div>
+                        </div>
+                        <Button
+                            @click="uploadPhotos"
+                            :disabled="isUploadingPhotos"
+                        >
+                            <Loader2
+                                v-if="isUploadingPhotos"
+                                class="h-4 w-4 animate-spin"
+                            />
+                            <Upload v-else class="h-4 w-4" />
+                            Upload
+                        </Button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Invoices View -->
+            <div
+                v-if="activeTab === 'invoices' && selectedJob"
+                class="p-6 space-y-4 overflow-y-auto"
+            >
+                <div v-if="selectedJob.invoices?.length" class="space-y-2">
+                    <div
+                        v-for="invoice in selectedJob.invoices"
+                        :key="invoice.id"
+                        class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
+                    >
+                        <div>
+                            <p class="font-medium">{{ invoice.title }}</p>
+                            <p class="text-sm text-muted-foreground">
+                                {{ invoice.vendor_name || "No vendor" }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-semibold"
+                                >${{ invoice.amount }}</span
+                            >
+                            <Button variant="outline" size="sm" as-child>
+                                <a :href="invoice.url" target="_blank"
+                                    ><Eye class="h-4 w-4" /> View</a
+                                >
+                            </Button>
+                            <button
+                                v-if="selectedJob.can_upload_invoices"
+                                @click="deleteInvoice(invoice.id)"
+                                class="text-destructive hover:opacity-70"
+                            >
+                                <Trash2 class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <p v-else class="text-muted-foreground">
+                    No invoices uploaded yet.
+                </p>
+
+                <template v-if="selectedJob.can_upload_invoices">
+                    <Separator />
+                    <div class="space-y-2">
+                        <h3 class="font-semibold">Upload invoice</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                            <div>
+                                <Label class="text-sm">Title</Label>
+                                <input
+                                    v-model="invoiceForm.title"
+                                    placeholder="Invoice title"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <Label class="text-sm">Amount</Label>
+                                <input
+                                    v-model="invoiceForm.amount"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0.00"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <Label class="text-sm">Vendor</Label>
+                                <select
+                                    v-model="invoiceForm.vendor_id"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                >
+                                    <option value="">—</option>
+                                    <option
+                                        v-for="vendor in selectedJob.vendors"
+                                        :key="vendor.id"
+                                        :value="vendor.id"
+                                    >
+                                        {{ vendor.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <Label class="text-sm">File</Label>
+                                <input
+                                    ref="invoiceInput"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.pdf"
+                                    @change="handleInvoiceSelect"
+                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm"
+                                />
+                            </div>
+                        </div>
+                        <Button
+                            @click="uploadInvoice"
+                            :disabled="isUploadingInvoice"
+                        >
+                            <Loader2
+                                v-if="isUploadingInvoice"
+                                class="h-4 w-4 animate-spin"
+                            />
+                            <Upload v-else class="h-4 w-4" />
+                            Upload
+                        </Button>
+                    </div>
+                </template>
             </div>
 
             <!-- Visits/Schedules View - Limited to first 10 visits -->
@@ -1729,10 +2230,24 @@ usePoll(15000, {
                     Close
                 </Button>
                 <Button
-                    v-if="selectedJob?.view_url || selectedJob?.id"
+                    v-if="selectedJob?.jobber_web_uri"
+                    variant="outline"
                     as-child
                 >
                     <a :href="selectedJob.jobber_web_uri" target="_blank">
+                        <ExternalLink class="h-4 w-4" />
+                        View in Jobber
+                    </a>
+                </Button>
+                <!-- Our own job page: vendor assignment, photos and invoices
+                     live there. This used to link out to Jobber's website, so
+                     those tabs were unreachable from the board. -->
+                <Button v-if="selectedJob?.id" as-child>
+                    <a
+                        :href="
+                            route('jobber.jobDetails', { job: selectedJob.id })
+                        "
+                    >
                         <Eye class="h-4 w-4" />
                         View Full Details
                     </a>

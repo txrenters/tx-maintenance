@@ -114,18 +114,29 @@ class InspectionController extends Controller
 
         $payload = $this->buildJobDetailsPayload($job);
 
+        $vendorOptions = Vendor::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $canAssignVendors = (bool) $request->user()?->hasAnyRole(['admin', 'woc']);
+        $canUploadInvoices = (bool) $request->user()?->hasAnyRole(['admin', 'woc', 'accounting']);
+
+        // The board modal fetches this as JSON and renders the same vendor,
+        // photo and invoice tabs, so it needs the picker and the gates too.
         if ($request->expectsJson() || $request->wantsJson() || $request->query('format') === 'json') {
-            return response()->json($payload);
+            return response()->json($payload + [
+                'vendor_options' => $vendorOptions,
+                'can_assign_vendors' => $canAssignVendors,
+                'can_upload_invoices' => $canUploadInvoices,
+            ]);
         }
 
         return inertia('Inspection/Show', [
             'title' => 'Job #'.$job->job_number,
-            'vendorOptions' => Vendor::query()
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(['id', 'name']),
-            'canAssignVendors' => (bool) $request->user()?->hasAnyRole(['admin', 'woc']),
-            'canUploadInvoices' => (bool) $request->user()?->hasAnyRole(['admin', 'woc', 'accounting']),
+            'vendorOptions' => $vendorOptions,
+            'canAssignVendors' => $canAssignVendors,
+            'canUploadInvoices' => $canUploadInvoices,
             'job' => array_merge([
                 'id' => $job->id,
                 'job_number' => $job->job_number,

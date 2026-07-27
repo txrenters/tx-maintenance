@@ -102,6 +102,62 @@ class JobberAccessControlTest extends TestCase
         $this->actingAs($tenant)->get(route('inspections.index'))->assertForbidden();
     }
 
+    public function test_staff_get_the_job_page_with_the_vendor_photo_and_invoice_data(): void
+    {
+        $job = $this->makeJob();
+        $vendorUser = User::factory()->create();
+        $vendor = $this->makeVendor($vendorUser);
+        $job->vendors()->attach($vendor->id, ['access_token' => str_repeat('a', 48)]);
+
+        $admin = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($admin)
+            ->get(route('jobber.jobDetails', ['job' => $job->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Inspection/Show')
+                ->where('canAssignVendors', true)
+                ->has('vendorOptions')
+                ->has('job.vendors', 1)
+                ->where('job.vendors.0.name', 'Roofing Co')
+                ->has('job.attachments')
+                ->has('job.invoices')
+            );
+    }
+
+    public function test_the_board_modal_json_carries_the_vendor_picker_and_gates(): void
+    {
+        $job = $this->makeJob();
+        $vendorUser = User::factory()->create();
+        $vendor = $this->makeVendor($vendorUser);
+        $job->vendors()->attach($vendor->id, ['access_token' => str_repeat('a', 48)]);
+
+        $admin = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($admin)
+            ->getJson(route('jobber.jobDetails', ['job' => $job->id, 'format' => 'json']))
+            ->assertOk()
+            ->assertJsonPath('can_assign_vendors', true)
+            ->assertJsonPath('can_upload_invoices', true)
+            ->assertJsonPath('vendors.0.name', 'Roofing Co')
+            ->assertJsonPath('vendor_ids.0', $vendor->id)
+            ->assertJsonStructure(['vendor_options', 'attachments', 'invoices']);
+    }
+
+    public function test_accounting_can_view_a_job_but_cannot_assign_vendors(): void
+    {
+        $job = $this->makeJob();
+        $accounting = User::factory()->create()->assignRole('accounting');
+
+        $this->actingAs($accounting)
+            ->get(route('jobber.jobDetails', ['job' => $job->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('canAssignVendors', false)
+                ->where('canUploadInvoices', true)
+            );
+    }
+
     public function test_a_vendor_only_sees_their_own_assigned_jobs(): void
     {
         $mineJob = $this->makeJob('5001');
