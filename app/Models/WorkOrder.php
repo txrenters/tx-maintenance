@@ -361,19 +361,20 @@ class WorkOrder extends Model
     }
 
     /**
-     * Constrain to HOA-violation work orders. Identity primarily lives on the
-     * HOA upload token (purpose = hoa_violation) because the PW type/category
-     * are curated picklists that the periodic import overwrites. Work orders
-     * categorized "HOA Violation" by hand (or imported that way) never get a
-     * token, so match on the category too — otherwise they vanish from the HOA
-     * board and get treated as ordinary service requests.
+     * Constrain to the HOA violations this feature is actually running: those
+     * holding an HOA upload token, whether it came from a notice upload or from
+     * adopting a work order raised in PropertyWare.
+     *
+     * Deliberately NOT matched on the category. PropertyWare carries years of
+     * work orders categorized "HOA Violation" that predate this feature, and
+     * matching them put 120 dead cards on the board. They are recognised by
+     * isHoaViolation() — enough to keep the owner automation off them — but they
+     * are not live work, so they stay off the board until someone adopts one.
      */
     public function scopeHoaViolations($query)
     {
-        $query->where(function ($hoa) {
-            $hoa->whereHas('tenantUploadTokens', function ($tokens) {
-                $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
-            })->orWhere('category', self::HOA_VIOLATION_CATEGORY);
+        $query->whereHas('tenantUploadTokens', function ($tokens) {
+            $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION);
         });
 
         return $query;

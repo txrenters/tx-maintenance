@@ -274,7 +274,10 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        $this->assertSame(2, WorkOrder::query()->hoaViolations()->count());
+        // A second work order was raised rather than the notice attaching to
+        // the hand-categorized one, and only the new one is tracked.
+        $this->assertSame(2, WorkOrder::query()->where('building_id', $building->propertyware_id)->count());
+        $this->assertSame(1, WorkOrder::query()->hoaViolations()->count());
         $this->assertFalse(
             $manual->tenantUploadTokens()
                 ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)

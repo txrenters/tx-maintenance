@@ -93,6 +93,30 @@ class HoaViolationWorkflowTest extends TestCase
                 ->where('deadline', 'Monday, July 27, 2026'));
     }
 
+    public function test_the_board_shows_only_violations_this_feature_tracks(): void
+    {
+        // Tracked by an HOA token — from a notice upload or from adopting a
+        // PropertyWare-raised violation. This is what belongs on the board.
+        $tracked = $this->hoaWorkOrder();
+        $tracked->update(['work_order_no' => 60101]);
+        $this->hoaToken($tracked);
+
+        // PropertyWare's historical backlog: categorized "HOA Violation" years
+        // ago, never adopted, no token. These must stay off the board — there
+        // were 120 of them in production.
+        WorkOrder::factory()->create([
+            'service_status_id' => $this->easyFixStatus()->id,
+            'work_order_no' => 60104,
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
+            'created_date' => now()->subYear(),
+        ]);
+
+        $shown = WorkOrder::query()->hoaViolations()->pluck('work_order_no')->all();
+
+        $this->assertContains(60101, $shown);
+        $this->assertNotContains(60104, $shown);
+    }
+
     public function test_a_daily_reminder_goes_out_before_the_deadline(): void
     {
         config(['services.twilio.hoa_violation_sms' => true]);

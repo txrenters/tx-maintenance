@@ -71,6 +71,11 @@ class HoaViolationController extends Controller
         $statuses = ServiceStatus::with([
             'work_orders' => function ($query) use ($request) {
                 $query
+                    // Only the columns the cards render. Matching on the category
+                    // pulled in years of PropertyWare-raised violations, and the
+                    // full rows plus relations are what exhausted PHP's memory on
+                    // the other boards in production (2026-07-22).
+                    ->select(WorkOrderController::BOARD_CARD_COLUMNS)
                     ->hoaViolations()
                     ->when($request->filled('search'), fn ($q) => $q->where('work_order_no', $request->input('search')))
                     ->when($request->filled('vendor'), fn ($q) => $q->whereHas('vendors', fn ($v) => $v->where('work_order_vendors.vendor_id', $request->input('vendor'))))
