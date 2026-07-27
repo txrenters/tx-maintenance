@@ -576,7 +576,9 @@ class WorkOrderController extends Controller
             // HOA board, so start the same workflow the notice upload starts.
             // The job is a no-op when it is any other category or the work
             // order is already tracked.
-            if (($validatedData['category'] ?? null) === WorkOrder::HOA_VIOLATION_CATEGORY) {
+            // Trimmed: canonicalName() returns PropertyWare's own spelling, and
+            // its picklist values can carry trailing whitespace (e.g. "HVAC ").
+            if (trim((string) ($validatedData['category'] ?? '')) === WorkOrder::HOA_VIOLATION_CATEGORY) {
                 AdoptCategorizedHoaViolationJob::dispatch($workOrder->id);
             }
 
