@@ -55,7 +55,8 @@ import {
 
 import Navigation from "./partials/Navigation.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
-import JobPhotos from "./partials/JobPhotos.vue";
+import JobPhotosTab from "./partials/JobPhotosTab.vue";
+import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
@@ -211,13 +212,6 @@ const openJobModal = async (job) => {
         selectedClient.value = job.client;
         contactPhoneNumber.value = job.client?.phone ?? "";
         selectedVendorIds.value = [...(response.data.vendor_ids || [])];
-        photoForm.value = { title: "", type: "after", files: [] };
-        invoiceForm.value = {
-            title: "",
-            amount: "",
-            vendor_id: "",
-            filename: null,
-        };
 
         // Load saved contacts asynchronously
         loadSavedContacts(job.id);
@@ -288,14 +282,6 @@ const switchTab = (tabName) => {
 
 const selectedVendorIds = ref([]);
 const isSavingVendors = ref(false);
-const photoForm = ref({ title: "", type: "after", files: [] });
-// A file input can not be cleared by binding, and a ref on the shadcn <Input>
-// resolves to the component rather than the DOM node - bump the key to remount.
-const photoInputKey = ref(0);
-const isUploadingPhotos = ref(false);
-const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
-const invoiceInputKey = ref(0);
-const isUploadingInvoice = ref(false);
 
 // The modal holds job data in local state rather than Inertia props, so every
 // mutation below has to pull the job back down to refresh the tabs.
@@ -358,147 +344,6 @@ const copyPortalLink = async (url) => {
             description: "Could not copy the link.",
         });
     }
-};
-
-const handlePhotoSelect = (event) => {
-    photoForm.value.files = Array.from(event.target.files || []);
-};
-
-const uploadPhotos = () => {
-    if (!selectedJob.value?.id) return;
-    if (!photoForm.value.title.trim() || photoForm.value.files.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Add a title and choose at least one file.",
-        });
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("title", photoForm.value.title);
-    formData.append("type", photoForm.value.type);
-    photoForm.value.files.forEach((file) => formData.append("files[]", file));
-
-    isUploadingPhotos.value = true;
-    router.post(
-        route("jobber.attachments.store", selectedJob.value.id),
-        formData,
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: async () => {
-                toast({ title: "Success", description: "Photos uploaded." });
-                photoForm.value = { title: "", type: "after", files: [] };
-                photoInputKey.value++;
-                await refreshSelectedJob();
-            },
-            onError: () =>
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: "Failed to upload photos.",
-                }),
-            onFinish: () => (isUploadingPhotos.value = false),
-        }
-    );
-};
-
-const deletePhoto = (id) => {
-    router.delete(route("jobber.attachments.destroy", id), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: async () => {
-            toast({ title: "Deleted", description: "Photo removed." });
-            await refreshSelectedJob();
-        },
-    });
-};
-
-const handleInvoiceSelect = (event) => {
-    invoiceForm.value.filename = event.target.files?.[0] || null;
-};
-
-const uploadInvoice = () => {
-    if (!selectedJob.value?.id) return;
-    if (!invoiceForm.value.title.trim() || !invoiceForm.value.filename) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Add a title and choose a file.",
-        });
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("title", invoiceForm.value.title);
-    formData.append("amount", invoiceForm.value.amount || 0);
-    if (invoiceForm.value.vendor_id)
-        formData.append("vendor_id", invoiceForm.value.vendor_id);
-    formData.append("filename", invoiceForm.value.filename);
-
-    isUploadingInvoice.value = true;
-    router.post(route("jobber.invoices.store", selectedJob.value.id), formData, {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: async () => {
-            toast({ title: "Success", description: "Invoice uploaded." });
-            invoiceForm.value = {
-                title: "",
-                amount: "",
-                vendor_id: "",
-                filename: null,
-            };
-            invoiceInputKey.value++;
-            await refreshSelectedJob();
-        },
-        onError: () =>
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Failed to upload the invoice.",
-            }),
-        onFinish: () => (isUploadingInvoice.value = false),
-    });
-};
-
-const deleteInvoice = (id) => {
-    router.delete(route("jobber.invoices.destroy", id), {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: async () => {
-            toast({ title: "Deleted", description: "Invoice removed." });
-            await refreshSelectedJob();
-        },
-    });
-};
-
-// Invoices arrive already approved, matching the work-order flow; this is the
-// correction afterwards, not a gate in front of the upload.
-const updateInvoiceStatus = (id, status) => {
-    router.patch(
-        route("jobber.invoices.update", id),
-        { status },
-        {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: async () => {
-                toast({
-                    title: "Updated",
-                    description: `Invoice marked as ${
-                        status === "decline" ? "declined" : "approved"
-                    }.`,
-                });
-                await refreshSelectedJob();
-            },
-            onError: () =>
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: "Could not update the invoice.",
-                }),
-        }
-    );
 };
 
 const newMessage = ref("");
@@ -1603,260 +1448,28 @@ usePoll(15000, {
             <!-- Photos View -->
             <div
                 v-if="activeTab === 'photos' && selectedJob"
-                class="p-6 space-y-4 overflow-y-auto"
+                class="p-6 overflow-y-auto"
             >
-                <JobPhotos
+                <JobPhotosTab
+                    :job-id="selectedJob.id"
                     :attachments="selectedJob.attachments || []"
                     :can-manage="selectedJob.can_assign_vendors"
-                    @deleteImage="deletePhoto"
+                    @saved="refreshSelectedJob"
                 />
-
-                <template v-if="selectedJob.can_assign_vendors">
-                    <Separator />
-                    <div class="space-y-2">
-                        <h3 class="font-semibold">Upload photos</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <div>
-                                <Label class="text-sm">Title</Label>
-                                <Input
-                                    v-model="photoForm.title"
-                                    placeholder="e.g. Kitchen sink - after"
-                                />
-                            </div>
-                            <div>
-                                <Label class="text-sm">Type</Label>
-                                <Select v-model="photoForm.type">
-                                    <SelectTrigger class="w-full">
-                                        <SelectValue
-                                            placeholder="Select a type"
-                                        />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectItem value="before"
-                                                >Before</SelectItem
-                                            >
-                                            <SelectItem value="after"
-                                                >After</SelectItem
-                                            >
-                                            <SelectItem value="attachment"
-                                                >Attachment</SelectItem
-                                            >
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label class="text-sm">Files</Label>
-                                <Input
-                                    :key="photoInputKey"
-                                    type="file"
-                                    multiple
-                                    @change="handlePhotoSelect"
-                                />
-                            </div>
-                        </div>
-                        <Button
-                            @click="uploadPhotos"
-                            :disabled="isUploadingPhotos"
-                        >
-                            <Loader2
-                                v-if="isUploadingPhotos"
-                                class="h-4 w-4 animate-spin"
-                            />
-                            <Upload v-else class="h-4 w-4" />
-                            Upload
-                        </Button>
-                    </div>
-                </template>
             </div>
 
             <!-- Invoices View -->
             <div
                 v-if="activeTab === 'invoices' && selectedJob"
-                class="p-6 space-y-4 overflow-y-auto"
+                class="p-6 overflow-y-auto"
             >
-                <Table v-if="selectedJob.invoices?.length">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Title</TableHead>
-                            <TableHead>Vendor</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead class="text-right">Amount</TableHead>
-                            <TableHead class="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow
-                            v-for="invoice in selectedJob.invoices"
-                            :key="invoice.id"
-                        >
-                            <TableCell class="font-medium">{{
-                                invoice.title
-                            }}</TableCell>
-                            <TableCell>{{
-                                invoice.vendor_name || "—"
-                            }}</TableCell>
-                            <TableCell>
-                                <Badge
-                                    :variant="
-                                        invoice.status === 'decline'
-                                            ? 'destructive'
-                                            : ''
-                                    "
-                                >
-                                    {{
-                                        invoice.status === "decline"
-                                            ? "declined"
-                                            : invoice.status
-                                    }}
-                                </Badge>
-                            </TableCell>
-                            <TableCell class="text-right font-semibold"
-                                >${{ invoice.amount }}</TableCell
-                            >
-                            <TableCell class="text-right">
-                                <div
-                                    class="flex items-center justify-end gap-2"
-                                >
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        as-child
-                                    >
-                                        <a :href="invoice.url" target="_blank"
-                                            ><Eye class="h-4 w-4" /> View</a
-                                        >
-                                    </Button>
-                                    <DropdownMenu
-                                        v-if="selectedJob.can_upload_invoices"
-                                    >
-                                        <DropdownMenuTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                class="h-8 w-8"
-                                            >
-                                                <EllipsisVertical
-                                                    class="h-4 w-4"
-                                                />
-                                                <span class="sr-only"
-                                                    >Toggle menu</span
-                                                >
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel
-                                                >Actions</DropdownMenuLabel
-                                            >
-                                            <DropdownMenuItem
-                                                class="cursor-pointer"
-                                                @click="
-                                                    updateInvoiceStatus(
-                                                        invoice.id,
-                                                        'approved'
-                                                    )
-                                                "
-                                            >
-                                                Mark as Approved
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer"
-                                                @click="
-                                                    updateInvoiceStatus(
-                                                        invoice.id,
-                                                        'decline'
-                                                    )
-                                                "
-                                            >
-                                                Mark as Declined
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                class="cursor-pointer text-destructive"
-                                                @click="
-                                                    deleteInvoice(invoice.id)
-                                                "
-                                            >
-                                                Delete Invoice
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-                <p v-else class="text-muted-foreground">
-                    No invoices uploaded yet.
-                </p>
-
-                <template v-if="selectedJob.can_upload_invoices">
-                    <Separator />
-                    <div class="space-y-2">
-                        <h3 class="font-semibold">Upload invoice</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-                            <div>
-                                <Label class="text-sm">Title</Label>
-                                <Input
-                                    v-model="invoiceForm.title"
-                                    placeholder="Invoice title"
-                                />
-                            </div>
-                            <div>
-                                <Label class="text-sm">Amount</Label>
-                                <Input
-                                    v-model="invoiceForm.amount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    placeholder="0.00"
-                                />
-                            </div>
-                            <div>
-                                <Label class="text-sm">Vendor</Label>
-                                <Select v-model="invoiceForm.vendor_id">
-                                    <SelectTrigger class="w-full">
-                                        <SelectValue
-                                            placeholder="Select a vendor"
-                                        />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectItem
-                                                v-for="vendor in selectedJob.vendors"
-                                                :key="vendor.id"
-                                                :value="String(vendor.id)"
-                                            >
-                                                {{ vendor.name }}
-                                            </SelectItem>
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label class="text-sm">File</Label>
-                                <Input
-                                    :key="invoiceInputKey"
-                                    type="file"
-                                    accept=".jpg,.jpeg,.png,.pdf"
-                                    @change="handleInvoiceSelect"
-                                />
-                            </div>
-                        </div>
-                        <Button
-                            @click="uploadInvoice"
-                            :disabled="isUploadingInvoice"
-                        >
-                            <Loader2
-                                v-if="isUploadingInvoice"
-                                class="h-4 w-4 animate-spin"
-                            />
-                            <Upload v-else class="h-4 w-4" />
-                            Upload
-                        </Button>
-                    </div>
-                </template>
+                <JobInvoicesTab
+                    :job-id="selectedJob.id"
+                    :invoices="selectedJob.invoices || []"
+                    :vendors="selectedJob.vendors || []"
+                    :can-manage="selectedJob.can_upload_invoices"
+                    @saved="refreshSelectedJob"
+                />
             </div>
 
             <!-- Visits/Schedules View - Limited to first 10 visits -->

@@ -7,7 +7,8 @@ import debounce from "lodash.debounce";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
-import JobPhotos from "./partials/JobPhotos.vue";
+import JobPhotosTab from "./partials/JobPhotosTab.vue";
+import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
@@ -498,147 +499,21 @@ onUnmounted(() => {
         </template>
       </div>
 
-      <div v-if="activeTab === 'photos' && job" class="space-y-4">
-        <JobPhotos
+      <div v-if="activeTab === 'photos' && job">
+        <JobPhotosTab
+          :job-id="job.id"
           :attachments="job.attachments || []"
           :can-manage="canAssignVendors"
-          @deleteImage="deletePhoto"
         />
-
-        <template v-if="canAssignVendors">
-          <Separator />
-          <div class="space-y-2">
-            <p class="font-semibold">Upload photos</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <div>
-                <Label class="text-sm">Title</Label>
-                <Input v-model="photoForm.title" placeholder="e.g. Kitchen sink - after" />
-              </div>
-              <div>
-                <Label class="text-sm">Type</Label>
-                <Select v-model="photoForm.type">
-                  <SelectTrigger class="w-full">
-                    <SelectValue placeholder="Select a type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="before">Before</SelectItem>
-                      <SelectItem value="after">After</SelectItem>
-                      <SelectItem value="attachment">Attachment</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label class="text-sm">Files</Label>
-                <Input :key="photoInputKey" type="file" multiple @change="handlePhotoSelect" />
-              </div>
-            </div>
-            <Button @click="uploadPhotos" :disabled="isUploadingPhotos">
-              <Loader2 v-if="isUploadingPhotos" class="h-4 w-4 animate-spin" />
-              <Upload v-else class="h-4 w-4" />
-              Upload
-            </Button>
-          </div>
-        </template>
       </div>
 
-      <div v-if="activeTab === 'invoices' && job" class="space-y-4">
-        <Table v-if="job.invoices?.length">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead class="text-right">Amount</TableHead>
-              <TableHead class="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="invoice in job.invoices" :key="invoice.id">
-              <TableCell class="font-medium">{{ invoice.title }}</TableCell>
-              <TableCell>{{ invoice.vendor_name || '—' }}</TableCell>
-              <TableCell>
-                <Badge :variant="invoice.status === 'decline' ? 'destructive' : ''">
-                  {{ invoice.status === 'decline' ? 'declined' : invoice.status }}
-                </Badge>
-              </TableCell>
-              <TableCell>{{ formatDate(invoice.created_at) }}</TableCell>
-              <TableCell class="text-right font-semibold">${{ invoice.amount }}</TableCell>
-              <TableCell class="text-right">
-                <div class="flex items-center justify-end gap-2">
-                  <Button variant="outline" size="sm" as-child>
-                    <a :href="invoice.url" target="_blank"><Eye class="h-4 w-4" /> View</a>
-                  </Button>
-                  <DropdownMenu v-if="canUploadInvoices">
-                    <DropdownMenuTrigger as-child>
-                      <Button variant="ghost" size="icon" class="h-8 w-8">
-                        <EllipsisVertical class="h-4 w-4" />
-                        <span class="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem class="cursor-pointer" @click="updateInvoiceStatus(invoice.id, 'approved')">
-                        Mark as Approved
-                      </DropdownMenuItem>
-                      <DropdownMenuItem class="cursor-pointer" @click="updateInvoiceStatus(invoice.id, 'decline')">
-                        Mark as Declined
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem class="cursor-pointer text-destructive" @click="deleteInvoice(invoice.id)">
-                        Delete Invoice
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-        <p v-else class="text-muted-foreground">No invoices uploaded yet.</p>
-
-        <template v-if="canUploadInvoices">
-          <Separator />
-          <div class="space-y-2">
-            <p class="font-semibold">Upload invoice</p>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-              <div>
-                <Label class="text-sm">Title</Label>
-                <Input v-model="invoiceForm.title" placeholder="Invoice title" />
-              </div>
-              <div>
-                <Label class="text-sm">Amount</Label>
-                <Input v-model="invoiceForm.amount" type="number" step="0.01" min="0" placeholder="0.00" />
-              </div>
-              <div>
-                <Label class="text-sm">Vendor</Label>
-                <Select v-model="invoiceForm.vendor_id">
-                  <SelectTrigger class="w-full">
-                    <SelectValue placeholder="Select a vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem v-for="vendor in job.vendors" :key="vendor.id" :value="String(vendor.id)">
-                        {{ vendor.name }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label class="text-sm">File</Label>
-                <Input :key="invoiceInputKey" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" />
-              </div>
-            </div>
-            <Button @click="uploadInvoice" :disabled="isUploadingInvoice">
-              <Loader2 v-if="isUploadingInvoice" class="h-4 w-4 animate-spin" />
-              <Upload v-else class="h-4 w-4" />
-              Upload
-            </Button>
-          </div>
-        </template>
+      <div v-if="activeTab === 'invoices' && job">
+        <JobInvoicesTab
+          :job-id="job.id"
+          :invoices="job.invoices || []"
+          :vendors="job.vendors || []"
+          :can-manage="canUploadInvoices"
+        />
       </div>
 
       <div v-if="activeTab === 'visits' && job" class="space-y-3">
