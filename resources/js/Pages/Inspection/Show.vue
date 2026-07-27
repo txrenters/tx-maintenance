@@ -18,6 +18,9 @@ import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/Components/ui/card";
 import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxList } from "@/Components/ui/combobox";
+import { Checkbox } from "@/Components/ui/checkbox";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
 import { ArrowLeft, Calendar, ClipboardList, Copy, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
@@ -282,7 +285,10 @@ const copyPortalLink = async (url) => {
 /* ---------- Photos ---------- */
 
 const photoForm = ref({ title: "", type: "after", files: [] });
-const photoInput = ref(null);
+// A file input can't be cleared by binding, and a ref on the shadcn <Input>
+// resolves to the component rather than the DOM node — so bump the key to
+// remount it after a successful upload.
+const photoInputKey = ref(0);
 const isUploadingPhotos = ref(false);
 
 const handlePhotoSelect = (event) => {
@@ -307,7 +313,7 @@ const uploadPhotos = () => {
     onSuccess: () => {
       toast({ title: "Success", description: "Photos uploaded." });
       photoForm.value = { title: "", type: "after", files: [] };
-      if (photoInput.value) photoInput.value.value = "";
+      photoInputKey.value++;
     },
     onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload photos." }),
     onFinish: () => (isUploadingPhotos.value = false),
@@ -324,7 +330,7 @@ const deletePhoto = (id) => {
 /* ---------- Invoices ---------- */
 
 const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
-const invoiceInput = ref(null);
+const invoiceInputKey = ref(0);
 const isUploadingInvoice = ref(false);
 
 const handleInvoiceSelect = (event) => {
@@ -350,7 +356,7 @@ const uploadInvoice = () => {
     onSuccess: () => {
       toast({ title: "Success", description: "Invoice uploaded." });
       invoiceForm.value = { title: "", amount: "", vendor_id: "", filename: null };
-      if (invoiceInput.value) invoiceInput.value.value = "";
+      invoiceInputKey.value++;
     },
     onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to upload the invoice." }),
     onFinish: () => (isUploadingInvoice.value = false),
@@ -460,8 +466,15 @@ onUnmounted(() => {
           <div class="space-y-2">
             <p class="font-semibold">Assign vendors</p>
             <ScrollArea class="h-[260px] rounded-md border p-3">
-              <label v-for="vendor in vendorOptions" :key="vendor.id" class="flex items-center gap-2 py-1 cursor-pointer">
-                <input type="checkbox" :value="vendor.id" :checked="selectedVendorIds.includes(vendor.id)" @change="toggleVendor(vendor.id)" class="rounded border-input" />
+              <label
+                v-for="vendor in vendorOptions"
+                :key="vendor.id"
+                class="flex items-center gap-2 py-1.5 cursor-pointer"
+              >
+                <Checkbox
+                  :checked="selectedVendorIds.includes(vendor.id)"
+                  @update:checked="toggleVendor(vendor.id)"
+                />
                 <span class="text-sm">{{ vendor.name }}</span>
               </label>
             </ScrollArea>
@@ -502,15 +515,22 @@ onUnmounted(() => {
               </div>
               <div>
                 <Label class="text-sm">Type</Label>
-                <select v-model="photoForm.type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="before">Before</option>
-                  <option value="after">After</option>
-                  <option value="attachment">Attachment</option>
-                </select>
+                <Select v-model="photoForm.type">
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="Select a type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="before">Before</SelectItem>
+                      <SelectItem value="after">After</SelectItem>
+                      <SelectItem value="attachment">Attachment</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label class="text-sm">Files</Label>
-                <input ref="photoInput" type="file" multiple @change="handlePhotoSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+                <Input :key="photoInputKey" type="file" multiple @change="handlePhotoSelect" />
               </div>
             </div>
             <Button @click="uploadPhotos" :disabled="isUploadingPhotos">
@@ -523,21 +543,35 @@ onUnmounted(() => {
       </div>
 
       <div v-if="activeTab === 'invoices' && job" class="space-y-4">
-        <div v-if="job.invoices?.length" class="space-y-2">
-          <div v-for="invoice in job.invoices" :key="invoice.id" class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p class="font-medium">{{ invoice.title }}</p>
-              <p class="text-sm text-muted-foreground">
-                {{ invoice.vendor_name || 'No vendor' }} &middot; {{ formatDate(invoice.created_at) }}
-              </p>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="font-semibold">${{ invoice.amount }}</span>
-              <Button variant="outline" size="sm" as-child><a :href="invoice.url" target="_blank"><Eye class="h-4 w-4" /> View</a></Button>
-              <button v-if="canUploadInvoices" @click="deleteInvoice(invoice.id)" class="text-destructive hover:opacity-70"><Trash2 class="h-4 w-4" /></button>
-            </div>
-          </div>
-        </div>
+        <Table v-if="job.invoices?.length">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead class="text-right">Amount</TableHead>
+              <TableHead class="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="invoice in job.invoices" :key="invoice.id">
+              <TableCell class="font-medium">{{ invoice.title }}</TableCell>
+              <TableCell>{{ invoice.vendor_name || '—' }}</TableCell>
+              <TableCell>{{ formatDate(invoice.created_at) }}</TableCell>
+              <TableCell class="text-right font-semibold">${{ invoice.amount }}</TableCell>
+              <TableCell class="text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <Button variant="outline" size="sm" as-child>
+                    <a :href="invoice.url" target="_blank"><Eye class="h-4 w-4" /> View</a>
+                  </Button>
+                  <Button v-if="canUploadInvoices" variant="ghost" size="icon" class="h-8 w-8 text-destructive" @click="deleteInvoice(invoice.id)">
+                    <Trash2 class="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
         <p v-else class="text-muted-foreground">No invoices uploaded yet.</p>
 
         <template v-if="canUploadInvoices">
@@ -555,14 +589,22 @@ onUnmounted(() => {
               </div>
               <div>
                 <Label class="text-sm">Vendor</Label>
-                <select v-model="invoiceForm.vendor_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="">&mdash;</option>
-                  <option v-for="vendor in job.vendors" :key="vendor.id" :value="vendor.id">{{ vendor.name }}</option>
-                </select>
+                <Select v-model="invoiceForm.vendor_id">
+                  <SelectTrigger class="w-full">
+                    <SelectValue placeholder="Select a vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem v-for="vendor in job.vendors" :key="vendor.id" :value="String(vendor.id)">
+                        {{ vendor.name }}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label class="text-sm">File</Label>
-                <input ref="invoiceInput" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+                <Input :key="invoiceInputKey" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" />
               </div>
             </div>
             <Button @click="uploadInvoice" :disabled="isUploadingInvoice">

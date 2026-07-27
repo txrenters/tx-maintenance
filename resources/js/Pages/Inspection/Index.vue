@@ -78,6 +78,24 @@ import {
     DialogFooter,
 } from "@/Components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import { Checkbox } from "@/Components/ui/checkbox";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import { Input } from "@/Components/ui/input";
 import { Separator } from "@/Components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { Label } from "@/Components/ui/label";
@@ -261,10 +279,12 @@ const switchTab = (tabName) => {
 const selectedVendorIds = ref([]);
 const isSavingVendors = ref(false);
 const photoForm = ref({ title: "", type: "after", files: [] });
-const photoInput = ref(null);
+// A file input can not be cleared by binding, and a ref on the shadcn <Input>
+// resolves to the component rather than the DOM node - bump the key to remount.
+const photoInputKey = ref(0);
 const isUploadingPhotos = ref(false);
 const invoiceForm = ref({ title: "", amount: "", vendor_id: "", filename: null });
-const invoiceInput = ref(null);
+const invoiceInputKey = ref(0);
 const isUploadingInvoice = ref(false);
 
 // The modal holds job data in local state rather than Inertia props, so every
@@ -360,7 +380,7 @@ const uploadPhotos = () => {
             onSuccess: async () => {
                 toast({ title: "Success", description: "Photos uploaded." });
                 photoForm.value = { title: "", type: "after", files: [] };
-                if (photoInput.value) photoInput.value.value = "";
+                photoInputKey.value++;
                 await refreshSelectedJob();
             },
             onError: () =>
@@ -419,7 +439,7 @@ const uploadInvoice = () => {
                 vendor_id: "",
                 filename: null,
             };
-            if (invoiceInput.value) invoiceInput.value.value = "";
+            invoiceInputKey.value++;
             await refreshSelectedJob();
         },
         onError: () =>
@@ -1522,14 +1542,11 @@ usePoll(15000, {
                                 :key="vendor.id"
                                 class="flex items-center gap-2 py-1 cursor-pointer"
                             >
-                                <input
-                                    type="checkbox"
-                                    :value="vendor.id"
+                                <Checkbox
                                     :checked="
                                         selectedVendorIds.includes(vendor.id)
                                     "
-                                    @change="toggleVendor(vendor.id)"
-                                    class="rounded border-input"
+                                    @update:checked="toggleVendor(vendor.id)"
                                 />
                                 <span class="text-sm">{{ vendor.name }}</span>
                             </label>
@@ -1608,33 +1625,41 @@ usePoll(15000, {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
                             <div>
                                 <Label class="text-sm">Title</Label>
-                                <input
+                                <Input
                                     v-model="photoForm.title"
                                     placeholder="e.g. Kitchen sink - after"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                                 />
                             </div>
                             <div>
                                 <Label class="text-sm">Type</Label>
-                                <select
-                                    v-model="photoForm.type"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                                >
-                                    <option value="before">Before</option>
-                                    <option value="after">After</option>
-                                    <option value="attachment">
-                                        Attachment
-                                    </option>
-                                </select>
+                                <Select v-model="photoForm.type">
+                                    <SelectTrigger class="w-full">
+                                        <SelectValue
+                                            placeholder="Select a type"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectItem value="before"
+                                                >Before</SelectItem
+                                            >
+                                            <SelectItem value="after"
+                                                >After</SelectItem
+                                            >
+                                            <SelectItem value="attachment"
+                                                >Attachment</SelectItem
+                                            >
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <Label class="text-sm">Files</Label>
-                                <input
-                                    ref="photoInput"
+                                <Input
+                                    :key="photoInputKey"
                                     type="file"
                                     multiple
                                     @change="handlePhotoSelect"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm"
                                 />
                             </div>
                         </div>
@@ -1658,37 +1683,56 @@ usePoll(15000, {
                 v-if="activeTab === 'invoices' && selectedJob"
                 class="p-6 space-y-4 overflow-y-auto"
             >
-                <div v-if="selectedJob.invoices?.length" class="space-y-2">
-                    <div
-                        v-for="invoice in selectedJob.invoices"
-                        :key="invoice.id"
-                        class="border rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
-                    >
-                        <div>
-                            <p class="font-medium">{{ invoice.title }}</p>
-                            <p class="text-sm text-muted-foreground">
-                                {{ invoice.vendor_name || "No vendor" }}
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-semibold"
-                                >${{ invoice.amount }}</span
+                <Table v-if="selectedJob.invoices?.length">
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Vendor</TableHead>
+                            <TableHead class="text-right">Amount</TableHead>
+                            <TableHead class="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow
+                            v-for="invoice in selectedJob.invoices"
+                            :key="invoice.id"
+                        >
+                            <TableCell class="font-medium">{{
+                                invoice.title
+                            }}</TableCell>
+                            <TableCell>{{
+                                invoice.vendor_name || "—"
+                            }}</TableCell>
+                            <TableCell class="text-right font-semibold"
+                                >${{ invoice.amount }}</TableCell
                             >
-                            <Button variant="outline" size="sm" as-child>
-                                <a :href="invoice.url" target="_blank"
-                                    ><Eye class="h-4 w-4" /> View</a
+                            <TableCell class="text-right">
+                                <div
+                                    class="flex items-center justify-end gap-2"
                                 >
-                            </Button>
-                            <button
-                                v-if="selectedJob.can_upload_invoices"
-                                @click="deleteInvoice(invoice.id)"
-                                class="text-destructive hover:opacity-70"
-                            >
-                                <Trash2 class="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        as-child
+                                    >
+                                        <a :href="invoice.url" target="_blank"
+                                            ><Eye class="h-4 w-4" /> View</a
+                                        >
+                                    </Button>
+                                    <Button
+                                        v-if="selectedJob.can_upload_invoices"
+                                        variant="ghost"
+                                        size="icon"
+                                        class="h-8 w-8 text-destructive"
+                                        @click="deleteInvoice(invoice.id)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
                 <p v-else class="text-muted-foreground">
                     No invoices uploaded yet.
                 </p>
@@ -1700,47 +1744,49 @@ usePoll(15000, {
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
                             <div>
                                 <Label class="text-sm">Title</Label>
-                                <input
+                                <Input
                                     v-model="invoiceForm.title"
                                     placeholder="Invoice title"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                                 />
                             </div>
                             <div>
                                 <Label class="text-sm">Amount</Label>
-                                <input
+                                <Input
                                     v-model="invoiceForm.amount"
                                     type="number"
                                     step="0.01"
                                     min="0"
                                     placeholder="0.00"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                                 />
                             </div>
                             <div>
                                 <Label class="text-sm">Vendor</Label>
-                                <select
-                                    v-model="invoiceForm.vendor_id"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                                >
-                                    <option value="">—</option>
-                                    <option
-                                        v-for="vendor in selectedJob.vendors"
-                                        :key="vendor.id"
-                                        :value="vendor.id"
-                                    >
-                                        {{ vendor.name }}
-                                    </option>
-                                </select>
+                                <Select v-model="invoiceForm.vendor_id">
+                                    <SelectTrigger class="w-full">
+                                        <SelectValue
+                                            placeholder="Select a vendor"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectItem
+                                                v-for="vendor in selectedJob.vendors"
+                                                :key="vendor.id"
+                                                :value="String(vendor.id)"
+                                            >
+                                                {{ vendor.name }}
+                                            </SelectItem>
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <Label class="text-sm">File</Label>
-                                <input
-                                    ref="invoiceInput"
+                                <Input
+                                    :key="invoiceInputKey"
                                     type="file"
                                     accept=".jpg,.jpeg,.png,.pdf"
                                     @change="handleInvoiceSelect"
-                                    class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm"
                                 />
                             </div>
                         </div>

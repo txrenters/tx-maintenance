@@ -9,6 +9,7 @@ import { Input } from "@/Components/ui/input";
 import { Label } from "@/Components/ui/label";
 import { Separator } from "@/Components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
 import { Eye, Loader2, MapPin, Paperclip, Phone, Upload, User } from "lucide-vue-next";
 
 const props = defineProps({
@@ -31,7 +32,7 @@ const formatDate = (date) => {
 };
 
 const photoForm = ref({ title: "", type: "after", files: [] });
-const photoInput = ref(null);
+const photoInputKey = ref(0);
 const isUploadingPhotos = ref(false);
 
 const handlePhotoSelect = (event) => {
@@ -55,7 +56,7 @@ const uploadPhotos = () => {
     onSuccess: () => {
       toast({ title: "Uploaded", description: "Thanks — your photos were received." });
       photoForm.value = { title: "", type: "after", files: [] };
-      if (photoInput.value) photoInput.value.value = "";
+      photoInputKey.value++;
     },
     onError: () => toast({ variant: "destructive", title: "Error", description: "Could not upload your photos." }),
     onFinish: () => (isUploadingPhotos.value = false),
@@ -63,7 +64,7 @@ const uploadPhotos = () => {
 };
 
 const invoiceForm = ref({ title: "", amount: "", filename: null });
-const invoiceInput = ref(null);
+const invoiceInputKey = ref(0);
 const isUploadingInvoice = ref(false);
 
 const handleInvoiceSelect = (event) => {
@@ -87,7 +88,7 @@ const uploadInvoice = () => {
     onSuccess: () => {
       toast({ title: "Uploaded", description: "Thanks — your invoice was received." });
       invoiceForm.value = { title: "", amount: "", filename: null };
-      if (invoiceInput.value) invoiceInput.value.value = "";
+      invoiceInputKey.value++;
     },
     onError: () => toast({ variant: "destructive", title: "Error", description: "Could not upload your invoice." }),
     onFinish: () => (isUploadingInvoice.value = false),
@@ -155,15 +156,22 @@ const uploadInvoice = () => {
             </div>
             <div>
               <Label class="text-sm">Type</Label>
-              <select v-model="photoForm.type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                <option value="before">Before</option>
-                <option value="after">After</option>
-                <option value="attachment">Other</option>
-              </select>
+              <Select v-model="photoForm.type">
+                <SelectTrigger class="w-full">
+                  <SelectValue placeholder="Select a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="before">Before</SelectItem>
+                    <SelectItem value="after">After</SelectItem>
+                    <SelectItem value="attachment">Other</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label class="text-sm">Photos</Label>
-              <input ref="photoInput" type="file" multiple accept="image/*,.pdf" @change="handlePhotoSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+              <Input :key="photoInputKey" type="file" multiple accept="image/*,.pdf" @change="handlePhotoSelect" />
             </div>
             <Button class="w-full" @click="uploadPhotos" :disabled="isUploadingPhotos">
               <Loader2 v-if="isUploadingPhotos" class="h-4 w-4 animate-spin" />
@@ -206,7 +214,7 @@ const uploadInvoice = () => {
             </div>
             <div>
               <Label class="text-sm">File</Label>
-              <input ref="invoiceInput" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm" />
+              <Input :key="invoiceInputKey" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" />
             </div>
             <Button class="w-full" @click="uploadInvoice" :disabled="isUploadingInvoice">
               <Loader2 v-if="isUploadingInvoice" class="h-4 w-4 animate-spin" />
