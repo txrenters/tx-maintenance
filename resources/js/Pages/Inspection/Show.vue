@@ -8,6 +8,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import JobPhotosTab from "./partials/JobPhotosTab.vue";
+import JobCloseAction from "./partials/JobCloseAction.vue";
 import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Button } from "@/Components/ui/button";
@@ -34,6 +35,7 @@ const props = defineProps({
   vendorOptions: { type: Array, default: () => [] },
   canAssignVendors: { type: Boolean, default: false },
   canUploadInvoices: { type: Boolean, default: false },
+  canClose: { type: Boolean, default: false },
 });
 const { toast } = useToast();
 const page = usePage();
@@ -422,10 +424,21 @@ onUnmounted(() => {
         </Button>
 
         <div class="flex gap-2 flex-wrap" v-if="job">
+          <Badge v-if="job.is_closed" class="px-3 py-1 font-medium border border-emerald-200 bg-emerald-50 text-emerald-900">Closed</Badge>
           <Badge :class="['px-3 py-1 font-medium border', statusClass(job)]">{{ formatStatus(job.job_status) }}</Badge>
           <Badge variant="outline" v-if="job.job_type">{{ job.job_type === 'ONE_OFF' ? 'One-off Job' : 'Recurring Job' }}</Badge>
         </div>
       </div>
+
+      <JobCloseAction
+        v-if="job"
+        :job-id="job.id"
+        :is-closed="job.is_closed"
+        :closed-at="job.closed_at"
+        :closed-by="job.closed_by"
+        :close-reason="job.close_reason"
+        :can-close="canClose"
+      />
 
       <CardTitle class="text-2xl text-primary">{{ job?.title || 'Job Details' }} - Job #{{ job?.job_number || 'N/A' }}</CardTitle>
 

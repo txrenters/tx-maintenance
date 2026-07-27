@@ -21,6 +21,7 @@ use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberDiagnosticController;
+use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
@@ -136,6 +137,8 @@ Route::middleware([
     // their own assignment, photo and invoice endpoints.
     Route::get('/inspections/vendor/jobs', [InspectionController::class, 'vendorJobs'])->name('jobber.vendor_jobs');
     Route::put('/inspections/{job}/vendors', [JobberVendorController::class, 'update'])->name('jobber.vendors.change');
+    Route::post('/inspections/{job}/close', [JobberJobCloseController::class, 'store'])->name('jobber.close');
+    Route::delete('/inspections/{job}/close', [JobberJobCloseController::class, 'destroy'])->name('jobber.reopen');
     Route::post('/inspections/{job}/attachments', [JobberAttachmentsController::class, 'store'])->name('jobber.attachments.store');
     Route::delete('/jobber-attachments/{attachment}', [JobberAttachmentsController::class, 'destroy'])->name('jobber.attachments.destroy');
     Route::post('/inspections/{job}/invoices', [JobberInvoiceController::class, 'store'])->name('jobber.invoices.store');

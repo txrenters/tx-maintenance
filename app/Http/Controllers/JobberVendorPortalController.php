@@ -49,6 +49,9 @@ class JobberVendorPortalController extends Controller
             'title' => 'Job #'.$job->job_number,
             'token' => $assignment->access_token,
             'vendorName' => $vendor->name,
+            // A closed job stays readable so the vendor keeps their record of
+            // it, but goes read-only.
+            'isClosed' => $job->isClosedLocally(),
             'job' => [
                 'job_number' => $job->job_number,
                 'title' => $job->title,
@@ -91,6 +94,8 @@ class JobberVendorPortalController extends Controller
         $job = $request->attributes->get('portal_jobber_job');
         /** @var Vendor $vendor */
         $vendor = $request->attributes->get('portal_vendor');
+
+        $this->abortIfClosed($job);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -136,6 +141,8 @@ class JobberVendorPortalController extends Controller
         /** @var Vendor $vendor */
         $vendor = $request->attributes->get('portal_vendor');
 
+        $this->abortIfClosed($job);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
@@ -167,5 +174,15 @@ class JobberVendorPortalController extends Controller
 
             return back()->withErrors(['invoice' => 'Could not upload your invoice. Please try again.']);
         }
+    }
+
+    /**
+     * Once the office closes a job, the portal link keeps working for reading
+     * but stops accepting uploads. Enforced here as well as in the UI so a
+     * stale page left open cannot post into a finished job.
+     */
+    private function abortIfClosed(Jobber $job): void
+    {
+        abort_if($job->isClosedLocally(), 403, 'This job has been closed.');
     }
 }

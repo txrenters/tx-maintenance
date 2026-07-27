@@ -57,6 +57,7 @@ import Navigation from "./partials/Navigation.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import JobPhotosTab from "./partials/JobPhotosTab.vue";
 import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
+import JobCloseAction from "./partials/JobCloseAction.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
 import { Deferred, Head } from "@inertiajs/vue3";
@@ -1158,6 +1159,12 @@ usePoll(15000, {
                 <DialogDescription>
                     <div class="flex gap-2 mb-2 flex-wrap" v-if="selectedJob">
                         <Badge
+                            v-if="selectedJob.is_closed"
+                            class="px-3 py-1 font-medium border border-emerald-200 bg-emerald-50 text-emerald-900"
+                        >
+                            Closed
+                        </Badge>
+                        <Badge
                             :class="[
                                 'px-3 py-1 font-medium border',
                                 getJobStatusBadgeClasses(selectedJob),
@@ -1174,6 +1181,18 @@ usePoll(15000, {
                         </Badge>
                     </div>
                 </DialogDescription>
+
+                <JobCloseAction
+                    v-if="selectedJob"
+                    :job-id="selectedJob.id"
+                    :is-closed="selectedJob.is_closed"
+                    :closed-at="selectedJob.closed_at"
+                    :closed-by="selectedJob.closed_by"
+                    :close-reason="selectedJob.close_reason"
+                    :can-close="selectedJob.can_close"
+                    @saved="refreshSelectedJob"
+                />
+
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
                         :buttons="visibleTabButtons"

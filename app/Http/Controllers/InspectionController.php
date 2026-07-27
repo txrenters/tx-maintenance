@@ -39,7 +39,7 @@ class InspectionController extends Controller
                         ->orWhereBetween('end_at', [$startDate, $endDate]);
                 });
             })
-            ->whereNotIn('job_status', ['archived', 'closed']);
+            ->active();
 
         $statusCounts = (clone $baseQuery)
             ->selectRaw('job_status, COUNT(*) as total')
@@ -123,6 +123,7 @@ class InspectionController extends Controller
                 'vendor_options' => $vendorOptions,
                 'can_assign_vendors' => $isStaff,
                 'can_upload_invoices' => $isStaff,
+                'can_close' => $isStaff,
             ]);
         }
 
@@ -131,6 +132,7 @@ class InspectionController extends Controller
             'vendorOptions' => $vendorOptions,
             'canAssignVendors' => $isStaff,
             'canUploadInvoices' => $isStaff,
+            'canClose' => $isStaff,
             'job' => array_merge([
                 'id' => $job->id,
                 'job_number' => $job->job_number,
@@ -146,9 +148,13 @@ class InspectionController extends Controller
 
     protected function buildJobDetailsPayload(Jobber $job): array
     {
-        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts', 'vendors', 'jobAttachments', 'jobInvoices.vendor']);
+        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts', 'vendors', 'jobAttachments', 'jobInvoices.vendor', 'closedBy:id,name']);
 
         return [
+            'is_closed' => $job->isClosedLocally(),
+            'closed_at' => $job->closed_at,
+            'closed_by' => $job->closedBy?->name,
+            'close_reason' => $job->close_reason,
             'vendors' => $job->vendors->map(fn (Vendor $vendor) => [
                 'id' => $vendor->id,
                 'name' => $vendor->name,
@@ -277,7 +283,7 @@ class InspectionController extends Controller
             ? Jobber::query()
                 ->forVendor($vendor)
                 ->with(['client', 'property'])
-                ->whereNotIn('job_status', ['archived', 'closed'])
+                ->active()
                 ->orderByDesc('start_at')
                 ->get()
                 ->map(fn (Jobber $job) => [

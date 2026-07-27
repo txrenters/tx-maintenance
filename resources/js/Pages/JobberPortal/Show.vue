@@ -19,6 +19,9 @@ const props = defineProps({
   job: Object,
   attachments: { type: Array, default: () => [] },
   invoices: { type: Array, default: () => [] },
+  // The office has finished with this job: it stays readable, but uploads are
+  // closed off. The server enforces this too.
+  isClosed: { type: Boolean, default: false },
 });
 
 const { toast } = useToast();
@@ -149,7 +152,10 @@ const uploadInvoice = () => {
 
           <Separator />
 
-          <div class="space-y-2">
+          <div v-if="isClosed" class="space-y-2">
+            <p class="text-sm text-muted-foreground">This job has been closed. Uploads are no longer accepted.</p>
+          </div>
+          <div v-else class="space-y-2">
             <div>
               <Label class="text-sm">Title</Label>
               <Input v-model="photoForm.title" placeholder="e.g. Kitchen sink - after" />
@@ -203,7 +209,10 @@ const uploadInvoice = () => {
 
           <Separator />
 
-          <div class="space-y-2">
+          <div v-if="isClosed" class="space-y-2">
+            <p class="text-sm text-muted-foreground">This job has been closed. Invoices are no longer accepted.</p>
+          </div>
+          <div v-else class="space-y-2">
             <div>
               <Label class="text-sm">Title</Label>
               <Input v-model="invoiceForm.title" placeholder="Invoice title" />
