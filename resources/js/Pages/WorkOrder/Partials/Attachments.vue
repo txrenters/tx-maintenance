@@ -433,7 +433,7 @@ function handleFiles(event) {
                         <Input
                             multiple
                             type="file"
-                            accept=".jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .xls, .xlsx"
+                            accept="image/*, video/*, .3gp, .jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .xls, .xlsx"
                             @change="handleFiles"
                         />
                         <Progress

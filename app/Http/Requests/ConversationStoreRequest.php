@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\UploadedMediaFile;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -30,11 +31,11 @@ class ConversationStoreRequest extends FormRequest
             'vendor_id' => 'nullable|integer|exists:vendors,id',
             'conversation_type' => 'required|string|max:50',
             'images' => 'nullable|array|max:10',
-            // Images, videos, and PDFs are all accepted. Recipients receive the
+            // Any image or video plus PDFs are accepted. Recipients receive the
             // media as a link in the SMS body (not a true MMS attachment), so video
             // and documents are safe to allow; the size cap only bounds
             // upload/storage. 50MB per file.
-            'images.*' => 'file|mimes:jpeg,png,jpg,gif,svg,webp,mp4,mov,m4v,3gp,3gpp,webm,pdf|max:51200',
+            'images.*' => ['file', 'max:51200', new UploadedMediaFile(['pdf'])],
         ];
     }
 }

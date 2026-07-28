@@ -7,6 +7,7 @@ use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
+use App\Rules\UploadedMediaFile;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +24,7 @@ class AttachmentsController extends Controller
         try {
             $validatedData = $request->validate([
                 'title' => 'required|string',
-                'filename' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:51200',
+                'filename' => ['required', 'file', 'max:51200', new UploadedMediaFile(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'])],
                 'type' => 'required|in:before,after,attachment',
                 'work_order_id' => 'required|exists:work_orders,id',
             ]);
@@ -72,7 +73,7 @@ class AttachmentsController extends Controller
                 'type' => 'required|in:before,after,attachment',
                 'work_order_id' => 'required|exists:work_orders,id',
                 'files' => 'required|array',
-                'files.*.file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:51200',
+                'files.*.file' => ['required', 'file', 'max:51200', new UploadedMediaFile(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'])],
                 'files.*.name' => 'required|string',
                 'files.*.type' => 'required|string',
                 'tenant_portal' => 'required|in:Yes,No',

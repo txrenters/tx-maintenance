@@ -75,6 +75,55 @@ class ConversationAttachmentTest extends TestCase
         $this->assertSame(1, ConversationMedia::count());
     }
 
+    public function test_woc_can_attach_a_3gp_video_even_when_mime_detection_fails(): void
+    {
+        // Android phone recordings routinely arrive as .3gp files that PHP's
+        // fileinfo sniffs as application/octet-stream — the extension must win.
+        $response = $this->postAttachment(
+            UploadedFile::fake()->create('tenant-video.3gp', 2048, 'application/octet-stream'),
+        );
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(1, ConversationMedia::count());
+        Bus::assertDispatched(SendConversationMessageJob::class);
+    }
+
+    public function test_woc_can_attach_any_video_format(): void
+    {
+        foreach ([
+            ['clip.avi', 'video/x-msvideo'],
+            ['clip.mkv', 'video/x-matroska'],
+            ['clip.wmv', 'video/x-ms-wmv'],
+        ] as [$name, $mime]) {
+            $this->postAttachment(UploadedFile::fake()->create($name, 512, $mime))
+                ->assertSessionHasNoErrors();
+        }
+
+        $this->assertSame(3, ConversationMedia::count());
+    }
+
+    public function test_work_order_attachment_accepts_a_3gp_video(): void
+    {
+        Bus::fake();
+        Storage::fake('public');
+
+        $woc = User::factory()->create();
+        $workOrder = WorkOrder::factory()->create();
+
+        $response = $this->actingAs($woc)->post(route('api.attachments.store'), [
+            'title' => 'Tenant video',
+            'type' => 'attachment',
+            'work_order_id' => $workOrder->id,
+            'filename' => UploadedFile::fake()->create('leak.3gp', 2048, 'application/octet-stream'),
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('attachments', [
+            'title' => 'Tenant video',
+            'work_order_id' => $workOrder->id,
+        ]);
+    }
+
     public function test_disallowed_file_type_is_rejected(): void
     {
         $response = $this->postAttachment(
