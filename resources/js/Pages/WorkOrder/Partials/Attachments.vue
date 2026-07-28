@@ -13,6 +13,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import Files from "./Files.vue";
 import CameraModal from "./CameraModal.vue";
 import ImageCropper from "./ImageCropper.vue";
+import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 
 const { toast } = useToast();
 
@@ -64,6 +65,27 @@ const isImageDocument = (doc) => {
         return doc.file_type.startsWith("image/");
     }
     return /\.(jpe?g|png|gif|webp)$/i.test(doc.file_name || "");
+};
+
+const isPdfDocument = (doc) => {
+    return (
+        doc.file_type === "application/pdf" ||
+        /\.pdf$/i.test(doc.file_name || "")
+    );
+};
+
+// PDF and image documents open in the in-app preview dialog; everything else
+// keeps the plain link since browsers can't render Office files inline.
+const openDocumentPreview = ref(false);
+const previewedDocument = ref(null);
+
+const handlePreviewDocument = (doc) => {
+    previewedDocument.value = {
+        url: documentUrl(doc),
+        name: doc.file_name || "Document",
+        mime: doc.file_type,
+    };
+    openDocumentPreview.value = true;
 };
 
 // Icon shown for non-image documents, matching the before/after Files component.
@@ -263,14 +285,12 @@ function handleFiles(event) {
                         :key="doc.id"
                         class="rounded cursor-pointer hover:opacity-75"
                     >
-                        <!-- Image documents show a thumbnail; opens full size in a new tab -->
-                        <a
+                        <!-- Image documents show a thumbnail; opens the in-app preview -->
+                        <div
                             v-if="isImageDocument(doc)"
-                            :href="documentUrl(doc)"
-                            target="_blank"
-                            rel="noopener"
                             class="relative group inline-block p-3 border"
-                            title="View"
+                            title="Preview"
+                            @click="handlePreviewDocument(doc)"
                         >
                             <div
                                 class="relative flex items-center justify-center w-32 h-32"
@@ -287,9 +307,42 @@ function handleFiles(event) {
                                     class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
                                 />
                             </div>
-                        </a>
+                        </div>
 
-                        <!-- Non-image documents show a file-type icon -->
+                        <!-- PDF documents preview in-app; a corner button still downloads -->
+                        <div
+                            v-else-if="isPdfDocument(doc)"
+                            class="relative group inline-block p-3 border"
+                            title="Preview"
+                            @click="handlePreviewDocument(doc)"
+                        >
+                            <div
+                                class="relative flex items-center justify-center w-32 h-32"
+                            >
+                                <Expand
+                                    width="40"
+                                    height="40"
+                                    stroke-width="1"
+                                    class="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                />
+                                <img
+                                    :src="documentIcon(doc)"
+                                    class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
+                                    alt="File Icon"
+                                />
+                                <a
+                                    :href="documentUrl(doc)"
+                                    download=""
+                                    title="Download"
+                                    @click.stop
+                                    class="absolute bottom-0 right-0 p-1 rounded bg-secondary opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                >
+                                    <Download class="w-4 h-4" />
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Other documents (Office files etc.) keep the plain link -->
                         <a
                             v-else
                             :href="documentUrl(doc)"
@@ -360,6 +413,10 @@ function handleFiles(event) {
                 />
             </div>
         </div>
+        <FilePreviewDialog
+            v-model:open="openDocumentPreview"
+            :file="previewedDocument"
+        />
         <CameraModal
             :show="openCameraModal"
             @update:show="openCameraModal = $event"
