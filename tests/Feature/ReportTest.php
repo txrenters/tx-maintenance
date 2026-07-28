@@ -128,6 +128,32 @@ class ReportTest extends TestCase
             );
     }
 
+    public function test_open_over_30_days_excludes_service_status_closed(): void
+    {
+        $admin = $this->admin();
+        $open = ServiceStatus::create(['name' => 'New', 'description' => 'New']);
+        $closed = ServiceStatus::create(['name' => 'Closed', 'description' => 'Closed']);
+
+        // PW still says Open, but staff closed it locally — must not appear.
+        WorkOrder::factory()->create([
+            'service_status_id' => $closed->id, 'work_order_no' => 6201,
+            'created_date' => now()->subDays(45), 'status' => 'Open',
+        ]);
+        WorkOrder::factory()->create([
+            'service_status_id' => $open->id, 'work_order_no' => 6202,
+            'created_date' => now()->subDays(45), 'status' => 'Open',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('reports.open_over_30_days', ['year' => now()->year, 'month' => now()->month]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('total', 1)
+                ->where('breached', 1)
+                ->where('lists.0.rows.0.work_order_no', 6202)
+            );
+    }
+
     public function test_not_scheduled_within_3_days_splits_breached_and_compliant(): void
     {
         $admin = $this->admin();
