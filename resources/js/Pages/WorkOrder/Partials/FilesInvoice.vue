@@ -1,12 +1,15 @@
 <script setup>
+import { ref } from "vue";
 import {
     Download,
     Expand,
+    Eye,
     X,
     EllipsisVertical,
     Ellipsis,
 } from "lucide-vue-next";
 import { DateTime } from "luxon";
+import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 
 const props = defineProps({
     files: Object,
@@ -28,6 +31,24 @@ const updateInvoice = (image, status) => {
 };
 const isImage = (file) => {
     return file.filetype.startsWith("image/");
+};
+const isPdf = (file) => {
+    return (
+        file.filetype === "application/pdf" ||
+        (file.filename || "").toLowerCase().endsWith(".pdf")
+    );
+};
+
+const openPreview = ref(false);
+const previewedFile = ref(null);
+
+const openPreviewModal = (file) => {
+    previewedFile.value = {
+        url: file.invoice_url,
+        name: file.title || file.filename,
+        mime: file.filetype,
+    };
+    openPreview.value = true;
 };
 
 const getFileIcon = (filename) => {
@@ -128,7 +149,36 @@ const formatDate = (date) => {
           >
             <X class="w-3 h-3" />
           </button> -->
+                    <!-- PDFs preview in-app; a small corner button still downloads -->
+                    <div
+                        v-if="isPdf(file)"
+                        class="relative flex items-center justify-center w-20 h-20"
+                        title="Preview"
+                        @click="openPreviewModal(file)"
+                    >
+                        <Eye
+                            width="40"
+                            height="40"
+                            stroke-width="1"
+                            class="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        />
+                        <img
+                            :src="getFileIcon(file.filename)"
+                            class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
+                            alt="File Icon"
+                        />
+                        <a
+                            :href="file.invoice_url"
+                            download=""
+                            title="Download"
+                            @click.stop
+                            class="absolute bottom-0 right-0 p-1 rounded bg-secondary opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        >
+                            <Download class="w-4 h-4" />
+                        </a>
+                    </div>
                     <a
+                        v-else
                         :href="file.invoice_url"
                         download=""
                         class="relative flex items-center justify-center w-20 h-20"
@@ -212,5 +262,6 @@ const formatDate = (date) => {
                 </DropdownMenu>
             </div>
         </Card>
+        <FilePreviewDialog v-model:open="openPreview" :file="previewedFile" />
     </div>
 </template>
