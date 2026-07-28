@@ -611,7 +611,8 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
     // Pool
     poolService: "Pool Service",
 
-    // Alarm
+    // Alarm - handled by buildAlarmSystemCodeValue()/parseAlarmSystemCustomField()
+    // because the single Propertyware field carries the code and the alarm answers
     alarmSystemCode: "Alarm System Code",
 
     // Garage Access & Mailbox
@@ -648,6 +649,129 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
     hvacFilterSize2: "HVAC Filter Size 2",
     hvacFilterSize3: "HVAC Filter Size 3",
     hvacFilterSize4: "HVAC Filter Size 4",
+};
+
+// Every alarm answer is stored in the single Propertyware "Alarm System Code"
+// field (Property Information field set), formatted as:
+// "Alarm System Present - No, Included in Price - No, Under Contract - No, Armed During Marketing - Not specified"
+const ALARM_SYSTEM_CUSTOM_FIELD = "Alarm System Code";
+const ALARM_CODE_LABEL = "Alarm Code";
+const ALARM_ANSWER_LABELS = {
+    alarmSystem: "Alarm System Present",
+    alarmSystemIncludedInPrice: "Included in Price",
+    alarmSystemUnderContract: "Under Contract",
+    alarmSystemBeArmDuringMarketing: "Armed During Marketing",
+};
+const ALARM_UNANSWERED_VALUE = "Not specified";
+const ALARM_LABEL_SEPARATOR = " - ";
+const ALARM_ITEM_SEPARATOR = ", ";
+
+/**
+ * Build the combined Propertyware value for the "Alarm System Code" field.
+ *
+ * @return {?string} Combined value, or null when the alarm section is untouched
+ */
+const buildAlarmSystemCodeValue = () => {
+    const alarmCode = String(form.alarmSystemCode || "").trim();
+    const hasAlarmCode = alarmCode !== "" && alarmCode !== "Not Completed";
+    const answeredFields = Object.keys(ALARM_ANSWER_LABELS).filter(
+        (formField) => form[formField] === "Yes" || form[formField] === "No",
+    );
+
+    // Nothing to sync when the owner left the whole alarm section blank
+    if (!hasAlarmCode && answeredFields.length === 0) {
+        return null;
+    }
+
+    const buildItem = (label, value) =>
+        `${label}${ALARM_LABEL_SEPARATOR}${value}`;
+    const valueParts = [
+        buildItem(
+            ALARM_ANSWER_LABELS.alarmSystem,
+            form.alarmSystem === "Yes" || form.alarmSystem === "No"
+                ? form.alarmSystem
+                : ALARM_UNANSWERED_VALUE,
+        ),
+        buildItem(
+            ALARM_ANSWER_LABELS.alarmSystemIncludedInPrice,
+            form.alarmSystemIncludedInPrice || ALARM_UNANSWERED_VALUE,
+        ),
+        buildItem(
+            ALARM_ANSWER_LABELS.alarmSystemUnderContract,
+            form.alarmSystemUnderContract || ALARM_UNANSWERED_VALUE,
+        ),
+    ];
+
+    // Only list the code itself when the owner provided one
+    if (hasAlarmCode) {
+        valueParts.push(buildItem(ALARM_CODE_LABEL, alarmCode));
+    }
+
+    valueParts.push(
+        buildItem(
+            ALARM_ANSWER_LABELS.alarmSystemBeArmDuringMarketing,
+            form.alarmSystemBeArmDuringMarketing || ALARM_UNANSWERED_VALUE,
+        ),
+    );
+
+    return valueParts.join(ALARM_ITEM_SEPARATOR);
+};
+
+/**
+ * Populate the alarm form fields from the combined "Alarm System Code" value.
+ * Plain codes saved before this format was introduced still load correctly.
+ */
+const parseAlarmSystemCustomField = () => {
+    const rawValue = customFieldsMap.value[ALARM_SYSTEM_CUSTOM_FIELD]?.value;
+
+    if (!rawValue || rawValue === "Not Completed") {
+        return;
+    }
+
+    const segments = String(rawValue)
+        .split(",")
+        .map((segment) => segment.trim())
+        .filter((segment) => segment !== "");
+    let matchedAnyLabel = false;
+
+    segments.forEach((segment) => {
+        const separatorIndex = segment.indexOf(ALARM_LABEL_SEPARATOR);
+
+        if (separatorIndex === -1) {
+            return;
+        }
+
+        const label = segment.slice(0, separatorIndex).trim().toLowerCase();
+        const value = segment
+            .slice(separatorIndex + ALARM_LABEL_SEPARATOR.length)
+            .trim();
+
+        if (label === ALARM_CODE_LABEL.toLowerCase()) {
+            matchedAnyLabel = true;
+            form.alarmSystemCode = value;
+            return;
+        }
+
+        const answerEntry = Object.entries(ALARM_ANSWER_LABELS).find(
+            ([, answerLabel]) => answerLabel.toLowerCase() === label,
+        );
+
+        if (!answerEntry) {
+            return;
+        }
+
+        matchedAnyLabel = true;
+
+        if (value.toLowerCase() === "yes" || value.toLowerCase() === "no") {
+            form[answerEntry[0]] = value.toLowerCase() === "yes" ? "Yes" : "No";
+        }
+    });
+
+    // Legacy values hold the bare alarm code
+    if (!matchedAnyLabel) {
+        form.alarmSystem = "Yes";
+        form.alarmSystemCode = String(rawValue).trim();
+    }
 };
 
 // Store for custom field IDs (add this after your reactive declarations)
@@ -732,6 +856,11 @@ const searchProperty = async () => {
 const populateFormFromCustomFields = () => {
     Object.entries(FORM_FIELD_TO_CUSTOM_FIELD_MAPPING).forEach(
         ([formField, customFieldName]) => {
+            // The alarm field holds a combined value, parsed separately below
+            if (customFieldName === ALARM_SYSTEM_CUSTOM_FIELD) {
+                return;
+            }
+
             const customField = customFieldsMap.value[customFieldName];
             if (
                 customField &&
@@ -873,67 +1002,8 @@ const populateFormFromCustomFields = () => {
             customFieldsMap.value["HVAC Filter Size 4"].value;
     }
 
-    // Alarm System handling - if code exists, set alarm to Yes
-    if (
-        customFieldsMap.value["Alarm System Code"]?.value &&
-        customFieldsMap.value["Alarm System Code"].value !== "Not Completed" &&
-        customFieldsMap.value["Alarm System Code"].value !== ""
-    ) {
-        form.alarmSystem = "Yes";
-        form.alarmSystemCode = customFieldsMap.value["Alarm System Code"].value;
-    }
-
-    // Key Information - parse for alarm system details
-    if (
-        customFieldsMap.value["Key Information - anything we need to know"]
-            ?.value &&
-        customFieldsMap.value["Key Information - anything we need to know"]
-            .value !== "Not Completed"
-    ) {
-        const keyInfo = String(
-            customFieldsMap.value["Key Information - anything we need to know"]
-                .value || "",
-        ).toLowerCase();
-
-        // Check for alarm system included in price
-        if (
-            keyInfo.includes("included in price") ||
-            keyInfo.includes("included in rent")
-        ) {
-            form.alarmSystemIncludedInPrice = "Yes";
-        } else if (
-            keyInfo.includes("not included") ||
-            keyInfo.includes("additional cost")
-        ) {
-            form.alarmSystemIncludedInPrice = "No";
-        }
-
-        // Check for alarm system under contract
-        if (
-            keyInfo.includes("under contract") ||
-            keyInfo.includes("contracted")
-        ) {
-            form.alarmSystemUnderContract = "Yes";
-        } else if (
-            keyInfo.includes("no contract") ||
-            keyInfo.includes("not contracted")
-        ) {
-            form.alarmSystemUnderContract = "No";
-        }
-
-        // Check for alarm system armed during marketing
-        if (
-            keyInfo.includes("armed during marketing") ||
-            keyInfo.includes("armed while marketing")
-        ) {
-            form.alarmSystemBeArmDuringMarketing = "Yes";
-        } else if (
-            keyInfo.includes("not armed") ||
-            keyInfo.includes("disarmed")
-        ) {
-            form.alarmSystemBeArmDuringMarketing = "No";
-        }
-    }
+    // Alarm System - code and answers both come from the Alarm System Code field
+    parseAlarmSystemCustomField();
 
     // Re-Key & Code Work Responsibility - combine Property Re-Key and Code Work fields
     const reKeyValue = customFieldsMap.value["Property Re-Key"]?.value;
@@ -1325,7 +1395,8 @@ const prepareCustomFieldsForUpdate = () => {
             // Skip fields that are handled separately to avoid conflicts
             if (
                 customFieldName === "Pet Restrictions" ||
-                customFieldName === "Owner Pet Prefences"
+                customFieldName === "Owner Pet Prefences" ||
+                customFieldName === ALARM_SYSTEM_CUSTOM_FIELD
             ) {
                 return;
             }
@@ -1468,35 +1539,17 @@ const prepareCustomFieldsForUpdate = () => {
         }
     }
 
-    // Key Information - combine alarm system details
-    if (customFieldsMap.value["Key Information - anything we need to know"]) {
-        const keyInfoParts = [];
+    // Alarm System - the code and every alarm answer belong to the
+    // Property Information "Alarm System Code" field
+    if (customFieldsMap.value[ALARM_SYSTEM_CUSTOM_FIELD]) {
+        const alarmValue = buildAlarmSystemCodeValue();
 
-        // Add alarm system pricing info
-        if (form.alarmSystemIncludedInPrice === "Yes") {
-            keyInfoParts.push("Alarm system included in price");
-        } else if (form.alarmSystemIncludedInPrice === "No") {
-            keyInfoParts.push("Alarm system not included in price");
+        if (
+            alarmValue !== null &&
+            alarmValue !== customFieldsMap.value[ALARM_SYSTEM_CUSTOM_FIELD].value
+        ) {
+            fieldsToUpdate[ALARM_SYSTEM_CUSTOM_FIELD] = alarmValue;
         }
-
-        // Add alarm system contract info
-        if (form.alarmSystemUnderContract === "Yes") {
-            keyInfoParts.push("Alarm system under contract");
-        } else if (form.alarmSystemUnderContract === "No") {
-            keyInfoParts.push("Alarm system not under contract");
-        }
-
-        // Add alarm system marketing info
-        if (form.alarmSystemBeArmDuringMarketing === "Yes") {
-            keyInfoParts.push("Alarm system armed during marketing");
-        } else if (form.alarmSystemBeArmDuringMarketing === "No") {
-            keyInfoParts.push("Alarm system not armed during marketing");
-        }
-
-        const keyInfoValue =
-            keyInfoParts.length > 0 ? keyInfoParts.join(", ") : "Not Completed";
-        fieldsToUpdate["Key Information - anything we need to know"] =
-            keyInfoValue;
     }
 
     // Gated Community Gate Code - save garage door opener value
