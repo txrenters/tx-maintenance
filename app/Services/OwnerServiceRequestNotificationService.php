@@ -47,19 +47,10 @@ class OwnerServiceRequestNotificationService
 
     private function send(WorkOrder $workOrder): void
     {
-        // Vacant units have no tenant who submitted the request, so the owner
-        // confirmation ("...the service request submitted by your tenant...")
-        // would be misleading. When the work order is vacant — the WOC's manual
-        // "Vacant" toggle or a turnover job — skip the owner notification
-        // entirely (leaving it un-stamped so it never fires for this request).
-        if ($workOrder->isVacant()) {
-            return;
-        }
-
-        // HOA violations are not tenant-submitted service requests. The generic
-        // wording ("submitted by your tenant") plus a raw dump of the notice's
-        // items and remedies reads to the owner as a repair request, so skip the
-        // intake notification entirely and leave the HOA flow to message them.
+        // HOA violations are not service requests. The generic confirmation plus
+        // a raw dump of the notice's items and remedies reads to the owner as a
+        // repair request, so skip the intake notification entirely and leave the
+        // HOA flow to message them.
         if ($workOrder->isHoaViolation()) {
             return;
         }
@@ -139,7 +130,7 @@ class OwnerServiceRequestNotificationService
     {
         $ref = $workOrder->work_order_no;
 
-        return "TexasRenters.com would like to confirm that you've received an email copy of the service request submitted by your tenant. "
+        return "TexasRenters.com would like to confirm that you've received an email copy of the new service request. "
             ."Please log in to your owner portal and review service request number {$ref} under property address {$address} for full details. "
             ."We will proceed with the estimate and repairs as outlined in your property management agreement.\n"
             ."(Ref: WO#{$ref})";
