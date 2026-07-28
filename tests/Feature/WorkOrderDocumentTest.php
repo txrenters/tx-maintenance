@@ -86,6 +86,68 @@ class WorkOrderDocumentTest extends TestCase
         $this->assertSame('%PDF-1.4 fake bytes', $response->getContent());
     }
 
+    public function test_pdf_reported_as_octet_stream_still_renders_inline(): void
+    {
+        // PropertyWare reports application/octet-stream for real PDFs; the stored
+        // .pdf extension must win so the in-app preview works.
+        $user = User::factory()->create();
+        $document = $this->document(WorkOrder::factory()->create());
+
+        $this->mock(PropertyWareService::class, function (Mockery\MockInterface $mock) {
+            $mock->shouldReceive('downloadDocument')
+                ->once()
+                ->andReturn(['content' => '%PDF-1.4 fake bytes', 'mime' => 'application/octet-stream']);
+        });
+
+        $response = $this->actingAs($user)->get(route('api.work_order_documents.download', $document));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringContainsString('inline', $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_pdf_mime_with_charset_parameter_renders_inline(): void
+    {
+        $user = User::factory()->create();
+        $document = $this->document(WorkOrder::factory()->create());
+
+        $this->mock(PropertyWareService::class, function (Mockery\MockInterface $mock) {
+            $mock->shouldReceive('downloadDocument')
+                ->once()
+                ->andReturn(['content' => '%PDF-1.4 fake bytes', 'mime' => 'application/pdf;charset=UTF-8']);
+        });
+
+        $response = $this->actingAs($user)->get(route('api.work_order_documents.download', $document));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringContainsString('inline', $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_octet_stream_without_safe_extension_still_downloads(): void
+    {
+        $user = User::factory()->create();
+        $workOrder = WorkOrder::factory()->create();
+        $document = WorkOrderDocuments::create([
+            'work_order_id' => $workOrder->id,
+            'propertyware_id' => 8609103941,
+            'file_name' => 'setup.exe',
+            'file_type' => null,
+        ]);
+
+        $this->mock(PropertyWareService::class, function (Mockery\MockInterface $mock) {
+            $mock->shouldReceive('downloadDocument')
+                ->once()
+                ->andReturn(['content' => 'MZ fake bytes', 'mime' => 'application/octet-stream']);
+        });
+
+        $response = $this->actingAs($user)->get(route('api.work_order_documents.download', $document));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/octet-stream');
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition'));
+    }
+
     public function test_document_download_forces_unsafe_mime_to_download(): void
     {
         $user = User::factory()->create();

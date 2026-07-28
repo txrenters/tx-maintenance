@@ -174,7 +174,28 @@ class AttachmentsController extends Controller
         // safe types inline, force anything else to download as an opaque blob, and
         // never sniff. This prevents serving attacker-controlled HTML/JS inline.
         $inlineMimes = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif'];
-        $mime = in_array($file['mime'], $inlineMimes, true) ? $file['mime'] : 'application/octet-stream';
+
+        // PropertyWare appends charset parameters and reports octet-stream even for
+        // PDFs, which used to force a download and break the in-app preview. Normalize
+        // the header, and only when PW gives a meaningless generic type fall back to
+        // the stored file extension — still restricted to the same inline allowlist,
+        // so a document PW explicitly reports as e.g. text/html is never rendered.
+        $reported = strtolower(trim(explode(';', (string) $file['mime'])[0]));
+        $genericMimes = ['', 'application/octet-stream', 'binary/octet-stream', 'application/binary', 'application/download', 'application/force-download'];
+
+        $mime = 'application/octet-stream';
+        if (in_array($reported, $inlineMimes, true)) {
+            $mime = $reported;
+        } elseif (in_array($reported, $genericMimes, true)) {
+            $mime = match (strtolower(pathinfo((string) $workOrderDocument->file_name, PATHINFO_EXTENSION))) {
+                'pdf' => 'application/pdf',
+                'png' => 'image/png',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif' => 'image/gif',
+                default => 'application/octet-stream',
+            };
+        }
+
         $disposition = $mime === 'application/octet-stream' ? 'attachment' : 'inline';
 
         // The filename is external (PropertyWare). Strip path separators and any
