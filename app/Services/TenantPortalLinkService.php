@@ -281,7 +281,27 @@ class TenantPortalLinkService
                 ->all();
 
             if ($items !== []) {
-                return Str::limit(implode('; ', $items), 260);
+                return Str::limit(implode('; ', $items), 260, '...', preserveWords: true);
+            }
+        }
+
+        // Violations raised directly in PropertyWare arrive as repeated
+        // "Inspection Date: ... / Corrective Action: [Topic] - instruction"
+        // blocks. The instructions are all the tenant needs to act on, so list
+        // them without the inspection dates and topic tags.
+        if (preg_match_all('/Corrective Action:\s*(?:\[[^\]]*\]\s*-?\s*)?(.+?)(?=\n\s*(?:Inspection Date:|Corrective Action:)|\z)/is', $description, $matches)) {
+            $actions = collect($matches[1])
+                ->map(fn ($action) => trim((string) preg_replace('/\s+/', ' ', $action), " \t.-"))
+                ->filter()
+                ->unique(fn ($action) => Str::lower($action))
+                ->values();
+
+            if ($actions->isNotEmpty()) {
+                $list = $actions->count() > 1
+                    ? $actions->map(fn ($action, $index) => '('.($index + 1).') '.$action)->implode(' ')
+                    : $actions->first();
+
+                return Str::limit($list, 260, '...', preserveWords: true);
             }
         }
 
@@ -293,7 +313,7 @@ class TenantPortalLinkService
             return null;
         }
 
-        return Str::limit($lead, 220);
+        return Str::limit($lead, 220, '...', preserveWords: true);
     }
 
     private function toE164(?string $number): ?string
