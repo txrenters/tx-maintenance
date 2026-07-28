@@ -248,19 +248,20 @@ class ReportController extends Controller
     }
 
     /**
-     * KPI: open work orders older than 30 days (per created month, target = 0).
+     * KPI: open work orders older than 30 days as of today (created through the selected month, target = 0).
      */
     public function openOver30Days(Request $request)
     {
         $this->authorizeReports($request);
-        [$year, $month, $start, $end] = $this->monthRange($request);
+        [$year, $month, , $end] = $this->monthRange($request);
         $today = now();
         $cutoff = $today->copy()->subDays(30);
 
         // Closed work orders are excluded — this is about open backlog.
+        // The filter is cumulative: everything created through the selected month, aged against today.
         $workOrders = WorkOrder::query()->with('service_status')
             ->where('status', 'Open')
-            ->whereBetween('created_date', [$start, $end])
+            ->where('created_date', '<=', $end)
             ->orderBy('created_date')
             ->get();
 
@@ -282,7 +283,7 @@ class ReportController extends Controller
 
         return $this->respond('open_over_30_days', [
             'title' => 'Open WOs Over 30 Days Old',
-            'description' => 'Work orders created this month that are still open more than 30 days later. Target is zero.',
+            'description' => 'Work orders created through the selected month that are still open more than 30 days later. Target is zero.',
             'hasMonthFilter' => true,
             'filters' => ['year' => $year, 'month' => $month],
             'total' => $workOrders->count(),

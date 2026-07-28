@@ -98,6 +98,36 @@ class ReportTest extends TestCase
             );
     }
 
+    public function test_open_over_30_days_includes_prior_months_when_filtering_current_month(): void
+    {
+        $admin = $this->admin();
+        $status = ServiceStatus::create(['name' => 'New', 'description' => 'New']);
+
+        WorkOrder::factory()->create([
+            'service_status_id' => $status->id, 'work_order_no' => 6101,
+            'created_date' => now()->subDays(45), 'status' => 'Open',
+        ]);
+        WorkOrder::factory()->create([
+            'service_status_id' => $status->id, 'work_order_no' => 6102,
+            'created_date' => now()->subDays(5), 'status' => 'Open',
+        ]);
+        WorkOrder::factory()->create([
+            'service_status_id' => $status->id, 'work_order_no' => 6103,
+            'created_date' => now()->subDays(45), 'status' => 'Closed',
+            'completed_date' => now()->subDays(40),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('reports.open_over_30_days', ['year' => now()->year, 'month' => now()->month]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('total', 2) // the closed work order is excluded
+                ->where('breached', 1)
+                ->where('lists.0.rows.0.work_order_no', 6101)
+                ->where('lists.1.rows.0.work_order_no', 6102)
+            );
+    }
+
     public function test_not_scheduled_within_3_days_splits_breached_and_compliant(): void
     {
         $admin = $this->admin();
