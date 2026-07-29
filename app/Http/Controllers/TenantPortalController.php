@@ -52,7 +52,7 @@ class TenantPortalController extends Controller
                 'work_order_no' => $workOrder->work_order_no,
                 'description' => $workOrder->description,
                 'status' => $workOrder->service_status?->name ?? $workOrder->status,
-                'address' => trim((string) ($tenant?->address ?? '')),
+                'address' => $workOrder->propertyAddress() ?? '',
                 'created_date' => $workOrder->created_date,
             ],
             'attachments' => $attachments->map(fn ($a) => [

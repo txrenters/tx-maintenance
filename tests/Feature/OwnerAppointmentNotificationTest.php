@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendOwnerAppointmentNotificationJob;
+use App\Models\Building;
 use App\Models\Owner;
 use App\Models\ServiceSchedule;
 use App\Models\ServiceStatus;
@@ -274,5 +275,33 @@ class OwnerAppointmentNotificationTest extends TestCase
 
         $this->assertStringContainsString('for your property at 3326 Jane Way', $message);
         $this->assertStringContainsString('(Ref: WO#4567)', $message);
+    }
+
+    public function test_the_message_prefers_the_building_address_over_the_tenant_contact_address(): void
+    {
+        config(['services.twilio.owner_schedule_sms' => true]);
+        config(['services.twilio.maintenance_from' => '+15120000000']);
+        Queue::fake();
+
+        $vendor = $this->makeVendor('Acme Plumbing');
+        $owner = $this->makeOwner('5125551234');
+        $tenant = $this->makeTenant('2514 Rose Gold Dr');
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-2808AB',
+            'name' => 'Arbor Brook',
+            'address' => '2808 Arbor Brook Ln',
+            'city' => 'Pearland',
+            'state_region' => 'TX',
+        ]);
+        $workOrder = $this->makeWorkOrder($owner);
+        $workOrder->update(['tenant_id' => $tenant->id, 'building_id' => $building->propertyware_id]);
+        $schedule = $this->makeSchedule($workOrder, $vendor);
+
+        app(OwnerAppointmentNotificationService::class)->notify($schedule);
+
+        $message = $workOrder->owner_conversation()->firstOrFail()->message;
+
+        $this->assertStringContainsString('for your property at 2808 Arbor Brook Ln', $message);
+        $this->assertStringNotContainsString('2514 Rose Gold Dr', $message);
     }
 }

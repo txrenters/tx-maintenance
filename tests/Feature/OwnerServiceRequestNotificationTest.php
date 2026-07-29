@@ -274,6 +274,33 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
+    public function test_it_uses_the_building_address_over_a_mismatched_tenant_contact_address(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        // The requested-by contact's PropertyWare mailing address points somewhere
+        // else entirely (WO#43596), so it must never win over the building.
+        $tenant = $this->makeTenant('2514 Rose Gold Dr');
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-2808AB',
+            'name' => 'Arbor Brook',
+            'address' => '2808 Arbor Brook Ln',
+            'city' => 'Pearland',
+            'state_region' => 'TX',
+        ]);
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+        $workOrder->owners()->attach($owner->id);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $confirmation = $workOrder->owner_conversation()->first()->message;
+        $this->assertStringContainsString('property address 2808 Arbor Brook Ln', $confirmation);
+        $this->assertStringNotContainsString('2514 Rose Gold Dr', $confirmation);
+    }
+
     public function test_it_falls_back_to_the_building_street_address_when_the_tenant_has_none(): void
     {
         $this->enableGate();

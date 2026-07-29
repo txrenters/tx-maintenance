@@ -228,7 +228,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         return $greeting."\n\n"
             .'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
-            .$this->propertyAddress($workOrder).' under Work Order #'.$ref.'. '
+            .($workOrder->propertyAddress() ?? 'the property').' under Work Order #'.$ref.'. '
             .'They will contact you directly to arrange an appointment. '
             .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.'
             ."\n(Ref: WO#{$ref})";
@@ -300,7 +300,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         $lines = [
             'Hi '.$ownerName.',',
             'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
-                .$this->propertyAddress($workOrder).' under Work Order #'.$workOrder->work_order_no.'.',
+                .($workOrder->propertyAddress() ?? 'the property').' under Work Order #'.$workOrder->work_order_no.'.',
         ];
 
         // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for the
@@ -322,29 +322,6 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         }
 
         return $vendor->name;
-    }
-
-    /**
-     * The property street address, matching the street-only form the WOC uses
-     * (e.g. "3326 Jane Way"). The tenant lives at the property, so their address
-     * is the primary source; fall back to the building's street address (filled
-     * by sync:building-details), then to a neutral phrase.
-     */
-    private function propertyAddress(WorkOrder $workOrder): string
-    {
-        $tenantAddress = trim((string) ($workOrder->requested_by?->address ?? ''));
-
-        if ($tenantAddress !== '') {
-            return $tenantAddress;
-        }
-
-        $buildingAddress = trim((string) ($workOrder->building?->address ?? ''));
-
-        if ($buildingAddress !== '') {
-            return $buildingAddress;
-        }
-
-        return 'the property';
     }
 
     /**

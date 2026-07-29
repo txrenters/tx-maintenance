@@ -128,8 +128,8 @@ class OwnerAppointmentNotificationService
             ?: 'the assigned vendor'));
 
         $when = $this->formatAppointment($serviceSchedule);
-        $address = $this->propertyAddress($workOrder);
-        $property = $address !== '' ? ' at '.$address : '';
+        $address = $workOrder->propertyAddress();
+        $property = $address !== null ? ' at '.$address : '';
 
         return "Hello,\n"
             ."We wanted to provide an update that the service appointment for your property{$property} has been scheduled with {$vendorName}.\n"
@@ -138,22 +138,6 @@ class OwnerAppointmentNotificationService
             ."We will continue to provide updates once the service has been completed.\n"
             ."Thank you!\n"
             ."(Ref: WO#{$workOrder->work_order_no})";
-    }
-
-    /**
-     * The property street address, matching the street-only form the WOC uses
-     * (e.g. "3326 Jane Way"): the tenant's address, then the building's street
-     * address, else empty so the message reads "for your property".
-     */
-    private function propertyAddress(WorkOrder $workOrder): string
-    {
-        $tenantAddress = trim((string) ($workOrder->requested_by?->address ?? ''));
-
-        if ($tenantAddress !== '') {
-            return $tenantAddress;
-        }
-
-        return trim((string) ($workOrder->building?->address ?? ''));
     }
 
     /**

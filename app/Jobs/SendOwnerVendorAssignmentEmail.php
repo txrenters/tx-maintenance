@@ -48,7 +48,7 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             'owner' => $owner,
             'vendor' => $vendor,
             'workOrder' => $workOrder,
-            'propertyAddress' => trim((string) ($workOrder->requested_by?->address ?: $workOrder->building?->address ?: 'the property')),
+            'propertyAddress' => $workOrder->propertyAddress() ?? 'the property',
             // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for
             // the vendor to contact, so drop that line while still notifying the
             // owner that a vendor was assigned.
