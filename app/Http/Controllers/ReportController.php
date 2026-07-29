@@ -257,10 +257,14 @@ class ReportController extends Controller
         $today = now();
         $cutoff = $today->copy()->subDays(30);
 
-        // Closed work orders are excluded — this is about open backlog.
+        // Closed work orders are excluded — this is about open backlog. That
+        // includes work orders whose local service status is "Closed" even when
+        // PropertyWare still reports them Open (finished work never closed out
+        // in PW), per the IT lead's call.
         // The filter is cumulative: everything created through the selected month, aged against today.
         $workOrders = WorkOrder::query()->with('service_status')
             ->where('status', 'Open')
+            ->whereDoesntHave('service_status', fn ($query) => $query->where('name', 'Closed'))
             ->where('created_date', '<=', $end)
             ->orderBy('created_date')
             ->get();
