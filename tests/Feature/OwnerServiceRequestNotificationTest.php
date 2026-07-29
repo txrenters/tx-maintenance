@@ -83,7 +83,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         // Message 1: confirmation with WO# + property address, from Chana's wording.
         $confirmation = $messages[0]->message;
-        $this->assertStringContainsString('email copy of the service request submitted by your tenant', $confirmation);
+        $this->assertStringContainsString('email copy of the new service request', $confirmation);
         $this->assertStringContainsString('service request number 43361', $confirmation);
         $this->assertStringContainsString('property address 6341 Del Monte Dr', $confirmation);
         $this->assertStringContainsString('(Ref: WO#43361)', $confirmation);
@@ -152,7 +152,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
-    public function test_it_does_not_notify_when_the_property_is_vacant(): void
+    public function test_it_notifies_when_the_property_is_vacant(): void
     {
         $this->enableGate();
         Queue::fake();
@@ -162,18 +162,19 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder($tenant);
         $workOrder->owners()->attach($owner->id);
 
-        // WOC has marked the unit vacant: there is no tenant who "submitted"
-        // the request, so the owner confirmation must not be sent at all.
+        // The wording no longer mentions the tenant, so a vacant unit (rekey,
+        // biweekly, manual toggle) still gets the owner confirmation.
         $workOrder->update(['skip_automated_tasks' => true]);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
-        $this->assertSame(0, $workOrder->owner_conversation()->count());
-        Queue::assertNotPushed(SendConversationMessageJob::class);
-        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+        $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
+        $this->assertNotNull($confirmation);
+        $this->assertStringContainsString('email copy of the new service request', $confirmation->message);
+        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
-    public function test_it_does_not_notify_on_a_turnover_work_order(): void
+    public function test_it_notifies_on_a_turnover_work_order(): void
     {
         $this->enableGate();
         Queue::fake();
@@ -183,15 +184,14 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder($tenant);
         $workOrder->owners()->attach($owner->id);
 
-        // Turnover units are vacant — no tenant "submitted" the request, so the
-        // owner confirmation must not be sent, even without the manual toggle.
         $workOrder->update(['type' => 'Turnover']);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
-        $this->assertSame(0, $workOrder->owner_conversation()->count());
-        Queue::assertNotPushed(SendConversationMessageJob::class);
-        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+        $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
+        $this->assertNotNull($confirmation);
+        $this->assertStringContainsString('email copy of the new service request', $confirmation->message);
+        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
     public function test_it_does_not_notify_on_a_categorized_hoa_violation(): void
