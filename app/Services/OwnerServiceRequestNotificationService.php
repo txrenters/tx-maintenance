@@ -94,7 +94,7 @@ class OwnerServiceRequestNotificationService
             return;
         }
 
-        $address = $this->propertyAddress($workOrder);
+        $address = $workOrder->propertyAddress() ?? 'your property';
         $confirmation = $this->confirmationMessage($workOrder, $address);
         $description = $this->descriptionMessage($workOrder);
 
@@ -158,30 +158,6 @@ class OwnerServiceRequestNotificationService
         }
 
         return "Description\n{$description} (Ref: WO#{$workOrder->work_order_no})";
-    }
-
-    /**
-     * The property street address, matching the street-only form the WOC uses
-     * (e.g. "3326 Jane Way"). The tenant lives at the property, so their address
-     * is the primary source; fall back to the building's street address (filled
-     * by sync:building-details) for work orders with no tenant address on file,
-     * then to a neutral phrase.
-     */
-    private function propertyAddress(WorkOrder $workOrder): string
-    {
-        $tenantAddress = trim((string) ($workOrder->requested_by?->address ?? ''));
-
-        if ($tenantAddress !== '') {
-            return $tenantAddress;
-        }
-
-        $buildingAddress = trim((string) ($workOrder->building?->address ?? ''));
-
-        if ($buildingAddress !== '') {
-            return $buildingAddress;
-        }
-
-        return 'your property';
     }
 
     /**

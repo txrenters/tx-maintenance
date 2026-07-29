@@ -135,15 +135,36 @@ class WorkOrder extends Model
     }
 
     /**
+     * The work order's property street address, in the street-only form the WOC
+     * uses (e.g. "3326 Jane Way"). The building's address is the source of truth:
+     * it is synced by sync:building-details and joined on this work order's own
+     * building_id. The requested-by contact's address is only a fallback because
+     * it is that contact's PropertyWare mailing address, keyed globally and
+     * overwritten on every import, so it is not tied to this property.
+     * Null when neither address is known.
+     */
+    public function propertyAddress(): ?string
+    {
+        $buildingAddress = trim((string) ($this->building?->address ?? ''));
+
+        if ($buildingAddress !== '') {
+            return $buildingAddress;
+        }
+
+        $tenantAddress = trim((string) ($this->requested_by?->address ?? ''));
+
+        return $tenantAddress !== '' ? $tenantAddress : null;
+    }
+
+    /**
      * Concise property identifier for email subjects so staff can tell which
-     * property an automated email is about: the requested-by/unit address,
-     * else the building address, else the building name (empty if none known).
+     * property an automated email is about: the property street address, else
+     * the building name (empty if none known).
      */
     public function propertyLabel(): string
     {
         return trim((string) (
-            $this->requested_by?->address
-            ?: $this->building?->address
+            $this->propertyAddress()
             ?: $this->building?->name
             ?: ''
         ));
