@@ -7,6 +7,7 @@ use App\Jobs\SendOwnerAppointmentNotificationJob;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
+use App\Services\TaskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -137,6 +138,10 @@ class ServiceScheduleController extends Controller
                 'start_date' => $serviceSchedule->scheduled_date,
                 'scheduled_end_date' => $serviceSchedule->scheduled_end_date ?? $serviceSchedule->scheduled_date,
             ]);
+
+            // Tasks generated before the vendor set (or moved) this schedule
+            // still carry their generation-day due dates; re-anchor them.
+            TaskService::syncTaskDueDatesToSchedule($workOrder);
 
             // Validate work order has required data for PropertyWare sync
             if (! $workOrder->location || trim($workOrder->location) === '') {
@@ -273,6 +278,10 @@ class ServiceScheduleController extends Controller
                 'start_date' => $earliestOverallSchedule ? $earliestOverallSchedule->scheduled_date : null,
                 'scheduled_end_date' => $latestOverallSchedule ? ($latestOverallSchedule->scheduled_end_date ?? $latestOverallSchedule->scheduled_date) : null,
             ]);
+
+            // Re-anchor open task due dates to whichever schedule remains (a
+            // work order with no schedules left keeps its current due dates).
+            TaskService::syncTaskDueDatesToSchedule($workOrder);
 
             // Trigger PropertyWare sync
             $propertyWareService = new PropertyWareService;
