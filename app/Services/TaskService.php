@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Scopes\TaskScope;
 use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderTask;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -150,6 +152,50 @@ class TaskService
         // Insert tasks into the database
         if (! empty($tasks)) {
             DB::table('work_order_tasks')->insert($tasks);
+        }
+    }
+
+    /**
+     * Re-anchor the due dates of a work order's open template tasks to its
+     * current schedule. Vendors usually set (or move) the service schedule
+     * after the status tasks were generated, so the generated due dates would
+     * otherwise stay stuck on the generation day. Mirrors the precedence used
+     * at creation: "N days from start date" template tasks follow start_date;
+     * everything else follows scheduled_end_date. Completed tasks and manually
+     * created tasks (no template link) keep the dates a person gave them, and
+     * tasks are left untouched when the work order has no schedule to anchor to.
+     */
+    public static function syncTaskDueDatesToSchedule(WorkOrder $workOrder): void
+    {
+        $openTasks = WorkOrderTask::withoutGlobalScope(TaskScope::class)
+            ->with('task')
+            ->where('work_order_id', $workOrder->id)
+            ->where('status', '!=', 'completed')
+            ->whereNotNull('task_id')
+            ->get();
+
+        foreach ($openTasks as $openTask) {
+            $templateDueDate = (string) ($openTask->task?->due_date ?? '');
+            $newDueDate = null;
+
+            if (str_contains($templateDueDate, 'from start date')) {
+                if ($workOrder->start_date) {
+                    preg_match('/\d+/', $templateDueDate, $matches);
+                    $days = ! empty($matches) ? (int) $matches[0] : 0;
+
+                    $newDueDate = Carbon::parse($workOrder->start_date)->addDays($days);
+                }
+            } elseif (! empty($workOrder->scheduled_end_date)) {
+                $newDueDate = Carbon::parse($workOrder->scheduled_end_date);
+            }
+
+            if ($newDueDate === null) {
+                continue;
+            }
+
+            if ((string) $openTask->due_date !== $newDueDate->toDateString()) {
+                $openTask->update(['due_date' => $newDueDate->toDateString()]);
+            }
         }
     }
 
