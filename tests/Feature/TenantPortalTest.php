@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\UploadAttachment;
+use App\Models\Building;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
@@ -69,7 +70,15 @@ class TenantPortalTest extends TestCase
     public function test_a_valid_token_renders_the_portal(): void
     {
         $tenant = $this->makeTenant();
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-6341DM',
+            'name' => 'Del Monte',
+            'address' => '6341 Del Monte Dr',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+        ]);
         $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
         $token = $this->makeToken($workOrder);
 
         $this->get(route('tenant.portal.show', $token->token))

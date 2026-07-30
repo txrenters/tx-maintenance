@@ -256,7 +256,7 @@ class OwnerAppointmentNotificationTest extends TestCase
         $this->assertSame('+15125551234', $workOrder->owner_conversation()->first()->receiver_number);
     }
 
-    public function test_the_message_uses_the_tenant_address_and_carries_the_ref_tag(): void
+    public function test_the_message_never_uses_the_tenant_contact_address_and_carries_the_ref_tag(): void
     {
         config(['services.twilio.owner_schedule_sms' => true]);
         config(['services.twilio.maintenance_from' => '+15120000000']);
@@ -264,6 +264,8 @@ class OwnerAppointmentNotificationTest extends TestCase
 
         $vendor = $this->makeVendor('Acme Plumbing');
         $owner = $this->makeOwner('5125551234');
+        // The requested-by contact's PropertyWare mailing address is not the
+        // property (WO#43517); with no building on file the message stays neutral.
         $tenant = $this->makeTenant('3326 Jane Way');
         $workOrder = $this->makeWorkOrder($owner);
         $workOrder->update(['tenant_id' => $tenant->id]);
@@ -273,8 +275,33 @@ class OwnerAppointmentNotificationTest extends TestCase
 
         $message = $workOrder->owner_conversation()->firstOrFail()->message;
 
-        $this->assertStringContainsString('for your property at 3326 Jane Way', $message);
+        $this->assertStringNotContainsString('3326 Jane Way', $message);
+        $this->assertStringContainsString('for your property has been scheduled', $message);
         $this->assertStringContainsString('(Ref: WO#4567)', $message);
+    }
+
+    public function test_the_message_falls_back_to_the_building_name_when_it_has_no_address(): void
+    {
+        config(['services.twilio.owner_schedule_sms' => true]);
+        config(['services.twilio.maintenance_from' => '+15120000000']);
+        Queue::fake();
+
+        $vendor = $this->makeVendor('Acme Plumbing');
+        $owner = $this->makeOwner('5125551234');
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-1532A',
+            'name' => '1532A',
+            'address' => '',
+        ]);
+        $workOrder = $this->makeWorkOrder($owner);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+        $schedule = $this->makeSchedule($workOrder, $vendor);
+
+        app(OwnerAppointmentNotificationService::class)->notify($schedule);
+
+        $message = $workOrder->owner_conversation()->firstOrFail()->message;
+
+        $this->assertStringContainsString('for your property at 1532A has been scheduled', $message);
     }
 
     public function test_the_message_prefers_the_building_address_over_the_tenant_contact_address(): void

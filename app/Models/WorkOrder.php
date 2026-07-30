@@ -135,13 +135,14 @@ class WorkOrder extends Model
     }
 
     /**
-     * The work order's property street address, in the street-only form the WOC
-     * uses (e.g. "3326 Jane Way"). The building's address is the source of truth:
-     * it is synced by sync:building-details and joined on this work order's own
-     * building_id. The requested-by contact's address is only a fallback because
-     * it is that contact's PropertyWare mailing address, keyed globally and
-     * overwritten on every import, so it is not tied to this property.
-     * Null when neither address is known.
+     * The work order's property reference for messages: the building's street
+     * address (synced by sync:building-details and joined on this work order's
+     * building_id), else the building's PropertyWare name (e.g. "1532A").
+     * The requested-by contact's mailing address is never used: it is a
+     * PropertyWare contact field, keyed globally and overwritten on every
+     * import, and can point at a different property entirely (WO#43517 told
+     * an owner the work was at the incoming tenant's old home address).
+     * Null when no building detail is known.
      */
     public function propertyAddress(): ?string
     {
@@ -151,23 +152,18 @@ class WorkOrder extends Model
             return $buildingAddress;
         }
 
-        $tenantAddress = trim((string) ($this->requested_by?->address ?? ''));
+        $buildingName = trim((string) ($this->building?->name ?? ''));
 
-        return $tenantAddress !== '' ? $tenantAddress : null;
+        return $buildingName !== '' ? $buildingName : null;
     }
 
     /**
      * Concise property identifier for email subjects so staff can tell which
-     * property an automated email is about: the property street address, else
-     * the building name (empty if none known).
+     * property an automated email is about (empty if none known).
      */
     public function propertyLabel(): string
     {
-        return trim((string) (
-            $this->propertyAddress()
-            ?: $this->building?->name
-            ?: ''
-        ));
+        return trim((string) ($this->propertyAddress() ?: ''));
     }
 
     /**

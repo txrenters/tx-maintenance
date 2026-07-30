@@ -72,8 +72,16 @@ class OwnerServiceRequestNotificationTest extends TestCase
         Queue::fake();
 
         $owner = $this->makeOwner('3466260693', 100);
-        $tenant = $this->makeTenant('6341 Del Monte Dr');
+        $tenant = $this->makeTenant();
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-6341DM',
+            'name' => 'Del Monte',
+            'address' => '6341 Del Monte Dr',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+        ]);
         $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
         $workOrder->owners()->attach($owner->id);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
@@ -326,13 +334,15 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertStringContainsString('property address 500 Elm St', $confirmation);
     }
 
-    public function test_it_uses_a_neutral_phrase_when_no_address_is_available(): void
+    public function test_it_uses_a_neutral_phrase_when_no_building_is_known_even_if_the_tenant_has_an_address(): void
     {
         $this->enableGate();
         Queue::fake();
 
         $owner = $this->makeOwner('3466260693', 100);
-        $tenant = $this->makeTenant('');
+        // The contact's mailing address must never leak into the message when
+        // the work order has no building on file (WO#43517).
+        $tenant = $this->makeTenant('1600 Clark Blvd');
         $workOrder = $this->makeWorkOrder($tenant);
         $workOrder->owners()->attach($owner->id);
 
@@ -340,6 +350,30 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         $confirmation = $workOrder->owner_conversation()->first()->message;
         $this->assertStringContainsString('property address your property', $confirmation);
+        $this->assertStringNotContainsString('1600 Clark Blvd', $confirmation);
+    }
+
+    public function test_it_falls_back_to_the_building_name_when_the_building_has_no_address(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant = $this->makeTenant('1600 Clark Blvd');
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-1532A',
+            'name' => '1532A',
+            'address' => '',
+        ]);
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+        $workOrder->owners()->attach($owner->id);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $confirmation = $workOrder->owner_conversation()->first()->message;
+        $this->assertStringContainsString('property address 1532A', $confirmation);
+        $this->assertStringNotContainsString('1600 Clark Blvd', $confirmation);
     }
 
     public function test_the_job_runs_the_service(): void
