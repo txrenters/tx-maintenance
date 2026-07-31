@@ -21,5 +21,5 @@
     </p>
     @endif
     <p style="margin:14px 0 2px;">Thank you,</p>
-    <p style="margin:0; font-weight:bold; color:#0f2c66;">The TexasRenters.com Property Management Team</p>
+    <p style="margin:0; font-weight:bold; color:#0f2c66;">- TX Maintenance Team</p>
 </x-mail.branded>

@@ -99,8 +99,11 @@ class OwnerServiceRequestNotificationService
             }
 
             // Each owner gets their own no-login portal link for this request.
-            $confirmation = $this->confirmationMessage($workOrder, $address)
-                .$this->portalLinks->smsLine($workOrder, $owner);
+            $confirmation = OwnerMessageFormatter::compose(
+                $this->confirmationMessage($workOrder, $address),
+                $workOrder->work_order_no,
+                $this->portalLinks->link($workOrder, $owner),
+            );
 
             $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $confirmation);
 
@@ -137,10 +140,11 @@ class OwnerServiceRequestNotificationService
     {
         $ref = $workOrder->work_order_no;
 
-        return "TexasRenters.com would like to confirm that you've received an email copy of the new service request. "
-            ."Please log in to your owner portal and review service request number {$ref} under property address {$address} for full details. "
-            ."We will proceed with the estimate and repairs as outlined in your property management agreement.\n"
-            ."(Ref: WO#{$ref})";
+        return OwnerMessageFormatter::paragraphs([
+            "TexasRenters.com would like to confirm that you've received an email copy of the new service request.",
+            "Please log in to your owner portal and review service request number {$ref} under property address {$address} for full details.",
+            'We will proceed with the estimate and repairs as outlined in your property management agreement.',
+        ]);
     }
 
     /**
@@ -155,7 +159,10 @@ class OwnerServiceRequestNotificationService
             return null;
         }
 
-        return "Description\n{$description} (Ref: WO#{$workOrder->work_order_no})";
+        return OwnerMessageFormatter::compose(
+            "Description\n{$description}",
+            $workOrder->work_order_no,
+        );
     }
 
     /**

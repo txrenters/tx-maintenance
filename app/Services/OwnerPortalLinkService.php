@@ -47,19 +47,4 @@ class OwnerPortalLinkService
             return null;
         }
     }
-
-    /**
-     * The link as a ready-to-append SMS line, or an empty string when no link
-     * could be issued. Keeps the wording identical across all four senders.
-     */
-    public function smsLine(WorkOrder $workOrder, Owner $owner): string
-    {
-        $link = $this->link($workOrder, $owner);
-
-        if ($link === null) {
-            return '';
-        }
-
-        return "\nView the request, message us, and see photos here — no login needed: ".$link;
-    }
 }

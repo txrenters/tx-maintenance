@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
+use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -202,7 +203,11 @@ class FollowUpOwnerSchedule extends Command
         $fromNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
 
-        $message = $this->messageFor($workOrder).$portalLinks->smsLine($workOrder, $owner);
+        $message = OwnerMessageFormatter::compose(
+            $this->messageFor($workOrder),
+            $workOrder->work_order_no ?? $workOrder->id,
+            $portalLinks->link($workOrder, $owner),
+        );
 
         $conversation = Conversation::create([
             'message' => $message,
@@ -230,13 +235,14 @@ class FollowUpOwnerSchedule extends Command
      */
     private function messageFor(WorkOrder $workOrder): string
     {
-        $ref = $workOrder->work_order_no ?? $workOrder->id;
         $address = $workOrder->propertyAddress();
         $property = $address !== null ? ' at '.$address : '';
 
-        return 'Hello, this is TexasRenters.com Maintenance following up on the scheduled service appointment'
-            .$property.' (WO#'.$ref.'). '
-            .'Would you like to be available at the appointment time to speak with the technician, or to approve the work order? '
-            .'Please reply and let us know so we can coordinate accordingly.';
+        return OwnerMessageFormatter::paragraphs([
+            'Hello,',
+            'We are following up on the scheduled service appointment for your property'.$property.'.',
+            'Would you like to be available at the appointment time to speak with the technician directly, or to approve the work order? Please reply and let us know so we can coordinate accordingly.',
+            'Thank you!',
+        ]);
     }
 }
