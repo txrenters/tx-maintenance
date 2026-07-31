@@ -149,7 +149,7 @@ class OwnerServiceRequestNotificationService
         // and the no-login link below is now the place to read the request.
         return OwnerMessageFormatter::paragraphs([
             'Hello,',
-            "Thank you for trusting TexasRenters.com with your property. We have received a new service request for {$property} (request #{$ref}).",
+            "TexasRenters.com has received a new service request for {$property} (request #{$ref}).",
             'We will take care of arranging the estimate and any repairs needed, as outlined in your property management agreement.',
         ]);
     }
