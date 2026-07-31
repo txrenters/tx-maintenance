@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class OwnerAppointmentNotificationService
 {
+    public function __construct(private OwnerPortalLinkService $portalLinks) {}
+
     /**
      * Notify every property owner on the work order that a vendor has set the
      * service appointment.
@@ -99,11 +101,16 @@ class OwnerAppointmentNotificationService
         foreach ($owners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
 
+            // Each owner gets their own no-login portal link, which is also the
+            // link the schedule follow-up reuses.
+            $ownerMessage = $message.$this->portalLinks->smsLine($workOrder, $owner);
+
             $conversation = Conversation::create([
-                'message' => $message,
+                'message' => $ownerMessage,
                 'sender_number' => $fromNumber ?: null,
                 'receiver_number' => $ownerNumber,
                 'work_order_id' => $workOrder->id,
+                'owner_id' => $owner->id,
                 'conversation_type' => 'owner',
                 'is_read' => true,
                 'is_mms' => false,
@@ -113,7 +120,7 @@ class OwnerAppointmentNotificationService
                 continue;
             }
 
-            SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+            SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $ownerMessage, null, $conversation->id);
         }
     }
 

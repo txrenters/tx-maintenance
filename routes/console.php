@@ -100,6 +100,17 @@ Schedule::command('tenants:followup-vendor-contact')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Owner appointment follow-up: daily text to each owner, starting the day after
+// a service schedule is set, asking whether they want to join the technician
+// call or approve the work order, until they reply (or the cap is hit / the
+// appointment arrives). Gated off by default
+// (OWNER_SCHEDULE_FOLLOWUP_SMS_ENABLED), so this is a no-op until enabled.
+Schedule::command('owners:followup-schedule')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:20')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('emails:sync-replies')
     ->everyThreeMinutes()
     ->withoutOverlapping()

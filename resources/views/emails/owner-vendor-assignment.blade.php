@@ -10,6 +10,16 @@
     @if ($includeTenantLine)
     <p style="margin:12px 0;">The vendor will contact the tenant directly to coordinate and schedule the appointment.</p>
     @endif
+    @if (!empty($portalLink ?? null))
+    <p style="margin:16px 0 8px;">
+        You can view this request, message your coordinator, and see photos here — no login needed:
+    </p>
+    <p style="margin:0 0 16px;">
+        <a href="{{ $portalLink }}" style="display:inline-block; background:#0f2c66; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:6px; font-weight:bold;">
+            View Work Order #{{ $workOrder->work_order_no }}
+        </a>
+    </p>
+    @endif
     <p style="margin:14px 0 2px;">Thank you,</p>
     <p style="margin:0; font-weight:bold; color:#0f2c66;">The TexasRenters.com Property Management Team</p>
 </x-mail.branded>

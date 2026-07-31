@@ -28,6 +28,7 @@ use App\Http\Controllers\JobberVendorPortalController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\OwnerEmailController;
+use App\Http\Controllers\OwnerPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
@@ -303,6 +304,16 @@ Route::middleware('tenant.portal')->prefix('tenant-portal/{token}')->group(funct
     Route::get('/', [TenantPortalController::class, 'show'])->name('tenant.portal.show');
     Route::post('/attachments', [TenantPortalController::class, 'uploadAttachments'])->name('tenant.portal.attachments');
     Route::post('/complete', [TenantPortalController::class, 'complete'])->name('tenant.portal.complete');
+});
+
+// Public, no-login owner portal: the owner<->WOC message thread and photos for
+// one work order. Access is gated entirely by the magic-link token, like the
+// tenant and vendor portals.
+Route::middleware(['owner.portal', 'throttle:60,1'])->prefix('owner-portal/{token}')->group(function () {
+    Route::get('/', [OwnerPortalController::class, 'show'])->name('owner.portal.show');
+    Route::post('/message', [OwnerPortalController::class, 'sendMessage'])->name('owner.portal.message');
+    Route::post('/attachments', [OwnerPortalController::class, 'uploadAttachments'])->name('owner.portal.attachments');
+    Route::post('/messages/read', [OwnerPortalController::class, 'markMessagesRead'])->name('owner.portal.messages.read');
 });
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');

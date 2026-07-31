@@ -63,6 +63,37 @@ class Conversation extends Model
     }
 
     /**
+     * Constrain a conversation query to a single owner's thread so one owner
+     * never sees a co-owner's messages on a shared work order. Mirrors
+     * scopeForVendorThread: messages are matched strictly by owner_id, and
+     * legacy messages that predate that column (owner_id IS NULL) are
+     * attributed either by phone number or, when their work order has only this
+     * one owner, because they cannot belong to anyone else.
+     */
+    public function scopeForOwnerThread(Builder $query, Owner $owner): Builder
+    {
+        $digits = self::lastTenDigits(filled($owner->mobile) ? $owner->mobile : $owner->phone);
+
+        return $query->where(function (Builder $scoped) use ($owner, $digits) {
+            $scoped->where('owner_id', $owner->id)
+                ->orWhere(function (Builder $legacy) use ($digits) {
+                    $legacy->whereNull('owner_id')
+                        ->where(function (Builder $attributable) use ($digits) {
+                            if ($digits !== null) {
+                                $attributable->orWhere('sender_number', 'LIKE', '%'.$digits)
+                                    ->orWhere('receiver_number', 'LIKE', '%'.$digits);
+                            }
+
+                            // A work order with a single owner leaves no ambiguity.
+                            $attributable->orWhereHas('work_order', function ($q) {
+                                $q->has('owners', '=', 1);
+                            });
+                        });
+                });
+        });
+    }
+
+    /**
      * Reduce a phone number to its final 10 digits for tolerant matching.
      */
     public static function lastTenDigits(?string $number): ?string

@@ -8,6 +8,7 @@ use App\Models\Owner;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
+use App\Services\OwnerPortalLinkService;
 use App\Services\PropertyWareService;
 use App\Services\WorkOrderEmailSender;
 use App\Services\WorkOrderInformationPdf;
@@ -275,7 +276,8 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                 continue;
             }
 
-            $body = $this->buildOwnerMessage($workOrder, $vendor, $owner);
+            $body = $this->buildOwnerMessage($workOrder, $vendor, $owner)
+                .app(OwnerPortalLinkService::class)->smsLine($workOrder, $owner);
 
             // sender_number is the WOC's number, so the portal renders this as a
             // message from the coordinator on the owner thread.
@@ -284,6 +286,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                 'sender_number' => $wocNumber,
                 'receiver_number' => $ownerNumber,
                 'work_order_id' => $workOrder->id,
+                'owner_id' => $owner->id,
                 'conversation_type' => 'owner',
                 'is_read' => true,
                 'is_mms' => false,
