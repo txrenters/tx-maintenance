@@ -144,11 +144,11 @@ class OwnerAppointmentNotificationService
 
         return OwnerMessageFormatter::paragraphs([
             'Hello,',
-            "We are happy to share an update — the service appointment for your property{$property} has been scheduled with {$vendorName}.",
+            "The service appointment for your property{$property} has been scheduled with {$vendorName}.",
             $when !== '' ? "Scheduled: {$when}" : null,
-            'If you would like to be available at the appointment time to speak with the technician directly, or to approve the work order, please let us know and we would be glad to coordinate that for you.',
-            'We will continue to keep you updated once the service has been completed.',
-            'Thank you so much!',
+            'If you would like to be available at the appointment time to speak with the technician directly, or to approve the work order, just let us know and we will coordinate that with you.',
+            'We will keep you updated once the service has been completed.',
+            'Thank you!',
         ]);
     }
 

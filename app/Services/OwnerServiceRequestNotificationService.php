@@ -168,7 +168,7 @@ class OwnerServiceRequestNotificationService
 
         return OwnerMessageFormatter::compose(
             OwnerMessageFormatter::paragraphs([
-                'Here are the details of the request, for your reference:',
+                'Here are the details of the request:',
                 $description,
             ]),
             $workOrder->work_order_no,

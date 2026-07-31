@@ -315,7 +315,7 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertNotNull($ownerMessage);
         $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
         $this->assertStringContainsString('Southwinds Electric LLC', $ownerMessage);
-        $this->assertStringContainsString('Thank you for your continued trust.', $ownerMessage);
+        $this->assertStringContainsString('Thank you!', $ownerMessage);
 
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
@@ -389,7 +389,7 @@ class VendorWorkOrderInformationTest extends TestCase
 
         $this->assertNotNull($ownerMessage);
         $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
-        $this->assertStringContainsString('Thank you for your continued trust.', $ownerMessage);
+        $this->assertStringContainsString('Thank you!', $ownerMessage);
         $this->assertDatabaseHas('work_order_conversations', [
             'work_order_id' => $workOrder->id,
             'conversation_type' => 'vendor',

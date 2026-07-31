@@ -306,15 +306,15 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         return OwnerMessageFormatter::paragraphs([
             'Hello '.$ownerName.',',
-            'We are pleased to let you know that '.$this->vendorContactDetails($vendor)
-                .' has been assigned to take care of the repairs at '
+            'We have assigned '.$this->vendorContactDetails($vendor)
+                .' to take care of the repairs at '
                 .($workOrder->propertyAddress() ?? 'the property').' under Work Order #'.$workOrder->work_order_no.'.',
             // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for
             // the vendor to contact, so drop that line while still notifying.
             $workOrder->isVacant()
                 ? null
                 : 'The vendor will contact the tenant directly to coordinate and schedule the appointment.',
-            'Thank you for your continued trust.',
+            'Thank you!',
         ]);
     }
 
