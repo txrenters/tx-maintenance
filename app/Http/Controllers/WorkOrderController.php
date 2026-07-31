@@ -112,30 +112,38 @@ class WorkOrderController extends Controller
      */
     private const REFERENCE_CACHE_SECONDS = 300;
 
+    /*
+     * The cache helpers below store plain arrays, never Collections or models:
+     * config/cache.php sets 'serializable_classes' => false, so the file cache
+     * refuses to unserialize ANY object and would hand back
+     * __PHP_Incomplete_Class instead.
+     */
+
     private function cachedCategories(): Collection
     {
-        return Cache::remember('board.categories', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get());
+        return collect(Cache::remember('board.categories', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get()->map(fn ($row) => (array) $row)->all()));
     }
 
     /** Active vendors with the columns every board variant needs. */
     private function cachedActiveVendors(): Collection
     {
-        return Cache::remember('board.vendors', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get());
+        return collect(Cache::remember('board.vendors', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get()->map(fn ($row) => (array) $row)->all()));
     }
 
     /** WOC staff plus the users behind active vendors, for the assignee dropdowns. */
     private function cachedBoardUsers(): Collection
     {
-        return Cache::remember('board.users', self::REFERENCE_CACHE_SECONDS, function () {
-            $vendorUserIds = $this->cachedActiveVendors()->pluck('user_id')->toArray();
+        return collect(Cache::remember('board.users', self::REFERENCE_CACHE_SECONDS, function () {
+            $vendorUserIds = $this->cachedActiveVendors()->pluck('user_id')->all();
 
             return User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
                 ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
                     ->whereIn('id', $vendorUserIds)
                 )
                 ->orderBy('name', 'ASC')
-                ->get();
-        });
+                ->get()
+                ->toArray();
+        }));
     }
 
     /**
@@ -432,7 +440,7 @@ class WorkOrderController extends Controller
      */
     private function workOrderTypeOptions(): Collection
     {
-        return Cache::remember('board.types', self::REFERENCE_CACHE_SECONDS, fn () => WorkOrder::withoutGlobalScopes()
+        return collect(Cache::remember('board.types', self::REFERENCE_CACHE_SECONDS, fn () => WorkOrder::withoutGlobalScopes()
             ->whereNotNull('type')
             ->where('type', '!=', '')
             ->distinct()
@@ -441,7 +449,8 @@ class WorkOrderController extends Controller
             ->map(fn ($type) => trim((string) $type))
             ->filter()
             ->unique()
-            ->values());
+            ->values()
+            ->all()));
     }
 
     public function details(WorkOrder $workOrder)
@@ -684,7 +693,7 @@ class WorkOrderController extends Controller
             'vendors' => fn () => $this->cachedActiveVendors(),
             'categories' => fn () => $this->cachedCategories(),
             'types' => fn () => $this->workOrderTypeOptions(),
-            'users' => fn () => Cache::remember('board.staff_users', self::REFERENCE_CACHE_SECONDS, fn () => User::role(['woc', 'admin'])->get()),
+            'users' => fn () => Cache::remember('board.staff_users', self::REFERENCE_CACHE_SECONDS, fn () => User::role(['woc', 'admin'])->get()->toArray()),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
