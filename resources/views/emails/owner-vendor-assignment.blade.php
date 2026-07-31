@@ -4,8 +4,8 @@
 <x-mail.branded :logo="$logoSrc" eyebrow="Vendor Assigned" heading="Work Order #{{ $workOrder->work_order_no }}">
     <p style="margin:12px 0;">Hello {{ $owner->name ?: trim($owner->first_name.' '.$owner->last_name) }},</p>
     <p style="margin:12px 0;">
-        We have assigned <strong>{{ $vendor->name }}</strong>@if ($vendor->phone) ({{ $vendor->phone }})@endif
-        to handle the repairs at {{ $propertyAddress }} under Work Order #{{ $workOrder->work_order_no }}.
+        We are pleased to let you know that <strong>{{ $vendor->name }}</strong>@if ($vendor->phone) ({{ $vendor->phone }})@endif
+        has been assigned to take care of the repairs at {{ $propertyAddress }} under Work Order #{{ $workOrder->work_order_no }}.
     </p>
     @if ($includeTenantLine)
     <p style="margin:12px 0;">The vendor will contact the tenant directly to coordinate and schedule the appointment.</p>

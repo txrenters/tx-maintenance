@@ -83,7 +83,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         // Message 1: confirmation with WO# + property address, from Chana's wording.
         $confirmation = $messages[0]->message;
-        $this->assertStringContainsString('has received a new service request', $confirmation);
+        $this->assertStringContainsString('received a new service request', $confirmation);
         $this->assertStringContainsString('(request #43361)', $confirmation);
         $this->assertStringContainsString('6341 Del Monte Dr', $confirmation);
         // The PropertyWare email and portal are no longer referenced: that email
@@ -94,7 +94,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         // Message 2: the description as its own follow-up text.
         $description = $messages[1]->message;
-        $this->assertStringContainsString('Description', $description);
+        $this->assertStringContainsString('details of the request', $description);
         $this->assertStringContainsString('water dripping from the roof', $description);
         $this->assertStringContainsString('(Ref: WO#43361)', $description);
 
@@ -174,7 +174,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
         $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('has received a new service request', $confirmation->message);
+        $this->assertStringContainsString('received a new service request', $confirmation->message);
         $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
@@ -194,7 +194,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
         $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('has received a new service request', $confirmation->message);
+        $this->assertStringContainsString('received a new service request', $confirmation->message);
         $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 

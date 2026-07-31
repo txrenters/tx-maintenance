@@ -148,8 +148,9 @@ class OwnerServiceRequestNotificationService
         // PropertyWare, not by us, so we cannot confirm the owner received it,
         // and the no-login link below is now the place to read the request.
         return OwnerMessageFormatter::paragraphs([
-            "TexasRenters.com has received a new service request for {$property} (request #{$ref}).",
-            'We will proceed with the estimate and repairs as outlined in your property management agreement.',
+            'Hello,',
+            "Thank you for trusting TexasRenters.com with your property. We have received a new service request for {$property} (request #{$ref}).",
+            'We will take care of arranging the estimate and any repairs needed, as outlined in your property management agreement.',
         ]);
     }
 
@@ -166,7 +167,10 @@ class OwnerServiceRequestNotificationService
         }
 
         return OwnerMessageFormatter::compose(
-            "Description\n{$description}",
+            OwnerMessageFormatter::paragraphs([
+                'Here are the details of the request, for your reference:',
+                $description,
+            ]),
             $workOrder->work_order_no,
         );
     }

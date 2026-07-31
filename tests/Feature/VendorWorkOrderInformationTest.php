@@ -315,7 +315,7 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertNotNull($ownerMessage);
         $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
         $this->assertStringContainsString('Southwinds Electric LLC', $ownerMessage);
-        $this->assertStringContainsString('Thank you.', $ownerMessage);
+        $this->assertStringContainsString('Thank you for your continued trust.', $ownerMessage);
 
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
@@ -389,7 +389,7 @@ class VendorWorkOrderInformationTest extends TestCase
 
         $this->assertNotNull($ownerMessage);
         $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
-        $this->assertStringContainsString('Thank you.', $ownerMessage);
+        $this->assertStringContainsString('Thank you for your continued trust.', $ownerMessage);
         $this->assertDatabaseHas('work_order_conversations', [
             'work_order_id' => $workOrder->id,
             'conversation_type' => 'vendor',
@@ -556,7 +556,7 @@ class VendorWorkOrderInformationTest extends TestCase
             ->where('conversation_type', 'owner')
             ->value('message');
 
-        $this->assertStringContainsString('handle the repairs at 3326 Jane Way', $ownerMessage);
+        $this->assertStringContainsString('take care of the repairs at 3326 Jane Way', $ownerMessage);
     }
 
     public function test_owner_is_not_texted_when_the_owner_vendor_placeholder_is_assigned(): void

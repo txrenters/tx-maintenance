@@ -107,7 +107,7 @@ class OwnerScheduleFollowUpTest extends TestCase
 
         $this->assertNotNull($message);
         $this->assertSame('owner', $message->conversation_type);
-        $this->assertStringContainsString('following up on the scheduled service appointment', $message->message);
+        $this->assertStringContainsString('follow up on the upcoming service appointment', $message->message);
         $this->assertStringContainsString('/owner-portal/'.$token->token, $message->message);
 
         Queue::assertPushed(SendConversationMessageJob::class);

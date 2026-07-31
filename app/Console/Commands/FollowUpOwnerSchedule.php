@@ -240,9 +240,9 @@ class FollowUpOwnerSchedule extends Command
 
         return OwnerMessageFormatter::paragraphs([
             'Hello,',
-            'We are following up on the scheduled service appointment for your property'.$property.'.',
-            'Would you like to be available at the appointment time to speak with the technician directly, or to approve the work order? Please reply and let us know so we can coordinate accordingly.',
-            'Thank you!',
+            'We hope you are doing well. We wanted to follow up on the upcoming service appointment for your property'.$property.'.',
+            'Whenever you have a moment, please let us know if you would like to be available at the appointment time to speak with the technician directly, or to approve the work order. We are happy to coordinate around your schedule.',
+            'Thank you so much!',
         ]);
     }
 }
