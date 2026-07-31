@@ -649,11 +649,101 @@ const assignRecommendedVendor = (vendor) => {
     );
 };
 
+// After the server accepts an update, mirror the saved values onto the card
+// already on the board (moving it between columns if the status changed)
+// instead of refetching every column — a full board rebuild costs seconds in
+// production. Returns false when the card isn't on the board, so callers can
+// fall back to a real reload.
+const patchBoardCard = () => {
+    const columns = page.props.service_status;
+    if (!Array.isArray(columns)) return false;
+
+    const fromColumn = columns.find((column) =>
+        (column.work_orders ?? []).some((wo) => wo.id === workOrderForm.id)
+    );
+    if (!fromColumn) return false;
+
+    const card = fromColumn.work_orders.find(
+        (wo) => wo.id === workOrderForm.id
+    );
+
+    Object.assign(card, {
+        category: workOrderForm.category,
+        type: workOrderForm.type,
+        priority: workOrderForm.priority,
+        zone: workOrderForm.zone,
+        status: workOrderForm.status,
+        local_status: workOrderForm.local_status,
+        scheduled_end_date: workOrderForm.scheduled_end_date,
+        service_status_id: workOrderForm.service_status_id,
+    });
+
+    // The board only shows Open work orders; a card whose status left "Open"
+    // leaves the board like a server refetch would drop it.
+    if (card.status && card.status !== "Open") {
+        fromColumn.work_orders = fromColumn.work_orders.filter(
+            (wo) => wo.id !== card.id
+        );
+        return true;
+    }
+
+    const targetId = String(card.service_status_id);
+    if (targetId !== String(fromColumn.id)) {
+        fromColumn.work_orders = fromColumn.work_orders.filter(
+            (wo) => wo.id !== card.id
+        );
+        const target = columns.find(
+            (column) => String(column.id) === targetId
+        );
+        if (target) {
+            card.service_status = { id: target.id, name: target.name };
+            target.work_orders = [card, ...(target.work_orders ?? [])];
+        }
+    }
+
+    return true;
+};
+
+// Move the closed card into the trailing Closed bucket, mirroring what the
+// close endpoint writes (status, service_status, completed_date).
+const moveBoardCardToClosed = () => {
+    const columns = page.props.service_status;
+    if (!Array.isArray(columns)) return false;
+
+    const fromColumn = columns.find((column) =>
+        (column.work_orders ?? []).some((wo) => wo.id === closeWorkOrderForm.id)
+    );
+    if (!fromColumn) return false;
+
+    const card = fromColumn.work_orders.find(
+        (wo) => wo.id === closeWorkOrderForm.id
+    );
+    fromColumn.work_orders = fromColumn.work_orders.filter(
+        (wo) => wo.id !== card.id
+    );
+
+    const closed = columns.find((column) => column.name === "Closed");
+    if (closed) {
+        Object.assign(card, {
+            status: "Closed",
+            service_status_id: closed.id,
+            service_status: { id: closed.id, name: closed.name },
+            completed_date: new Date().toISOString().slice(0, 10),
+        });
+        closed.work_orders = [card, ...(closed.work_orders ?? [])];
+    }
+
+    return true;
+};
+
 const handleUpdateSubmit = () => {
     workOrderForm.put(route("work_orders.update", workOrderForm.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
+            if (!patchBoardCard()) {
+                router.reload({ only: ["service_status"] });
+            }
             toast({
                 title: "Success",
                 description: "Work order has been updated successfully!",
@@ -667,7 +757,10 @@ const handleUpdateSubmit = () => {
                     "There was a problem with your request. Please try again!",
             });
         },
-        only: ["service_status"],
+        // "filter" is a cheap prop: the visit still round-trips the server for
+        // the save, but skips rebuilding the whole board; patchBoardCard()
+        // moves the card locally instead.
+        only: ["filter"],
     });
 };
 
@@ -676,6 +769,9 @@ const handleCloseOrderSubmit = () => {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
+            if (!moveBoardCardToClosed()) {
+                router.reload({ only: ["service_status"] });
+            }
             toast({
                 title: "Success",
                 description: "Work order has been closed successfully!",
@@ -690,7 +786,9 @@ const handleCloseOrderSubmit = () => {
                     "There was a problem with your request. Please try again!",
             });
         },
-        only: ["service_status"],
+        // See handleUpdateSubmit: skip the full board rebuild, move the card
+        // locally.
+        only: ["filter"],
     });
 };
 
