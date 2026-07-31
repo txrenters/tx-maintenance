@@ -140,9 +140,15 @@ class OwnerServiceRequestNotificationService
     {
         $ref = $workOrder->work_order_no;
 
+        // "your property" already stands in for an unknown address, so only add
+        // the "at ..." clause when we have a real one.
+        $property = $address === 'your property' ? 'your property' : "your property at {$address}";
+
+        // No mention of the PropertyWare email or portal: that email is sent by
+        // PropertyWare, not by us, so we cannot confirm the owner received it,
+        // and the no-login link below is now the place to read the request.
         return OwnerMessageFormatter::paragraphs([
-            "TexasRenters.com would like to confirm that you've received an email copy of the new service request.",
-            "Please log in to your owner portal and review service request number {$ref} under property address {$address} for full details.",
+            "TexasRenters.com has received a new service request for {$property} (request #{$ref}).",
             'We will proceed with the estimate and repairs as outlined in your property management agreement.',
         ]);
     }
