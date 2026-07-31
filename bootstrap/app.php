@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveJobberPortalToken;
 use App\Http\Middleware\ResolveTenantPortalToken;
@@ -35,6 +36,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->trustProxies(at: '*');
+
+        // Outermost so it compresses every text response (web + api) after the
+        // rest of the stack has produced it.
+        $middleware->prepend(CompressResponse::class);
 
         // Disable string trimming for building custom fields API to preserve trailing spaces
         // (needed for PropertyWare API compatibility, e.g., "By Owner " for Debris Removal)
