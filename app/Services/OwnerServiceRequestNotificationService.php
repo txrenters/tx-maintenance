@@ -4,12 +4,15 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
+use App\Models\Owner;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OwnerServiceRequestNotificationService
 {
+    public function __construct(private OwnerPortalLinkService $portalLinks) {}
+
     /**
      * Notify every property owner on the work order that a new service request
      * has come in.
@@ -86,7 +89,6 @@ class OwnerServiceRequestNotificationService
         }
 
         $address = $workOrder->propertyAddress() ?? 'your property';
-        $confirmation = $this->confirmationMessage($workOrder, $address);
         $description = $this->descriptionMessage($workOrder);
 
         foreach ($owners as $owner) {
@@ -96,10 +98,17 @@ class OwnerServiceRequestNotificationService
                 continue;
             }
 
-            $this->post($workOrder, $ownerNumber, $fromNumber, $confirmation);
+            // Each owner gets their own no-login portal link for this request.
+            $confirmation = OwnerMessageFormatter::compose(
+                $this->confirmationMessage($workOrder, $address),
+                $workOrder->work_order_no,
+                $this->portalLinks->link($workOrder, $owner),
+            );
+
+            $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $confirmation);
 
             if ($description !== null) {
-                $this->post($workOrder, $ownerNumber, $fromNumber, $description);
+                $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $description);
             }
         }
     }
@@ -107,13 +116,14 @@ class OwnerServiceRequestNotificationService
     /**
      * Persist one message to the owner thread (as the WOC) and queue the text.
      */
-    private function post(WorkOrder $workOrder, string $ownerNumber, string $fromNumber, string $message): void
+    private function post(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $fromNumber, string $message): void
     {
         $conversation = Conversation::create([
             'message' => $message,
             'sender_number' => $fromNumber,
             'receiver_number' => $ownerNumber,
             'work_order_id' => $workOrder->id,
+            'owner_id' => $owner->id,
             'conversation_type' => 'owner',
             'is_read' => true,
             'is_mms' => false,
@@ -130,10 +140,17 @@ class OwnerServiceRequestNotificationService
     {
         $ref = $workOrder->work_order_no;
 
-        return "TexasRenters.com would like to confirm that you've received an email copy of the new service request. "
-            ."Please log in to your owner portal and review service request number {$ref} under property address {$address} for full details. "
-            ."We will proceed with the estimate and repairs as outlined in your property management agreement.\n"
-            ."(Ref: WO#{$ref})";
+        // "your property" already stands in for an unknown address, so only add
+        // the "at ..." clause when we have a real one.
+        $property = $address === 'your property' ? 'your property' : "your property at {$address}";
+
+        // No mention of the PropertyWare email or portal: that email is sent by
+        // PropertyWare, not by us, so we cannot confirm the owner received it,
+        // and the no-login link below is now the place to read the request.
+        return OwnerMessageFormatter::paragraphs([
+            "TexasRenters.com has received a new service request for {$property} (request #{$ref}).",
+            'We will proceed with the estimate and repairs as outlined in your property management agreement.',
+        ]);
     }
 
     /**
@@ -148,7 +165,10 @@ class OwnerServiceRequestNotificationService
             return null;
         }
 
-        return "Description\n{$description} (Ref: WO#{$workOrder->work_order_no})";
+        return OwnerMessageFormatter::compose(
+            "Description\n{$description}",
+            $workOrder->work_order_no,
+        );
     }
 
     /**

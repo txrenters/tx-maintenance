@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Owner;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\OwnerPortalLinkService;
 use App\Services\OwnerWorkOrderEmailSender;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -53,6 +54,8 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             // the vendor to contact, so drop that line while still notifying the
             // owner that a vendor was assigned.
             'includeTenantLine' => ! $workOrder->isVacant(),
+            // This owner's no-login portal: message the coordinator and see photos.
+            'portalLink' => app(OwnerPortalLinkService::class)->link($workOrder, $owner),
         ])->render();
 
         $sender->sendVendorAssignment(

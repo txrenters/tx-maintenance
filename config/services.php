@@ -80,6 +80,10 @@ return [
         // sets the service appointment (details + ask if they want to join a
         // call with the technician or approve the work order).
         'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', true),
+        // Daily follow-up to each owner after the appointment is scheduled,
+        // chasing that same question until they reply (capped). Off by default
+        // until the wording is approved.
+        'owner_schedule_followup_sms' => env('OWNER_SCHEDULE_FOLLOWUP_SMS_ENABLED', false),
         // Text the primary property owner via the owner<->WOC conversation when
         // a new service request comes in (confirmation + description).
         'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),

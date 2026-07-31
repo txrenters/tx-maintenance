@@ -83,9 +83,13 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         // Message 1: confirmation with WO# + property address, from Chana's wording.
         $confirmation = $messages[0]->message;
-        $this->assertStringContainsString('email copy of the new service request', $confirmation);
-        $this->assertStringContainsString('service request number 43361', $confirmation);
-        $this->assertStringContainsString('property address 6341 Del Monte Dr', $confirmation);
+        $this->assertStringContainsString('has received a new service request', $confirmation);
+        $this->assertStringContainsString('(request #43361)', $confirmation);
+        $this->assertStringContainsString('6341 Del Monte Dr', $confirmation);
+        // The PropertyWare email and portal are no longer referenced: that email
+        // is not sent by this app, so we cannot confirm the owner received it.
+        $this->assertStringNotContainsString('email copy', $confirmation);
+        $this->assertStringNotContainsString('log in to your owner portal', $confirmation);
         $this->assertStringContainsString('(Ref: WO#43361)', $confirmation);
 
         // Message 2: the description as its own follow-up text.
@@ -170,7 +174,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
         $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('email copy of the new service request', $confirmation->message);
+        $this->assertStringContainsString('has received a new service request', $confirmation->message);
         $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
@@ -190,7 +194,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
         $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('email copy of the new service request', $confirmation->message);
+        $this->assertStringContainsString('has received a new service request', $confirmation->message);
         $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
@@ -297,7 +301,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
         $confirmation = $workOrder->owner_conversation()->first()->message;
-        $this->assertStringContainsString('property address 2808 Arbor Brook Ln', $confirmation);
+        $this->assertStringContainsString('your property at 2808 Arbor Brook Ln', $confirmation);
         $this->assertStringNotContainsString('2514 Rose Gold Dr', $confirmation);
     }
 
@@ -323,7 +327,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
         $confirmation = $workOrder->owner_conversation()->first()->message;
-        $this->assertStringContainsString('property address 500 Elm St', $confirmation);
+        $this->assertStringContainsString('your property at 500 Elm St', $confirmation);
     }
 
     public function test_it_uses_a_neutral_phrase_when_no_address_is_available(): void
@@ -339,7 +343,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
         $confirmation = $workOrder->owner_conversation()->first()->message;
-        $this->assertStringContainsString('property address your property', $confirmation);
+        $this->assertStringContainsString('for your property (request #', $confirmation);
     }
 
     public function test_the_job_runs_the_service(): void

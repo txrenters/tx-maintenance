@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class OwnerAppointmentNotificationService
 {
+    public function __construct(private OwnerPortalLinkService $portalLinks) {}
+
     /**
      * Notify every property owner on the work order that a vendor has set the
      * service appointment.
@@ -99,11 +101,20 @@ class OwnerAppointmentNotificationService
         foreach ($owners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
 
+            // Each owner gets their own no-login portal link, which is also the
+            // link the schedule follow-up reuses.
+            $ownerMessage = OwnerMessageFormatter::compose(
+                $message,
+                $workOrder->work_order_no,
+                $this->portalLinks->link($workOrder, $owner),
+            );
+
             $conversation = Conversation::create([
-                'message' => $message,
+                'message' => $ownerMessage,
                 'sender_number' => $fromNumber ?: null,
                 'receiver_number' => $ownerNumber,
                 'work_order_id' => $workOrder->id,
+                'owner_id' => $owner->id,
                 'conversation_type' => 'owner',
                 'is_read' => true,
                 'is_mms' => false,
@@ -113,7 +124,7 @@ class OwnerAppointmentNotificationService
                 continue;
             }
 
-            SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+            SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $ownerMessage, null, $conversation->id);
         }
     }
 
@@ -131,13 +142,14 @@ class OwnerAppointmentNotificationService
         $address = $workOrder->propertyAddress();
         $property = $address !== null ? ' at '.$address : '';
 
-        return "Hello,\n"
-            ."We wanted to provide an update that the service appointment for your property{$property} has been scheduled with {$vendorName}.\n"
-            .($when !== '' ? "Scheduled: {$when}\n" : '')
-            ."The vendor will be proceeding with the service as scheduled. Will you be available at the appointment time for a phone call to speak with the technician directly, or to approve the work order? If so, please let us know and we can coordinate accordingly.\n"
-            ."We will continue to provide updates once the service has been completed.\n"
-            ."Thank you!\n"
-            ."(Ref: WO#{$workOrder->work_order_no})";
+        return OwnerMessageFormatter::paragraphs([
+            'Hello,',
+            "We wanted to provide an update that the service appointment for your property{$property} has been scheduled with {$vendorName}.",
+            $when !== '' ? "Scheduled: {$when}" : null,
+            'The vendor will be proceeding with the service as scheduled. Will you be available at the appointment time for a phone call to speak with the technician directly, or to approve the work order? If so, please let us know and we can coordinate accordingly.',
+            'We will continue to provide updates once the service has been completed.',
+            'Thank you!',
+        ]);
     }
 
     /**

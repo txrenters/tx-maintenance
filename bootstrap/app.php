@@ -3,6 +3,7 @@
 use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveJobberPortalToken;
+use App\Http\Middleware\ResolveOwnerPortalToken;
 use App\Http\Middleware\ResolveTenantPortalToken;
 use App\Http\Middleware\ResolveVendorAccountToken;
 use App\Http\Middleware\ResolveVendorPortalToken;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'jobber.portal' => ResolveJobberPortalToken::class,
             'vendor.account' => ResolveVendorAccountToken::class,
             'tenant.portal' => ResolveTenantPortalToken::class,
+            'owner.portal' => ResolveOwnerPortalToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -2,6 +2,8 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import BrandHeader from "@/Components/PortalBrandHeader.vue";
+import BrandFooter from "@/Components/PortalBrandFooter.vue";
 import {
     Loader2,
     Camera,
@@ -17,8 +19,6 @@ import {
     ChevronDown,
     Home,
     X,
-    Sun,
-    Moon,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -472,35 +472,24 @@ const confirmCompleteTask = () => {
 
     <div class="min-h-screen bg-muted dark:bg-neutral-950">
         <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
-            <!-- Home + theme toggle -->
-            <div class="flex items-center justify-between gap-3">
-                <a
-                    v-if="dashboardUrl"
-                    :href="dashboardUrl"
-                    class="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground active:text-foreground"
-                >
-                    <Home class="w-4 h-4" />
-                    All my work orders
-                </a>
-                <button
-                    type="button"
-                    @click="toggleTheme"
-                    :title="
-                        isDark ? 'Switch to light mode' : 'Switch to dark mode'
-                    "
-                    class="inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
-                >
-                    <Sun v-if="isDark" class="w-4 h-4" />
-                    <Moon v-else class="w-4 h-4" />
-                </button>
-            </div>
+            <a
+                v-if="dashboardUrl"
+                :href="dashboardUrl"
+                class="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground active:text-foreground"
+            >
+                <Home class="w-4 h-4" />
+                All my work orders
+            </a>
 
             <!-- Two columns on desktop, single stack on mobile -->
             <div
                 class="lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start space-y-4 lg:space-y-0"
             >
-                <!-- Left column: job details -->
-                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-5">
+                <!-- Left column: branded header + job details -->
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                    <BrandHeader :is-dark="isDark" @toggle-theme="toggleTheme" />
+
+                    <div class="p-5">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-xs font-semibold text-muted-foreground">
                             Hi {{ vendorName }}
@@ -716,6 +705,7 @@ const confirmCompleteTask = () => {
                             </a>
                         </div>
                     </div>
+                    </div>
                 </div>
 
                 <!-- Right column: tabbed actions -->
@@ -761,7 +751,7 @@ const confirmCompleteTask = () => {
                                     inputmode="decimal"
                                     min="0"
                                     step="0.01"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -776,7 +766,7 @@ const confirmCompleteTask = () => {
                                         type="number"
                                         inputmode="numeric"
                                         min="0"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                         placeholder="0"
                                     />
                                 </div>
@@ -788,7 +778,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="estimateForm.scheduled_end_date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                             </div>
@@ -844,7 +834,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="scheduleForm.title"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                 />
                             </div>
                             <div class="grid grid-cols-2 gap-3">
@@ -856,7 +846,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="scheduleForm.date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                                 <div>
@@ -867,7 +857,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="scheduleForm.end_date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                             </div>
@@ -878,7 +868,7 @@ const confirmCompleteTask = () => {
                                 <textarea
                                     v-model="scheduleForm.description"
                                     rows="5"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base resize-y min-h-[120px] focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-y min-h-[120px] focus:border-ring focus:ring-0"
                                 ></textarea>
                             </div>
                             <button
@@ -909,7 +899,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="photoTitle"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="e.g. Kitchen leak - before repair"
                                 />
                                 <p class="mt-1 text-xs text-muted-foreground">
@@ -1057,7 +1047,7 @@ const confirmCompleteTask = () => {
                                     inputmode="decimal"
                                     min="0"
                                     step="0.01"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -1069,7 +1059,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="invoiceForm.title"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="e.g. Labor + parts"
                                 />
                             </div>
@@ -1134,16 +1124,19 @@ const confirmCompleteTask = () => {
                                     "
                                 >
                                     <div
-                                        class="max-w-[80%] rounded-lg px-3 py-2 text-sm"
+                                        class="min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm"
                                         :class="
                                             m.is_from_vendor
                                                 ? 'bg-primary text-primary-foreground rounded-br-sm'
                                                 : 'bg-muted text-foreground rounded-bl-sm'
                                         "
                                     >
+                                        <!-- Messages can carry portal URLs, which have no
+                                             spaces to wrap on: break anywhere so a narrow
+                                             phone never gets one character per line. -->
                                         <p
                                             v-if="m.message"
-                                            class="whitespace-pre-line"
+                                            class="whitespace-pre-line break-words [overflow-wrap:anywhere]"
                                         >
                                             {{ m.message }}
                                         </p>
@@ -1219,7 +1212,7 @@ const confirmCompleteTask = () => {
                                 v-model="messageText"
                                 rows="3"
                                 placeholder="Type a message..."
-                                class="w-full rounded-md border border-input px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
+                                class="w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
                             ></textarea>
 
                             <div class="flex gap-2 mt-2">
@@ -1255,9 +1248,7 @@ const confirmCompleteTask = () => {
                 </div>
             </div>
 
-            <p class="text-center text-xs text-muted-foreground pt-2 pb-6">
-                TX Maintenance · Vendor Portal
-            </p>
+            <BrandFooter label="Vendor Portal" />
         </div>
     </div>
     </div>
