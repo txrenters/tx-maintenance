@@ -10,6 +10,7 @@ use App\Models\ConversationMedia;
 use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\ServiceStatus;
+use App\Models\Tenants;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\OwnerPortalLinkService;
@@ -265,6 +266,15 @@ class OwnerPortalTest extends TestCase
         $workOrder = $this->makeWorkOrder($owner);
         $token = $this->makeToken($workOrder, $owner);
 
+        $tenant = Tenants::query()->create([
+            'first_name' => 'Dana',
+            'last_name' => 'Tenant',
+            'email' => 'dana@example.com',
+            'mobile_phone' => '5125558888',
+            'user_id' => User::factory()->create()->id,
+        ]);
+        $workOrder->update(['tenant_id' => $tenant->id]);
+
         $tenantMessage = Conversation::create([
             'message' => 'Here is the leak.',
             'sender_number' => '+15125558888',
@@ -310,7 +320,39 @@ class OwnerPortalTest extends TestCase
                     ->pluck('source')
                     ->sort()
                     ->values()
-                    ->all() === ['Tenant conversation', 'Your conversation'])
+                    ->all() === ['From tenant', 'From work order coordinator'])
+            );
+    }
+
+    public function test_photos_the_owner_sent_are_labelled_as_their_own(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        // A photo the owner sent through the portal.
+        $this->post('/owner-portal/'.$token->token.'/message', [
+            'text' => 'Here is what I saw.',
+            'images' => [UploadedFile::fake()->image('mine.jpg')],
+        ])->assertRedirect();
+
+        // And one they uploaded on the Photos tab.
+        $this->post('/owner-portal/'.$token->token.'/attachments', [
+            'files' => [UploadedFile::fake()->image('also-mine.jpg')],
+        ])->assertRedirect();
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 2)
+                ->where('attachments', fn ($items) => collect($items)
+                    ->pluck('source')
+                    ->unique()
+                    ->values()
+                    ->all() === ['From you'])
             );
     }
 

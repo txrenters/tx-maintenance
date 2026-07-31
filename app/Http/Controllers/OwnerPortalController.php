@@ -26,6 +26,13 @@ use Illuminate\Support\Facades\Log;
  */
 class OwnerPortalController extends Controller
 {
+    /** Gallery source labels, phrased from the owner's point of view. */
+    private const SOURCE_TENANT = 'From tenant';
+
+    private const SOURCE_COORDINATOR = 'From work order coordinator';
+
+    private const SOURCE_OWNER = 'From you';
+
     public function show(Request $request)
     {
         /** @var WorkOrder $workOrder */
@@ -35,7 +42,7 @@ class OwnerPortalController extends Controller
         /** @var OwnerPortalToken $portalToken */
         $portalToken = $request->attributes->get('portal_token');
 
-        $workOrder->load(['service_status', 'building', 'woc']);
+        $workOrder->load(['service_status', 'building', 'woc', 'requested_by']);
 
         // The upcoming appointment, if a vendor has set one. Read-only: it is
         // the same detail the owner is already texted, and it is what the
@@ -78,7 +85,7 @@ class OwnerPortalController extends Controller
             ->where('work_order_id', $workOrder->id)
             ->where('is_publish_to_owner_portal', true)
             ->latest()
-            ->get(['id', 'title', 'type', 'filename', 'filetype', 'created_at']);
+            ->get(['id', 'title', 'type', 'filename', 'filetype', 'user_id', 'created_at']);
 
         return inertia('OwnerPortal/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
@@ -114,7 +121,7 @@ class OwnerPortalController extends Controller
                 'created_at' => $message->created_at,
                 'media' => $message->media->map(fn (ConversationMedia $media) => $this->mediaPayload($media))->values(),
             ])->values(),
-            'attachments' => $this->gallery($attachments, $messages, $tenantMessages),
+            'attachments' => $this->gallery($attachments, $messages, $tenantMessages, $owner, $workOrder),
         ]);
     }
 
@@ -133,12 +140,27 @@ class OwnerPortalController extends Controller
         Collection $attachments,
         Collection $ownerMessages,
         Collection $tenantMessages,
+        Owner $owner,
+        WorkOrder $workOrder,
     ): Collection {
+        $ownerDigits = Conversation::lastTenDigits(
+            filled($owner->mobile) ? $owner->mobile : $owner->phone
+        );
+
+        $tenant = $workOrder->requested_by;
+        $tenantDigits = Conversation::lastTenDigits(
+            $tenant?->mobile_phone ?: $tenant?->home_phone
+        );
+
         $fromAttachments = $attachments->map(fn (Attachments $a) => [
             'id' => 'attachment-'.$a->id,
             'title' => $a->title,
             'type' => $a->type,
-            'source' => 'Work order',
+            // Anything this owner uploaded is theirs; everything else the
+            // office published on their behalf.
+            'source' => $a->user_id !== null && $a->user_id === $owner->user_id
+                ? self::SOURCE_OWNER
+                : self::SOURCE_COORDINATOR,
             'url' => asset('storage/'.$a->filename),
             'is_image' => $this->looksLikeImage($a->filetype, $a->filename),
             'is_video' => str_starts_with((string) $a->filetype, 'video/'),
@@ -150,9 +172,7 @@ class OwnerPortalController extends Controller
                 fn (ConversationMedia $media) => $this->mediaPayload($media) + [
                     'title' => $media->file_name ?: 'Photo',
                     'type' => null,
-                    'source' => $message->conversation_type === 'tenant'
-                        ? 'Tenant conversation'
-                        : 'Your conversation',
+                    'source' => $this->senderLabel($message, $ownerDigits, $tenantDigits),
                     'created_at' => $message->created_at,
                 ]
             ));
@@ -161,6 +181,26 @@ class OwnerPortalController extends Controller
             ->concat($fromMessages)
             ->sortByDesc('created_at')
             ->values();
+    }
+
+    /**
+     * Who sent this photo, from the owner's point of view. Anything not
+     * traceable to the owner or the tenant came from the coordinator, which is
+     * true of every outbound message on both threads.
+     */
+    private function senderLabel(Conversation $message, ?string $ownerDigits, ?string $tenantDigits): string
+    {
+        if ($message->conversation_type === 'owner') {
+            return $this->isFromOwner($message, $ownerDigits)
+                ? self::SOURCE_OWNER
+                : self::SOURCE_COORDINATOR;
+        }
+
+        $senderDigits = Conversation::lastTenDigits($message->sender_number);
+
+        return $tenantDigits !== null && $senderDigits === $tenantDigits
+            ? self::SOURCE_TENANT
+            : self::SOURCE_COORDINATOR;
     }
 
     /**

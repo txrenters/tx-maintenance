@@ -12,7 +12,7 @@ import {
     MapPin,
     CalendarClock,
     AlertTriangle,
-    ChevronDown,
+    ChevronRight,
     X,
     Sun,
     Moon,
@@ -286,24 +286,42 @@ const details = computed(() =>
     ].filter((d) => d.value)
 );
 
-// Group the gallery by where each file came from, in a fixed order so the
-// headings don't reshuffle as new photos arrive.
-const photoGroups = computed(() => {
-    const order = ["Work order", "Tenant conversation", "Your conversation"];
+// The gallery is filtered by source through its own tab strip. Order is fixed
+// so the tabs don't reshuffle as new photos arrive, and a source with nothing
+// in it never gets a tab.
+const photoFilters = computed(() => {
+    const order = [
+        "From tenant",
+        "From work order coordinator",
+        "From you",
+    ];
 
-    return order
+    const available = order
+        .filter((label) => props.attachments.some((a) => a.source === label))
         .map((label) => ({
             label,
-            items: props.attachments.filter((a) => a.source === label),
-        }))
-        .filter((group) => group.items.length > 0);
+            count: props.attachments.filter((a) => a.source === label).length,
+        }));
+
+    return available.length > 1
+        ? [{ label: "All", count: props.attachments.length }, ...available]
+        : available;
 });
 
-// Photo groups are collapsible on mobile (always shown on desktop via lg:grid).
-const openGroups = ref({});
-const toggleGroup = (key) => {
-    openGroups.value[key] = !openGroups.value[key];
-};
+const activePhotoFilter = ref("All");
+
+const visiblePhotos = computed(() =>
+    activePhotoFilter.value === "All"
+        ? props.attachments
+        : props.attachments.filter((a) => a.source === activePhotoFilter.value)
+);
+
+// Keep the selection valid when the available sources change.
+watch(photoFilters, (filters) => {
+    if (!filters.some((f) => f.label === activePhotoFilter.value)) {
+        activePhotoFilter.value = filters[0]?.label ?? "All";
+    }
+});
 </script>
 
 <template>
@@ -334,14 +352,24 @@ const toggleGroup = (key) => {
 
     <div class="min-h-screen bg-muted dark:bg-neutral-950">
         <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
-            <!-- Branded header, matching the automated emails -->
-            <div class="relative rounded-lg bg-white border-b-[3px] border-[#6cbf3f] shadow-sm px-6 py-5 text-center">
-                <img src="/tx-logo.png" alt="TexasRenters.com" class="mx-auto h-9 w-auto" />
+            <!-- Branded header, matching the automated emails. Follows the
+                 theme; the logo keeps a white plate in dark mode so its brand
+                 colors stay readable. -->
+            <div
+                class="relative rounded-lg border bg-card shadow-sm border-b-[3px] border-b-[#6cbf3f] px-4 py-4 sm:px-6 sm:py-5 text-center"
+            >
+                <span class="inline-flex rounded-md dark:bg-white dark:px-3 dark:py-2">
+                    <img
+                        src="/tx-logo.png"
+                        alt="TexasRenters.com"
+                        class="h-7 w-auto sm:h-9"
+                    />
+                </span>
                 <button
                     type="button"
                     @click="toggleTheme"
                     :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-                    class="absolute right-3 top-3 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+                    class="absolute right-2 top-2 sm:right-3 sm:top-3 inline-flex items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
                 >
                     <Sun v-if="isDark" class="w-4 h-4" />
                     <Moon v-else class="w-4 h-4" />
@@ -426,33 +454,19 @@ const toggleGroup = (key) => {
                         </div>
                     </dl>
 
-                    <!-- Photos on file -->
-                    <div v-if="attachments.length" class="mt-4 border-t pt-3">
-                        <button
-                            type="button"
-                            class="w-full flex items-center justify-between lg:pointer-events-none"
-                            @click="toggleGroup('photos')"
-                        >
-                            <span class="text-xs font-semibold text-muted-foreground uppercase">
-                                Photos ({{ attachments.length }})
-                            </span>
-                            <ChevronDown
-                                class="w-4 h-4 text-muted-foreground lg:hidden transition-transform"
-                                :class="{ 'rotate-180': openGroups.photos }"
-                            />
-                        </button>
-                        <div
-                            class="grid grid-cols-3 gap-2 mt-2 lg:grid"
-                            :class="{ hidden: !openGroups.photos }"
-                        >
-                            <GalleryTile
-                                v-for="a in attachments"
-                                :key="a.id"
-                                :item="a"
-                                @open="lightbox = $event"
-                            />
-                        </div>
-                    </div>
+                    <!-- Photos live in their own tab; link across rather than
+                         rendering the whole gallery twice. -->
+                    <button
+                        v-if="attachments.length"
+                        type="button"
+                        class="mt-4 w-full flex items-center justify-between border-t pt-3 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
+                        @click="selectTab('photos')"
+                    >
+                        <span>Photos ({{ attachments.length }})</span>
+                        <span class="inline-flex items-center gap-1 text-primary normal-case">
+                            View all <ChevronRight class="w-3.5 h-3.5" />
+                        </span>
+                    </button>
                 </div>
 
                 <!-- Right column: tabbed actions -->
@@ -687,24 +701,38 @@ const toggleGroup = (key) => {
                                 Upload {{ selectedFiles.length }} photo(s)
                             </button>
 
-                            <!-- Everything on file, newest first, grouped by where it came from -->
+                            <!-- Filter by where each photo came from -->
                             <div
-                                v-for="group in photoGroups"
-                                :key="group.label"
-                                class="pt-1"
+                                v-if="photoFilters.length"
+                                class="flex flex-wrap gap-2 pt-1"
                             >
-                                <p class="text-xs font-semibold text-muted-foreground uppercase mb-2">
-                                    {{ group.label }} ({{ group.items.length }})
-                                </p>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <GalleryTile
-                                        v-for="a in group.items"
-                                        :key="a.id"
-                                        :item="a"
-                                        @open="lightbox = $event"
-                                    />
-                                </div>
+                                <button
+                                    v-for="f in photoFilters"
+                                    :key="f.label"
+                                    type="button"
+                                    class="rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
+                                    :class="
+                                        activePhotoFilter === f.label
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-input text-muted-foreground hover:bg-accent'
+                                    "
+                                    @click="activePhotoFilter = f.label"
+                                >
+                                    {{ f.label }} ({{ f.count }})
+                                </button>
                             </div>
+
+                            <div v-if="visiblePhotos.length" class="grid grid-cols-3 gap-2">
+                                <GalleryTile
+                                    v-for="a in visiblePhotos"
+                                    :key="a.id"
+                                    :item="a"
+                                    @open="lightbox = $event"
+                                />
+                            </div>
+                            <p v-else class="text-sm text-muted-foreground">
+                                No photos yet.
+                            </p>
                         </div>
                     </div>
                 </div>
