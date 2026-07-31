@@ -65,10 +65,13 @@ class OwnerPortalController extends Controller
             'token' => $portalToken->token,
             'ownerName' => trim((string) ($owner->first_name ?: $owner->name)),
             'wocName' => $workOrder->woc?->name,
+            'unreadMessages' => $messages->where('read_by_owner', false)->count(),
             'workOrder' => [
                 'work_order_no' => $workOrder->work_order_no,
                 'description' => $workOrder->description,
+                'priority' => $workOrder->priority,
                 'status' => $workOrder->service_status?->name ?? $workOrder->status,
+                'is_emergency' => (bool) $workOrder->is_emergency,
                 'address' => $workOrder->propertyAddress() ?? '',
                 'created_date' => $workOrder->created_date,
             ],
@@ -82,12 +85,14 @@ class OwnerPortalController extends Controller
                 'media' => $message->media->map(fn (ConversationMedia $media) => [
                     'id' => $media->id,
                     'url' => $media->local_path ? asset('storage/'.$media->local_path) : $media->original_url,
-                    'is_image' => str_starts_with((string) $media->content_type, 'image/'),
+                    'content_type' => $media->content_type,
+                    'file_name' => $media->file_name,
                 ])->values(),
             ])->values(),
             'attachments' => $attachments->map(fn ($a) => [
                 'id' => $a->id,
                 'title' => $a->title,
+                'type' => $a->type,
                 'url' => asset('storage/'.$a->filename),
                 'is_image' => str_starts_with((string) $a->filetype, 'image/')
                     || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', (string) $a->filename),

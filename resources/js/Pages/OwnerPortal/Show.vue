@@ -1,301 +1,657 @@
 <script setup>
-import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted } from "vue";
+import { Head, router, usePage } from "@inertiajs/vue3";
+import { useToast } from "@/Components/ui/toast/use-toast";
+import {
+    Loader2,
+    Camera,
+    Send,
+    FileText,
+    MessageSquare,
+    MapPin,
+    AlertTriangle,
+    ChevronDown,
+    X,
+    Sun,
+    Moon,
+} from "lucide-vue-next";
 
 const props = defineProps({
-    title: String,
     token: String,
     ownerName: String,
     wocName: String,
     workOrder: Object,
-    messages: Array,
-    attachments: Array,
+    messages: { type: Array, default: () => [] },
+    attachments: { type: Array, default: () => [] },
+    unreadMessages: { type: Number, default: 0 },
 });
 
-const thread = ref(null);
-const fileInput = ref(null);
-const imageInput = ref(null);
+const page = usePage();
+const { toast } = useToast();
 
-const messageForm = useForm({
-    text: '',
-    images: [],
-});
-
-const uploadForm = useForm({
-    files: [],
-});
-
-const selectedNames = computed(() =>
-    uploadForm.files.length ? uploadForm.files.map((f) => f.name).join(', ') : ''
-);
-
-const selectedImageNames = computed(() =>
-    messageForm.images.length ? messageForm.images.map((f) => f.name).join(', ') : ''
-);
-
-function scrollThread() {
-    nextTick(() => {
-        if (thread.value) thread.value.scrollTop = thread.value.scrollHeight;
-    });
-}
+// Dark/light theme, kept under its own key so an owner's choice is independent
+// of the vendor portal's. Defaults to dark, matching the vendor portal.
+const isDark = ref(true);
 
 onMounted(() => {
-    scrollThread();
-    router.post(route('owner.portal.messages.read', props.token), {}, {
-        preserveScroll: true,
-        preserveState: true,
-        only: [],
-    });
+    const saved = localStorage.getItem("ownerPortalTheme");
+    if (saved) {
+        isDark.value = saved === "dark";
+    }
 });
 
-function onImagesChosen(event) {
-    messageForm.images = Array.from(event.target.files || []);
-}
+const toggleTheme = () => {
+    isDark.value = !isDark.value;
+    localStorage.setItem("ownerPortalTheme", isDark.value ? "dark" : "light");
+};
 
-function sendMessage() {
-    if (!messageForm.text.trim() && !messageForm.images.length) return;
+// Classify a message attachment so it renders as a video player, PDF link, or
+// image. Prefers content_type; falls back to the file extension for older rows.
+const mediaKind = (media) => {
+    const type = (media?.content_type || "").toLowerCase();
+    const name = (media?.file_name || "").toLowerCase();
 
-    messageForm.post(route('owner.portal.message', props.token), {
-        forceFormData: true,
+    if (type.startsWith("video/") || /\.(mp4|mov|m4v|3gp|3gpp|webm)$/.test(name)) {
+        return "video";
+    }
+    if (type === "application/pdf" || name.endsWith(".pdf")) {
+        return "pdf";
+    }
+    return "image";
+};
+
+// Image lightbox (modal) for viewing photos in-page.
+const lightbox = ref(null);
+
+// Surface server flash + validation messages as auto-dismissing toasts (5s).
+watch(
+    () => page.props.flash,
+    (f) => {
+        if (!f) return;
+        if (f.success)
+            toast({ title: "Success", description: f.success, duration: 5000 });
+        if (f.error)
+            toast({
+                variant: "destructive",
+                title: "Something went wrong",
+                description: f.error,
+                duration: 5000,
+            });
+    },
+    { deep: true, immediate: true }
+);
+
+watch(
+    () => page.props.errors,
+    (errors) => {
+        const first = errors && Object.values(errors)[0];
+        if (first)
+            toast({
+                variant: "destructive",
+                title: "Please check your entry",
+                description: first,
+                duration: 5000,
+            });
+    },
+    { deep: true }
+);
+
+// --- Tabs ---
+// Messages and photos only: the owner has no estimate, schedule or invoice.
+const tabs = [
+    { key: "message", label: "Messages", icon: MessageSquare },
+    { key: "photos", label: "Photos", icon: Camera },
+];
+const activeTab = ref("message");
+const localUnread = ref(props.unreadMessages);
+
+const markRead = () => {
+    if (localUnread.value === 0) return;
+    localUnread.value = 0;
+    router.post(
+        route("owner.portal.messages.read", props.token),
+        {},
+        { preserveScroll: true, preserveState: true }
+    );
+};
+
+const selectTab = (key) => {
+    activeTab.value = key;
+    if (key === "message") markRead();
+};
+
+// The Messages tab is open on arrival, so clear the badge straight away.
+onMounted(markRead);
+
+// --- Message coordinator ---
+const messageText = ref("");
+const messageImages = ref([]);
+const messageInput = ref(null);
+const sending = ref(false);
+
+const onPickMessageImages = (e) => {
+    Array.from(e.target.files || []).forEach((file) => {
+        const isDuplicate = messageImages.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (!isDuplicate) {
+            messageImages.value.push(file);
+        }
+    });
+    // Reset so re-picking the same file still fires @change.
+    e.target.value = "";
+};
+
+const removeMessageImage = (index) => {
+    messageImages.value.splice(index, 1);
+};
+
+const sendMessage = () => {
+    if (!messageText.value.trim() && messageImages.value.length === 0) return;
+    sending.value = true;
+    const data = new FormData();
+    data.append("text", messageText.value);
+    messageImages.value.forEach((file) => data.append("images[]", file));
+
+    router.post(route("owner.portal.message", props.token), data, {
         preserveScroll: true,
-        onSuccess: () => {
-            messageForm.reset();
-            if (imageInput.value) imageInput.value.value = '';
-            scrollThread();
-        },
-    });
-}
-
-function onFilesChosen(event) {
-    uploadForm.files = Array.from(event.target.files || []);
-}
-
-function upload() {
-    if (!uploadForm.files.length) return;
-
-    uploadForm.post(route('owner.portal.attachments', props.token), {
         forceFormData: true,
-        preserveScroll: true,
         onSuccess: () => {
-            uploadForm.reset();
-            if (fileInput.value) fileInput.value.value = '';
+            messageText.value = "";
+            messageImages.value = [];
+            if (messageInput.value) messageInput.value.value = "";
         },
+        onFinish: () => (sending.value = false),
     });
-}
+};
 
-function formatTime(value) {
-    if (!value) return '';
+// --- Photo upload ---
+const selectedFiles = ref([]);
+const selectedPreviews = ref([]);
+const photoInput = ref(null);
+const uploading = ref(false);
 
-    return new Date(value).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
+const isImageFile = (file) =>
+    file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic)$/i.test(file.name);
+
+const onPickFiles = (e) => {
+    const picked = Array.from(e.target.files || []);
+    picked.forEach((file) => {
+        const isDuplicate = selectedFiles.value.some(
+            (existing) => existing.name === file.name && existing.size === file.size,
+        );
+        if (isDuplicate) {
+            return;
+        }
+        selectedFiles.value.push(file);
+        const image = isImageFile(file);
+        selectedPreviews.value.push({
+            name: file.name,
+            isImage: image,
+            url: image ? URL.createObjectURL(file) : null,
+        });
     });
-}
+    e.target.value = "";
+};
+
+const removeSelectedFile = (index) => {
+    const [removed] = selectedPreviews.value.splice(index, 1);
+    if (removed?.url) {
+        URL.revokeObjectURL(removed.url);
+    }
+    selectedFiles.value.splice(index, 1);
+};
+
+const uploadPhotos = () => {
+    if (selectedFiles.value.length === 0) return;
+    uploading.value = true;
+    const data = new FormData();
+    selectedFiles.value.forEach((file) => data.append("files[]", file));
+
+    router.post(route("owner.portal.attachments", props.token), data, {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: () => {
+            selectedFiles.value = [];
+            selectedPreviews.value = [];
+            if (photoInput.value) photoInput.value.value = "";
+        },
+        onFinish: () => (uploading.value = false),
+    });
+};
+
+const priorityClass = computed(() => {
+    const p = (props.workOrder?.priority || "").toLowerCase();
+    if (p.includes("high") || p.includes("emergency"))
+        return "bg-destructive/10 text-destructive";
+    if (p.includes("medium")) return "bg-amber-100 text-amber-700";
+    return "bg-muted text-muted-foreground";
+});
+
+const addressLine = computed(
+    () => props.workOrder?.address || "Address unavailable"
+);
+
+// Photo groups are collapsible on mobile (always shown on desktop via lg:grid).
+const openGroups = ref({});
+const toggleGroup = (key) => {
+    openGroups.value[key] = !openGroups.value[key];
+};
 </script>
 
 <template>
-    <Head :title="title" />
+    <div :class="isDark ? 'dark' : ''">
+    <Head :title="`Work Order #${workOrder.work_order_no}`" />
 
-    <div class="min-h-screen bg-gray-100 py-6 px-4">
-        <div class="mx-auto max-w-lg space-y-4">
-            <!-- Header -->
-            <div class="rounded-xl bg-white p-5 shadow">
-                <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">
+    <Toaster />
+
+    <!-- Photo lightbox -->
+    <div
+        v-if="lightbox"
+        class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+        @click="lightbox = null"
+    >
+        <button
+            type="button"
+            class="absolute top-4 right-4 text-primary-foreground/80 hover:text-primary-foreground"
+            @click="lightbox = null"
+        >
+            <X class="w-8 h-8" />
+        </button>
+        <img
+            :src="lightbox"
+            class="max-h-full max-w-full rounded-lg object-contain"
+            @click.stop
+        />
+    </div>
+
+    <div class="min-h-screen bg-muted dark:bg-neutral-950">
+        <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
+            <!-- Theme toggle -->
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-sm font-medium text-muted-foreground">
                     TexasRenters.com Maintenance
-                </p>
-                <h1 class="mt-1 text-xl font-bold text-gray-900">
-                    Work Order #{{ workOrder.work_order_no }}
-                </h1>
-                <p v-if="ownerName" class="mt-1 text-sm text-gray-600">
-                    Hi {{ ownerName }}, here is the latest on this service request for your
-                    property. You can message your coordinator and share photos below.
-                </p>
+                </span>
+                <button
+                    type="button"
+                    @click="toggleTheme"
+                    :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+                    class="inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
+                >
+                    <Sun v-if="isDark" class="w-4 h-4" />
+                    <Moon v-else class="w-4 h-4" />
+                </button>
             </div>
 
-            <!-- Request details -->
-            <div class="rounded-xl bg-white p-5 shadow">
-                <h2 class="text-sm font-semibold text-gray-900">Request details</h2>
-                <dl class="mt-3 space-y-2 text-sm">
-                    <div v-if="workOrder.address">
-                        <dt class="font-medium text-gray-500">Property</dt>
-                        <dd class="text-gray-900">{{ workOrder.address }}</dd>
+            <!-- Two columns on desktop, single stack on mobile -->
+            <div
+                class="lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start space-y-4 lg:space-y-0"
+            >
+                <!-- Left column: request details -->
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-muted-foreground">
+                            Hi {{ ownerName }}
+                        </span>
+                        <span
+                            v-if="workOrder.status"
+                            class="text-xs font-medium rounded-full bg-primary/10 text-primary px-3 py-1"
+                        >
+                            {{ workOrder.status }}
+                        </span>
                     </div>
-                    <div v-if="workOrder.description">
-                        <dt class="font-medium text-gray-500">Issue</dt>
-                        <dd class="whitespace-pre-line text-gray-900">{{ workOrder.description }}</dd>
-                    </div>
-                    <div>
-                        <dt class="font-medium text-gray-500">Status</dt>
-                        <dd class="text-gray-900">{{ workOrder.status }}</dd>
-                    </div>
-                </dl>
-            </div>
 
-            <!-- Messages -->
-            <div class="rounded-xl bg-white p-5 shadow">
-                <h2 class="text-sm font-semibold text-gray-900">
-                    Messages<span v-if="wocName" class="font-normal text-gray-500"> with {{ wocName }}</span>
-                </h2>
+                    <h1 class="text-xl font-bold text-foreground">
+                        Work Order #{{ workOrder.work_order_no }}
+                    </h1>
 
-                <div ref="thread" class="mt-3 max-h-96 space-y-3 overflow-y-auto pr-1">
-                    <p v-if="!messages.length" class="py-6 text-center text-sm text-gray-500">
-                        No messages yet. Send us a note below and your coordinator will reply here.
+                    <div class="mt-2 flex items-start gap-2 text-muted-foreground text-sm">
+                        <MapPin class="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>{{ addressLine }}</span>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                            v-if="workOrder.priority"
+                            class="text-xs font-medium rounded-full px-3 py-1"
+                            :class="priorityClass"
+                        >
+                            {{ workOrder.priority }}
+                        </span>
+                        <span
+                            v-if="workOrder.is_emergency"
+                            class="inline-flex items-center gap-1 text-xs font-medium rounded-full bg-destructive/10 text-destructive px-3 py-1"
+                        >
+                            <AlertTriangle class="w-3 h-3" /> Emergency
+                        </span>
+                    </div>
+
+                    <p
+                        v-if="workOrder.description"
+                        class="mt-4 text-sm text-foreground whitespace-pre-line"
+                    >
+                        {{ workOrder.description }}
                     </p>
 
-                    <div
-                        v-for="m in messages"
-                        :key="m.id"
-                        class="flex"
-                        :class="m.from_owner ? 'justify-end' : 'justify-start'"
-                    >
-                        <div
-                            class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
-                            :class="m.from_owner
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-900'"
+                    <!-- Photos on file -->
+                    <div v-if="attachments.length" class="mt-4 border-t pt-3">
+                        <button
+                            type="button"
+                            class="w-full flex items-center justify-between lg:pointer-events-none"
+                            @click="toggleGroup('photos')"
                         >
-                            <p v-if="m.message" class="whitespace-pre-line break-words">{{ m.message }}</p>
-
-                            <div v-if="m.media.length" class="mt-2 grid grid-cols-2 gap-1">
-                                <a
-                                    v-for="media in m.media"
-                                    :key="media.id"
-                                    :href="media.url"
-                                    target="_blank"
-                                    class="block overflow-hidden rounded-lg"
+                            <span class="text-xs font-semibold text-muted-foreground uppercase">
+                                Photos ({{ attachments.length }})
+                            </span>
+                            <ChevronDown
+                                class="w-4 h-4 text-muted-foreground lg:hidden transition-transform"
+                                :class="{ 'rotate-180': openGroups.photos }"
+                            />
+                        </button>
+                        <div
+                            class="grid grid-cols-3 gap-2 mt-2 lg:grid"
+                            :class="{ hidden: !openGroups.photos }"
+                        >
+                            <template v-for="a in attachments" :key="a.id">
+                                <button
+                                    v-if="a.is_image"
+                                    type="button"
+                                    class="block aspect-square rounded-lg overflow-hidden bg-muted"
+                                    @click="lightbox = a.url"
                                 >
                                     <img
-                                        v-if="media.is_image"
-                                        :src="media.url"
-                                        class="h-20 w-full object-cover"
-                                        alt=""
+                                        :src="a.url"
+                                        :alt="a.title"
+                                        class="w-full h-full object-cover"
                                     />
+                                </button>
+                                <a
+                                    v-else
+                                    :href="a.url"
+                                    target="_blank"
+                                    class="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg bg-muted p-2"
+                                >
+                                    <FileText class="w-6 h-6 text-muted-foreground" />
                                     <span
-                                        v-else
-                                        class="flex h-20 items-center justify-center bg-white/20 text-xs"
+                                        class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate px-1"
+                                        >{{ a.title }}</span
                                     >
-                                        Attachment
-                                    </span>
                                 </a>
-                            </div>
-
-                            <p
-                                class="mt-1 text-[11px]"
-                                :class="m.from_owner ? 'text-blue-100' : 'text-gray-500'"
-                            >
-                                {{ formatTime(m.created_at) }}
-                            </p>
+                            </template>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-3 border-t border-gray-100 pt-3">
-                    <textarea
-                        v-model="messageForm.text"
-                        rows="3"
-                        placeholder="Type a message to your coordinator…"
-                        class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-                    ></textarea>
-
-                    <input
-                        ref="imageInput"
-                        type="file"
-                        multiple
-                        accept="image/*,video/*"
-                        class="hidden"
-                        @change="onImagesChosen"
-                    />
-
-                    <p v-if="selectedImageNames" class="mt-1 break-all text-xs text-gray-500">
-                        {{ selectedImageNames }}
-                    </p>
-
-                    <p v-if="messageForm.errors.message" class="mt-1 text-xs text-red-600">
-                        {{ messageForm.errors.message }}
-                    </p>
-
-                    <div class="mt-2 flex gap-2">
+                <!-- Right column: tabbed actions -->
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                    <!-- Tab bar -->
+                    <div class="grid grid-cols-2 border-b">
                         <button
+                            v-for="t in tabs"
+                            :key="t.key"
                             type="button"
-                            class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            @click="imageInput?.click()"
+                            class="flex flex-col items-center gap-1 py-3 text-xs font-medium border-b-2 transition-colors"
+                            :class="
+                                activeTab === t.key
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-muted-foreground'
+                            "
+                            @click="selectTab(t.key)"
                         >
-                            Attach
+                            <span class="relative">
+                                <component :is="t.icon" class="w-5 h-5" />
+                                <span
+                                    v-if="t.key === 'message' && localUnread > 0"
+                                    class="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center"
+                                >
+                                    {{ localUnread }}
+                                </span>
+                            </span>
+                            {{ t.label }}
                         </button>
-                        <button
-                            type="button"
-                            class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                            :disabled="messageForm.processing || (!messageForm.text.trim() && !messageForm.images.length)"
-                            @click="sendMessage"
-                        >
-                            {{ messageForm.processing ? 'Sending…' : 'Send' }}
-                        </button>
+                    </div>
+
+                    <div class="p-5">
+                        <!-- Message coordinator -->
+                        <div v-show="activeTab === 'message'">
+                            <p class="text-xs text-muted-foreground mb-3">
+                                <template v-if="wocName">{{ wocName }} ·</template>
+                                We'll get back to you here.
+                            </p>
+
+                            <div
+                                v-if="messages.length"
+                                class="space-y-2 mb-4 max-h-72 overflow-y-auto"
+                            >
+                                <div
+                                    v-for="m in messages"
+                                    :key="m.id"
+                                    class="flex"
+                                    :class="m.from_owner ? 'justify-end' : 'justify-start'"
+                                >
+                                    <div
+                                        class="max-w-[80%] rounded-lg px-3 py-2 text-sm"
+                                        :class="
+                                            m.from_owner
+                                                ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                                : 'bg-muted text-foreground rounded-bl-sm'
+                                        "
+                                    >
+                                        <p v-if="m.message" class="whitespace-pre-line">
+                                            {{ m.message }}
+                                        </p>
+                                        <div
+                                            v-if="m.media && m.media.length"
+                                            class="mt-1 grid grid-cols-2 gap-1"
+                                        >
+                                            <template
+                                                v-for="(media, i) in m.media"
+                                                :key="i"
+                                            >
+                                                <video
+                                                    v-if="mediaKind(media) === 'video'"
+                                                    :src="media.url"
+                                                    controls
+                                                    playsinline
+                                                    class="rounded-lg w-full h-20 object-cover bg-black"
+                                                />
+                                                <a
+                                                    v-else-if="mediaKind(media) === 'pdf'"
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="flex items-center gap-1 rounded-lg border px-2 py-3 text-xs truncate"
+                                                >
+                                                    <FileText class="h-4 w-4 shrink-0" />
+                                                    <span class="truncate">{{ media.file_name || "Document.pdf" }}</span>
+                                                </a>
+                                                <a
+                                                    v-else
+                                                    :href="media.url"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <img
+                                                        :src="media.url"
+                                                        class="rounded-lg w-full h-20 object-cover"
+                                                    />
+                                                </a>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-else class="text-sm text-muted-foreground mb-4">
+                                No messages yet.
+                            </p>
+
+                            <div
+                                v-if="messageImages.length"
+                                class="flex flex-wrap gap-2 mb-2"
+                            >
+                                <div
+                                    v-for="(img, i) in messageImages"
+                                    :key="i"
+                                    class="relative"
+                                >
+                                    <span
+                                        class="block rounded-lg bg-muted text-muted-foreground text-xs px-2 py-1 pr-6"
+                                        >{{ img.name }}</span
+                                    >
+                                    <button
+                                        type="button"
+                                        class="absolute -top-1 -right-1 bg-muted-foreground text-primary-foreground rounded-full p-0.5"
+                                        @click="removeMessageImage(i)"
+                                    >
+                                        <X class="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <textarea
+                                v-model="messageText"
+                                rows="3"
+                                placeholder="Type a message..."
+                                class="w-full rounded-md border border-input px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
+                            ></textarea>
+
+                            <div class="flex gap-2 mt-2">
+                                <label
+                                    class="flex items-center justify-center rounded-md border border-input px-4 text-muted-foreground cursor-pointer active:bg-accent"
+                                >
+                                    <Camera class="w-5 h-5" />
+                                    <input
+                                        ref="messageInput"
+                                        type="file"
+                                        accept="image/*,video/*"
+                                        multiple
+                                        class="hidden"
+                                        @change="onPickMessageImages"
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    :disabled="sending"
+                                    class="flex-1 rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
+                                    @click="sendMessage"
+                                >
+                                    <Loader2 v-if="sending" class="w-4 h-4 animate-spin" />
+                                    <Send v-else class="w-4 h-4" />
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Photos -->
+                        <div v-show="activeTab === 'photos'" class="space-y-3">
+                            <label
+                                class="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-input py-7 text-muted-foreground cursor-pointer active:bg-accent"
+                            >
+                                <Camera class="w-7 h-7" />
+                                <span class="text-sm font-medium"
+                                    >Tap to add photos or files</span
+                                >
+                                <span class="text-[10px] text-muted-foreground"
+                                    >Images, videos or PDF</span
+                                >
+                                <span class="text-[10px] text-muted-foreground"
+                                    >Add as many as you like — pick more anytime and
+                                    they'll stack up</span
+                                >
+                                <input
+                                    ref="photoInput"
+                                    type="file"
+                                    accept="image/*,video/*,.pdf"
+                                    multiple
+                                    class="hidden"
+                                    @change="onPickFiles"
+                                />
+                            </label>
+
+                            <!-- Selected file previews -->
+                            <div
+                                v-if="selectedPreviews.length"
+                                class="grid grid-cols-3 gap-2"
+                            >
+                                <div
+                                    v-for="(p, i) in selectedPreviews"
+                                    :key="i"
+                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                >
+                                    <img
+                                        v-if="p.isImage"
+                                        :src="p.url"
+                                        class="w-full h-full object-cover"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex flex-col items-center justify-center gap-1 w-full px-1"
+                                    >
+                                        <FileText class="w-6 h-6 text-muted-foreground" />
+                                        <span
+                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
+                                            >{{ p.name }}</span
+                                        >
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                        @click="removeSelectedFile(i)"
+                                    >
+                                        <X class="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                v-if="selectedFiles.length"
+                                type="button"
+                                :disabled="uploading"
+                                class="w-full rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
+                                @click="uploadPhotos"
+                            >
+                                <Loader2 v-if="uploading" class="w-4 h-4 animate-spin" />
+                                Upload {{ selectedFiles.length }} photo(s)
+                            </button>
+
+                            <!-- Photos already on file -->
+                            <div v-if="attachments.length" class="grid grid-cols-3 gap-2 pt-1">
+                                <template v-for="a in attachments" :key="a.id">
+                                    <button
+                                        v-if="a.is_image"
+                                        type="button"
+                                        class="block aspect-square rounded-lg overflow-hidden bg-muted"
+                                        @click="lightbox = a.url"
+                                    >
+                                        <img
+                                            :src="a.url"
+                                            :alt="a.title"
+                                            class="w-full h-full object-cover"
+                                        />
+                                    </button>
+                                    <a
+                                        v-else
+                                        :href="a.url"
+                                        target="_blank"
+                                        class="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg bg-muted p-2"
+                                    >
+                                        <FileText class="w-6 h-6 text-muted-foreground" />
+                                        <span
+                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate px-1"
+                                            >{{ a.title }}</span
+                                        >
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Photos -->
-            <div class="rounded-xl bg-white p-5 shadow">
-                <h2 class="text-sm font-semibold text-gray-900">Photos</h2>
-                <p class="mt-1 text-xs text-gray-500">
-                    Photos, videos or PDF files, up to 50&nbsp;MB each. No login needed.
-                </p>
-
-                <div v-if="attachments.length" class="mt-3 grid grid-cols-3 gap-2">
-                    <a
-                        v-for="a in attachments"
-                        :key="a.id"
-                        :href="a.url"
-                        target="_blank"
-                        class="block overflow-hidden rounded-lg border border-gray-200"
-                    >
-                        <img v-if="a.is_image" :src="a.url" class="h-24 w-full object-cover" alt="" />
-                        <span v-else class="flex h-24 items-center justify-center text-xs text-gray-500">
-                            File
-                        </span>
-                    </a>
-                </div>
-
-                <input
-                    ref="fileInput"
-                    type="file"
-                    multiple
-                    accept="image/*,video/*,.pdf"
-                    class="hidden"
-                    @change="onFilesChosen"
-                />
-
-                <button
-                    type="button"
-                    class="mt-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-700"
-                    @click="fileInput?.click()"
-                >
-                    <span v-if="!uploadForm.files.length">Tap to choose photos</span>
-                    <span v-else class="break-all">{{ selectedNames }}</span>
-                </button>
-
-                <p v-if="uploadForm.errors.files || uploadForm.errors['files.0']" class="mt-2 text-xs text-red-600">
-                    {{ uploadForm.errors.files || uploadForm.errors['files.0'] }}
-                </p>
-                <p v-if="uploadForm.errors.error" class="mt-2 text-xs text-red-600">
-                    {{ uploadForm.errors.error }}
-                </p>
-
-                <button
-                    type="button"
-                    class="mt-3 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                    :disabled="!uploadForm.files.length || uploadForm.processing"
-                    @click="upload"
-                >
-                    {{ uploadForm.processing ? 'Uploading…' : 'Upload photos' }}
-                </button>
-
-                <p v-if="uploadForm.recentlySuccessful" class="mt-2 text-center text-sm font-medium text-green-700">
-                    Photos uploaded — thank you!
-                </p>
-            </div>
+            <p class="text-center text-xs text-muted-foreground pt-2 pb-6">
+                TX Maintenance · Owner Portal
+            </p>
         </div>
+    </div>
     </div>
 </template>
