@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import GalleryTile from "@/Components/PortalGalleryTile.vue";
 import {
     Loader2,
     Camera,
@@ -285,6 +286,19 @@ const details = computed(() =>
     ].filter((d) => d.value)
 );
 
+// Group the gallery by where each file came from, in a fixed order so the
+// headings don't reshuffle as new photos arrive.
+const photoGroups = computed(() => {
+    const order = ["Work order", "Tenant conversation", "Your conversation"];
+
+    return order
+        .map((label) => ({
+            label,
+            items: props.attachments.filter((a) => a.source === label),
+        }))
+        .filter((group) => group.items.length > 0);
+});
+
 // Photo groups are collapsible on mobile (always shown on desktop via lg:grid).
 const openGroups = ref({});
 const toggleGroup = (key) => {
@@ -433,32 +447,12 @@ const toggleGroup = (key) => {
                             class="grid grid-cols-3 gap-2 mt-2 lg:grid"
                             :class="{ hidden: !openGroups.photos }"
                         >
-                            <template v-for="a in attachments" :key="a.id">
-                                <button
-                                    v-if="a.is_image"
-                                    type="button"
-                                    class="block aspect-square rounded-lg overflow-hidden bg-muted"
-                                    @click="lightbox = a.url"
-                                >
-                                    <img
-                                        :src="a.url"
-                                        :alt="a.title"
-                                        class="w-full h-full object-cover"
-                                    />
-                                </button>
-                                <a
-                                    v-else
-                                    :href="a.url"
-                                    target="_blank"
-                                    class="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg bg-muted p-2"
-                                >
-                                    <FileText class="w-6 h-6 text-muted-foreground" />
-                                    <span
-                                        class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate px-1"
-                                        >{{ a.title }}</span
-                                    >
-                                </a>
-                            </template>
+                            <GalleryTile
+                                v-for="a in attachments"
+                                :key="a.id"
+                                :item="a"
+                                @open="lightbox = $event"
+                            />
                         </div>
                     </div>
                 </div>
@@ -695,34 +689,23 @@ const toggleGroup = (key) => {
                                 Upload {{ selectedFiles.length }} photo(s)
                             </button>
 
-                            <!-- Photos already on file -->
-                            <div v-if="attachments.length" class="grid grid-cols-3 gap-2 pt-1">
-                                <template v-for="a in attachments" :key="a.id">
-                                    <button
-                                        v-if="a.is_image"
-                                        type="button"
-                                        class="block aspect-square rounded-lg overflow-hidden bg-muted"
-                                        @click="lightbox = a.url"
-                                    >
-                                        <img
-                                            :src="a.url"
-                                            :alt="a.title"
-                                            class="w-full h-full object-cover"
-                                        />
-                                    </button>
-                                    <a
-                                        v-else
-                                        :href="a.url"
-                                        target="_blank"
-                                        class="flex flex-col items-center justify-center gap-1 aspect-square rounded-lg bg-muted p-2"
-                                    >
-                                        <FileText class="w-6 h-6 text-muted-foreground" />
-                                        <span
-                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate px-1"
-                                            >{{ a.title }}</span
-                                        >
-                                    </a>
-                                </template>
+                            <!-- Everything on file, newest first, grouped by where it came from -->
+                            <div
+                                v-for="group in photoGroups"
+                                :key="group.label"
+                                class="pt-1"
+                            >
+                                <p class="text-xs font-semibold text-muted-foreground uppercase mb-2">
+                                    {{ group.label }} ({{ group.items.length }})
+                                </p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <GalleryTile
+                                        v-for="a in group.items"
+                                        :key="a.id"
+                                        :item="a"
+                                        @open="lightbox = $event"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

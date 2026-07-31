@@ -6,6 +6,7 @@ use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Building;
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\ServiceStatus;
@@ -255,6 +256,157 @@ class OwnerPortalTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->has('attachments', 1)
                 ->where('attachments.0.title', 'Owner-visible photo')
+            );
+    }
+
+    public function test_the_gallery_includes_photos_from_the_tenant_and_owner_threads(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        $tenantMessage = Conversation::create([
+            'message' => 'Here is the leak.',
+            'sender_number' => '+15125558888',
+            'receiver_number' => '+15125550000',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'is_read' => false,
+            'is_mms' => true,
+        ]);
+
+        ConversationMedia::create([
+            'message_id' => $tenantMessage->id,
+            'original_url' => '',
+            'local_path' => 'conversation_images/leak.jpg',
+            'content_type' => 'image/jpeg',
+            'file_name' => 'leak.jpg',
+        ]);
+
+        $ownerMessage = Conversation::create([
+            'message' => 'Please see the meter.',
+            'sender_number' => '+15125550000',
+            'receiver_number' => '+15125551234',
+            'work_order_id' => $workOrder->id,
+            'owner_id' => $owner->id,
+            'conversation_type' => 'owner',
+            'is_read' => true,
+            'is_mms' => true,
+        ]);
+
+        ConversationMedia::create([
+            'message_id' => $ownerMessage->id,
+            'original_url' => '',
+            'local_path' => 'conversation_images/meter.jpg',
+            'content_type' => 'image/jpeg',
+            'file_name' => 'meter.jpg',
+        ]);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 2)
+                ->where('attachments', fn ($items) => collect($items)
+                    ->pluck('source')
+                    ->sort()
+                    ->values()
+                    ->all() === ['Tenant conversation', 'Your conversation'])
+            );
+    }
+
+    public function test_the_gallery_never_includes_vendor_thread_photos(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        $vendorMessage = Conversation::create([
+            'message' => 'Quote attached.',
+            'sender_number' => '+15125559999',
+            'receiver_number' => '+15125550000',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'vendor',
+            'is_read' => true,
+            'is_mms' => true,
+        ]);
+
+        ConversationMedia::create([
+            'message_id' => $vendorMessage->id,
+            'original_url' => '',
+            'local_path' => 'conversation_images/quote.jpg',
+            'content_type' => 'image/jpeg',
+            'file_name' => 'quote.jpg',
+        ]);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('attachments', 0));
+    }
+
+    public function test_the_gallery_never_includes_a_co_owners_conversation_photos(): void
+    {
+        $owner = $this->makeOwner('5125551234', 'Olivia');
+        $coOwner = $this->makeOwner('5125557777', 'Owen');
+        $workOrder = $this->makeWorkOrder($owner);
+        $workOrder->owners()->attach($coOwner->id);
+
+        $token = $this->makeToken($workOrder, $owner);
+
+        $coOwnerMessage = Conversation::create([
+            'message' => 'For Owen only.',
+            'sender_number' => '+15125550000',
+            'receiver_number' => '+15125557777',
+            'work_order_id' => $workOrder->id,
+            'owner_id' => $coOwner->id,
+            'conversation_type' => 'owner',
+            'is_read' => true,
+            'is_mms' => true,
+        ]);
+
+        ConversationMedia::create([
+            'message_id' => $coOwnerMessage->id,
+            'original_url' => '',
+            'local_path' => 'conversation_images/owen.jpg',
+            'content_type' => 'image/jpeg',
+            'file_name' => 'owen.jpg',
+        ]);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('attachments', 0));
+    }
+
+    public function test_conversation_photos_are_served_through_their_signed_route(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        $message = Conversation::create([
+            'message' => 'Photo.',
+            'sender_number' => '+15125558888',
+            'receiver_number' => '+15125550000',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'is_read' => false,
+            'is_mms' => true,
+        ]);
+
+        ConversationMedia::create([
+            'message_id' => $message->id,
+            'original_url' => '',
+            'local_path' => 'conversation_images/leak.jpg',
+            'content_type' => 'image/jpeg',
+            'file_name' => 'leak.jpg',
+        ]);
+
+        // Conversation files live on the private disk, so a public storage URL
+        // would 404 for the owner.
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('attachments.0.url', fn ($url) => str_contains($url, 'conversation-media')
+                    && str_contains($url, 'signature='))
             );
     }
 

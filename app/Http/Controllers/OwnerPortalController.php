@@ -11,6 +11,7 @@ use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -59,6 +60,17 @@ class OwnerPortalController extends Controller
             filled($owner->mobile) ? $owner->mobile : $owner->phone
         );
 
+        // The tenant<->WOC thread. Its photos are of the issue itself, so the
+        // owner sees them in the gallery; the messages themselves stay private
+        // to that thread and are never rendered here.
+        $tenantMessages = Conversation::query()
+            ->withoutGlobalScopes()
+            ->with('media')
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'tenant')
+            ->orderBy('created_at')
+            ->get();
+
         // Photos the office has published to the owner portal, plus anything
         // this owner uploaded themselves.
         $attachments = Attachments::query()
@@ -100,23 +112,85 @@ class OwnerPortalController extends Controller
                 'from_owner' => $this->isFromOwner($message, $ownerDigits),
                 'message' => $message->message,
                 'created_at' => $message->created_at,
-                'media' => $message->media->map(fn (ConversationMedia $media) => [
-                    'id' => $media->id,
-                    'url' => $media->local_path ? asset('storage/'.$media->local_path) : $media->original_url,
-                    'content_type' => $media->content_type,
-                    'file_name' => $media->file_name,
-                ])->values(),
+                'media' => $message->media->map(fn (ConversationMedia $media) => $this->mediaPayload($media))->values(),
             ])->values(),
-            'attachments' => $attachments->map(fn ($a) => [
-                'id' => $a->id,
-                'title' => $a->title,
-                'type' => $a->type,
-                'url' => asset('storage/'.$a->filename),
-                'is_image' => str_starts_with((string) $a->filetype, 'image/')
-                    || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', (string) $a->filename),
-                'created_at' => $a->created_at,
-            ])->values(),
+            'attachments' => $this->gallery($attachments, $messages, $tenantMessages),
         ]);
+    }
+
+    /**
+     * Everything visual the owner is allowed to see for this work order, newest
+     * first: photos published to the owner portal, plus every photo exchanged
+     * in the tenant<->WOC and owner<->WOC threads. The vendor thread is
+     * deliberately excluded — that relationship stays with the coordinator.
+     *
+     * @param  Collection<int, Attachments>  $attachments
+     * @param  Collection<int, Conversation>  $ownerMessages
+     * @param  Collection<int, Conversation>  $tenantMessages
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function gallery(
+        Collection $attachments,
+        Collection $ownerMessages,
+        Collection $tenantMessages,
+    ): Collection {
+        $fromAttachments = $attachments->map(fn (Attachments $a) => [
+            'id' => 'attachment-'.$a->id,
+            'title' => $a->title,
+            'type' => $a->type,
+            'source' => 'Work order',
+            'url' => asset('storage/'.$a->filename),
+            'is_image' => $this->looksLikeImage($a->filetype, $a->filename),
+            'is_video' => str_starts_with((string) $a->filetype, 'video/'),
+            'created_at' => $a->created_at,
+        ]);
+
+        $fromMessages = $ownerMessages->concat($tenantMessages)
+            ->flatMap(fn (Conversation $message) => $message->media->map(
+                fn (ConversationMedia $media) => $this->mediaPayload($media) + [
+                    'title' => $media->file_name ?: 'Photo',
+                    'type' => null,
+                    'source' => $message->conversation_type === 'tenant'
+                        ? 'Tenant conversation'
+                        : 'Your conversation',
+                    'created_at' => $message->created_at,
+                ]
+            ));
+
+        return $fromAttachments
+            ->concat($fromMessages)
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
+    /**
+     * A conversation attachment for the front end. Conversation files live on
+     * the private disk, so they are served through their signed route rather
+     * than a public storage URL.
+     *
+     * @return array<string, mixed>
+     */
+    private function mediaPayload(ConversationMedia $media): array
+    {
+        return [
+            'id' => 'media-'.$media->id,
+            'url' => $media->local_path ? $media->public_url : $media->original_url,
+            'content_type' => $media->content_type,
+            'file_name' => $media->file_name,
+            'is_image' => $this->looksLikeImage($media->content_type, $media->file_name),
+            'is_video' => str_starts_with((string) $media->content_type, 'video/')
+                || (bool) preg_match('/\.(mp4|mov|m4v|3gp|3gpp|webm)$/i', (string) $media->file_name),
+        ];
+    }
+
+    /**
+     * Whether a file is an image, by mime type or, for rows whose mime was
+     * never detected, by extension.
+     */
+    private function looksLikeImage(?string $mime, ?string $filename): bool
+    {
+        return str_starts_with((string) $mime, 'image/')
+            || (bool) preg_match('/\.(jpe?g|png|gif|webp|heic)$/i', (string) $filename);
     }
 
     /**
