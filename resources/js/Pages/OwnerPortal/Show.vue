@@ -334,16 +334,14 @@ const toggleGroup = (key) => {
 
     <div class="min-h-screen bg-muted dark:bg-neutral-950">
         <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
-            <!-- Theme toggle -->
-            <div class="flex items-center justify-between gap-3">
-                <span class="text-sm font-medium text-muted-foreground">
-                    TexasRenters.com Maintenance
-                </span>
+            <!-- Branded header, matching the automated emails -->
+            <div class="relative rounded-lg bg-white border-b-[3px] border-[#6cbf3f] shadow-sm px-6 py-5 text-center">
+                <img src="/tx-logo.png" alt="TexasRenters.com" class="mx-auto h-9 w-auto" />
                 <button
                     type="button"
                     @click="toggleTheme"
                     :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-                    class="inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
+                    class="absolute right-3 top-3 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
                 >
                     <Sun v-if="isDark" class="w-4 h-4" />
                     <Moon v-else class="w-4 h-4" />
@@ -712,8 +710,22 @@ const toggleGroup = (key) => {
                 </div>
             </div>
 
-            <p class="text-center text-xs text-muted-foreground pt-2 pb-6">
-                TX Maintenance · Owner Portal
+            <!-- Footer, matching the automated emails -->
+            <div class="rounded-lg border bg-card px-6 py-4 text-center">
+                <p class="text-[11px] leading-relaxed text-muted-foreground">
+                    <a
+                        href="https://www.texasrenters.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-primary hover:underline"
+                        >TexasRenters.com</a
+                    >
+                    · 5225 Katy Freeway, Ste 545, Houston, TX 77007
+                </p>
+            </div>
+
+            <p class="text-center text-xs text-muted-foreground pb-6">
+                Owner Portal
             </p>
         </div>
     </div>
