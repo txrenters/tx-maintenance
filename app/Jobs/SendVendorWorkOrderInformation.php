@@ -11,6 +11,8 @@ use App\Models\WorkOrderDocuments;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use App\Services\PropertyWareService;
+use App\Services\TenantMessageFormatter;
+use App\Services\TenantPortalLinkService;
 use App\Services\WorkOrderEmailSender;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Bus\Queueable;
@@ -19,6 +21,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -228,12 +231,17 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         $greeting = $name !== '' ? 'Hi '.$name.',' : 'Hi,';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
 
-        return $greeting."\n\n"
+        $body = $greeting."\n\n"
             .'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
             .($workOrder->propertyAddress() ?? 'the property').' under Work Order #'.$ref.'. '
             .'They will contact you directly to arrange an appointment. '
-            .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.'
-            ."\n(Ref: WO#{$ref})";
+            .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.';
+
+        return TenantMessageFormatter::compose(
+            $body,
+            $ref,
+            app(TenantPortalLinkService::class)->link($workOrder),
+        );
     }
 
     /**

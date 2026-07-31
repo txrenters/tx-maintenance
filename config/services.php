@@ -102,6 +102,21 @@ return [
         // vendor is assigned, telling them the vendor will contact them to
         // schedule. THMP (in-house) jobs are skipped — THMP messages manually.
         'tenant_assignment_sms' => env('TENANT_ASSIGNMENT_SMS_ENABLED', true),
+        // Text the tenant via the tenant<->WOC conversation when the service
+        // appointment is set, with the date, the vendor and their portal link.
+        // Fires whoever sets it — a tenant always needs to know someone is
+        // coming to their home.
+        'tenant_schedule_sms' => env('TENANT_SCHEDULE_SMS_ENABLED', true),
+        // Daily reminder to the tenant after the appointment is set, running
+        // until the appointment date arrives or they reply (capped).
+        'tenant_schedule_followup_sms' => env('TENANT_SCHEDULE_FOLLOWUP_SMS_ENABLED', true),
+    ],
+
+    'work_order' => [
+        // Email the tenant a branded confirmation when their service request
+        // comes in, carrying the no-login portal link. Not a Twilio channel, so
+        // it lives here rather than under `twilio`.
+        'tenant_intake_email' => env('TENANT_INTAKE_EMAIL_ENABLED', true),
     ],
 
     'hoa' => [

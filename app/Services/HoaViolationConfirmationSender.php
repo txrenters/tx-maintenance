@@ -16,7 +16,10 @@ use Illuminate\Support\Facades\View;
  */
 class HoaViolationConfirmationSender
 {
-    public function __construct(private readonly MicrosoftGraphMailService $graph) {}
+    public function __construct(
+        private readonly MicrosoftGraphMailService $graph,
+        private readonly TenantPortalLinkService $portalLinks,
+    ) {}
 
     public function send(TenantUploadToken $token): bool
     {
@@ -45,6 +48,7 @@ class HoaViolationConfirmationSender
             'workOrder' => $workOrder,
             'property' => $workOrder->building?->name,
             'galleryUrl' => $galleryUrl,
+            'portalLink' => $this->portalLinks->link($workOrder),
         ])->render();
 
         $mailbox = (string) config('services.microsoft.job_reminder_mailbox');
