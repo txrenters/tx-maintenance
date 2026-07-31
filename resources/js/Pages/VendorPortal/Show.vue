@@ -761,7 +761,7 @@ const confirmCompleteTask = () => {
                                     inputmode="decimal"
                                     min="0"
                                     step="0.01"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -776,7 +776,7 @@ const confirmCompleteTask = () => {
                                         type="number"
                                         inputmode="numeric"
                                         min="0"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                         placeholder="0"
                                     />
                                 </div>
@@ -788,7 +788,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="estimateForm.scheduled_end_date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                             </div>
@@ -844,7 +844,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="scheduleForm.title"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                 />
                             </div>
                             <div class="grid grid-cols-2 gap-3">
@@ -856,7 +856,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="scheduleForm.date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                                 <div>
@@ -867,7 +867,7 @@ const confirmCompleteTask = () => {
                                     <input
                                         v-model="scheduleForm.end_date"
                                         type="date"
-                                        class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                        class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     />
                                 </div>
                             </div>
@@ -878,7 +878,7 @@ const confirmCompleteTask = () => {
                                 <textarea
                                     v-model="scheduleForm.description"
                                     rows="5"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base resize-y min-h-[120px] focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-y min-h-[120px] focus:border-ring focus:ring-0"
                                 ></textarea>
                             </div>
                             <button
@@ -909,7 +909,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="photoTitle"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="e.g. Kitchen leak - before repair"
                                 />
                                 <p class="mt-1 text-xs text-muted-foreground">
@@ -1057,7 +1057,7 @@ const confirmCompleteTask = () => {
                                     inputmode="decimal"
                                     min="0"
                                     step="0.01"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -1069,7 +1069,7 @@ const confirmCompleteTask = () => {
                                 <input
                                     v-model="invoiceForm.title"
                                     type="text"
-                                    class="mt-1 w-full rounded-md border border-input px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="e.g. Labor + parts"
                                 />
                             </div>
@@ -1219,7 +1219,7 @@ const confirmCompleteTask = () => {
                                 v-model="messageText"
                                 rows="3"
                                 placeholder="Type a message..."
-                                class="w-full rounded-md border border-input px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
+                                class="w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
                             ></textarea>
 
                             <div class="flex gap-2 mt-2">

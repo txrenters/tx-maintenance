@@ -593,7 +593,7 @@ const toggleGroup = (key) => {
                                 v-model="messageText"
                                 rows="3"
                                 placeholder="Type a message..."
-                                class="w-full rounded-md border border-input px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
+                                class="w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
                             ></textarea>
 
                             <div class="flex gap-2 mt-2">
