@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, computed, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted, computed, onBeforeUnmount, defineAsyncComponent } from "vue";
 import { router, useForm, usePoll, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -14,22 +14,22 @@ import {
 } from "@/Components/ui/tooltip";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
-import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
-import WorkOrderTask from "./Partials/WorkOrderTask.vue";
-import VendorWocConversation from "./Partials/VendorWocConversation.vue";
-import VendorOwnerConversation from "./Partials/VendorOwnerConversation.vue";
-import VendorConversation from "./Partials/VendorConversation.vue";
-import TenantConversation from "./Partials/TenantConversation.vue";
-import OwnerConversation from "./Partials/OwnerConversation.vue";
-import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
-import Conversation from "./Partials/Conversation.vue";
-import ServiceSchedule from "./Partials/ServiceSchedule.vue";
-import Attachments from "./Partials/Attachments.vue";
-import Invoices from "./Partials/Invoices.vue";
-import Notes from "./Partials/Notes.vue";
-import VendorEdit from "./Partials/VendorEdit.vue";
-import Recommendation from "./Partials/Recommendation.vue";
-import EmailNotifications from "./Partials/EmailNotifications.vue";
+const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
+const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
+const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
+const VendorOwnerConversation = defineAsyncComponent(() => import("./Partials/VendorOwnerConversation.vue"));
+const VendorConversation = defineAsyncComponent(() => import("./Partials/VendorConversation.vue"));
+const TenantConversation = defineAsyncComponent(() => import("./Partials/TenantConversation.vue"));
+const OwnerConversation = defineAsyncComponent(() => import("./Partials/OwnerConversation.vue"));
+const OwnerWocConversation = defineAsyncComponent(() => import("./Partials/OwnerWocConversation.vue"));
+const Conversation = defineAsyncComponent(() => import("./Partials/Conversation.vue"));
+const ServiceSchedule = defineAsyncComponent(() => import("./Partials/ServiceSchedule.vue"));
+const Attachments = defineAsyncComponent(() => import("./Partials/Attachments.vue"));
+const Invoices = defineAsyncComponent(() => import("./Partials/Invoices.vue"));
+const Notes = defineAsyncComponent(() => import("./Partials/Notes.vue"));
+const VendorEdit = defineAsyncComponent(() => import("./Partials/VendorEdit.vue"));
+const Recommendation = defineAsyncComponent(() => import("./Partials/Recommendation.vue"));
+const EmailNotifications = defineAsyncComponent(() => import("./Partials/EmailNotifications.vue"));
 import debounce from "lodash/debounce";
 
 import {
@@ -71,8 +71,8 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
-import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
-import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
+const VendorTenantConversation = defineAsyncComponent(() => import("./Partials/VendorTenantConversation.vue"));
+const OwnerVendorConversation = defineAsyncComponent(() => import("./Partials/OwnerVendorConversation.vue"));
 import { Skeleton } from "@/Components/ui/skeleton";
 import {
     DropdownMenu,
@@ -86,6 +86,17 @@ import { useRecentWorkOrders } from "@/composables/useRecentWorkOrders";
 
 const { recentWorkOrders, rememberWorkOrder, forgetWorkOrder, openedAgo } =
     useRecentWorkOrders();
+
+// The modal tabs are async chunks now; warm the default tab once the board is
+// idle so the first card open doesn't wait on a download.
+onMounted(() => {
+    const warm = () => import("./Partials/WorkOrderDetails.vue");
+    if ("requestIdleCallback" in window) {
+        requestIdleCallback(warm);
+    } else {
+        setTimeout(warm, 2000);
+    }
+});
 
 // When the work order modal closes, take the user back to that card on the
 // board and flash it — it may have moved to another column (e.g. New) after a

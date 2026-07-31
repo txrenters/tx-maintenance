@@ -111,13 +111,10 @@ import {
     SelectValue,
 } from '@/Components/ui/select'
 
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
-import Multiselect from 'vue-multiselect'
 import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
 import { Progress } from '@/Components/ui/progress';
 import { MotionPlugin } from '@vueuse/motion'
-import Vue3Signature from "vue3-signature"
+import { defineAsyncComponent } from 'vue'
 
 const appName = import.meta.env.VITE_APP_NAME || 'TX Maintenance Portal';
 
@@ -132,12 +129,14 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .use(MotionPlugin)
-            .use(Vue3Signature)
             .component("Head", Head)
             .component("ScrollArea", ScrollArea)
             .component("ScrollBar", ScrollBar)
-            .component("VueDatePicker", VueDatePicker)
-            .component("Multiselect", Multiselect)
+            // Used on a single page; loaded on demand so the signature-pad
+            // library stays out of every other page's bundle. (VueDatePicker
+            // and Multiselect were registered here too but had no usages
+            // anywhere, so they were dropped from the bundle entirely.)
+            .component("Vue3Signature", defineAsyncComponent(() => import("vue3-signature")))
             .component("Link", Link)
             .component("NavLink", NavLink)
             .component("Progress", Progress)

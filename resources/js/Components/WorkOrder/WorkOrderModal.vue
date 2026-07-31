@@ -1,29 +1,32 @@
 <script setup>
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, defineAsyncComponent } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
-import WorkOrderDetails from "@/Pages/WorkOrder/Partials/WorkOrderDetails.vue";
-import WorkOrderTask from "@/Pages/WorkOrder/Partials/WorkOrderTask.vue";
-import VendorWocConversation from "@/Pages/WorkOrder/Partials/VendorWocConversation.vue";
-import VendorOwnerConversation from "@/Pages/WorkOrder/Partials/VendorOwnerConversation.vue";
-import VendorConversation from "@/Pages/WorkOrder/Partials/VendorConversation.vue";
-import TenantConversation from "@/Pages/WorkOrder/Partials/TenantConversation.vue";
-import OwnerConversation from "@/Pages/WorkOrder/Partials/OwnerConversation.vue";
-import OwnerWocConversation from "@/Pages/WorkOrder/Partials/OwnerWocConversation.vue";
-import OwnerVendorConversation from "@/Pages/WorkOrder/Partials/OwnerVendorConversation.vue";
-import VendorTenantConversation from "@/Pages/WorkOrder/Partials/VendorTenantConversation.vue";
-import Conversation from "@/Pages/WorkOrder/Partials/Conversation.vue";
-import ServiceSchedule from "@/Pages/WorkOrder/Partials/ServiceSchedule.vue";
-import Attachments from "@/Pages/WorkOrder/Partials/Attachments.vue";
-import Invoices from "@/Pages/WorkOrder/Partials/Invoices.vue";
-import Notes from "@/Pages/WorkOrder/Partials/Notes.vue";
-import VendorEdit from "@/Pages/WorkOrder/Partials/VendorEdit.vue";
-import Recommendation from "@/Pages/WorkOrder/Partials/Recommendation.vue";
-import EmailNotifications from "@/Pages/WorkOrder/Partials/EmailNotifications.vue";
+// The modal tabs load on demand: this component rides along on every page via
+// AppLayout, so static imports here would put the whole modal subtree (rich
+// text editor included) into every initial page load.
+const WorkOrderDetails = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/WorkOrderDetails.vue"));
+const WorkOrderTask = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/WorkOrderTask.vue"));
+const VendorWocConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/VendorWocConversation.vue"));
+const VendorOwnerConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/VendorOwnerConversation.vue"));
+const VendorConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/VendorConversation.vue"));
+const TenantConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/TenantConversation.vue"));
+const OwnerConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/OwnerConversation.vue"));
+const OwnerWocConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/OwnerWocConversation.vue"));
+const OwnerVendorConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/OwnerVendorConversation.vue"));
+const VendorTenantConversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/VendorTenantConversation.vue"));
+const Conversation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/Conversation.vue"));
+const ServiceSchedule = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/ServiceSchedule.vue"));
+const Attachments = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/Attachments.vue"));
+const Invoices = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/Invoices.vue"));
+const Notes = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/Notes.vue"));
+const VendorEdit = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/VendorEdit.vue"));
+const Recommendation = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/Recommendation.vue"));
+const EmailNotifications = defineAsyncComponent(() => import("@/Pages/WorkOrder/Partials/EmailNotifications.vue"));
 
 import {
     ClipboardList,

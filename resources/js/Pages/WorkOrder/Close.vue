@@ -1,23 +1,23 @@
 <script setup>
-import { ref, watch, onMounted, computed, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted, computed, onBeforeUnmount, defineAsyncComponent } from "vue";
 import { router, useForm, usePoll, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import WorkOrderClosedCard from "./Partials/WorkOrderClosedCard.vue";
+const WorkOrderClosedCard = defineAsyncComponent(() => import("./Partials/WorkOrderClosedCard.vue"));
 import TabSwitcher from "./Partials/TabSwitcher.vue";
-import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
-import WorkOrderTask from "./Partials/WorkOrderTask.vue";
-import VendorWocConversation from "./Partials/VendorWocConversation.vue";
-import VendorConversation from "./Partials/VendorConversation.vue";
-import TenantConversation from "./Partials/TenantConversation.vue";
-import OwnerConversation from "./Partials/OwnerConversation.vue";
-import Conversation from "./Partials/Conversation.vue";
-import ServiceSchedule from "./Partials/ServiceSchedule.vue";
-import Attachments from "./Partials/Attachments.vue";
-import Invoices from "./Partials/Invoices.vue";
-import Notes from "./Partials/Notes.vue";
-import VendorEdit from "./Partials/VendorEdit.vue";
+const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
+const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
+const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
+const VendorConversation = defineAsyncComponent(() => import("./Partials/VendorConversation.vue"));
+const TenantConversation = defineAsyncComponent(() => import("./Partials/TenantConversation.vue"));
+const OwnerConversation = defineAsyncComponent(() => import("./Partials/OwnerConversation.vue"));
+const Conversation = defineAsyncComponent(() => import("./Partials/Conversation.vue"));
+const ServiceSchedule = defineAsyncComponent(() => import("./Partials/ServiceSchedule.vue"));
+const Attachments = defineAsyncComponent(() => import("./Partials/Attachments.vue"));
+const Invoices = defineAsyncComponent(() => import("./Partials/Invoices.vue"));
+const Notes = defineAsyncComponent(() => import("./Partials/Notes.vue"));
+const VendorEdit = defineAsyncComponent(() => import("./Partials/VendorEdit.vue"));
 import debounce from "lodash/debounce";
 
 import {
@@ -50,10 +50,10 @@ import { RangeCalendar } from "@/Components/ui/range-calendar";
 import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useEchoPublic } from "@laravel/echo-vue";
 import SearchBar from "@/Components/SearchBar.vue";
-import OwnerWocConversation from "./Partials/OwnerWocConversation.vue";
-import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
-import VendorTenantConversation from "./Partials/VendorTenantConversation.vue";
-import VendorOwnerConversation from "./Partials/VendorOwnerConversation.vue";
+const OwnerWocConversation = defineAsyncComponent(() => import("./Partials/OwnerWocConversation.vue"));
+const OwnerVendorConversation = defineAsyncComponent(() => import("./Partials/OwnerVendorConversation.vue"));
+const VendorTenantConversation = defineAsyncComponent(() => import("./Partials/VendorTenantConversation.vue"));
+const VendorOwnerConversation = defineAsyncComponent(() => import("./Partials/VendorOwnerConversation.vue"));
 import { Skeleton } from "@/Components/ui/skeleton";
 
 const props = defineProps({
