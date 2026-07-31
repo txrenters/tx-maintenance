@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted } from "vue";
 import { Head, router, usePage } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import GalleryTile from "@/Components/PortalGalleryTile.vue";
+import BrandHeader from "@/Components/PortalBrandHeader.vue";
+import BrandFooter from "@/Components/PortalBrandFooter.vue";
 import {
     Loader2,
     Camera,
@@ -14,8 +16,6 @@ import {
     AlertTriangle,
     ChevronRight,
     X,
-    Sun,
-    Moon,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -352,36 +352,15 @@ watch(photoFilters, (filters) => {
 
     <div class="min-h-screen bg-muted dark:bg-neutral-950">
         <div class="mx-auto w-full max-w-md lg:max-w-5xl px-4 py-5 space-y-4">
-            <!-- Branded header, matching the automated emails. Follows the
-                 theme; the logo keeps a white plate in dark mode so its brand
-                 colors stay readable. -->
-            <div
-                class="relative rounded-lg border bg-card shadow-sm border-b-[3px] border-b-[#6cbf3f] px-4 py-4 sm:px-6 sm:py-5 text-center"
-            >
-                <span class="inline-flex rounded-md dark:bg-white dark:px-3 dark:py-2">
-                    <img
-                        src="/tx-logo.png"
-                        alt="TexasRenters.com"
-                        class="h-7 w-auto sm:h-9"
-                    />
-                </span>
-                <button
-                    type="button"
-                    @click="toggleTheme"
-                    :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-                    class="absolute right-2 top-2 sm:right-3 sm:top-3 inline-flex items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent"
-                >
-                    <Sun v-if="isDark" class="w-4 h-4" />
-                    <Moon v-else class="w-4 h-4" />
-                </button>
-            </div>
-
             <!-- Two columns on desktop, single stack on mobile -->
             <div
                 class="lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start space-y-4 lg:space-y-0"
             >
-                <!-- Left column: request details -->
-                <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-5">
+                <!-- Left column: branded header + request details -->
+                <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                    <BrandHeader :is-dark="isDark" @toggle-theme="toggleTheme" />
+
+                    <div class="p-5">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-xs font-semibold text-muted-foreground">
                             Hi {{ ownerName }}
@@ -467,6 +446,7 @@ watch(photoFilters, (filters) => {
                             View all <ChevronRight class="w-3.5 h-3.5" />
                         </span>
                     </button>
+                    </div>
                 </div>
 
                 <!-- Right column: tabbed actions -->
@@ -738,23 +718,7 @@ watch(photoFilters, (filters) => {
                 </div>
             </div>
 
-            <!-- Footer, matching the automated emails -->
-            <div class="rounded-lg border bg-card px-6 py-4 text-center">
-                <p class="text-[11px] leading-relaxed text-muted-foreground">
-                    <a
-                        href="https://www.texasrenters.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-primary hover:underline"
-                        >TexasRenters.com</a
-                    >
-                    · 5225 Katy Freeway, Ste 545, Houston, TX 77007
-                </p>
-            </div>
-
-            <p class="text-center text-xs text-muted-foreground pb-6">
-                Owner Portal
-            </p>
+            <BrandFooter label="Owner Portal" />
         </div>
     </div>
     </div>

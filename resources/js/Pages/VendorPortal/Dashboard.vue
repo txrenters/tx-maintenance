@@ -6,10 +6,10 @@ import {
     ClipboardList,
     MessageSquare,
     LogIn,
-    Sun,
-    Moon,
     Search,
 } from "lucide-vue-next";
+import BrandHeader from "@/Components/PortalBrandHeader.vue";
+import BrandFooter from "@/Components/PortalBrandFooter.vue";
 
 const props = defineProps({
     vendorName: String,
@@ -102,38 +102,29 @@ const accentClasses = (accent) => {
 
         <div class="min-h-screen bg-muted dark:bg-neutral-950">
             <div class="mx-auto w-full max-w-md lg:max-w-6xl px-4 py-5 space-y-4">
-                <div class="flex items-start justify-between gap-3 px-1">
-                    <div class="min-w-0">
-                        <p
-                            class="text-xs font-semibold text-muted-foreground dark:text-neutral-400"
-                        >
-                            Hi {{ vendorName }}
-                        </p>
-                        <h1
-                            class="text-xl font-bold text-foreground dark:text-white"
-                        >
-                            My Work Orders
-                        </h1>
-                    </div>
+                <div
+                    class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden dark:border-neutral-800 dark:bg-neutral-900"
+                >
+                    <BrandHeader :is-dark="isDark" @toggle-theme="toggleTheme" />
 
-                    <div class="flex shrink-0 items-center gap-2">
-                        <button
-                            type="button"
-                            @click="toggleTheme"
-                            :title="
-                                isDark
-                                    ? 'Switch to light mode'
-                                    : 'Switch to dark mode'
-                            "
-                            class="inline-flex items-center justify-center rounded-md border border-input bg-background p-2 text-foreground shadow-sm transition-colors hover:bg-accent dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-700"
-                        >
-                            <Sun v-if="isDark" class="w-4 h-4" />
-                            <Moon v-else class="w-4 h-4" />
-                        </button>
+                    <div class="flex items-start justify-between gap-3 p-5">
+                        <div class="min-w-0">
+                            <p
+                                class="text-xs font-semibold text-muted-foreground dark:text-neutral-400"
+                            >
+                                Hi {{ vendorName }}
+                            </p>
+                            <h1
+                                class="text-xl font-bold text-foreground dark:text-white"
+                            >
+                                My Work Orders
+                            </h1>
+                        </div>
+
                         <a
                             v-if="loginUrl"
                             :href="loginUrl"
-                            class="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-700"
+                            class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-700"
                         >
                             <LogIn class="w-4 h-4" />
                             Login
@@ -301,11 +292,7 @@ const accentClasses = (accent) => {
                     </p>
                 </div>
 
-                <p
-                    class="text-center text-xs text-muted-foreground dark:text-neutral-500 pt-2 pb-6"
-                >
-                    TX Maintenance · Vendor Portal
-                </p>
+                <BrandFooter label="Vendor Portal" />
             </div>
         </div>
     </div>
