@@ -34,7 +34,15 @@ class OwnerPortalController extends Controller
         /** @var OwnerPortalToken $portalToken */
         $portalToken = $request->attributes->get('portal_token');
 
-        $workOrder->load(['service_status', 'building']);
+        $workOrder->load(['service_status', 'building', 'woc']);
+
+        // The upcoming appointment, if a vendor has set one. Read-only: it is
+        // the same detail the owner is already texted, and it is what the
+        // schedule follow-up is asking about.
+        $appointment = $workOrder->service_schedules()
+            ->withoutGlobalScopes()
+            ->orderByDesc('scheduled_date')
+            ->first(['scheduled_date', 'scheduled_end_date', 'status']);
 
         // This owner's thread with the coordinator only — never the vendor
         // thread, and never a co-owner's messages.
@@ -73,7 +81,17 @@ class OwnerPortalController extends Controller
                 'status' => $workOrder->service_status?->name ?? $workOrder->status,
                 'is_emergency' => (bool) $workOrder->is_emergency,
                 'address' => $workOrder->propertyAddress() ?? '',
+                'property_name' => $workOrder->building?->name,
+                'category' => $workOrder->category,
+                'type' => $workOrder->type,
+                'location' => $workOrder->location,
                 'created_date' => $workOrder->created_date,
+                'coordinator' => $workOrder->woc?->name,
+                'appointment' => $appointment ? [
+                    'scheduled_date' => $appointment->scheduled_date,
+                    'scheduled_end_date' => $appointment->scheduled_end_date,
+                    'status' => $appointment->status,
+                ] : null,
             ],
             'messages' => $messages->map(fn (Conversation $message) => [
                 'id' => $message->id,

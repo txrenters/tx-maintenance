@@ -9,6 +9,7 @@ import {
     FileText,
     MessageSquare,
     MapPin,
+    CalendarClock,
     AlertTriangle,
     ChevronDown,
     X,
@@ -229,7 +230,59 @@ const priorityClass = computed(() => {
 });
 
 const addressLine = computed(
-    () => props.workOrder?.address || "Address unavailable"
+    () => props.workOrder?.address || props.workOrder?.property_name || "Address unavailable"
+);
+
+// Accepts ISO, MySQL "YYYY-MM-DD HH:MM:SS", and date-only strings. Built from
+// the parts so it never shows "Invalid Date" or shifts a day by timezone.
+const fmtDate = (d) => {
+    if (!d) return "";
+    const [y, m, day] = String(d).slice(0, 10).split("-").map(Number);
+    if (!y || !m || !day) return "";
+    return new Date(y, m - 1, day).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+};
+
+// Midnight means the vendor set a date with no specific time.
+const fmtDateTime = (d) => {
+    if (!d) return "";
+    const time = String(d).slice(11, 16);
+    if (!time || time === "00:00") return fmtDate(d);
+
+    const [hour, minute] = time.split(":").map(Number);
+    const suffix = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+
+    return `${fmtDate(d)} at ${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+const appointmentLine = computed(() => {
+    const appointment = props.workOrder?.appointment;
+    if (!appointment?.scheduled_date) return "";
+
+    const start = fmtDateTime(appointment.scheduled_date);
+    const end = appointment.scheduled_end_date
+        ? fmtDate(appointment.scheduled_end_date)
+        : "";
+
+    return end && end !== fmtDate(appointment.scheduled_date)
+        ? `${start} → ${end}`
+        : start;
+});
+
+// The work order's own details, skipping anything we don't have on file.
+const details = computed(() =>
+    [
+        { label: "Property", value: props.workOrder?.address },
+        { label: "Area", value: props.workOrder?.location },
+        { label: "Category", value: props.workOrder?.category },
+        { label: "Type", value: props.workOrder?.type },
+        { label: "Submitted", value: fmtDate(props.workOrder?.created_date) },
+        { label: "Coordinator", value: props.workOrder?.coordinator },
+    ].filter((d) => d.value)
 );
 
 // Photo groups are collapsible on mobile (always shown on desktop via lg:grid).
@@ -326,12 +379,40 @@ const toggleGroup = (key) => {
                         </span>
                     </div>
 
+                    <!-- Appointment, when a vendor has set one -->
+                    <div
+                        v-if="appointmentLine"
+                        class="mt-4 flex items-start gap-2 rounded-lg bg-primary/10 px-3 py-2"
+                    >
+                        <CalendarClock class="w-4 h-4 mt-0.5 shrink-0 text-primary" />
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase text-primary">
+                                Appointment
+                            </p>
+                            <p class="text-sm text-foreground">{{ appointmentLine }}</p>
+                        </div>
+                    </div>
+
                     <p
                         v-if="workOrder.description"
                         class="mt-4 text-sm text-foreground whitespace-pre-line"
                     >
                         {{ workOrder.description }}
                     </p>
+
+                    <!-- Request details -->
+                    <dl v-if="details.length" class="mt-4 border-t pt-3 space-y-2">
+                        <div
+                            v-for="d in details"
+                            :key="d.label"
+                            class="flex items-start justify-between gap-3 text-sm"
+                        >
+                            <dt class="text-muted-foreground shrink-0">{{ d.label }}</dt>
+                            <dd class="text-foreground text-right break-words">
+                                {{ d.value }}
+                            </dd>
+                        </div>
+                    </dl>
 
                     <!-- Photos on file -->
                     <div v-if="attachments.length" class="mt-4 border-t pt-3">
