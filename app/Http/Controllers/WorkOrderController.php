@@ -23,6 +23,7 @@ use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -105,6 +106,39 @@ class WorkOrderController extends Controller
     }
 
     /**
+     * How long the board reference lists (categories, vendors, users, types)
+     * stay cached. They change rarely; a new vendor/category may take up to
+     * this long to appear in the board dropdowns.
+     */
+    private const REFERENCE_CACHE_SECONDS = 300;
+
+    private function cachedCategories(): Collection
+    {
+        return Cache::remember('board.categories', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get());
+    }
+
+    /** Active vendors with the columns every board variant needs. */
+    private function cachedActiveVendors(): Collection
+    {
+        return Cache::remember('board.vendors', self::REFERENCE_CACHE_SECONDS, fn () => DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get());
+    }
+
+    /** WOC staff plus the users behind active vendors, for the assignee dropdowns. */
+    private function cachedBoardUsers(): Collection
+    {
+        return Cache::remember('board.users', self::REFERENCE_CACHE_SECONDS, function () {
+            $vendorUserIds = $this->cachedActiveVendors()->pluck('user_id')->toArray();
+
+            return User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
+                ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
+                    ->whereIn('id', $vendorUserIds)
+                )
+                ->orderBy('name', 'ASC')
+                ->get();
+        });
+    }
+
+    /**
      * A vendor's own work orders as a single flat list for the vendor "Work
      * Orders" page. The list is restricted to work orders the vendor is actually
      * tagged on (the work_order_vendors pivot) — NOT the broader WorkOrderScope
@@ -164,6 +198,30 @@ class WorkOrderController extends Controller
      * Display a listing of the resource.
      */
     public function index(Request $request)
+    {
+        // Every heavy prop is built inside its deferred closure so the work only
+        // runs on the request that actually returns it: the initial page load
+        // ships the shell instantly, the deferred fetch builds the board once,
+        // and partial reloads (only: ['service_status']) skip the reference
+        // lists entirely. Building these inline here would run the full board
+        // twice per visit — once discarded on the initial response, once for
+        // the deferred fetch.
+        return inertia('WorkOrder/Index', [
+            'title' => 'Work Orders',
+            'service_status' => Inertia::defer(fn () => $this->mainBoard($request)),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category', 'emergency']),
+        ]);
+    }
+
+    /**
+     * The main kanban board: every open work order grouped by service status,
+     * plus the trailing Paid and Closed buckets, honoring the request filters.
+     */
+    private function mainBoard(Request $request): Collection
     {
         $query = ServiceStatus::with([
             'work_orders' => function ($q) {
@@ -325,28 +383,7 @@ class WorkOrderController extends Controller
             ]))->values();
         }
 
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-
-        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
-
-        $vendorUserIds = $vendors->pluck('user_id')->toArray();
-
-        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
-            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
-                ->whereIn('id', $vendorUserIds)
-            )
-            ->orderBy('name', 'ASC')
-            ->get();
-
-        return inertia('WorkOrder/Index', [
-            'title' => 'Work Orders',
-            'service_status' => Inertia::defer(fn () => $service_status),
-            'vendors' => Inertia::defer(fn () => $vendors),
-            'categories' => Inertia::defer(fn () => $categories),
-            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
-            'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor', 'category', 'emergency']),
-        ]);
+        return $service_status;
     }
 
     public function show(WorkOrder $workOrder)
@@ -376,26 +413,13 @@ class WorkOrderController extends Controller
      */
     public function modalMeta(Request $request)
     {
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-
-        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
-
-        $vendorUserIds = $vendors->pluck('user_id')->toArray();
-
-        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
-            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
-                ->whereIn('id', $vendorUserIds)
-            )
-            ->orderBy('name', 'ASC')
-            ->get();
-
         $service_status = ServiceStatus::whereNot('name', 'Not Changed')->orderBy('name')->get();
 
         return response()->json([
-            'categories' => $categories,
+            'categories' => $this->cachedCategories(),
             'types' => $this->workOrderTypeOptions(),
-            'vendors' => $vendors,
-            'users' => $users,
+            'vendors' => $this->cachedActiveVendors(),
+            'users' => $this->cachedBoardUsers(),
             'service_status' => $service_status,
         ]);
     }
@@ -404,10 +428,11 @@ class WorkOrderController extends Controller
      * Distinct, trimmed work-order "type" values already in use. Type has no
      * PropertyWare picklist table of its own, so the editable dropdown offers
      * these. Blanks are dropped so the dropdown never renders empty options.
+     * Cached because it runs a DISTINCT over the whole work_orders table.
      */
     private function workOrderTypeOptions(): Collection
     {
-        return WorkOrder::withoutGlobalScopes()
+        return Cache::remember('board.types', self::REFERENCE_CACHE_SECONDS, fn () => WorkOrder::withoutGlobalScopes()
             ->whereNotNull('type')
             ->where('type', '!=', '')
             ->distinct()
@@ -416,7 +441,7 @@ class WorkOrderController extends Controller
             ->map(fn ($type) => trim((string) $type))
             ->filter()
             ->unique()
-            ->values();
+            ->values());
     }
 
     public function details(WorkOrder $workOrder)
@@ -638,31 +663,28 @@ class WorkOrderController extends Controller
             ...$this->boardCardRelations('work_orders.'),
         ]);
 
-        // Hide specific statuses from vendors
-        if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for Followup',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-            ]);
-        }
-
-        $service_status = $query->get();
-
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-
-        $vendors = DB::table('vendors')->select('id', 'name')->where('is_active', true)->orderBy('name')->get();
-
-        $users = User::role(['woc', 'admin'])->get();
-
+        // Query execution happens inside the deferred closure (the builder above
+        // is cheap to construct); reference lists are closures so partial
+        // reloads of service_status skip them.
         return inertia('WorkOrder/Close', [
             'title' => 'Closed Work Orders',
-            'service_status' => Inertia::defer(fn () => $service_status),
-            'vendors' => $vendors,
-            'categories' => $categories,
-            'types' => $this->workOrderTypeOptions(),
-            'users' => $users,
+            'service_status' => Inertia::defer(function () use ($query, $request) {
+                // Hide specific statuses from vendors
+                if ($request->user()->hasRole('vendor')) {
+                    $query->whereNotIn('name', [
+                        'Service Completed - Call Tenant for Followup',
+                        'Completed - Verified - Updating Owner',
+                        'Owner Completing Work',
+                        'Closed',
+                    ]);
+                }
+
+                return $query->get();
+            }),
+            'vendors' => fn () => $this->cachedActiveVendors(),
+            'categories' => fn () => $this->cachedCategories(),
+            'types' => fn () => $this->workOrderTypeOptions(),
+            'users' => fn () => Cache::remember('board.staff_users', self::REFERENCE_CACHE_SECONDS, fn () => User::role(['woc', 'admin'])->get()),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -694,81 +716,89 @@ class WorkOrderController extends Controller
             },
             ...$this->boardCardRelations('work_orders.'),
         ])
-            ->where('name', 'Approved - Waiting on Payment')
-            ->get();
+            ->where('name', 'Approved - Waiting on Payment');
 
-        $vendors = DB::table('vendors')
-            ->select('id', 'name')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-
+        // Query execution is deferred; reference lists are closures so partial
+        // reloads of service_status skip them.
         return inertia('WorkOrder/WaitingOnPayment', [
             'title' => 'Waiting on Payment',
-            'service_status' => Inertia::defer(fn () => $waitingOnPaymentStatus),
-            'vendors' => $vendors,
-            'categories' => $categories,
-            'types' => $this->workOrderTypeOptions(),
+            'service_status' => Inertia::defer(fn () => $waitingOnPaymentStatus->get()),
+            'vendors' => fn () => $this->cachedActiveVendors(),
+            'categories' => fn () => $this->cachedCategories(),
+            'types' => fn () => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
     public function paid_work_orders(Request $request)
     {
-        $paidStatus = ServiceStatus::where('name', 'Paid')->first();
-
-        if ($paidStatus) {
-            $paidWorkOrders = WorkOrder::query()
-                ->scoped()
-                ->with(['service_status', 'vendors.user', 'requested_by', 'managed_by', 'tasks', 'owners'])
-                ->when(request('search'), function ($query, $search) {
-                    $query->where('work_order_no', $search);
-                })
-                ->when(request('vendor'), function ($query, $vendorId) {
-                    $query->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
-                ->when(request('category'), function ($query, $category) {
-                    $query->where('category', $category);
-                })
-                ->when(request()->filled(['start_date', 'end_date']), function ($query) {
-                    $date = request()->only(['start_date', 'end_date']);
-                    $start = Carbon::parse($date['start_date'])->startOfDay();
-                    $end = Carbon::parse($date['end_date'])->endOfDay();
-                    $query->whereBetween('created_date', [$start, $end]);
-                })
-                ->whereNotNull('total_cost')
-                ->where('total_cost', '>', 0)
-                ->whereNotNull('completed_date')
-                ->where('completed_date', '>=', now()->subDays(30))
-                ->orderBy('completed_date', 'DESC')
-                ->get();
-
-            $paidStatus->setRelation('work_orders', $paidWorkOrders);
-        }
-
-        $vendors = DB::table('vendors')
-            ->select('id', 'name')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-
+        // The whole Paid bucket is built inside the deferred closure; reference
+        // lists are closures so partial reloads of service_status skip them.
         return inertia('WorkOrder/Paid', [
             'title' => 'Paid Work Orders',
-            'service_status' => Inertia::defer(fn () => collect([$paidStatus])),
-            'vendors' => $vendors,
-            'categories' => $categories,
-            'types' => $this->workOrderTypeOptions(),
+            'service_status' => Inertia::defer(function () {
+                $paidStatus = ServiceStatus::where('name', 'Paid')->first();
+
+                if ($paidStatus) {
+                    $paidWorkOrders = WorkOrder::query()
+                        ->scoped()
+                        ->with(['service_status', 'vendors.user', 'requested_by', 'managed_by', 'tasks', 'owners'])
+                        ->when(request('search'), function ($query, $search) {
+                            $query->where('work_order_no', $search);
+                        })
+                        ->when(request('vendor'), function ($query, $vendorId) {
+                            $query->whereHas('vendors', function ($q) use ($vendorId) {
+                                $q->where('work_order_vendors.vendor_id', $vendorId);
+                            });
+                        })
+                        ->when(request('category'), function ($query, $category) {
+                            $query->where('category', $category);
+                        })
+                        ->when(request()->filled(['start_date', 'end_date']), function ($query) {
+                            $date = request()->only(['start_date', 'end_date']);
+                            $start = Carbon::parse($date['start_date'])->startOfDay();
+                            $end = Carbon::parse($date['end_date'])->endOfDay();
+                            $query->whereBetween('created_date', [$start, $end]);
+                        })
+                        ->whereNotNull('total_cost')
+                        ->where('total_cost', '>', 0)
+                        ->whereNotNull('completed_date')
+                        ->where('completed_date', '>=', now()->subDays(30))
+                        ->orderBy('completed_date', 'DESC')
+                        ->get();
+
+                    $paidStatus->setRelation('work_orders', $paidWorkOrders);
+                }
+
+                return collect([$paidStatus]);
+            }),
+            'vendors' => fn () => $this->cachedActiveVendors(),
+            'categories' => fn () => $this->cachedCategories(),
+            'types' => fn () => $this->workOrderTypeOptions(),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
 
     public function inspections_work_orders(Request $request)
+    {
+        // Same deferred structure as index(): heavy props only run on the
+        // request that returns them.
+        return inertia('WorkOrder/Inspections', [
+            'title' => 'Inspection Work Orders',
+            'service_status' => Inertia::defer(fn () => $this->inspectionsBoard($request)),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+        ]);
+    }
+
+    /**
+     * The inspections kanban board: same shape as mainBoard() but restricted
+     * to move-out-inspection work orders.
+     */
+    private function inspectionsBoard(Request $request): Collection
     {
         $query = ServiceStatus::with([
             'work_orders' => function ($query) {
@@ -909,26 +939,7 @@ class WorkOrderController extends Controller
             ]))->values();
         }
 
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
-        $vendorUserIds = $vendors->pluck('user_id')->toArray();
-
-        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
-            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
-                ->whereIn('id', $vendorUserIds)
-            )
-            ->orderBy('name', 'ASC')
-            ->get();
-
-        return inertia('WorkOrder/Inspections', [
-            'title' => 'Inspection Work Orders',
-            'service_status' => Inertia::defer(fn () => $service_status),
-            'vendors' => Inertia::defer(fn () => $vendors),
-            'categories' => Inertia::defer(fn () => $categories),
-            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
-            'users' => Inertia::defer(fn () => $users),
-            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
-        ]);
+        return $service_status;
     }
 
     public function lawn_service_work_orders(Request $request)
@@ -965,40 +976,32 @@ class WorkOrderController extends Controller
         ])
             ->whereNot('name', 'Not Changed');
 
-        $service_status = $query->get();
-
-        // Hide specific statuses from vendors. This must reject from the already
-        // materialized $service_status collection (including the Paid/Closed buckets
-        // pushed above) — filtering the $query builder here is a no-op because it was
-        // executed with ->get() earlier.
-        if ($request->user()->hasRole('vendor')) {
-            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for Followup',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-                'Paid',
-            ]))->values();
-        }
-
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
-        $vendorUserIds = $vendors->pluck('user_id')->toArray();
-
-        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
-            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
-                ->whereIn('id', $vendorUserIds)
-            )
-            ->orderBy('name', 'ASC')
-            ->get();
-
+        // Query execution happens inside the deferred closure; reference lists
+        // come from the shared 5-minute cache.
         return inertia('WorkOrder/LawnCare', [
             'title' => 'Lawn Service Work Orders',
-            'service_status' => Inertia::defer(fn () => $service_status),
-            'vendors' => Inertia::defer(fn () => $vendors),
-            'categories' => Inertia::defer(fn () => $categories),
+            'service_status' => Inertia::defer(function () use ($query, $request) {
+                $service_status = $query->get();
+
+                // Hide specific statuses from vendors. This must reject from the
+                // already materialized collection — filtering the $query builder
+                // after get() would be a no-op.
+                if ($request->user()->hasRole('vendor')) {
+                    $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+                        'Service Completed - Call Tenant for Followup',
+                        'Completed - Verified - Updating Owner',
+                        'Owner Completing Work',
+                        'Closed',
+                        'Paid',
+                    ]))->values();
+                }
+
+                return $service_status;
+            }),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
             'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
-            'users' => Inertia::defer(fn () => $users),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
@@ -1034,8 +1037,10 @@ class WorkOrderController extends Controller
         ])
             ->whereNot('name', 'Not Changed');
 
-        $service_status = $query->get();
-
+        // Hide specific statuses from vendors. This previously ran AFTER the
+        // query had executed (a no-op), letting vendors see statuses hidden on
+        // every other board; applying it before get() matches the intent and
+        // the other boards' behavior.
         if ($request->user()->hasRole('vendor')) {
             $query->whereNotIn('name', [
                 'Service Completed - Call Tenant for Followup',
@@ -1046,24 +1051,15 @@ class WorkOrderController extends Controller
             ]);
         }
 
-        $categories = DB::table('work_order_categories')->select('name', 'id')->orderBy('name')->get();
-        $vendors = DB::table('vendors')->select('id', 'name', 'user_id')->where('is_active', true)->orderBy('name')->get();
-        $vendorUserIds = $vendors->pluck('user_id')->toArray();
-
-        $users = User::whereHas('roles', fn ($q) => $q->where('name', 'woc'))
-            ->orWhere(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'vendor'))
-                ->whereIn('id', $vendorUserIds)
-            )
-            ->orderBy('name', 'ASC')
-            ->get();
-
+        // Query execution happens inside the deferred closure; reference lists
+        // come from the shared 5-minute cache.
         return inertia('WorkOrder/Turnovers', [
             'title' => 'Turnover Work Orders',
-            'service_status' => Inertia::defer(fn () => $service_status),
-            'vendors' => Inertia::defer(fn () => $vendors),
-            'categories' => Inertia::defer(fn () => $categories),
+            'service_status' => Inertia::defer(fn () => $query->get()),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
             'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
-            'users' => Inertia::defer(fn () => $users),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
         ]);
     }
