@@ -1124,16 +1124,19 @@ const confirmCompleteTask = () => {
                                     "
                                 >
                                     <div
-                                        class="max-w-[80%] rounded-lg px-3 py-2 text-sm"
+                                        class="min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm"
                                         :class="
                                             m.is_from_vendor
                                                 ? 'bg-primary text-primary-foreground rounded-br-sm'
                                                 : 'bg-muted text-foreground rounded-bl-sm'
                                         "
                                     >
+                                        <!-- Messages can carry portal URLs, which have no
+                                             spaces to wrap on: break anywhere so a narrow
+                                             phone never gets one character per line. -->
                                         <p
                                             v-if="m.message"
-                                            class="whitespace-pre-line"
+                                            class="whitespace-pre-line break-words [overflow-wrap:anywhere]"
                                         >
                                             {{ m.message }}
                                         </p>

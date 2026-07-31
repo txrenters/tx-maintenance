@@ -421,13 +421,15 @@ watch(photoFilters, (filters) => {
 
                     <!-- Request details -->
                     <dl v-if="details.length" class="mt-4 border-t pt-3 space-y-2">
+                        <!-- Stacks on narrow phones so a long address is never
+                             squeezed into a sliver beside its label. -->
                         <div
                             v-for="d in details"
                             :key="d.label"
-                            class="flex items-start justify-between gap-3 text-sm"
+                            class="text-sm sm:flex sm:items-start sm:justify-between sm:gap-3"
                         >
-                            <dt class="text-muted-foreground shrink-0">{{ d.label }}</dt>
-                            <dd class="text-foreground text-right break-words">
+                            <dt class="text-muted-foreground sm:shrink-0">{{ d.label }}</dt>
+                            <dd class="min-w-0 break-words text-foreground sm:text-right">
                                 {{ d.value }}
                             </dd>
                         </div>
@@ -438,11 +440,11 @@ watch(photoFilters, (filters) => {
                     <button
                         v-if="attachments.length"
                         type="button"
-                        class="mt-4 w-full flex items-center justify-between border-t pt-3 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
+                        class="mt-4 flex w-full items-center justify-between gap-2 border-t pt-3 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
                         @click="selectTab('photos')"
                     >
-                        <span>Photos ({{ attachments.length }})</span>
-                        <span class="inline-flex items-center gap-1 text-primary normal-case">
+                        <span class="truncate">Photos ({{ attachments.length }})</span>
+                        <span class="inline-flex shrink-0 items-center gap-1 text-primary normal-case">
                             View all <ChevronRight class="w-3.5 h-3.5" />
                         </span>
                     </button>
@@ -497,14 +499,20 @@ watch(photoFilters, (filters) => {
                                     :class="m.from_owner ? 'justify-end' : 'justify-start'"
                                 >
                                     <div
-                                        class="max-w-[80%] rounded-lg px-3 py-2 text-sm"
+                                        class="min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm"
                                         :class="
                                             m.from_owner
                                                 ? 'bg-primary text-primary-foreground rounded-br-sm'
                                                 : 'bg-muted text-foreground rounded-bl-sm'
                                         "
                                     >
-                                        <p v-if="m.message" class="whitespace-pre-line">
+                                        <!-- Messages carry the portal URL, which has no
+                                             spaces to wrap on: break anywhere so a narrow
+                                             phone never gets one character per line. -->
+                                        <p
+                                            v-if="m.message"
+                                            class="whitespace-pre-line break-words [overflow-wrap:anywhere]"
+                                        >
                                             {{ m.message }}
                                         </p>
                                         <div
@@ -562,7 +570,7 @@ watch(photoFilters, (filters) => {
                                     class="relative"
                                 >
                                     <span
-                                        class="block rounded-lg bg-muted text-muted-foreground text-xs px-2 py-1 pr-6"
+                                        class="block max-w-[200px] truncate rounded-lg bg-muted px-2 py-1 pr-6 text-xs text-muted-foreground"
                                         >{{ img.name }}</span
                                     >
                                     <button
@@ -584,7 +592,7 @@ watch(photoFilters, (filters) => {
 
                             <div class="flex gap-2 mt-2">
                                 <label
-                                    class="flex items-center justify-center rounded-md border border-input px-4 text-muted-foreground cursor-pointer active:bg-accent"
+                                    class="flex shrink-0 items-center justify-center rounded-md border border-input px-4 py-3 text-muted-foreground cursor-pointer active:bg-accent"
                                 >
                                     <Camera class="w-5 h-5" />
                                     <input
@@ -599,7 +607,7 @@ watch(photoFilters, (filters) => {
                                 <button
                                     type="button"
                                     :disabled="sending"
-                                    class="flex-1 rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
+                                    class="min-w-0 flex-1 rounded-md bg-primary px-2 py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
                                     @click="sendMessage"
                                 >
                                     <Loader2 v-if="sending" class="w-4 h-4 animate-spin" />
