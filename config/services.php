@@ -79,7 +79,13 @@ return [
         // Text the property owner via the owner<->WOC conversation when a vendor
         // sets the service appointment (details + ask if they want to join a
         // call with the technician or approve the work order).
-        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', true),
+        //
+        // Held off pending operations' scope decision: the message currently goes
+        // out on every vendor-set appointment, with no emergency/estimate-value
+        // limit, and repeats when a second schedule is set after an estimate is
+        // approved. Flip back on once that scope is agreed and the once-per-work-
+        // order rule is in.
+        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', false),
         // Daily follow-up to each owner after the appointment is scheduled,
         // chasing that same question until they reply (capped). Off by default
         // until the wording is approved.
