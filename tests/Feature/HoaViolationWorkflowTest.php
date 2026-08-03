@@ -292,9 +292,9 @@ class HoaViolationWorkflowTest extends TestCase
         $this->artisan('hoa:send-reminders')->assertSuccessful();
 
         $message = $workOrder->tenant_conversation()->firstOrFail()->message;
-        $this->assertStringContainsString('send one of our vendors out', $message);
-        // Still polite, and still the tenant's own way out of it.
-        $this->assertStringContainsString('no problem at all', $message);
+        $this->assertStringContainsString("we'll need to send a vendor out to correct it", $message);
+        // Firm about the vendor, but the tenant still has their own way out.
+        $this->assertStringContainsString("If you've already taken care of it", $message);
         $this->assertStringContainsString(route('tenant.portal.show', $token->token), $message);
     }
 
@@ -316,7 +316,7 @@ class HoaViolationWorkflowTest extends TestCase
         $this->artisan('hoa:send-reminders')->assertSuccessful();
 
         $message = $workOrder->tenant_conversation()->firstOrFail()->message;
-        $this->assertStringContainsString('arrange a vendor', $message);
+        $this->assertStringContainsString("we'll be sending a vendor out to correct it", $message);
         $this->assertStringNotContainsString('Any time this week', $message);
     }
 
