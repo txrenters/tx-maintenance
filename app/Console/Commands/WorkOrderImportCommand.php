@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Jobs\SendOwnerServiceRequestNotificationJob;
+use App\Jobs\SendTenantServiceRequestNotificationJob;
 use App\Jobs\SendTenantWorkOrderIntakeEmailJob;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -237,6 +238,11 @@ class WorkOrderImportCommand extends Command
                 // no-login portal link, so they can follow the request and add
                 // photos without waiting to be asked.
                 SendTenantWorkOrderIntakeEmailJob::dispatch($workOrder->id);
+
+                // The same confirmation as a text, for the tenants who read
+                // texts but not email. Independently gated, so either channel
+                // can be turned off without the other.
+                SendTenantServiceRequestNotificationJob::dispatch($workOrder->id);
             }
         } catch (\Throwable $th) {
             DB::rollBack();
