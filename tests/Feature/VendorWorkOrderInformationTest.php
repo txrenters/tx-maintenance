@@ -521,7 +521,7 @@ class VendorWorkOrderInformationTest extends TestCase
         ]);
     }
 
-    public function test_owner_message_uses_the_tenant_street_address(): void
+    public function test_owner_message_never_uses_the_tenant_street_address(): void
     {
         Bus::fake();
         Mail::fake();
@@ -556,7 +556,8 @@ class VendorWorkOrderInformationTest extends TestCase
             ->where('conversation_type', 'owner')
             ->value('message');
 
-        $this->assertStringContainsString('take care of the repairs at 3326 Jane Way', $ownerMessage);
+        $this->assertStringNotContainsString('3326 Jane Way', $ownerMessage);
+        $this->assertStringContainsString('take care of the repairs at the property', $ownerMessage);
     }
 
     public function test_owner_is_not_texted_when_the_owner_vendor_placeholder_is_assigned(): void
