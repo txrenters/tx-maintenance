@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\Log;
 /**
  * Drives the HOA violation workflow after intake, once per day:
  *   1. Reminders — text the tenant their portal link every business day until
- *      they upload photos or the 5-business-day deadline passes.
- *   2. Escalation — when the deadline passes without completion, flag staff to
- *      assign a vendor (once).
+ *      they upload photos or the five-message window is spent. Day 4 warns them
+ *      a vendor will be sent if it is not taken care of.
+ *   2. Escalation — when the 5-business-day deadline passes without completion,
+ *      flag staff to assign that vendor (once).
  *   3. Confirmation — when the tenant completes (photos uploaded), email the
  *      tenant + owner a link to the before/after photos (once).
  *
@@ -47,8 +48,10 @@ class SendHoaViolationReminders extends Command
     }
 
     /**
-     * Daily reminders until completion or deadline. Weekends are skipped and a
-     * once-per-day claim (last_notified_at) survives overlapping runs/retries.
+     * Daily reminders until the tenant completes or the five-message window is
+     * spent (the intake text plus four daily reminders, the fourth of which
+     * warns that a vendor is coming). Weekends are skipped and a once-per-day
+     * claim (last_notified_at) survives overlapping runs/retries.
      */
     private function sendReminders(TenantPortalLinkService $linkService): int
     {
@@ -62,8 +65,7 @@ class SendHoaViolationReminders extends Command
             ->with('work_order')
             ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
             ->whereNull('completed_at')
-            ->whereNotNull('hoa_deadline_at')
-            ->where('hoa_deadline_at', '>=', now())
+            ->where('notified_count', '<', TenantPortalLinkService::HOA_MAX_NOTIFICATIONS)
             ->where(function ($query) use ($startOfToday) {
                 $query->whereNull('last_notified_at')
                     ->orWhere('last_notified_at', '<', $startOfToday);

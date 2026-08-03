@@ -62,7 +62,7 @@ class HoaViolationIntakeService
 
         $this->attachNotice($workOrder, $pagePdfContents, $notice['file_name'] ?? null, $notice['mime'] ?? null);
         $this->applyEasyFixStatus($workOrder, $description, $created);
-        $this->openHoaToken($workOrder, $noticeDate, $notice);
+        $this->openHoaToken($workOrder, $noticeDate);
 
         return [
             'work_order' => $workOrder->refresh(),
@@ -110,7 +110,7 @@ class HoaViolationIntakeService
             : now();
 
         $this->applyEasyFixStatus($workOrder, (string) $workOrder->description, false);
-        $this->openHoaToken($workOrder, $noticeDate, []);
+        $this->openHoaToken($workOrder, $noticeDate);
 
         return true;
     }
@@ -310,13 +310,12 @@ class HoaViolationIntakeService
 
     /**
      * The HOA token anchors the whole downstream workflow: portal link, daily
-     * reminders, deadline, escalation, and confirmation. The deadline honours
-     * whatever the notice actually stated — an explicit "resolve by" date, or a
-     * "within N days" window — falling back to the configured business days.
-     *
-     * @param  array{deadline_date?: ?Carbon, deadline_days?: ?int}  $notice
+     * reminders, deadline, escalation, and confirmation. Every violation runs
+     * the same fixed window of five business days, whatever deadline the notice
+     * itself stated, so the tenant messages are the same five every time and
+     * the day-4 vendor warning always lands on the same day.
      */
-    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate, array $notice): void
+    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate): void
     {
         $existing = TenantUploadToken::query()
             ->where('work_order_id', $workOrder->id)
@@ -333,7 +332,7 @@ class HoaViolationIntakeService
             'work_order_id' => $workOrder->id,
             'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
             'hoa_notice_date' => $noticeDate->toDateString(),
-            'hoa_deadline_at' => $this->resolveDeadline($noticeDate, $notice),
+            'hoa_deadline_at' => $this->resolveDeadline($noticeDate),
         ]);
 
         // Send the tenant their link right away; the daily command handles
@@ -342,18 +341,12 @@ class HoaViolationIntakeService
     }
 
     /**
-     * @param  array{deadline_date?: ?Carbon, deadline_days?: ?int}  $notice
+     * The tenant always gets the same window: the configured business days from
+     * the notice date. A deadline the notice stated itself is deliberately not
+     * used — it made the reminder run a different length for every violation.
      */
-    private function resolveDeadline(Carbon $noticeDate, array $notice): Carbon
+    private function resolveDeadline(Carbon $noticeDate): Carbon
     {
-        if (($notice['deadline_date'] ?? null) instanceof Carbon) {
-            return $notice['deadline_date']->copy()->endOfDay();
-        }
-
-        if (filled($notice['deadline_days'] ?? null)) {
-            return $noticeDate->copy()->addDays((int) $notice['deadline_days'])->endOfDay();
-        }
-
         return $noticeDate->copy()
             ->addWeekdays((int) config('services.hoa.deadline_business_days', 5))
             ->endOfDay();
