@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
-use App\Models\Scopes\ConversationScope;
 use App\Models\WorkOrder;
+use App\Services\InboundThreadMatch;
+use App\Services\InboundTwilioMessageProcessor;
 use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -143,7 +144,13 @@ class TwilioMessageSearchController extends Controller
         $customerPhone = (string) ($message['from'] ?? '');
         $ourNumber = (string) ($message['to'] ?? '');
 
-        $workOrderThread = $this->findMatchingWorkOrderThread($customerPhone, $ourNumber);
+        // Routed through the processor so a hand-imported message lands on the
+        // same thread the webhook would have chosen for it.
+        $workOrderThread = app(InboundTwilioMessageProcessor::class)->resolveInboundThread(
+            (string) ($message['body'] ?? ''),
+            $customerPhone,
+            $ourNumber
+        );
 
         if ($workOrderThread !== null) {
             return $this->importIntoWorkOrder($message, $workOrderThread, $customerPhone, $ourNumber);
@@ -161,16 +168,16 @@ class TwilioMessageSearchController extends Controller
     /**
      * @param  array<string, mixed>  $message
      */
-    protected function importIntoWorkOrder(array $message, Conversation $thread, string $customerPhone, string $ourNumber): RedirectResponse
+    protected function importIntoWorkOrder(array $message, InboundThreadMatch $thread, string $customerPhone, string $ourNumber): RedirectResponse
     {
         try {
             $conversation = Conversation::create([
                 'message' => (string) ($message['body'] ?? ''),
                 'is_mms' => (int) ($message['num_media'] ?? 0) > 0,
-                'conversation_type' => $thread->conversation_type,
+                'conversation_type' => $thread->conversationType,
                 'sender_number' => $customerPhone,
                 'receiver_number' => $ourNumber,
-                'work_order_id' => $thread->work_order_id,
+                'work_order_id' => $thread->workOrderId,
                 'twilio_sid' => $message['sid'] ?? null,
                 'twilio_status' => $message['status'] ?? null,
                 'twilio_error_code' => $message['error_code'] ?? null,
@@ -184,11 +191,11 @@ class TwilioMessageSearchController extends Controller
                 'sid' => $message['sid'] ?? null,
                 'target' => 'work_order_conversation',
                 'conversation_id' => $conversation->id,
-                'work_order_id' => $thread->work_order_id,
+                'work_order_id' => $thread->workOrderId,
             ]);
 
-            $workOrder = WorkOrder::find($thread->work_order_id);
-            $resolvedWorkOrderNo = $workOrder?->work_order_no ?? $thread->work_order_id;
+            $workOrder = WorkOrder::find($thread->workOrderId);
+            $resolvedWorkOrderNo = $workOrder?->work_order_no ?? $thread->workOrderId;
 
             activity()
                 ->performedOn($conversation)
@@ -197,7 +204,7 @@ class TwilioMessageSearchController extends Controller
                     'senderNumber' => $customerPhone,
                     'receiverNumber' => $ourNumber,
                     'message' => (string) ($message['body'] ?? ''),
-                    'work_order_id' => $thread->work_order_id,
+                    'work_order_id' => $thread->workOrderId,
                     'imported_via' => 'twilio_search',
                 ])
                 ->log('Work Order #'.$resolvedWorkOrderNo.' - New Message Received');
@@ -211,7 +218,7 @@ class TwilioMessageSearchController extends Controller
             return back()->with('error', 'Failed to import message: '.$e->getMessage());
         }
 
-        return back()->with('success', 'Imported inbound message into work order #'.$thread->work_order_id.'.');
+        return back()->with('success', 'Imported inbound message into work order #'.$thread->workOrderId.'.');
     }
 
     /**
@@ -285,36 +292,6 @@ class TwilioMessageSearchController extends Controller
         $to = $this->normalizePhone((string) ($message['to'] ?? ''));
 
         return $to !== null && in_array($to, $this->ourTwilioNumbers(), true);
-    }
-
-    /**
-     * Mirror TwilioWebhookController::getWorkOrderMessage — find the latest
-     * work_order_conversations row where the customer/our-number pair matches in
-     * either direction. Pair-matching prevents collisions with unrelated threads
-     * that happen to involve the same customer phone.
-     */
-    protected function findMatchingWorkOrderThread(string $customerPhone, string $ourNumber): ?Conversation
-    {
-        $customerVariants = $this->phoneVariants($customerPhone);
-        $ourVariants = $this->phoneVariants($ourNumber);
-
-        if (empty($customerVariants) || empty($ourVariants)) {
-            return null;
-        }
-
-        return Conversation::query()
-            ->withoutGlobalScope(ConversationScope::class)
-            ->where(function ($query) use ($customerVariants, $ourVariants) {
-                $query->where(function ($q) use ($customerVariants, $ourVariants) {
-                    $q->whereIn('sender_number', $customerVariants)
-                        ->whereIn('receiver_number', $ourVariants);
-                })->orWhere(function ($q) use ($customerVariants, $ourVariants) {
-                    $q->whereIn('sender_number', $ourVariants)
-                        ->whereIn('receiver_number', $customerVariants);
-                });
-            })
-            ->latest('id')
-            ->first();
     }
 
     /**

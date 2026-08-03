@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Models\Conversation;
 use App\Models\Jobber;
 use App\Models\JobberTextMessage;
+use App\Models\Scopes\ConversationScope;
 use App\Models\TwilioPhoneNumber;
 use App\Models\WorkOrder;
 use Exception;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -27,6 +29,12 @@ use Illuminate\Support\Facades\Log;
  */
 class InboundTwilioMessageProcessor
 {
+    /**
+     * How many recent messages on a phone pair to weigh when routing. Only the
+     * newest is chosen; the rest are read to tell whether the pair is ambiguous.
+     */
+    protected const CANDIDATE_LIMIT = 25;
+
     public function __construct(protected MediaService $mediaService) {}
 
     /**
@@ -59,24 +67,18 @@ class InboundTwilioMessageProcessor
         }
 
         $isMms = isset($payload['NumMedia']) && (int) $payload['NumMedia'] > 0;
-        $workOrderMessage = $this->getWorkOrderMessage($body, $from, $to);
+        $match = $this->resolveInboundThread($body, $from, $to);
 
-        if ($workOrderMessage) {
-            $type = $workOrderMessage->conversation_type ?? '';
-            $workOrderId = $workOrderMessage->work_order_id ?? '';
-
-            if (! $workOrderId || ! $type) {
-                Log::info('Inbound matched a work-order thread but missing type/id.');
-
-                return 'unmatched';
-            }
+        if ($match) {
+            $type = $match->conversationType;
+            $workOrderId = $match->workOrderId;
 
             if ($this->isInternalMirrorOfRecentOutbound(
                 from: $from,
                 to: $to,
                 body: $body,
-                workOrderId: (int) $workOrderId,
-                conversationType: (string) $type,
+                workOrderId: $workOrderId,
+                conversationType: $type,
                 incomingSid: $messageSid !== '' ? $messageSid : null
             )) {
                 return 'mirror';
@@ -345,37 +347,302 @@ class InboundTwilioMessageProcessor
         }
     }
 
-    protected function getWorkOrderMessage(string $body, string $from, string $to)
+    /**
+     * Decide which work order thread an inbound message belongs to.
+     *
+     * The outbound "from" number belongs to a coordinator, not to a work order,
+     * so a tenant with two open work orders under the same coordinator produces
+     * an identical phone pair on both. The phone pair alone therefore cannot
+     * answer this, and the tiers below go from most to least certain:
+     *
+     *   0. an explicit (Ref: WO#123) footer quoted back to us
+     *   1. the last message we sent this person about an OPEN work order
+     *   2. the same, allowing closed work orders
+     *   3. any message on this phone pair, either direction
+     *   4. today's exact-string pair match, so nothing that is currently stored
+     *      can start being dropped
+     *
+     * Public because the Twilio message search page imports messages by hand and
+     * must land them on the same thread the webhook would have chosen.
+     */
+    public function resolveInboundThread(string $body, string $from, string $to): ?InboundThreadMatch
     {
-        if (preg_match('/Ref:\s*(WO#\d+)/i', $body, $matches)) {
-            $refNo = $matches[1];
-            $workOrder = WorkOrder::where('work_order_no', $refNo)->first();
+        $fromDigits = Conversation::lastTenDigits($from);
+        $toDigits = Conversation::lastTenDigits($to);
 
-            if ($workOrder) {
-                $matchedConversation = Conversation::where('work_order_id', $workOrder->id)
-                    ->latest()
-                    ->first();
+        // Short codes, alphanumeric sender IDs and the literal 'portal' sender
+        // written by TenantPortalController reduce to null. Those have never
+        // matched on digits, so leave them on the legacy exact-string path.
+        $match = ($fromDigits === null || $toDigits === null)
+            ? $this->matchByLegacyExactPair($from, $to)
+            : $this->matchByReference($body, $fromDigits, $toDigits, $from, $to)
+                ?? $this->matchByRecentOutbound($fromDigits, $toDigits, true, $from, $to)
+                ?? $this->matchByRecentOutbound($fromDigits, $toDigits, false, $from, $to)
+                ?? $this->matchByEitherDirection($fromDigits, $toDigits)
+                ?? $this->matchByLegacyExactPair($from, $to);
 
-                if ($matchedConversation) {
-                    return $matchedConversation;
-                }
-            } else {
-                Log::warning('Twilio inbound reference did not match a work order', [
-                    'reference' => $refNo,
-                    'from' => $from,
-                    'to' => $to,
-                ]);
+        if ($match) {
+            Log::info('Inbound SMS routed to work-order thread', $match->logContext() + [
+                'from' => $from,
+                'to' => $to,
+            ]);
+        }
+
+        return $match;
+    }
+
+    /**
+     * Tier 0 — an explicit reference in the body names the work order outright.
+     *
+     * Senders build the token as work_order_no ?? id, so both are looked up. The
+     * whereNull guard on the id fallback stops a work order whose id is 4312
+     * from hijacking one whose work_order_no is 4312.
+     *
+     * A reference identifies the work order only, never the thread: owner
+     * messages carry the same footer as tenant ones. The conversation type is
+     * still resolved from the phone pair, then from the work order's own
+     * parties.
+     */
+    protected function matchByReference(string $body, string $fromDigits, string $toDigits, string $from, string $to): ?InboundThreadMatch
+    {
+        if (! preg_match('/Ref:\s*WO#\s*(\d+)/i', $body, $matches)) {
+            return null;
+        }
+
+        $reference = (int) $matches[1];
+
+        $workOrder = WorkOrder::query()->where('work_order_no', $reference)->orderByDesc('id')->first()
+            ?? WorkOrder::query()->whereKey($reference)->whereNull('work_order_no')->first();
+
+        if (! $workOrder) {
+            Log::warning('Twilio inbound reference did not match a work order', [
+                'reference' => $reference,
+                'from' => $from,
+                'to' => $to,
+            ]);
+
+            return null;
+        }
+
+        $thread = $this->matchThreadOnWorkOrder($workOrder->id, $fromDigits, $toDigits);
+
+        if ($thread) {
+            return new InboundThreadMatch($workOrder->id, $thread, 'ref', [$workOrder->id]);
+        }
+
+        $party = $this->matchByPartyOnWorkOrder($workOrder, $fromDigits);
+
+        return $party
+            ? new InboundThreadMatch($workOrder->id, $party, 'ref_party', [$workOrder->id])
+            : null;
+    }
+
+    /**
+     * The conversation type of the most recent usable message on one work order
+     * that involves this phone pair — preferring messages we sent to them over
+     * messages in either direction.
+     */
+    protected function matchThreadOnWorkOrder(int $workOrderId, string $fromDigits, string $toDigits): ?string
+    {
+        $outbound = $this->whereSentTo(
+            $this->usableThreadQuery()->where('work_order_id', $workOrderId),
+            $fromDigits,
+            $toDigits
+        )->first();
+
+        if ($outbound) {
+            return (string) $outbound->conversation_type;
+        }
+
+        $either = $this->usableThreadQuery()
+            ->where('work_order_id', $workOrderId)
+            ->where(fn (Builder $pair) => $this->whereEitherDirection($pair, $fromDigits, $toDigits))
+            ->first();
+
+        return $either ? (string) $either->conversation_type : null;
+    }
+
+    /**
+     * Infer the thread from the work order's own parties, for a referenced work
+     * order that has no conversation history matching this number yet.
+     */
+    protected function matchByPartyOnWorkOrder(WorkOrder $workOrder, string $fromDigits): ?string
+    {
+        $tenant = $workOrder->requested_by;
+        $tenantNumber = filled($tenant?->mobile_phone) ? $tenant->mobile_phone : $tenant?->home_phone;
+
+        if ($tenantNumber && Conversation::lastTenDigits((string) $tenantNumber) === $fromDigits) {
+            return 'tenant';
+        }
+
+        foreach ($workOrder->owners as $owner) {
+            if (Conversation::lastTenDigits($workOrder->normalizedOwnerPhone($owner)) === $fromDigits) {
+                return 'owner';
             }
         }
 
-        return Conversation::where(function ($query) use ($from, $to) {
-            $query->where('receiver_number', $from)
-                ->where('sender_number', $to);
-        })->orWhere(function ($query) use ($to, $from) {
-            $query->where('receiver_number', $to)
-                ->where('sender_number', $from);
-        })->latest()
+        foreach ($workOrder->vendors as $vendor) {
+            foreach ([$vendor->twilio_number, $vendor->user?->phone] as $vendorNumber) {
+                if ($vendorNumber && Conversation::lastTenDigits((string) $vendorNumber) === $fromDigits) {
+                    return 'vendor';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tiers 1 and 2 — the thread we most recently sent a message to on this
+     * phone pair, optionally restricted to open work orders.
+     *
+     * Deliberately outbound-only. Ranking by activity in either direction lets a
+     * misroute reinforce itself, because the wrongly filed inbound message
+     * becomes the newest row and captures every later reply. Anchoring on what
+     * we last chose to send keeps an error from compounding.
+     */
+    protected function matchByRecentOutbound(string $fromDigits, string $toDigits, bool $openOnly, string $from, string $to): ?InboundThreadMatch
+    {
+        $query = $this->whereSentTo($this->usableThreadQuery(), $fromDigits, $toDigits)
+            ->select('work_order_conversations.*')
+            ->limit(self::CANDIDATE_LIMIT);
+
+        if ($openOnly) {
+            // An explicit join rather than whereHas, so WorkOrderScope can never
+            // narrow inbound routing based on who happens to be authenticated.
+            $query->join('work_orders', 'work_orders.id', '=', 'work_order_conversations.work_order_id')
+                ->where('work_orders.status', 'Open');
+        }
+
+        $rows = $query->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $candidateIds = $rows->pluck('work_order_id')->map(fn ($id): int => (int) $id)->unique()->values()->all();
+        $winner = $rows->first();
+
+        $match = new InboundThreadMatch(
+            workOrderId: (int) $winner->work_order_id,
+            conversationType: (string) $winner->conversation_type,
+            strategy: $openOnly ? 'open_outbound' : 'any_outbound',
+            candidateWorkOrderIds: $candidateIds,
+        );
+
+        if ($match->isAmbiguous()) {
+            Log::warning('Inbound SMS thread ambiguous — multiple work orders share this phone pair', $match->logContext() + [
+                'from' => $from,
+                'to' => $to,
+                'open_only' => $openOnly,
+            ]);
+        }
+
+        return $match;
+    }
+
+    /**
+     * Tier 3 — any message on this phone pair, in either direction.
+     */
+    protected function matchByEitherDirection(string $fromDigits, string $toDigits): ?InboundThreadMatch
+    {
+        $row = $this->usableThreadQuery()
+            ->where(fn (Builder $pair) => $this->whereEitherDirection($pair, $fromDigits, $toDigits))
             ->first();
+
+        return $row
+            ? new InboundThreadMatch((int) $row->work_order_id, (string) $row->conversation_type, 'either_direction', [(int) $row->work_order_id])
+            : null;
+    }
+
+    /**
+     * Constrain to messages we sent from $toDigits to $fromDigits.
+     */
+    protected function whereSentTo(Builder $query, string $fromDigits, string $toDigits): Builder
+    {
+        return $this->whereNumberEndsWith(
+            $this->whereNumberEndsWith($query, 'sender_number', $toDigits),
+            'receiver_number',
+            $fromDigits
+        );
+    }
+
+    /**
+     * Constrain to messages between the two numbers, sent either way.
+     */
+    protected function whereEitherDirection(Builder $query, string $fromDigits, string $toDigits): Builder
+    {
+        return $query->where(fn (Builder $sent) => $this->whereSentTo($sent, $fromDigits, $toDigits))
+            ->orWhere(fn (Builder $received) => $this->whereSentTo($received, $toDigits, $fromDigits));
+    }
+
+    /**
+     * Match a stored phone column by its final ten digits.
+     *
+     * Stored numbers are whatever shape the writing code happened to use —
+     * +12816999281, 1-281-699-9281, (281) 699-9281 — so the punctuation has to
+     * come out in SQL before the suffix comparison. A plain suffix LIKE would
+     * silently miss every punctuated row.
+     */
+    protected function whereNumberEndsWith(Builder $query, string $column, string $digits): Builder
+    {
+        $expression = 'work_order_conversations.'.$column;
+
+        // Characters are a fixed literal set, and the column name is chosen by
+        // the caller from this class only — nothing here comes from the payload.
+        foreach ([' ', '(', ')', '-', '.', '+'] as $punctuation) {
+            $expression = "REPLACE({$expression}, '{$punctuation}', '')";
+        }
+
+        return $query->whereRaw($expression.' LIKE ?', ['%'.$digits]);
+    }
+
+    /**
+     * Tier 4 — the original exact-string pair match. Kept as the last resort so
+     * that any message routed today still routes after this change, including
+     * numbers stored in a shape that does not reduce to ten digits.
+     */
+    protected function matchByLegacyExactPair(string $from, string $to): ?InboundThreadMatch
+    {
+        $row = $this->usableThreadQuery()
+            ->where(function (Builder $pair) use ($from, $to) {
+                $pair->where(function (Builder $sent) use ($from, $to) {
+                    $sent->where('receiver_number', $from)
+                        ->where('sender_number', $to);
+                })->orWhere(function (Builder $received) use ($from, $to) {
+                    $received->where('receiver_number', $to)
+                        ->where('sender_number', $from);
+                });
+            })
+            ->first();
+
+        return $row
+            ? new InboundThreadMatch((int) $row->work_order_id, (string) $row->conversation_type, 'legacy_exact', [(int) $row->work_order_id])
+            : null;
+    }
+
+    /**
+     * Rows that can serve as a routing answer: attached to a work order, with a
+     * usable conversation type, newest first and tie-broken deterministically.
+     *
+     * Filtering blank types here also closes a silent drop — process() used to
+     * bail out with 'unmatched' when the winning row had no type, without even
+     * trying the jobber path.
+     */
+    protected function usableThreadQuery(): Builder
+    {
+        // Columns are table-qualified because matchByRecentOutbound joins
+        // work_orders, which carries its own created_at and id. The global scope
+        // is dropped because where a message belongs is a fact about the message,
+        // never about who happens to be looking — the search page resolves
+        // threads through here while authenticated as staff.
+        return Conversation::query()
+            ->withoutGlobalScope(ConversationScope::class)
+            ->whereNotNull('work_order_conversations.work_order_id')
+            ->whereNotNull('work_order_conversations.conversation_type')
+            ->where('work_order_conversations.conversation_type', '!=', '')
+            ->orderByDesc('work_order_conversations.created_at')
+            ->orderByDesc('work_order_conversations.id');
     }
 
     protected function getJobberMessage(string $from, string $to)
