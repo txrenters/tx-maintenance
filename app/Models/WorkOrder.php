@@ -37,6 +37,35 @@ class WorkOrder extends Model
      */
     public const HOA_VIOLATION_CATEGORY = 'HOA Violation';
 
+    /**
+     * The kanban boards a work order can appear on, keyed by the value the
+     * summary endpoint accepts. Each maps to one of the WorkOrderController
+     * board methods; scopeForBoard() reproduces that method's predicate.
+     *
+     * @var array<int, string>
+     */
+    public const BOARDS = [
+        'main',
+        'inspections',
+        'lawn_service',
+        'turnovers',
+        'closed',
+        'waiting_on_payment',
+        'paid',
+        'hoa',
+    ];
+
+    /**
+     * The service status whose column the Waiting on Payment board shows.
+     */
+    public const WAITING_ON_PAYMENT_STATUS = 'Approved - Waiting on Payment';
+
+    /**
+     * How far back the Paid and Closed buckets reach. Mirrors the 30-day window
+     * WorkOrderController applies to those columns.
+     */
+    public const COMPLETED_WINDOW_DAYS = 30;
+
     protected function casts(): array
     {
         return [
@@ -458,6 +487,90 @@ class WorkOrder extends Model
                 default => $q,
             };
         });
+    }
+
+    /**
+     * Restrict to the work orders one kanban board shows.
+     *
+     * These predicates mirror the board methods on WorkOrderController — which
+     * build ServiceStatus queries with the work orders nested, a shape that
+     * cannot be reused for aggregates. Keep the two in step: BoardSummaryTest
+     * asserts this scope and the board endpoint return the same work orders.
+     *
+     * An unknown board key leaves the query untouched rather than silently
+     * returning everything as if it were the main board.
+     */
+    public function scopeForBoard($query, string $board)
+    {
+        return match ($board) {
+            'main' => $query->where('status', 'Open')
+                ->where('category', 'NOT LIKE', '%move out inspection%')
+                ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
+                ->where('type', 'NOT LIKE', '%Turnover%'),
+
+            'inspections' => $query->where('category', 'LIKE', '%move out inspection%')
+                ->where('status', 'Open'),
+
+            'lawn_service' => $query->where(function ($q) {
+                $q->where('category', 'LIKE', '%lawn service%')
+                    ->orWhere('type', 'LIKE', '%biweekly lawn services%');
+            })->where('status', 'Open'),
+
+            'turnovers' => $query->where('type', 'Turnover')
+                ->where('status', 'Open'),
+
+            'closed' => $query->where(function ($q) {
+                $q->where('status', 'Closed')
+                    ->orWhere('status', 'Canceled By Tenant');
+            }),
+
+            'waiting_on_payment' => $query->where('status', 'Open')
+                ->whereHas('service_status', fn ($q) => $q->where('name', self::WAITING_ON_PAYMENT_STATUS)),
+
+            'paid' => $query->whereNotNull('total_cost')
+                ->where('total_cost', '>', 0)
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(self::COMPLETED_WINDOW_DAYS)),
+
+            'hoa' => $query->hoaViolations(),
+
+            default => $query,
+        };
+    }
+
+    /**
+     * The search/vendor/category/date-range filter block every board shares.
+     *
+     * Deliberately separate from scopeFilter(), which matches work_order_no and
+     * location with a LIKE. The boards match work_order_no exactly, so the
+     * summary must too or its figures would not match the cards on screen.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function scopeBoardFilters($query, array $filters)
+    {
+        return $query
+            ->when($filters['search'] ?? null, function ($q, $search) {
+                $q->where('work_order_no', $search);
+            })
+            ->when($filters['vendor'] ?? null, function ($q, $vendorId) {
+                $q->whereHas('vendors', function ($vendors) use ($vendorId) {
+                    $vendors->where('work_order_vendors.vendor_id', $vendorId);
+                });
+            })
+            ->when($filters['category'] ?? null, function ($q, $category) {
+                $q->where('category', $category);
+            })
+            ->when(
+                filled($filters['start_date'] ?? null) && filled($filters['end_date'] ?? null),
+                function ($q) use ($filters) {
+                    $q->whereBetween('created_date', [
+                        Carbon::parse($filters['start_date'])->startOfDay(),
+                        Carbon::parse($filters['end_date'])->endOfDay(),
+                    ]);
+                }
+            )
+            ->emergencyFilter($filters['emergency'] ?? null);
     }
 
     public function scopeFiltered($query)
