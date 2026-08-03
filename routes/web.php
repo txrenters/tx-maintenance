@@ -5,6 +5,7 @@ use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\JobberAttachmentsController;
 use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
+use App\Http\Controllers\BoardSummaryController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ConversationController;
@@ -97,6 +98,9 @@ Route::middleware([
     Route::resource('/service_status', ServiceStatusController::class);
 
     Route::get('/work_orders/{workOrder}/data', [WorkOrderController::class, 'data'])->name('work_orders.data');
+    // Two segments so Route::resource's work_orders/{workOrder} cannot swallow it,
+    // the same reason closed/done and paid/all are shaped this way.
+    Route::get('/work_orders/summary/board', BoardSummaryController::class)->name('work_orders.summary');
     Route::resource('/work_orders', WorkOrderController::class);
     Route::get('/work_orders/closed/done', [WorkOrderController::class, 'closed_work_orders'])->name('work_orders.closed_work_orders');
     Route::get('/work_orders/waiting_on_payment/all', [WorkOrderController::class, 'waiting_on_payment_work_orders'])->name('work_orders.waiting_on_payment');

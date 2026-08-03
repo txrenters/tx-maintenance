@@ -97,9 +97,45 @@ import {
     ChartBarBig,
 } from "lucide-vue-next";
 import MessageCard from "@/Components/MessageCard.vue";
+import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 const page = usePage();
+
+// The work order boards that offer an AI summary. Prefix-matched, so the
+// board's own filters in the query string do not stop it resolving. The main
+// board is matched exactly instead — /work_orders/{id}/details and the
+// coordinators page share its prefix but are not boards.
+const SUMMARY_BOARDS = [
+    ["/work_orders/inspections", "inspections"],
+    ["/work_orders/lawn_service", "lawn_service"],
+    ["/work_orders/turnovers", "turnovers"],
+    ["/work_orders/waiting_on_payment", "waiting_on_payment"],
+    ["/work_orders/closed", "closed"],
+    ["/work_orders/paid", "paid"],
+    ["/work_orders/hoa", "hoa"],
+];
+
+// Only the staff who work the boards; the endpoint enforces this too.
+const canSeeSummary = computed(() => {
+    const userRoles = page.props.auth.user.roles || [];
+
+    return ["admin", "woc", "accounting"].some((role) =>
+        userRoles.includes(role),
+    );
+});
+
+const summaryBoard = computed(() => {
+    if (!canSeeSummary.value) return null;
+
+    // Drop the query string so a filtered board still resolves to its key.
+    const path = page.url.split("?")[0].replace(/\/$/, "");
+    const match = SUMMARY_BOARDS.find(([prefix]) => path.startsWith(prefix));
+
+    if (match) return match[1];
+
+    return path === "/work_orders" ? "main" : null;
+});
 
 const data = computed(() => ({
     user: {
@@ -1588,6 +1624,15 @@ onUnmounted(() => {
             >
                 <Toaster />
                 <slot />
+            </div>
+
+            <!--
+                Floating summary button, pinned to the bottom-right of the board
+                area. SidebarInset is relative, so this tracks the content column
+                rather than the viewport as the sidebar collapses.
+            -->
+            <div v-if="summaryBoard" class="absolute bottom-6 right-6 z-40">
+                <BoardSummaryDialog :key="summaryBoard" :board="summaryBoard" />
             </div>
         </SidebarInset>
     </SidebarProvider>
