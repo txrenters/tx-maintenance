@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Conversation;
@@ -365,6 +366,7 @@ class OwnerPortalController extends Controller
                 ]);
 
                 UploadAttachment::dispatch($attachment);
+                GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
             }
 
             $portalToken->markResponded();

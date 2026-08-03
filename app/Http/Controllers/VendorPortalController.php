@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
+use App\Jobs\GenerateThumbnail;
 use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
@@ -360,6 +361,7 @@ class VendorPortalController extends Controller
                 ]);
 
                 UploadAttachment::dispatch($attachment);
+                GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
             }
 
             return back()->with('success', 'Photos uploaded. They are syncing in the background.');

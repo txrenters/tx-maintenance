@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Conversation;
@@ -364,6 +365,7 @@ class TenantPortalController extends Controller
                 ]);
 
                 UploadAttachment::dispatch($attachment);
+                GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
             }
 
             // Photos received: stop the reminders for this request.

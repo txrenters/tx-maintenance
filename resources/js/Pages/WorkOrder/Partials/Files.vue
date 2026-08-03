@@ -116,9 +116,13 @@ const formatDate = (date) => {
                         />
 
                         <!-- Image Preview (Fixed Size) -->
+                        <!-- Small WebP thumbnail; the expand and preview paths
+                             below still load the full-resolution original. -->
                         <img
-                            :src="file.attachment_url"
+                            :src="file.thumbnail_url || file.attachment_url"
                             :alt="file.title"
+                            loading="lazy"
+                            decoding="async"
                             class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
                         />
                     </div>

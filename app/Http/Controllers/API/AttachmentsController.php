@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\WorkOrder;
@@ -42,6 +43,7 @@ class AttachmentsController extends Controller
             $attachment = Attachments::create($validatedData);
 
             UploadAttachment::dispatch($attachment);
+            GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
 
             return redirect()->back()->with('success', 'Attachment uploaded successfully. PropertyWare sync is processing in the background.');
         } catch (ValidationException $e) {
@@ -105,6 +107,8 @@ class AttachmentsController extends Controller
 
                 // Collect jobs to dispatch after all files are processed
                 $uploadJobs[] = new UploadAttachment($attachment);
+
+                GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
             }
 
             // Dispatch all PropertyWare upload jobs at once (happens in background)
