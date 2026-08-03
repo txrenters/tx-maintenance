@@ -128,6 +128,7 @@ const workOrderForm = useForm({
     managed_by: "",
     requested: "",
     owners: [],
+    building: null,
     local_status: "",
     woc: "",
 });
@@ -642,6 +643,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.approved_date = order.approved_date;
         workOrderForm.approval_comments = order.approval_comments;
         workOrderForm.owners = order.owners;
+        workOrderForm.building = order.building ?? null;
         workOrderForm.management_plan = order.management_plan;
         workOrderForm.priority = order.priority;
         workOrderForm.status = order.status;

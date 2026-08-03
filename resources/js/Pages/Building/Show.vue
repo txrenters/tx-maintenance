@@ -1,7 +1,8 @@
 <script setup>
 import { Link } from "@inertiajs/vue3";
-import { ChevronDown, ExternalLink } from "lucide-vue-next";
+import { ExternalLink } from "lucide-vue-next";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import MaintenanceDetails from "@/Components/Building/MaintenanceDetails.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -91,98 +92,7 @@ defineProps({
         </Card>
 
         <!-- Maintenance Settings -->
-        <Collapsible v-slot="{ open }">
-            <Card>
-                <CardHeader class="p-0">
-                    <CollapsibleTrigger
-                        class="flex w-full items-center justify-between gap-2 p-6 text-left transition-colors hover:bg-muted/40"
-                    >
-                        <span class="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight">
-                            <ChevronDown
-                                class="h-4 w-4 transition-transform"
-                                :class="{ '-rotate-90': !open }"
-                            />
-                            Maintenance
-                        </span>
-                        <span
-                            v-if="building.details_synced_at"
-                            class="text-xs font-normal text-muted-foreground"
-                        >
-                            Synced {{ new Date(building.details_synced_at).toLocaleString() }}
-                        </span>
-                    </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                    <CardContent class="space-y-4 text-sm">
-                        <div v-if="building.maintenance_notice">
-                            <dt class="mb-1 text-muted-foreground">Maintenance Notice</dt>
-                            <dd class="whitespace-pre-line rounded-md border bg-muted/30 p-3 font-medium">
-                                {{ building.maintenance_notice }}
-                            </dd>
-                        </div>
-                        <div
-                            v-else
-                            class="rounded-md border border-dashed p-3 text-muted-foreground"
-                        >
-                            No maintenance notice on file.
-                        </div>
-
-                        <dl class="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
-                            <div>
-                                <dt class="text-muted-foreground">Spending Limit</dt>
-                                <dd class="font-medium">
-                                    {{
-                                        building.maintenance_spending_limit_amount
-                                            ? `$${building.maintenance_spending_limit_amount}`
-                                            : "—"
-                                    }}
-                                    <span
-                                        v-if="building.maintenance_spending_limit_time"
-                                        class="text-muted-foreground"
-                                    >
-                                        / {{ building.maintenance_spending_limit_time }}
-                                    </span>
-                                </dd>
-                            </div>
-                            <div>
-                                <dt class="text-muted-foreground">Labor Surcharge</dt>
-                                <dd class="font-medium">
-                                    {{
-                                        building.maintenance_labor_surcharge_amount
-                                            ? `$${building.maintenance_labor_surcharge_amount}`
-                                            : "—"
-                                    }}
-                                    <span
-                                        v-if="building.maintenance_labor_surcharge_type"
-                                        class="text-muted-foreground"
-                                    >
-                                        ({{ building.maintenance_labor_surcharge_type }})
-                                    </span>
-                                </dd>
-                            </div>
-                        </dl>
-
-                        <div
-                            v-if="building.custom_fields && building.custom_fields.length"
-                            class="space-y-2"
-                        >
-                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Custom Fields
-                            </p>
-                            <dl class="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-                                <div
-                                    v-for="field in building.custom_fields"
-                                    :key="field.definitionID || field.fieldName"
-                                >
-                                    <dt class="text-muted-foreground">{{ field.fieldName }}</dt>
-                                    <dd class="font-medium">{{ field.value || "—" }}</dd>
-                                </div>
-                            </dl>
-                        </div>
-                    </CardContent>
-                </CollapsibleContent>
-            </Card>
-        </Collapsible>
+        <MaintenanceDetails :building="building" />
 
         <!-- Related Work Orders -->
         <Card>
