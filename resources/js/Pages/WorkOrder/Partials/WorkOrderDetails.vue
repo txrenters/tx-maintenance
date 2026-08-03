@@ -23,6 +23,7 @@ import {
 } from "@/Components/ui/tags-input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/Components/ui/avatar";
 import EditableField from "@/Components/EditableField.vue";
+import MaintenanceDetails from "@/Components/Building/MaintenanceDetails.vue";
 import axios from "axios";
 const { toast } = useToast();
 
@@ -90,6 +91,17 @@ const isVendorUser = computed(() =>
 const isWocOrAdmin = computed(() => {
     const roles = page.props.auth.user.roles;
     return roles.includes("admin") || roles.includes("woc");
+});
+
+// The property's maintenance block carries lockbox and gate codes, so it stays
+// staff-only here — the same gate the Building page applies.
+const canSeeMaintenance = computed(() => {
+    const roles = page.props.auth.user.roles;
+    return (
+        roles.includes("admin") ||
+        roles.includes("woc") ||
+        roles.includes("accounting")
+    );
 });
 
 const visibleWorkOrderVendors = computed(() => {
@@ -514,6 +526,23 @@ const handleCompleteSubmit = () => {
                     >
                         {{ buildingAddress }}
                     </p>
+                </div>
+
+                <!--
+                    The property's PropertyWare maintenance details, read-only.
+                    Compact so it sits in one grid cell like the other fields and
+                    scrolls inside itself rather than stretching the modal. Keyed
+                    on the building so the auto-expand re-evaluates when the
+                    modal is reused for another work order.
+                -->
+                <div v-if="canSeeMaintenance && workOrder.building">
+                    <MaintenanceDetails
+                        :key="workOrder.building.id"
+                        :building="workOrder.building"
+                        :default-open="Boolean(workOrder.building.maintenance_notice)"
+                        title="Maintenance Notice"
+                        compact
+                    />
                 </div>
 
                 <div>

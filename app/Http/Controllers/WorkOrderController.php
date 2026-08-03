@@ -412,7 +412,32 @@ class WorkOrderController extends Controller
             'building',
         ])->first();
 
+        $this->hideBuildingMaintenanceFromNonStaff($workOrder);
+
         return response()->json($workOrder, 200);
+    }
+
+    /**
+     * The property's maintenance details (notice, spending limits and the
+     * PropertyWare custom fields, which include lockbox and gate codes) are
+     * staff-only — the Building page gates them the same way. Vendors, tenants
+     * and owners still get the building relation, just without those fields.
+     */
+    private function hideBuildingMaintenanceFromNonStaff(WorkOrder $workOrder): void
+    {
+        if (request()->user()?->hasAnyRole(['admin', 'woc', 'accounting'])) {
+            return;
+        }
+
+        $workOrder->building?->makeHidden([
+            'maintenance_notice',
+            'maintenance_spending_limit_amount',
+            'maintenance_spending_limit_time',
+            'maintenance_labor_surcharge_amount',
+            'maintenance_labor_surcharge_type',
+            'custom_fields',
+            'details_synced_at',
+        ]);
     }
 
     /**
@@ -473,6 +498,8 @@ class WorkOrderController extends Controller
             'vendor_tenant_conversation',
             'building',
         ]);
+
+        $this->hideBuildingMaintenanceFromNonStaff($workOrder);
 
         $user = request()->user();
 
