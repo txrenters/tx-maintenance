@@ -45,6 +45,7 @@
         <env name="TENANT_SCHEDULE_SMS_ENABLED" value="false"/>
         <env name="TENANT_SCHEDULE_FOLLOWUP_SMS_ENABLED" value="false"/>
         <env name="TENANT_INTAKE_EMAIL_ENABLED" value="false"/>
+        <env name="TENANT_INTAKE_SMS_ENABLED" value="false"/>
         <env name="JOBBER_JOB_CREATE_ENABLED" value="false"/>
         <env name="VENDOR_AUTO_ASSIGN_ENABLED" value="false"/>
         <env name="JOBBER_VENDOR_NOTIFY_ENABLED" value="false"/>

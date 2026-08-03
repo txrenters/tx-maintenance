@@ -110,13 +110,10 @@ return [
         // Daily reminder to the tenant after the appointment is set, running
         // until the appointment date arrives or they reply (capped).
         'tenant_schedule_followup_sms' => env('TENANT_SCHEDULE_FOLLOWUP_SMS_ENABLED', true),
-    ],
-
-    'work_order' => [
-        // Email the tenant a branded confirmation when their service request
-        // comes in, carrying the no-login portal link. Not a Twilio channel, so
-        // it lives here rather than under `twilio`.
-        'tenant_intake_email' => env('TENANT_INTAKE_EMAIL_ENABLED', true),
+        // Text the tenant via the tenant<->WOC conversation when their service
+        // request comes in, carrying their no-login portal link. The SMS
+        // counterpart of the intake email below.
+        'tenant_intake_sms' => env('TENANT_INTAKE_SMS_ENABLED', true),
     ],
 
     'hoa' => [
@@ -140,6 +137,10 @@ return [
     ],
 
     'work_order' => [
+        // Email the tenant a branded confirmation when their service request
+        // comes in, carrying the no-login portal link. Not a Twilio channel, so
+        // it lives here rather than under `twilio`.
+        'tenant_intake_email' => env('TENANT_INTAKE_EMAIL_ENABLED', true),
         // Automatically assign the prior vendor when a new work order is a
         // confident repeat (same issue type + same building -> same vendor).
         // ON by default so a production deploy starts reusing repeat vendors
