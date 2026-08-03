@@ -259,6 +259,8 @@ const workOrderAttachments = ref(props.attachments ?? []);
 const workOrderDocuments = ref([]);
 const workOrderInvoices = ref(props.invoices ?? []);
 const workOrderVendorData = ref([]);
+// Seeded from the page prop, refreshed whenever the vendor list is refetched.
+const liveVendorLinks = ref(props.vendorLinks ?? []);
 const recommendation = ref(null);
 const isGeneratingRecommendation = ref(false);
 const emailNotifications = ref([]);
@@ -484,6 +486,11 @@ const fetchVendors = async () => {
             route("api.work_order_notes.show", workOrderForm.id),
         );
         workOrderVendorData.value = res.data.vendors;
+        // Keep the copyable links in step when a vendor is added or removed
+        // without a full page reload.
+        if (res.data.vendor_links) {
+            liveVendorLinks.value = res.data.vendor_links;
+        }
     } catch (e) {
         console.error(e);
     } finally {
@@ -897,7 +904,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'vendor_edit'"
                 :workOrderVendorData="workOrderVendorData"
                 :workOrder="workOrderForm"
-                :vendorLinks="vendorLinks"
+                :vendorLinks="liveVendorLinks"
                 :isLoading="isLoading"
                 @fetch-vendor="fetchVendors"
             />

@@ -507,6 +507,8 @@ const fetchNotes = async (workOrderId) => {
 };
 
 const workOrderVendorData = ref([]);
+// Copyable vendor magic links, staff-only (the endpoint decides).
+const vendorLinks = ref([]);
 const fetchVendors = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -514,6 +516,7 @@ const fetchVendors = async (workOrderId) => {
             route("api.work_order_notes.show", workOrderId)
         );
         workOrderVendorData.value = response.data.vendors;
+        vendorLinks.value = response.data.vendor_links ?? [];
 
         console.log(workOrderId);
     } catch (error) {
@@ -1126,6 +1129,7 @@ const page = usePage();
 
             <VendorEdit
                 :workOrderVendorData="workOrderVendorData"
+                :vendorLinks="vendorLinks"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-vendor="fetchVendors(workOrderForm.id)"

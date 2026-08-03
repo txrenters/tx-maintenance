@@ -13,6 +13,7 @@ use App\Services\OwnerPortalLinkService;
 use App\Services\PropertyWareService;
 use App\Services\TenantMessageFormatter;
 use App\Services\TenantPortalLinkService;
+use App\Services\VendorPortalLinkService;
 use App\Services\WorkOrderEmailSender;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Bus\Queueable;
@@ -144,7 +145,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         // 3) Text the vendor and log it in the WOC↔Vendor conversation.
         if (! $vendorPaused) {
-            $this->textVendor($workOrder, $vendor);
+            $this->textVendor($workOrder, $vendor, $portalUrl);
         }
 
         // 4) Notify the property owner and log it in the owner conversation thread.
@@ -343,7 +344,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
      * WOC, and persist it to the vendor conversation thread so it shows up in
      * the coordinator and vendor-portal views.
      */
-    private function textVendor(WorkOrder $workOrder, Vendor $vendor): void
+    private function textVendor(WorkOrder $workOrder, Vendor $vendor, ?string $portalUrl = null): void
     {
         $vendorNumber = $this->toE164($vendor->phone);
 
@@ -359,7 +360,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        $body = $this->buildSmsBody($workOrder, $vendor);
+        $body = $this->buildSmsBody($workOrder, $vendor, $portalUrl);
 
         // sender_number is the WOC's number (not the vendor's), so the portal
         // renders this as a message from the coordinator.
@@ -378,7 +379,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $body, null, $conversation->id);
     }
 
-    private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor): string
+    private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor, ?string $portalUrl = null): string
     {
         $lines = [
             'Hello '.$vendor->name.',',
@@ -393,6 +394,15 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             $lines[] = Str::limit($workOrder->description, 160);
         }
 
+        // The same magic link the assignment email carries, so a vendor who only
+        // reads their texts can still open the job. Set apart as its own
+        // paragraph; omitted entirely when no token exists.
+        if ($linkBlock = VendorPortalLinkService::linkBlock($portalUrl)) {
+            $lines[] = '';
+            $lines[] = $linkBlock;
+        }
+
+        $lines[] = '';
         $lines[] = '— TX Maintenance Team';
 
         return implode("\n", $lines);
