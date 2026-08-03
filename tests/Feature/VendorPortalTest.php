@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\UploadAttachment;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
+use App\Models\Tenants;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -70,6 +71,33 @@ class VendorPortalTest extends TestCase
                 ->where('vendorLinks.0.url', route('vendor.portal.show', 'token-acme'))
                 ->where('vendorLinks.0.dashboard_url', route('vendor.portal.dashboard', 'vendor-acme'))
             );
+    }
+
+    public function test_imported_assignment_with_no_token_still_gets_a_copyable_link(): void
+    {
+        Role::findOrCreate('woc', 'web');
+
+        $woc = User::factory()->create();
+        $woc->assignRole('woc');
+
+        // Vendors attached by the PropertyWare import never got a token, which
+        // used to leave the coordinator with a dead "This job" button.
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => null]);
+
+        $this->actingAs($woc)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('vendorLinks', 1)
+                ->where('vendorLinks.0.url', fn ($url) => filled($url))
+            );
+
+        $this->assertNotEmpty(
+            $workOrder->vendors()->first()->pivot->access_token,
+            'The link should be backed by a real token.',
+        );
     }
 
     public function test_dashboard_lists_only_that_vendors_open_work_orders(): void
@@ -483,5 +511,119 @@ class VendorPortalTest extends TestCase
             'message' => 'On my way now',
             'is_read' => false,
         ]);
+    }
+
+    public function test_portal_shows_the_tenant_the_vendor_should_call(): void
+    {
+        $tenant = Tenants::factory()->create([
+            'first_name' => 'Maria',
+            'last_name' => 'Lopez',
+            'mobile_phone' => '5125550123',
+            'home_phone' => '5125550456',
+            'email' => 'maria@example.com',
+        ]);
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['tenant_id' => $tenant->id]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('tenantContacts', 1)
+                ->where('tenantContacts.0.name', 'Maria Lopez')
+                ->where('tenantContacts.0.mobile_phone', '(512) 555-0123')
+                ->where('tenantContacts.0.home_phone', '(512) 555-0456')
+                ->where('tenantContacts.0.email', 'maria@example.com')
+                ->where('tenantContacts.0.is_primary', true)
+            );
+    }
+
+    public function test_portal_lists_other_tenants_on_the_work_order_too(): void
+    {
+        $requester = Tenants::factory()->create([
+            'first_name' => 'Maria',
+            'last_name' => 'Lopez',
+            'mobile_phone' => '5125550123',
+        ]);
+        $roommate = Tenants::factory()->create([
+            'first_name' => 'Ana',
+            'last_name' => 'Reyes',
+            'mobile_phone' => '5125550999',
+        ]);
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['tenant_id' => $requester->id]);
+        $workOrder->tenants()->attach([$requester->id, $roommate->id]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                // The requester is listed once, and first.
+                ->has('tenantContacts', 2)
+                ->where('tenantContacts.0.name', 'Maria Lopez')
+                ->where('tenantContacts.0.is_primary', true)
+                ->where('tenantContacts.1.name', 'Ana Reyes')
+                ->where('tenantContacts.1.is_primary', false)
+            );
+    }
+
+    public function test_portal_hides_tenant_contact_on_a_vacant_work_order(): void
+    {
+        $tenant = Tenants::factory()->create(['mobile_phone' => '5125550123']);
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['tenant_id' => $tenant->id, 'skip_automated_tasks' => true]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('tenantContacts', 0));
+    }
+
+    public function test_portal_omits_a_tenant_with_no_way_to_reach_them(): void
+    {
+        $tenant = Tenants::factory()->create([
+            'mobile_phone' => null,
+            'home_phone' => null,
+            'work_phone' => null,
+            'email' => null,
+        ]);
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['tenant_id' => $tenant->id]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('tenantContacts', 0));
+    }
+
+    public function test_work_order_modal_endpoint_returns_vendor_links_for_staff(): void
+    {
+        Role::findOrCreate('woc', 'web');
+
+        $woc = User::factory()->create();
+        $woc->assignRole('woc');
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $vendor->update(['portal_token' => 'vendor-acme']);
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $response = $this->actingAs($woc)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('vendor_links.0.url', route('vendor.portal.show', 'token-acme'))
+            ->assertJsonPath('vendor_links.0.dashboard_url', route('vendor.portal.dashboard', 'vendor-acme'));
+
+        // The raw token is what the link is made of and must not ship in the
+        // payload, where another vendor could read it out of the page source.
+        $this->assertArrayNotHasKey('access_token', $response->json('vendors.0.pivot'));
     }
 }

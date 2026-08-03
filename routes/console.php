@@ -111,6 +111,16 @@ Schedule::command('owners:followup-schedule')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Tenant appointment reminder: daily text to the tenant, starting the day after
+// a service schedule is set, keeping the date in front of them until the
+// appointment arrives (or they reply / the cap is hit). Gated by
+// TENANT_SCHEDULE_FOLLOWUP_SMS_ENABLED.
+Schedule::command('tenants:followup-schedule')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:25')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('emails:sync-replies')
     ->everyThreeMinutes()
     ->withoutOverlapping()

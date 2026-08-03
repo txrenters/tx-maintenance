@@ -17,17 +17,8 @@
     };
 
     // Format a US phone number as (XXX) XXX-XXXX; leave anything else untouched.
-    $fmtPhone = function ($value) {
-        $digits = preg_replace('/\D+/', '', (string) $value);
-        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
-            $digits = substr($digits, 1);
-        }
-        if (strlen($digits) === 10) {
-            return '('.substr($digits, 0, 3).') '.substr($digits, 3, 3).'-'.substr($digits, 6);
-        }
-
-        return filled($value) ? $value : null;
-    };
+    // Shared with the vendor portal so the two surfaces can never drift.
+    $fmtPhone = fn ($value) => \App\Services\PhoneFormatter::display($value);
 
     $tenant = $workOrder->requested_by;
 

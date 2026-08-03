@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\VendorPortalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -135,13 +136,15 @@ class FollowUpUnscheduledVendors extends Command
     {
         $vendorNumber = $this->toE164($vendor->phone);
 
+        $message = $this->messageFor($workOrder, $vendor);
+
         // sender_number is the WOC/company number so the portal renders this as
         // a message from the coordinator, not the vendor.
         $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
 
         $conversation = Conversation::create([
-            'message' => self::MESSAGE,
+            'message' => $message,
             'sender_number' => $wocNumber ?: null,
             'receiver_number' => $vendorNumber,
             'work_order_id' => $workOrder->id,
@@ -158,7 +161,21 @@ class FollowUpUnscheduledVendors extends Command
             return;
         }
 
-        SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, self::MESSAGE, null, $conversation->id);
+        SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $message, null, $conversation->id);
+    }
+
+    /**
+     * The approved follow-up copy, with this assignment's magic link appended so
+     * "update the work order on your dashboard" is one tap away. The link line is
+     * dropped when no token could be issued rather than losing the nudge.
+     */
+    private function messageFor(WorkOrder $workOrder, Vendor $vendor): string
+    {
+        $linkBlock = VendorPortalLinkService::linkBlock(
+            app(VendorPortalLinkService::class)->link($workOrder, $vendor)
+        );
+
+        return $linkBlock ? self::MESSAGE."\n\n".$linkBlock : self::MESSAGE;
     }
 
     /**

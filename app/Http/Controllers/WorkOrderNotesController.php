@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\PropertyWareService;
+use App\Services\VendorPortalLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,23 @@ class WorkOrderNotesController extends Controller
     {
         $workOrder->load(['notes', 'notes.user', 'vendors']);
 
-        return response()->json($workOrder, 200);
+        // Copyable magic links for the Vendors tab, so a coordinator can hand a
+        // vendor their link from the work order modal and the boards, not just
+        // the full work order page.
+        $vendorLinks = auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting', 'vendor'])
+            ? app(VendorPortalLinkService::class)->linksFor($workOrder)
+            : collect();
+
+        // The raw pivot token is what the link is made of — never ship it in the
+        // payload itself, or one vendor's page source would carry another's key.
+        $workOrder->vendors->each(function ($vendor) {
+            $vendor->pivot?->makeHidden('access_token');
+        });
+
+        return response()->json(
+            $workOrder->toArray() + ['vendor_links' => $vendorLinks],
+            200,
+        );
     }
 
     /**

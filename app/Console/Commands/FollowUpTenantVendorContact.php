@@ -6,6 +6,8 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\TenantMessageFormatter;
+use App\Services\TenantPortalLinkService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
@@ -210,10 +212,15 @@ class FollowUpTenantVendorContact extends Command
         $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
 
-        return $greeting.'this is TexasRenters.com Maintenance about your service request (WO#'.$ref.'). '
+        $body = $greeting.'this is TexasRenters.com Maintenance about your service request (WO#'.$ref.'). '
             .'Has the assigned vendor reached out to you yet to schedule the repair? '
-            .'Please reply to let us know so we can help. Thank you!'
-            ."\n(Ref: WO#{$ref})";
+            .'Please reply to let us know so we can help. Thank you!';
+
+        return TenantMessageFormatter::compose(
+            $body,
+            $ref,
+            app(TenantPortalLinkService::class)->link($workOrder),
+        );
     }
 
     /**

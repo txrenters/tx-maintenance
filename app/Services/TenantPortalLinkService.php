@@ -21,6 +21,51 @@ class TenantPortalLinkService
      */
     public const MAX_NOTIFICATIONS = 3; // 1 initial + 2 reminders
 
+    /**
+     * This work order's tenant token for the given purpose, created on first
+     * use. The general PURPOSE_WORK_ORDER token is the one every automated
+     * tenant message links to; the easy-fix and HOA purposes keep their own so
+     * their completion and reminder state stay independent.
+     */
+    public function tokenFor(WorkOrder $workOrder, string $purpose = TenantUploadToken::PURPOSE_WORK_ORDER): TenantUploadToken
+    {
+        return TenantUploadToken::query()->firstOrCreate(
+            ['work_order_id' => $workOrder->id, 'purpose' => $purpose],
+            ['token' => TenantUploadToken::generateUniqueToken()],
+        );
+    }
+
+    /**
+     * The tenant's portal URL, or null when a token could not be issued.
+     *
+     * Every caller is an automated message that must not break if token
+     * creation fails, so this is log-never-throw; callers simply omit the link
+     * line rather than losing the whole notification.
+     */
+    public function link(WorkOrder $workOrder, string $purpose = TenantUploadToken::PURPOSE_WORK_ORDER): ?string
+    {
+        try {
+            return $this->urlFor($this->tokenFor($workOrder, $purpose));
+        } catch (\Throwable $exception) {
+            Log::error('Tenant portal link could not be issued.', [
+                'work_order_id' => $workOrder->id,
+                'purpose' => $purpose,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * The portal URL for a token we already hold. The single place that knows
+     * the URL shape.
+     */
+    public function urlFor(TenantUploadToken $token): string
+    {
+        return route('tenant.portal.show', $token->token);
+    }
+
     public function sendLink(WorkOrder $workOrder): void
     {
         if (! config('services.twilio.tenant_portal_sms')) {
@@ -179,7 +224,7 @@ class TenantPortalLinkService
 
         return $greeting."this is TexasRenters.com Maintenance about your service request (WO#{$ref}). "
             .'To help us resolve it quickly, please upload photos of the issue using this secure link — no login needed: '
-            .route('tenant.portal.show', $token->token)
+            .$this->urlFor($token)
             ."\n(Ref: WO#{$ref})";
     }
 
@@ -190,7 +235,7 @@ class TenantPortalLinkService
         $ref = $workOrder->work_order_no;
 
         return $greeting."a quick reminder from TexasRenters.com Maintenance: please upload photos for your service request (WO#{$ref}) using this secure link — no login needed: "
-            .route('tenant.portal.show', $token->token)
+            .$this->urlFor($token)
             ."\n(Ref: WO#{$ref})";
     }
 
@@ -209,7 +254,7 @@ class TenantPortalLinkService
             .'. Whenever you have a chance, we\'d truly appreciate it if you could take care of'
             .($summary ? ' it' : ' them').' and send us a quick photo as proof.'
             .' Here is your secure link — no login needed: '
-            .route('tenant.portal.show', $token->token)
+            .$this->urlFor($token)
             .". Thank you so much for your help!\n(Ref: WO#{$ref})";
     }
 
@@ -221,7 +266,7 @@ class TenantPortalLinkService
             (string) ($workOrder->requested_by?->first_name ?? ''),
             $ref,
             $this->hoaViolationSummary($workOrder),
-            route('tenant.portal.show', $token->token),
+            $this->urlFor($token),
         );
 
         // Rotate by how many notices have already gone out so a tenant getting

@@ -19,6 +19,7 @@ use App\Models\WorkOrderVendor;
 use App\Services\EmergencyAlertService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
+use App\Services\VendorPortalLinkService;
 use App\Services\WorkOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -526,15 +527,7 @@ class WorkOrderController extends Controller
         // coordinator can copy a link for vendors who have no email on file. These
         // tokens are never exposed to owners/tenants.
         $vendorLinks = $user->hasAnyRole(['admin', 'woc', 'accounting', 'vendor'])
-            ? $workOrder->vendors->map(fn ($vendor) => [
-                'vendor_id' => $vendor->id,
-                'name' => $vendor->name,
-                'has_email' => (bool) $vendor->email,
-                'url' => $vendor->pivot->access_token
-                    ? route('vendor.portal.show', $vendor->pivot->access_token)
-                    : null,
-                'dashboard_url' => route('vendor.portal.dashboard', $vendor->ensurePortalToken()),
-            ])->values()
+            ? app(VendorPortalLinkService::class)->linksFor($workOrder)
             : collect();
 
         return inertia('WorkOrder/Show', [

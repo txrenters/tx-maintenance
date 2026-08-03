@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendOwnerAppointmentNotificationJob;
+use App\Jobs\SendTenantAppointmentNotificationJob;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -55,6 +56,9 @@ class ServiceScheduleController extends Controller
                 SendOwnerAppointmentNotificationJob::dispatch($serviceSchedule->id);
             }
 
+            // The tenant is told whoever set it: someone is coming to their home.
+            SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
             Log::error('Failed to create service schedule', [
@@ -83,6 +87,8 @@ class ServiceScheduleController extends Controller
         ]);
 
         try {
+            $originalDate = $serviceSchedule->scheduled_date;
+
             $serviceSchedule->update([
                 'title' => $validatedData['title'],
                 'scheduled_date' => $validatedData['date'],
@@ -94,6 +100,15 @@ class ServiceScheduleController extends Controller
 
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
+
+            // A genuine reschedule is news the tenant needs, so clear the
+            // once-per-schedule claim and notify them again. Editing the title
+            // or description alone is not.
+            if ((string) $originalDate !== (string) $serviceSchedule->scheduled_date) {
+                $serviceSchedule->forceFill(['tenant_notified_at' => null])->save();
+
+                SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+            }
 
             // 303 so Inertia treats the follow-up request as a GET; these routes are
             // in the api middleware group, which lacks Inertia's automatic 302->303 conversion.

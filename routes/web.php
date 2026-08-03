@@ -298,11 +298,14 @@ Route::middleware(['jobber.portal', 'throttle:60,1'])->prefix('jobber-portal/{to
     Route::post('/invoice', [JobberVendorPortalController::class, 'uploadInvoice'])->name('jobber.portal.invoice');
 });
 
-// Public, no-login tenant portal (photo upload for tenant-easy-fix / HOA).
-// Access is gated entirely by the magic-link token, like the vendor portal.
-Route::middleware('tenant.portal')->prefix('tenant-portal/{token}')->group(function () {
+// Public, no-login tenant portal: the tenant<->WOC message thread, the
+// appointment, and photos for one work order. Access is gated entirely by the
+// magic-link token, like the owner and vendor portals.
+Route::middleware(['tenant.portal', 'throttle:60,1'])->prefix('tenant-portal/{token}')->group(function () {
     Route::get('/', [TenantPortalController::class, 'show'])->name('tenant.portal.show');
+    Route::post('/message', [TenantPortalController::class, 'sendMessage'])->name('tenant.portal.message');
     Route::post('/attachments', [TenantPortalController::class, 'uploadAttachments'])->name('tenant.portal.attachments');
+    Route::post('/messages/read', [TenantPortalController::class, 'markMessagesRead'])->name('tenant.portal.messages.read');
     Route::post('/complete', [TenantPortalController::class, 'complete'])->name('tenant.portal.complete');
 });
 

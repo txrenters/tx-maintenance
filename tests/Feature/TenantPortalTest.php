@@ -4,11 +4,16 @@ namespace Tests\Feature;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\UploadAttachment;
+use App\Models\Attachments;
+use App\Models\Conversation;
+use App\Models\ServiceSchedule;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\TenantPortalLinkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -226,5 +231,240 @@ class TenantPortalTest extends TestCase
 
         $this->assertSame(1, $token->fresh()->notified_count);
         Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    // --- Portal parity with the owner portal --------------------------------
+
+    private function tenantMessage(WorkOrder $workOrder, string $message, string $sender): Conversation
+    {
+        return Conversation::create([
+            'message' => $message,
+            'sender_number' => $sender,
+            'receiver_number' => '+15125559999',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'is_read' => true,
+            'read_by_tenant' => false,
+            'is_mms' => false,
+        ]);
+    }
+
+    public function test_the_portal_shows_the_tenant_thread_and_the_appointment(): void
+    {
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $token = $this->makeToken($workOrder);
+
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.uniqid(),
+            'name' => 'Reliable Plumbing',
+            'vendor_type' => 'Plumbing',
+            'is_active' => true,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        ServiceSchedule::query()->create([
+            'title' => 'Roof leak',
+            'scheduled_date' => now()->addDays(3)->setTime(9, 0),
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+        ]);
+
+        // One message from the coordinator, one from the tenant's own number.
+        $this->tenantMessage($workOrder, 'We have your request.', '+12813787957');
+        $this->tenantMessage($workOrder, 'Thanks!', '+15125559999');
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('TenantPortal/Show')
+                ->has('messages', 2)
+                ->where('messages.0.from_tenant', false)
+                ->where('messages.1.from_tenant', true)
+                ->where('unreadMessages', 2)
+                ->has('workOrder.appointment'));
+    }
+
+    public function test_the_portal_never_leaks_the_owner_or_vendor_threads(): void
+    {
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $token = $this->makeToken($workOrder);
+
+        $this->tenantMessage($workOrder, 'Tenant thread message.', '+12813787957');
+
+        foreach (['owner', 'vendor', 'vendor_tenant', 'vendor_owner'] as $type) {
+            Conversation::create([
+                'message' => 'Private '.$type.' message.',
+                'sender_number' => '+12813787957',
+                'receiver_number' => '+15125550000',
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => $type,
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
+        }
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('messages', 1)
+                ->where('messages.0.message', 'Tenant thread message.'))
+            ->assertDontSee('Private owner message.')
+            ->assertDontSee('Private vendor message.');
+    }
+
+    public function test_the_gallery_shows_tenant_photos_but_not_internal_files(): void
+    {
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $token = $this->makeToken($workOrder);
+
+        Attachments::query()->create([
+            'title' => 'Tenant photo',
+            'filename' => 'attachments/tenant.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'before',
+            'work_order_id' => $workOrder->id,
+            'user_id' => $tenant->user_id,
+            'uploaded_via_tenant_portal' => true,
+            'is_publish_to_tenant_portal' => true,
+        ]);
+
+        Attachments::query()->create([
+            'title' => 'Internal vendor invoice',
+            'filename' => 'attachments/internal.pdf',
+            'filetype' => 'application/pdf',
+            'type' => 'after',
+            'work_order_id' => $workOrder->id,
+            'user_id' => User::factory()->create()->id,
+            'uploaded_via_tenant_portal' => false,
+            'is_publish_to_tenant_portal' => false,
+        ]);
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 1)
+                ->where('attachments.0.title', 'Tenant photo')
+                ->where('attachments.0.source', 'From you'));
+    }
+
+    public function test_a_tenant_can_message_their_coordinator(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $token = $this->makeToken($workOrder);
+
+        $this->post(route('tenant.portal.message', $token->token), [
+            'text' => 'The leak is getting worse.',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'message' => 'The leak is getting worse.',
+            // Inbound: it lands unread in the coordinator's tenant tab.
+            'is_read' => false,
+        ]);
+
+        // No SMS is sent — the coordinator reads it inside the system.
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+
+        // Engaging stops the schedule follow-up.
+        $this->assertNotNull($token->fresh()->responded_at);
+    }
+
+    public function test_an_empty_message_is_rejected(): void
+    {
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $token = $this->makeToken($workOrder);
+
+        $this->post(route('tenant.portal.message', $token->token), ['text' => '   '])
+            ->assertSessionHasErrors('message');
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+    }
+
+    public function test_marking_messages_read_clears_the_badge(): void
+    {
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $token = $this->makeToken($workOrder);
+
+        $message = $this->tenantMessage($workOrder, 'An update for you.', '+12813787957');
+
+        $this->post(route('tenant.portal.messages.read', $token->token))->assertRedirect();
+
+        $this->assertTrue((bool) $message->fresh()->read_by_tenant);
+    }
+
+    public function test_uploading_photos_also_marks_the_tenant_as_engaged(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $token = $this->makeToken($workOrder);
+
+        $this->post(route('tenant.portal.attachments', $token->token), [
+            'files' => [UploadedFile::fake()->image('leak.jpg')],
+        ])->assertRedirect();
+
+        $this->assertNotNull($token->fresh()->responded_at);
+    }
+
+    public function test_a_general_work_order_token_opens_the_same_portal(): void
+    {
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+
+        $link = app(TenantPortalLinkService::class)->link($workOrder);
+
+        $this->assertNotNull($link);
+
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_WORK_ORDER)
+            ->firstOrFail();
+
+        $this->get($link)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('TenantPortal/Show')
+                ->where('token', $token->token)
+                // The general link is not an HOA notice.
+                ->where('isHoa', false));
+    }
+
+    public function test_the_general_token_is_reused_across_calls(): void
+    {
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $service = app(TenantPortalLinkService::class);
+
+        $first = $service->link($workOrder);
+        $second = $service->link($workOrder);
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_WORK_ORDER)
+            ->count());
+    }
+
+    public function test_the_general_token_is_separate_from_the_easy_fix_token(): void
+    {
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $easyFix = $this->makeToken($workOrder);
+
+        $general = app(TenantPortalLinkService::class)->tokenFor($workOrder);
+
+        $this->assertNotSame($easyFix->token, $general->token);
+        $this->assertSame(TenantUploadToken::PURPOSE_WORK_ORDER, $general->purpose);
+
+        // Both still resolve — a live easy-fix link keeps working.
+        $this->get(route('tenant.portal.show', $easyFix->token))->assertOk();
+        $this->get(route('tenant.portal.show', $general->token))->assertOk();
     }
 }

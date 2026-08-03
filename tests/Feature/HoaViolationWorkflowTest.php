@@ -13,6 +13,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\HoaViolationConfirmationSender;
 use App\Services\MicrosoftGraphMailService;
+use App\Services\TenantPortalLinkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -366,7 +367,7 @@ class HoaViolationWorkflowTest extends TestCase
                 'graph_conversation_id' => null,
             ]);
 
-        $sender = new HoaViolationConfirmationSender($graph);
+        $sender = new HoaViolationConfirmationSender($graph, app(TenantPortalLinkService::class));
         $this->assertTrue($sender->send($token));
     }
 

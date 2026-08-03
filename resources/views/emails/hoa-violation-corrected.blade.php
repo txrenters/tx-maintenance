@@ -26,6 +26,18 @@
         If the button does not work, copy and paste this link into your browser:<br>
         {{ $galleryUrl }}
     </p>
+
+    @if(!empty($portalLink ?? null))
+    <p style="margin:16px 0 8px; border-top:1px solid #e5e7eb; padding-top:14px;">
+        You can also view this request or send us a message here anytime — no login needed:
+    </p>
+    <p style="margin:0 0 12px;">
+        <a href="{{ $portalLink }}" style="color:#2563EA; text-decoration:none; font-weight:bold;">
+            View Work Order #{{ $workOrder->work_order_no ?? $workOrder->id }}
+        </a>
+    </p>
+    @endif
+
     <p style="margin:14px 0 2px;">Thank you,</p>
     <p style="margin:0; font-weight:bold; color:#0f2c66;">TexasRenters.com Maintenance</p>
 </x-mail.branded>

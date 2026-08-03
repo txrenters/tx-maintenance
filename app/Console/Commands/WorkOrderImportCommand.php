@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\GenerateWorkOrderRecommendationJob;
 use App\Jobs\SendOwnerServiceRequestNotificationJob;
+use App\Jobs\SendTenantWorkOrderIntakeEmailJob;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
@@ -231,6 +232,11 @@ class WorkOrderImportCommand extends Command
                 // start its HOA workflow (Tenant Easy Fix, deadline, tenant
                 // photo link) here instead. A no-op for every other category.
                 AdoptCategorizedHoaViolationJob::dispatch($workOrder->id);
+
+                // Email the tenant a branded confirmation carrying their
+                // no-login portal link, so they can follow the request and add
+                // photos without waiting to be asked.
+                SendTenantWorkOrderIntakeEmailJob::dispatch($workOrder->id);
             }
         } catch (\Throwable $th) {
             DB::rollBack();

@@ -11,10 +11,12 @@ use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\Invoice;
 use App\Models\ServiceSchedule;
+use App\Models\Tenants;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
+use App\Services\PhoneFormatter;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -94,7 +96,7 @@ class VendorPortalController extends Controller
         /** @var WorkOrderVendor $assignment */
         $assignment = $request->attributes->get('portal_assignment');
 
-        $workOrder->load(['service_status', 'building', 'tasks', 'woc.wocNumber.twilioPhoneNumber']);
+        $workOrder->load(['service_status', 'building', 'tasks', 'woc.wocNumber.twilioPhoneNumber', 'requested_by', 'tenants']);
 
         // The vendor's own numbers, used to attribute each message to them vs the coordinator.
         $vendorNumberDigits = collect([$vendor->twilio_number, $vendor->user?->phone])
@@ -198,6 +200,7 @@ class VendorPortalController extends Controller
                 'scheduled_end_date' => $s->scheduled_end_date,
                 'status' => $s->status,
             ])->values(),
+            'tenantContacts' => $this->tenantContacts($workOrder),
             'unreadMessages' => $unreadMessages,
             'messages' => $messages->map(fn ($m) => [
                 'id' => $m->id,
@@ -212,6 +215,80 @@ class VendorPortalController extends Controller
                 ])->values(),
             ])->values(),
         ]);
+    }
+
+    /**
+     * Who the vendor should call about this job.
+     *
+     * The same names and numbers already reach them on the Work Order
+     * Information PDF, gathered here so they don't have to dig the attachment
+     * out of an email. The requester comes first (honouring the work order's
+     * service-request contact override, exactly as the PDF does), then any other
+     * tenant on the work order.
+     *
+     * Vacant and turnover jobs return nothing: there is nobody living there to
+     * call, and the tenant on file is often the previous occupant.
+     *
+     * @return array<int, array{name: string, mobile_phone: ?string, home_phone: ?string, work_phone: ?string, email: ?string, is_primary: bool}>
+     */
+    private function tenantContacts(WorkOrder $workOrder): array
+    {
+        if ($workOrder->isVacant()) {
+            return [];
+        }
+
+        $requester = $workOrder->requested_by;
+
+        $contacts = collect([$requester])
+            ->concat($workOrder->tenants ?? [])
+            ->filter()
+            ->unique('id')
+            ->map(fn ($tenant) => [
+                'tenant' => $tenant,
+                'is_primary' => $requester && $tenant->id === $requester->id,
+            ]);
+
+        return $contacts->map(function (array $entry) use ($workOrder) {
+            /** @var Tenants $tenant */
+            $tenant = $entry['tenant'];
+
+            $name = trim(($tenant->first_name ?? '').' '.($tenant->last_name ?? ''));
+
+            if ($entry['is_primary'] && filled($workOrder->service_request_contact_name)) {
+                $name = $workOrder->service_request_contact_name;
+            }
+
+            $mobile = PhoneFormatter::display(
+                $tenant->mobile_phone ?: ($entry['is_primary'] ? $workOrder->service_request_contact_phone : null)
+            );
+            $home = PhoneFormatter::display($tenant->home_phone);
+            $work = PhoneFormatter::display($tenant->work_phone);
+
+            // Don't repeat the same number under two labels.
+            if ($home && $home === $mobile) {
+                $home = null;
+            }
+
+            if ($work && ($work === $mobile || $work === $home)) {
+                $work = null;
+            }
+
+            return [
+                'name' => $name !== '' ? $name : 'Tenant',
+                'mobile_phone' => $mobile,
+                'home_phone' => $home,
+                'work_phone' => $work,
+                'email' => filled($tenant->email) ? $tenant->email : null,
+                'is_primary' => (bool) $entry['is_primary'],
+            ];
+        })
+            // Nothing to act on without a number or an address.
+            ->filter(fn (array $contact) => filled($contact['mobile_phone'])
+                || filled($contact['home_phone'])
+                || filled($contact['work_phone'])
+                || filled($contact['email']))
+            ->values()
+            ->all();
     }
 
     /**

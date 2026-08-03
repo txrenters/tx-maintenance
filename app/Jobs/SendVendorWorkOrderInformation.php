@@ -11,6 +11,9 @@ use App\Models\WorkOrderDocuments;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use App\Services\PropertyWareService;
+use App\Services\TenantMessageFormatter;
+use App\Services\TenantPortalLinkService;
+use App\Services\VendorPortalLinkService;
 use App\Services\WorkOrderEmailSender;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Bus\Queueable;
@@ -19,6 +22,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -141,7 +145,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         // 3) Text the vendor and log it in the WOC↔Vendor conversation.
         if (! $vendorPaused) {
-            $this->textVendor($workOrder, $vendor);
+            $this->textVendor($workOrder, $vendor, $portalUrl);
         }
 
         // 4) Notify the property owner and log it in the owner conversation thread.
@@ -228,12 +232,17 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         $greeting = $name !== '' ? 'Hi '.$name.',' : 'Hi,';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
 
-        return $greeting."\n\n"
+        $body = $greeting."\n\n"
             .'We have assigned '.$this->vendorContactDetails($vendor).' to handle the repairs at '
             .($workOrder->propertyAddress() ?? 'the property').' under Work Order #'.$ref.'. '
             .'They will contact you directly to arrange an appointment. '
-            .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.'
-            ."\n(Ref: WO#{$ref})";
+            .'Thank you for your cooperation, and please let us know if you encounter any issues with scheduling.';
+
+        return TenantMessageFormatter::compose(
+            $body,
+            $ref,
+            app(TenantPortalLinkService::class)->link($workOrder),
+        );
     }
 
     /**
@@ -335,7 +344,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
      * WOC, and persist it to the vendor conversation thread so it shows up in
      * the coordinator and vendor-portal views.
      */
-    private function textVendor(WorkOrder $workOrder, Vendor $vendor): void
+    private function textVendor(WorkOrder $workOrder, Vendor $vendor, ?string $portalUrl = null): void
     {
         $vendorNumber = $this->toE164($vendor->phone);
 
@@ -351,7 +360,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        $body = $this->buildSmsBody($workOrder, $vendor);
+        $body = $this->buildSmsBody($workOrder, $vendor, $portalUrl);
 
         // sender_number is the WOC's number (not the vendor's), so the portal
         // renders this as a message from the coordinator.
@@ -370,7 +379,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $body, null, $conversation->id);
     }
 
-    private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor): string
+    private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor, ?string $portalUrl = null): string
     {
         $lines = [
             'Hello '.$vendor->name.',',
@@ -385,6 +394,15 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             $lines[] = Str::limit($workOrder->description, 160);
         }
 
+        // The same magic link the assignment email carries, so a vendor who only
+        // reads their texts can still open the job. Set apart as its own
+        // paragraph; omitted entirely when no token exists.
+        if ($linkBlock = VendorPortalLinkService::linkBlock($portalUrl)) {
+            $lines[] = '';
+            $lines[] = $linkBlock;
+        }
+
+        $lines[] = '';
         $lines[] = '— TX Maintenance Team';
 
         return implode("\n", $lines);

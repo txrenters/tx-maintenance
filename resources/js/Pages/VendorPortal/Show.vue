@@ -18,6 +18,8 @@ import {
     AlertTriangle,
     ChevronDown,
     Home,
+    Phone,
+    Mail,
     X,
 } from "lucide-vue-next";
 
@@ -33,6 +35,7 @@ const props = defineProps({
     invoices: { type: Array, default: () => [] },
     schedules: { type: Array, default: () => [] },
     messages: { type: Array, default: () => [] },
+    tenantContacts: { type: Array, default: () => [] },
     unreadMessages: { type: Number, default: 0 },
 });
 
@@ -366,6 +369,17 @@ const photoGroups = computed(() => {
         .filter((group) => group.items.length > 0);
 });
 
+// Tenant phone rows, in the order a vendor would try them.
+const phoneRows = (contact) =>
+    [
+        { label: "Mobile", value: contact.mobile_phone },
+        { label: "Home", value: contact.home_phone },
+        { label: "Work", value: contact.work_phone },
+    ].filter((row) => row.value);
+
+// Numbers are displayed formatted, but dialled as digits.
+const telHref = (value) => `tel:${String(value || "").replace(/\D+/g, "")}`;
+
 // Photo groups are collapsible on mobile (always shown on desktop via lg:grid).
 const openGroups = ref({});
 const toggleGroup = (type) => {
@@ -535,6 +549,68 @@ const confirmCompleteTask = () => {
                     >
                         {{ workOrder.description }}
                     </p>
+
+                    <!-- Who to contact about this job -->
+                    <div v-if="tenantContacts.length" class="mt-4 border-t pt-3">
+                        <button
+                            type="button"
+                            class="w-full flex items-center justify-between lg:pointer-events-none"
+                            @click="toggleGroup('tenant')"
+                        >
+                            <span
+                                class="text-xs font-semibold text-muted-foreground uppercase"
+                            >
+                                Tenant contact
+                            </span>
+                            <ChevronDown
+                                class="w-4 h-4 text-muted-foreground lg:hidden transition-transform"
+                                :class="{ 'rotate-180': openGroups.tenant }"
+                            />
+                        </button>
+                        <div
+                            class="space-y-3 mt-2 lg:block"
+                            :class="{ hidden: !openGroups.tenant }"
+                        >
+                            <div
+                                v-for="(contact, i) in tenantContacts"
+                                :key="i"
+                                class="rounded-lg border border-input px-3 py-2"
+                            >
+                                <div
+                                    class="flex items-center gap-2 text-sm font-medium text-foreground"
+                                >
+                                    <span class="truncate">{{ contact.name }}</span>
+                                    <span
+                                        v-if="contact.is_primary"
+                                        class="shrink-0 text-[10px] uppercase tracking-wide rounded-full bg-primary/10 text-primary px-2 py-0.5"
+                                        >Requester</span
+                                    >
+                                </div>
+                                <div class="mt-2 space-y-1">
+                                    <a
+                                        v-for="row in phoneRows(contact)"
+                                        :key="row.label"
+                                        :href="telHref(row.value)"
+                                        class="flex items-center gap-2 text-sm text-primary active:opacity-70"
+                                    >
+                                        <Phone class="w-4 h-4 shrink-0" />
+                                        <span>{{ row.value }}</span>
+                                        <span class="text-xs text-muted-foreground"
+                                            >{{ row.label }}</span
+                                        >
+                                    </a>
+                                    <a
+                                        v-if="contact.email"
+                                        :href="`mailto:${contact.email}`"
+                                        class="flex items-center gap-2 text-sm text-primary active:opacity-70"
+                                    >
+                                        <Mail class="w-4 h-4 shrink-0" />
+                                        <span class="truncate">{{ contact.email }}</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Tasks -->
                     <div v-if="tasks.length" class="mt-4 border-t pt-3">
