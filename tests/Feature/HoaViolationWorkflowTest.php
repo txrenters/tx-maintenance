@@ -254,22 +254,95 @@ class HoaViolationWorkflowTest extends TestCase
         Queue::assertNotPushed(SendConversationMessageJob::class);
     }
 
-    public function test_no_reminder_once_the_deadline_has_passed(): void
+    public function test_no_reminder_once_the_five_message_window_is_spent(): void
     {
         config(['services.twilio.hoa_violation_sms' => true]);
         config(['services.twilio.maintenance_number' => '+12813787957']);
         Queue::fake();
-        $this->travelTo(Carbon::parse('2026-07-28 10:00:00')); // Tuesday, after deadline
+        $this->travelTo(Carbon::parse('2026-07-28 10:00:00')); // Tuesday
 
         $workOrder = $this->hoaWorkOrder($this->tenant());
+        // The intake text plus four daily reminders have all gone out; the
+        // tenant hears nothing further, whatever the deadline says.
         $this->hoaToken($workOrder, [
-            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
-            'last_notified_at' => Carbon::parse('2026-07-24 10:00:00'),
+            'notified_count' => 5,
+            'last_notified_at' => Carbon::parse('2026-07-27 10:00:00'),
         ]);
 
         $this->artisan('hoa:send-reminders')->assertSuccessful();
 
         Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    public function test_the_fourth_day_message_warns_that_a_vendor_will_be_sent(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-23 10:00:00')); // Thursday
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // Intake text (day 1) plus two reminders have gone out, so today's is
+        // the fourth message of the window.
+        $token = $this->hoaToken($workOrder, [
+            'notified_count' => 3,
+            'last_notified_at' => Carbon::parse('2026-07-22 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        $message = $workOrder->tenant_conversation()->firstOrFail()->message;
+        $this->assertStringContainsString("we'll need to send a vendor out to correct it", $message);
+        // Firm about the vendor, but the tenant still has their own way out.
+        $this->assertStringContainsString("If you've already taken care of it", $message);
+        $this->assertStringContainsString(route('tenant.portal.show', $token->token), $message);
+    }
+
+    public function test_the_final_message_follows_through_on_the_vendor(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-24 10:00:00')); // Friday
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // Four messages in; today's is the fifth and last, sent the same day
+        // staff get flagged to assign the vendor.
+        $this->hoaToken($workOrder, [
+            'notified_count' => 4,
+            'last_notified_at' => Carbon::parse('2026-07-23 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        $message = $workOrder->tenant_conversation()->firstOrFail()->message;
+        $this->assertStringContainsString("we'll be sending a vendor out to correct it", $message);
+        $this->assertStringNotContainsString('Any time this week', $message);
+    }
+
+    public function test_the_earlier_reminders_never_mention_a_vendor(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        // Days 2 and 3 just check in. Vendor talk starts with the day-4 warning
+        // and carries through the day-5 sign-off, never before.
+        foreach ([1, 2] as $index => $alreadySent) {
+            $this->travelTo(Carbon::parse('2026-07-21 10:00:00')->addDays($index));
+
+            $workOrder = $this->hoaWorkOrder($this->tenant());
+            $workOrder->update(['work_order_no' => 60200 + $alreadySent]);
+            $this->hoaToken($workOrder, [
+                'notified_count' => $alreadySent,
+                'last_notified_at' => now()->subDay(),
+            ]);
+
+            $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+            $message = $workOrder->tenant_conversation()->firstOrFail()->message;
+            $this->assertStringNotContainsString('vendor', $message);
+        }
     }
 
     public function test_an_overdue_violation_is_flagged_for_staff_once(): void

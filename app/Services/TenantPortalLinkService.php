@@ -22,6 +22,14 @@ class TenantPortalLinkService
     public const MAX_NOTIFICATIONS = 3; // 1 initial + 2 reminders
 
     /**
+     * HOA violations run a fixed five-business-day window: the notice text on
+     * day 1, then one reminder a day through day 5. The wording is chosen by
+     * which of those days it is, so the day-4 message can warn the tenant that
+     * a vendor is coming next.
+     */
+    public const HOA_MAX_NOTIFICATIONS = 5; // 1 initial + 4 daily reminders
+
+    /**
      * This work order's tenant token for the given purpose, created on first
      * use. The general PURPOSE_WORK_ORDER token is the one every automated
      * tenant message links to; the easy-fix and HOA purposes keep their own so
@@ -96,9 +104,9 @@ class TenantPortalLinkService
             }
 
             if ($token->purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION) {
-                // HOA reminders are daily and bounded by the notice deadline,
-                // not the easy-fix notification cap.
-                if ($token->hoa_deadline_at !== null && $token->hoa_deadline_at->isPast()) {
+                // HOA reminders are daily and bounded by their own five-message
+                // window, not the easy-fix notification cap.
+                if ($token->notified_count >= self::HOA_MAX_NOTIFICATIONS) {
                     return;
                 }
 
@@ -269,17 +277,22 @@ class TenantPortalLinkService
             $this->urlFor($token),
         );
 
-        // Rotate by how many notices have already gone out so a tenant getting
-        // daily reminders never receives the same wording twice in a row.
-        $index = max(0, (int) $token->notified_count) % count($variants);
+        // Pick by which day of the window this is, not by rotation: the intake
+        // text is day 1 (notified_count 1), so this reminder is day
+        // notified_count + 1 and the day-4 vendor warning always lands on the
+        // fourth message. Index 0 only comes up if the intake text never went
+        // out; clamping keeps a late run on the final day's wording.
+        $index = min(max(0, (int) $token->notified_count), count($variants) - 1);
 
         return $variants[$index]."\n(Ref: WO#{$ref})";
     }
 
     /**
-     * Several natural phrasings of the daily HOA reminder so the follow-ups read
-     * like a person checking in, not a bot repeating one templated line. Public
-     * + static so the demo seeder can show the same rotation.
+     * One phrasing per day of the HOA window, indexed by day: the follow-ups
+     * read like a person checking in rather than a bot repeating one templated
+     * line, and day 4 gives the tenant a polite heads-up that a vendor comes
+     * next. Index 0 is the day-agnostic wording, used only when the intake text
+     * never went out. Public + static so the demo seeder shows the same texts.
      *
      * @return array<int, string>
      */
@@ -293,8 +306,8 @@ class TenantPortalLinkService
             "{$greeting}just checking in from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Whenever you get a chance, please take care of it and send us a quick photo as proof using this secure link — no login needed: {$link}. Thanks so much for your help!",
             "{$greeting}following up from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. If it works for you, go ahead and handle it, then snap a photo through this link so we can confirm it — no login needed: {$link}. We really appreciate it!",
             "{$greeting}TexasRenters.com Maintenance here, touching base again about the HOA notice for your home (WO#{$ref}){$about}. Once it's sorted, a quick photo through this secure link lets us close it out: {$link}. Thank you!",
-            "{$greeting}a quick note from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. When you have a moment, please take care of it and share a photo here as confirmation: {$link}. Thanks for your help!",
-            "{$greeting}hope you're doing well — this is TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Any time this week is fine; just fix it up and send a photo through this secure link: {$link}. Much appreciated!",
+            "{$greeting}checking in once more from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. If you've already taken care of it, a quick photo through this secure link is all we need: {$link}. If it hasn't been handled yet, we'll need to send a vendor out to correct it. Thanks for your help!",
+            "{$greeting}hope you're doing well — this is TexasRenters.com Maintenance with a last note on the HOA notice for your home (WO#{$ref}){$about}. If it's been taken care of, just send a photo through this secure link and we'll close it out: {$link}. If not, we'll be sending a vendor out to correct it so the notice gets resolved. Much appreciated!",
         ];
     }
 

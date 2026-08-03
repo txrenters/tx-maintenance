@@ -126,7 +126,7 @@ class HoaViolationIntakeTest extends TestCase
         ]);
     }
 
-    public function test_the_notice_deadline_is_honored_when_stated(): void
+    public function test_the_notice_deadline_is_ignored_in_favour_of_the_fixed_window(): void
     {
         config(['services.hoa.pw_create_enabled' => false]);
         Storage::fake('public');
@@ -136,7 +136,8 @@ class HoaViolationIntakeTest extends TestCase
         $building = $this->building();
         $user = User::factory()->create();
 
-        // Notice says "resolve by 7/28/2026" — that beats the default window.
+        // Notice says "resolve by 7/28/2026", but every violation runs the same
+        // fixed 5-business-day window so the tenant messages stay identical.
         $this->actingAs($user)
             ->post(route('work_orders.hoa.store'), [
                 'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
@@ -150,7 +151,9 @@ class HoaViolationIntakeTest extends TestCase
             ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
             ->firstOrFail();
 
-        $this->assertSame('2026-07-28', $token->hoa_deadline_at->toDateString());
+        // 2026-07-07 (Tue) + 5 business days => 2026-07-14 (Tue), not the 7/28
+        // the notice asked for.
+        $this->assertSame('2026-07-14', $token->hoa_deadline_at->toDateString());
     }
 
     public function test_store_creates_one_work_order_per_notice(): void
