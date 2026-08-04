@@ -159,11 +159,7 @@ export function useMessageAlerts(options = {}) {
         }
 
         alerts.forEach((alert) => {
-            show(
-                `${alert.party} · WO#${alert.work_order_no ?? "—"}`,
-                alert.preview || "New message",
-                alert
-            );
+            show(titleFor(alert), alert.preview || "New message", alert);
         });
     };
 
@@ -201,12 +197,23 @@ export function useMessageAlerts(options = {}) {
         alerts.forEach((alert) => {
             pushBanner({
                 key: `alert-${alert.id}`,
-                title: `${alert.party} · WO#${alert.work_order_no ?? "—"}`,
+                // Lead with the person, not the number — "Sarah Mitchell ·
+                // Tenant · WO#990528" is recognisable where a number is not.
+                title: titleFor(alert),
                 body: alert.preview || "New message",
                 alert,
             });
         });
     };
+
+    const titleFor = (alert) =>
+        [
+            alert.from_name || alert.from,
+            alert.party,
+            alert.work_order_no ? `WO#${alert.work_order_no}` : null,
+        ]
+            .filter(Boolean)
+            .join(" · ");
 
     const openInbox = () => router.visit(inboxUrl);
 

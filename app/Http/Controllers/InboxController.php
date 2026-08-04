@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\WorkOrder;
+use App\Services\ConversationParticipants;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -26,6 +27,8 @@ class InboxController extends Controller
     private const PREVIEW_LENGTH = 120;
 
     private const STATUS_FILTERS = ['all', 'awaiting', 'unanswered_24h'];
+
+    public function __construct(private ConversationParticipants $participants) {}
 
     public function index(Request $request)
     {
@@ -102,8 +105,8 @@ class InboxController extends Controller
         return response()->json([
             'messages' => $messages,
             'work_order' => $workOrder,
-            'participants' => $this->participantsFor($workOrder),
-            'woc_phone_number' => $this->wocNumberFor($workOrder),
+            'participants' => $this->participants->mapFor($workOrder),
+            'woc_phone_number' => $this->participants->wocNumberFor($workOrder),
             'recipient_number' => $this->recipientFor($messages, $workOrder),
         ]);
     }
@@ -207,8 +210,8 @@ class InboxController extends Controller
             'conversation_type' => $row->conversation_type,
             'vendor_id' => $row->vendor_id ? (int) $row->vendor_id : null,
             'owner_id' => $row->owner_id ? (int) $row->owner_id : null,
-            'party' => $this->partyLabel($row->conversation_type),
-            'counterparty' => $this->counterpartyName($row, $workOrder),
+            'party' => $this->participants->partyLabel($row->conversation_type),
+            'counterparty' => $this->participants->counterpartyName($row, $workOrder),
             'preview' => $this->preview($row),
             'last_message_at' => $row->created_at,
             'waiting_hours' => (int) Carbon::parse($row->created_at)->diffInHours($now),
@@ -236,54 +239,6 @@ class InboxController extends Controller
     }
 
     /**
-     * Who the coordinator is talking to on this thread. Messages tagged with a
-     * vendor_id or owner_id name that record directly; legacy untagged rows fall
-     * back to the work order's only vendor/owner, then to the phone number.
-     */
-    private function counterpartyName(object $row, ?WorkOrder $workOrder): string
-    {
-        if (! $workOrder) {
-            return $row->sender_number ?? 'Unknown';
-        }
-
-        $name = match ($row->conversation_type) {
-            'vendor', 'vendor_tenant' => $this->vendorName($row, $workOrder),
-            'owner', 'vendor_owner' => $this->ownerName($row, $workOrder),
-            'tenant' => $this->tenantName($workOrder),
-            default => null,
-        };
-
-        return $name ?: ($row->sender_number ?? 'Unknown');
-    }
-
-    private function vendorName(object $row, WorkOrder $workOrder): ?string
-    {
-        if ($row->vendor_id) {
-            return $workOrder->vendors->firstWhere('id', $row->vendor_id)?->name;
-        }
-
-        return $workOrder->vendors->count() === 1
-            ? $workOrder->vendors->first()?->name
-            : null;
-    }
-
-    private function ownerName(object $row, WorkOrder $workOrder): ?string
-    {
-        $owner = $row->owner_id
-            ? $workOrder->owners->firstWhere('id', $row->owner_id)
-            : ($workOrder->owners->count() === 1 ? $workOrder->owners->first() : null);
-
-        return $owner ? (trim($owner->first_name.' '.$owner->last_name) ?: null) : null;
-    }
-
-    private function tenantName(WorkOrder $workOrder): ?string
-    {
-        $tenant = $workOrder->requested_by;
-
-        return $tenant ? (trim($tenant->first_name.' '.$tenant->last_name) ?: null) : null;
-    }
-
-    /**
      * The number a reply should go to: whoever last wrote in from the outside,
      * else whoever we last sent to.
      *
@@ -291,75 +246,15 @@ class InboxController extends Controller
      */
     private function recipientFor(Collection $messages, WorkOrder $workOrder): ?string
     {
-        $ourNumber = $this->phoneKey($this->wocNumberFor($workOrder));
+        $ourNumber = $this->participants->phoneKey(
+            $this->participants->wocNumberFor($workOrder)
+        );
 
         $inbound = $messages->last(
-            fn (Conversation $message) => $this->phoneKey($message->sender_number) !== $ourNumber
+            fn (Conversation $message) => $this->participants->phoneKey($message->sender_number) !== $ourNumber
         );
 
         return $inbound?->sender_number ?? $messages->last()?->receiver_number;
-    }
-
-    /**
-     * Names for every number that can appear in this work order's threads, in
-     * the shape MessageCard's `participants` prop expects.
-     *
-     * @return array<string, array{name: string, role: string, avatar: string}>
-     */
-    private function participantsFor(WorkOrder $workOrder): array
-    {
-        $participants = [];
-
-        $add = function (?string $phone, ?string $name, string $role, ?string $avatar = null) use (&$participants) {
-            $key = $this->phoneKey($phone);
-            $name = trim((string) $name);
-
-            if ($key === '' || $name === '' || isset($participants[$key])) {
-                return;
-            }
-
-            $participants[$key] = [
-                'name' => $name,
-                'role' => $role,
-                'avatar' => $avatar ?? '',
-            ];
-        };
-
-        foreach ($workOrder->vendors as $vendor) {
-            $add($vendor->twilio_number, $vendor->name, 'Vendor');
-            $add($vendor->user?->phone, $vendor->name, 'Vendor');
-        }
-
-        foreach ($workOrder->owners as $owner) {
-            $add($owner->phone, trim($owner->first_name.' '.$owner->last_name), 'Owner');
-        }
-
-        if ($tenant = $workOrder->requested_by) {
-            $add($tenant->mobile_phone, trim($tenant->first_name.' '.$tenant->last_name), 'Tenant');
-        }
-
-        $add(
-            $this->wocNumberFor($workOrder),
-            $workOrder->woc?->name,
-            'Coordinator',
-            $workOrder->woc?->profile_photo_url
-        );
-
-        return $participants;
-    }
-
-    private function wocNumberFor(WorkOrder $workOrder): ?string
-    {
-        // Same fallback the conversation tabs use via the shared Inertia prop.
-        return $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
-            ?? env('MAINTENANC_TWILIO_PHONE_NUMBER');
-    }
-
-    private function phoneKey(?string $value): string
-    {
-        $digits = preg_replace('/\D+/', '', (string) $value);
-
-        return strlen($digits) >= 10 ? substr($digits, -10) : '';
     }
 
     private function preview(object $row): string
@@ -371,17 +266,5 @@ class InboxController extends Controller
         }
 
         return mb_strimwidth($message, 0, self::PREVIEW_LENGTH, '…');
-    }
-
-    private function partyLabel(?string $conversationType): string
-    {
-        return match ($conversationType) {
-            'tenant' => 'Tenant',
-            'owner' => 'Owner',
-            'vendor' => 'Vendor',
-            'vendor_tenant' => 'Vendor–Tenant',
-            'vendor_owner' => 'Vendor–Owner',
-            default => 'Unknown',
-        };
     }
 }

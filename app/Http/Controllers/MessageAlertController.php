@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use App\Services\ConversationParticipants;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,6 +21,8 @@ class MessageAlertController extends Controller
     private const MAX_ALERTS = 5;
 
     private const PREVIEW_LENGTH = 140;
+
+    public function __construct(private ConversationParticipants $participants) {}
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -51,6 +54,7 @@ class MessageAlertController extends Controller
         $newCount = (clone $inbound)->where('work_order_conversations.id', '>', $afterId)->count();
 
         $alerts = (clone $inbound)
+            ->with(['work_order', 'work_order.vendors', 'work_order.owners', 'work_order.requested_by'])
             ->where('work_order_conversations.id', '>', $afterId)
             ->orderByDesc('work_order_conversations.id')
             ->limit(self::MAX_ALERTS)
@@ -71,7 +75,13 @@ class MessageAlertController extends Controller
                 'conversation_type' => $message->conversation_type,
                 'vendor_id' => $message->vendor_id,
                 'owner_id' => $message->owner_id,
-                'party' => $this->partyLabel($message->conversation_type),
+                'party' => $this->participants->partyLabel($message->conversation_type),
+                // Who it is, not just what number it came from — the banner
+                // leads with this so an alert is recognisable at a glance.
+                'from_name' => $this->participants->counterpartyName(
+                    $message,
+                    $message->work_order
+                ),
                 'from' => $message->sender_number,
                 'preview' => $this->preview($message),
             ])
@@ -94,8 +104,10 @@ class MessageAlertController extends Controller
      */
     private function inboundForUser(int $userId)
     {
+        // The whole work order row is loaded, not a trimmed select: naming the
+        // sender walks its vendors, owners and tenant, which need their foreign
+        // keys present.
         return Conversation::query()
-            ->with('work_order:id,work_order_no')
             ->join('work_orders as wo', 'wo.id', '=', 'work_order_conversations.work_order_id')
             ->where('work_order_conversations.is_read', false)
             ->where(fn ($query) => $query
@@ -113,17 +125,5 @@ class MessageAlertController extends Controller
         }
 
         return mb_strimwidth($body, 0, self::PREVIEW_LENGTH, '…');
-    }
-
-    private function partyLabel(?string $conversationType): string
-    {
-        return match ($conversationType) {
-            'tenant' => 'Tenant',
-            'owner' => 'Owner',
-            'vendor' => 'Vendor',
-            'vendor_tenant' => 'Vendor–Tenant',
-            'vendor_owner' => 'Vendor–Owner',
-            default => 'Message',
-        };
     }
 }

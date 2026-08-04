@@ -29,6 +29,15 @@ const iconFor = (banner) => {
 
     return PARTY_ICON[banner.alert.conversation_type] ?? Headset;
 };
+
+/** Two letters is enough to recognise a regular caller at a glance. */
+const initialsFor = (name) =>
+    String(name || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("") || "?";
 </script>
 
 <template>
@@ -39,27 +48,48 @@ const iconFor = (banner) => {
     >
         <TransitionGroup
             enter-active-class="transition duration-300 ease-out"
-            enter-from-class="-translate-y-3 opacity-0"
-            enter-to-class="translate-y-0 opacity-100"
+            enter-from-class="-translate-y-3 scale-95 opacity-0"
+            enter-to-class="translate-y-0 scale-100 opacity-100"
             leave-active-class="transition duration-200 ease-in absolute w-full"
-            leave-from-class="translate-y-0 opacity-100"
-            leave-to-class="-translate-y-3 opacity-0"
+            leave-from-class="translate-y-0 scale-100 opacity-100"
+            leave-to-class="-translate-y-3 scale-95 opacity-0"
             move-class="transition duration-200"
         >
             <button
                 v-for="banner in banners"
                 :key="banner.key"
                 type="button"
-                class="bg-card text-card-foreground hover:bg-accent pointer-events-auto flex w-full items-start gap-3 rounded-lg border p-3 text-left shadow-lg transition-colors"
+                class="bg-card text-card-foreground ring-destructive/30 hover:bg-accent pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-lg border py-3 pl-4 pr-3 text-left shadow-xl ring-1 transition-colors"
                 @click="emit('open', banner)"
             >
-                <span
-                    class="bg-destructive/10 text-destructive mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                >
-                    <component :is="iconFor(banner)" class="h-3.5 w-3.5" />
+                <!-- Accent bar: reads as "message" before any text is parsed. -->
+                <span class="bg-destructive absolute inset-y-0 left-0 w-1" />
+
+                <span class="relative mt-0.5 shrink-0">
+                    <span
+                        class="bg-destructive/10 text-destructive flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold"
+                    >
+                        {{ banner.alert ? initialsFor(banner.alert.from_name) : "" }}
+                        <MessagesSquare v-if="!banner.alert" class="h-4 w-4" />
+                    </span>
+                    <!-- Which conversation, badged onto the avatar. -->
+                    <span
+                        v-if="banner.alert"
+                        class="bg-card ring-border absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full ring-1"
+                    >
+                        <component
+                            :is="iconFor(banner)"
+                            class="text-muted-foreground h-2.5 w-2.5"
+                        />
+                    </span>
                 </span>
 
                 <span class="min-w-0 flex-1">
+                    <span
+                        class="text-destructive block text-[10px] font-bold uppercase tracking-wider"
+                    >
+                        New message
+                    </span>
                     <span class="block truncate text-sm font-semibold">
                         {{ banner.title }}
                     </span>

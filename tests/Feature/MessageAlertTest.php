@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Tenants;
 use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,6 +79,45 @@ class MessageAlertTest extends TestCase
         $response->assertJsonPath('alerts.0.party', 'Tenant');
         $response->assertJsonPath('alerts.0.preview', 'Any update?');
         $response->assertJsonPath('new_count', 1);
+    }
+
+    public function test_an_alert_names_the_person_who_wrote_in(): void
+    {
+        $coordinator = $this->user('woc');
+        $tenant = Tenants::factory()->create([
+            'first_name' => 'Sarah',
+            'last_name' => 'Mitchell',
+        ]);
+        $workOrder = WorkOrder::factory()->create([
+            'user_id' => $coordinator->id,
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $baseline = $this->message($workOrder, inbound: true);
+        $this->message($workOrder, inbound: true, attributes: ['message' => 'Any update?']);
+
+        $response = $this->actingAs($coordinator)
+            ->getJson(route('message_alerts', ['after_id' => $baseline->id]));
+
+        // A phone number is not recognisable; a name is.
+        $response->assertJsonPath('alerts.0.from_name', 'Sarah Mitchell');
+    }
+
+    public function test_an_alert_falls_back_to_the_number_when_nobody_matches(): void
+    {
+        $coordinator = $this->user('woc');
+        $workOrder = WorkOrder::factory()->create([
+            'user_id' => $coordinator->id,
+            'tenant_id' => null,
+        ]);
+
+        $baseline = $this->message($workOrder, inbound: true);
+        $this->message($workOrder, inbound: true, attributes: ['message' => 'Any update?']);
+
+        $response = $this->actingAs($coordinator)
+            ->getJson(route('message_alerts', ['after_id' => $baseline->id]));
+
+        $response->assertJsonPath('alerts.0.from_name', '+15125550000');
     }
 
     public function test_our_own_outbound_replies_never_alert(): void
