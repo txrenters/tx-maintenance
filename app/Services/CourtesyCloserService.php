@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Ai\Agents\CourtesyCloserAgent;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
- * Keeps the awaiting-reply features honest about courtesy closers.
+ * Keeps the awaiting-reply features honest about messages that need no reply.
  *
  * A tenant ending a conversation with "thank you!" leaves their thread's
  * newest message inbound, and every awaiting-reply feature (nav badge, Inbox,
@@ -16,11 +18,12 @@ use Illuminate\Support\Facades\Log;
  * nothing can flip is_read without destroying the direction information it
  * encodes.
  *
- * Instead, the scheduled classifier asks the AI which of the newest inbound
- * messages are pure courtesy closers and remembers the verdicts here, and the
- * consumers subtract those message ids. Every failure mode fails open:
- * unclassified, AI down, gate off, cache emptied — the thread simply counts
- * as awaiting, exactly as before this feature existed.
+ * Instead, the scheduled classifier shows the AI each thread's recent
+ * back-and-forth and asks whether the newest inbound message needs a reply or
+ * action from us; the no-reply verdicts are remembered here and the consumers
+ * subtract those message ids. Every failure mode fails open: unclassified, AI
+ * down, gate off, cache emptied — the thread simply counts as awaiting,
+ * exactly as before this feature existed.
  *
  * Verdicts are cached by message id. Conversation rows are never edited and
  * MAX(id) only moves forward, so a verdict can never attach to the wrong
@@ -35,14 +38,21 @@ class CourtesyCloserService
     private const CHECKED_KEY = 'inbox.courtesy_checked_ids';
 
     /**
-     * How many unchecked messages one run sends to the AI. Sized so the
-     * pre-existing backlog (~1000 awaiting threads at launch) drains within a
-     * few scheduled runs while keeping each prompt comfortably small.
+     * How many unchecked messages one run sends to the AI. Each ref carries
+     * its thread context, so this is sized to keep the prompt comfortably
+     * small; the pre-existing backlog (~1000 awaiting threads at launch)
+     * drains over the first few hours of scheduled runs.
      */
-    public const BATCH_LIMIT = 120;
+    public const BATCH_LIMIT = 50;
 
-    /** Longer than this is never a courtesy closer; judged locally, no AI. */
+    /** How many earlier messages of the thread the AI sees for context. */
+    private const CONTEXT_MESSAGES = 4;
+
+    /** Longer than this never needs-no-reply; judged locally, no AI. */
     private const OBVIOUS_LENGTH = 200;
+
+    /** Context lines are trimmed to this many characters. */
+    private const CONTEXT_EXCERPT = 160;
 
     public function __construct(
         private readonly WorkOrderRecommendationService $recommendations,
@@ -89,10 +99,10 @@ class CourtesyCloserService
         $unchecked = array_diff_key($candidates, $checked);
         $judged = 0;
 
-        // A long message is never a courtesy closer — settled here so the AI
-        // only ever sees short texts and truncation can never mislead it.
-        foreach ($unchecked as $id => $text) {
-            if (mb_strlen($text) > self::OBVIOUS_LENGTH) {
+        // A long message always needs a person — settled here so the AI only
+        // ever sees short texts and truncation can never mislead it.
+        foreach ($unchecked as $id => $row) {
+            if (mb_strlen($row->text) > self::OBVIOUS_LENGTH) {
                 $checked[$id] = true;
                 unset($unchecked[$id]);
                 $judged++;
@@ -141,7 +151,8 @@ class CourtesyCloserService
     }
 
     /**
-     * The newest inbound message of every thread, id => single-line text.
+     * The newest inbound message of every thread, id => row carrying the
+     * normalized text and the thread key needed to fetch its context.
      *
      * Mirrors AwaitingReplyCounter's grouping exactly — same thread key, same
      * MAX(id) — because these verdicts are subtracted from that count. MMS
@@ -149,7 +160,7 @@ class CourtesyCloserService
      * fixes arrive this way) and must never be waved off as a pleasantry, and
      * blank texts carry nothing to judge.
      *
-     * @return array<int, string>
+     * @return array<int, object>
      */
     private function candidates(): array
     {
@@ -162,29 +173,93 @@ class CourtesyCloserService
             ->where('c.is_read', false)
             ->where(fn ($query) => $query->where('c.is_mms', false)->orWhereNull('c.is_mms'))
             ->orderBy('c.id')
-            ->pluck('c.message', 'c.id')
-            ->map(fn ($message) => trim(preg_replace('/\s+/', ' ', (string) $message)))
-            ->filter(fn (string $message) => $message !== '')
+            ->get(['c.id', 'c.work_order_id', 'c.conversation_type', 'c.vendor_id', 'c.owner_id', 'c.message'])
+            ->keyBy('id')
+            ->map(function (object $row) {
+                $row->text = $this->normalize($row->message);
+
+                return $row;
+            })
+            ->filter(fn (object $row) => $row->text !== '')
             ->all();
     }
 
     /**
-     * @param  array<int, string>  $batch
+     * Each ref is one thread: its recent back-and-forth for context, ending
+     * with the newest message — the one actually being judged.
+     *
+     * @param  array<int, object>  $batch
      */
     private function buildPrompt(array $batch): string
     {
         $lines = [
-            'THE NEWEST UNANSWERED MESSAGE OF EACH CONVERSATION',
-            'Name the refs that are pure courtesy closers. Leave out every doubt.',
-            '',
+            'CONVERSATIONS WHOSE NEWEST MESSAGE NOBODY HAS ANSWERED',
+            'Name the refs whose newest message needs no reply and no action from us. Leave out every doubt.',
         ];
 
         $ref = 0;
 
-        foreach ($batch as $text) {
-            $lines[] = sprintf('- ref %d | they wrote: "%s"', ++$ref, $text);
+        foreach ($batch as $row) {
+            $lines[] = '';
+            $lines[] = sprintf('- ref %d | %s conversation', ++$ref, filled($row->conversation_type) ? $row->conversation_type : 'unknown');
+
+            foreach ($this->threadContext($row) as $earlier) {
+                $lines[] = sprintf('    %s: "%s"', $earlier->is_read ? 'us' : 'them', $this->contextExcerpt($earlier));
+            }
+
+            $lines[] = sprintf('    them (NEWEST, judge this): "%s"', $row->text);
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * The messages of the thread just before the judged one, oldest first.
+     * Same thread identity the candidates are grouped by: work order, party,
+     * vendor and owner, with blank and null treated alike.
+     *
+     * @return Collection<int, object>
+     */
+    private function threadContext(object $row): Collection
+    {
+        return DB::table('work_order_conversations')
+            ->where('work_order_id', $row->work_order_id)
+            ->when(
+                filled($row->conversation_type),
+                fn ($query) => $query->where('conversation_type', $row->conversation_type),
+                fn ($query) => $query->where(fn ($q) => $q->whereNull('conversation_type')->orWhere('conversation_type', ''))
+            )
+            ->when(
+                $row->vendor_id !== null,
+                fn ($query) => $query->where('vendor_id', $row->vendor_id),
+                fn ($query) => $query->whereNull('vendor_id')
+            )
+            ->when(
+                $row->owner_id !== null,
+                fn ($query) => $query->where('owner_id', $row->owner_id),
+                fn ($query) => $query->whereNull('owner_id')
+            )
+            ->where('id', '<', $row->id)
+            ->orderByDesc('id')
+            ->limit(self::CONTEXT_MESSAGES)
+            ->get(['message', 'is_read', 'is_mms'])
+            ->reverse()
+            ->values();
+    }
+
+    private function contextExcerpt(object $message): string
+    {
+        $text = Str::limit($this->normalize($message->message), self::CONTEXT_EXCERPT);
+
+        if ($message->is_mms) {
+            return trim('[photo attachment] '.$text);
+        }
+
+        return $text;
+    }
+
+    private function normalize(?string $message): string
+    {
+        return trim(preg_replace('/\s+/', ' ', (string) $message));
     }
 }

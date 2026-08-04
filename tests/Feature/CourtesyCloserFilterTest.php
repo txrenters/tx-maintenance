@@ -58,24 +58,31 @@ class CourtesyCloserFilterTest extends TestCase
     }
 
     /**
+     * prompt() type-hints its return, so the mock must hand back a real
+     * StructuredAgentResponse — an array would TypeError, which classify()
+     * swallows as an AI failure (fail-open) and no verdict would land.
+     *
      * @param  array<int, int>  $refs
      */
-    private function agentReturns(array $refs): void
+    private function response(array $refs): StructuredAgentResponse
     {
-        // prompt() type-hints its return, so the mock must hand back a real
-        // StructuredAgentResponse — an array would TypeError, which classify()
-        // swallows as an AI failure (fail-open) and no verdict would land.
-        $response = new StructuredAgentResponse(
+        return new StructuredAgentResponse(
             invocationId: 'test',
             structured: ['courtesy_refs' => $refs],
             text: json_encode(['courtesy_refs' => $refs]),
             usage: new Usage,
             meta: new Meta,
         );
+    }
 
+    /**
+     * @param  array<int, int>  $refs
+     */
+    private function agentReturns(array $refs): void
+    {
         $this->mock(CourtesyCloserAgent::class, fn ($mock) => $mock
             ->shouldReceive('prompt')
-            ->andReturn($response));
+            ->andReturn($this->response($refs)));
     }
 
     private function agentIsNeverAsked(): void
@@ -190,6 +197,39 @@ class CourtesyCloserFilterTest extends TestCase
 
         $this->artisan('inbox:classify-courtesy')->assertSuccessful();
 
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_the_ai_is_shown_the_recent_back_and_forth(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: false, text: 'Does Tuesday at 2pm work for the plumber?');
+        $this->message($workOrder, inbound: true, text: 'Yes');
+
+        $this->aiReady();
+
+        $prompt = null;
+
+        // Defined outside the mock's arrow function: an arrow fn captures by
+        // value, which would give `use (&$prompt)` a copy to write into.
+        $capture = function (string $given) use (&$prompt) {
+            $prompt = $given;
+
+            return $this->response([]);
+        };
+
+        $this->mock(CourtesyCloserAgent::class, fn ($mock) => $mock
+            ->shouldReceive('prompt')
+            ->andReturnUsing($capture));
+
+        $this->artisan('inbox:classify-courtesy')->assertSuccessful();
+
+        // The judgement is contextual: the AI sees what we asked, labelled as
+        // us, before the newest message it is judging.
+        $this->assertStringContainsString('us: "Does Tuesday at 2pm work for the plumber?"', $prompt);
+        $this->assertStringContainsString('them (NEWEST, judge this): "Yes"', $prompt);
+
+        // The agent returned no refs, so the answered-question thread counts.
         $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
     }
 
