@@ -284,6 +284,7 @@ class HoaViolationController extends Controller
 
         $created = 0;
         $failed = 0;
+        $localOnly = 0;
 
         foreach ($validated['notices'] as $notice) {
             $building = Building::query()->where('propertyware_id', $notice['building_id'])->first();
@@ -298,7 +299,7 @@ class HoaViolationController extends Controller
                 // The full original notice is attached to every property's work
                 // order (per IT lead: attach the whole document to the PW work
                 // order's DOCS), so no per-page splitting.
-                $intake->createFromNotice(
+                $result = $intake->createFromNotice(
                     $building,
                     $pdfContents,
                     [
@@ -314,6 +315,14 @@ class HoaViolationController extends Controller
                 );
 
                 $created++;
+
+                // A work order PropertyWare refused is created locally only: it
+                // has no work order number, never syncs, and its notice never
+                // reaches PropertyWare's DOCS. Silently reporting success for
+                // one is how every HOA create failed unnoticed until 2026-08-04.
+                if ($result['created'] && ! $result['pw_created']) {
+                    $localOnly++;
+                }
             } catch (\Throwable $exception) {
                 $failed++;
                 Log::error('HOA violation intake failed for a notice.', [
@@ -333,6 +342,12 @@ class HoaViolationController extends Controller
 
         if ($failed > 0) {
             $message .= " {$failed} could not be created — please retry those.";
+        }
+
+        if ($localOnly > 0) {
+            $message .= $localOnly === 1
+                ? ' 1 could not be created in PropertyWare and has no work order number — it will not sync. Please report it.'
+                : " {$localOnly} could not be created in PropertyWare and have no work order number — they will not sync. Please report them.";
         }
 
         return back()->with('success', $message);

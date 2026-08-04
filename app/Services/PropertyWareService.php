@@ -503,10 +503,23 @@ class PropertyWareService
      * PropertyWare work order ID, or null when the create fails (callers fall
      * back to a local-only work order).
      *
-     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string}  $data
+     * PropertyWare rejects a create with no location ("Location is invalid"),
+     * so callers must supply the building's PropertyWare location string — the
+     * same value every imported work order for that building already carries.
+     *
+     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string, location?: ?string}  $data
      */
     public function createWorkOrder(array $data): ?string
     {
+        if (blank($data['location'] ?? null)) {
+            Log::error('Refusing to create a PropertyWare work order without a location (PropertyWare rejects it).', [
+                'building_id' => $data['building_id'] ?? null,
+                'portfolio_id' => $data['portfolio_id'] ?? null,
+            ]);
+
+            return null;
+        }
+
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -523,6 +536,7 @@ class PropertyWareService
                         <portfolio xsi:type="urn:Portfolio">
                         <ID xsi:type="xsd:long">'.(int) $data['portfolio_id'].'</ID>
                         </portfolio>
+                        <location xsi:type="xsd:string">'.htmlspecialchars((string) $data['location'], ENT_XML1, 'UTF-8').'</location>
                         <category xsi:type="xsd:string">'.htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($data['type'] ?? '', ENT_XML1, 'UTF-8').'</type>

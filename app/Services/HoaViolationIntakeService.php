@@ -62,7 +62,11 @@ class HoaViolationIntakeService
 
         $this->attachNotice($workOrder, $pagePdfContents, $notice['file_name'] ?? null, $notice['mime'] ?? null);
         $this->applyEasyFixStatus($workOrder, $description, $created);
-        $this->openHoaToken($workOrder, $noticeDate);
+        $this->openHoaToken(
+            $workOrder,
+            $noticeDate,
+            ($notice['deadline_date'] ?? null) instanceof Carbon ? $notice['deadline_date'] : null,
+        );
 
         return [
             'work_order' => $workOrder->refresh(),
@@ -178,6 +182,7 @@ class HoaViolationIntakeService
                 'category' => config('services.hoa.pw_category'),
                 'description' => $description,
                 'type' => config('services.hoa.pw_type'),
+                'location' => $this->propertyWareLocationFor($building),
             ]);
 
             if ($propertywareId !== null) {
@@ -193,9 +198,12 @@ class HoaViolationIntakeService
             'building_propertyware_id' => $building->propertyware_id,
         ]);
 
+        // A local-only row never reaches PropertyWare, so it is not bound by the
+        // PW picklist the create payload has to satisfy — label it for what it
+        // is so staff can spot the orphan on the board.
         $workOrder = WorkOrder::create([
             'work_order_no' => null,
-            'category' => config('services.hoa.pw_category'),
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
             'type' => config('services.hoa.pw_type'),
             'description' => $description,
             'status' => 'Open',
@@ -209,6 +217,29 @@ class HoaViolationIntakeService
         ]);
 
         return [$workOrder, false];
+    }
+
+    /**
+     * PropertyWare requires a location on create and validates it against the
+     * building — omitting it fails the whole create with "Location is invalid",
+     * which is what silently turned every HOA intake into a local-only work
+     * order until 2026-08-04.
+     *
+     * PropertyWare's own location string for a building is already on every
+     * work order imported for it, so reuse the most recent one rather than
+     * guessing a format. Global scopes are bypassed deliberately: this runs
+     * from intake and from a queued job, where there may be no authenticated
+     * user and the fail-closed scope would otherwise hide every row.
+     */
+    private function propertyWareLocationFor(Building $building): ?string
+    {
+        return WorkOrder::withoutGlobalScopes()
+            ->where('building_id', $building->propertyware_id)
+            ->whereNotNull('propertyware_id')
+            ->whereNotNull('location')
+            ->where('location', '!=', '')
+            ->latest('id')
+            ->value('location');
     }
 
     private function importCreatedWorkOrder(string $propertywareId): ?WorkOrder
@@ -310,12 +341,12 @@ class HoaViolationIntakeService
 
     /**
      * The HOA token anchors the whole downstream workflow: portal link, daily
-     * reminders, deadline, escalation, and confirmation. Every violation runs
-     * the same fixed window of five business days, whatever deadline the notice
-     * itself stated, so the tenant messages are the same five every time and
-     * the day-4 vendor warning always lands on the same day.
+     * reminders, deadline, escalation, and confirmation. The tenant messages
+     * are the same five every time and the day-4 vendor warning always lands on
+     * the same day, because the reminder cadence counts sends (notified_count),
+     * not days — the deadline here only drives the vendor escalation.
      */
-    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate): void
+    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate, ?Carbon $statedDeadline = null): void
     {
         $existing = TenantUploadToken::query()
             ->where('work_order_id', $workOrder->id)
@@ -332,7 +363,7 @@ class HoaViolationIntakeService
             'work_order_id' => $workOrder->id,
             'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
             'hoa_notice_date' => $noticeDate->toDateString(),
-            'hoa_deadline_at' => $this->resolveDeadline($noticeDate),
+            'hoa_deadline_at' => $this->resolveDeadline($noticeDate, $statedDeadline),
         ]);
 
         // Send the tenant their link right away; the daily command handles
@@ -341,14 +372,28 @@ class HoaViolationIntakeService
     }
 
     /**
-     * The tenant always gets the same window: the configured business days from
-     * the notice date. A deadline the notice stated itself is deliberately not
-     * used — it made the reminder run a different length for every violation.
+     * The tenant gets the configured window of business days, but never counted
+     * from a date already in the past: notices reach us days or weeks after they
+     * were written, and counting from the notice date made a violation overdue
+     * the moment it was uploaded — flagging staff to send a vendor before the
+     * tenant had been given a single day to fix it.
+     *
+     * The HOA's own stated deadline caps it. Running past the date the
+     * association actually set would escalate too late to be any use, so
+     * whichever comes first wins.
      */
-    private function resolveDeadline(Carbon $noticeDate): Carbon
+    private function resolveDeadline(Carbon $noticeDate, ?Carbon $statedDeadline = null): Carbon
     {
-        return $noticeDate->copy()
+        $start = $noticeDate->isPast() ? now() : $noticeDate->copy();
+
+        $deadline = $start->copy()
             ->addWeekdays((int) config('services.hoa.deadline_business_days', 5))
             ->endOfDay();
+
+        if ($statedDeadline instanceof Carbon && $statedDeadline->copy()->endOfDay()->lt($deadline)) {
+            return $statedDeadline->copy()->endOfDay();
+        }
+
+        return $deadline;
     }
 }
