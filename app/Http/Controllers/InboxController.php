@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
+use App\Services\CourtesyCloserService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,10 @@ class InboxController extends Controller
      */
     private const PARTY_FILTERS = ['tenant', 'owner', 'vendor', 'vendor_tenant', 'vendor_owner'];
 
-    public function __construct(private ConversationParticipants $participants) {}
+    public function __construct(
+        private ConversationParticipants $participants,
+        private CourtesyCloserService $courtesyClosers,
+    ) {}
 
     public function index(Request $request)
     {
@@ -138,6 +142,11 @@ class InboxController extends Controller
      */
     private function threads(array $filters): Collection
     {
+        // Judged courtesy closers ("thank you") stop counting as awaiting: they
+        // are hidden from the awaiting filters but still listed under 'all',
+        // rendered as answered. See CourtesyCloserService — fails open.
+        $courtesyIds = $this->courtesyClosers->courtesyIds();
+
         $rows = DB::table('work_order_conversations as c')
             ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
@@ -163,6 +172,7 @@ class InboxController extends Controller
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+                    ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
             )
             ->orderByDesc('c.created_at')
             // Room to spare so the PHP-side search and age filters still have
@@ -179,7 +189,7 @@ class InboxController extends Controller
         $now = Carbon::now();
 
         return $rows
-            ->map(fn ($row) => $this->presentThread($row, $workOrders->get($row->work_order_id), $now))
+            ->map(fn ($row) => $this->presentThread($row, $workOrders->get($row->work_order_id), $now, $courtesyIds))
             ->when(
                 $filters['status'] === 'unanswered_24h',
                 fn (Collection $threads) => $threads->where('waiting_hours', '>=', 24)
@@ -228,11 +238,14 @@ class InboxController extends Controller
      */
     private function partyCounts(array $filters): array
     {
+        $courtesyIds = $this->courtesyClosers->courtesyIds();
+
         $counts = DB::table('work_order_conversations as c')
             ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+                    ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
             )
             ->when(
                 $filters['status'] === 'unanswered_24h',
@@ -251,9 +264,10 @@ class InboxController extends Controller
     }
 
     /**
+     * @param  array<int, int>  $courtesyIds
      * @return array<string, mixed>
      */
-    private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now): array
+    private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now, array $courtesyIds = []): array
     {
         return [
             'key' => implode(':', [
@@ -275,7 +289,8 @@ class InboxController extends Controller
             'waiting_hours' => (int) Carbon::parse($row->created_at)->diffInHours($now),
             // is_read is the de facto direction column (see BoardSummaryService):
             // 0 means the message came in from the outside and nobody replied.
-            'awaiting' => ! $row->is_read,
+            // A judged courtesy closer ("thank you") no longer waits on anyone.
+            'awaiting' => ! $row->is_read && ! in_array((int) $row->id, $courtesyIds, true),
             'twilio_status' => $row->twilio_status,
         ];
     }

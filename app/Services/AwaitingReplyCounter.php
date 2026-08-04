@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
  * outside: work_order_conversations has no direction column, but nothing ever
  * flips is_read from 0 to 1 — outbound writers set it true on insert and inbound
  * writers leave it false — so is_read is the direction.
+ *
+ * Threads whose newest message is a judged courtesy closer ("thank you", "ok
+ * great") are subtracted — see CourtesyCloserService, which fails open, so an
+ * unjudged thread always counts.
  */
 class AwaitingReplyCounter
 {
@@ -27,6 +31,8 @@ class AwaitingReplyCounter
 
     /** Counting past this is pointless; the badge renders it as "99+". */
     public const DISPLAY_CAP = 99;
+
+    public function __construct(private readonly CourtesyCloserService $courtesyClosers) {}
 
     public function cachedCount(): int
     {
@@ -54,9 +60,12 @@ class AwaitingReplyCounter
             ->selectRaw('MAX(id) as last_id')
             ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
 
+        $courtesyIds = $this->courtesyClosers->courtesyIds();
+
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->where('c.is_read', false)
+            ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds))
             ->count();
     }
 }

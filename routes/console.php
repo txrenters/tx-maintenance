@@ -138,3 +138,14 @@ Schedule::command('owner-emails:sync-replies')
     ->everyThreeMinutes()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Courtesy closers: ask the AI which newest inbound messages are just "thank
+// you" / "ok great" so the awaiting-reply badge, Inbox and unanswered report
+// stop holding those threads open. Fails open - an unjudged message or an AI
+// outage means the thread simply keeps counting as awaiting. Internal-only;
+// COURTESY_CLOSER_FILTER_ENABLED=false switches the filtering off without
+// losing stored verdicts.
+Schedule::command('inbox:classify-courtesy')
+    ->everyTenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();

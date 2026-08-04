@@ -203,4 +203,16 @@ return [
         'vendor_notify_enabled' => env('JOBBER_VENDOR_NOTIFY_ENABLED', true),
     ],
 
+    'inbox' => [
+        // AI filter that drops pure courtesy closers ("thank you", "ok
+        // great") out of the awaiting-reply badge, Inbox counts, board
+        // summary and unanswered report. Verdicts are cached message ids, so
+        // switching this off restores the full counts immediately without
+        // losing them. The filter fails open: an unjudged thread, AI outage
+        // or emptied cache just means the thread keeps counting as awaiting.
+        // Internal-only — nothing here ever messages a tenant, owner or
+        // vendor.
+        'courtesy_filter' => env('COURTESY_CLOSER_FILTER_ENABLED', true),
+    ],
+
 ];
