@@ -293,11 +293,17 @@ const navs = computed(() => {
                 url: "#",
                 icon: Globe,
                 isActive:
+                    page.component === "Inbox/Index" ||
                     page.component === "ConversationLogs" ||
                     page.component === "TwilioMessageSearch",
                 items: [
                     {
-                        title: "Conversations",
+                        title: "Inbox",
+                        url: route("inbox.index"),
+                        isActive: page.component === "Inbox/Index",
+                    },
+                    {
+                        title: "Message Log",
                         url: route("conversation_logs.index"),
                         isActive: page.component === "ConversationLogs",
                     },
