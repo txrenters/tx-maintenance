@@ -105,6 +105,9 @@ export function useMessageAlerts(options = {}) {
 
     const supported = computed(() => permission.value !== "unsupported");
 
+    /** Banners currently on screen. Rendered by MessageAlertToast. */
+    const banners = ref([]);
+
     const poll = async () => {
         if (inFlight) return;
         inFlight = true;
@@ -118,7 +121,7 @@ export function useMessageAlerts(options = {}) {
             cursor = data.latest_id ?? cursor;
 
             // The very first response only sets the mark.
-            if (previousCursor === null || !enabled.value) return;
+            if (previousCursor === null) return;
 
             announce(data.alerts ?? [], data.new_count ?? 0);
         } catch {
@@ -128,8 +131,17 @@ export function useMessageAlerts(options = {}) {
         }
     };
 
+    /**
+     * Raise a banner in the page for every arrival, and additionally chime and
+     * pop up on the desktop when the coordinator has switched those on. The
+     * banner needs no permission, so the app always shows something.
+     */
     const announce = (alerts, newCount) => {
         if (!alerts.length) return;
+
+        raiseBanners(alerts, newCount);
+
+        if (!enabled.value) return;
 
         chime.play();
 
@@ -154,6 +166,49 @@ export function useMessageAlerts(options = {}) {
             );
         });
     };
+
+    /** How long a banner stays before it fades out on its own. */
+    const BANNER_MS = 6000;
+
+    /** More than this on screen at once is a wall, not a notification. */
+    const MAX_BANNERS = 3;
+
+    let bannerSeq = 0;
+
+    const dismissBanner = (key) => {
+        banners.value = banners.value.filter((banner) => banner.key !== key);
+    };
+
+    const pushBanner = (banner) => {
+        banners.value = [...banners.value, banner].slice(-MAX_BANNERS);
+
+        setTimeout(() => dismissBanner(banner.key), BANNER_MS);
+    };
+
+    const raiseBanners = (alerts, newCount) => {
+        // A burst collapses to one line rather than stacking.
+        if (newCount > alerts.length) {
+            pushBanner({
+                key: `burst-${(bannerSeq += 1)}`,
+                title: `${newCount} new messages`,
+                body: "Open the Inbox to see who is waiting.",
+                alert: null,
+            });
+
+            return;
+        }
+
+        alerts.forEach((alert) => {
+            pushBanner({
+                key: `alert-${alert.id}`,
+                title: `${alert.party} · WO#${alert.work_order_no ?? "—"}`,
+                body: alert.preview || "New message",
+                alert,
+            });
+        });
+    };
+
+    const openInbox = () => router.visit(inboxUrl);
 
     const show = (title, body, alert) => {
         try {
@@ -209,5 +264,17 @@ export function useMessageAlerts(options = {}) {
 
     onUnmounted(stop);
 
-    return { enabled, permission, supported, toggle, enable, disable, start, stop };
+    return {
+        enabled,
+        permission,
+        supported,
+        banners,
+        dismissBanner,
+        openInbox,
+        toggle,
+        enable,
+        disable,
+        start,
+        stop,
+    };
 }

@@ -101,6 +101,7 @@ import {
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
+import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 const page = usePage();
@@ -179,14 +180,21 @@ const messageAlerts = useMessageAlerts({
     inboxUrl: route("inbox.index"),
 });
 
+const openMessageAlert = (banner) => {
+    messageAlerts.dismissBanner(banner.key);
+    messageAlerts.openInbox();
+};
+
+// The in-page banner always shows; this only governs the extras that need
+// permission or make noise.
 const messageAlertsTitle = computed(() => {
     if (!messageAlerts.enabled.value) {
-        return "Turn on new-message sound and alerts";
+        return "New messages show on screen — turn on sound and desktop alerts";
     }
 
     return messageAlerts.permission.value === "granted"
-        ? "New-message sound and alerts are on"
-        : "Sound is on — allow notifications in your browser for popups";
+        ? "Sound and desktop alerts are on"
+        : "Sound is on — allow notifications in your browser for desktop alerts";
 });
 
 const navs = computed(() => {
@@ -1720,6 +1728,13 @@ onUnmounted(() => {
                 <Toaster />
                 <slot />
             </div>
+
+            <MessageAlertToast
+                v-if="canReceiveMessageAlerts"
+                :banners="messageAlerts.banners.value"
+                @open="openMessageAlert"
+                @dismiss="messageAlerts.dismissBanner"
+            />
 
             <!--
                 Floating summary button, pinned to the bottom-right of the board
