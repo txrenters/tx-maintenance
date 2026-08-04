@@ -10,8 +10,8 @@ import { Textarea } from "@/Components/ui/textarea";
  *
  * The tabs differ in who they address and what they put in the request, so
  * sending stays in the tab; everything below the thread — the message body, the
- * work order reference suffix, attachments and the keyboard handling — lives
- * here so the nine tabs behave identically.
+ * work order reference suffix and attachments — lives here so the nine tabs
+ * behave identically. Enter inserts a new line; only the Send button sends.
  */
 const props = defineProps({
     /** The raw body the coordinator typed, without the reference suffix. */
@@ -169,13 +169,6 @@ const submit = () => {
     });
 };
 
-const onEnter = (event) => {
-    // Never send mid-composition — IME candidate selection also fires Enter.
-    if (event.isComposing) return;
-    event.preventDefault();
-    submit();
-};
-
 /** Called by the parent once the send succeeds. */
 const reset = () => {
     emit("update:modelValue", "");
@@ -250,7 +243,6 @@ defineExpose({ reset, insert });
             :disabled="disabled || sending"
             :maxlength="maxLength"
             @input="autoResize"
-            @keydown.enter.exact="onEnter"
         />
 
         <div class="mt-2 flex items-center justify-between gap-2">
@@ -267,7 +259,7 @@ defineExpose({ reset, insert });
                 <span
                     class="text-muted-foreground hidden truncate text-xs sm:inline"
                 >
-                    Enter to send · Shift+Enter for a new line
+                    Enter for a new line · click Send when ready
                 </span>
             </div>
 
