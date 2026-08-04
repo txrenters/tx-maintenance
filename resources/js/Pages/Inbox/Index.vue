@@ -13,6 +13,7 @@ import { Input } from "@/Components/ui/input";
 import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Skeleton } from "@/Components/ui/skeleton";
 import { useThreadScroll } from "@/composables/useThreadScroll";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import { waitedLabel } from "@/utils/conversation";
 import {
     ExternalLink,
@@ -37,6 +38,10 @@ const props = defineProps({
 
 const { toast } = useToast();
 const { bottomAnchor, scrollToBottom } = useThreadScroll();
+
+// The modal itself is mounted once in AppLayout; this opens that same one, so
+// a work order can be read without losing the thread you are in.
+const { state: workOrderModal, open: openWorkOrder } = useWorkOrderModal();
 
 const search = ref(props.filters.search ?? "");
 const activeKey = ref(null);
@@ -160,6 +165,24 @@ const refreshThread = async () => {
         await openThread(activeThread.value);
     }
 };
+
+/**
+ * The modal can send messages and change a work order, so the list behind it
+ * would otherwise keep showing the old awaiting flag — the one signal this
+ * page exists for. Only the thread that was actually opened is refetched.
+ */
+watch(
+    () => workOrderModal.isOpen,
+    (isOpen, wasOpen) => {
+        if (!wasOpen || isOpen) return;
+
+        reload();
+
+        if (activeThread.value?.work_order_id === workOrderModal.workOrderId) {
+            refreshThread();
+        }
+    }
+);
 
 const sendMessage = ({ text, files }) => {
     const recipient = thread.value?.recipient_number;
@@ -327,7 +350,21 @@ const sendMessage = ({ text, files }) => {
                             </span>
                         </div>
                         <p class="text-muted-foreground truncate text-xs">
-                            WO#{{ item.work_order_no }} · {{ item.party }}
+                            <!-- Nested inside the row button, so a span rather
+                                 than a button — same pattern as the toast's
+                                 dismiss control. -->
+                            <span
+                                role="button"
+                                tabindex="0"
+                                class="hover:text-foreground focus-visible:ring-ring rounded underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1"
+                                title="Open this work order"
+                                @click.stop="openWorkOrder(item.work_order_id)"
+                                @keydown.enter.stop.prevent="openWorkOrder(item.work_order_id)"
+                                @keydown.space.stop.prevent="openWorkOrder(item.work_order_id)"
+                            >
+                                WO#{{ item.work_order_no }}
+                            </span>
+                            · {{ item.party }}
                         </p>
                         <p class="text-muted-foreground mt-0.5 truncate text-xs">
                             {{ item.preview || "No message body" }}
@@ -365,7 +402,14 @@ const sendMessage = ({ text, files }) => {
                             </span>
                         </p>
                         <p class="text-muted-foreground truncate text-xs">
-                            WO#{{ activeThread?.work_order_no }}
+                            <button
+                                type="button"
+                                class="hover:text-foreground focus-visible:ring-ring rounded font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1"
+                                title="Open this work order"
+                                @click="openWorkOrder(activeThread.work_order_id)"
+                            >
+                                WO#{{ activeThread?.work_order_no }}
+                            </button>
                             <span v-if="activeThread?.work_order_description">
                                 — {{ activeThread.work_order_description }}
                             </span>
