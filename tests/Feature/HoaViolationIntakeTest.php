@@ -48,6 +48,8 @@ class HoaViolationIntakeTest extends TestCase
     {
         $mock = Mockery::mock(PropertyWareService::class);
         $mock->shouldReceive('createWorkOrder')->andReturn($createdId);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
         $mock->shouldReceive('getWorkOrder')->andReturn(['number' => 55123]);
         $mock->shouldReceive('getWorkOrderByNumber')->andReturn([]);
         $mock->shouldReceive('uploadWorkOrderPdf')->andReturn('doc-1');
@@ -407,6 +409,8 @@ class HoaViolationIntakeTest extends TestCase
 
         $captured = null;
         $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
         $mock->shouldReceive('createWorkOrder')
             ->once()
             ->andReturnUsing(function (array $data) use (&$captured) {
@@ -429,14 +433,14 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        // PropertyWare rejects unknown picklist values, so the create must use an
-        // existing valid type/category — never the 'HOA Violation' label.
-        $this->assertSame('General Maintenance', $captured['category']);
+        // PropertyWare's category picklist accepts "HOA Violation" (verified by
+        // a live create on 2026-08-04), so violations are filed under their real
+        // name and the board card no longer reads "General Maintenance".
+        $this->assertSame('HOA Violation', $captured['category']);
         $this->assertSame('General', $captured['type']);
-        $this->assertNotSame('HOA Violation', $captured['category']);
     }
 
-    public function test_pw_create_sends_the_buildings_propertyware_location(): void
+    public function test_pw_create_sends_the_buildings_propertyware_location_and_unit(): void
     {
         config(['services.hoa.pw_create_enabled' => true]);
         Storage::fake('public');
@@ -444,19 +448,18 @@ class HoaViolationIntakeTest extends TestCase
 
         $building = $this->building();
 
-        // PropertyWare validates the location against the building and fails the
-        // whole create with "Location is invalid" when it is missing — which is
-        // what silently turned every HOA intake into a local-only work order.
-        // Its own string for a building is already on every work order imported
-        // for it, so the create reuses the most recent one.
-        WorkOrder::factory()->create([
-            'building_id' => $building->propertyware_id,
-            'propertyware_id' => 6244040781,
-            'location' => 'MULLERJJ 3235QUARRYPL',
-        ]);
-
+        // PropertyWare validates the create against its "Location" (the unit)
+        // and rejects the whole call with "Location is invalid" unless the
+        // piped location string and unit ID both match what it has on record —
+        // which is what silently turned every HOA intake into a local-only work
+        // order. Both are copied off the newest work order PropertyWare itself
+        // holds for the building.
         $captured = null;
         $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->once()
+            ->with($building->propertyware_id)
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
         $mock->shouldReceive('createWorkOrder')
             ->once()
             ->andReturnUsing(function (array $data) use (&$captured) {
@@ -478,7 +481,8 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        $this->assertSame('MULLERJJ 3235QUARRYPL', $captured['location']);
+        $this->assertSame('MULLERJJ | 3235QUARRYPL', $captured['location']);
+        $this->assertSame(4209311746, $captured['unit_id']);
     }
 
     public function test_a_work_order_propertyware_refused_is_reported_to_staff(): void
@@ -517,7 +521,7 @@ class HoaViolationIntakeTest extends TestCase
     public function test_pw_create_is_refused_outright_when_no_location_can_be_resolved(): void
     {
         // Rather than let PropertyWare fail the create, the service declines to
-        // send a payload it knows will be rejected.
+        // send a payload it knows will be rejected ("Location is invalid").
         $this->assertNull(app(PropertyWareService::class)->createWorkOrder([
             'building_id' => 7001,
             'portfolio_id' => 900,
@@ -525,6 +529,7 @@ class HoaViolationIntakeTest extends TestCase
             'description' => 'Remove weeds from the driveway.',
             'type' => 'General',
             'location' => null,
+            'unit_id' => null,
         ]));
     }
 

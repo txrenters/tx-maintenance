@@ -176,13 +176,16 @@ class HoaViolationIntakeService
     private function createWorkOrder(Building $building, string $description): array
     {
         if (config('services.hoa.pw_create_enabled')) {
+            [$location, $unitId] = $this->propertyWareLocationFor($building);
+
             $propertywareId = $this->propertyWare->createWorkOrder([
                 'building_id' => $building->propertyware_id,
                 'portfolio_id' => $building->portfolio_id,
                 'category' => config('services.hoa.pw_category'),
                 'description' => $description,
                 'type' => config('services.hoa.pw_type'),
-                'location' => $this->propertyWareLocationFor($building),
+                'location' => $location,
+                'unit_id' => $unitId,
             ]);
 
             if ($propertywareId !== null) {
@@ -220,26 +223,28 @@ class HoaViolationIntakeService
     }
 
     /**
-     * PropertyWare requires a location on create and validates it against the
-     * building — omitting it fails the whole create with "Location is invalid",
-     * which is what silently turned every HOA intake into a local-only work
-     * order until 2026-08-04.
+     * PropertyWare validates a create against its "Location" (the unit) and
+     * fails the whole call with "Location is invalid" unless the piped
+     * "PORTFOLIO | BUILDING" location string and the unit ID both match what it
+     * has on record — omitting them is what silently turned every HOA intake
+     * into a local-only work order until 2026-08-04.
      *
-     * PropertyWare's own location string for a building is already on every
-     * work order imported for it, so reuse the most recent one rather than
-     * guessing a format. Global scopes are bypassed deliberately: this runs
-     * from intake and from a queued job, where there may be no authenticated
-     * user and the fail-closed scope would otherwise hide every row.
+     * Rather than reconstruct either value (the local rows only carry the REST
+     * variant of the string, without the pipe), copy both off the newest work
+     * order PropertyWare itself holds for the building. A building with no work
+     * order history yields nulls, and createWorkOrder then refuses rather than
+     * send a payload PropertyWare is known to reject.
+     *
+     * @return array{0: ?string, 1: int|string|null}
      */
-    private function propertyWareLocationFor(Building $building): ?string
+    private function propertyWareLocationFor(Building $building): array
     {
-        return WorkOrder::withoutGlobalScopes()
-            ->where('building_id', $building->propertyware_id)
-            ->whereNotNull('propertyware_id')
-            ->whereNotNull('location')
-            ->where('location', '!=', '')
-            ->latest('id')
-            ->value('location');
+        $latest = $this->propertyWare->getLatestWorkOrderForBuilding($building->propertyware_id);
+
+        return [
+            $latest['location'] ?? null,
+            $latest['unitIDs'][0] ?? null,
+        ];
     }
 
     private function importCreatedWorkOrder(string $propertywareId): ?WorkOrder

@@ -497,22 +497,61 @@ class PropertyWareService
     }
 
     /**
+     * The newest PropertyWare work order for a building, straight from SOAP.
+     * Used to learn how PropertyWare itself refers to the building — its piped
+     * "PORTFOLIO | BUILDING" location string and its unit ID — before creating
+     * a new work order there (see createWorkOrder).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getLatestWorkOrderForBuilding($buildingId): ?array
+    {
+        try {
+            $client = $this->initiate();
+
+            $response = $client->getWorkOrders([
+                'buildingId' => (int) $buildingId,
+                'orderByNewestFirst' => true,
+            ]);
+
+            $workOrders = json_decode(json_encode($response), true);
+
+            return is_array($workOrders) ? ($workOrders[0] ?? null) : null;
+        } catch (Exception $e) {
+            Log::error('Fetching the latest PropertyWare work order for a building failed: '.$e->getMessage(), [
+                'building_id' => $buildingId,
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
      * Create a brand-new work order in PropertyWare (SOAP). Everything else in
      * this service assumes work orders originate in PropertyWare, so HOA intake
      * creates there first and imports the row back. Returns the new
      * PropertyWare work order ID, or null when the create fails (callers fall
      * back to a local-only work order).
      *
-     * PropertyWare rejects a create with no location ("Location is invalid"),
-     * so callers must supply the building's PropertyWare location string — the
-     * same value every imported work order for that building already carries.
+     * PropertyWare validates the create against its "Location" — the unit — and
+     * rejects the whole call with "Location is invalid" unless BOTH the piped
+     * "PORTFOLIO | BUILDING" location string and the unit ID match what it has
+     * on record. Neither is optional: omitting them is why every HOA create
+     * silently failed until 2026-08-04. Callers should copy both off an
+     * existing work order for the building (getLatestWorkOrderForBuilding)
+     * rather than reconstruct them.
      *
-     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string, location?: ?string}  $data
+     * Sent through the WSDL-aware SoapClient rather than hand-built XML so the
+     * encoding (notably the unitIDs array) is always what the service expects.
+     * The scalar zero/false fields are required by the schema; PropertyWare
+     * assigns the real ID and number.
+     *
+     * @param  array{building_id: int|string, portfolio_id: int|string, category: string, description: string, type?: string, unit_id?: int|string|null, location?: ?string}  $data
      */
     public function createWorkOrder(array $data): ?string
     {
-        if (blank($data['location'] ?? null)) {
-            Log::error('Refusing to create a PropertyWare work order without a location (PropertyWare rejects it).', [
+        if (blank($data['unit_id'] ?? null) || blank($data['location'] ?? null)) {
+            Log::error('Refusing to create a PropertyWare work order without its unit and location (PropertyWare rejects the create as "Location is invalid").', [
                 'building_id' => $data['building_id'] ?? null,
                 'portfolio_id' => $data['portfolio_id'] ?? null,
             ]);
@@ -520,62 +559,58 @@ class PropertyWareService
             return null;
         }
 
-        $xmlPayload = '
-                <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                xmlns:ser="http://service.web.propertyware.realpage.com"
-                xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
-                <soapenv:Header/>
-                    <soapenv:Body>
-                    <ser:createWorkOrder soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-                    <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
-                        <building xsi:type="urn:Building">
-                        <ID xsi:type="xsd:long">'.(int) $data['building_id'].'</ID>
-                        </building>
-                        <portfolio xsi:type="urn:Portfolio">
-                        <ID xsi:type="xsd:long">'.(int) $data['portfolio_id'].'</ID>
-                        </portfolio>
-                        <location xsi:type="xsd:string">'.htmlspecialchars((string) $data['location'], ENT_XML1, 'UTF-8').'</location>
-                        <category xsi:type="xsd:string">'.htmlspecialchars($data['category'] ?? '', ENT_XML1, 'UTF-8').'</category>
-                        <description xsi:type="xsd:string">'.htmlspecialchars($data['description'] ?? '', ENT_XML1, 'UTF-8').'</description>
-                        <type xsi:type="xsd:string">'.htmlspecialchars($data['type'] ?? '', ENT_XML1, 'UTF-8').'</type>
-                    </workOrder>
-                    </ser:createWorkOrder>
-                    </soapenv:Body>
-                </soapenv:Envelope>';
+        try {
+            $client = $this->initiate();
 
-        $res = $this->execute($xmlPayload);
+            $created = $client->createWorkOrder([
+                'ID' => 0,
+                'approved' => false,
+                'costEstimate' => 0.0,
+                'hourEstimate' => 0.0,
+                'number' => 0,
+                'priorityAsInt' => 2,
+                'totalHourWorked' => 0.0,
+                'portfolio' => [
+                    'ID' => (int) $data['portfolio_id'],
+                    'active' => true,
+                    'managementFlatFee' => 0.0,
+                    'targetOperatingReserve' => 0.0,
+                ],
+                'unitIDs' => [(int) $data['unit_id']],
+                'location' => (string) $data['location'],
+                'category' => (string) ($data['category'] ?? ''),
+                'type' => (string) ($data['type'] ?? ''),
+                'status' => 'Open',
+                'description' => (string) ($data['description'] ?? ''),
+            ]);
 
-        if (! $res['success']) {
+            $propertywareId = is_object($created) && ! empty($created->ID) ? (string) $created->ID : null;
+
+            if ($propertywareId !== null) {
+                Log::info('Work order created in PropertyWare', [
+                    'propertyware_id' => $propertywareId,
+                    'building_id' => $data['building_id'] ?? null,
+                ]);
+
+                return $propertywareId;
+            }
+
+            Log::error('PropertyWare createWorkOrder returned no ID.', [
+                'building_id' => $data['building_id'] ?? null,
+            ]);
+
+            return null;
+        } catch (Throwable $exception) {
             Log::error('Failed to create work order in PropertyWare', [
                 'building_id' => $data['building_id'] ?? null,
                 'portfolio_id' => $data['portfolio_id'] ?? null,
                 'category' => $data['category'] ?? null,
-                'error' => $res['error'] ?? null,
-                'message' => $res['message'] ?? null,
+                'error' => $exception instanceof \SoapFault ? 'SOAP_FAULT' : get_class($exception),
+                'message' => $exception->getMessage(),
             ]);
 
             return null;
         }
-
-        // The response echoes the created WorkOrder; its first <ID> node is the
-        // new PropertyWare work order ID.
-        if (preg_match('/<ID[^>]*>(\d+)<\/ID>/', (string) ($res['response'] ?? ''), $matches)) {
-            Log::info('Work order created in PropertyWare', [
-                'propertyware_id' => $matches[1],
-                'building_id' => $data['building_id'] ?? null,
-            ]);
-
-            return $matches[1];
-        }
-
-        Log::error('PropertyWare createWorkOrder succeeded but no ID found in response.', [
-            'building_id' => $data['building_id'] ?? null,
-            'response_excerpt' => substr((string) ($res['response'] ?? ''), 0, 500),
-        ]);
-
-        return null;
     }
 
     public function updateWorkOrder($workOrder, array $changes = [])
