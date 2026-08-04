@@ -11,7 +11,6 @@ use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -1034,13 +1033,7 @@ class PropertyWareService
         // job and store its link on the work order. Queued + gated + idempotent,
         // so this is safe to fire on every vendor change. Replaces the previous
         // POST to the n8n "create-job" workflow (now owned in-app).
-        $hasThmp = DB::table('work_order_vendors')
-            ->join('vendors', 'vendors.id', '=', 'work_order_vendors.vendor_id')
-            ->where('work_order_vendors.work_order_id', $workOrder->id)
-            ->where('vendors.name', 'Texas Home Maintenance Pros')
-            ->exists();
-
-        if ($hasThmp) {
+        if (Vendor::isThmpAssignedToWorkOrder($workOrder->id)) {
             CreateJobberJobForWorkOrder::dispatch($workOrder->id);
         }
 

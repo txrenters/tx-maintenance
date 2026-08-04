@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class Vendor extends Model
@@ -57,6 +58,20 @@ class Vendor extends Model
     public function isThmp(): bool
     {
         return Str::lower(trim((string) $this->name)) === Str::lower(self::THMP_NAME);
+    }
+
+    /**
+     * True when THMP is among the vendors assigned to the given work order.
+     * Matches the same trimmed, case-insensitive rule as isThmp() so a vendor
+     * record with stray whitespace or different casing is still detected.
+     */
+    public static function isThmpAssignedToWorkOrder(int $workOrderId): bool
+    {
+        return DB::table('work_order_vendors')
+            ->join('vendors', 'vendors.id', '=', 'work_order_vendors.vendor_id')
+            ->where('work_order_vendors.work_order_id', $workOrderId)
+            ->whereRaw('LOWER(TRIM(vendors.name)) = ?', [Str::lower(trim(self::THMP_NAME))])
+            ->exists();
     }
 
     public function workOrders(): BelongsToMany

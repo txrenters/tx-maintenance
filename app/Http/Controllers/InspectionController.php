@@ -11,6 +11,7 @@ use App\Models\JobberToken;
 use App\Models\Owner;
 use App\Models\Tenants;
 use App\Models\Vendor;
+use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -430,8 +431,8 @@ class InspectionController extends Controller
 
         $query = http_build_query([
             'response_type' => 'code',
-            'client_id' => env('JOBBER_CLIENT_ID'),
-            'redirect_uri' => env('JOBBER_CALLBACK_URL'),
+            'client_id' => config('services.jobber.client_id'),
+            'redirect_uri' => config('services.jobber.callback_url'),
             'state' => $state,
         ]);
 
@@ -446,23 +447,10 @@ class InspectionController extends Controller
         }
 
         try {
-            // First check if we have a valid token
-            $token = JobberToken::first();
-
-            if (! $token || ! $token->access_token) {
-                return response()->json([
-                    'error' => 'No Jobber connection',
-                    'message' => 'Please connect to Jobber first',
-                    'needs_reconnect' => true,
-                ], 400);
-            }
-
-            // Try to validate the token by attempting a refresh if needed
-            $authController = new JobberAuthController;
+            // A valid token (refreshed here if needed) is required before syncing.
             try {
-                $authController->ensureValidToken();
+                app(JobberTokenService::class)->getAccessToken();
             } catch (\Exception $tokenException) {
-                // Token is invalid or expired
                 return response()->json([
                     'error' => 'Invalid token',
                     'message' => 'Jobber connection expired. Please reconnect.',

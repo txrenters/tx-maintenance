@@ -1084,6 +1084,14 @@ onUnmounted(() => {
                                 <a href="/log-viewer"><GlobeLock /> Logs</a>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton as-child>
+                                <Link href="/it-tools/jobber" prefetch>
+                                    <Wrench />
+                                    <span>IT Tools</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

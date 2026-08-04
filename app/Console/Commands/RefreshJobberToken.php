@@ -2,8 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\JobberAuthController;
+use App\Exceptions\JobberReconnectRequiredException;
 use App\Models\JobberToken;
+use App\Services\JobberTokenService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -26,12 +27,20 @@ class RefreshJobberToken extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(JobberTokenService $tokens): int
     {
         $token = JobberToken::first();
 
         if (! $token) {
             $this->error('No Jobber token found. Please connect to Jobber first.');
+
+            return 1;
+        }
+
+        if ($tokens->needsReconnect()) {
+            // Already flagged and alerted; keep the scheduled run quiet instead
+            // of re-burning the dead refresh token every 30 minutes.
+            $this->error('Jobber connection lost. An admin must reconnect at /jobber-connect (see the IT Tools page).');
 
             return 1;
         }
@@ -43,21 +52,22 @@ class RefreshJobberToken extends Command
             $this->info('Token is expired or expiring soon. Refreshing...');
 
             try {
-                $jobberAuth = new JobberAuthController;
-                $newAccessToken = $jobberAuth->refreshAccessToken();
+                $tokens->refreshAccessToken();
 
                 $this->info('Token refreshed successfully!');
                 Log::info('Jobber token refreshed via scheduled command');
 
                 return 0;
+            } catch (JobberReconnectRequiredException $e) {
+                // The service has flagged the connection dead and alerted staff.
+                $this->error($e->getMessage());
+
+                return 1;
             } catch (\Exception $e) {
                 $this->error('Failed to refresh token: '.$e->getMessage());
                 Log::error('Failed to refresh Jobber token via scheduled command', [
                     'error' => $e->getMessage(),
                 ]);
-
-                // Send notification to admin about manual reconnection needed
-                // You can implement email/SMS notification here
 
                 return 1;
             }

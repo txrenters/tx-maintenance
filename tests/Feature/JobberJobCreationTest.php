@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\JobberReconnectRequiredException;
 use App\Jobs\CreateJobberJobForWorkOrder;
 use App\Models\Building;
 use App\Models\JobberToken;
@@ -9,7 +10,9 @@ use App\Models\Tenants;
 use App\Models\User;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class JobberJobCreationTest extends TestCase
@@ -27,7 +30,13 @@ class JobberJobCreationTest extends TestCase
             'services.jobber.thmp_assignee_gid' => 'GID-THMP-USER',
         ]);
 
-        JobberToken::query()->create(['access_token' => 'test-token', 'refresh_token' => 'r']);
+        // expires_at is set so the token service uses the stored token as-is
+        // instead of refreshing before every call.
+        JobberToken::query()->create([
+            'access_token' => 'test-token',
+            'refresh_token' => 'r',
+            'expires_at' => now()->addHour(),
+        ]);
     }
 
     private function makeWorkOrder(string $buildingName = '6341 Del Monte Dr'): WorkOrder
@@ -170,6 +179,91 @@ class JobberJobCreationTest extends TestCase
 
         CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
 
+        $this->assertNull($workOrder->fresh()->jobber_job_gid);
+    }
+
+    public function test_a_401_triggers_a_token_refresh_and_replay_that_succeeds(): void
+    {
+        $oauthCalls = 0;
+
+        Http::fake(function ($request) use (&$oauthCalls) {
+            if (str_contains($request->url(), 'oauth/token')) {
+                $oauthCalls++;
+
+                return Http::response([
+                    'access_token' => 'fresh-token',
+                    'refresh_token' => 'fresh-refresh',
+                    'expires_in' => 3600,
+                ]);
+            }
+
+            // The stale token is rejected until the refresh swaps it out.
+            if (($request->header('Authorization')[0] ?? '') !== 'Bearer fresh-token') {
+                return Http::response([], 401);
+            }
+
+            if (str_contains((string) $request->body(), 'jobCreate')) {
+                return Http::response(['data' => ['jobCreate' => [
+                    'job' => ['id' => 'GID-JOB-999', 'jobberWebUri' => 'https://secure.getjobber.com/work_orders/999'],
+                    'userErrors' => [],
+                ]]]);
+            }
+
+            return Http::response(['data' => ['properties' => ['edges' => [
+                ['node' => ['id' => 'GID-PROP-1', 'client' => ['name' => '6341 Del Monte Drive LLC']]],
+            ]]]]);
+        });
+
+        $workOrder = $this->makeWorkOrder();
+
+        CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+
+        $this->assertSame('GID-JOB-999', $workOrder->fresh()->jobber_job_gid);
+        $this->assertSame(1, $oauthCalls);
+
+        // The rotated token pair was persisted.
+        $token = JobberToken::query()->first();
+        $this->assertSame('fresh-token', $token->access_token);
+        $this->assertSame('fresh-refresh', $token->refresh_token);
+    }
+
+    public function test_a_dead_refresh_token_flags_reconnect_and_alerts_exactly_once(): void
+    {
+        $oauthCalls = 0;
+
+        Http::fake(function ($request) use (&$oauthCalls) {
+            if (str_contains($request->url(), 'oauth/token')) {
+                $oauthCalls++;
+
+                return Http::response(['error' => 'invalid_grant'], 401);
+            }
+
+            return Http::response([], 401);
+        });
+
+        $workOrder = $this->makeWorkOrder();
+
+        // First run: GraphQL 401 -> refresh attempt 401 -> flagged dead + thrown
+        // so the queued job fails and retries instead of silently giving up.
+        try {
+            CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+            $this->fail('Expected JobberReconnectRequiredException was not thrown.');
+        } catch (JobberReconnectRequiredException) {
+        }
+
+        $this->assertTrue(Cache::has('jobber:needs-reconnect'));
+        $this->assertSame(1, Activity::query()->where('event', 'jobber_reconnect_required')->count());
+        $this->assertSame(1, $oauthCalls);
+
+        // Second run fails fast: no new refresh attempt, no duplicate alert.
+        try {
+            CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+            $this->fail('Expected JobberReconnectRequiredException was not thrown.');
+        } catch (JobberReconnectRequiredException) {
+        }
+
+        $this->assertSame(1, $oauthCalls);
+        $this->assertSame(1, Activity::query()->where('event', 'jobber_reconnect_required')->count());
         $this->assertNull($workOrder->fresh()->jobber_job_gid);
     }
 }
