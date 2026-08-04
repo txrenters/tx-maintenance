@@ -150,6 +150,43 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
+    public function test_email_shows_the_work_order_description_and_hides_the_panel_when_blank(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+        $workOrder->update(['description' => "Kitchen faucet leaking\nWater under the sink"]);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => str_contains($html, 'Request Details')
+                && str_contains($html, 'Kitchen faucet leaking<br />')
+                && str_contains($html, 'Water under the sink'));
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+
+        // Nothing on file: the panel disappears rather than rendering empty.
+        $workOrder->update(['description' => '   ']);
+        $blank = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $blank->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => ! str_contains($html, 'Request Details'));
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($blank);
+    }
+
+    public function test_email_escapes_html_in_the_description(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+        $workOrder->update(['description' => '<script>bad()</script> AC out']);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => ! str_contains($html, '<script>')
+                && str_contains($html, '&lt;script&gt;'));
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
     /** @return array{0: WorkOrder, 1: Vendor, 2: Owner} */
     private function records(): array
     {

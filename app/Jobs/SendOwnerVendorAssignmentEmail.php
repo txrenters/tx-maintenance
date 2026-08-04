@@ -50,6 +50,9 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             'vendor' => $vendor,
             'workOrder' => $workOrder,
             'propertyAddress' => $workOrder->propertyAddress() ?? 'the property',
+            // What the tenant actually reported, so the owner sees the scope of
+            // work without opening the portal. Omitted when nothing is on file.
+            'description' => trim((string) $workOrder->description),
             // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for
             // the vendor to contact, so drop that line while still notifying the
             // owner that a vendor was assigned.
