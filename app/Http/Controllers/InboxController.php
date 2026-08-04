@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -28,6 +29,12 @@ class InboxController extends Controller
 
     private const STATUS_FILTERS = ['all', 'awaiting', 'unanswered_24h'];
 
+    /**
+     * The conversation_type values threads are actually stored under. Anything
+     * else is a legacy or unknown row and lands under 'all' only.
+     */
+    private const PARTY_FILTERS = ['tenant', 'owner', 'vendor', 'vendor_tenant', 'vendor_owner'];
+
     public function __construct(private ConversationParticipants $participants) {}
 
     public function index(Request $request)
@@ -42,12 +49,19 @@ class InboxController extends Controller
             $filters['status'] = 'all';
         }
 
+        if (! in_array($filters['party'], self::PARTY_FILTERS, true)) {
+            $filters['party'] = 'all';
+        }
+
         $threads = $this->threads($filters);
 
         return inertia('Inbox/Index', [
             'title' => 'Inbox',
             'threads' => $threads,
             'filters' => $filters,
+            // Counted before the party filter is applied, so each chip can say
+            // what is behind it without being clicked.
+            'partyCounts' => $this->partyCounts($filters),
             'stats' => [
                 'total' => $threads->count(),
                 'awaiting' => $threads->where('awaiting', true)->count(),
@@ -124,20 +138,8 @@ class InboxController extends Controller
      */
     private function threads(array $filters): Collection
     {
-        // Run the work order set through Conversation so the model's global
-        // scope applies; the inbox must never widen anyone's visibility.
-        $visibleWorkOrderIds = Conversation::query()
-            ->select('work_order_id')
-            ->distinct()
-            ->pluck('work_order_id');
-
-        $latestPerThread = DB::table('work_order_conversations')
-            ->selectRaw('MAX(id) as last_id')
-            ->whereIn('work_order_id', $visibleWorkOrderIds)
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
-
         $rows = DB::table('work_order_conversations as c')
-            ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->select([
                 'c.id',
@@ -190,6 +192,62 @@ class InboxController extends Controller
             )
             ->take(self::THREADS_PER_PAGE)
             ->values();
+    }
+
+    /**
+     * The newest message of every thread, as a subquery to join against.
+     *
+     * The work order set is run through Conversation first so the model's
+     * global scope applies — the inbox must never widen anyone's visibility.
+     */
+    private function latestPerThread(): Builder
+    {
+        $visibleWorkOrderIds = Conversation::query()
+            ->select('work_order_id')
+            ->distinct()
+            ->pluck('work_order_id');
+
+        return DB::table('work_order_conversations')
+            ->selectRaw('MAX(id) as last_id')
+            ->whereIn('work_order_id', $visibleWorkOrderIds)
+            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+    }
+
+    /**
+     * How many threads sit behind each party chip.
+     *
+     * Counted over every thread rather than the page the list draws, so a chip
+     * never reads zero while holding conversations. The status filter is
+     * applied here too — is_read false is the inbound marker, and 24h is the
+     * same cutoff presentThread derives waiting_hours from — but search is not,
+     * because search matches on names resolved in PHP. The page hides these
+     * numbers while a search is active rather than showing stale ones.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, int>
+     */
+    private function partyCounts(array $filters): array
+    {
+        $counts = DB::table('work_order_conversations as c')
+            ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->when(
+                $filters['status'] !== 'all',
+                fn ($query) => $query->where('c.is_read', false)
+            )
+            ->when(
+                $filters['status'] === 'unanswered_24h',
+                fn ($query) => $query->where('c.created_at', '<=', Carbon::now()->subDay())
+            )
+            ->selectRaw('c.conversation_type as party, count(*) as total')
+            ->groupBy('c.conversation_type')
+            ->get()
+            ->pluck('total', 'party');
+
+        $byParty = collect(self::PARTY_FILTERS)
+            ->mapWithKeys(fn (string $party) => [$party => (int) $counts->get($party, 0)])
+            ->all();
+
+        return ['all' => (int) $counts->sum()] + $byParty;
     }
 
     /**

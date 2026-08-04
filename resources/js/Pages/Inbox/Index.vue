@@ -31,6 +31,7 @@ const props = defineProps({
     title: String,
     threads: { type: Array, default: () => [] },
     filters: { type: Object, default: () => ({}) },
+    partyCounts: { type: Object, default: () => ({}) },
     stats: { type: Object, default: () => ({}) },
 });
 
@@ -61,6 +62,35 @@ const STATUS_TABS = [
     { value: "awaiting", label: "Awaiting reply" },
     { value: "unanswered_24h", label: "Over 24h" },
 ];
+
+/**
+ * Who the thread is with. The first four always show; the vendor-brokered
+ * threads are rare enough that they only earn a chip when they hold something
+ * (or are the current filter, so the active one never disappears).
+ */
+const PARTY_TABS = [
+    { value: "all", label: "Everyone", icon: MessagesSquare, always: true },
+    { value: "tenant", label: "Tenant", icon: KeyRound, always: true },
+    { value: "owner", label: "Owner", icon: House, always: true },
+    { value: "vendor", label: "Vendor", icon: Wrench, always: true },
+    { value: "vendor_tenant", label: "Vendor–Tenant", icon: KeyRound },
+    { value: "vendor_owner", label: "Vendor–Owner", icon: House },
+];
+
+const countFor = (party) => props.partyCounts?.[party] ?? 0;
+
+/**
+ * Counts are computed before the search is applied, so showing them next to a
+ * search result would be misleading.
+ */
+const showCounts = computed(() => !props.filters.search);
+
+const partyTabs = computed(() =>
+    PARTY_TABS.filter(
+        (tab) =>
+            tab.always || countFor(tab.value) > 0 || props.filters.party === tab.value
+    )
+);
 
 const activeThread = computed(() =>
     props.threads.find((item) => item.key === activeKey.value) ?? null
@@ -231,6 +261,31 @@ const sendMessage = ({ text, files }) => {
                         @click="setStatus(tab.value)"
                     >
                         {{ tab.label }}
+                    </Button>
+                </div>
+
+                <div class="flex flex-wrap gap-1">
+                    <Button
+                        v-for="tab in partyTabs"
+                        :key="tab.value"
+                        size="sm"
+                        :variant="filters.party === tab.value ? 'secondary' : 'ghost'"
+                        class="h-7 gap-1.5 px-2 text-xs"
+                        :class="
+                            filters.party === tab.value
+                                ? 'ring-primary/40 font-semibold ring-1'
+                                : 'text-muted-foreground'
+                        "
+                        @click="setParty(tab.value)"
+                    >
+                        <component :is="tab.icon" class="h-3 w-3" />
+                        {{ tab.label }}
+                        <span
+                            v-if="showCounts && countFor(tab.value)"
+                            class="text-[10px] font-normal tabular-nums opacity-70"
+                        >
+                            {{ countFor(tab.value) }}
+                        </span>
                     </Button>
                 </div>
             </div>

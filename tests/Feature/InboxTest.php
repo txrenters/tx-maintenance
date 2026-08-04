@@ -168,6 +168,88 @@ class InboxTest extends TestCase
         $this->assertSame($waiting->id, $threads->first()['work_order_id']);
     }
 
+    public function test_the_party_filter_keeps_only_that_kind_of_thread(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'tenant']);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner']);
+
+        $response = $this->actingAs($this->staffUser())
+            ->get(route('inbox.index', ['party' => 'owner']));
+
+        $threads = collect($response->viewData('page')['props']['threads']);
+
+        $this->assertCount(1, $threads);
+        $this->assertSame('Owner', $threads->first()['party']);
+    }
+
+    public function test_every_party_chip_carries_its_own_count(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'tenant']);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner']);
+
+        $second = WorkOrder::factory()->create();
+        $this->message($second, inbound: true, attributes: ['conversation_type' => 'owner']);
+
+        $counts = $this->actingAs($this->staffUser())
+            ->get(route('inbox.index'))
+            ->viewData('page')['props']['partyCounts'];
+
+        $this->assertSame(3, $counts['all']);
+        $this->assertSame(1, $counts['tenant']);
+        $this->assertSame(2, $counts['owner']);
+        // A party with nothing behind it still reports, so the chip can hide.
+        $this->assertSame(0, $counts['vendor_owner']);
+    }
+
+    public function test_the_counts_are_not_narrowed_by_the_party_filter(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'tenant']);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner']);
+
+        $counts = $this->actingAs($this->staffUser())
+            ->get(route('inbox.index', ['party' => 'owner']))
+            ->viewData('page')['props']['partyCounts'];
+
+        // Filtering to owners must not make the tenant chip read zero, or there
+        // would be no way back to it.
+        $this->assertSame(1, $counts['tenant']);
+        $this->assertSame(1, $counts['owner']);
+    }
+
+    public function test_the_counts_follow_the_status_filter(): void
+    {
+        $waiting = WorkOrder::factory()->create();
+        $this->message($waiting, inbound: true, attributes: ['conversation_type' => 'tenant']);
+
+        $answered = WorkOrder::factory()->create();
+        $this->message($answered, inbound: false, attributes: ['conversation_type' => 'owner']);
+
+        $counts = $this->actingAs($this->staffUser())
+            ->get(route('inbox.index', ['status' => 'awaiting']))
+            ->viewData('page')['props']['partyCounts'];
+
+        $this->assertSame(1, $counts['all']);
+        $this->assertSame(1, $counts['tenant']);
+        $this->assertSame(0, $counts['owner']);
+    }
+
+    public function test_an_unknown_party_falls_back_to_everyone(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'tenant']);
+
+        $response = $this->actingAs($this->staffUser())
+            ->get(route('inbox.index', ['party' => 'nonsense']));
+
+        $props = $response->viewData('page')['props'];
+
+        $this->assertSame('all', $props['filters']['party']);
+        $this->assertCount(1, $props['threads']);
+    }
+
     public function test_search_matches_the_work_order_number(): void
     {
         $wanted = WorkOrder::factory()->create(['work_order_no' => '778899']);
