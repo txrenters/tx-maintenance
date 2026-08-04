@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Attachments;
+use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
@@ -159,6 +160,105 @@ class HoaViolationWorkflowTest extends TestCase
         $this->artisan('hoa:send-reminders')->assertSuccessful();
 
         Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    private function inboundTenantMms(WorkOrder $workOrder, array $overrides = []): Conversation
+    {
+        return Conversation::create(array_merge([
+            'message' => 'I sent photos.',
+            'is_mms' => true,
+            'is_read' => false,
+            'conversation_type' => 'tenant',
+            'sender_number' => '+15125559999',
+            'receiver_number' => '+12813787957',
+            'work_order_id' => $workOrder->id,
+        ], $overrides));
+    }
+
+    public function test_no_reminder_once_the_tenant_texts_photos_into_the_conversation(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        $this->travelTo(Carbon::parse('2026-07-20 10:00:00')); // Monday — notice goes out
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $token = $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        // Tuesday morning the tenant replies with a picture message instead of
+        // using the portal link, before the daily run fires.
+        $this->travelTo(Carbon::parse('2026-07-21 09:00:00'));
+        $this->inboundTenantMms($workOrder);
+
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00'));
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        // No nag, no claim — and staff are flagged to review the photos.
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertTrue($token->fresh()->last_notified_at->isYesterday());
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'hoa_violation_photos_by_text',
+            'subject_id' => $workOrder->id,
+        ]);
+
+        // The next day's run stays quiet and does not double-flag.
+        $this->travelTo(Carbon::parse('2026-07-22 10:00:00'));
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertSame(1, Activity::query()
+            ->where('event', 'hoa_violation_photos_by_text')->count());
+    }
+
+    public function test_an_outbound_mms_or_another_thread_does_not_stop_reminders(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        $this->travelTo(Carbon::parse('2026-07-20 10:00:00'));
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        // An outbound MMS from staff and an inbound vendor-thread MMS are not
+        // tenant proof — the reminder must still go out.
+        $this->travelTo(Carbon::parse('2026-07-21 09:00:00'));
+        $this->inboundTenantMms($workOrder, ['is_read' => true, 'sender_number' => '+12813787957', 'receiver_number' => '+15125559999']);
+        $this->inboundTenantMms($workOrder, ['conversation_type' => 'vendor']);
+
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00'));
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_a_photo_texted_before_the_notice_does_not_stop_reminders(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        // The tenant texted a picture on an earlier matter, then the HOA
+        // notice arrived — that old photo is not proof for this violation.
+        $this->travelTo(Carbon::parse('2026-07-20 09:00:00'));
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $this->inboundTenantMms($workOrder);
+
+        $this->travelTo(Carbon::parse('2026-07-20 10:00:00'));
+        $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'last_notified_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        $this->travelTo(Carbon::parse('2026-07-21 10:00:00'));
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
     }
 
     public function test_no_reminder_once_the_woc_closes_the_work_order(): void

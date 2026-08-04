@@ -2,18 +2,21 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Conversation;
 use App\Models\TenantUploadToken;
 use App\Services\HoaViolationConfirmationSender;
 use App\Services\TenantPortalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * Drives the HOA violation workflow after intake, once per day:
  *   1. Reminders — text the tenant their portal link every business day until
- *      they upload photos or the five-message window is spent. Day 4 warns them
- *      a vendor will be sent if it is not taken care of.
+ *      they upload photos (via the portal, or texted into the conversation) or
+ *      the five-message window is spent. Day 4 warns them a vendor will be
+ *      sent if it is not taken care of.
  *   2. Escalation — when the 5-business-day deadline passes without completion,
  *      flag staff to assign that vendor (once).
  *   3. Confirmation — when the tenant completes (photos uploaded), email the
@@ -89,6 +92,16 @@ class SendHoaViolationReminders extends Command
                 continue;
             }
 
+            // Tenants often reply with proof photos as picture messages instead
+            // of using the portal link. That never stamps completed_at, so
+            // treat an inbound MMS on the tenant thread as proof: stop nagging
+            // and flag staff (once) to review the photos and close it out.
+            if ($this->tenantTextedPhotos($token)) {
+                $this->flagPhotosForReview($token);
+
+                continue;
+            }
+
             // Claim today's reminder atomically before sending.
             $claimed = TenantUploadToken::query()
                 ->whereKey($token->id)
@@ -107,6 +120,53 @@ class SendHoaViolationReminders extends Command
         }
 
         return $sent;
+    }
+
+    /**
+     * The tenant replied with a picture (or video) message on this work order's
+     * tenant conversation after the violation notice went out. Inbound rows are
+     * the ones with is_read = false — every outbound/automated writer sets it
+     * true on insert.
+     */
+    private function tenantTextedPhotos(TenantUploadToken $token): bool
+    {
+        return Conversation::query()
+            ->where('work_order_id', $token->work_order_id)
+            ->where('conversation_type', 'tenant')
+            ->where('is_read', false)
+            ->where('is_mms', true)
+            ->where('created_at', '>=', $token->created_at)
+            ->exists();
+    }
+
+    /**
+     * Staff (activity-log notification, once per work order): the tenant sent
+     * photos by text, so a human needs to review them and close the work order
+     * — that close is what ends the escalation path too.
+     */
+    private function flagPhotosForReview(TenantUploadToken $token): void
+    {
+        $workOrder = $token->work_order;
+
+        $alreadyFlagged = Activity::query()
+            ->where('event', 'hoa_violation_photos_by_text')
+            ->forSubject($workOrder)
+            ->exists();
+
+        if ($alreadyFlagged) {
+            return;
+        }
+
+        activity()
+            ->performedOn($workOrder)
+            ->event('hoa_violation_photos_by_text')
+            ->withProperties([
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'message' => 'Tenant texted photos for this HOA violation — review them and close the work order if it is resolved.',
+                'read' => false,
+            ])
+            ->log('HOA VIOLATION PHOTOS RECEIVED - Work Order #'.$workOrder->work_order_no);
     }
 
     /**
