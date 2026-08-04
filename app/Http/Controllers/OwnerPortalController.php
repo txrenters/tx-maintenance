@@ -15,14 +15,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * Public, no-login owner portal — the owner-facing counterpart of the tenant
  * and vendor portals. A magic-link token (resolved by the owner.portal
  * middleware) scopes everything to one work order and one owner.
  *
- * Deliberately messages + photos only: no estimates, invoices, tasks or
- * approvals. The thread is the owner<->WOC relationship only; the owner never
+ * Deliberately lean: messages, photos, and an approve/disapprove decision
+ * while the work order waits on owner approval — no estimates, invoices or
+ * tasks. The thread is the owner<->WOC relationship only; the owner never
  * sees or messages the vendor, which stays a WOC<->vendor relationship.
  */
 class OwnerPortalController extends Controller
@@ -113,6 +115,7 @@ class OwnerPortalController extends Controller
                     'status' => $appointment->status,
                 ] : null,
             ],
+            'approval' => $this->approvalState($workOrder, $owner),
             'messages' => $messages->map(fn (Conversation $message) => [
                 'id' => $message->id,
                 // A message the owner sent (from their number, or through the
@@ -232,6 +235,123 @@ class OwnerPortalController extends Controller
     {
         return str_starts_with((string) $mime, 'image/')
             || (bool) preg_match('/\.(jpe?g|png|gif|webp|heic)$/i', (string) $filename);
+    }
+
+    /**
+     * The owner's approve/disapprove state for this work order: whether it is
+     * currently waiting on their approval (by service status), and any
+     * decision this owner already sent through the portal (latest wins, so an
+     * owner who calls the office to change their mind can be re-asked by
+     * simply moving the status back).
+     *
+     * @return array{requested: bool, decision: ?string, decided_at: ?string}
+     */
+    private function approvalState(WorkOrder $workOrder, Owner $owner): array
+    {
+        $latestDecision = Activity::query()
+            ->where('event', 'owner_portal_approval')
+            ->where('subject_type', $workOrder->getMorphClass())
+            ->where('subject_id', $workOrder->id)
+            ->where('properties->owner_id', $owner->id)
+            ->latest('id')
+            ->first();
+
+        return [
+            'requested' => str_contains(
+                strtolower((string) $workOrder->service_status?->name),
+                'owner approval'
+            ),
+            'decision' => $latestDecision?->properties['decision'] ?? null,
+            'decided_at' => $latestDecision?->created_at?->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Record the owner's approve/disapprove decision.
+     *
+     * The decision lands in the two places the coordinator already watches —
+     * the owner conversation thread (as an unread inbound message) and the
+     * notification bell (its own activity event) — which is exactly what the
+     * portal's heads-up label promises the owner. The service status is left
+     * for the coordinator to move; the portal only reports the decision.
+     */
+    public function submitApproval(Request $request)
+    {
+        /** @var WorkOrder $workOrder */
+        $workOrder = $request->attributes->get('portal_work_order');
+        /** @var Owner $owner */
+        $owner = $request->attributes->get('portal_owner');
+        /** @var OwnerPortalToken $portalToken */
+        $portalToken = $request->attributes->get('portal_token');
+
+        $validated = $request->validate([
+            'decision' => 'required|in:approved,disapproved',
+        ]);
+
+        $approved = $validated['decision'] === 'approved';
+
+        $workOrder->loadMissing('woc.wocNumber.twilioPhoneNumber');
+
+        $ownerNumber = $workOrder->normalizedOwnerPhone($owner) ?: 'portal';
+        $wocNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
+            ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
+
+        $ownerName = trim((string) ($owner->first_name.' '.$owner->last_name)) ?: (string) $owner->name;
+
+        DB::beginTransaction();
+
+        try {
+            $conversation = Conversation::create([
+                'message' => $approved
+                    ? 'I approve this work order. — sent from the owner portal'
+                    : 'I do not approve this work order. — sent from the owner portal',
+                'sender_number' => $ownerNumber,
+                'receiver_number' => $wocNumber ?: null,
+                'work_order_id' => $workOrder->id,
+                'owner_id' => $owner->id,
+                'conversation_type' => 'owner',
+                'is_read' => false,
+                'read_by_owner' => true,
+                'is_mms' => false,
+            ]);
+
+            activity()
+                ->performedOn($workOrder)
+                ->event('owner_portal_approval')
+                ->withProperties([
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                    'owner_id' => $owner->id,
+                    'decision' => $validated['decision'],
+                    'conversation_id' => $conversation->id,
+                    'message' => $approved
+                        ? $ownerName.' approved this work order from the owner portal.'
+                        : $ownerName.' did NOT approve this work order — please follow up.',
+                    'source' => 'owner_portal',
+                    'read' => false,
+                ])
+                ->log('Work Order #'.$workOrder->work_order_no.($approved
+                    ? ' - Approved by Owner'
+                    : ' - Owner Did Not Approve'));
+
+            DB::commit();
+
+            $portalToken->markResponded();
+
+            return back()->with('success', $approved
+                ? 'Approved — your work order coordinator has been notified.'
+                : 'Got it — your work order coordinator has been notified.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::error('Owner portal approval failed', [
+                'work_order_id' => $workOrder->id,
+                'owner_id' => $owner->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'Could not record your decision. Please try again.']);
+        }
     }
 
     /**

@@ -14,7 +14,11 @@ import {
     MapPin,
     CalendarClock,
     AlertTriangle,
+    BadgeCheck,
+    Bell,
     ChevronRight,
+    ThumbsUp,
+    ThumbsDown,
     X,
 } from "lucide-vue-next";
 
@@ -23,6 +27,7 @@ const props = defineProps({
     ownerName: String,
     wocName: String,
     workOrder: Object,
+    approval: { type: Object, default: () => ({}) },
     messages: { type: Array, default: () => [] },
     attachments: { type: Array, default: () => [] },
     unreadMessages: { type: Number, default: 0 },
@@ -222,6 +227,30 @@ const uploadPhotos = () => {
     });
 };
 
+// --- Owner approval ---
+// Buttons show only while the work order is waiting on this owner's approval
+// and they haven't already answered; after that the recorded decision shows.
+const approvalPending = computed(
+    () => props.approval?.requested && !props.approval?.decision
+);
+const coordinatorLabel = computed(
+    () => props.wocName || "your work order coordinator"
+);
+const approvalSubmitting = ref(null);
+
+const submitApproval = (decision) => {
+    if (approvalSubmitting.value) return;
+    approvalSubmitting.value = decision;
+    router.post(
+        route("owner.portal.approval", props.token),
+        { decision },
+        {
+            preserveScroll: true,
+            onFinish: () => (approvalSubmitting.value = null),
+        }
+    );
+};
+
 const priorityClass = computed(() => {
     const p = (props.workOrder?.priority || "").toLowerCase();
     if (p.includes("high") || p.includes("emergency"))
@@ -396,6 +425,96 @@ watch(photoFilters, (filters) => {
                         >
                             <AlertTriangle class="w-3 h-3" /> Emergency
                         </span>
+                    </div>
+
+                    <!-- Approve / disapprove, while the work order waits on
+                         this owner's decision -->
+                    <div
+                        v-if="approvalPending"
+                        class="mt-4 rounded-lg border border-primary/40 bg-primary/5 p-3"
+                    >
+                        <p
+                            class="flex items-center gap-1.5 text-xs font-semibold uppercase text-primary"
+                        >
+                            <BadgeCheck class="w-4 h-4 shrink-0" />
+                            Your approval is needed
+                        </p>
+                        <p class="mt-1 text-sm text-foreground">
+                            Please review this work order and let us know your
+                            decision.
+                        </p>
+                        <div class="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                :disabled="!!approvalSubmitting"
+                                class="flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-2 py-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                                @click="submitApproval('approved')"
+                            >
+                                <Loader2
+                                    v-if="approvalSubmitting === 'approved'"
+                                    class="w-4 h-4 animate-spin"
+                                />
+                                <ThumbsUp v-else class="w-4 h-4" />
+                                Approve
+                            </button>
+                            <button
+                                type="button"
+                                :disabled="!!approvalSubmitting"
+                                class="flex items-center justify-center gap-2 rounded-md border border-destructive/50 px-2 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                                @click="submitApproval('disapproved')"
+                            >
+                                <Loader2
+                                    v-if="approvalSubmitting === 'disapproved'"
+                                    class="w-4 h-4 animate-spin"
+                                />
+                                <ThumbsDown v-else class="w-4 h-4" />
+                                Don't approve
+                            </button>
+                        </div>
+                        <p
+                            class="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"
+                        >
+                            <Bell class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            <span>
+                                Heads up: {{ coordinatorLabel }} will be
+                                notified right away when you tap Approve or
+                                Don't approve.
+                            </span>
+                        </p>
+                    </div>
+
+                    <!-- The decision already on file, once the owner has
+                         answered -->
+                    <div
+                        v-else-if="approval?.decision"
+                        class="mt-4 rounded-lg px-3 py-2"
+                        :class="
+                            approval.decision === 'approved'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                        "
+                    >
+                        <p class="flex items-center gap-1.5 text-sm font-medium">
+                            <component
+                                :is="
+                                    approval.decision === 'approved'
+                                        ? ThumbsUp
+                                        : ThumbsDown
+                                "
+                                class="w-4 h-4 shrink-0"
+                            />
+                            {{
+                                approval.decision === "approved"
+                                    ? "You approved this work order"
+                                    : "You did not approve this work order"
+                            }}<template v-if="fmtDate(approval.decided_at)">
+                                on {{ fmtDate(approval.decided_at) }}</template
+                            >.
+                        </p>
+                        <p class="mt-0.5 text-xs opacity-80">
+                            We've notified {{ coordinatorLabel }}. Changed
+                            your mind? Just send us a message.
+                        </p>
                     </div>
 
                     <!-- Appointment, when a vendor has set one -->
