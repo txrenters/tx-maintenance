@@ -717,11 +717,12 @@ const handleImportWorkOrder = () => {
             openImportWorkOrder.value = false;
             importWorkOrderForm.reset(); // Reset the form
         },
-        onError: () => {
+        onError: (errors) => {
             toast({
                 variant: "destructive",
-                title: "Uh oh! Something went wrong.",
+                title: "Import failed",
                 description:
+                    errors.work_order_no ??
                     "There was a problem with your request. Please try again!",
             });
         },

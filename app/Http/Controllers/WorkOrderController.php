@@ -259,9 +259,20 @@ class WorkOrderController extends Controller
                     })
                     ->emergencyFilter()
                     ->where('status', 'Open')
-                    ->where('category', 'NOT LIKE', '%move out inspection%')
-                    ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
-                    ->where('type', 'NOT LIKE', '%Turnover%');
+                    // NULL NOT LIKE '%x%' evaluates to NULL in SQL, so without
+                    // the whereNull branches a work order with a blank type or
+                    // category would vanish from every board.
+                    ->where(function ($query) {
+                        $query->whereNull('category')
+                            ->orWhere('category', 'NOT LIKE', '%move out inspection%');
+                    })
+                    ->where(function ($query) {
+                        $query->whereNull('type')
+                            ->orWhere(function ($q) {
+                                $q->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
+                                    ->where('type', 'NOT LIKE', '%Turnover%');
+                            });
+                    });
             },
             ...$this->boardCardRelations('work_orders.'),
         ])
@@ -315,7 +326,10 @@ class WorkOrderController extends Controller
                 ->whereNotNull('completed_date')
                 // While searching, surface matching paid work orders regardless of age.
                 ->when(! request('search'), fn ($q) => $q->where('completed_date', '>=', now()->subDays(30)))
-                ->where('category', 'NOT LIKE', '%lawn care%')
+                ->where(function ($query) {
+                    $query->whereNull('category')
+                        ->orWhere('category', 'NOT LIKE', '%lawn care%');
+                })
                 ->latest('completed_date')
                 ->get();
 
@@ -356,7 +370,10 @@ class WorkOrderController extends Controller
                 ->whereNotNull('completed_date')
                 // While searching, surface matching closed work orders regardless of age.
                 ->when(! request('search'), fn ($q) => $q->where('completed_date', '>=', now()->subDays(30)))
-                ->where('category', 'NOT LIKE', '%lawn care%')
+                ->where(function ($query) {
+                    $query->whereNull('category')
+                        ->orWhere('category', 'NOT LIKE', '%lawn care%');
+                })
                 ->latest('completed_date')
                 ->get();
 
@@ -1265,27 +1282,46 @@ class WorkOrderController extends Controller
         ], 200);
     }
 
-    public function import(Request $request)
+    public function import(Request $request, PropertyWareService $propertyWare)
     {
         $request->validate([
             'work_order_no' => 'required|integer',
         ]);
 
-        $propertyWare = new PropertyWareService;
-        $workOrders = ''; // Initialize as an array to store multiple work orders
-
-        // $wo = WorkOrder::where('work_order_no', $request->work_order_no)->first();
-        // $workOrder = $propertyWare->getWorkOrder($wo->propertyware_id);
-
-        $work_order_no = $request->work_order_no;
-
-        $work_order_no = (int) $work_order_no;
+        $work_order_no = (int) $request->work_order_no;
         $workOrders = $propertyWare->getWorkOrderByNumber($work_order_no);
 
-        $importWorkOrder = new WorkOrderService;
-        $importWorkOrder->handle($workOrders);
+        // getWorkOrderByNumber returns an 'Error: ...' string when the SOAP
+        // call fails; anything non-array means PropertyWare never answered.
+        if (! is_array($workOrders)) {
+            return redirect()->back()->withErrors([
+                'work_order_no' => 'PropertyWare could not be reached. Please try again in a moment.',
+            ]);
+        }
 
-        return redirect()->back()->with('success', 'Work orders updated successfully.');
+        if ($workOrders === []) {
+            return redirect()->back()->withErrors([
+                'work_order_no' => "Work order #{$work_order_no} was not found in PropertyWare.",
+            ]);
+        }
+
+        try {
+            $imported = app(WorkOrderService::class)->handle($workOrders, dispatchNewWorkOrderAutomations: true);
+        } catch (\Throwable $th) {
+            report($th);
+
+            return redirect()->back()->withErrors([
+                'work_order_no' => "Importing work order #{$work_order_no} failed. Please try again or contact support.",
+            ]);
+        }
+
+        if ($imported === []) {
+            return redirect()->back()->withErrors([
+                'work_order_no' => "Work order #{$work_order_no} could not be imported from the PropertyWare response.",
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Work order imported successfully.');
     }
 
     public function export(): StreamedResponse

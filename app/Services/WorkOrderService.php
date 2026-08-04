@@ -2,23 +2,55 @@
 
 namespace App\Services;
 
+use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\GenerateWorkOrderRecommendationJob;
+use App\Jobs\SendOwnerServiceRequestNotificationJob;
+use App\Jobs\SendTenantServiceRequestNotificationJob;
+use App\Jobs\SendTenantWorkOrderIntakeEmailJob;
 use App\Models\Owner;
+use App\Models\Scopes\WorkOrderScope;
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Imports PropertyWare work orders on demand (the board "Import Work Order"
+ * button and HOA intake). The scheduled bulk import lives in
+ * WorkOrderImportCommand; keep the per-work-order processing here in step
+ * with it.
+ */
 class WorkOrderService
 {
-    public function handle(array $workOrder): void
-    {
-        $data = $workOrder;
+    /**
+     * WOC user resolved once per run instead of once per work order.
+     */
+    private ?User $wocUser = null;
 
-        $work_orders = collect($data)->toArray();
+    /**
+     * Import the given PropertyWare work order payloads and return the local
+     * ids of the work orders that were processed.
+     *
+     * When $dispatchNewWorkOrderAutomations is true, a brand-new work order
+     * triggers the same intake automations as the scheduled import (owner and
+     * tenant notifications, HOA adoption, AI recommendation with repeat-vendor
+     * auto-assign). HOA intake leaves it false — that flow sends its own
+     * notices and must not re-adopt the violation it just created.
+     *
+     * @param  array<int|string, mixed>  $workOrder
+     * @return list<int>
+     */
+    public function handle(array $workOrder, bool $dispatchNewWorkOrderAutomations = false): array
+    {
+        $work_orders = collect($workOrder)->toArray();
         $now = now()->format('Y-m-d H:i:s');
         Log::info('Work Orders import is running.');
+
+        $this->wocUser = User::role('woc')->first();
+
+        $importedWorkOrderIds = [];
 
         foreach (array_chunk($work_orders, 100) as $workOrderChunk) {
             foreach ($workOrderChunk as $order) {
@@ -34,26 +66,22 @@ class WorkOrderService
                     $owner = $this->processOwnerAndUser($data);
 
                     // Process work order and related data
-                    $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now);
+                    $importedWorkOrderIds[] = $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $dispatchNewWorkOrderAutomations);
                 }
 
             }
         }
 
-        Log::info('Work order imported successfully!');
+        Log::info('Work order imported successfully!', [
+            'work_order_ids' => $importedWorkOrderIds,
+        ]);
+
+        return $importedWorkOrderIds;
     }
 
     private function processTenantAndUser(array $data): ?int
     {
         $tenant_propertyware_id = $data['requestedByContact']['ID'] ?? null;
-
-        $tenantExist = DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->exists();
-
-        if ($tenantExist) {
-            Log::info('Tenant already exists, skipping.', ['ID' => $tenant_propertyware_id]);
-
-            return DB::table('tenants')->where('propertyware_id', $tenant_propertyware_id)->value('id');
-        }
 
         if (! $tenant_propertyware_id) {
             return null;
@@ -72,11 +100,10 @@ class WorkOrderService
 
         $usersData = [
             'email' => $tenantEmail,
-            'name' => $data['requestedByContact']['firstName'].' '.$data['requestedByContact']['lastName'],
-            'phone' => $data['requestedByContact']['homePhone'] ?? null,
+            'name' => ($data['requestedByContact']['firstName'] ?? '').' '.($data['requestedByContact']['lastName'] ?? ''),
+            'phone' => $data['requestedByContact']['mobilePhone'] ?? $data['requestedByContact']['homePhone'] ?? null,
             'company' => $data['requestedByContact']['company'] ?? null,
             'address' => $address,
-            'password' => bcrypt($tenantEmail),
         ];
 
         $user = $this->createOrUpdateUser($usersData, 'tenant');
@@ -89,7 +116,7 @@ class WorkOrderService
             'last_name' => $data['requestedByContact']['lastName'] ?? null,
             'suffix' => $data['requestedByContact']['suffix'] ?? null,
             'birth_date' => $data['requestedByContact']['birthDate'] ?? null,
-            'gender' => $data['requestedByContact']['gender'] == 1 ? 'Male' : 'Female',
+            'gender' => ($data['requestedByContact']['gender'] ?? null) == 1 ? 'Male' : (($data['requestedByContact']['gender'] ?? null) == 2 ? 'Female' : null),
             'email' => $tenantEmail,
             'fax' => $data['requestedByContact']['fax'] ?? null,
             'pager' => $data['requestedByContact']['pager'] ?? null,
@@ -130,14 +157,6 @@ class WorkOrderService
             return null;
         }
 
-        $tenantExist = DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->exists();
-
-        if ($tenantExist) {
-            Log::info('Owner already exists, skipping.', ['ID' => $owner_propertyware_id]);
-
-            return DB::table('owners')->where('propertyware_id', $owner_propertyware_id)->value('id');
-        }
-
         $ownerEmail = $data['owner']['email'] ?? $owner_propertyware_id.'@texasrenter.com';
         $address = trim(implode(' ', array_filter([
             $data['owner']['address'] ?? null,
@@ -150,11 +169,10 @@ class WorkOrderService
 
         $usersData = [
             'email' => $ownerEmail,
-            'name' => $data['owner']['firstName'].' '.$data['owner']['lastName'],
-            'phone' => $data['owner']['homePhone'] ?? null,
+            'name' => ($data['owner']['firstName'] ?? '').' '.($data['owner']['lastName'] ?? ''),
+            'phone' => $data['owner']['mobile'] ?? null,
             'company' => $data['owner']['company'] ?? null,
             'address' => $address,
-            'password' => bcrypt($ownerEmail),
         ];
 
         $user = $this->createOrUpdateUser($usersData, 'owner');
@@ -193,24 +211,33 @@ class WorkOrderService
 
     private function createOrUpdateUser(array $data, string $role): User
     {
-        $user = User::updateOrCreate(['email' => $data['email']], $data);
-        $user->assignRole($role);
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user) {
+            // bcrypt is expensive (~200ms); only hash when actually creating a
+            // user instead of computing a throwaway hash for every work order.
+            $data['password'] = bcrypt($data['email']);
+
+            $user = User::create($data);
+            $user->assignRole($role);
+        }
 
         return $user;
     }
 
-    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now): void
+    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now, bool $dispatchNewWorkOrderAutomations): int
     {
         DB::beginTransaction();
         try {
             $work_order_propertyware_id = $data['ID'] ?? null;
-            $woc = User::role('woc')->first();
+            $woc = $this->wocUser;
 
-            DB::table('work_order_categories')->updateOrInsert(
-                ['name' => $data['category']],
-                ['updated_at' => now()]
-            );
-            Log::info('Work order data: ', ['data' => $data]);
+            if (! empty($data['category'])) {
+                DB::table('work_order_categories')->updateOrInsert(
+                    ['name' => $data['category']],
+                    ['updated_at' => now()]
+                );
+            }
 
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
@@ -229,7 +256,7 @@ class WorkOrderService
                 'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
                 'description' => $data['description'] ?? null,
                 'hour_estimate' => $data['hourEstimate'] ?? null,
-                'location' => $data['building']['portfolio'].' | '.$data['building']['abbreviation'],
+                'location' => ($data['building']['portfolio'] ?? '').' | '.($data['building']['abbreviation'] ?? ''),
                 'priority' => ! empty($data['priority']) ? $data['priority'] : false,
                 'priority_as_int' => $data['priorityAsInt'] ?? null,
                 'required_materials' => $data['requiredMaterials'] ?? null,
@@ -255,8 +282,6 @@ class WorkOrderService
                 'property_manager_id' => $owner,
                 'tenant_id' => ! empty($tenant) ? (int) $tenant : null,
                 'user_id' => $woc?->id,
-                'created_at' => $now,
-                'updated_at' => $now,
             ];
 
             $customFieldData = [];
@@ -276,16 +301,33 @@ class WorkOrderService
                         $work_order_data['additional_work_needed_reschedule'] = $customField['value'] ?? '';
                     } elseif ($customField['fieldName'] == 'Management Plan') {
                         $work_order_data['management_plan'] = $customField['value'] ?? '';
+                    } elseif ($customField['fieldName'] == 'closing comment') {
+                        $work_order_data['closing_comments'] = empty($work_order_data['closing_comments']) ? $customField['value'] : $work_order_data['closing_comments'];
                     }
                 }
             }
 
-            DB::table('work_orders')->updateOrInsert(
+            // The global WorkOrderScope narrows what non-admin users can see;
+            // an import must always find the existing row, so bypass it for
+            // the lookup and the write. (The scheduled command runs in console
+            // context where the scope is already a no-op.)
+            $workOrderExists = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
+                ->where('propertyware_id', $work_order_propertyware_id)
+                ->exists();
+
+            // service_status_id is NOT NULL: a payload without the "Service
+            // Status" custom field would otherwise fail the insert outright.
+            if (! $workOrderExists && ! isset($work_order_data['service_status_id'])) {
+                $work_order_data['service_status_id'] = DB::table('service_status')->where('name', 'New')->value('id') ?? 1;
+            }
+
+            $savedWorkOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)->updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
             );
 
-            $work_order = DB::table('work_orders')->where('propertyware_id', $work_order_propertyware_id)->value('id');
+            $isNewWorkOrder = $savedWorkOrder->wasRecentlyCreated;
+            $work_order = $savedWorkOrder->id;
 
             DB::table('work_order_custom_fields')->where('work_order_id', $work_order)->delete();
             DB::table('work_order_custom_fields')->insert($customFieldData);
@@ -294,7 +336,28 @@ class WorkOrderService
 
             DB::commit();
 
-            GenerateWorkOrderRecommendationJob::dispatch($work_order);
+            // Queue the AI classification (vendor recommendation + emergency
+            // assessment) for NEW work orders only, so a paid AI call runs at
+            // most once per work order — a re-import must never re-classify.
+            if ($isNewWorkOrder) {
+                if ($dispatchNewWorkOrderAutomations) {
+                    // Intake of a brand new work order is the only path allowed
+                    // to auto-assign the repeat vendor.
+                    GenerateWorkOrderRecommendationJob::dispatch($work_order, allowAutoAssign: true);
+
+                    // The same intake fan-out the scheduled import performs:
+                    // each job is independently gated, so a disabled channel
+                    // stays a no-op here too.
+                    SendOwnerServiceRequestNotificationJob::dispatch($work_order);
+                    AdoptCategorizedHoaViolationJob::dispatch($work_order);
+                    SendTenantWorkOrderIntakeEmailJob::dispatch($work_order);
+                    SendTenantServiceRequestNotificationJob::dispatch($work_order);
+                } else {
+                    GenerateWorkOrderRecommendationJob::dispatch($work_order);
+                }
+            }
+
+            return $work_order;
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error('Work order processing failed for work order ID: '.($work_order_propertyware_id ?? 'unknown').' - '.$th->getMessage());
@@ -341,7 +404,10 @@ class WorkOrderService
         if (! empty($data['vendorIDs']) && is_array($data['vendorIDs'])) {
             foreach ($data['vendorIDs'] as $vendor) {
                 $vendorId = DB::table('vendors')->where('propertyware_id', $vendor)->value('id');
-                $vendorExist = DB::table('work_order_vendors')->where('vendor_id', $vendorId)->exists();
+                $vendorExist = DB::table('work_order_vendors')
+                    ->where('work_order_id', $work_order)
+                    ->where('vendor_id', $vendorId)
+                    ->exists();
 
                 if (! $vendorExist && $vendorId) { // don't insert if exists
                     $vendorsData[] = [
@@ -439,10 +505,9 @@ class WorkOrderService
                 $usersData = [
                     'email' => $tenantEmail,
                     'name' => ($tenant['firstName'] ?? '').' '.($tenant['lastName'] ?? ''),
-                    'phone' => $tenant['homePhone'] ?? null,
+                    'phone' => $tenant['mobile'] ?? $tenant['homePhone'] ?? null,
                     'company' => $tenant['company'] ?? null,
                     'address' => $address,
-                    'password' => bcrypt($tenantEmail),
                 ];
 
                 $user = $this->createOrUpdateUser($usersData, 'tenant');
@@ -455,7 +520,7 @@ class WorkOrderService
                     'last_name' => $tenant['lastName'] ?? null,
                     'suffix' => $tenant['suffix'] ?? null,
                     'birth_date' => ! empty($tenant['birthDate']) ? Carbon::parse($tenant['birthDate'])->toDateString() : null,
-                    'gender' => $tenant['gender'] == 1 ? 'Male' : 'Female',
+                    'gender' => ($tenant['gender'] ?? null) == 1 ? 'Male' : (($tenant['gender'] ?? null) == 2 ? 'Female' : null),
                     'email' => $tenantEmail,
                     'fax' => $tenant['fax'] ?? null,
                     'pager' => $tenant['pager'] ?? null,
@@ -529,7 +594,6 @@ class WorkOrderService
                     'phone' => $owner['homePhone'] ?? null,
                     'company' => $owner['company'] ?? null,
                     'address' => $address,
-                    'password' => bcrypt($ownerEmail),
                 ];
 
                 $user = $this->createOrUpdateUser($usersData, 'owner');
@@ -557,8 +621,6 @@ class WorkOrderService
                     'percentage_ownership' => $owner['percentageOwnership'] ?? null,
                     'notes' => $owner['notes'] ?? null,
                     'user_id' => $user->id,
-                    'created_at' => $now,
-                    'updated_at' => $now,
                 ];
 
                 $ownerRecord = Owner::updateOrCreate(

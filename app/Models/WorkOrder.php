@@ -499,10 +499,21 @@ class WorkOrder extends Model
     public function scopeForBoard($query, string $board)
     {
         return match ($board) {
+            // NULL NOT LIKE '%x%' evaluates to NULL in SQL, so without the
+            // whereNull branches a work order imported with a blank type or
+            // category would vanish from every board.
             'main' => $query->where('status', 'Open')
-                ->where('category', 'NOT LIKE', '%move out inspection%')
-                ->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
-                ->where('type', 'NOT LIKE', '%Turnover%'),
+                ->where(function ($q) {
+                    $q->whereNull('category')
+                        ->orWhere('category', 'NOT LIKE', '%move out inspection%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhere(function ($t) {
+                            $t->where('type', 'NOT LIKE', '%Biweekly Lawn Services%')
+                                ->where('type', 'NOT LIKE', '%Turnover%');
+                        });
+                }),
 
             'inspections' => $query->where('category', 'LIKE', '%move out inspection%')
                 ->where('status', 'Open'),
