@@ -12,6 +12,7 @@ use App\Services\HoaViolationIntakeService;
 use App\Services\PropertyWareService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -47,6 +48,8 @@ class HoaViolationIntakeTest extends TestCase
     {
         $mock = Mockery::mock(PropertyWareService::class);
         $mock->shouldReceive('createWorkOrder')->andReturn($createdId);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
         $mock->shouldReceive('getWorkOrder')->andReturn(['number' => 55123]);
         $mock->shouldReceive('getWorkOrderByNumber')->andReturn([]);
         $mock->shouldReceive('uploadWorkOrderPdf')->andReturn('doc-1');
@@ -95,6 +98,10 @@ class HoaViolationIntakeTest extends TestCase
         Queue::fake();
         $this->mockPropertyWare(null);
 
+        // Pinned: the window is counted from today, so a floating "now" would
+        // move the expected deadline every day this suite runs.
+        $this->travelTo(Carbon::parse('2026-07-20 09:00:00'));
+
         $building = $this->building();
         $user = User::factory()->create();
 
@@ -126,18 +133,20 @@ class HoaViolationIntakeTest extends TestCase
         ]);
     }
 
-    public function test_the_notice_deadline_is_ignored_in_favour_of_the_fixed_window(): void
+    public function test_a_notice_deadline_further_out_than_the_window_leaves_the_window_alone(): void
     {
         config(['services.hoa.pw_create_enabled' => false]);
         Storage::fake('public');
         Queue::fake();
         $this->mockPropertyWare(null);
 
+        $this->travelTo(Carbon::parse('2026-07-07 09:00:00'));
+
         $building = $this->building();
         $user = User::factory()->create();
 
-        // Notice says "resolve by 7/28/2026", but every violation runs the same
-        // fixed 5-business-day window so the tenant messages stay identical.
+        // Notice says "resolve by 7/28/2026" — plenty of room — so the tenant
+        // still runs the standard 5-business-day window.
         $this->actingAs($user)
             ->post(route('work_orders.hoa.store'), [
                 'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
@@ -151,9 +160,76 @@ class HoaViolationIntakeTest extends TestCase
             ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
             ->firstOrFail();
 
-        // 2026-07-07 (Tue) + 5 business days => 2026-07-14 (Tue), not the 7/28
-        // the notice asked for.
+        // 2026-07-07 (Tue) + 5 business days => 2026-07-14 (Tue), well inside
+        // the 7/28 the notice asked for.
         $this->assertSame('2026-07-14', $token->hoa_deadline_at->toDateString());
+    }
+
+    public function test_a_stale_notice_is_not_overdue_the_moment_it_is_uploaded(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        // The real 2026-08-04 case: a 7/22 notice uploaded on 8/4. Counting the
+        // window from the notice date made the work order overdue on arrival and
+        // flagged staff to send a vendor before the tenant had been given a day.
+        $this->travelTo(Carbon::parse('2026-08-04 09:00:00'));
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id, [
+                    'notice_date' => '2026-07-22',
+                    'deadline_date' => '2026-08-12',
+                ])],
+            ])->assertRedirect();
+
+        $token = TenantUploadToken::query()
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->firstOrFail();
+
+        // Counted from today (8/4 Tue) + 5 business days => 8/11 (Tue), landing
+        // a day before the 8/12 the association actually set.
+        $this->assertSame('2026-08-11', $token->hoa_deadline_at->toDateString());
+        $this->assertFalse($token->hoa_deadline_at->isPast());
+
+        // The notice date is still recorded as read from the letter.
+        $this->assertSame('2026-07-22', $token->hoa_notice_date->toDateString());
+    }
+
+    public function test_a_notice_deadline_sooner_than_the_window_caps_it(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $this->travelTo(Carbon::parse('2026-08-04 09:00:00'));
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        // An association demanding it fixed by Thursday must not be escalated
+        // the following Tuesday, by which point the deadline has already blown.
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id, [
+                    'notice_date' => '2026-08-04',
+                    'deadline_date' => '2026-08-06',
+                ])],
+            ])->assertRedirect();
+
+        $token = TenantUploadToken::query()
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->firstOrFail();
+
+        $this->assertSame('2026-08-06', $token->hoa_deadline_at->toDateString());
     }
 
     public function test_store_creates_one_work_order_per_notice(): void
@@ -191,6 +267,8 @@ class HoaViolationIntakeTest extends TestCase
     {
         Queue::fake();
         $this->mockPropertyWare(null);
+
+        $this->travelTo(Carbon::parse('2026-07-20 09:00:00'));
 
         // Raised straight in PropertyWare under the HOA category — no notice
         // was ever uploaded here, so it has no token yet.
@@ -331,6 +409,8 @@ class HoaViolationIntakeTest extends TestCase
 
         $captured = null;
         $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
         $mock->shouldReceive('createWorkOrder')
             ->once()
             ->andReturnUsing(function (array $data) use (&$captured) {
@@ -353,11 +433,104 @@ class HoaViolationIntakeTest extends TestCase
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        // PropertyWare rejects unknown picklist values, so the create must use an
-        // existing valid type/category — never the 'HOA Violation' label.
-        $this->assertSame('General Maintenance', $captured['category']);
+        // PropertyWare's category picklist accepts "HOA Violation" (verified by
+        // a live create on 2026-08-04), so violations are filed under their real
+        // name and the board card no longer reads "General Maintenance".
+        $this->assertSame('HOA Violation', $captured['category']);
         $this->assertSame('General', $captured['type']);
-        $this->assertNotSame('HOA Violation', $captured['category']);
+    }
+
+    public function test_pw_create_sends_the_buildings_propertyware_location_and_unit(): void
+    {
+        config(['services.hoa.pw_create_enabled' => true]);
+        Storage::fake('public');
+        Queue::fake();
+
+        $building = $this->building();
+
+        // PropertyWare validates the create against its "Location" (the unit)
+        // and rejects the whole call with "Location is invalid" unless the
+        // piped location string and unit ID both match what it has on record —
+        // which is what silently turned every HOA intake into a local-only work
+        // order. Both are copied off the newest work order PropertyWare itself
+        // holds for the building.
+        $captured = null;
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getLatestWorkOrderForBuilding')
+            ->once()
+            ->with($building->propertyware_id)
+            ->andReturn(['location' => 'MULLERJJ | 3235QUARRYPL', 'unitIDs' => [4209311746]]);
+        $mock->shouldReceive('createWorkOrder')
+            ->once()
+            ->andReturnUsing(function (array $data) use (&$captured) {
+                $captured = $data;
+
+                return null;
+            });
+        $mock->shouldReceive('getWorkOrder')->andReturn(['number' => 55123]);
+        $mock->shouldReceive('getWorkOrderByNumber')->andReturn([]);
+        $mock->shouldReceive('uploadWorkOrderPdf')->andReturn('doc-1');
+        $mock->shouldReceive('updateServiceStatus')->andReturn(true);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        $this->assertSame('MULLERJJ | 3235QUARRYPL', $captured['location']);
+        $this->assertSame(4209311746, $captured['unit_id']);
+    }
+
+    public function test_a_work_order_propertyware_refused_is_reported_to_staff(): void
+    {
+        config(['services.hoa.pw_create_enabled' => true]);
+        Storage::fake('public');
+        Queue::fake();
+
+        // PropertyWare rejected it: the work order exists locally only, has no
+        // number, and will never sync. Reporting a plain success for that is how
+        // this went unnoticed from the feature shipping until 2026-08-04.
+        $this->mockPropertyWare(null);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ]);
+
+        $response->assertRedirect();
+        $this->assertStringContainsString(
+            'could not be created in PropertyWare',
+            (string) session('success'),
+        );
+
+        // And the orphan is labelled for what it is, rather than hiding on the
+        // board as a generic maintenance job.
+        $workOrder = WorkOrder::query()->hoaViolations()->firstOrFail();
+        $this->assertNull($workOrder->work_order_no);
+        $this->assertSame(WorkOrder::HOA_VIOLATION_CATEGORY, $workOrder->category);
+    }
+
+    public function test_pw_create_is_refused_outright_when_no_location_can_be_resolved(): void
+    {
+        // Rather than let PropertyWare fail the create, the service declines to
+        // send a payload it knows will be rejected ("Location is invalid").
+        $this->assertNull(app(PropertyWareService::class)->createWorkOrder([
+            'building_id' => 7001,
+            'portfolio_id' => 900,
+            'category' => 'General Maintenance',
+            'description' => 'Remove weeds from the driveway.',
+            'type' => 'General',
+            'location' => null,
+            'unit_id' => null,
+        ]));
     }
 
     public function test_an_existing_open_hoa_work_order_is_reused_not_duplicated(): void

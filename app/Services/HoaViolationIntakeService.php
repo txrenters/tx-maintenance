@@ -62,7 +62,11 @@ class HoaViolationIntakeService
 
         $this->attachNotice($workOrder, $pagePdfContents, $notice['file_name'] ?? null, $notice['mime'] ?? null);
         $this->applyEasyFixStatus($workOrder, $description, $created);
-        $this->openHoaToken($workOrder, $noticeDate);
+        $this->openHoaToken(
+            $workOrder,
+            $noticeDate,
+            ($notice['deadline_date'] ?? null) instanceof Carbon ? $notice['deadline_date'] : null,
+        );
 
         return [
             'work_order' => $workOrder->refresh(),
@@ -172,12 +176,16 @@ class HoaViolationIntakeService
     private function createWorkOrder(Building $building, string $description): array
     {
         if (config('services.hoa.pw_create_enabled')) {
+            [$location, $unitId] = $this->propertyWareLocationFor($building);
+
             $propertywareId = $this->propertyWare->createWorkOrder([
                 'building_id' => $building->propertyware_id,
                 'portfolio_id' => $building->portfolio_id,
                 'category' => config('services.hoa.pw_category'),
                 'description' => $description,
                 'type' => config('services.hoa.pw_type'),
+                'location' => $location,
+                'unit_id' => $unitId,
             ]);
 
             if ($propertywareId !== null) {
@@ -193,9 +201,12 @@ class HoaViolationIntakeService
             'building_propertyware_id' => $building->propertyware_id,
         ]);
 
+        // A local-only row never reaches PropertyWare, so it is not bound by the
+        // PW picklist the create payload has to satisfy — label it for what it
+        // is so staff can spot the orphan on the board.
         $workOrder = WorkOrder::create([
             'work_order_no' => null,
-            'category' => config('services.hoa.pw_category'),
+            'category' => WorkOrder::HOA_VIOLATION_CATEGORY,
             'type' => config('services.hoa.pw_type'),
             'description' => $description,
             'status' => 'Open',
@@ -209,6 +220,31 @@ class HoaViolationIntakeService
         ]);
 
         return [$workOrder, false];
+    }
+
+    /**
+     * PropertyWare validates a create against its "Location" (the unit) and
+     * fails the whole call with "Location is invalid" unless the piped
+     * "PORTFOLIO | BUILDING" location string and the unit ID both match what it
+     * has on record — omitting them is what silently turned every HOA intake
+     * into a local-only work order until 2026-08-04.
+     *
+     * Rather than reconstruct either value (the local rows only carry the REST
+     * variant of the string, without the pipe), copy both off the newest work
+     * order PropertyWare itself holds for the building. A building with no work
+     * order history yields nulls, and createWorkOrder then refuses rather than
+     * send a payload PropertyWare is known to reject.
+     *
+     * @return array{0: ?string, 1: int|string|null}
+     */
+    private function propertyWareLocationFor(Building $building): array
+    {
+        $latest = $this->propertyWare->getLatestWorkOrderForBuilding($building->propertyware_id);
+
+        return [
+            $latest['location'] ?? null,
+            $latest['unitIDs'][0] ?? null,
+        ];
     }
 
     private function importCreatedWorkOrder(string $propertywareId): ?WorkOrder
@@ -310,12 +346,12 @@ class HoaViolationIntakeService
 
     /**
      * The HOA token anchors the whole downstream workflow: portal link, daily
-     * reminders, deadline, escalation, and confirmation. Every violation runs
-     * the same fixed window of five business days, whatever deadline the notice
-     * itself stated, so the tenant messages are the same five every time and
-     * the day-4 vendor warning always lands on the same day.
+     * reminders, deadline, escalation, and confirmation. The tenant messages
+     * are the same five every time and the day-4 vendor warning always lands on
+     * the same day, because the reminder cadence counts sends (notified_count),
+     * not days — the deadline here only drives the vendor escalation.
      */
-    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate): void
+    private function openHoaToken(WorkOrder $workOrder, Carbon $noticeDate, ?Carbon $statedDeadline = null): void
     {
         $existing = TenantUploadToken::query()
             ->where('work_order_id', $workOrder->id)
@@ -332,7 +368,7 @@ class HoaViolationIntakeService
             'work_order_id' => $workOrder->id,
             'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
             'hoa_notice_date' => $noticeDate->toDateString(),
-            'hoa_deadline_at' => $this->resolveDeadline($noticeDate),
+            'hoa_deadline_at' => $this->resolveDeadline($noticeDate, $statedDeadline),
         ]);
 
         // Send the tenant their link right away; the daily command handles
@@ -341,14 +377,28 @@ class HoaViolationIntakeService
     }
 
     /**
-     * The tenant always gets the same window: the configured business days from
-     * the notice date. A deadline the notice stated itself is deliberately not
-     * used — it made the reminder run a different length for every violation.
+     * The tenant gets the configured window of business days, but never counted
+     * from a date already in the past: notices reach us days or weeks after they
+     * were written, and counting from the notice date made a violation overdue
+     * the moment it was uploaded — flagging staff to send a vendor before the
+     * tenant had been given a single day to fix it.
+     *
+     * The HOA's own stated deadline caps it. Running past the date the
+     * association actually set would escalate too late to be any use, so
+     * whichever comes first wins.
      */
-    private function resolveDeadline(Carbon $noticeDate): Carbon
+    private function resolveDeadline(Carbon $noticeDate, ?Carbon $statedDeadline = null): Carbon
     {
-        return $noticeDate->copy()
+        $start = $noticeDate->isPast() ? now() : $noticeDate->copy();
+
+        $deadline = $start->copy()
             ->addWeekdays((int) config('services.hoa.deadline_business_days', 5))
             ->endOfDay();
+
+        if ($statedDeadline instanceof Carbon && $statedDeadline->copy()->endOfDay()->lt($deadline)) {
+            return $statedDeadline->copy()->endOfDay();
+        }
+
+        return $deadline;
     }
 }
