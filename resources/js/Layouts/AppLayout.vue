@@ -85,6 +85,7 @@ import {
     Loader2Icon,
     HammerIcon,
     FileIcon,
+    FilePenIcon,
     WrenchIcon,
     Briefcase,
     Search,
@@ -1300,6 +1301,9 @@ onUnmounted(() => {
                                                                     'invoice_uploaded' ||
                                                                 notification.event ===
                                                                     'uploaded',
+                                                            'bg-orange-500':
+                                                                notification.event ===
+                                                                'work_order_description_updated',
                                                         }"
                                                     ></div>
 
@@ -1323,6 +1327,9 @@ onUnmounted(() => {
                                                                     'invoice_uploaded' ||
                                                                 notification.event ===
                                                                     'uploaded',
+                                                            'bg-orange-100 text-orange-600':
+                                                                notification.event ===
+                                                                'work_order_description_updated',
                                                         }"
                                                     >
                                                         <WrenchIcon
@@ -1355,6 +1362,13 @@ onUnmounted(() => {
                                                                     'invoice_uploaded' ||
                                                                 notification.event ===
                                                                     'uploaded'
+                                                            "
+                                                        />
+                                                        <FilePenIcon
+                                                            class="w-4 h-4"
+                                                            v-else-if="
+                                                                notification.event ===
+                                                                'work_order_description_updated'
                                                             "
                                                         />
                                                         <Bell

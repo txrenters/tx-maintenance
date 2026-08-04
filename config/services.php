@@ -64,6 +64,12 @@ return [
         // emergency. Off by default so local/testing environments never
         // text real people; set EMERGENCY_SMS_ENABLED=true in production.
         'emergency_sms' => env('EMERGENCY_SMS_ENABLED', false),
+        // SMS alert to the assigned WOC when a work order description is
+        // edited on the PropertyWare side after intake (e.g. a tenant adding
+        // items to their request). The in-app bell alert is not gated — only
+        // the text is. Off by default; set DESCRIPTION_CHANGE_SMS_ENABLED=true
+        // in production to turn on texting.
+        'description_change_sms' => env('DESCRIPTION_CHANGE_SMS_ENABLED', false),
         // The five SMS features below are ON by default so a production deploy
         // works immediately. Local .env and phpunit.xml explicitly set every
         // flag to false, so development and tests never text real people.

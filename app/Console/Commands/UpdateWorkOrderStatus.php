@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -31,10 +32,13 @@ class UpdateWorkOrderStatus extends Command
 
     protected PropertyWareService $propertyWareService;
 
-    public function __construct(PropertyWareService $propertyWareService)
+    protected DescriptionChangeAlertService $descriptionChangeAlertService;
+
+    public function __construct(PropertyWareService $propertyWareService, DescriptionChangeAlertService $descriptionChangeAlertService)
     {
         parent::__construct();
         $this->propertyWareService = $propertyWareService;
+        $this->descriptionChangeAlertService = $descriptionChangeAlertService;
     }
 
     /**
@@ -71,6 +75,9 @@ class UpdateWorkOrderStatus extends Command
                         $workOrder = WorkOrder::where('propertyware_id', $data['id'])->first();
 
                         if ($workOrder) {
+                            $previousDescription = $workOrder->description;
+                            $incomingDescription = $data['description'] ?? null;
+
                             $work_order_data = [
                                 'status' => $data['status'] ?? $workOrder->status,
                                 'authorized_to_enter' => $data['authorizedToEnter'] ?? $workOrder->authorized_to_enter,
@@ -114,6 +121,16 @@ class UpdateWorkOrderStatus extends Command
                             }
 
                             $workOrder->update($work_order_data);
+
+                            // Alert staff when PropertyWare changed the
+                            // description of an existing work order (e.g. a
+                            // tenant editing their request after intake).
+                            $this->descriptionChangeAlertService->detectAndAlert(
+                                $workOrder,
+                                $previousDescription,
+                                $incomingDescription,
+                                'rest_status_sync'
+                            );
 
                             // $this->processNotes($data, $workOrder->id);
 

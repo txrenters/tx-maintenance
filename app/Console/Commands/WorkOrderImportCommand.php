@@ -9,6 +9,7 @@ use App\Jobs\SendTenantServiceRequestNotificationJob;
 use App\Jobs\SendTenantWorkOrderIntakeEmailJob;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -38,10 +39,13 @@ class WorkOrderImportCommand extends Command
      */
     private ?User $wocUser = null;
 
-    public function __construct(PropertyWareService $propertyWareService)
+    protected DescriptionChangeAlertService $descriptionChangeAlertService;
+
+    public function __construct(PropertyWareService $propertyWareService, DescriptionChangeAlertService $descriptionChangeAlertService)
     {
         parent::__construct();
         $this->propertyWareService = $propertyWareService;
+        $this->descriptionChangeAlertService = $descriptionChangeAlertService;
     }
 
     /**
@@ -189,6 +193,13 @@ class WorkOrderImportCommand extends Command
             //     $work_order_data
             // );
 
+            // Captured before the write so a PropertyWare-side description
+            // edit can be detected below. WorkOrderScope is a no-op in
+            // console context, so the lookup sees the row.
+            $previousDescription = WorkOrder::query()
+                ->where('propertyware_id', $work_order_propertyware_id)
+                ->value('description');
+
             $savedWorkOrder = WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
                 $work_order_data
@@ -205,6 +216,19 @@ class WorkOrderImportCommand extends Command
             $this->processRelatedData($data, $workOrder->id, $now);
 
             DB::commit();
+
+            // Alert staff when PropertyWare changed the description of an
+            // existing work order (e.g. a tenant adding items to their
+            // request after intake). After the commit so a rolled-back
+            // change never alerts; the service itself never throws.
+            if (! $isNewWorkOrder) {
+                $this->descriptionChangeAlertService->detectAndAlert(
+                    $workOrder,
+                    $previousDescription,
+                    $work_order_data['description'],
+                    'soap_import'
+                );
+            }
 
             // Documents (and the vendor service-request email that depends on
             // them) are synced by the separate import:work-order-documents
