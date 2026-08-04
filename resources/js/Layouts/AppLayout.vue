@@ -95,7 +95,10 @@ import {
     Reply,
     Info,
     ChartBarBig,
+    Volume2,
+    VolumeX,
 } from "lucide-vue-next";
+import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
@@ -161,6 +164,29 @@ const awaitingReplyBadge = computed(() => {
     if (!count) return null;
 
     return count > 99 ? "99+" : String(count);
+});
+
+// Chime and desktop popup when a message lands on one of this coordinator's
+// work orders. Same roles the endpoint serves and the Messages nav shows.
+const canReceiveMessageAlerts = computed(() => {
+    const userRoles = page.props.auth.user.roles || [];
+
+    return ["admin", "woc"].some((role) => userRoles.includes(role));
+});
+
+const messageAlerts = useMessageAlerts({
+    alertsUrl: route("message_alerts"),
+    inboxUrl: route("inbox.index"),
+});
+
+const messageAlertsTitle = computed(() => {
+    if (!messageAlerts.enabled.value) {
+        return "Turn on new-message sound and alerts";
+    }
+
+    return messageAlerts.permission.value === "granted"
+        ? "New-message sound and alerts are on"
+        : "Sound is on — allow notifications in your browser for popups";
 });
 
 const navs = computed(() => {
@@ -884,6 +910,12 @@ onMounted(() => {
     // Set interval for every 5 minutes (300,000 ms)
     intervalId = setInterval(fetchNotifications, 5000);
 
+    // Polls even while muted so the cursor keeps moving; switching alerts on
+    // then announces what arrives next, not the backlog behind it.
+    if (canReceiveMessageAlerts.value) {
+        messageAlerts.start();
+    }
+
     document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === "k") {
             e.preventDefault();
@@ -1259,6 +1291,23 @@ onUnmounted(() => {
                                 aria-label="Search work orders"
                             >
                                 <Search class="h-4 w-4" />
+                            </Button>
+                            <Button
+                                v-if="canReceiveMessageAlerts && messageAlerts.supported.value"
+                                @click="messageAlerts.toggle"
+                                variant="icon"
+                                :title="messageAlertsTitle"
+                                :aria-label="messageAlertsTitle"
+                                :aria-pressed="messageAlerts.enabled.value"
+                            >
+                                <Volume2
+                                    v-if="messageAlerts.enabled.value"
+                                    class="h-4 w-4"
+                                />
+                                <VolumeX
+                                    v-else
+                                    class="text-muted-foreground h-4 w-4"
+                                />
                             </Button>
                             <Popover>
                                 <PopoverTrigger class="relative">

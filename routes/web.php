@@ -27,6 +27,7 @@ use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
+use App\Http\Controllers\MessageAlertController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\OwnerEmailController;
@@ -166,6 +167,7 @@ Route::middleware([
 
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
     Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');
+    Route::get('/message-alerts', MessageAlertController::class)->name('message_alerts');
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
     Route::get('/work_orders/{workOrder}/emails', [WorkOrderEmailController::class, 'index'])->name('work_order.email.index');
