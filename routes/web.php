@@ -340,6 +340,7 @@ Route::middleware(['owner.portal', 'throttle:60,1'])->prefix('owner-portal/{toke
     Route::post('/message', [OwnerPortalController::class, 'sendMessage'])->name('owner.portal.message');
     Route::post('/attachments', [OwnerPortalController::class, 'uploadAttachments'])->name('owner.portal.attachments');
     Route::post('/messages/read', [OwnerPortalController::class, 'markMessagesRead'])->name('owner.portal.messages.read');
+    Route::post('/approval', [OwnerPortalController::class, 'submitApproval'])->name('owner.portal.approval');
 });
 
 Route::get('/onboarding/building', [BuildingController::class, 'create'])->name('building.create');
