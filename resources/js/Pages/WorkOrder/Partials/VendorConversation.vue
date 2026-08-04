@@ -1,7 +1,6 @@
 <script setup>
-import { ref, watch, onMounted, nextTick, computed } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
-import { Loader2, Send, Paperclip, X } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
 import {
@@ -15,9 +14,12 @@ import {
 import { Input } from "@/Components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import { ScrollArea } from "@/Components/ui/scroll-area";
+import { Skeleton } from "@/Components/ui/skeleton";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
-import { Textarea } from "@/Components/ui/textarea";
-import { Button } from "@/Components/ui/button";
+import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
+import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
+import { buildParticipants, phoneKey } from "@/utils/conversation";
+import { useThreadScroll } from "@/composables/useThreadScroll";
 
 const props = defineProps({
     vendorConversation: Array,
@@ -28,47 +30,14 @@ const props = defineProps({
 });
 
 const messageBody = ref("");
-const MAX_MESSAGE_LENGTH = 1600;
-const includeRefSuffix = ref(true);
+const composer = ref(null);
 const refSuffix = computed(() => {
     const workOrderNo = props.workOrder?.work_order_no;
     return workOrderNo ? ` (Ref: WO#${workOrderNo})` : "";
 });
-const activeRefSuffix = computed(() =>
-    includeRefSuffix.value ? refSuffix.value : ""
-);
-const maxBodyLength = computed(() =>
-    Math.max(0, MAX_MESSAGE_LENGTH - activeRefSuffix.value.length)
-);
-const displayMessage = computed({
-    get: () => `${messageBody.value}${activeRefSuffix.value}`,
-    set: (value) => {
-        const suffix = refSuffix.value;
-        const withSuffixLimit = Math.max(0, MAX_MESSAGE_LENGTH - suffix.length);
-        if (!suffix) {
-            messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
-            return;
-        }
-        if (value.endsWith(suffix)) {
-            includeRefSuffix.value = true;
-            messageBody.value = value.slice(0, -suffix.length).slice(0, withSuffixLimit);
-            return;
-        }
-        if (value.includes(suffix)) {
-            includeRefSuffix.value = true;
-            messageBody.value = value.replace(suffix, "").slice(0, withSuffixLimit);
-            return;
-        }
-        includeRefSuffix.value = false;
-        messageBody.value = value.slice(0, MAX_MESSAGE_LENGTH);
-    },
-});
-const messageCount = computed(() => displayMessage.value.length);
 const selectedVendor = ref("");
 const vendor_phone_number = ref("");
-const chatContainer = ref(null); // Reference to the chat container for auto-scrolling
-const attachedImages = ref([]);
-const fileInputRef = ref(null);
+const { bottomAnchor, scrollToBottom } = useThreadScroll();
 
 const emit = defineEmits(["update-vendor-convo"]);
 
@@ -84,13 +53,27 @@ const woc_phone_number = ref(
 const loading = ref(false);
 
 // Reduce a phone number to its final 10 digits, mirroring the backend match.
-const lastTenDigits = (value) => {
-    if (!value) return null;
-    const digits = String(value).replace(/\D+/g, "");
-    return digits.length >= 10 ? digits.slice(-10) : null;
-};
+const lastTenDigits = (value) => phoneKey(value) || null;
 
 const hasSingleVendor = computed(() => props.workOrderVendors?.length === 1);
+
+const participants = computed(() =>
+    buildParticipants([
+        ...(props.workOrderVendors ?? []).flatMap((vendor) =>
+            [vendor.twilio_number, vendor.user?.phone].map((phone) => ({
+                phone,
+                name: vendor.name,
+                role: "Vendor",
+            }))
+        ),
+        {
+            phone: woc_phone_number.value,
+            name: woc.value?.name,
+            role: "Coordinator",
+            avatar: woc.value?.profile_photo_url,
+        },
+    ])
+);
 
 // Messages belonging to one vendor: tagged by vendor_id, plus legacy untagged
 // messages matched by that vendor's number or on a single-vendor work order.
@@ -125,78 +108,7 @@ const displayedMessages = computed(() =>
     selectedVendor.value ? messagesForVendor(selectedVendor.value) : []
 );
 
-// Auto-resize textarea
-const autoResize = (event) => {
-    const textarea = event.target;
-    textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
-};
-
-const triggerFileInput = () => {
-    if (fileInputRef.value) {
-        fileInputRef.value.click();
-    }
-};
-
-const handleFileSelect = (event) => {
-    const files = Array.from(event.target.files || []);
-    const allowed = files.filter(
-        (file) =>
-            file.type.startsWith("image/") ||
-            file.type.startsWith("video/") ||
-            file.type === "application/pdf",
-    );
-
-    if (allowed.length !== files.length) {
-        toast({
-            variant: "destructive",
-            title: "Invalid file type",
-            description: "Only image, video, or PDF files are allowed.",
-        });
-    }
-
-    allowed.forEach((file) => {
-        if (file.size > 50 * 1024 * 1024) {
-            // 50MB limit
-            toast({
-                variant: "destructive",
-                title: "File too large",
-                description: `${file.name} is too large. Maximum size is 50MB.`,
-            });
-            return;
-        }
-
-        const isVideo = file.type.startsWith("video/");
-        const isPdf = file.type === "application/pdf";
-
-        // PDFs get a filename tile rather than a data-URL thumbnail.
-        if (isPdf) {
-            attachedImages.value.push({ file, url: null, name: file.name, isPdf: true });
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            attachedImages.value.push({
-                file,
-                url: e.target.result,
-                name: file.name,
-                isVideo,
-            });
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // Clear the input so the same file can be selected again
-    event.target.value = "";
-};
-
-const removeImage = (index) => {
-    attachedImages.value.splice(index, 1);
-};
-
-const sendMessage = () => {
-    loading.value = true;
+const sendMessage = ({ text, files }) => {
     if (!selectedVendor.value && !vendor_phone_number.value) {
         toast({
             variant: "destructive",
@@ -204,80 +116,52 @@ const sendMessage = () => {
             description:
                 "Please select a vendor or enter a phone number. Vendors with no number will still see the message in their portal.",
         });
-        loading.value = false;
 
         return;
     }
 
-    if (!messageBody.value && attachedImages.value.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Uh oh! Something went wrong.",
-            description:
-                "There was a problem with your request. Please type a message or attach an image!",
-        });
-        loading.value = false;
+    loading.value = true;
 
-        return;
+    const formData = new FormData();
+    formData.append("text", text);
+    formData.append("sender_phone_number", woc_phone_number.value);
+    formData.append("receiver_phone_number", vendor_phone_number.value);
+    formData.append("work_order_id", props.workOrder.id);
+    formData.append("conversation_type", "vendor");
+    if (selectedVendor.value) {
+        formData.append("vendor_id", selectedVendor.value);
     }
 
-    if (messageBody.value.trim() !== "" || attachedImages.value.length > 0) {
-        const formData = new FormData();
-        formData.append("text", displayMessage.value);
-        formData.append("sender_phone_number", woc_phone_number.value);
-        formData.append("receiver_phone_number", vendor_phone_number.value);
-        formData.append("work_order_id", props.workOrder.id);
-        formData.append("conversation_type", "vendor");
-        if (selectedVendor.value) {
-            formData.append("vendor_id", selectedVendor.value);
-        }
+    files.forEach((file) => {
+        formData.append("images[]", file);
+    });
 
-        attachedImages.value.forEach((img) => {
-            formData.append("images[]", img.file);
-        });
-
-        router.post(route("work_order.conversation.send"), formData, {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                toast({
-                    title: "Success",
-                    description: "Message sent. Delivery may take a moment.",
-                });
-                messageBody.value = "";
-                // Reset textarea height
-                const textarea = document.querySelector(
-                    'textarea[placeholder="Type your message..."]'
-                );
-                if (textarea) textarea.style.height = "auto";
-                attachedImages.value = [];
-                scrollToBottom();
-                emit("update-vendor-convo");
-            },
-            onError: (errors) => {
-                const errorMessage =
-                    errors.message ||
-                    Object.values(errors)[0] ||
-                    "There was a problem with your request. Please try again!";
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description: errorMessage,
-                });
-            },
-            onFinish: () => {
-                loading.value = false;
-                scrollToBottom(); // Scroll to the bottom after sending a message
-            },
-        });
-    }
-};
-
-const scrollToBottom = () => {
-    nextTick(() => {
-        if (chatContainer.value) {
-            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-        }
+    router.post(route("work_order.conversation.send"), formData, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            toast({
+                title: "Success",
+                description: "Message sent. Delivery may take a moment.",
+            });
+            composer.value?.reset();
+            scrollToBottom(true);
+            emit("update-vendor-convo");
+        },
+        onError: (errors) => {
+            const errorMessage =
+                errors.message ||
+                Object.values(errors)[0] ||
+                "There was a problem with your request. Please try again!";
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: errorMessage,
+            });
+        },
+        onFinish: () => {
+            loading.value = false;
+        },
     });
 };
 
@@ -295,7 +179,7 @@ watch(selectedVendor, (newVendor) => {
         );
         vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
     }
-    scrollToBottom();
+    scrollToBottom(true);
 });
 
 // Preselect the only vendor so their thread shows by default; leave the tab
@@ -312,16 +196,16 @@ watch(
 
 // Scroll to the bottom when the component mounts or when the conversation updates
 onMounted(() => {
-    scrollToBottom();
+    scrollToBottom(true);
 });
 </script>
 
 <template>
     <div>
-        <div class="grid gap-3 overflow-y-auto px-6">
-            <div class="flex items-center justify-between gap-2 mb-3">
-                <p class="font-semibold uppercase text-xs">
-                    Vendor Conversation
+        <div class="grid gap-3 px-6">
+            <div class="mb-1 flex items-center justify-between gap-2">
+                <p class="text-xs font-semibold uppercase tracking-wide">
+                    Vendor ↔ Coordinator
                 </p>
                 <AutomationToggle
                     v-if="workOrder?.id"
@@ -329,186 +213,100 @@ onMounted(() => {
                     channel="vendor"
                 />
             </div>
-            <div class="flex justify-between gap-2 mb-2">
-                <div>
-                    <div class="flex gap-2">
-                        <Select v-model="selectedVendor">
-                            <SelectTrigger class="w-full">
-                                <SelectValue placeholder="Select a vendor" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <template
-                                        v-for="vendor in workOrderVendors"
-                                        :key="vendor.id"
-                                    >
-                                        <SelectItem :value="String(vendor.id)">
-                                            {{ vendor.name }}
-                                            <template
-                                                v-if="vendor?.user?.phone"
-                                            >
-                                                - {{ vendor.user.phone }}
-                                            </template>
-                                        </SelectItem>
-                                    </template>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                        <Input
-                            placeholder="Custom number"
-                            class=""
-                            v-model="vendor_phone_number"
-                        />
-                    </div>
-                    <p class="text-xs text-gray-500">
-                        Please include the country code (e.g. +1)
-                    </p>
-                </div>
-
-                <div class="flex flex-col text-left">
-                    <div class="flex gap-2 items-center">
-                        <Avatar class="w-5 h-5">
-                            <AvatarImage
-                                :src="woc?.profile_photo_url || 'default.jpg'"
-                            />
-                            <AvatarFallback>
-                                {{ woc?.name?.charAt(0) }}
-                            </AvatarFallback>
-                        </Avatar>
-                        {{ woc?.name }}
-                    </div>
-                    {{ woc?.woc_number?.twilio_phone_number?.phone_number }}
-                </div>
-            </div>
 
             <div
-                class="flex flex-col gap-4 overflow-y-auto"
-                ref="chatContainer"
+                class="text-muted-foreground mb-1 flex flex-wrap items-center gap-2 text-xs"
             >
-                <ScrollArea
-                    class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3"
-                >
-                    <div
-                        class="flex justify-center"
-                        v-if="isLoading || loading"
-                    >
-                        <Loader2 class="w-12 h-12 animate-spin text-primary" />
-                    </div>
-                    <div
-                        v-else-if="!selectedVendor"
-                        class="flex h-full min-h-[200px] items-center justify-center px-6 text-center text-sm text-muted-foreground"
-                    >
-                        Select a vendor to view their conversation.
-                    </div>
-                    <MessageCard
-                        v-else
-                        :messages="displayedMessages"
-                        :sender="woc_phone_number"
-                    />
-                </ScrollArea>
-            </div>
-
-            <!-- Image attachments preview -->
-            <div v-if="attachedImages.length > 0" class="mb-4">
-                <div
-                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"
-                >
-                    <div
-                        v-for="(image, index) in attachedImages"
-                        :key="index"
-                        class="relative group"
-                    >
-                        <video
-                            v-if="image.isVideo"
-                            :src="image.url"
-                            class="w-full h-20 object-cover rounded-lg border bg-black"
-                            muted
-                            playsinline
-                        />
-                        <div
-                            v-else-if="image.isPdf"
-                            class="w-full h-20 flex flex-col items-center justify-center gap-1 rounded-lg border bg-muted p-1 text-center"
-                        >
-                            <span class="text-2xl">📄</span>
-                            <span class="w-full truncate text-[10px] text-muted-foreground">{{ image.name }}</span>
-                        </div>
-                        <img
-                            v-else
-                            :src="image.url"
-                            :alt="image.name"
-                            class="w-full h-20 object-cover rounded-lg border"
-                        />
-                        <Button
-                            size="icon"
-                            variant="destructive"
-                            class="absolute -top-2 -right-2 w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            @click="removeImage(index)"
-                        >
-                            <X class="w-3 h-3" />
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="relative w-full mt-4 mb-6">
-                <Textarea
-                    v-model="displayMessage"
-                    placeholder="Type your message..."
-                    class="w-full resize-none rounded-2xl border py-3 pr-24 min-h-[44px] max-h-[200px] overflow-y-auto"
-                    rows="3"
-                    @input="autoResize"
-                    :disabled="loading"
-                    :maxlength="MAX_MESSAGE_LENGTH"
+                <span class="shrink-0">To</span>
+                <Select v-model="selectedVendor">
+                    <SelectTrigger class="h-8 w-[190px] text-xs">
+                        <SelectValue placeholder="Select a vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                            <template
+                                v-for="vendor in workOrderVendors"
+                                :key="vendor.id"
+                            >
+                                <SelectItem :value="String(vendor.id)">
+                                    {{ vendor.name }}
+                                    <template v-if="vendor?.user?.phone">
+                                        - {{ vendor.user.phone }}
+                                    </template>
+                                </SelectItem>
+                            </template>
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
+                <Input
+                    v-model="vendor_phone_number"
+                    placeholder="+1 214 555 0134"
+                    title="Include the country code, e.g. +1"
+                    class="h-8 w-[150px] text-xs"
                 />
-                <p class="text-xs text-muted-foreground text-right mt-1 pr-2">
-                    {{ messageCount }}/{{ MAX_MESSAGE_LENGTH }}
-                </p>
-                <div class="flex absolute top-3 right-2">
-                    <!-- Attachment Button -->
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        @click="triggerFileInput"
-                        :disabled="loading"
-                        title="Attach image"
-                    >
-                        <Paperclip class="h-4 w-4" />
-                    </Button>
+                <span class="ml-auto flex min-w-0 items-center gap-1.5 truncate">
+                    <Avatar class="h-5 w-5">
+                        <AvatarImage
+                            v-if="woc?.profile_photo_url"
+                            :src="woc.profile_photo_url"
+                        />
+                        <AvatarFallback>
+                            {{ woc?.name?.charAt(0) }}
+                        </AvatarFallback>
+                    </Avatar>
+                    <span class="truncate">
+                        From {{ woc?.name }} · {{ woc_phone_number }}
+                    </span>
+                </span>
+            </div>
 
-                    <!-- Send Button -->
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        @click.prevent="sendMessage"
-                        :disabled="isLoading || loading"
+            <AwaitingReplyBanner
+                v-if="selectedVendor"
+                :messages="displayedMessages"
+                :our-number="woc_phone_number"
+                party="vendor"
+            />
+
+            <ScrollArea
+                class="bg-secondary h-[50vh] max-h-[520px] min-h-[300px] rounded-md p-3"
+            >
+                <div v-if="isLoading" class="space-y-3">
+                    <div
+                        v-for="i in 5"
+                        :key="i"
+                        class="flex"
+                        :class="i % 2 ? 'justify-start' : 'justify-end'"
                     >
-                        <Send v-if="!isLoading && !loading" class="h-4 w-4" />
-                        <Loader2 v-else class="w-4 h-4 animate-spin" />
-                    </Button>
+                        <Skeleton
+                            class="h-12 rounded-lg"
+                            :class="i % 2 ? 'w-2/5' : 'w-1/3'"
+                        />
+                    </div>
                 </div>
+                <div
+                    v-else-if="!selectedVendor"
+                    class="text-muted-foreground flex h-full min-h-[200px] items-center justify-center px-6 text-center text-sm"
+                >
+                    Select a vendor to view their conversation.
+                </div>
+                <MessageCard
+                    v-else
+                    :messages="displayedMessages"
+                    :sender="woc_phone_number"
+                    :participants="participants"
+                />
+                <div ref="bottomAnchor" class="h-px" />
+            </ScrollArea>
 
-                <!-- Hidden file input -->
-                <input
-                    ref="fileInputRef"
-                    type="file"
-                    multiple
-                    accept="image/*,video/*,application/pdf"
-                    @change="handleFileSelect"
-                    class="hidden"
+            <div class="mb-6 mt-2">
+                <MessageComposer
+                    ref="composer"
+                    v-model="messageBody"
+                    :ref-suffix="refSuffix"
+                    :sending="loading"
+                    @send="sendMessage"
                 />
             </div>
         </div>
     </div>
 </template>
-
-<style scoped>
-::-webkit-scrollbar {
-    width: 5px;
-}
-::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 5px;
-}
-</style>
-
-

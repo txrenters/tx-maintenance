@@ -18,6 +18,8 @@ use App\Http\Controllers\FallbackVendorController;
 use App\Http\Controllers\HoaPhotoGalleryController;
 use App\Http\Controllers\HoaViolationController;
 use App\Http\Controllers\ImportTwilioNumberController;
+use App\Http\Controllers\InboxController;
+use App\Http\Controllers\InboxSummaryController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
@@ -28,6 +30,7 @@ use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
+use App\Http\Controllers\MessageAlertController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\OwnerEmailController;
@@ -175,6 +178,10 @@ Route::middleware([
     Route::get('/reports/tasks-on-time', [ReportController::class, 'tasksCompletedOnTime'])->name('reports.tasks_on_time');
     Route::get('/reports/open-over-30-days', [ReportController::class, 'openOver30Days'])->name('reports.open_over_30_days');
 
+    Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
+    Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');
+    Route::get('/inbox/summary', InboxSummaryController::class)->name('inbox.summary');
+    Route::get('/message-alerts', MessageAlertController::class)->name('message_alerts');
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
     Route::get('/work_orders/{workOrder}/emails', [WorkOrderEmailController::class, 'index'])->name('work_order.email.index');

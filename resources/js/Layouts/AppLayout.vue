@@ -95,9 +95,13 @@ import {
     Reply,
     Info,
     ChartBarBig,
+    Volume2,
+    VolumeX,
 } from "lucide-vue-next";
+import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
+import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
 
 const page = usePage();
@@ -151,6 +155,47 @@ const data = computed(() => ({
         },
     ],
 }));
+
+// Conversations whose newest message came in from the outside and are still
+// unanswered. Shared from the server so the badge is right on every page, not
+// only inside the Inbox.
+const awaitingReplyBadge = computed(() => {
+    const count = Number(page.props.awaiting_reply_count ?? 0);
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
+// Chime and desktop popup when a message lands on one of this coordinator's
+// work orders. Same roles the endpoint serves and the Messages nav shows.
+const canReceiveMessageAlerts = computed(() => {
+    const userRoles = page.props.auth.user.roles || [];
+
+    return ["admin", "woc"].some((role) => userRoles.includes(role));
+});
+
+const messageAlerts = useMessageAlerts({
+    alertsUrl: route("message_alerts"),
+    inboxUrl: route("inbox.index"),
+});
+
+const openMessageAlert = (banner) => {
+    messageAlerts.dismissBanner(banner.key);
+    messageAlerts.openInbox();
+};
+
+// The in-page banner always shows; this only governs the extras that need
+// permission or make noise.
+const messageAlertsTitle = computed(() => {
+    if (!messageAlerts.enabled.value) {
+        return "New messages show on screen — turn on sound and desktop alerts";
+    }
+
+    return messageAlerts.permission.value === "granted"
+        ? "Sound and desktop alerts are on"
+        : "Sound is on — allow notifications in your browser for desktop alerts";
+});
 
 const navs = computed(() => {
     const userRoles = page.props.auth.user.roles || [];
@@ -293,11 +338,19 @@ const navs = computed(() => {
                 url: "#",
                 icon: Globe,
                 isActive:
+                    page.component === "Inbox/Index" ||
                     page.component === "ConversationLogs" ||
                     page.component === "TwilioMessageSearch",
+                badge: awaitingReplyBadge.value,
                 items: [
                     {
-                        title: "Conversations",
+                        title: "Inbox",
+                        url: route("inbox.index"),
+                        isActive: page.component === "Inbox/Index",
+                        badge: awaitingReplyBadge.value,
+                    },
+                    {
+                        title: "Message Log",
                         url: route("conversation_logs.index"),
                         isActive: page.component === "ConversationLogs",
                     },
@@ -865,6 +918,12 @@ onMounted(() => {
     // Set interval for every 5 minutes (300,000 ms)
     intervalId = setInterval(fetchNotifications, 5000);
 
+    // Polls even while muted so the cursor keeps moving; switching alerts on
+    // then announces what arrives next, not the backlog behind it.
+    if (canReceiveMessageAlerts.value) {
+        messageAlerts.start();
+    }
+
     document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === "k") {
             e.preventDefault();
@@ -946,13 +1005,33 @@ onUnmounted(() => {
                                 <SidebarMenuItem>
                                     <CollapsibleTrigger as-child>
                                         <SidebarMenuButton
-                                            :tooltip="item.title"
+                                            :tooltip="
+                                                item.badge
+                                                    ? `${item.title} — ${item.badge} awaiting reply`
+                                                    : item.title
+                                            "
+                                            class="relative"
                                         >
                                             <component :is="item.icon" />
+                                            <!-- Collapsed to icons the label and
+                                                 count are hidden, so the unread
+                                                 state falls back to a dot. -->
+                                            <span
+                                                v-if="item.badge"
+                                                class="bg-destructive absolute left-5 top-1 hidden h-2 w-2 rounded-full group-data-[collapsible=icon]:block"
+                                            />
                                             <span>{{ item.title }}</span>
+                                            <span
+                                                v-if="item.badge"
+                                                class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                                >{{ item.badge }}</span
+                                            >
                                             <ChevronRight
                                                 v-if="item.items.length > 0"
-                                                class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                                class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                                :class="
+                                                    item.badge ? 'ml-1' : 'ml-auto'
+                                                "
                                             />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
@@ -974,6 +1053,13 @@ onUnmounted(() => {
                                                         <span>{{
                                                             subItem.title
                                                         }}</span>
+                                                        <span
+                                                            v-if="subItem.badge"
+                                                            class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                                            >{{
+                                                                subItem.badge
+                                                            }}</span
+                                                        >
                                                     </Link>
                                                 </SidebarMenuSubButton>
                                             </SidebarMenuSubItem>
@@ -1221,6 +1307,23 @@ onUnmounted(() => {
                                 aria-label="Search work orders"
                             >
                                 <Search class="h-4 w-4" />
+                            </Button>
+                            <Button
+                                v-if="canReceiveMessageAlerts && messageAlerts.supported.value"
+                                @click="messageAlerts.toggle"
+                                variant="icon"
+                                :title="messageAlertsTitle"
+                                :aria-label="messageAlertsTitle"
+                                :aria-pressed="messageAlerts.enabled.value"
+                            >
+                                <Volume2
+                                    v-if="messageAlerts.enabled.value"
+                                    class="h-4 w-4"
+                                />
+                                <VolumeX
+                                    v-else
+                                    class="text-muted-foreground h-4 w-4"
+                                />
                             </Button>
                             <Popover>
                                 <PopoverTrigger class="relative">
@@ -1633,6 +1736,13 @@ onUnmounted(() => {
                 <Toaster />
                 <slot />
             </div>
+
+            <MessageAlertToast
+                v-if="canReceiveMessageAlerts"
+                :banners="messageAlerts.banners.value"
+                @open="openMessageAlert"
+                @dismiss="messageAlerts.dismissBanner"
+            />
 
             <!--
                 Floating summary button, pinned to the bottom-right of the board

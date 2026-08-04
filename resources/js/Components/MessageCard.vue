@@ -6,6 +6,7 @@ import {
     Clock3,
     FileIcon,
     Loader2,
+    MessageSquare,
     RotateCw,
     Send,
     XIcon,
@@ -14,10 +15,12 @@ import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "./ui/toast";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
     friendlyTwilioError,
     isRetryableTwilioError,
 } from "@/utils/twilioErrorCatalog.js";
+import { linkifyParts } from "@/utils/linkify.js";
 
 const { toast } = useToast();
 const page = usePage();
@@ -25,52 +28,206 @@ const page = usePage();
 const props = defineProps({
     messages: Object,
     sender: String,
+    /**
+     * Phone number -> identity map so bubbles can show who is talking instead
+     * of a raw number. Keys may be in any format; they are normalised to the
+     * last ten digits, the same way Conversation::lastTenDigits() matches.
+     *
+     * @type {Object<string, {name?: string, role?: string, avatar?: string}>}
+     */
+    participants: { type: Object, default: () => ({}) },
+    showDelete: { type: Boolean, default: true },
+    /** Escape hatch: print the raw To/From numbers under each message group. */
+    showNumbers: { type: Boolean, default: false },
 });
 
-const formatDate = (date) => {
-    if (!date) return "------";
+const TIMEZONE = "America/Chicago";
 
-    let parsedDate;
+/** Messages sent within this window by the same person share one group. */
+const GROUP_WINDOW_MINUTES = 5;
 
-    // Set timezone to America/Chicago (Dallas)
-    const timezone = "America/Chicago";
+const digitsOf = (value) => String(value ?? "").replace(/\D+/g, "");
 
-    if (typeof date === "string") {
-        if (date.includes("T")) {
-            // Parse ISO string in UTC and convert to America/Chicago time
-            parsedDate = DateTime.fromISO(date, { zone: "utc" }).setZone(
-                timezone,
-            );
-        } else {
-            // Parse custom formatted date string in UTC and convert to America/Chicago time
-            parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", {
-                zone: "utc",
-            }).setZone(timezone);
-        }
-    } else if (date instanceof Date) {
-        // If it's a JavaScript Date object, convert to America/Chicago time
-        parsedDate = DateTime.fromJSDate(date).setZone(timezone);
-    } else {
-        return "Invalid Date";
-    }
-
-    return parsedDate.isValid
-        ? parsedDate.toFormat("EEE, MMMM d, yyyy hh:mm a") // Format as desired
-        : "Invalid Date";
+const phoneKey = (value) => {
+    const digits = digitsOf(value);
+    return digits.length >= 10 ? digits.slice(-10) : "";
 };
 
-const messages = computed(() => {
-    return props.messages.map((msg) => {
-        return {
-            ...msg,
-            created_at: formatDate(msg.created_at),
-        };
+/** Fall back to a human-readable number when we cannot resolve a name. */
+const formatPhone = (value) => {
+    const raw = String(value ?? "").trim();
+    const digits = digitsOf(raw);
+
+    if (digits.length === 10) {
+        return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.length === 11 && digits.startsWith("1")) {
+        return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+
+    return raw || "Unknown";
+};
+
+const toDateTime = (date) => {
+    if (!date) return null;
+
+    if (typeof date === "string") {
+        const parsed = date.includes("T")
+            ? DateTime.fromISO(date, { zone: "utc" })
+            : DateTime.fromFormat(date, "yyyy-MM-dd HH:mm:ss", { zone: "utc" });
+
+        const usable = parsed.isValid
+            ? parsed
+            : DateTime.fromFormat(date, "yyyy-MM-dd", { zone: "utc" });
+
+        return usable.isValid ? usable.setZone(TIMEZONE) : null;
+    }
+
+    if (date instanceof Date) {
+        return DateTime.fromJSDate(date).setZone(TIMEZONE);
+    }
+
+    return null;
+};
+
+/** Long form, kept for the hover tooltip. */
+const formatDate = (date) => {
+    const parsed = toDateTime(date);
+    if (!date) return "------";
+    return parsed ? parsed.toFormat("EEE, MMMM d, yyyy hh:mm a") : "Invalid Date";
+};
+
+const formatDayLabel = (parsed) => {
+    if (!parsed) return "";
+
+    const today = DateTime.now().setZone(TIMEZONE).startOf("day");
+    const day = parsed.startOf("day");
+    const diffDays = today.diff(day, "days").days;
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (day.year === today.year) return parsed.toFormat("EEE, MMM d");
+
+    return parsed.toFormat("MMM d, yyyy");
+};
+
+const participantLookup = computed(() => {
+    const lookup = {};
+
+    for (const [number, identity] of Object.entries(props.participants || {})) {
+        const key = phoneKey(number);
+        if (key && identity) {
+            lookup[key] = identity;
+        }
+    }
+
+    return lookup;
+});
+
+const identityFor = (number) => {
+    const identity = participantLookup.value[phoneKey(number)] || {};
+
+    return {
+        name: identity.name || formatPhone(number),
+        role: identity.role || "",
+        avatar: identity.avatar || "",
+    };
+};
+
+const initialsFor = (name) =>
+    String(name || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("") || "?";
+
+/**
+ * Direction is inferred by comparing the sender against "our" number. Compare
+ * on the last ten digits so formatting drift (+1 vs 1 vs bare) still matches,
+ * but never treat an unknown sender as ours when we have no number to compare.
+ */
+const isOutbound = (msg) => {
+    const ours = phoneKey(props.sender);
+    const theirs = phoneKey(msg?.sender_number);
+
+    if (!ours || !theirs) {
+        return msg?.sender_number === props.sender && !!props.sender;
+    }
+
+    return ours === theirs;
+};
+
+const sourceMessages = computed(() =>
+    Array.isArray(props.messages) ? props.messages : [],
+);
+
+/**
+ * Flatten the thread into render rows: day separators plus messages tagged with
+ * their position in a group, so consecutive messages from one person collapse
+ * into a single visual block.
+ */
+const rows = computed(() => {
+    const list = sourceMessages.value;
+    const built = [];
+    let previous = null;
+    let previousParsed = null;
+
+    list.forEach((msg, index) => {
+        const parsed = toDateTime(msg.created_at);
+        const dayKey = parsed ? parsed.toISODate() : null;
+        const previousDayKey = previousParsed ? previousParsed.toISODate() : null;
+        const outbound = isOutbound(msg);
+
+        if (parsed && dayKey !== previousDayKey) {
+            built.push({
+                kind: "day",
+                key: `day-${dayKey}-${index}`,
+                label: formatDayLabel(parsed),
+            });
+        }
+
+        const sameDay = dayKey !== null && dayKey === previousDayKey;
+        const withinWindow =
+            parsed && previousParsed
+                ? Math.abs(parsed.diff(previousParsed, "minutes").minutes) <=
+                  GROUP_WINDOW_MINUTES
+                : false;
+
+        const continuesGroup =
+            previous !== null &&
+            sameDay &&
+            withinWindow &&
+            isOutbound(previous) === outbound &&
+            phoneKey(previous.sender_number) === phoneKey(msg.sender_number);
+
+        if (continuesGroup) {
+            built[built.length - 1].lastOfGroup = false;
+        }
+
+        built.push({
+            kind: "msg",
+            key: msg.id ?? `msg-${index}`,
+            msg,
+            outbound,
+            firstOfGroup: !continuesGroup,
+            lastOfGroup: true,
+            identity: outbound ? null : identityFor(msg.sender_number),
+            shortTime: parsed ? parsed.toFormat("h:mm a") : "",
+            fullTimestamp: formatDate(msg.created_at),
+        });
+
+        previous = msg;
+        previousParsed = parsed;
     });
+
+    return built;
 });
 
 const isAdmin = computed(() =>
     (page.props.auth?.user?.roles || []).includes("admin"),
 );
+
 const getTwilioStatusLabel = (status) => {
     if (!status) return "";
 
@@ -79,16 +236,23 @@ const getTwilioStatusLabel = (status) => {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
-const getTwilioStatusTextClasses = (status) => {
-    switch (String(status).toLowerCase()) {
-        case "undelivered":
-        case "failed":
-        case "canceled":
-            return "text-red-600";
-        default:
-            return "text-white";
-    }
+/** Only these two are re-sendable — a canceled message is not retried. */
+const isFailedStatus = (status) => {
+    if (!status) return false;
+    const normalized = String(status).toLowerCase();
+    return normalized === "failed" || normalized === "undelivered";
 };
+
+/** Anything the coordinator should see as a delivery problem. */
+const isErrorStatus = (status) => {
+    if (!status) return false;
+    return (
+        isFailedStatus(status) || String(status).toLowerCase() === "canceled"
+    );
+};
+
+const getTwilioStatusTextClasses = (status) =>
+    isErrorStatus(status) ? "text-destructive" : "";
 
 const getTwilioStatusIcon = (status) => {
     switch (String(status || "").toLowerCase()) {
@@ -126,9 +290,11 @@ const removeMessage = (id) => {
                     description: "Mesasge has been removed!",
                 });
 
-                const index = props.messages.findIndex((msg) => msg.id === id);
+                const index = sourceMessages.value.findIndex(
+                    (msg) => msg.id === id,
+                );
                 if (index !== -1) {
-                    props.messages.splice(index, 1);
+                    sourceMessages.value.splice(index, 1);
                 }
             },
         },
@@ -158,18 +324,12 @@ const mediaKind = (media) => {
 
 const resendingIds = ref(new Set());
 
-const isFailedStatus = (status) => {
-    if (!status) return false;
-    const normalized = String(status).toLowerCase();
-    return normalized === "failed" || normalized === "undelivered";
-};
-
 const canResend = (msg) => {
     if (!isFailedStatus(msg.twilio_status)) return false;
     if (!isRetryableTwilioError(msg.twilio_error_code)) return false;
     // Only outbound (messages from "us") are eligible — we cannot resend
     // an inbound reply on the tenant's behalf.
-    return msg.sender_number === props.sender;
+    return isOutbound(msg);
 };
 
 const resendMessage = async (msg) => {
@@ -212,171 +372,226 @@ const resendMessage = async (msg) => {
     }
 };
 </script>
+
 <template>
     <div
-        v-for="msg in messages"
-        :key="msg.id"
-        class="mt-2 flex items-end"
-        :class="msg.sender_number === sender ? 'flex-row-reverse' : 'flex-row'"
-        v-motion-slide-visible-right
+        v-if="!rows.length"
+        class="flex min-h-[200px] flex-col items-center justify-center gap-2 text-center"
     >
-        <div
-            class="relative max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-md"
-            :class="
-                msg.sender_number !== sender
-                    ? 'rounded-bl-none bg-white text-black'
-                    : 'bg-primary text-primary-foreground rounded-br-none'
-            "
-        >
-            <button
-                v-if="isAdmin"
-                type="button"
-                class="absolute right-1 top-[-5px] flex items-center justify-center w-4 h-4 rounded-full bg-destructive text-white hover:bg-red-600 transition-colors"
-                @click="removeMessage(msg.id)"
-            >
-                <XIcon class="w-3 h-3" />
-            </button>
+        <MessageSquare class="text-muted-foreground/50 h-8 w-8" />
+        <p class="text-muted-foreground text-sm">No messages yet.</p>
+    </div>
 
-            <p
-                class="text-xs mb-1"
-                :class="
-                    msg.sender_number === sender
-                        ? 'text-white/70'
-                        : 'text-gray-500'
-                "
-            >
-                To: {{ msg.receiver_number }}
-            </p>
+    <template v-for="row in rows" :key="row.key">
+        <!-- Day separator -->
+        <div v-if="row.kind === 'day'" class="my-4 flex items-center gap-3">
+            <div class="bg-border h-px flex-1" />
             <span
-                class="text-md py-1 whitespace-pre-line"
-                :class="
-                    msg.sender_number === sender ? 'text-white' : 'text-black'
-                "
-                v-html="msg.message ?? msg.messages"
-            ></span>
-            <!-- Handle both formats: is_mms with media array OR single image property -->
-            <div
-                v-if="
-                    (msg.is_mms && msg.media && msg.media.length > 0) ||
-                    msg.image
-                "
-                class="mt-2"
+                class="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium"
             >
-                <!-- Multiple media format (original conversation format) -->
-                <template v-for="media in msg.media || []" :key="media.id">
-                    <video
-                        v-if="mediaKind(media) === 'video'"
-                        :src="media.public_url"
-                        controls
-                        playsinline
-                        class="max-w-full h-auto rounded-lg shadow-sm bg-black"
-                        style="max-width: 300px; max-height: 200px"
-                    />
-                    <button
-                        v-else-if="mediaKind(media) === 'pdf'"
-                        type="button"
-                        class="flex items-center gap-2 max-w-[300px] rounded-lg border bg-white/90 px-3 py-2 text-left text-sm text-gray-700 shadow-sm cursor-pointer hover:bg-white"
-                        @click="openMedia(media.public_url)"
-                    >
-                        <FileIcon class="h-5 w-5 shrink-0 text-red-500" />
-                        <span class="truncate">{{ media.file_name || "Document.pdf" }}</span>
-                    </button>
-                    <img
-                        v-else
-                        :src="media.public_url"
-                        :alt="media.file_name || 'Attached image'"
-                        class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
-                        style="max-width: 300px; max-height: 200px"
-                        @click="openMedia(media.public_url)"
-                    />
-                </template>
-                <!-- Single image format (jobber text message format) -->
-                <img
-                    v-if="msg.image && !msg.media"
-                    :src="msg.image"
-                    :alt="'Attached image'"
-                    class="max-w-full h-auto rounded-lg shadow-sm cursor-pointer"
-                    style="max-width: 300px; max-height: 200px"
-                    @click="openMedia(msg.image)"
-                />
+                {{ row.label }}
+            </span>
+            <div class="bg-border h-px flex-1" />
+        </div>
+
+        <div
+            v-else
+            class="flex w-full gap-2"
+            :class="[
+                row.outbound ? 'justify-end' : 'justify-start',
+                row.firstOfGroup ? 'mt-3' : 'mt-0.5',
+            ]"
+        >
+            <!-- Avatar rail: only the last bubble of an inbound group carries a
+                 face, the rest keep the same indent via the empty spacer. -->
+            <div v-if="!row.outbound" class="w-7 shrink-0 self-end">
+                <Avatar
+                    v-if="row.lastOfGroup"
+                    class="h-7 w-7"
+                    :title="row.msg.sender_number"
+                >
+                    <AvatarImage v-if="row.identity.avatar" :src="row.identity.avatar" />
+                    <AvatarFallback class="text-[10px]">
+                        {{ initialsFor(row.identity.name) }}
+                    </AvatarFallback>
+                </Avatar>
             </div>
-            <div class="flex gap-20 items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <p
-                        class="text-xs"
-                        :class="
-                            msg.sender_number === sender
-                                ? 'text-white'
-                                : 'text-gray-500'
-                        "
-                    >
-                        <span
-                            v-if="msg.twilio_status"
-                            class="inline-flex items-center gap-1 font-semibold"
-                            :class="
-                                getTwilioStatusTextClasses(msg.twilio_status)
-                            "
-                            :title="
-                                friendlyTwilioError(
-                                    msg.twilio_error_code,
-                                    msg.twilio_error_message,
-                                )
-                                    ? `Delivery error: ${friendlyTwilioError(msg.twilio_error_code, msg.twilio_error_message)}`
-                                    : ''
-                            "
-                        >
-                            <component
-                                :is="getTwilioStatusIcon(msg.twilio_status)"
-                                class="h-3 w-3"
-                            />
-                            {{ getTwilioStatusLabel(msg.twilio_status) }} -
-                        </span>
-                        {{ msg.created_at }}
-                    </p>
-                </div>
+
+            <div
+                class="group relative min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-sm sm:max-w-[70%]"
+                :class="[
+                    row.outbound
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-foreground border',
+                    row.outbound && row.lastOfGroup ? 'rounded-br-sm' : '',
+                    !row.outbound && row.lastOfGroup ? 'rounded-bl-sm' : '',
+                    row.msg.__pending ? 'opacity-70' : '',
+                ]"
+            >
+                <button
+                    v-if="isAdmin && showDelete && !row.msg.__pending"
+                    type="button"
+                    title="Delete message"
+                    class="bg-destructive text-destructive-foreground absolute -top-2 flex h-5 w-5 items-center justify-center rounded-full opacity-0 shadow transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                    :class="row.outbound ? '-left-2' : '-right-2'"
+                    @click="removeMessage(row.msg.id)"
+                >
+                    <XIcon class="h-3 w-3" />
+                </button>
+
                 <p
-                    class="text-xs"
+                    v-if="!row.outbound && row.firstOfGroup"
+                    class="text-muted-foreground mb-0.5 text-xs font-semibold"
+                    :title="row.msg.sender_number"
+                >
+                    {{ row.identity.name
+                    }}<span v-if="row.identity.role" class="font-normal">
+                        · {{ row.identity.role }}</span
+                    >
+                </p>
+
+                <p class="whitespace-pre-line break-words [overflow-wrap:anywhere]">
+                    <template
+                        v-for="(part, index) in linkifyParts(
+                            row.msg.message ?? row.msg.messages,
+                        )"
+                        :key="index"
+                    >
+                        <a
+                            v-if="part.type === 'link'"
+                            :href="part.href"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="underline underline-offset-2 hover:opacity-80"
+                            >{{ part.value }}</a
+                        >
+                        <template v-else>{{ part.value }}</template>
+                    </template>
+                </p>
+
+                <!-- Handle both formats: is_mms with media array OR single image property -->
+                <div
+                    v-if="
+                        (row.msg.is_mms &&
+                            row.msg.media &&
+                            row.msg.media.length > 0) ||
+                        row.msg.image
+                    "
+                    class="mt-2"
                     :class="
-                        msg.sender_number === sender
-                            ? 'text-white'
-                            : 'text-gray-500'
+                        (row.msg.media?.length ?? 0) > 1
+                            ? 'grid grid-cols-2 gap-1'
+                            : ''
                     "
                 >
-                    From: {{ msg.sender_number }}
+                    <!-- Multiple media format (original conversation format) -->
+                    <template v-for="media in row.msg.media || []" :key="media.id">
+                        <video
+                            v-if="mediaKind(media) === 'video'"
+                            :src="media.public_url"
+                            controls
+                            playsinline
+                            class="h-auto max-h-52 w-full max-w-[300px] rounded-lg bg-black shadow-sm"
+                        />
+                        <button
+                            v-else-if="mediaKind(media) === 'pdf'"
+                            type="button"
+                            class="bg-background text-foreground hover:bg-accent flex max-w-[300px] cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm shadow-sm"
+                            @click="openMedia(media.public_url)"
+                        >
+                            <FileIcon class="text-destructive h-5 w-5 shrink-0" />
+                            <span class="truncate">{{
+                                media.file_name || "Document.pdf"
+                            }}</span>
+                        </button>
+                        <img
+                            v-else
+                            :src="media.public_url"
+                            :alt="media.file_name || 'Attached image'"
+                            class="max-h-52 w-full max-w-[300px] cursor-pointer rounded-lg object-cover shadow-sm"
+                            @click="openMedia(media.public_url)"
+                        />
+                    </template>
+                    <!-- Single image format (jobber text message format) -->
+                    <img
+                        v-if="row.msg.image && !row.msg.media"
+                        :src="row.msg.image"
+                        :alt="'Attached image'"
+                        class="max-h-52 w-full max-w-[300px] cursor-pointer rounded-lg object-cover shadow-sm"
+                        @click="openMedia(row.msg.image)"
+                    />
+                </div>
+
+                <div
+                    class="mt-1 flex items-center justify-end gap-1 text-[10px]"
+                    :class="
+                        row.outbound
+                            ? 'text-primary-foreground/70'
+                            : 'text-muted-foreground'
+                    "
+                    :title="row.fullTimestamp"
+                >
+                    <span class="tabular-nums">{{ row.shortTime }}</span>
+                    <component
+                        v-if="row.msg.twilio_status"
+                        :is="getTwilioStatusIcon(row.msg.twilio_status)"
+                        class="h-3 w-3 shrink-0"
+                        :class="getTwilioStatusTextClasses(row.msg.twilio_status)"
+                        :title="getTwilioStatusLabel(row.msg.twilio_status)"
+                    />
+                    <span
+                        v-if="isErrorStatus(row.msg.twilio_status)"
+                        class="text-destructive font-semibold"
+                    >
+                        {{ getTwilioStatusLabel(row.msg.twilio_status) }}
+                    </span>
+                </div>
+
+                <p
+                    v-if="showNumbers && row.lastOfGroup"
+                    class="mt-0.5 text-[10px]"
+                    :class="
+                        row.outbound
+                            ? 'text-primary-foreground/70'
+                            : 'text-muted-foreground'
+                    "
+                >
+                    {{ row.msg.sender_number }} → {{ row.msg.receiver_number }}
                 </p>
+
+                <p
+                    v-if="
+                        friendlyTwilioError(
+                            row.msg.twilio_error_code,
+                            row.msg.twilio_error_message,
+                        )
+                    "
+                    class="text-destructive mt-1 text-xs"
+                >
+                    Error:
+                    {{
+                        friendlyTwilioError(
+                            row.msg.twilio_error_code,
+                            row.msg.twilio_error_message,
+                        )
+                    }}
+                </p>
+                <button
+                    v-if="canResend(row.msg)"
+                    type="button"
+                    :disabled="resendingIds.has(row.msg.id)"
+                    class="text-destructive mt-1 inline-flex items-center gap-1 text-xs font-medium hover:opacity-80 disabled:opacity-60"
+                    title="Resend this message via Twilio"
+                    @click="resendMessage(row.msg)"
+                >
+                    <Loader2
+                        v-if="resendingIds.has(row.msg.id)"
+                        class="h-3 w-3 animate-spin"
+                    />
+                    <RotateCw v-else class="h-3 w-3" />
+                    {{ resendingIds.has(row.msg.id) ? "Resending…" : "Retry" }}
+                </button>
             </div>
-            <p
-                v-if="
-                    friendlyTwilioError(
-                        msg.twilio_error_code,
-                        msg.twilio_error_message,
-                    )
-                "
-                class="mt-1 text-xs text-red-600"
-            >
-                Error:
-                {{
-                    friendlyTwilioError(
-                        msg.twilio_error_code,
-                        msg.twilio_error_message,
-                    )
-                }}
-            </p>
-            <button
-                v-if="canResend(msg)"
-                type="button"
-                :disabled="resendingIds.has(msg.id)"
-                class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 disabled:opacity-60"
-                title="Resend this message via Twilio"
-                @click="resendMessage(msg)"
-            >
-                <Loader2
-                    v-if="resendingIds.has(msg.id)"
-                    class="h-3 w-3 animate-spin"
-                />
-                <RotateCw v-else class="h-3 w-3" />
-                {{ resendingIds.has(msg.id) ? "Resending…" : "Retry" }}
-            </button>
         </div>
-    </div>
+    </template>
 </template>

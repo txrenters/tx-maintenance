@@ -13,6 +13,7 @@ import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
 import { ScrollArea } from "@/Components/ui/scroll-area";
 import SummaryReportIcon from "@/Components/Icons/SummaryReportIcon.vue";
+import { waitedLabel } from "@/utils/conversation";
 import {
     Loader2,
     RefreshCw,
@@ -112,17 +113,6 @@ const SEVERITY_DOT = {
     high: "bg-red-500",
     medium: "bg-amber-500",
     low: "bg-emerald-500",
-};
-
-const waitedLabel = (hours) => {
-    if (hours == null) return "";
-    if (hours < 1) return "under an hour";
-    if (hours < 24) return `${hours}h`;
-
-    const days = Math.floor(hours / 24);
-    const rest = hours % 24;
-
-    return rest ? `${days}d ${rest}h` : `${days}d`;
 };
 
 const generatedAtLabel = computed(() => {

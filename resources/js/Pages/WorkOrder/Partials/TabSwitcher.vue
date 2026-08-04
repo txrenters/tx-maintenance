@@ -6,11 +6,42 @@ import {
   TooltipTrigger,
 } from "@/Components/ui/tooltip";
 import { usePage } from "@inertiajs/vue3";
+import { Headset, House, KeyRound, Wrench } from "lucide-vue-next";
 
 const props = defineProps({
   buttons: Array, // Expecting an array of button objects
   activeTab: String, // The currently active tab
 });
+
+/**
+ * Conversation tabs used to be labelled with a bare letter ("V", "O", "T", "W")
+ * and a tooltip that didn't say which two parties the thread is between — so
+ * "Owner Conversation" meant one thing on the staff tabs and another on the
+ * vendor tabs. The tab config lives in eight different pages, so the naming is
+ * fixed up here by tab name instead of in each copy.
+ *
+ * @type {Object<string, {icon: object, label: string, tooltip: string}>}
+ */
+const CONVERSATION_TABS = {
+  vendor_conversation: { icon: Wrench, label: "Vendor", tooltip: "Vendor ↔ Coordinator" },
+  owner_conversation: { icon: House, label: "Owner", tooltip: "Owner ↔ Coordinator" },
+  tenant_conversation: { icon: KeyRound, label: "Tenant", tooltip: "Tenant ↔ Coordinator" },
+  vendor_woc_conversation: { icon: Headset, label: "Coordinator", tooltip: "Vendor ↔ Coordinator" },
+  vendor_owner_conversation: { icon: House, label: "Owner", tooltip: "Vendor ↔ Owner" },
+  vendor_tenant_conversation: { icon: KeyRound, label: "Tenant", tooltip: "Vendor ↔ Tenant" },
+  owner_woc_conversation: { icon: Headset, label: "Coordinator", tooltip: "Owner ↔ Coordinator" },
+  owner_vendor_conversation: { icon: Wrench, label: "Vendor", tooltip: "Owner ↔ Vendor" },
+  tenant_woc_conversation: { icon: Headset, label: "Coordinator", tooltip: "Tenant ↔ Coordinator" },
+  tenant_vendor_conversation: { icon: Wrench, label: "Vendor", tooltip: "Tenant ↔ Vendor" },
+};
+
+const iconFor = (button) => CONVERSATION_TABS[button.name]?.icon ?? button.icon;
+
+const labelFor = (button) =>
+  CONVERSATION_TABS[button.name]?.label ?? button.label ?? button.tooltip;
+
+const tooltipFor = (button) =>
+  CONVERSATION_TABS[button.name]?.tooltip ?? button.tooltip ?? button.label;
 
 const page = usePage();
 
@@ -42,38 +73,35 @@ const canAccess = (requiredRoles) => {
           class="gap-1.5"
           @click="handleSwitchTab(button.name)"
         >
-          <span
-            v-if="
-              button.icon === 'V' ||
-              button.icon === 'O' ||
-              button.icon === 'T' ||
-              button.icon === 'W'
-            "
-            class="text-xs font-semibold"
-            >{{ button.icon }}</span
-          >
+          <!-- Any config still passing a bare letter degrades to that letter
+               rather than throwing. -->
+          <span v-if="typeof iconFor(button) === 'string'" class="text-xs font-semibold">{{
+            iconFor(button)
+          }}</span>
 
-          <!-- If the icon exists and is not a letter, render the icon -->
-          <component :is="button.icon" class="w-4 h-4" v-else-if="button.icon" />
+          <component :is="iconFor(button)" class="w-4 h-4" v-else-if="iconFor(button)" />
 
           <!-- Text label (previously only shown in the tooltip) -->
-          <span class="text-xs">{{ button.tooltip || button.label }}</span>
+          <span class="text-xs">{{ labelFor(button) }}</span>
 
-          <!-- Optional count badge. Tabs that don't set `count` render as before. -->
+          <!-- Optional count badge. Tabs that don't set `count` render as before.
+               `countVariant: 'alert'` marks something needing attention. -->
           <span
             v-if="button.count"
             class="ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
             :class="
-              activeTab === button.name
-                ? 'bg-background/20 text-current'
-                : 'bg-muted text-muted-foreground'
+              button.countVariant === 'alert'
+                ? 'bg-destructive text-destructive-foreground'
+                : activeTab === button.name
+                  ? 'bg-background/20 text-current'
+                  : 'bg-muted text-muted-foreground'
             "
             >{{ button.count }}</span
           >
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{{ button.tooltip }}</p>
+        <p>{{ tooltipFor(button) }}</p>
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
