@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AwaitingReplyCounter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -71,6 +72,11 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
+            // Drives the red badge on the Messages nav. Only the staff who see
+            // that nav pay for the query, and the result is cached for a minute.
+            'awaiting_reply_count' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
+                ? app(AwaitingReplyCounter::class)->cachedCount()
+                : 0,
         ]);
     }
 }

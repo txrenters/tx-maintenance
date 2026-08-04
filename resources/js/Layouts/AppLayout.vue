@@ -152,6 +152,17 @@ const data = computed(() => ({
     ],
 }));
 
+// Conversations whose newest message came in from the outside and are still
+// unanswered. Shared from the server so the badge is right on every page, not
+// only inside the Inbox.
+const awaitingReplyBadge = computed(() => {
+    const count = Number(page.props.awaiting_reply_count ?? 0);
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
 const navs = computed(() => {
     const userRoles = page.props.auth.user.roles || [];
     const isAccounting = userRoles.includes("accounting");
@@ -296,11 +307,13 @@ const navs = computed(() => {
                     page.component === "Inbox/Index" ||
                     page.component === "ConversationLogs" ||
                     page.component === "TwilioMessageSearch",
+                badge: awaitingReplyBadge.value,
                 items: [
                     {
                         title: "Inbox",
                         url: route("inbox.index"),
                         isActive: page.component === "Inbox/Index",
+                        badge: awaitingReplyBadge.value,
                     },
                     {
                         title: "Message Log",
@@ -952,13 +965,33 @@ onUnmounted(() => {
                                 <SidebarMenuItem>
                                     <CollapsibleTrigger as-child>
                                         <SidebarMenuButton
-                                            :tooltip="item.title"
+                                            :tooltip="
+                                                item.badge
+                                                    ? `${item.title} — ${item.badge} awaiting reply`
+                                                    : item.title
+                                            "
+                                            class="relative"
                                         >
                                             <component :is="item.icon" />
+                                            <!-- Collapsed to icons the label and
+                                                 count are hidden, so the unread
+                                                 state falls back to a dot. -->
+                                            <span
+                                                v-if="item.badge"
+                                                class="bg-destructive absolute left-5 top-1 hidden h-2 w-2 rounded-full group-data-[collapsible=icon]:block"
+                                            />
                                             <span>{{ item.title }}</span>
+                                            <span
+                                                v-if="item.badge"
+                                                class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                                >{{ item.badge }}</span
+                                            >
                                             <ChevronRight
                                                 v-if="item.items.length > 0"
-                                                class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                                class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                                :class="
+                                                    item.badge ? 'ml-1' : 'ml-auto'
+                                                "
                                             />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
@@ -980,6 +1013,13 @@ onUnmounted(() => {
                                                         <span>{{
                                                             subItem.title
                                                         }}</span>
+                                                        <span
+                                                            v-if="subItem.badge"
+                                                            class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                                            >{{
+                                                                subItem.badge
+                                                            }}</span
+                                                        >
                                                     </Link>
                                                 </SidebarMenuSubButton>
                                             </SidebarMenuSubItem>

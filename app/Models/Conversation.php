@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\ConversationScope;
+use App\Services\AwaitingReplyCounter;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,20 @@ class Conversation extends Model
     protected $table = 'work_order_conversations';
 
     protected $guarded = [];
+
+    /**
+     * Any new or removed message can change which threads are awaiting a reply,
+     * so drop the count behind the Messages badge. Hooking the model rather than
+     * each caller covers the send endpoint, the inbound webhook and the importer
+     * alike.
+     */
+    protected static function booted(): void
+    {
+        $forget = fn () => app(AwaitingReplyCounter::class)->forget();
+
+        static::created($forget);
+        static::deleted($forget);
+    }
 
     public function work_order(): BelongsTo
     {
