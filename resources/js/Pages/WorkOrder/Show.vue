@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { computed, ref, watch } from "vue";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -24,6 +24,7 @@ import OwnerVendorConversation from "./Partials/OwnerVendorConversation.vue";
 import Recommendation from "./Partials/Recommendation.vue";
 import OwnerEmail from "./Partials/OwnerEmail.vue";
 import EmailNotifications from "./Partials/EmailNotifications.vue";
+import { isInboundMessage } from "@/utils/conversation";
 import {
     ClipboardList,
     ListChecks,
@@ -58,10 +59,11 @@ const props = defineProps({
 });
 
 const { toast } = useToast();
+const page = usePage();
 
 // ── Tab configuration (mirrors Index.vue modal) ──────────────────────────────
 const activeTab = ref("details");
-const tabButtons = [
+const baseTabButtons = [
     {
         name: "recommendation",
         tooltip: "Recommendation",
@@ -189,6 +191,47 @@ const tabButtons = [
         requires: ["admin", "woc"],
     },
 ];
+
+// ── Awaiting-reply badges ────────────────────────────────────────────────────
+// `conversations` already arrives newest-first across all four threads, so the
+// first row of a type is that thread's latest message. A thread whose latest
+// message came in from the other party is one the coordinator still owes.
+const wocPhoneNumber = computed(
+    () =>
+        props.workOrder?.woc?.woc_number?.twilio_phone_number?.phone_number ??
+        page.props.maintenance_twilio_phone_number
+);
+
+const AWAITING_TAB_BY_TYPE = {
+    tenant: "tenant_conversation",
+    owner: "owner_conversation",
+    vendor: "vendor_conversation",
+};
+
+const awaitingTabs = computed(() => {
+    const seen = new Set();
+    const awaiting = new Set();
+
+    for (const message of props.conversations ?? []) {
+        const tab = AWAITING_TAB_BY_TYPE[message.conversation_type];
+        if (!tab || seen.has(tab)) continue;
+
+        seen.add(tab);
+        if (isInboundMessage(message, wocPhoneNumber.value)) {
+            awaiting.add(tab);
+        }
+    }
+
+    return awaiting;
+});
+
+const tabButtons = computed(() =>
+    baseTabButtons.map((tab) =>
+        awaitingTabs.value.has(tab.name)
+            ? { ...tab, count: "!", countVariant: "alert" }
+            : tab
+    )
+);
 
 // ── Work order form (same shape as Index.vue) ─────────────────────────────────
 const order = props.workOrder;
