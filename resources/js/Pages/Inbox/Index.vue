@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue";
-import { router } from "@inertiajs/vue3";
+import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
@@ -8,6 +8,7 @@ import MessageCard from "@/Components/MessageCard.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
+import UnansweredSummaryDialog from "@/Components/Inbox/UnansweredSummaryDialog.vue";
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { ScrollArea } from "@/Components/ui/scroll-area";
@@ -82,6 +83,14 @@ const PARTY_TABS = [
     { value: "vendor_owner", label: "Vendor–Owner", icon: House },
 ];
 
+// Vendors, owners and tenants reach their own threads here too; the report is
+// a staffing tool and its endpoint refuses anyone else.
+const canSeeSummary = computed(() => {
+    const roles = usePage().props.auth?.user?.roles ?? [];
+
+    return roles.includes("admin") || roles.includes("woc");
+});
+
 const countFor = (party) => props.partyCounts?.[party] ?? 0;
 
 /**
@@ -97,9 +106,22 @@ const partyTabs = computed(() =>
     )
 );
 
-const activeThread = computed(() =>
-    props.threads.find((item) => item.key === activeKey.value) ?? null
-);
+/**
+ * A thread opened from the summary report may sit outside the current filters,
+ * so it is remembered here and used when the list has no matching row. The list
+ * row still wins when there is one — it is the fresher of the two.
+ */
+const detachedThread = ref(null);
+
+const activeThread = computed(() => {
+    const listed = props.threads.find((item) => item.key === activeKey.value);
+
+    if (listed) return listed;
+
+    return detachedThread.value?.key === activeKey.value
+        ? detachedThread.value
+        : null;
+});
 
 const refSuffix = computed(() => {
     const workOrderNo = thread.value?.work_order?.work_order_no;
@@ -132,6 +154,7 @@ watch(search, (value) => {
 
 const openThread = async (item) => {
     activeKey.value = item.key;
+    detachedThread.value = item;
     threadLoading.value = true;
     thread.value = null;
 
@@ -254,13 +277,17 @@ const sendMessage = ({ text, files }) => {
                     <h1 class="flex items-center gap-2 text-sm font-semibold">
                         <InboxIcon class="h-4 w-4" />
                         Inbox
+                        <span
+                            v-if="stats.awaiting"
+                            class="bg-destructive text-destructive-foreground rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        >
+                            {{ stats.awaiting }}
+                        </span>
                     </h1>
-                    <span
-                        v-if="stats.awaiting"
-                        class="bg-destructive text-destructive-foreground rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    >
-                        {{ stats.awaiting }} awaiting
-                    </span>
+                    <UnansweredSummaryDialog
+                        v-if="canSeeSummary"
+                        @open-thread="openThread"
+                    />
                 </div>
 
                 <div class="relative">

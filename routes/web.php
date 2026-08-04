@@ -18,6 +18,7 @@ use App\Http\Controllers\HoaPhotoGalleryController;
 use App\Http\Controllers\HoaViolationController;
 use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\InboxSummaryController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
@@ -167,6 +168,7 @@ Route::middleware([
 
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
     Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');
+    Route::get('/inbox/summary', InboxSummaryController::class)->name('inbox.summary');
     Route::get('/message-alerts', MessageAlertController::class)->name('message_alerts');
     Route::get('/conversation-logs', [ConversationLogsController::class, 'index'])->name('conversation_logs.index');
     Route::post('/work_orders/conversation/send', [ConversationController::class, 'SendMessage'])->name('work_order.conversation.send');
