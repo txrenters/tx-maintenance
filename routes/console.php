@@ -46,9 +46,12 @@ Schedule::command('sync:building-details')
     ->withoutOverlapping(30)
     ->runInBackground();
 
-// Refresh Jobber token every 30 minutes to prevent expiration
+// Refresh Jobber token every 30 minutes to prevent expiration. Never overlap:
+// Jobber refresh tokens are single-use, so two concurrent refreshes kill the
+// stored token permanently (the service also serializes behind a cache lock).
 Schedule::command('jobber:refresh-token')
     ->everyThirtyMinutes()
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 Schedule::command('jobs:send-reminders')

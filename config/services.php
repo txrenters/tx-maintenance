@@ -173,6 +173,9 @@ return [
     'jobber' => [
         'graphql_url' => env('JOBBER_GRAPHQL_URL', 'https://api.getjobber.com/api/graphql'),
         'api_version' => env('JOBBER_API_VERSION'),
+        'client_id' => env('JOBBER_CLIENT_ID'),
+        'client_secret' => env('JOBBER_SECRET'),
+        'callback_url' => env('JOBBER_CALLBACK_URL'),
         // When THMP is assigned to a work order, create the matching job in
         // Jobber and store its link on the work order. ON by default so a
         // production deploy creates jobs immediately (the n8n "Create Job"

@@ -8,6 +8,7 @@ use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BoardSummaryController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\ClientContactController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationLogsController;
 use App\Http\Controllers\ConversationMediaController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\ImportTwilioNumberController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
+use App\Http\Controllers\ItToolsController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
@@ -130,6 +132,16 @@ Route::middleware([
     Route::resource('/inspections', InspectionController::class);
     Route::get('/jobber-connect', [InspectionController::class, 'redirectToJobber'])->name('jobber.connect');
     Route::post('/jobber-sync', [InspectionController::class, 'manualSyncJobber'])->name('jobber.sync');
+
+    // Jobber diagnostics + IT tools. These used to sit outside the auth group;
+    // /jobber/diagnose even burned the live (single-use) refresh token on every
+    // hit, so any crawler could kill the Jobber connection. Admin-only now,
+    // enforced in the controllers.
+    Route::get('/jobber/diagnose', [JobberDiagnosticController::class, 'diagnose'])->name('jobber.diagnose');
+    Route::post('/jobber/clear-tokens', [JobberDiagnosticController::class, 'clearTokens'])->name('jobber.clearTokens');
+    Route::get('/it-tools/jobber', [ItToolsController::class, 'jobber'])->name('it-tools.jobber');
+    Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
+    Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
@@ -336,12 +348,9 @@ Route::get('/hoa/photos/{workOrder}', [HoaPhotoGalleryController::class, 'show']
     ->name('hoa.photos.show')
     ->middleware('signed');
 
+// Public by necessity (Jobber redirects here), but the handler validates the
+// OAuth state stored in the admin's session before exchanging the code.
 Route::get('/jobber/callback', [JobberAuthController::class, 'handleCallback'])->name('jobber.callback');
-Route::get('/jobber/reconnect', [JobberAuthController::class, 'refreshAccessToken'])->name('jobber.reconnect');
-
-// Jobber diagnostic routes
-Route::get('/jobber/diagnose', [JobberDiagnosticController::class, 'diagnose'])->name('jobber.diagnose');
-Route::post('/jobber/clear-tokens', [JobberDiagnosticController::class, 'clearTokens'])->name('jobber.clearTokens');
 
 // TEMP dev-only email preview — remove before shipping.
 if (app()->environment('local')) {

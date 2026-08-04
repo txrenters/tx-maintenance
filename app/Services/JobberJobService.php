@@ -2,9 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\JobberToken;
 use App\Models\WorkOrder;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,6 +16,8 @@ use Illuminate\Support\Facades\Log;
  */
 class JobberJobService
 {
+    public function __construct(private JobberTokenService $tokens) {}
+
     /**
      * Find the Jobber property for a building and create the job for the work
      * order. Returns the created job's global id and web URI.
@@ -192,34 +192,24 @@ class JobberJobService
     }
 
     /**
-     * POST a GraphQL body to Jobber with the stored bearer token. Returns the
-     * decoded JSON, or null on a failed request (logged) so callers degrade
-     * gracefully instead of throwing inside a queued job.
+     * POST a GraphQL body to Jobber through the token service (which refreshes
+     * on 401 and replays once). Returns the decoded JSON, or null on a failed
+     * request (logged) so callers degrade gracefully. A dead Jobber connection
+     * throws JobberReconnectRequiredException instead, so the queued job fails
+     * and retries later rather than silently giving up.
      *
      * @param  array<string, mixed>  $body
      * @return array<string, mixed>|null
      */
     private function post(array $body): ?array
     {
-        $token = JobberToken::first();
-
-        if (! $token || blank($token->access_token)) {
-            Log::error('Jobber job: no Jobber access token available.');
-
-            return null;
-        }
-
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer '.$token->access_token,
-            'X-JOBBER-GRAPHQL-VERSION' => config('services.jobber.api_version'),
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout(60)
-            ->retry(3, 2000)
-            ->post(config('services.jobber.graphql_url'), $body);
+        $response = $this->tokens->graphql($body);
 
         if ($response->failed()) {
-            Log::error('Jobber job: GraphQL request failed.', ['body' => $response->body()]);
+            Log::error('Jobber job: GraphQL request failed.', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
 
             return null;
         }

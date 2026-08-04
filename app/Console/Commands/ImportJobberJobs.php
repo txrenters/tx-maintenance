@@ -5,8 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
-use App\Models\JobberToken;
 use App\Models\JobberVisit;
+use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
@@ -363,12 +363,6 @@ class ImportJobberJobs extends Command
 
     public function accessToken()
     {
-        $token = JobberToken::first();
-
-        return [
-            'Authorization' => 'Bearer '.$token->access_token,
-            'X-JOBBER-GRAPHQL-VERSION' => env('JOBBER_API_VERSION'),
-            'Content-Type' => 'application/json',
-        ];
+        return app(JobberTokenService::class)->headers();
     }
 }
