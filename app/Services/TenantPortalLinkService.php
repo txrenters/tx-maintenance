@@ -110,7 +110,7 @@ class TenantPortalLinkService
                     return;
                 }
 
-                $this->text($workOrder, $token, $this->hoaReminderMessage($workOrder, $token));
+                $this->text($workOrder, $token, $this->hoaReminderMessage($workOrder, $token), 'tenant_hoa_violation_reminder_sms');
 
                 return;
             }
@@ -119,7 +119,7 @@ class TenantPortalLinkService
                 return;
             }
 
-            $this->text($workOrder, $token, $this->reminderMessage($workOrder, $token));
+            $this->text($workOrder, $token, $this->reminderMessage($workOrder, $token), 'tenant_portal_link_reminder_sms');
         } catch (\Throwable $exception) {
             Log::error('Tenant portal reminder failed to send.', [
                 'tenant_upload_token_id' => $token->id,
@@ -145,7 +145,7 @@ class TenantPortalLinkService
                 return;
             }
 
-            $this->text($workOrder, $token, $this->hoaInitialMessage($workOrder, $token));
+            $this->text($workOrder, $token, $this->hoaInitialMessage($workOrder, $token), 'tenant_hoa_violation_link_sms');
         } catch (\Throwable $exception) {
             Log::error('HOA violation portal link failed to send.', [
                 'tenant_upload_token_id' => $token->id,
@@ -180,14 +180,16 @@ class TenantPortalLinkService
             'purpose' => TenantUploadToken::PURPOSE_TENANT_EASY_FIX,
         ]);
 
-        $this->text($workOrder, $token, $this->initialMessage($workOrder, $token));
+        $this->text($workOrder, $token, $this->initialMessage($workOrder, $token), 'tenant_portal_link_sms');
     }
 
     /**
      * Persist the message to the tenant conversation thread (as the WOC) and
-     * queue the text, then record the notification on the token.
+     * queue the text, then record the notification on the token. The automation
+     * key names which portal-link message this is on the IT Tools automated
+     * messages log.
      */
-    private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message): void
+    private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message, string $automationKey): void
     {
         // A WOC can mute this work order's tenant automation from the tenant
         // conversation tab; manual sends are unaffected.
@@ -217,6 +219,16 @@ class TenantPortalLinkService
         ]);
 
         SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'tenant',
+            $automationKey,
+            $tenantNumber,
+            $workOrder,
+            $message,
+            ['tenant_upload_token_id' => $token->id, 'conversation_id' => $conversation->id],
+        );
 
         $token->update([
             'last_notified_at' => now(),

@@ -8,6 +8,7 @@ use App\Models\Owner;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
+use App\Services\AutomatedMessageLogService;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use App\Services\PropertyWareService;
@@ -113,6 +114,18 @@ class SendVendorWorkOrderInformation implements ShouldQueue
                 mailbox: $workOrder->isTurnover()
                     ? (string) config('services.microsoft.turnover_mailbox')
                     : null,
+            );
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_EMAIL,
+                'vendor',
+                'vendor_assignment_email',
+                $vendor->email,
+                $workOrder,
+                extra: [
+                    'vendor_id' => $vendor->id,
+                    'subject' => $workOrder->subjectWithProperty('New Service Request - Work Order #'.$workOrder->work_order_no),
+                ],
             );
         }
 
@@ -224,6 +237,16 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         ]);
 
         SendConversationMessageJob::dispatch($tenantNumber, $wocNumber, $body, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'tenant',
+            'tenant_vendor_assignment_sms',
+            $tenantNumber,
+            $workOrder,
+            $body,
+            ['vendor_id' => $vendor->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     private function buildTenantMessage(WorkOrder $workOrder, Vendor $vendor): string
@@ -306,6 +329,16 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             ]);
 
             SendConversationMessageJob::dispatch($ownerNumber, $wocNumber, $body, null, $conversation->id);
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_SMS,
+                'owner',
+                'owner_vendor_assignment_sms',
+                $ownerNumber,
+                $workOrder,
+                $body,
+                ['owner_id' => $owner->id, 'vendor_id' => $vendor->id, 'conversation_id' => $conversation->id],
+            );
         }
     }
 
@@ -377,6 +410,16 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         ]);
 
         SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $body, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'vendor',
+            'vendor_assignment_sms',
+            $vendorNumber,
+            $workOrder,
+            $body,
+            ['vendor_id' => $vendor->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     private function buildSmsBody(WorkOrder $workOrder, Vendor $vendor, ?string $portalUrl = null): string

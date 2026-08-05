@@ -58,7 +58,33 @@ class HoaViolationConfirmationSender
 
         $this->graph->sendMail($to, $recipients, $subject, $html, mailbox: $mailbox);
 
+        $this->logSent($workOrder, array_merge([$to], $recipients), $subject, $token);
+
         return true;
+    }
+
+    /**
+     * Ledger one row per recipient, telling tenant and owner addresses apart so
+     * the IT Tools automated-messages log filters them correctly.
+     *
+     * @param  array<int, string>  $recipients
+     */
+    private function logSent(WorkOrder $workOrder, array $recipients, string $subject, TenantUploadToken $token): void
+    {
+        $tenantEmail = (string) $workOrder->requested_by?->email;
+
+        foreach ($recipients as $email) {
+            $isTenant = $tenantEmail !== '' && strcasecmp($email, $tenantEmail) === 0;
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_EMAIL,
+                $isTenant ? 'tenant' : 'owner',
+                $isTenant ? 'tenant_hoa_violation_confirmation_email' : 'owner_hoa_violation_confirmation_email',
+                $email,
+                $workOrder,
+                extra: ['subject' => $subject, 'tenant_upload_token_id' => $token->id],
+            );
+        }
     }
 
     /**

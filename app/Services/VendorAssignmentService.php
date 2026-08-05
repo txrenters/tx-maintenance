@@ -38,6 +38,15 @@ class VendorAssignmentService
                     $workOrder,
                     route('vendor.portal.show', $token),
                 ));
+
+                AutomatedMessageLogService::log(
+                    AutomatedMessageLogService::CHANNEL_EMAIL,
+                    'vendor',
+                    'vendor_assignment_notification_email',
+                    $vendor->email,
+                    $workOrder,
+                    extra: ['vendor_id' => $vendor->id],
+                );
             } catch (\Throwable $e) {
                 Log::error('Auto-assign vendor notification failed.', [
                     'vendor_id' => $vendor->id,

@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\VendorPortalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -162,6 +163,16 @@ class FollowUpUnscheduledVendors extends Command
         }
 
         SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'vendor',
+            'vendor_schedule_follow_up_sms',
+            $vendorNumber,
+            $workOrder,
+            $message,
+            ['vendor_id' => $vendor->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     /**
