@@ -7,6 +7,7 @@ use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
@@ -75,5 +76,41 @@ class NotificationScopeTest extends TestCase
         $this->assertNotContains($tenantActivity->id, $ids);
         $this->assertNotContains($otherActivity->id, $ids);
         $this->assertNotContains($unrelated->id, $ids);
+    }
+
+    public function test_the_automated_message_ledger_stays_out_of_the_bell(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $user = User::factory()->create()->assignRole('admin');
+
+        $workOrder = WorkOrder::factory()->create(['work_order_no' => 43732]);
+
+        AutomatedMessageLogService::log(
+            'sms',
+            'owner',
+            'owner_service_request_sms',
+            '+15125550000',
+            $workOrder,
+            'Hello, we received a new service request.',
+        );
+
+        $staffAlert = Activity::create([
+            'log_name' => 'default', 'description' => 'EMERGENCY - Work Order #43732',
+            'properties' => ['work_order_id' => $workOrder->id, 'message' => 'Emergency alert', 'read' => false],
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/notifications')->assertOk();
+
+        $rows = collect($response->json());
+
+        $this->assertContains($staffAlert->id, $rows->pluck('id')->all());
+        $this->assertSame(0, $rows->where('title', 'owner:sms')->count());
+        $this->assertSame(
+            0,
+            Activity::query()
+                ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+                ->whereIn('id', $rows->pluck('id'))
+                ->count(),
+        );
     }
 }
