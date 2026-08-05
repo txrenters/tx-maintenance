@@ -41,10 +41,11 @@ class TenantAppointmentNotificationService
             return;
         }
 
-        // A turnover/vacant home has no tenant to warn about the visit.
-        // Checked before the claim so the stamp stays clear and a work order
-        // later corrected off Turnover/vacant can still notify.
-        if ($serviceSchedule->work_order?->isVacant()) {
+        // Turnover/re-key/vacant homes and company-ordered refresh cleanings
+        // are opted out of automated tenant messages. Checked before the claim
+        // so the stamp stays clear and a re-categorized work order can still
+        // notify.
+        if ($serviceSchedule->work_order?->skipsAutomatedMessages()) {
             return;
         }
 

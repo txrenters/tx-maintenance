@@ -3,14 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Conversation;
+use App\Models\InboxThreadRead;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * A single place to work through every conversation, instead of opening each
@@ -27,7 +30,7 @@ class InboxController extends Controller
     /** How many characters of the latest message the list shows. */
     private const PREVIEW_LENGTH = 120;
 
-    private const STATUS_FILTERS = ['all', 'awaiting', 'unanswered_24h'];
+    private const STATUS_FILTERS = ['all', 'awaiting', 'unread', 'unanswered_24h'];
 
     /**
      * The conversation_type values threads are actually stored under. Anything
@@ -65,6 +68,7 @@ class InboxController extends Controller
             'stats' => [
                 'total' => $threads->count(),
                 'awaiting' => $threads->where('awaiting', true)->count(),
+                'unread' => $threads->where('unread', true)->count(),
                 'overdue' => $threads->where('awaiting', true)
                     ->where('waiting_hours', '>=', 24)
                     ->count(),
@@ -116,6 +120,8 @@ class InboxController extends Controller
             ->orderBy('id')
             ->get();
 
+        $this->markThreadRead($request, $workOrder, $validated, $messages);
+
         return response()->json([
             'messages' => $messages,
             'work_order' => $workOrder,
@@ -123,6 +129,57 @@ class InboxController extends Controller
             'woc_phone_number' => $this->participants->wocNumberFor($workOrder),
             'recipient_number' => $this->recipientFor($messages, $workOrder),
         ]);
+    }
+
+    /**
+     * Remember, for this staff user, that everything currently in the thread
+     * has been seen. Opening the thread again after a new inbound message
+     * moves the marker forward; the marker never moves backwards.
+     *
+     * Log-never-throw: reading a thread must never fail over its marker. Two
+     * tabs opening the same thread at once can race the unique index on
+     * firstOrCreate — the loser falls through to the guarded update, which is
+     * idempotent.
+     *
+     * @param  array<string, mixed>  $validated
+     * @param  Collection<int, Conversation>  $messages
+     */
+    private function markThreadRead(Request $request, WorkOrder $workOrder, array $validated, Collection $messages): void
+    {
+        $user = $request->user();
+        $lastId = (int) ($messages->max('id') ?? 0);
+
+        if ($user === null || $lastId === 0) {
+            return;
+        }
+
+        $threadKey = [
+            'user_id' => $user->id,
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => $validated['conversation_type'] ?: 'unknown',
+            'vendor_id' => (int) ($validated['vendor_id'] ?? 0),
+            'owner_id' => (int) ($validated['owner_id'] ?? 0),
+        ];
+
+        try {
+            try {
+                InboxThreadRead::query()->firstOrCreate($threadKey);
+            } catch (QueryException) {
+                // A concurrent open created the row between the find and the
+                // insert; it exists now, which is all the update below needs.
+            }
+
+            InboxThreadRead::query()
+                ->where($threadKey)
+                ->where('last_read_conversation_id', '<', $lastId)
+                ->update(['last_read_conversation_id' => $lastId]);
+        } catch (\Throwable $exception) {
+            Log::warning('Inbox read marker could not be stored.', [
+                'work_order_id' => $workOrder->id,
+                'user_id' => $user->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -141,6 +198,7 @@ class InboxController extends Controller
         $rows = DB::table('work_order_conversations as c')
             ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
+            ->leftJoin('inbox_thread_reads as r', $this->readMarkerJoin())
             ->select([
                 'c.id',
                 'c.work_order_id',
@@ -153,6 +211,7 @@ class InboxController extends Controller
                 'c.is_mms',
                 'c.twilio_status',
                 'c.created_at',
+                'r.last_read_conversation_id as last_read_id',
                 'wo.work_order_no',
                 'wo.description as work_order_description',
             ])
@@ -163,6 +222,12 @@ class InboxController extends Controller
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+            )
+            ->when(
+                $filters['status'] === 'unread',
+                fn ($query) => $query->where(fn ($query) => $query
+                    ->whereNull('r.id')
+                    ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
             )
             ->orderByDesc('c.created_at')
             // Room to spare so the PHP-side search and age filters still have
@@ -214,6 +279,26 @@ class InboxController extends Controller
     }
 
     /**
+     * The join that pairs a thread's newest message with the signed-in staff
+     * user's read marker for that thread, matching the same NULL normalization
+     * the thread grouping uses. Each staff member has their own markers, so
+     * "unread" is personal — one coordinator opening a thread does not clear
+     * it for anyone else.
+     */
+    private function readMarkerJoin(): \Closure
+    {
+        $userId = (int) (auth()->id() ?? 0);
+
+        return function ($join) use ($userId) {
+            $join->on('r.work_order_id', '=', 'c.work_order_id')
+                ->where('r.user_id', $userId)
+                ->whereRaw("r.conversation_type = COALESCE(NULLIF(c.conversation_type, ''), 'unknown')")
+                ->whereRaw('r.vendor_id = COALESCE(c.vendor_id, 0)')
+                ->whereRaw('r.owner_id = COALESCE(c.owner_id, 0)');
+        };
+    }
+
+    /**
      * How many threads sit behind each party chip.
      *
      * Counted over every thread rather than the page the list draws, so a chip
@@ -233,6 +318,14 @@ class InboxController extends Controller
             ->when(
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
+            )
+            ->when(
+                $filters['status'] === 'unread',
+                fn ($query) => $query
+                    ->leftJoin('inbox_thread_reads as r', $this->readMarkerJoin())
+                    ->where(fn ($query) => $query
+                        ->whereNull('r.id')
+                        ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
             )
             ->when(
                 $filters['status'] === 'unanswered_24h',
@@ -276,6 +369,10 @@ class InboxController extends Controller
             // is_read is the de facto direction column (see BoardSummaryService):
             // 0 means the message came in from the outside and nobody replied.
             'awaiting' => ! $row->is_read,
+            // Unread is personal: the newest message is inbound AND this staff
+            // user has not opened the thread since it arrived.
+            'unread' => ! $row->is_read
+                && ($row->last_read_id === null || (int) $row->id > (int) $row->last_read_id),
             'twilio_status' => $row->twilio_status,
         ];
     }

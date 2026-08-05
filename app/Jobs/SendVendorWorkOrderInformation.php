@@ -203,8 +203,9 @@ class SendVendorWorkOrderInformation implements ShouldQueue
             return;
         }
 
-        // A vacant unit has no tenant to notify.
-        if ($workOrder->isVacant()) {
+        // A vacant unit has no tenant to notify, and refresh/cleaning jobs are
+        // opted out of automated tenant messages.
+        if ($workOrder->skipsAutomatedMessages()) {
             return;
         }
 

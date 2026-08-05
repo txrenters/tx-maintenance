@@ -131,6 +131,10 @@ const identityFor = (number) => {
         name: identity.name || formatPhone(number),
         role: identity.role || "",
         avatar: identity.avatar || "",
+        // Shown alongside a resolved name so a client texting from a new or
+        // different number is visible at a glance. Blank when the name already
+        // IS the number (unknown sender), to avoid printing it twice.
+        phone: identity.name ? formatPhone(number) : "",
     };
 };
 
@@ -447,6 +451,8 @@ const resendMessage = async (msg) => {
                     {{ row.identity.name
                     }}<span v-if="row.identity.role" class="font-normal">
                         · {{ row.identity.role }}</span
+                    ><span v-if="row.identity.phone" class="font-normal">
+                        · {{ row.identity.phone }}</span
                     >
                 </p>
 

@@ -50,14 +50,15 @@ class OwnerServiceRequestNotificationService
 
     private function send(WorkOrder $workOrder): void
     {
-        // A turnover/vacant work order is not a tenant service request — it is
-        // work the company or the owner already set in motion, so the "we have
-        // received a new service request" confirmation reads as noise (or as a
-        // request they never made). Skip it, leaving the one-shot stamp clear so
-        // a work order later corrected off Turnover/vacant can still notify.
-        // (This skip existed before, was removed by the 07-29 intake reword,
-        // and is deliberately restored.)
-        if ($workOrder->isVacant()) {
+        // A turnover/re-key/vacant or refresh-cleaning work order is not a
+        // tenant service request — it is work the company already set in
+        // motion (re-keys go to Express Key, cleanings are company-ordered),
+        // so the "we have received a new service request" confirmation reads
+        // as noise or as a request the owner never made. Skip it, leaving the
+        // one-shot stamp clear so a re-categorized work order can still
+        // notify. (This skip existed before, was removed by the 07-29 intake
+        // reword, and is deliberately restored per the 08-06 ticket.)
+        if ($workOrder->skipsAutomatedMessages()) {
             return;
         }
 
