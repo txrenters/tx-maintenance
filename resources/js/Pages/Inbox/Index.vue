@@ -15,7 +15,7 @@ import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Skeleton } from "@/Components/ui/skeleton";
 import { useThreadScroll } from "@/composables/useThreadScroll";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
-import { waitedLabel } from "@/utils/conversation";
+import { agoLabel } from "@/utils/conversation";
 import {
     ExternalLink,
     Headset,
@@ -65,6 +65,7 @@ const iconFor = (conversationType) =>
 
 const STATUS_TABS = [
     { value: "all", label: "All" },
+    { value: "unread", label: "Unread" },
     { value: "awaiting", label: "Awaiting reply" },
     { value: "unanswered_24h", label: "Over 24h" },
 ];
@@ -112,6 +113,23 @@ const partyTabs = computed(() =>
  * row still wins when there is one — it is the fresher of the two.
  */
 const detachedThread = ref(null);
+
+/**
+ * Threads read during this visit, so their unread styling clears the moment
+ * they are opened without waiting for a page reload. The server records the
+ * read marker when the thread is fetched; once fresh props arrive they carry
+ * the truth again, so the local set is reset.
+ */
+const readKeys = ref(new Set());
+
+watch(
+    () => props.threads,
+    () => {
+        readKeys.value = new Set();
+    }
+);
+
+const isUnread = (item) => item.unread && !readKeys.value.has(item.key);
 
 const activeThread = computed(() => {
     const listed = props.threads.find((item) => item.key === activeKey.value);
@@ -168,6 +186,7 @@ const openThread = async (item) => {
             },
         });
         thread.value = data;
+        readKeys.value = new Set([...readKeys.value, item.key]);
         scrollToBottom(true);
     } catch (error) {
         toast({
@@ -362,7 +381,10 @@ const sendMessage = ({ text, files }) => {
                     />
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-2">
-                            <span class="truncate text-sm font-medium">
+                            <span
+                                class="truncate text-sm"
+                                :class="isUnread(item) ? 'font-semibold' : 'font-medium'"
+                            >
                                 {{ item.counterparty }}
                             </span>
                             <span
@@ -373,7 +395,7 @@ const sendMessage = ({ text, files }) => {
                                         : 'text-muted-foreground'
                                 "
                             >
-                                {{ waitedLabel(item.waiting_hours) }}
+                                {{ agoLabel(item.last_message_at) }}
                             </span>
                         </div>
                         <p class="text-muted-foreground truncate text-xs">
@@ -393,14 +415,26 @@ const sendMessage = ({ text, files }) => {
                             </span>
                             · {{ item.party }}
                         </p>
-                        <p class="text-muted-foreground mt-0.5 truncate text-xs">
+                        <p
+                            class="mt-0.5 truncate text-xs"
+                            :class="
+                                isUnread(item)
+                                    ? 'text-foreground font-medium'
+                                    : 'text-muted-foreground'
+                            "
+                        >
                             {{ item.preview || "No message body" }}
                         </p>
                     </div>
                     <span
                         v-if="item.awaiting"
-                        class="bg-destructive mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                        title="Waiting on a reply"
+                        class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                        :class="isUnread(item) ? 'bg-destructive' : 'bg-destructive/40'"
+                        :title="
+                            isUnread(item)
+                                ? 'New message — waiting on a reply'
+                                : 'Waiting on a reply'
+                        "
                     />
                 </button>
             </ScrollArea>

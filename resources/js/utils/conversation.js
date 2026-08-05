@@ -86,6 +86,36 @@ export function hoursSince(date) {
     return Math.max(0, Math.floor(-parsed.diffNow("hours").hours));
 }
 
+/**
+ * Minute-precision "ago" phrasing for the inbox list: "just now", "5 mins
+ * ago", "1 hour ago", "2 days ago". Accepts the ISO or SQL datetime strings
+ * the thread rows carry (stored in UTC, like hoursSince assumes).
+ */
+export function agoLabel(date) {
+    if (!date) return "";
+
+    let parsed;
+    if (typeof date === "string") {
+        parsed = DateTime.fromISO(date, { zone: "utc" });
+        if (!parsed.isValid) parsed = DateTime.fromSQL(date, { zone: "utc" });
+    } else {
+        parsed = DateTime.fromJSDate(date);
+    }
+
+    if (!parsed.isValid) return "";
+
+    const minutes = Math.max(0, Math.floor(-parsed.diffNow("minutes").minutes));
+
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? "min" : "mins"} ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+
+    const days = Math.floor(hours / 24);
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
 /** Shared phrasing so the board summary and the thread banner read alike. */
 export function waitedLabel(hours) {
     if (hours == null) return "";
