@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Models\Tenants;
+use App\Services\AutomatedMessageLogService;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
@@ -605,6 +606,21 @@ class SendJobReminders extends Command
 
                     $text = JobberTextMessage::create($payload);
 
+                    AutomatedMessageLogService::log(
+                        AutomatedMessageLogService::CHANNEL_SMS,
+                        'tenant',
+                        'tenant_job_reminder_sms',
+                        $phoneNumber,
+                        $visit->job,
+                        $message2,
+                        [
+                            'jobber_id' => $visit->job->id,
+                            'jobber_visit_id' => $visit->id,
+                            'job_number' => $visit->job->job_number,
+                            'jobber_text_message_id' => $text->id,
+                        ],
+                    );
+
                     Log::info('Job reminder SMS sent successfully', [
                         'message_id' => $text->id,
                         'client_name' => $clientName,
@@ -704,6 +720,20 @@ class SendJobReminders extends Command
                         'notification_type' => $notifiedField,
                         'visit_date' => $visitDate,
                     ]);
+
+                    AutomatedMessageLogService::log(
+                        AutomatedMessageLogService::CHANNEL_EMAIL,
+                        'tenant',
+                        'tenant_job_reminder_email',
+                        $emailAddress,
+                        $visit->job,
+                        extra: [
+                            'jobber_id' => $visit->job->id,
+                            'jobber_visit_id' => $visit->id,
+                            'job_number' => $visit->job->job_number,
+                            'subject' => $subjectLine,
+                        ],
+                    );
 
                     Log::info('Job reminder email sent successfully', [
                         'client_name' => $recipientName,

@@ -68,6 +68,17 @@ class TenantWorkOrderEmailSender
                 trustedHtml: true,
             );
 
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_EMAIL,
+                'tenant',
+                'tenant_intake_email',
+                $to,
+                $workOrder,
+                extra: [
+                    'subject' => 'We received your service request — Work Order #'.($workOrder->work_order_no ?? $workOrder->id),
+                ],
+            );
+
             return true;
         } catch (\Throwable $exception) {
             Log::error('Tenant work order intake email failed to send.', [
