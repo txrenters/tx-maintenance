@@ -4,6 +4,7 @@ import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
+import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
 
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 // The modal tabs load on demand: this component rides along on every page via
@@ -260,6 +261,9 @@ const visibleTabButtons = computed(() => {
     return tabButtons;
 });
 
+const { unseenAttachments, buttonsWithAttachmentBadge } =
+    useUnseenAttachments(visibleTabButtons);
+
 const isLoading = ref(false);
 
 const ownerConversation = ref([]);
@@ -496,6 +500,8 @@ const fetchAttachments = async (workOrderId) => {
 
         workOrderAttachments.value = response.data.attachments;
         workOrderDocuments.value = response.data.documents ?? [];
+        // The server marks everything viewed when staff load the tab.
+        unseenAttachments.value = 0;
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -673,6 +679,8 @@ const handleWorkOrder = async (orderId) => {
         const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data;
 
+        unseenAttachments.value = order.unseen_attachments_count ?? 0;
+
         workOrderForm.id = order.id;
         workOrderForm.work_order_no = order.work_order_no;
         workOrderForm.description = order.description;
@@ -819,7 +827,7 @@ watch(
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="visibleTabButtons"
+                        :buttons="buttonsWithAttachmentBadge"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />

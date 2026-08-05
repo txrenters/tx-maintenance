@@ -35,7 +35,10 @@ class InboundTwilioMessageProcessor
      */
     protected const CANDIDATE_LIMIT = 25;
 
-    public function __construct(protected MediaService $mediaService) {}
+    public function __construct(
+        protected MediaService $mediaService,
+        protected TenantPhotoMirrorService $photoMirror
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload  Twilio webhook-shaped payload (From, To, Body, MessageSid, NumMedia, MediaUrl{N}, MediaContentType{N})
@@ -97,6 +100,12 @@ class InboundTwilioMessageProcessor
 
                 if ($isMms) {
                     $this->processMediaAttachments($conversation->id, $payload);
+
+                    // Photos a tenant texts in belong on the Attachments tab
+                    // too, not only inside the message thread. Never fatal.
+                    if ($type === 'tenant') {
+                        $this->photoMirror->mirrorForConversation($conversation, $conversation->media()->get());
+                    }
                 }
 
                 $workOrder = WorkOrder::find($workOrderId);

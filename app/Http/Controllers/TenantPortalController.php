@@ -10,6 +10,7 @@ use App\Models\ConversationMedia;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
+use App\Services\TenantPhotoMirrorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -224,7 +225,7 @@ class TenantPortalController extends Controller
      * dispatched — the coordinator reads it inside the system, exactly like the
      * owner and vendor portals.
      */
-    public function sendMessage(Request $request)
+    public function sendMessage(Request $request, TenantPhotoMirrorService $photoMirror)
     {
         /** @var WorkOrder $workOrder */
         $workOrder = $request->attributes->get('portal_work_order');
@@ -266,12 +267,14 @@ class TenantPortalController extends Controller
                 'is_mms' => $hasImages,
             ]);
 
+            $storedMedia = [];
+
             if ($hasImages) {
                 foreach ($request->file('images') as $image) {
                     $filename = time().'_'.$image->getClientOriginalName();
                     $imagePath = $image->storeAs('conversation_images', $filename);
 
-                    ConversationMedia::create([
+                    $storedMedia[] = ConversationMedia::create([
                         'message_id' => $conversation->id,
                         'original_url' => '',
                         'local_path' => $imagePath,
@@ -296,6 +299,13 @@ class TenantPortalController extends Controller
                 ->log('Work Order #'.$workOrder->work_order_no.' - New Tenant Message');
 
             DB::commit();
+
+            // Photos sent through the portal chat belong on the staff
+            // Attachments tab too. After the commit so a mirror hiccup can
+            // never take the message down with it.
+            if ($storedMedia !== []) {
+                $photoMirror->mirrorForConversation($conversation, $storedMedia);
+            }
 
             // The tenant has engaged: stop the schedule follow-up for them.
             $uploadToken->markResponded();

@@ -431,6 +431,15 @@ class WorkOrderController extends Controller
 
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
 
+        // Drives the number badge on the modal's Attachments tab — files that
+        // arrived (from a tenant, portal or vendor) that no staff member has
+        // opened the tab for yet.
+        if (request()->user()?->hasAnyRole(['admin', 'woc'])) {
+            $workOrder->loadCount([
+                'attachments as unseen_attachments_count' => fn ($query) => $query->whereNull('viewed_by_staff_at'),
+            ]);
+        }
+
         return response()->json($workOrder, 200);
     }
 
@@ -519,6 +528,14 @@ class WorkOrderController extends Controller
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
 
         $user = request()->user();
+
+        // Same badge the board modals show: files nobody on staff has opened
+        // the Attachments tab for yet.
+        if ($user?->hasAnyRole(['admin', 'woc'])) {
+            $workOrder->loadCount([
+                'attachments as unseen_attachments_count' => fn ($query) => $query->whereNull('viewed_by_staff_at'),
+            ]);
+        }
 
         if ($user->hasRole('vendor') && $user->vendor) {
             $workOrder->setRelation(
