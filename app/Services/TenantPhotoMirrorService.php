@@ -33,22 +33,16 @@ class TenantPhotoMirrorService
      * work order's attachments.
      *
      * @param  iterable<int, ConversationMedia>  $media
-     * @param  bool  $syncToPropertyWare  Push each mirrored file to PropertyWare like a portal upload. Off for backfills so a deploy can't burst-upload history.
-     * @param  bool  $markViewed  Stamp the mirror as already seen by staff. On for backfills — staff have had these photos in the thread all along.
      * @return array<int, Attachments> the attachments that were created
      */
-    public function mirrorForConversation(
-        Conversation $conversation,
-        iterable $media,
-        bool $syncToPropertyWare = true,
-        bool $markViewed = false
-    ): array {
+    public function mirrorForConversation(Conversation $conversation, iterable $media): array
+    {
         if ($conversation->conversation_type !== 'tenant' || ! $conversation->work_order_id) {
             return [];
         }
 
-        // Resolved unscoped: mirroring happens from webhooks and migrations,
-        // where no authenticated user should be able to narrow the lookup.
+        // Resolved unscoped: mirroring happens from webhooks, where no
+        // authenticated user should be able to narrow the lookup.
         $workOrder = WorkOrder::query()
             ->withoutGlobalScopes()
             ->with('requested_by')
@@ -62,17 +56,14 @@ class TenantPhotoMirrorService
 
         foreach ($media as $item) {
             try {
-                $attachment = $this->mirrorOne($workOrder, $item, $markViewed);
+                $attachment = $this->mirrorOne($workOrder, $item);
 
                 if (! $attachment) {
                     continue;
                 }
 
                 GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
-
-                if ($syncToPropertyWare) {
-                    UploadAttachment::dispatch($attachment);
-                }
+                UploadAttachment::dispatch($attachment);
 
                 $created[] = $attachment;
             } catch (\Throwable $e) {
@@ -88,7 +79,7 @@ class TenantPhotoMirrorService
         return $created;
     }
 
-    private function mirrorOne(WorkOrder $workOrder, ConversationMedia $media, bool $markViewed): ?Attachments
+    private function mirrorOne(WorkOrder $workOrder, ConversationMedia $media): ?Attachments
     {
         if (! $this->isPhotoOrVideo($media)) {
             return null;
@@ -114,7 +105,7 @@ class TenantPhotoMirrorService
             'is_publish_to_owner_portal' => true,
             'is_publish_to_tenant_portal' => false,
             'uploaded_via_tenant_portal' => false,
-            'viewed_by_staff_at' => $markViewed ? now() : null,
+            'viewed_by_staff_at' => null,
             'created_at' => $media->created_at ?? now(),
         ]);
     }
