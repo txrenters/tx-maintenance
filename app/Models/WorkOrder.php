@@ -139,13 +139,29 @@ class WorkOrder extends Model
     }
 
     /**
-     * Whether the unit is vacant: either the WOC's manual "Vacant" toggle
-     * (skip_automated_tasks) or a turnover job. A vacant unit has no tenant, so
-     * owner/vendor messages drop the "vendor will contact the tenant" line.
+     * Whether this is a re-key job. PropertyWare writes the value with varying
+     * hyphens and casing ("Re-key" category, "Re-Key" type), so the match
+     * ignores everything but the letters — the same defensiveness the HVAC
+     * trailing-space bug taught us.
+     */
+    public function isRekey(): bool
+    {
+        $normalize = fn (?string $value): string => preg_replace('/[^a-z0-9]/', '', strtolower((string) $value));
+
+        return $normalize($this->type) === 'rekey' || $normalize($this->category) === 'rekey';
+    }
+
+    /**
+     * Whether the unit is vacant: the WOC's manual "Vacant" toggle
+     * (skip_automated_tasks), a turnover job, or a re-key job (locks only
+     * change hands between tenants). A vacant unit has no tenant, so tenant
+     * automation stays silent and owner/vendor messages drop the "vendor will
+     * contact the tenant" line. Turnover-only behavior (THMP mailbox, task
+     * templates, turnover invoices) keys off isTurnover() instead.
      */
     public function isVacant(): bool
     {
-        return (bool) $this->skip_automated_tasks || $this->isTurnover();
+        return (bool) $this->skip_automated_tasks || $this->isTurnover() || $this->isRekey();
     }
 
     /**

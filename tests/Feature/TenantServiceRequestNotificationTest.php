@@ -189,6 +189,25 @@ class TenantServiceRequestNotificationTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_it_skips_a_rekey_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // PropertyWare writes the value with varying hyphens and casing, so
+        // both spellings must hit the same skip.
+        foreach ([['category' => 'Re-key'], ['type' => 'Re-Key']] as $attributes) {
+            $workOrder = $this->makeWorkOrder($attributes);
+
+            $this->notify($workOrder);
+
+            $this->assertNull($this->tenantMessage($workOrder));
+            $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+        }
+
+        Queue::assertNothingPushed();
+    }
+
     public function test_it_skips_a_work_order_marked_vacant(): void
     {
         config(['services.twilio.tenant_intake_sms' => true]);
