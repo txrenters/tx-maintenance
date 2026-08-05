@@ -6,6 +6,7 @@ import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
+import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -461,6 +462,8 @@ const fetchVendorServiceSchedules = async (workOrderId) => {
 };
 
 const workOrderAttachments = ref([]);
+const { unseenAttachments, buttonsWithAttachmentBadge } =
+    useUnseenAttachments(tabButtons);
 const fetchAttachments = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -469,6 +472,8 @@ const fetchAttachments = async (workOrderId) => {
         );
 
         workOrderAttachments.value = response.data.attachments;
+        // The server marks everything viewed when staff load the tab.
+        unseenAttachments.value = 0;
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -649,6 +654,8 @@ const handleWorkOrder = async (orderId) => {
     try {
         const response = await axios.get(route("work_orders.data", orderId));
         const order = response.data; // Assuming the API returns the work order details
+
+        unseenAttachments.value = order.unseen_attachments_count ?? 0;
 
         workOrderForm.id = order.id;
         workOrderForm.work_order_no = order.work_order_no;
@@ -961,7 +968,7 @@ const page = usePage();
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="tabButtons"
+                        :buttons="buttonsWithAttachmentBadge"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />

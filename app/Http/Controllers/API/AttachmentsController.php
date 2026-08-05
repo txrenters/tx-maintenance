@@ -11,6 +11,7 @@ use App\Models\WorkOrderDocuments;
 use App\Rules\UploadedMediaFile;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -32,6 +33,7 @@ class AttachmentsController extends Controller
 
             $validatedData['user_id'] = auth()->id();
             $validatedData['created_at'] = $request->date ?? now();
+            $validatedData['viewed_by_staff_at'] = $this->staffViewedStamp();
             $validatedData['is_publish_to_owner_portal'] = $request->owner_portal == 'Yes' ? true : false;
             $validatedData['is_publish_to_tenant_portal'] = $request->tenant_portal == 'Yes' ? true : false;
 
@@ -101,6 +103,7 @@ class AttachmentsController extends Controller
                     'is_publish_to_tenant_portal' => $validatedData['tenant_portal'] == 'Yes' ? true : false,
                     'user_id' => auth()->id(),
                     'created_at' => $request->date ?? now(),
+                    'viewed_by_staff_at' => $this->staffViewedStamp(),
                 ];
 
                 $attachment = Attachments::create($files);
@@ -143,11 +146,29 @@ class AttachmentsController extends Controller
     }
 
     /**
+     * A staff member's own upload never counts as "new" for the badge; files
+     * arriving from portals, vendors or tenants stay unviewed until a staff
+     * member opens the Attachments tab.
+     */
+    private function staffViewedStamp(): ?Carbon
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'woc']) ? now() : null;
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show(WorkOrder $workOrder)
     {
         $workOrder->load(['attachments', 'documents']);
+
+        // Opening the tab is how staff "read" new files — clear the badge.
+        if (auth()->user()?->hasAnyRole(['admin', 'woc'])) {
+            Attachments::query()
+                ->where('work_order_id', $workOrder->id)
+                ->whereNull('viewed_by_staff_at')
+                ->update(['viewed_by_staff_at' => now()]);
+        }
 
         return response()->json($workOrder, 200);
     }

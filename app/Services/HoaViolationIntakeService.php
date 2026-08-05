@@ -288,6 +288,8 @@ class HoaViolationIntakeService
             'work_order_id' => $workOrder->id,
             'user_id' => auth()->id() ?? $workOrder->requested_by?->user_id ?? User::query()->value('id'),
             'pw_file_name' => $fileName,
+            // Staff put the notice here themselves — never badge it as new.
+            'viewed_by_staff_at' => now(),
             'created_at' => now(),
         ]);
 
