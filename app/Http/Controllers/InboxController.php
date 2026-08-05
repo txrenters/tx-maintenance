@@ -7,11 +7,13 @@ use App\Models\InboxThreadRead;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * A single place to work through every conversation, instead of opening each
@@ -134,6 +136,11 @@ class InboxController extends Controller
      * has been seen. Opening the thread again after a new inbound message
      * moves the marker forward; the marker never moves backwards.
      *
+     * Log-never-throw: reading a thread must never fail over its marker. Two
+     * tabs opening the same thread at once can race the unique index on
+     * firstOrCreate — the loser falls through to the guarded update, which is
+     * idempotent.
+     *
      * @param  array<string, mixed>  $validated
      * @param  Collection<int, Conversation>  $messages
      */
@@ -146,16 +153,32 @@ class InboxController extends Controller
             return;
         }
 
-        $marker = InboxThreadRead::query()->firstOrCreate([
+        $threadKey = [
             'user_id' => $user->id,
             'work_order_id' => $workOrder->id,
             'conversation_type' => $validated['conversation_type'] ?: 'unknown',
             'vendor_id' => (int) ($validated['vendor_id'] ?? 0),
             'owner_id' => (int) ($validated['owner_id'] ?? 0),
-        ]);
+        ];
 
-        if ($lastId > (int) $marker->last_read_conversation_id) {
-            $marker->update(['last_read_conversation_id' => $lastId]);
+        try {
+            try {
+                InboxThreadRead::query()->firstOrCreate($threadKey);
+            } catch (QueryException) {
+                // A concurrent open created the row between the find and the
+                // insert; it exists now, which is all the update below needs.
+            }
+
+            InboxThreadRead::query()
+                ->where($threadKey)
+                ->where('last_read_conversation_id', '<', $lastId)
+                ->update(['last_read_conversation_id' => $lastId]);
+        } catch (\Throwable $exception) {
+            Log::warning('Inbox read marker could not be stored.', [
+                'work_order_id' => $workOrder->id,
+                'user_id' => $user->id,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 
