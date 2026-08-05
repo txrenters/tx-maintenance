@@ -79,10 +79,24 @@ class OwnerPortalApprovalTest extends TestCase
             );
     }
 
-    public function test_the_portal_does_not_ask_for_approval_on_other_statuses(): void
+    public function test_the_portal_asks_for_approval_on_a_new_work_order(): void
     {
         $owner = $this->makeOwner();
         $workOrder = $this->makeWorkOrder($owner, 'New');
+        $token = $this->makeToken($workOrder, $owner);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('approval.requested', true)
+                ->where('approval.decision', null)
+            );
+    }
+
+    public function test_the_portal_does_not_ask_for_approval_on_other_statuses(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner, 'Completed');
         $token = $this->makeToken($workOrder, $owner);
 
         $this->get('/owner-portal/'.$token->token)
