@@ -41,6 +41,13 @@ class TenantAppointmentNotificationService
             return;
         }
 
+        // A turnover/vacant home has no tenant to warn about the visit.
+        // Checked before the claim so the stamp stays clear and a work order
+        // later corrected off Turnover/vacant can still notify.
+        if ($serviceSchedule->work_order?->isVacant()) {
+            return;
+        }
+
         // Claim this schedule atomically so a retry can never text the tenant
         // twice for the same appointment. A genuine reschedule clears the stamp
         // first (see ServiceScheduleController::update), so it re-notifies.

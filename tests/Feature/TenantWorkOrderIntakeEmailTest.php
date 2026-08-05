@@ -158,6 +158,29 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertFalse($this->send($workOrder->fresh()));
     }
 
+    public function test_it_skips_a_turnover_work_order(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $this->fakeGraph(expectSend: false);
+
+        // WO#43729: a turnover has no tenant awaiting repairs.
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['type' => 'Turnover']);
+
+        $this->assertFalse($this->send($workOrder->fresh()));
+    }
+
+    public function test_it_skips_a_work_order_marked_vacant(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $this->fakeGraph(expectSend: false);
+
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->update(['skip_automated_tasks' => true]);
+
+        $this->assertFalse($this->send($workOrder->fresh()));
+    }
+
     public function test_a_send_failure_never_breaks_intake(): void
     {
         config(['services.work_order.tenant_intake_email' => true]);

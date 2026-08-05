@@ -115,6 +115,13 @@ class FollowUpTenantVendorContact extends Command
                 continue;
             }
 
+            // A turnover/vacant home has no tenant to ask about vendor contact.
+            // Skipped, not excluded, so the nudge resumes if the flag was a
+            // mistake and the unit is occupied after all.
+            if ($workOrder->isVacant()) {
+                continue;
+            }
+
             // Claim today's nudge atomically so an overlapping run or a retry
             // never texts the same work order twice on the same day, and the cap
             // is honored under concurrency.

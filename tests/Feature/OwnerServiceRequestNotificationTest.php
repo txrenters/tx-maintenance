@@ -164,7 +164,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
-    public function test_it_notifies_when_the_property_is_vacant(): void
+    public function test_it_does_not_notify_when_the_property_is_vacant(): void
     {
         $this->enableGate();
         Queue::fake();
@@ -174,19 +174,19 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder($tenant);
         $workOrder->owners()->attach($owner->id);
 
-        // The wording no longer mentions the tenant, so a vacant unit (rekey,
-        // biweekly, manual toggle) still gets the owner confirmation.
+        // A vacant unit's work is already set in motion by the company or the
+        // owner, so the "new service request" confirmation is skipped
+        // (WO#43729). The stamp stays clear so correcting the flag re-arms it.
         $workOrder->update(['skip_automated_tasks' => true]);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
-        $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
-        $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('received a new service request', $confirmation->message);
-        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
-    public function test_it_notifies_on_a_turnover_work_order(): void
+    public function test_it_does_not_notify_on_a_turnover_work_order(): void
     {
         $this->enableGate();
         Queue::fake();
@@ -200,10 +200,9 @@ class OwnerServiceRequestNotificationTest extends TestCase
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
-        $confirmation = $workOrder->owner_conversation()->orderBy('id')->first();
-        $this->assertNotNull($confirmation);
-        $this->assertStringContainsString('received a new service request', $confirmation->message);
-        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
     public function test_it_does_not_notify_on_a_categorized_hoa_violation(): void

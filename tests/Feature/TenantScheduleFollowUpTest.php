@@ -291,6 +291,37 @@ class TenantScheduleFollowUpTest extends TestCase
         $this->assertNull($token->fresh()->schedule_followup_last_sent_at);
     }
 
+    public function test_it_skips_a_turnover_work_order(): void
+    {
+        config(['services.twilio.tenant_schedule_followup_sms' => true]);
+        Queue::fake();
+
+        [$workOrder, $token] = $this->scheduledWorkOrder();
+        $workOrder->update(['type' => 'Turnover']);
+
+        $this->artisan('tenants:followup-schedule')->assertExitCode(0);
+
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        // Skipped, not excluded, so reminders resume if the type is corrected.
+        $this->assertSame(0, (int) $token->fresh()->schedule_followup_count);
+        $this->assertNull($token->fresh()->schedule_followup_last_sent_at);
+    }
+
+    public function test_it_skips_a_work_order_marked_vacant(): void
+    {
+        config(['services.twilio.tenant_schedule_followup_sms' => true]);
+        Queue::fake();
+
+        [$workOrder, $token] = $this->scheduledWorkOrder();
+        $workOrder->update(['skip_automated_tasks' => true]);
+
+        $this->artisan('tenants:followup-schedule')->assertExitCode(0);
+
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertSame(0, (int) $token->fresh()->schedule_followup_count);
+        $this->assertNull($token->fresh()->schedule_followup_last_sent_at);
+    }
+
     public function test_the_pre_existing_backlog_is_never_texted(): void
     {
         config(['services.twilio.tenant_schedule_followup_sms' => true]);

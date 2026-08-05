@@ -53,6 +53,15 @@ class TenantServiceRequestNotificationService
             return;
         }
 
+        // A turnover/vacant home has no tenant awaiting repairs — the
+        // "requested by" contact is the outgoing tenant or staff, so confirming
+        // "we received your service request" only confuses them. Checked here
+        // rather than in notify() so the one-shot stamp stays clear and a work
+        // order later corrected off Turnover can still notify.
+        if ($workOrder->isVacant()) {
+            return;
+        }
+
         $workOrder->loadMissing([
             'requested_by',
             'building',

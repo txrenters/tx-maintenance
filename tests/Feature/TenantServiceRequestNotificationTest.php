@@ -158,6 +158,51 @@ class TenantServiceRequestNotificationTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_it_skips_a_turnover_type_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // WO#43729: a turnover has no tenant awaiting repairs — the requested-by
+        // contact replied "I have no request" to this text.
+        $workOrder = $this->makeWorkOrder(['type' => 'Turnover']);
+
+        $this->notify($workOrder);
+
+        $this->assertNull($this->tenantMessage($workOrder));
+        // Left un-stamped so correcting the type re-arms the notification.
+        $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_it_skips_a_turnover_category_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder(['category' => 'Turnover']);
+
+        $this->notify($workOrder);
+
+        $this->assertNull($this->tenantMessage($workOrder));
+        $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_it_skips_a_work_order_marked_vacant(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder(['skip_automated_tasks' => true]);
+
+        $this->notify($workOrder);
+
+        $this->assertNull($this->tenantMessage($workOrder));
+        $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+        Queue::assertNothingPushed();
+    }
+
     public function test_it_respects_the_per_work_order_automation_pause(): void
     {
         config(['services.twilio.tenant_intake_sms' => true]);

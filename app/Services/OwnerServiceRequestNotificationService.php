@@ -50,6 +50,17 @@ class OwnerServiceRequestNotificationService
 
     private function send(WorkOrder $workOrder): void
     {
+        // A turnover/vacant work order is not a tenant service request — it is
+        // work the company or the owner already set in motion, so the "we have
+        // received a new service request" confirmation reads as noise (or as a
+        // request they never made). Skip it, leaving the one-shot stamp clear so
+        // a work order later corrected off Turnover/vacant can still notify.
+        // (This skip existed before, was removed by the 07-29 intake reword,
+        // and is deliberately restored.)
+        if ($workOrder->isVacant()) {
+            return;
+        }
+
         // HOA violations are not service requests. The generic confirmation plus
         // a raw dump of the notice's items and remedies reads to the owner as a
         // repair request, so skip the intake notification entirely and leave the

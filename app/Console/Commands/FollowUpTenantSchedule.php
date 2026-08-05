@@ -84,6 +84,12 @@ class FollowUpTenantSchedule extends Command
                 continue;
             }
 
+            // A turnover/vacant home has no tenant to remind. Skipped, not
+            // excluded, so reminders resume if the flag was a mistake.
+            if ($workOrder->isVacant()) {
+                continue;
+            }
+
             if ($this->followUp($workOrder, $portalLinks, $startOfToday)) {
                 $sent++;
             }

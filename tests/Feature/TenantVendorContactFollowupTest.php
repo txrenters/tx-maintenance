@@ -215,6 +215,42 @@ class TenantVendorContactFollowupTest extends TestCase
         $this->assertSame(0, $this->followupCount($workOrder));
     }
 
+    public function test_it_skips_a_turnover_work_order(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor());
+        $workOrder->update(['type' => 'Turnover']);
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNothingPushed();
+        // Skipped before claiming, not excluded, so the nudge resumes if the
+        // type is corrected and the unit is occupied after all.
+        $this->assertSame(0, $this->followupCount($workOrder));
+        $this->assertNull($this->excludedAt($workOrder));
+    }
+
+    public function test_it_skips_a_work_order_marked_vacant(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor());
+        $workOrder->update(['skip_automated_tasks' => true]);
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNothingPushed();
+        $this->assertSame(0, $this->followupCount($workOrder));
+        $this->assertNull($this->excludedAt($workOrder));
+    }
+
     public function test_it_never_texts_for_the_owner_vendor_placeholder(): void
     {
         config(['services.twilio.tenant_vendor_followup_sms' => true]);

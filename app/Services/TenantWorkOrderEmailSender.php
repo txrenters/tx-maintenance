@@ -38,6 +38,12 @@ class TenantWorkOrderEmailSender
             return false;
         }
 
+        // A turnover/vacant home has no tenant awaiting repairs; mirrors the
+        // SMS twin in TenantServiceRequestNotificationService.
+        if ($workOrder->isVacant()) {
+            return false;
+        }
+
         try {
             $workOrder->loadMissing(['requested_by', 'building', 'woc']);
 
