@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
+use App\Services\AutomatedMessageLogService;
 use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
@@ -12,7 +13,14 @@ class NotificationController extends Controller
     {
         $user = auth()->user();
 
-        $query = Activity::with('subject')->latest();
+        // The automated-messages ledger (IT Tools page) shares this table but
+        // is a log, not a staff notification — keep it out of the bell.
+        $query = Activity::with('subject')
+            ->where(function ($q) {
+                $q->whereNull('log_name')
+                    ->orWhere('log_name', '!=', AutomatedMessageLogService::LOG_NAME);
+            })
+            ->latest();
 
         if ($user->hasAnyRole(['tenant', 'owner'])) {
             // Only their own messages; never fall back to "receiverNumber is null".
