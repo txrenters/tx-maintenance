@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\TenantMessageFormatter;
 use App\Services\TenantPortalLinkService;
 use Carbon\Carbon;
@@ -200,6 +201,16 @@ class FollowUpTenantVendorContact extends Command
         }
 
         SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'tenant',
+            'tenant_vendor_contact_follow_up_sms',
+            $tenantNumber,
+            $workOrder,
+            $message,
+            ['conversation_id' => $conversation->id],
+        );
     }
 
     /**

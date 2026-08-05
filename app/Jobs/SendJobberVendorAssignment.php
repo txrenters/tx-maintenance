@@ -6,6 +6,7 @@ use App\Mail\JobberVendorAssignmentMail;
 use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\Vendor;
+use App\Services\AutomatedMessageLogService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -74,6 +75,15 @@ class SendJobberVendorAssignment implements ShouldQueue
         if (filled($vendor->email)) {
             try {
                 Mail::to($vendor->email)->send(new JobberVendorAssignmentMail(...$details));
+
+                AutomatedMessageLogService::log(
+                    AutomatedMessageLogService::CHANNEL_EMAIL,
+                    'vendor',
+                    'vendor_jobber_assignment_email',
+                    $vendor->email,
+                    $job,
+                    extra: ['vendor_id' => $vendor->id, 'jobber_id' => $job->id, 'job_number' => $job->job_number],
+                );
             } catch (\Throwable $exception) {
                 Log::error('Jobber vendor assignment email failed.', [
                     'jobber_job_id' => $job->id,
@@ -152,6 +162,16 @@ class SendJobberVendorAssignment implements ShouldQueue
         ]);
 
         SendJobberTextMessageJob::dispatch($message, $body);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'vendor',
+            'vendor_jobber_assignment_sms',
+            $vendorNumber,
+            $job,
+            $body,
+            ['vendor_id' => $vendor->id, 'jobber_id' => $job->id, 'job_number' => $job->job_number, 'jobber_text_message_id' => $message->id],
+        );
     }
 
     /**

@@ -19,10 +19,10 @@ class OwnerAppointmentNotificationService
      * service appointment.
      *
      * Posts the update into the owner<->WOC conversation thread and texts each
-     * owner, asking whether they'd like to join a call with the technician at
-     * the appointment time or to approve the work order. Gated off by default,
-     * fired at most once per schedule, and wrapped so a failure is logged but
-     * never breaks schedule creation.
+     * owner, asking them to stay reachable during the visit in case additional
+     * repairs need their approval. Gated off by default, fired at most once per
+     * schedule, and wrapped so a failure is logged but never breaks schedule
+     * creation.
      */
     public function notify(ServiceSchedule $serviceSchedule): void
     {
@@ -125,12 +125,24 @@ class OwnerAppointmentNotificationService
             }
 
             SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $ownerMessage, null, $conversation->id);
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_SMS,
+                'owner',
+                'owner_appointment_sms',
+                $ownerNumber,
+                $workOrder,
+                $ownerMessage,
+                ['owner_id' => $owner->id, 'service_schedule_id' => $serviceSchedule->id, 'conversation_id' => $conversation->id],
+            );
         }
     }
 
     /**
-     * The owner-facing appointment message: Chana's approved wording, plus the
-     * ticket-required question about joining the technician call or approving.
+     * The owner-facing appointment message: Chana's 2026-08-05 canned wording.
+     * It deliberately drops the old "approve the work order" invitation (wrong
+     * once an estimate is already approved) in favour of asking the owner to
+     * stay reachable for additional-repair approvals.
      */
     private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder): string
     {
@@ -145,8 +157,8 @@ class OwnerAppointmentNotificationService
         return OwnerMessageFormatter::paragraphs([
             'Hello,',
             "The service appointment for your property{$property} has been scheduled with {$vendorName}.",
-            $when !== '' ? "Scheduled: {$when}" : null,
-            'If you would like to be available at the appointment time to speak with the technician directly, or to approve the work order, just let us know and we will coordinate that with you.',
+            $when !== '' ? "Scheduled Date: {$when}" : null,
+            'If any major issues or additional repairs are identified during the visit related to the reported concern, please keep your phone lines available so we can reach out for approval before any additional work is performed, except in the case of an emergency repair that requires immediate action.',
             'We will keep you updated once the service has been completed.',
             'Thank you!',
         ]);

@@ -130,6 +130,16 @@ class OwnerServiceRequestNotificationService
         ]);
 
         SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'owner',
+            'owner_service_request_sms',
+            $ownerNumber,
+            $workOrder,
+            $message,
+            ['owner_id' => $owner->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     /**

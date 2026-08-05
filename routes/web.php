@@ -5,6 +5,7 @@ use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\JobberAttachmentsController;
 use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
+use App\Http\Controllers\AutomatedMessageLogController;
 use App\Http\Controllers\BoardSummaryController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
@@ -145,6 +146,7 @@ Route::middleware([
     Route::get('/it-tools/jobber', [ItToolsController::class, 'jobber'])->name('it-tools.jobber');
     Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
+    Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');

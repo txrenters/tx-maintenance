@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Owner;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\OwnerPortalLinkService;
 use App\Services\OwnerWorkOrderEmailSender;
 use Illuminate\Bus\Queueable;
@@ -67,6 +68,19 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             $vendor,
             $workOrder->subjectWithProperty('Vendor Assigned - Work Order #'.$workOrder->work_order_no),
             $html,
+        );
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_EMAIL,
+            'owner',
+            'owner_vendor_assignment_email',
+            $owner->email,
+            $workOrder,
+            extra: [
+                'owner_id' => $owner->id,
+                'vendor_id' => $vendor->id,
+                'subject' => $workOrder->subjectWithProperty('Vendor Assigned - Work Order #'.$workOrder->work_order_no),
+            ],
         );
     }
 }

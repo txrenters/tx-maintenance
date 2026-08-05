@@ -106,6 +106,16 @@ class TenantAppointmentNotificationService
         }
 
         SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'tenant',
+            'tenant_appointment_sms',
+            $tenantNumber,
+            $workOrder,
+            $message,
+            ['service_schedule_id' => $serviceSchedule->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     /**

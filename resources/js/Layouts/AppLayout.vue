@@ -1179,6 +1179,14 @@ onUnmounted(() => {
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton as-child>
+                                <Link href="/it-tools/automated-messages" prefetch>
+                                    <BotMessageSquare />
+                                    <span>Automated Messages</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

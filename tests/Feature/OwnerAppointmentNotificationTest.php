@@ -217,7 +217,7 @@ class OwnerAppointmentNotificationTest extends TestCase
         Queue::assertNotPushed(SendConversationMessageJob::class);
     }
 
-    public function test_the_message_names_the_vendor_and_asks_about_the_call_or_approval(): void
+    public function test_the_message_names_the_vendor_and_asks_the_owner_to_stay_reachable(): void
     {
         config(['services.twilio.owner_schedule_sms' => true]);
         config(['services.twilio.maintenance_from' => '+15120000000']);
@@ -233,9 +233,10 @@ class OwnerAppointmentNotificationTest extends TestCase
         $message = $workOrder->owner_conversation()->firstOrFail()->message;
 
         $this->assertStringContainsString('Acme Plumbing', $message);
-        $this->assertStringContainsString('Monday, July 20, 2026 at 2:00 PM', $message);
-        $this->assertStringContainsString('available at the appointment time', $message);
-        $this->assertStringContainsString('approve the work order', $message);
+        $this->assertStringContainsString('Scheduled Date: Monday, July 20, 2026 at 2:00 PM', $message);
+        $this->assertStringContainsString('please keep your phone lines available', $message);
+        $this->assertStringContainsString('except in the case of an emergency repair', $message);
+        $this->assertStringNotContainsString('approve the work order', $message);
     }
 
     public function test_it_texts_the_primary_owner_not_the_management_company(): void

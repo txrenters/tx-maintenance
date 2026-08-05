@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use Carbon\Carbon;
@@ -227,6 +228,16 @@ class FollowUpOwnerSchedule extends Command
         }
 
         SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'owner',
+            'owner_schedule_follow_up_sms',
+            $ownerNumber,
+            $workOrder,
+            $message,
+            ['owner_id' => $owner->id, 'conversation_id' => $conversation->id],
+        );
     }
 
     /**

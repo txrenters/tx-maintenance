@@ -30,23 +30,24 @@ class OwnerPortalApprovalTest extends TestCase
         ]);
     }
 
-    private function makeWorkOrder(Owner $owner, string $statusName = 'Assigned - Waiting on Owner Approval'): WorkOrder
+    private function makeWorkOrder(Owner $owner, string $statusName = 'New'): WorkOrder
     {
         $status = ServiceStatus::query()->firstOrCreate(
             ['name' => $statusName],
             ['description' => $statusName],
         );
 
-        $building = Building::query()->create([
-            'propertyware_id' => 7101,
-            'name' => '6341 Del Monte Dr',
-            'address' => '6341 Del Monte Dr',
-            'portfolio_id' => 900,
-        ]);
+        $building = Building::query()->firstOrCreate(
+            ['propertyware_id' => 7101],
+            [
+                'name' => '6341 Del Monte Dr',
+                'address' => '6341 Del Monte Dr',
+                'portfolio_id' => 900,
+            ],
+        );
 
         $workOrder = WorkOrder::factory()->create([
             'service_status_id' => $status->id,
-            'work_order_no' => 43900,
             'building_id' => $building->propertyware_id,
             'description' => 'Water heater is leaking in the garage',
         ]);
@@ -65,7 +66,7 @@ class OwnerPortalApprovalTest extends TestCase
         ]);
     }
 
-    public function test_the_portal_asks_for_approval_while_the_status_waits_on_the_owner(): void
+    public function test_the_portal_asks_for_approval_on_a_new_work_order(): void
     {
         $owner = $this->makeOwner();
         $workOrder = $this->makeWorkOrder($owner);
@@ -79,17 +80,20 @@ class OwnerPortalApprovalTest extends TestCase
             );
     }
 
-    public function test_the_portal_does_not_ask_for_approval_on_other_statuses(): void
+    public function test_the_portal_does_not_ask_for_approval_once_the_work_order_moves_on(): void
     {
         $owner = $this->makeOwner();
-        $workOrder = $this->makeWorkOrder($owner, 'New');
-        $token = $this->makeToken($workOrder, $owner);
 
-        $this->get('/owner-portal/'.$token->token)
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('approval.requested', false)
-            );
+        foreach (['Assigned - Waiting on Owner Approval', 'Completed'] as $statusName) {
+            $workOrder = $this->makeWorkOrder($owner, $statusName);
+            $token = $this->makeToken($workOrder, $owner);
+
+            $this->get('/owner-portal/'.$token->token)
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->where('approval.requested', false)
+                );
+        }
     }
 
     public function test_approving_records_a_thread_message_and_notifies_the_coordinator(): void
