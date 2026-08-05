@@ -77,8 +77,8 @@ return [
         // a vendor is assigned.
         'owner_assignment_sms' => env('OWNER_ASSIGNMENT_SMS_ENABLED', true),
         // Text the property owner via the owner<->WOC conversation when a vendor
-        // sets the service appointment (details + ask if they want to join a
-        // call with the technician or approve the work order).
+        // sets the service appointment (details + ask them to stay reachable in
+        // case additional repairs need approval during the visit).
         //
         // Held off pending operations' scope decision: the message currently goes
         // out on every vendor-set appointment, with no emergency/estimate-value
