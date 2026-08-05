@@ -531,12 +531,21 @@ watch(photoFilters, (filters) => {
                         </div>
                     </div>
 
-                    <p
+                    <div
                         v-if="workOrder.description"
-                        class="mt-4 text-sm text-foreground whitespace-pre-line"
+                        class="mt-4 rounded-lg border-l-4 border-primary bg-primary/5 px-3 py-2.5"
                     >
-                        {{ workOrder.description }}
-                    </p>
+                        <p
+                            class="text-xs font-semibold uppercase text-primary"
+                        >
+                            Description
+                        </p>
+                        <p
+                            class="mt-1 text-base font-medium text-foreground whitespace-pre-line"
+                        >
+                            {{ workOrder.description }}
+                        </p>
+                    </div>
 
                     <!-- Request details -->
                     <dl v-if="details.length" class="mt-4 border-t pt-3 space-y-2">
