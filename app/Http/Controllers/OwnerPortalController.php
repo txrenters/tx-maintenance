@@ -239,10 +239,10 @@ class OwnerPortalController extends Controller
 
     /**
      * The owner's approve/disapprove state for this work order: whether it is
-     * currently waiting on their approval (a brand-new work order, or any
-     * status that waits on the owner), and any decision this owner already
-     * sent through the portal (latest wins, so an owner who calls the office
-     * to change their mind can be re-asked by simply moving the status back).
+     * currently waiting on their approval (a brand-new work order), and any
+     * decision this owner already sent through the portal (latest wins, so an
+     * owner who calls the office to change their mind can be re-asked by
+     * simply moving the status back to New).
      *
      * @return array{requested: bool, decision: ?string, decided_at: ?string}
      */
@@ -256,12 +256,10 @@ class OwnerPortalController extends Controller
             ->latest('id')
             ->first();
 
-        $statusName = strtolower((string) $workOrder->service_status?->name);
-
         return [
-            // New work orders ask right away, so the owner can approve or
-            // decline straight from the intake notification link.
-            'requested' => $statusName === 'new' || str_contains($statusName, 'owner approval'),
+            // Only brand-new work orders ask, so the owner approves or
+            // declines straight from the intake notification link.
+            'requested' => strtolower((string) $workOrder->service_status?->name) === 'new',
             'decision' => $latestDecision?->properties['decision'] ?? null,
             'decided_at' => $latestDecision?->created_at?->toDateTimeString(),
         ];
