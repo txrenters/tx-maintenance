@@ -38,9 +38,10 @@ class TenantWorkOrderEmailSender
             return false;
         }
 
-        // A turnover/vacant home has no tenant awaiting repairs; mirrors the
-        // SMS twin in TenantServiceRequestNotificationService.
-        if ($workOrder->isVacant()) {
+        // Turnover/re-key/vacant homes and company-ordered refresh cleanings
+        // are opted out; mirrors the SMS twin in
+        // TenantServiceRequestNotificationService.
+        if ($workOrder->skipsAutomatedMessages()) {
             return false;
         }
 

@@ -139,16 +139,51 @@ class WorkOrder extends Model
     }
 
     /**
-     * Whether this is a re-key job. PropertyWare writes the value with varying
-     * hyphens and casing ("Re-key" category, "Re-Key" type), so the match
-     * ignores everything but the letters — the same defensiveness the HVAC
-     * trailing-space bug taught us.
+     * Whether this work order's type or category matches one of the given
+     * pre-normalized values. Compared on letters and digits only, because
+     * PropertyWare varies hyphens, casing, and spacing ("Re-key" vs "Re-Key",
+     * the "HVAC " trailing space) between picklists.
+     *
+     * @param  array<int, string>  $normalizedValues
      */
-    public function isRekey(): bool
+    private function typeOrCategoryMatches(array $normalizedValues): bool
     {
         $normalize = fn (?string $value): string => preg_replace('/[^a-z0-9]/', '', strtolower((string) $value));
 
-        return $normalize($this->type) === 'rekey' || $normalize($this->category) === 'rekey';
+        return in_array($normalize($this->type), $normalizedValues, true)
+            || in_array($normalize($this->category), $normalizedValues, true);
+    }
+
+    /**
+     * Whether this is a re-key job — vendor-managed (Express Key) lock work
+     * between tenants.
+     */
+    public function isRekey(): bool
+    {
+        return $this->typeOrCategoryMatches(['rekey']);
+    }
+
+    /**
+     * Whether this is a refresh / professional-cleaning job the company orders
+     * itself: the "Cleaning", "Make ready", and "carpet Steam clean"
+     * categories. These may happen in an occupied home, so they are opted out
+     * of automated messages without being treated as vacant.
+     */
+    public function isRefreshCleaning(): bool
+    {
+        return $this->typeOrCategoryMatches(['cleaning', 'makeready', 'carpetsteamclean']);
+    }
+
+    /**
+     * Whether automated tenant/owner messages must stay silent for this work
+     * order: vacant homes (turnover, re-key, the manual toggle) plus
+     * company-ordered refresh/cleaning jobs. Broader than isVacant() on
+     * purpose — a cleaning can happen while a tenant lives there, so vendors
+     * still get the tenant's contact info; only the automated messages stop.
+     */
+    public function skipsAutomatedMessages(): bool
+    {
+        return $this->isVacant() || $this->isRefreshCleaning();
     }
 
     /**

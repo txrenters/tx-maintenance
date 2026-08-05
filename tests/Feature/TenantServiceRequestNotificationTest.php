@@ -208,6 +208,28 @@ class TenantServiceRequestNotificationTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_it_skips_refresh_and_cleaning_work_orders(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        foreach (['Cleaning', 'Make ready', 'carpet Steam clean'] as $category) {
+            $workOrder = $this->makeWorkOrder(['category' => $category]);
+
+            $this->notify($workOrder);
+
+            $this->assertNull($this->tenantMessage($workOrder), "Category {$category} should be opted out.");
+            $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+
+            // Messages-only opt-out: a cleaning can happen in an occupied home,
+            // so these must NOT count as vacant (vendors keep tenant contact).
+            $this->assertFalse($workOrder->isVacant());
+            $this->assertTrue($workOrder->skipsAutomatedMessages());
+        }
+
+        Queue::assertNothingPushed();
+    }
+
     public function test_it_skips_a_work_order_marked_vacant(): void
     {
         config(['services.twilio.tenant_intake_sms' => true]);
