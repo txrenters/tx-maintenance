@@ -146,6 +146,37 @@ class TenantAppointmentNotificationTest extends TestCase
         $this->assertNull($schedule->fresh()->tenant_notified_at);
     }
 
+    public function test_it_skips_a_turnover_work_order(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $schedule->work_order->update(['type' => 'Turnover']);
+
+        $this->notify($schedule->fresh());
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        // The claim is not consumed, so correcting the type re-arms it.
+        $this->assertNull($schedule->fresh()->tenant_notified_at);
+    }
+
+    public function test_it_skips_a_work_order_marked_vacant(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $schedule = $this->makeSchedule();
+        $schedule->work_order->update(['skip_automated_tasks' => true]);
+
+        $this->notify($schedule->fresh());
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($schedule->fresh()->tenant_notified_at);
+    }
+
     public function test_a_cancelled_schedule_is_never_announced(): void
     {
         config(['services.twilio.tenant_schedule_sms' => true]);
