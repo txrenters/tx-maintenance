@@ -115,10 +115,11 @@ class FollowUpTenantVendorContact extends Command
                 continue;
             }
 
-            // A turnover/vacant home has no tenant to ask about vendor contact.
-            // Skipped, not excluded, so the nudge resumes if the flag was a
-            // mistake and the unit is occupied after all.
-            if ($workOrder->isVacant()) {
+            // Turnover/re-key/vacant homes and company-ordered refresh
+            // cleanings are opted out of automated tenant messages. Skipped,
+            // not excluded, so the nudge resumes if the categorization was a
+            // mistake.
+            if ($workOrder->skipsAutomatedMessages()) {
                 continue;
             }
 

@@ -53,12 +53,12 @@ class TenantServiceRequestNotificationService
             return;
         }
 
-        // A turnover/vacant home has no tenant awaiting repairs — the
-        // "requested by" contact is the outgoing tenant or staff, so confirming
-        // "we received your service request" only confuses them. Checked here
-        // rather than in notify() so the one-shot stamp stays clear and a work
-        // order later corrected off Turnover can still notify.
-        if ($workOrder->isVacant()) {
+        // A turnover/re-key/vacant home has no tenant awaiting repairs, and a
+        // company-ordered refresh cleaning was never requested by the tenant —
+        // confirming "we received your service request" only confuses them.
+        // Checked here rather than in notify() so the one-shot stamp stays
+        // clear and a work order later re-categorized can still notify.
+        if ($workOrder->skipsAutomatedMessages()) {
             return;
         }
 

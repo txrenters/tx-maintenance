@@ -84,9 +84,10 @@ class FollowUpTenantSchedule extends Command
                 continue;
             }
 
-            // A turnover/vacant home has no tenant to remind. Skipped, not
-            // excluded, so reminders resume if the flag was a mistake.
-            if ($workOrder->isVacant()) {
+            // Turnover/re-key/vacant homes and company-ordered refresh
+            // cleanings are opted out of automated tenant messages. Skipped,
+            // not excluded, so reminders resume if the flag was a mistake.
+            if ($workOrder->skipsAutomatedMessages()) {
                 continue;
             }
 
