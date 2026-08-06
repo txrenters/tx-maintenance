@@ -3,11 +3,8 @@ import { ref, computed, watch } from "vue";
 import { Head, Deferred } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
-import { useCityFilter, matchesCityFilter, cityFilterOptions } from "@/composables/useCityFilter";
+import { useCityFilter, matchesCityFilter } from "@/composables/useCityFilter";
 import { Skeleton } from "@/Components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/Components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
-import FilterChip from "@/Components/FilterChip.vue";
 import {
     Select,
     SelectContent,
@@ -16,7 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
-import { ClipboardList, Search, Tag, CircleCheckBig, MapPin } from "lucide-vue-next";
+import { ClipboardList, Search, Tag, CircleCheckBig, MapPin, Eye, EyeOff } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -36,8 +33,9 @@ const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
 // City show/hide preference — persisted per user in localStorage (see
-// useCityFilter), so e.g. THMP can keep another vendor's city hidden.
-const { cityFilter } = useCityFilter();
+// useCityFilter), so e.g. THMP can keep another vendor's city hidden. Each
+// city renders as a one-click toggle pill, no dropdown.
+const { hiddenCities, isCityHidden, toggleCity } = useCityFilter();
 
 const vendorCities = computed(() =>
     [
@@ -47,10 +45,6 @@ const vendorCities = computed(() =>
                 .filter(Boolean),
         ),
     ].sort(),
-);
-
-const cityOptions = computed(() =>
-    cityFilterOptions(vendorCities.value, cityFilter.value),
 );
 
 // The workflow tabs, in display order. Statuses with no entry here fall into
@@ -106,7 +100,7 @@ const baseFilteredWorkOrders = computed(() => {
             selectedCategory.value === "all" ||
             wo.category === selectedCategory.value;
 
-        if (!matchesCategory || !matchesCityFilter(cityFilter.value, wo.building?.city)) {
+        if (!matchesCategory || !matchesCityFilter(hiddenCities.value, wo.building?.city)) {
             return false;
         }
 
@@ -154,8 +148,11 @@ const hasActiveFilters = computed(
     () =>
         !!search.value.trim() ||
         selectedCategory.value !== "all" ||
-        cityFilter.value !== "all",
+        hiddenCities.value.length > 0,
 );
+
+// Order matches the workflow left-to-right, same as the staff board columns.
+const TAB_ORDER = ["all", "new", "scheduling", "scheduled", "payment", "completed", "other"];
 
 const formatDate = (value) => {
     if (!value) {
@@ -231,17 +228,6 @@ const cardColorClass = (wo) => {
                     />
                 </div>
 
-                <FilterChip
-                    v-if="cityOptions.length > 1"
-                    label="City"
-                    :icon="MapPin"
-                    :model-value="cityFilter"
-                    :options="cityOptions"
-                    searchable
-                    search-placeholder="Search cities…"
-                    @update:modelValue="(value) => (cityFilter = value)"
-                />
-
                 <Select
                     v-if="categories.length"
                     :modelValue="selectedCategory"
@@ -279,23 +265,54 @@ const cardColorClass = (wo) => {
                 </div>
             </template>
 
-            <!-- Status tabs: the tab strip lives inside the Deferred slot so
-                 its counts only ever render from the loaded list. -->
-            <Tabs v-model:model-value="activeTab" class="mb-4">
-                <ScrollArea class="w-full whitespace-nowrap rounded-md border">
-                    <TabsList class="w-full justify-start">
-                        <TabsTrigger
-                            v-for="tab in ['all', 'new', 'scheduling', 'scheduled', 'payment', 'completed', 'other']"
-                            v-show="tab !== 'other' || tabCounts.other > 0"
-                            :key="tab"
-                            :value="tab"
-                        >
-                            {{ TAB_LABELS[tab] }} ({{ tabCounts[tab] ?? 0 }})
-                        </TabsTrigger>
-                    </TabsList>
-                    <ScrollBar orientation="horizontal" />
-                </ScrollArea>
-            </Tabs>
+            <!-- City visibility pills: one click hides a city, another shows
+                 it again. Only rendered when the vendor spans several cities. -->
+            <div
+                v-if="vendorCities.length > 1"
+                class="mb-3 flex flex-wrap items-center gap-2"
+            >
+                <span class="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <MapPin class="h-3.5 w-3.5" />Cities:
+                </span>
+                <button
+                    v-for="city in vendorCities"
+                    :key="city"
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                    :class="
+                        isCityHidden(city)
+                            ? 'border-dashed text-muted-foreground line-through opacity-60 hover:opacity-100'
+                            : 'bg-accent text-accent-foreground hover:bg-accent/70'
+                    "
+                    :title="isCityHidden(city) ? `Show ${city} work orders` : `Hide ${city} work orders`"
+                    @click="toggleCity(city)"
+                >
+                    <component :is="isCityHidden(city) ? EyeOff : Eye" class="h-3.5 w-3.5" />
+                    {{ city }}
+                </button>
+            </div>
+
+            <!-- Status sections styled like the staff board's column headers;
+                 clicking one narrows the grid below to that stage. Inside the
+                 Deferred slot so the counts only ever render from the loaded
+                 list. -->
+            <div class="mb-4 flex flex-wrap gap-2">
+                <template v-for="tab in TAB_ORDER" :key="tab">
+                    <button
+                        v-if="tab !== 'other' || tabCounts.other > 0"
+                        type="button"
+                        class="h-16 min-w-[150px] flex-1 border p-3 text-sm uppercase font-semibold flex items-center justify-center text-center transition-colors"
+                        :class="
+                            activeTab === tab
+                                ? 'border-primary bg-primary/15 text-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        "
+                        @click="activeTab = tab"
+                    >
+                        {{ TAB_LABELS[tab] }} ({{ tabCounts[tab] ?? 0 }})
+                    </button>
+                </template>
+            </div>
 
             <div
                 v-if="filteredWorkOrders.length"
