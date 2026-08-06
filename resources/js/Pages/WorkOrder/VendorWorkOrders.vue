@@ -244,19 +244,21 @@ const cardColorClass = (wo) => {
                         <p class="px-2 pb-2 text-xs text-muted-foreground">
                             Checked cities are hidden from your board.
                         </p>
-                        <div
-                            v-for="city in vendorCities"
-                            :key="city"
-                            class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                            @click="toggleCity(city)"
-                        >
-                            <Checkbox
-                                class="pointer-events-none"
-                                :checked="isCityHidden(city)"
-                            />
-                            <span :class="{ 'text-muted-foreground line-through': isCityHidden(city) }">
-                                {{ city }}
-                            </span>
+                        <div class="max-h-64 overflow-y-auto">
+                            <div
+                                v-for="city in vendorCities"
+                                :key="city"
+                                class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                                @click="toggleCity(city)"
+                            >
+                                <Checkbox
+                                    class="pointer-events-none"
+                                    :checked="isCityHidden(city)"
+                                />
+                                <span :class="{ 'text-muted-foreground line-through': isCityHidden(city) }">
+                                    {{ city }}
+                                </span>
+                            </div>
                         </div>
                         <Button
                             v-if="hiddenCities.length"
