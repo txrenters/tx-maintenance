@@ -175,12 +175,27 @@ const create = () => {
     createForm.post(route("work_orders.hoa.store"), {
         forceFormData: true,
         preserveScroll: true,
-        onSuccess: () => {
+        onSuccess: (page) => {
+            // The server's flash message is the truth: it says how many work
+            // orders were created AND whether any failed to reach PropertyWare
+            // (a local-only work order has no number and never syncs). A
+            // hard-coded success toast is how those failures went unnoticed
+            // until 2026-08-06.
+            const serverMessage = page.props.flash?.success;
+            const hasLocalOnlyWarning =
+                typeof serverMessage === "string" &&
+                serverMessage.includes("no work order number");
+
             toast({
-                title: "HOA notices processed",
-                description: `${notices.value.length} work order${
-                    notices.value.length === 1 ? "" : "s"
-                } created — the tenants have been sent their links.`,
+                variant: hasLocalOnlyWarning ? "destructive" : undefined,
+                title: hasLocalOnlyWarning
+                    ? "Created, but not in PropertyWare"
+                    : "HOA notices processed",
+                description:
+                    serverMessage ??
+                    `${notices.value.length} work order${
+                        notices.value.length === 1 ? "" : "s"
+                    } created — the tenants have been sent their links.`,
             });
             open.value = false;
             resetAll();
