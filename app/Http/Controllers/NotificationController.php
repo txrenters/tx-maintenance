@@ -52,7 +52,7 @@ class NotificationController extends Controller
             }
         }
 
-        $activities = $query->take(100)->get();
+        $activities = $query->take(1000)->get();
 
         $activities->loadMorph('subject', [
             JobberTextMessage::class => ['jobber'],

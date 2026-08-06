@@ -529,10 +529,28 @@ const unreadCount = computed(() => {
     return notifications.value.filter((n) => !n.read).length;
 });
 
+// Render the popover list in chunks so a large notification set (up to 1000)
+// doesn't jank the dropdown; "Show more" reveals the next chunk.
+const NOTIFICATION_CHUNK = 100;
+const visibleCount = ref(NOTIFICATION_CHUNK);
+const visibleNotifications = computed(() =>
+    notifications.value.slice(0, visibleCount.value),
+);
+const showMoreNotifications = () => {
+    visibleCount.value += NOTIFICATION_CHUNK;
+};
+
 const fetchNotifications = async () => {
     try {
         const response = await axios.get("/notifications");
-        notifications.value = response.data;
+        // Skip the assignment when nothing changed so Vue doesn't re-patch
+        // up to 1000 keyed rows on every 5s poll.
+        if (
+            JSON.stringify(response.data) !==
+            JSON.stringify(notifications.value)
+        ) {
+            notifications.value = response.data;
+        }
     } catch (error) {
         console.error("Failed to fetch notifications:", error);
     }
@@ -1382,7 +1400,7 @@ onUnmounted(() => {
                                                 "
                                             >
                                                 <div
-                                                    v-for="notification in notifications"
+                                                    v-for="notification in visibleNotifications"
                                                     :key="notification.id"
                                                     class="flex items-start border gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
@@ -1669,6 +1687,34 @@ onUnmounted(() => {
                                                     <p>No new notifications.</p>
                                                 </div>
                                             </template>
+                                            <div
+                                                v-if="
+                                                    notifications.length >
+                                                    visibleCount
+                                                "
+                                                class="flex flex-col items-center gap-1 py-2"
+                                            >
+                                                <Button
+                                                    as="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    @click="
+                                                        showMoreNotifications
+                                                    "
+                                                >
+                                                    Show more
+                                                </Button>
+                                                <span
+                                                    class="text-xs text-gray-500"
+                                                >
+                                                    Showing
+                                                    {{
+                                                        visibleNotifications.length
+                                                    }}
+                                                    of
+                                                    {{ notifications.length }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </template>
                                 </PopoverContent>
