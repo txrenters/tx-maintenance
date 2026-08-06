@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -64,7 +65,14 @@ class AwaitingReplyCounter
 
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->where('c.is_read', false)
+            // A closed work order waits on nobody. NULL-safe: a status-less
+            // row keeps counting rather than going silent.
+            ->where(fn ($query) => $query
+                ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
+                ->orWhereNull('wo.status')
+            )
             ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds))
             ->count();
     }

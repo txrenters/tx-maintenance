@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Ai\Agents\CourtesyCloserAgent;
+use App\Models\Conversation;
+use App\Models\WorkOrder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +56,33 @@ class CourtesyCloserService
     /** Context lines are trimmed to this many characters. */
     private const CONTEXT_EXCERPT = 160;
 
+    /**
+     * Whole messages that are pure gratitude or a conversation closer, judged
+     * locally the moment they arrive — no AI call, no waiting for the next
+     * scheduled run. Deliberately conservative: "ok" and "yes" are answers
+     * (accepting an appointment, approving an estimate) and must never appear
+     * here; an entry earns its place only when the entire message, stripped of
+     * punctuation, says nothing but thanks/acknowledgment-of-thanks.
+     *
+     * @var array<int, string>
+     */
+    private const OBVIOUS_CLOSERS = [
+        'thank you', 'thanks', 'thank u', 'ty', 'thx', 'many thanks',
+        'thank you so much', 'thanks so much', 'thank you very much',
+        'thanks a lot', 'thank you sir', 'thank you maam',
+        'ok thank you', 'ok thanks', 'okay thank you', 'okay thanks',
+        'got it thank you', 'got it thanks',
+        'perfect thank you', 'perfect thanks',
+        'great thank you', 'great thanks',
+        'awesome thank you', 'awesome thanks',
+        'alright thank you', 'alright thanks',
+        'sounds good thank you', 'sounds good thanks',
+        'no problem', 'anytime', 'my pleasure', 'youre welcome', 'you are welcome',
+    ];
+
+    /** Emoji that, standing alone as the whole message, close a conversation. */
+    private const CLOSER_EMOJI = ['👍', '🙏', '❤️', '👌'];
+
     public function __construct(
         private readonly WorkOrderRecommendationService $recommendations,
     ) {}
@@ -99,10 +128,16 @@ class CourtesyCloserService
         $unchecked = array_diff_key($candidates, $checked);
         $judged = 0;
 
-        // A long message always needs a person — settled here so the AI only
-        // ever sees short texts and truncation can never mislead it.
+        // A long message always needs a person, and a bare "thank you" never
+        // does — both settled here so the AI only ever sees the genuinely
+        // ambiguous middle and truncation can never mislead it.
         foreach ($unchecked as $id => $row) {
             if (mb_strlen($row->text) > self::OBVIOUS_LENGTH) {
+                $checked[$id] = true;
+                unset($unchecked[$id]);
+                $judged++;
+            } elseif ($this->isObviousCloser($row->text)) {
+                $courtesy[$id] = true;
                 $checked[$id] = true;
                 unset($unchecked[$id]);
                 $judged++;
@@ -151,6 +186,75 @@ class CourtesyCloserService
     }
 
     /**
+     * Judge one just-arrived inbound message locally, so a bare "thank you"
+     * leaves the badge within a page load instead of waiting up to ten
+     * minutes for the scheduled run. Only the conservative whole-message list
+     * is consulted — anything ambiguous stays for the AI.
+     *
+     * Log-never-throw: storing a message must never fail over its verdict. A
+     * lost race between two simultaneous arrivals just leaves a verdict
+     * unrecorded, and the scheduled classifier covers it on the next run.
+     */
+    public function recordObviousCloser(Conversation $message): void
+    {
+        try {
+            if (! $this->enabled() || $message->is_read || $message->is_mms) {
+                return;
+            }
+
+            if (! $this->isObviousCloser($this->normalize($message->message))) {
+                return;
+            }
+
+            $courtesy = Cache::get(self::COURTESY_KEY, []);
+            $checked = Cache::get(self::CHECKED_KEY, []);
+
+            $courtesy[$message->id] = true;
+            $checked[$message->id] = true;
+
+            Cache::forever(self::COURTESY_KEY, $courtesy);
+            Cache::forever(self::CHECKED_KEY, $checked);
+        } catch (\Throwable $e) {
+            Log::warning('Obvious courtesy closer could not be recorded; the scheduled run will judge it.', [
+                'conversation_id' => $message->id ?? null,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Whether the whole message, stripped to its words, is on the
+     * no-reply-needed list — or is nothing but closer emoji.
+     */
+    private function isObviousCloser(string $text): bool
+    {
+        if ($text === '') {
+            return false;
+        }
+
+        $words = trim(preg_replace(
+            '/\s+/',
+            ' ',
+            preg_replace('/[^\p{L}\s]+/u', ' ', mb_strtolower($text))
+        ));
+
+        if ($words !== '' && in_array($words, self::OBVIOUS_CLOSERS, true)) {
+            return true;
+        }
+
+        // No letters at all: an emoji-only message. It closes the thread only
+        // when every character is a known closer emoji.
+        if ($words === '') {
+            $stripped = preg_replace('/\s+/u', '', $text);
+
+            return $stripped !== ''
+                && preg_replace('/(?:'.implode('|', array_map('preg_quote', self::CLOSER_EMOJI)).')+/u', '', $stripped) === '';
+        }
+
+        return false;
+    }
+
+    /**
      * The newest inbound message of every thread, id => row carrying the
      * normalized text and the thread key needed to fetch its context.
      *
@@ -170,7 +274,14 @@ class CourtesyCloserService
 
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->where('c.is_read', false)
+            // Threads on closed work orders no longer count as awaiting
+            // anywhere, so judging them would only spend AI on dead threads.
+            ->where(fn ($query) => $query
+                ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
+                ->orWhereNull('wo.status')
+            )
             ->where(fn ($query) => $query->where('c.is_mms', false)->orWhereNull('c.is_mms'))
             ->orderBy('c.id')
             ->get(['c.id', 'c.work_order_id', 'c.conversation_type', 'c.vendor_id', 'c.owner_id', 'c.message'])

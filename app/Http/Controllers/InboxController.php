@@ -222,6 +222,7 @@ class InboxController extends Controller
                 'c.created_at',
                 'r.last_read_conversation_id as last_read_id',
                 'wo.work_order_no',
+                'wo.status as work_order_status',
                 'wo.description as work_order_description',
             ])
             ->when(
@@ -232,6 +233,7 @@ class InboxController extends Controller
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
+                    ->tap(fn ($q) => $this->notClosed($q))
             )
             ->when(
                 $filters['status'] === 'unread',
@@ -295,6 +297,22 @@ class InboxController extends Controller
      * "unread" is personal — one coordinator opening a thread does not clear
      * it for anyone else.
      */
+    /**
+     * Threads on closed work orders wait on nobody. NULL-safe: a status-less
+     * row keeps counting rather than going silent. Requires `wo` to be joined.
+     *
+     * @template TQuery of \Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    private function notClosed($query)
+    {
+        return $query->where(fn ($q) => $q
+            ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
+            ->orWhereNull('wo.status'));
+    }
+
     private function readMarkerJoin(): \Closure
     {
         $userId = (int) (auth()->id() ?? 0);
@@ -331,6 +349,8 @@ class InboxController extends Controller
                 $filters['status'] !== 'all',
                 fn ($query) => $query->where('c.is_read', false)
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
+                    ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
+                    ->tap(fn ($q) => $this->notClosed($q))
             )
             ->when(
                 $filters['status'] === 'unread',
@@ -382,8 +402,12 @@ class InboxController extends Controller
             'waiting_hours' => (int) Carbon::parse($row->created_at)->diffInHours($now),
             // is_read is the de facto direction column (see BoardSummaryService):
             // 0 means the message came in from the outside and nobody replied.
-            // A judged courtesy closer ("thank you") no longer waits on anyone.
-            'awaiting' => ! $row->is_read && ! in_array((int) $row->id, $courtesyIds, true),
+            // A judged courtesy closer ("thank you") no longer waits on anyone,
+            // and neither does a thread on a closed work order (NULL-safe: a
+            // status-less row keeps counting).
+            'awaiting' => ! $row->is_read
+                && ! in_array((int) $row->id, $courtesyIds, true)
+                && ! in_array((string) ($row->work_order_status ?? ''), WorkOrder::CLOSED_STATUSES, true),
             // Unread is personal: the newest message is inbound AND this staff
             // user has not opened the thread since it arrived.
             'unread' => ! $row->is_read

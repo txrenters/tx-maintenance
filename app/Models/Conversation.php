@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\ConversationScope;
 use App\Services\AwaitingReplyCounter;
+use App\Services\CourtesyCloserService;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,12 +23,20 @@ class Conversation extends Model
      * so drop the count behind the Messages badge. Hooking the model rather than
      * each caller covers the send endpoint, the inbound webhook and the importer
      * alike.
+     *
+     * An arriving message that is obviously a courtesy closer ("thank you!")
+     * is also judged on the spot — locally, no AI — so it never inflates the
+     * badge while waiting for the scheduled classifier. Both hooks are
+     * log-never-throw inside their services.
      */
     protected static function booted(): void
     {
         $forget = fn () => app(AwaitingReplyCounter::class)->forget();
 
-        static::created($forget);
+        static::created(function (Conversation $message) use ($forget) {
+            app(CourtesyCloserService::class)->recordObviousCloser($message);
+            $forget();
+        });
         static::deleted($forget);
     }
 
