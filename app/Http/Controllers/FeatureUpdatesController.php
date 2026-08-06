@@ -21,6 +21,48 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-07',
+            'area' => 'Attachments',
+            'title' => 'Tenant photos land on the Attachments tab',
+            'description' => 'Photos a tenant sends — by text reply or through their portal chat — now appear on the work order\'s Attachments tab as Before Pictures, and the tab shows a number badge for new arrivals until someone opens it.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Messaging',
+            'title' => 'Thank-you replies no longer count as awaiting',
+            'description' => 'When a conversation ends with a plain "thank you", it stops counting toward the Messages badge and the awaiting-reply lists. Anything that could be a real question or answer still counts and is checked with full context.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Notifications',
+            'title' => 'Notification bell holds the latest 1000',
+            'description' => 'The bell now keeps your latest 1000 notifications (up from 100), loading them in pages of 100 with a Show more button.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Vendors',
+            'title' => 'Vendor work orders as a board',
+            'description' => 'The vendor Work Orders page is now a kanban board with one column per status, like the staff board, plus a "Hide cities" filter that remembers each person\'s choices.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'HOA',
+            'title' => 'HOA violation sync fix',
+            'description' => 'HOA violation uploads reliably create their PropertyWare work order again. If PropertyWare cannot hand back a work order number, the upload warns you instead of failing quietly, and the stray unsynced entries from the outage were cleaned up.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Messaging',
+            'title' => 'Message cards back to the classic layout',
+            'description' => 'Conversation bubbles show the To and From numbers and the full date and time again, and stay readable in dark mode.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Owners',
+            'title' => 'Owner portal highlights the work description',
+            'description' => 'The owner portal presents the work order description in its own highlighted card, so owners see what the job is at a glance.',
+        ],
+        [
             'date' => '2026-08-06',
             'area' => 'Messaging',
             'title' => 'Inbox unread indicators',

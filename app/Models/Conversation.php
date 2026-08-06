@@ -31,10 +31,24 @@ class Conversation extends Model
      */
     protected static function booted(): void
     {
-        $forget = fn () => app(AwaitingReplyCounter::class)->forget();
+        // Guarded here too, not only inside the services: a container or
+        // cache-store error during resolution would otherwise fail the very
+        // message write that triggered the hook.
+        $forget = function (): void {
+            try {
+                app(AwaitingReplyCounter::class)->forget();
+            } catch (\Throwable) {
+                // The badge's 60s TTL corrects the count on its own.
+            }
+        };
 
         static::created(function (Conversation $message) use ($forget) {
-            app(CourtesyCloserService::class)->recordObviousCloser($message);
+            try {
+                app(CourtesyCloserService::class)->recordObviousCloser($message);
+            } catch (\Throwable) {
+                // Fail-open: the thread simply counts as awaiting.
+            }
+
             $forget();
         });
         static::deleted($forget);

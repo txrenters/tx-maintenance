@@ -105,6 +105,7 @@ import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
+import { agoLabel } from "@/utils/conversation.js";
 
 const page = usePage();
 
@@ -174,7 +175,18 @@ const awaitingReplyBadge = computed(() => {
 // release date kept in localStorage, so it needs no server state.
 const WHATS_NEW_SEEN_KEY = "whats-new-last-seen";
 
-const whatsNewLastSeen = ref(localStorage.getItem(WHATS_NEW_SEEN_KEY) || "");
+// localStorage can throw outright (blocked site data, managed browsers) and
+// this is the global layout — a storage failure must cost the badge, never
+// blank the page.
+const readWhatsNewLastSeen = () => {
+    try {
+        return localStorage.getItem(WHATS_NEW_SEEN_KEY) || "";
+    } catch {
+        return "";
+    }
+};
+
+const whatsNewLastSeen = ref(readWhatsNewLastSeen());
 
 const whatsNewBadge = computed(() => {
     const dates = page.props.feature_update_dates || [];
@@ -197,7 +209,11 @@ watch(
         if (component !== "FeatureUpdates/Index" || dates.length === 0) return;
 
         whatsNewLastSeen.value = dates[0];
-        localStorage.setItem(WHATS_NEW_SEEN_KEY, dates[0]);
+        try {
+            localStorage.setItem(WHATS_NEW_SEEN_KEY, dates[0]);
+        } catch {
+            // Unpersisted: the badge clears for this visit only.
+        }
     },
     { immediate: true },
 );
@@ -574,20 +590,39 @@ const showMoreNotifications = () => {
     visibleCount.value += NOTIFICATION_CHUNK;
 };
 
+// Change detector for the poll: deep-comparing two 1000-row payloads with
+// JSON.stringify allocated megabytes of string every 5 seconds. Newest id
+// and length catch arrivals, the unread tally catches read-state flips.
+const notificationsFingerprint = (rows) =>
+    `${rows.length}:${rows[0]?.id ?? ""}:${rows.filter((n) => !n.read).length}`;
+
 const fetchNotifications = async () => {
     try {
         const response = await axios.get("/notifications");
         // Skip the assignment when nothing changed so Vue doesn't re-patch
         // up to 1000 keyed rows on every 5s poll.
         if (
-            JSON.stringify(response.data) !==
-            JSON.stringify(notifications.value)
+            notificationsFingerprint(response.data) !==
+            notificationsFingerprint(notifications.value)
         ) {
             notifications.value = response.data;
         }
     } catch (error) {
         console.error("Failed to fetch notifications:", error);
     }
+};
+
+// Relative labels ("5 mins ago") are computed client-side from `timestamp`;
+// the server used to bake the string, which flipped every minute across a
+// thousand rows and defeated the no-change guard above. The tick refreshes
+// the rendered labels once a minute.
+const relativeTimeTick = ref(Date.now());
+let relativeTimeIntervalId = null;
+
+const notificationAgo = (notification) => {
+    void relativeTimeTick.value;
+
+    return agoLabel(new Date(notification.timestamp * 1000));
 };
 
 // Mark notification as read
@@ -976,8 +1011,10 @@ const closeBanner = () => {
 
 onMounted(() => {
     fetchNotifications(); // initial load
-    // Set interval for every 5 minutes (300,000 ms)
-    intervalId = setInterval(fetchNotifications, 5000);
+    intervalId = setInterval(fetchNotifications, 5000); // 5-second poll
+    relativeTimeIntervalId = setInterval(() => {
+        relativeTimeTick.value = Date.now();
+    }, 60000);
 
     // Polls even while muted so the cursor keeps moving; switching alerts on
     // then announces what arrives next, not the backlog behind it.
@@ -995,6 +1032,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
+    if (relativeTimeIntervalId) clearInterval(relativeTimeIntervalId);
 });
 </script>
 
@@ -1581,7 +1619,9 @@ onUnmounted(() => {
                                                         >
                                                             <p class="mr-2">
                                                                 {{
-                                                                    notification.time
+                                                                    notificationAgo(
+                                                                        notification,
+                                                                    )
                                                                 }}
                                                             </p>
                                                             <div>
@@ -1930,7 +1970,7 @@ onUnmounted(() => {
                         {{ failedNotification.error_code }}
                     </p>
                     <p class="text-xs text-gray-400 mt-1">
-                        {{ failedNotification.time }}
+                        {{ notificationAgo(failedNotification) }}
                     </p>
                 </div>
                 <div class="flex justify-end gap-2">

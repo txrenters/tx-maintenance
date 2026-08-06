@@ -249,6 +249,56 @@ class VendorWorkOrdersPageTest extends TestCase
         $this->assertNotContains(7501, $numbers);
     }
 
+    public function test_the_list_payload_hides_internal_and_money_fields_from_vendors(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        $paidStatus = ServiceStatus::query()->create(['name' => 'Paid', 'description' => 'Paid']);
+
+        $vendor = $this->makeVendorUser('V-702', 'Breasy Landscaping');
+
+        // Paid is one of the statuses vendors gained sight of — exactly where
+        // internal notes and final costs must not ride along in the JSON.
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $paidStatus->id,
+            'work_order_no' => 7601,
+            'status' => 'Open',
+            'notes' => 'internal WOC note',
+            'total_cost' => '412.50',
+        ]);
+        $workOrder->vendors()->attach($vendor->id);
+
+        $response = $this->actingAs($vendor->user)->get(route('work_orders.vendor'), [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => hash_file('xxh128', public_path('build/manifest.json')),
+            'X-Inertia-Partial-Component' => 'WorkOrder/VendorWorkOrders',
+            'X-Inertia-Partial-Data' => 'workOrders',
+        ]);
+
+        $response->assertOk();
+
+        $returned = collect($response->json('props.workOrders'))
+            ->firstWhere('work_order_no', 7601);
+
+        $this->assertNotNull($returned);
+
+        // The card renders from these…
+        $this->assertArrayHasKey('category', $returned);
+        $this->assertArrayHasKey('location', $returned);
+
+        // …and none of the internal/money/tenant-contact columns leak.
+        $hidden = [
+            'notes', 'remarks', 'closing_comments', 'approval_comments',
+            'client_data', 'cost_estimate', 'total_cost',
+            'service_request_contact_name', 'service_request_contact_phone',
+            'service_request_contact_email',
+        ];
+
+        foreach ($hidden as $column) {
+            $this->assertArrayNotHasKey($column, $returned, "Vendor list payload leaked `{$column}`.");
+        }
+    }
+
     public function test_each_work_order_carries_the_vendors_own_tasks_for_card_coloring(): void
     {
         Role::findOrCreate('vendor', 'web');

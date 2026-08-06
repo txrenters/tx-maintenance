@@ -165,6 +165,65 @@ class CourtesyFilterImprovementsTest extends TestCase
         $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
     }
 
+    public function test_a_thanks_carrying_digits_is_never_an_instant_closer(): void
+    {
+        // Digits are content — a callback number, a quote, a date, an answer
+        // to "option 1 or 2?" — and the word-normalizer would erase them.
+        foreach (['Thank you 8175551234', 'Thanks, $250', 'thanks 4/15', 'Thanks. 2'] as $text) {
+            $workOrder = WorkOrder::factory()->create();
+            $this->message($workOrder, inbound: true, text: $text);
+        }
+
+        $this->assertSame(4, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_confirmation_words_are_left_for_the_ai(): void
+    {
+        // "No problem" confirms an appointment, "Anytime" answers "when
+        // works?" — only the AI, seeing the thread, may wave these off.
+        foreach (['No problem', 'Anytime'] as $text) {
+            $workOrder = WorkOrder::factory()->create();
+            $this->message($workOrder, inbound: true, text: $text);
+        }
+
+        $this->assertSame(2, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_the_scheduled_run_sends_digit_bearing_thanks_to_the_ai(): void
+    {
+        $this->aiUnavailable();
+
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Thank you 8175551234');
+        Cache::flush();
+
+        $result = app(CourtesyCloserService::class)->classify();
+
+        // Not settled locally: with the AI away it stays pending and counted.
+        $this->assertSame(0, $result['judged']);
+        $this->assertSame(1, $result['pending']);
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_stale_threads_are_left_unjudged_but_still_count(): void
+    {
+        $this->aiUnavailable();
+
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Thanks so much!', attributes: [
+            'created_at' => now()->subDays(120),
+        ]);
+        Cache::flush();
+
+        $result = app(CourtesyCloserService::class)->classify();
+
+        // Outside the classifier's window: never judged, fails open to
+        // counting as awaiting — the badge over-counts rather than the
+        // classifier re-walking all history every run.
+        $this->assertSame(['judged' => 0, 'courtesy' => 0, 'pending' => 0], $result);
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
+
     public function test_the_scheduled_run_judges_backlog_closers_without_ai(): void
     {
         $this->aiUnavailable();
