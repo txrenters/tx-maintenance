@@ -286,6 +286,22 @@ class FeatureUpdatesController extends Controller
         ],
     ];
 
+    /**
+     * Release dates of every update, newest first. Shared with the layout so
+     * the sidebar can badge how many updates landed since the user last
+     * opened the page (last-seen is remembered in the browser).
+     *
+     * @return array<int, string>
+     */
+    public static function updateDates(): array
+    {
+        $dates = array_column(self::UPDATES, 'date');
+
+        rsort($dates);
+
+        return $dates;
+    }
+
     public function index(Request $request): Response
     {
         $this->authorizeStaff($request);

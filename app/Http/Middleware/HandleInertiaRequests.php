@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\FeatureUpdatesController;
 use App\Services\AwaitingReplyCounter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -77,6 +78,12 @@ class HandleInertiaRequests extends Middleware
             'awaiting_reply_count' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
                 ? app(AwaitingReplyCounter::class)->cachedCount()
                 : 0,
+            // Drives the badge on the What's New nav: release dates of every
+            // shipped update, newest first; the layout counts the ones newer
+            // than this browser's last visit to the page.
+            'feature_update_dates' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
+                ? FeatureUpdatesController::updateDates()
+                : [],
         ]);
     }
 }
