@@ -102,9 +102,18 @@ class InboundTwilioMessageProcessor
                     $this->processMediaAttachments($conversation->id, $payload);
 
                     // Photos a tenant texts in belong on the Attachments tab
-                    // too, not only inside the message thread. Never fatal.
+                    // too, not only inside the message thread. Isolated: the
+                    // message is already stored, and a mirror failure must
+                    // not cost the staff notification logged below.
                     if ($type === 'tenant') {
-                        $this->photoMirror->mirrorForConversation($conversation, $conversation->media()->get());
+                        try {
+                            $this->photoMirror->mirrorForConversation($conversation, $conversation->media()->get());
+                        } catch (\Throwable $mirrorError) {
+                            Log::warning('Tenant photo mirror failed; message stored without Attachments copy.', [
+                                'conversation_id' => $conversation->id,
+                                'error' => $mirrorError->getMessage(),
+                            ]);
+                        }
                     }
                 }
 
@@ -126,7 +135,9 @@ class InboundTwilioMessageProcessor
                 Log::info('Inbound work-order message stored.', ['conversation_id' => $conversation->id, 'sid' => $messageSid]);
 
                 return 'work_order';
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
+                // \Throwable, not Exception: a TypeError escaping here would
+                // 500 the Twilio webhook and trigger delivery retries.
                 Log::error('Failed to create work-order conversation: '.$e->getMessage());
 
                 return 'unmatched';

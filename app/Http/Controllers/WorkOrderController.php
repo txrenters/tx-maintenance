@@ -172,6 +172,28 @@ class WorkOrderController extends Controller
                 ->values()
             : collect();
 
+        // The card renders a handful of fields and the details modal fetches
+        // the full record through data()/details(), which do their own hiding.
+        // Internal notes, money columns and tenant contact details must not
+        // ride along in the list JSON — the template not painting them does
+        // not keep them out of the browser's devtools.
+        $workOrders->each(function (WorkOrder $workOrder) {
+            $workOrder->makeHidden([
+                'notes',
+                'remarks',
+                'closing_comments',
+                'approval_comments',
+                'client_data',
+                'cost_estimate',
+                'total_cost',
+                'service_request_contact_name',
+                'service_request_contact_phone',
+                'service_request_contact_email',
+            ]);
+
+            $this->hideBuildingMaintenanceFromNonStaff($workOrder);
+        });
+
         // Build the filter dropdowns from the values that actually appear in the
         // vendor's own work orders — so options they have none of (e.g. an "HOA
         // Violation" category they never handle) never show up.

@@ -61,8 +61,10 @@ class CourtesyCloserService
      * locally the moment they arrive — no AI call, no waiting for the next
      * scheduled run. Deliberately conservative: "ok" and "yes" are answers
      * (accepting an appointment, approving an estimate) and must never appear
-     * here; an entry earns its place only when the entire message, stripped of
-     * punctuation, says nothing but thanks/acknowledgment-of-thanks.
+     * here — the same reason "no problem" and "anytime" don't: they confirm
+     * an appointment or answer "when works?". An entry earns its place only
+     * when the entire message, stripped of punctuation, says nothing but
+     * thanks/acknowledgment-of-thanks.
      *
      * @var array<int, string>
      */
@@ -77,11 +79,34 @@ class CourtesyCloserService
         'awesome thank you', 'awesome thanks',
         'alright thank you', 'alright thanks',
         'sounds good thank you', 'sounds good thanks',
-        'no problem', 'anytime', 'my pleasure', 'youre welcome', 'you are welcome',
+        'my pleasure', 'youre welcome', 'you are welcome',
     ];
 
     /** Emoji that, standing alone as the whole message, close a conversation. */
     private const CLOSER_EMOJI = ['👍', '🙏', '❤️', '👌'];
+
+    /**
+     * Threads whose newest message is older than this are left unjudged (they
+     * simply keep counting as awaiting) so the classifier never walks the
+     * whole conversation history each run.
+     */
+    private const CANDIDATE_WINDOW_DAYS = 90;
+
+    /**
+     * Hard ceiling on how many ids the consumers inline into their
+     * whereNotIn() — each id is a bound parameter, and an unbounded list
+     * could outgrow the SQL packet on an awaiting-set spike. Overflow ids
+     * just keep counting as awaiting.
+     */
+    private const MAX_FILTER_IDS = 2000;
+
+    /**
+     * Memoized courtesyIds() so one consumer instance (InboxController reads
+     * it twice per request) hits the cache store once.
+     *
+     * @var array<int, int>|null
+     */
+    private ?array $memoizedCourtesyIds = null;
 
     public function __construct(
         private readonly WorkOrderRecommendationService $recommendations,
@@ -103,7 +128,11 @@ class CourtesyCloserService
             return [];
         }
 
-        return array_map('intval', array_keys(Cache::get(self::COURTESY_KEY, [])));
+        return $this->memoizedCourtesyIds ??= array_slice(
+            array_map('intval', array_keys(Cache::get(self::COURTESY_KEY, []))),
+            0,
+            self::MAX_FILTER_IDS
+        );
     }
 
     /**
@@ -171,12 +200,21 @@ class CourtesyCloserService
             }
         }
 
-        Cache::forever(self::CHECKED_KEY, $checked);
-        Cache::forever(self::COURTESY_KEY, array_intersect_key($courtesy, $checked));
+        // A cache-store hiccup must not fail the scheduled run: verdicts just
+        // go unrecorded and the next run re-judges the same candidates.
+        try {
+            Cache::forever(self::CHECKED_KEY, $checked);
+            Cache::forever(self::COURTESY_KEY, array_intersect_key($courtesy, $checked));
+            $this->memoizedCourtesyIds = null;
 
-        // The badge caches its count for a minute; a fresh verdict should show
-        // on the next page load, not after the TTL.
-        app(AwaitingReplyCounter::class)->forget();
+            // The badge caches its count for a minute; a fresh verdict should
+            // show on the next page load, not after the TTL.
+            app(AwaitingReplyCounter::class)->forget();
+        } catch (\Throwable $e) {
+            Log::warning('Courtesy closer verdicts could not be stored; the next run will re-judge.', [
+                'message' => $e->getMessage(),
+            ]);
+        }
 
         return [
             'judged' => $judged,
@@ -214,6 +252,7 @@ class CourtesyCloserService
 
             Cache::forever(self::COURTESY_KEY, $courtesy);
             Cache::forever(self::CHECKED_KEY, $checked);
+            $this->memoizedCourtesyIds = null;
         } catch (\Throwable $e) {
             Log::warning('Obvious courtesy closer could not be recorded; the scheduled run will judge it.', [
                 'conversation_id' => $message->id ?? null,
@@ -229,6 +268,14 @@ class CourtesyCloserService
     private function isObviousCloser(string $text): bool
     {
         if ($text === '') {
+            return false;
+        }
+
+        // Digits are load-bearing: "Thank you 8175551234" is a callback
+        // number, "Thanks, $250" a quote, "thanks 4/15" a date — and the
+        // normalizer below would erase all of them. Anything numeric goes to
+        // the AI, which sees the digits and the thread.
+        if (preg_match('/\d/', $text)) {
             return false;
         }
 
@@ -276,6 +323,7 @@ class CourtesyCloserService
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->where('c.is_read', false)
+            ->where('c.created_at', '>=', now()->subDays(self::CANDIDATE_WINDOW_DAYS))
             // Threads on closed work orders no longer count as awaiting
             // anywhere, so judging them would only spend AI on dead threads.
             ->where(fn ($query) => $query

@@ -301,10 +301,20 @@ class TenantPortalController extends Controller
             DB::commit();
 
             // Photos sent through the portal chat belong on the staff
-            // Attachments tab too. After the commit so a mirror hiccup can
-            // never take the message down with it.
+            // Attachments tab too. After the commit AND swallowed: the
+            // message is already sent, so a mirror failure reaching the
+            // outer catch would show the tenant an error for a message
+            // that went through — and invite duplicate resends.
             if ($storedMedia !== []) {
-                $photoMirror->mirrorForConversation($conversation, $storedMedia);
+                try {
+                    $photoMirror->mirrorForConversation($conversation, $storedMedia);
+                } catch (\Throwable $mirrorError) {
+                    Log::warning('Tenant portal photo mirror failed; message sent without Attachments copy.', [
+                        'work_order_id' => $workOrder->id,
+                        'conversation_id' => $conversation->id,
+                        'error' => $mirrorError->getMessage(),
+                    ]);
+                }
             }
 
             // The tenant has engaged: stop the schedule follow-up for them.

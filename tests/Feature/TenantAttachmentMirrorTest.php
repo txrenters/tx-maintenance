@@ -17,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -103,6 +104,46 @@ class TenantAttachmentMirrorTest extends TestCase
         $this->assertSame('fake-image-bytes', Storage::disk('public')->get($attachment->filename));
 
         Queue::assertPushed(UploadAttachment::class, 1);
+    }
+
+    public function test_a_mirror_failure_never_loses_the_message_or_the_staff_alert(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        Storage::fake('public');
+        Http::fake(['*' => Http::response('fake-image-bytes')]);
+
+        $this->makeWorkOrder($this->makeTenant());
+
+        $this->mock(TenantPhotoMirrorService::class, fn ($mock) => $mock
+            ->shouldReceive('mirrorForConversation')
+            ->andThrow(new \RuntimeException('disk full')));
+
+        $result = app(InboundTwilioMessageProcessor::class)->process([
+            'From' => '+15125559999',
+            'To' => '+15125550000',
+            'Body' => 'Here are the pictures (Ref: WO#43361)',
+            'MessageSid' => 'SM-mirror-fail-1',
+            'NumMedia' => '1',
+            'MediaUrl0' => 'https://api.twilio.com/media/photo-1',
+            'MediaContentType0' => 'image/jpeg',
+        ]);
+
+        // The webhook reports the message stored — not 'unmatched'.
+        $this->assertSame('work_order', $result);
+
+        $conversation = Conversation::withoutGlobalScopes()
+            ->where('twilio_sid', 'SM-mirror-fail-1')
+            ->sole();
+
+        // The staff bell still gets its notification: the activity log runs
+        // after (and independently of) the mirror.
+        $this->assertTrue(
+            Activity::query()
+                ->where('event', 'work_order_message_received')
+                ->where('subject_id', $conversation->id)
+                ->exists()
+        );
     }
 
     public function test_non_visual_mms_media_is_not_mirrored(): void

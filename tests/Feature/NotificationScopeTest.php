@@ -78,6 +78,48 @@ class NotificationScopeTest extends TestCase
         $this->assertNotContains($unrelated->id, $ids);
     }
 
+    public function test_the_bell_payload_carries_a_slim_subject_not_the_whole_row(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $user = User::factory()->create()->assignRole('admin');
+
+        $workOrder = WorkOrder::factory()->create(['work_order_no' => 77]);
+        $conversation = Conversation::create([
+            'message' => 'private body text',
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+            'sender_number' => '+15125550000',
+            'receiver_number' => '+15125551111',
+            'twilio_sid' => 'SM123',
+            'is_read' => false,
+        ]);
+
+        $activity = Activity::create([
+            'log_name' => 'default', 'description' => 'msg',
+            'subject_type' => Conversation::class, 'subject_id' => $conversation->id,
+            'properties' => ['work_order_id' => $workOrder->id, 'message' => 'Alert', 'read' => false],
+        ]);
+
+        $row = collect($this->actingAs($user)->getJson('/notifications')->assertOk()->json())
+            ->firstWhere('id', $activity->id);
+
+        // Enough to identify and reopen the thread…
+        $this->assertSame('tenant', $row['subject']['conversation_type']);
+        $this->assertSame($workOrder->id, $row['subject']['work_order_id']);
+        $this->assertSame('+15125550000', $row['subject']['sender_number']);
+        $this->assertSame('+15125551111', $row['subject']['receiver_number']);
+
+        // …and none of the row's bulk: message bodies and Twilio sids stay
+        // off the wire — the whole-model subject made each poll megabytes.
+        $this->assertArrayNotHasKey('message', $row['subject']);
+        $this->assertArrayNotHasKey('twilio_sid', $row['subject']);
+
+        // Relative time renders client-side from `timestamp`; a server-baked
+        // string flipped every minute and defeated the poll's change guard.
+        $this->assertArrayNotHasKey('time', $row);
+        $this->assertArrayHasKey('timestamp', $row);
+    }
+
     public function test_the_automated_message_ledger_stays_out_of_the_bell(): void
     {
         Role::findOrCreate('admin', 'web');
