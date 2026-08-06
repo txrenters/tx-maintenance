@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import GlobalSearch from "@/Components/GlobalSearch.vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
@@ -168,6 +168,39 @@ const awaitingReplyBadge = computed(() => {
 
     return count > 99 ? "99+" : String(count);
 });
+
+// Count on the What's New nav, same look as the Messages badge: how many
+// updates shipped since this browser last opened the page. Last-seen is a
+// release date kept in localStorage, so it needs no server state.
+const WHATS_NEW_SEEN_KEY = "whats-new-last-seen";
+
+const whatsNewLastSeen = ref(localStorage.getItem(WHATS_NEW_SEEN_KEY) || "");
+
+const whatsNewBadge = computed(() => {
+    const dates = page.props.feature_update_dates || [];
+
+    const count = whatsNewLastSeen.value
+        ? dates.filter((date) => date > whatsNewLastSeen.value).length
+        : dates.length;
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
+// Opening the page clears the badge: remember the newest release date shown.
+watch(
+    () => page.component,
+    (component) => {
+        const dates = page.props.feature_update_dates || [];
+
+        if (component !== "FeatureUpdates/Index" || dates.length === 0) return;
+
+        whatsNewLastSeen.value = dates[0];
+        localStorage.setItem(WHATS_NEW_SEEN_KEY, dates[0]);
+    },
+    { immediate: true },
+);
 
 // Chime and desktop popup when a message lands on one of this coordinator's
 // work orders. Same roles the endpoint serves and the Messages nav shows.
@@ -425,6 +458,7 @@ const navs = computed(() => {
                 url: route("whats-new"),
                 isActive: page.url.startsWith("/whats-new"),
                 icon: Sparkles,
+                badge: whatsNewBadge.value,
                 requires: ["admin", "woc"],
             },
         ],
@@ -1096,6 +1130,11 @@ onUnmounted(() => {
                                     >
                                         <component :is="item.icon" />
                                         <span>{{ item.name }}</span>
+                                        <span
+                                            v-if="item.badge"
+                                            class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                            >{{ item.badge }}</span
+                                        >
                                     </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>

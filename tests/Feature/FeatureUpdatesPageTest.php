@@ -52,6 +52,29 @@ class FeatureUpdatesPageTest extends TestCase
         }
     }
 
+    public function test_update_dates_are_shared_for_the_sidebar_badge(): void
+    {
+        $user = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($user)
+            ->get('/whats-new')
+            ->assertInertia(function (Assert $page) {
+                $props = $page->toArray()['props'];
+
+                $dates = $props['feature_update_dates'];
+                $updates = $props['updates'];
+
+                $this->assertCount(count($updates), $dates);
+                $this->assertSame($updates[0]['date'], $dates[0]);
+
+                $sorted = $dates;
+                rsort($sorted);
+                $this->assertSame($sorted, $dates, 'Shared dates must be newest first.');
+
+                return $page->component('FeatureUpdates/Index');
+            });
+    }
+
     public function test_updates_are_well_formed_and_newest_first(): void
     {
         $user = User::factory()->create()->assignRole('admin');
