@@ -501,6 +501,10 @@ class PropertyWareService
      * "PORTFOLIO | BUILDING" location string and its unit ID — before creating
      * a new work order there (see createWorkOrder).
      *
+     * The WSDL's getWorkOrders request type requires pageNumber; omitting it
+     * fails encoding ("object has no 'pageNumber' property") before the
+     * request is even sent.
+     *
      * @return array<string, mixed>|null
      */
     public function getLatestWorkOrderForBuilding($buildingId): ?array
@@ -511,6 +515,7 @@ class PropertyWareService
             $response = $client->getWorkOrders([
                 'buildingId' => (int) $buildingId,
                 'orderByNewestFirst' => true,
+                'pageNumber' => 1,
             ]);
 
             $workOrders = json_decode(json_encode($response), true);
