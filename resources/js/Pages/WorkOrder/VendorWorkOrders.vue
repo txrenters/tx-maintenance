@@ -48,46 +48,6 @@ const vendorCities = computed(() =>
     ].sort(),
 );
 
-// The workflow tabs, in display order. Statuses with no entry here fall into
-// "other"; "all" shows everything. Names must match the service_statuses
-// seeder spelling exactly (notably "Followup", not "Follow Up").
-const STATUS_TAB_GROUPS = {
-    new: ["New"],
-    scheduling: [
-        "Assigned - Waiting on Scheduling",
-        "Owner Approved - Waiting on Scheduling",
-    ],
-    scheduled: ["Scheduled"],
-    payment: [
-        "Approved - Waiting on Payment",
-        "Completed - Verified - Waiting on Bill",
-        "Bill Attached - Waiting on Approval",
-    ],
-    completed: [
-        "Service Completed - Call Tenant for Followup",
-        "Completed - Verified - Updating Owner",
-        "Owner Completing Work",
-        "Paid",
-    ],
-};
-
-const TAB_LABELS = {
-    new: "New",
-    scheduling: "Waiting on Scheduling",
-    scheduled: "Scheduled",
-    payment: "Waiting on Payment",
-    completed: "Completed",
-    other: "Other",
-};
-
-const tabForStatus = (statusName) => {
-    const match = Object.entries(STATUS_TAB_GROUPS).find(([, names]) =>
-        names.includes(statusName),
-    );
-
-    return match ? match[0] : "other";
-};
-
 // Search, category, and city narrow the whole list; the kanban columns then
 // split what remains, so the column counts always match the visible cards.
 const baseFilteredWorkOrders = computed(() => {
@@ -112,22 +72,46 @@ const baseFilteredWorkOrders = computed(() => {
     });
 });
 
-// Kanban columns in workflow order, left-to-right like the staff board.
-// Empty columns disappear, same as the staff board.
-const COLUMN_ORDER = ["new", "scheduling", "scheduled", "payment", "completed", "other"];
+// One kanban column per actual service status, exactly like the staff board:
+// table order first, with the billing/payment tail pushed to the far right
+// (mirrors mainBoard's reordering). Empty columns disappear.
+const TRAILING_STATUSES = [
+    "Completed - Verified - Waiting on Bill",
+    "Approved - Waiting on Payment",
+    "Paid",
+];
 
 const columns = computed(() => {
-    const buckets = Object.fromEntries(COLUMN_ORDER.map((key) => [key, []]));
+    const byStatus = new Map();
 
     for (const wo of baseFilteredWorkOrders.value) {
-        buckets[tabForStatus(wo.service_status?.name)].push(wo);
+        const key = wo.service_status?.name ?? "No Status";
+
+        if (!byStatus.has(key)) {
+            byStatus.set(key, {
+                key,
+                label: key,
+                sortId: wo.service_status?.id ?? Number.MAX_SAFE_INTEGER,
+                workOrders: [],
+            });
+        }
+
+        byStatus.get(key).workOrders.push(wo);
     }
 
-    return COLUMN_ORDER.map((key) => ({
-        key,
-        label: TAB_LABELS[key],
-        workOrders: buckets[key],
-    })).filter((column) => column.workOrders.length > 0);
+    return [...byStatus.values()].sort((a, b) => {
+        const aTrail = TRAILING_STATUSES.indexOf(a.key);
+        const bTrail = TRAILING_STATUSES.indexOf(b.key);
+
+        if (aTrail !== bTrail) {
+            if (aTrail === -1) return -1;
+            if (bTrail === -1) return 1;
+
+            return aTrail - bTrail;
+        }
+
+        return a.sortId - b.sortId;
+    });
 });
 
 const hasActiveFilters = computed(
