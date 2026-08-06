@@ -85,7 +85,8 @@ class VendorWorkOrdersPageTest extends TestCase
         ]);
         $visible->vendors()->attach($vendor->id);
 
-        // Paid work order attached to the vendor -> must NOT appear.
+        // Paid but Closed at the PropertyWare level -> must NOT appear: the
+        // status='Closed' guard wins even though Paid itself is visible now.
         $paid = WorkOrder::factory()->create([
             'service_status_id' => ServiceStatus::query()->where('name', 'Paid')->value('id'),
             'work_order_no' => 7002,
@@ -101,11 +102,63 @@ class VendorWorkOrdersPageTest extends TestCase
         ]);
         $foreign->vendors()->attach($otherVendor->id);
 
+        // Paid and still Open -> visible since vendors track their own
+        // payment/completion in the status tabs.
+        $paidOpen = WorkOrder::factory()->create([
+            'service_status_id' => ServiceStatus::query()->where('name', 'Paid')->value('id'),
+            'work_order_no' => 7004,
+            'status' => 'Open',
+        ]);
+        $paidOpen->vendors()->attach($vendor->id);
+
         $numbers = $this->returnedWorkOrderNumbers($vendor->user);
 
         $this->assertContains(7001, $numbers);
         $this->assertNotContains(7002, $numbers);
         $this->assertNotContains(7003, $numbers);
+        $this->assertContains(7004, $numbers);
+    }
+
+    public function test_vendor_sees_completed_statuses_but_never_the_closed_status(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        $vendor = $this->makeVendorUser('V-503', 'Breasy Landscaping');
+
+        $visibleStatusNames = [
+            'Service Completed - Call Tenant for Followup',
+            'Completed - Verified - Updating Owner',
+            'Owner Completing Work',
+            'Paid',
+        ];
+
+        $workOrderNo = 7100;
+        foreach ($visibleStatusNames as $statusName) {
+            $status = ServiceStatus::query()->create(['name' => $statusName, 'description' => $statusName]);
+            $workOrder = WorkOrder::factory()->create([
+                'service_status_id' => $status->id,
+                'work_order_no' => ++$workOrderNo,
+                'status' => 'Open',
+            ]);
+            $workOrder->vendors()->attach($vendor->id);
+        }
+
+        // The Closed service status stays internal even on an Open work order.
+        $closedStatus = ServiceStatus::query()->create(['name' => 'Closed', 'description' => 'Closed']);
+        $closedStatusWorkOrder = WorkOrder::factory()->create([
+            'service_status_id' => $closedStatus->id,
+            'work_order_no' => 7199,
+            'status' => 'Open',
+        ]);
+        $closedStatusWorkOrder->vendors()->attach($vendor->id);
+
+        $numbers = $this->returnedWorkOrderNumbers($vendor->user);
+
+        $this->assertContains(7101, $numbers);
+        $this->assertContains(7102, $numbers);
+        $this->assertContains(7103, $numbers);
+        $this->assertContains(7104, $numbers);
+        $this->assertNotContains(7199, $numbers);
     }
 
     public function test_closed_work_orders_are_hidden_even_with_a_visible_service_status(): void
@@ -143,8 +196,6 @@ class VendorWorkOrdersPageTest extends TestCase
         Role::findOrCreate('vendor', 'web');
 
         $inProgress = ServiceStatus::query()->create(['name' => 'In Progress', 'description' => 'In progress']);
-        // A status the vendor has no work order for — must not appear as an option.
-        ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
 
         $vendor = $this->makeVendorUser('V-650', 'Breasy Landscaping');
 
@@ -163,12 +214,11 @@ class VendorWorkOrdersPageTest extends TestCase
 
         $response->assertOk();
 
-        $statusNames = collect($response->json('props.statuses'))->pluck('name')->all();
-        $categories = $response->json('props.categories');
+        $this->assertContains('Lawn service', $response->json('props.categories'));
 
-        $this->assertContains('In Progress', $statusNames);
-        $this->assertNotContains('Scheduled', $statusNames);
-        $this->assertContains('Lawn service', $categories);
+        // The status dropdown is gone — the page groups by status into tabs
+        // client-side, so no statuses prop should ship anymore.
+        $this->assertNull($response->json('props.statuses'));
     }
 
     public function test_vendor_does_not_see_work_orders_they_are_not_tagged_on(): void

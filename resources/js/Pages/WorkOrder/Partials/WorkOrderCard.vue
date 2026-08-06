@@ -3,6 +3,7 @@ import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2, CalendarCloc
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { nextTick, onMounted, ref, watch } from "vue";
+import { matchesCityFilter } from "@/composables/useCityFilter";
 
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -30,6 +31,8 @@ const props = defineProps({
     vendorFilter: { type: [String, Number], default: "" },
     categoryFilter: { type: String, default: "" },
     emergencyFilter: { type: String, default: "" },
+    // "all" | "only:<City>" | "hide:<City>" — see useCityFilter.
+    cityFilter: { type: String, default: "all" },
     dateRange: { type: Object, default: null },
     // HOA board: render the HOA deadline + state pill on each card (data comes
     // from work_order.hoa, decorated server-side). No effect on other boards.
@@ -311,6 +314,9 @@ const matchesCategory = (work_order) => {
     return work_order.category === props.categoryFilter;
 };
 
+const matchesCity = (work_order) =>
+    matchesCityFilter(props.cityFilter, work_order.building?.city);
+
 const matchesEmergency = (work_order) => {
     const filter = props.emergencyFilter;
     if (!filter || filter === "all") return true;
@@ -353,6 +359,7 @@ const visibleWorkOrders = (status) => {
             matchesSearch(work_order) &&
             matchesVendor(work_order) &&
             matchesCategory(work_order) &&
+            matchesCity(work_order) &&
             matchesEmergency(work_order) &&
             matchesColor(work_order) &&
             matchesDate(work_order)

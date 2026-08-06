@@ -1,9 +1,13 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { Head, Deferred } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
+import { useCityFilter, matchesCityFilter, cityFilterOptions } from "@/composables/useCityFilter";
 import { Skeleton } from "@/Components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/Components/ui/tabs";
+import { ScrollArea, ScrollBar } from "@/Components/ui/scroll-area";
+import FilterChip from "@/Components/FilterChip.vue";
 import {
     Select,
     SelectContent,
@@ -12,40 +16,97 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
-import { ClipboardList, Search, Tag, CircleCheckBig } from "lucide-vue-next";
+import { ClipboardList, Search, Tag, CircleCheckBig, MapPin } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     title: { type: String, default: "Work Orders" },
     workOrders: { type: Array, default: () => [] },
-    statuses: { type: Array, default: () => [] },
     categories: { type: Array, default: () => [] },
     filter: { type: Object, default: () => ({}) },
 });
 
 const { open } = useWorkOrderModal();
 
-// Filtering is client-side: a vendor's list is small, so narrowing by status,
-// category, or search is instant and needs no server round-trip. The dropdown
-// options themselves are already limited server-side to what the vendor has.
-const selectedStatus = ref(props.filter.status ?? "all");
+// Filtering is client-side: a vendor's list is small, so narrowing by tab,
+// category, city, or search is instant and needs no server round-trip. The
+// category options are already limited server-side to what the vendor has.
 const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
-const filteredWorkOrders = computed(() => {
+// City show/hide preference — shared with the main board and persisted per
+// user in localStorage (see useCityFilter).
+const { cityFilter } = useCityFilter();
+
+const vendorCities = computed(() =>
+    [
+        ...new Set(
+            (props.workOrders ?? [])
+                .map((wo) => wo.building?.city)
+                .filter(Boolean),
+        ),
+    ].sort(),
+);
+
+const cityOptions = computed(() =>
+    cityFilterOptions(vendorCities.value, cityFilter.value),
+);
+
+// The workflow tabs, in display order. Statuses with no entry here fall into
+// "other"; "all" shows everything. Names must match the service_statuses
+// seeder spelling exactly (notably "Followup", not "Follow Up").
+const STATUS_TAB_GROUPS = {
+    new: ["New"],
+    scheduling: [
+        "Assigned - Waiting on Scheduling",
+        "Owner Approved - Waiting on Scheduling",
+    ],
+    scheduled: ["Scheduled"],
+    payment: [
+        "Approved - Waiting on Payment",
+        "Completed - Verified - Waiting on Bill",
+        "Bill Attached - Waiting on Approval",
+    ],
+    completed: [
+        "Service Completed - Call Tenant for Followup",
+        "Completed - Verified - Updating Owner",
+        "Owner Completing Work",
+        "Paid",
+    ],
+};
+
+const TAB_LABELS = {
+    all: "All",
+    new: "New",
+    scheduling: "Waiting on Scheduling",
+    scheduled: "Scheduled",
+    payment: "Waiting on Payment",
+    completed: "Completed",
+    other: "Other",
+};
+
+const tabForStatus = (statusName) => {
+    const match = Object.entries(STATUS_TAB_GROUPS).find(([, names]) =>
+        names.includes(statusName),
+    );
+
+    return match ? match[0] : "other";
+};
+
+const activeTab = ref("all");
+
+// Search, category, and city narrow the whole list; the tabs then split what
+// remains, so the counts on the tab strip always match the visible grid.
+const baseFilteredWorkOrders = computed(() => {
     const term = search.value.trim().toLowerCase();
 
     return (props.workOrders ?? []).filter((wo) => {
-        const matchesStatus =
-            selectedStatus.value === "all" ||
-            wo.service_status?.name === selectedStatus.value;
-
         const matchesCategory =
             selectedCategory.value === "all" ||
             wo.category === selectedCategory.value;
 
-        if (!matchesStatus || !matchesCategory) {
+        if (!matchesCategory || !matchesCityFilter(cityFilter.value, wo.building?.city)) {
             return false;
         }
 
@@ -58,6 +119,43 @@ const filteredWorkOrders = computed(() => {
             .some((field) => String(field).toLowerCase().includes(term));
     });
 });
+
+const tabCounts = computed(() => {
+    const counts = { all: baseFilteredWorkOrders.value.length, other: 0 };
+
+    for (const key of Object.keys(STATUS_TAB_GROUPS)) {
+        counts[key] = 0;
+    }
+
+    for (const wo of baseFilteredWorkOrders.value) {
+        counts[tabForStatus(wo.service_status?.name)]++;
+    }
+
+    return counts;
+});
+
+// The Other tab only renders while it has work orders; hop back to All if the
+// active tab disappears (or empties out from a filter change).
+watch(tabCounts, (counts) => {
+    if (activeTab.value === "other" && counts.other === 0) {
+        activeTab.value = "all";
+    }
+});
+
+const filteredWorkOrders = computed(() =>
+    activeTab.value === "all"
+        ? baseFilteredWorkOrders.value
+        : baseFilteredWorkOrders.value.filter(
+              (wo) => tabForStatus(wo.service_status?.name) === activeTab.value,
+          ),
+);
+
+const hasActiveFilters = computed(
+    () =>
+        !!search.value.trim() ||
+        selectedCategory.value !== "all" ||
+        cityFilter.value !== "all",
+);
 
 const formatDate = (value) => {
     if (!value) {
@@ -133,27 +231,16 @@ const cardColorClass = (wo) => {
                     />
                 </div>
 
-                <Select
-                    v-if="statuses.length"
-                    :modelValue="selectedStatus"
-                    @update:modelValue="(value) => (selectedStatus = value)"
-                >
-                    <SelectTrigger class="w-full sm:w-[200px]">
-                        <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem
-                                v-for="status in statuses"
-                                :key="status.id"
-                                :value="status.name"
-                            >
-                                {{ status.name }}
-                            </SelectItem>
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
+                <FilterChip
+                    v-if="cityOptions.length > 1"
+                    label="City"
+                    :icon="MapPin"
+                    :model-value="cityFilter"
+                    :options="cityOptions"
+                    searchable
+                    search-placeholder="Search cities…"
+                    @update:modelValue="(value) => (cityFilter = value)"
+                />
 
                 <Select
                     v-if="categories.length"
@@ -191,6 +278,24 @@ const cardColorClass = (wo) => {
                     />
                 </div>
             </template>
+
+            <!-- Status tabs: the tab strip lives inside the Deferred slot so
+                 its counts only ever render from the loaded list. -->
+            <Tabs v-model:model-value="activeTab" class="mb-4">
+                <ScrollArea class="w-full whitespace-nowrap rounded-md border">
+                    <TabsList class="w-full justify-start">
+                        <TabsTrigger
+                            v-for="tab in ['all', 'new', 'scheduling', 'scheduled', 'payment', 'completed', 'other']"
+                            v-show="tab !== 'other' || tabCounts.other > 0"
+                            :key="tab"
+                            :value="tab"
+                        >
+                            {{ TAB_LABELS[tab] }} ({{ tabCounts[tab] ?? 0 }})
+                        </TabsTrigger>
+                    </TabsList>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+            </Tabs>
 
             <div
                 v-if="filteredWorkOrders.length"
@@ -280,11 +385,11 @@ const cardColorClass = (wo) => {
                 />
                 <p class="text-sm text-muted-foreground">
                     {{
-                        search ||
-                        selectedStatus !== "all" ||
-                        selectedCategory !== "all"
+                        hasActiveFilters
                             ? "No work orders match your filters."
-                            : "You have no work orders right now."
+                            : activeTab !== "all"
+                              ? `No work orders in "${TAB_LABELS[activeTab]}".`
+                              : "You have no work orders right now."
                     }}
                 </p>
             </div>
