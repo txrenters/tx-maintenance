@@ -16,6 +16,7 @@ use App\Http\Controllers\ConversationMediaController;
 use App\Http\Controllers\CoordinatorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FallbackVendorController;
+use App\Http\Controllers\FeatureUpdatesController;
 use App\Http\Controllers\HoaPhotoGalleryController;
 use App\Http\Controllers\HoaViolationController;
 use App\Http\Controllers\ImportTwilioNumberController;
@@ -147,6 +148,9 @@ Route::middleware([
     Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
+
+    // Staff changelog of every update shipped to the system (admin + woc).
+    Route::get('/whats-new', [FeatureUpdatesController::class, 'index'])->name('whats-new');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');

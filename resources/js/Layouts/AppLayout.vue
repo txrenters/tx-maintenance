@@ -98,6 +98,7 @@ import {
     ChartBarBig,
     Volume2,
     VolumeX,
+    Sparkles,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import MessageCard from "@/Components/MessageCard.vue";
@@ -417,6 +418,13 @@ const navs = computed(() => {
                 url: route("buildings.index"),
                 isActive: page.url.startsWith("/buildings"),
                 icon: Warehouse,
+                requires: ["admin", "woc"],
+            },
+            {
+                name: "What's New",
+                url: route("whats-new"),
+                isActive: page.url.startsWith("/whats-new"),
+                icon: Sparkles,
                 requires: ["admin", "woc"],
             },
         ],
