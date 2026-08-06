@@ -57,7 +57,6 @@ class WorkOrderBoardPayloadTest extends TestCase
         $building = Building::query()->create([
             'propertyware_id' => 'B-9001',
             'name' => 'Maple Court',
-            'city' => 'Nacogdoches',
         ]);
 
         $tenant = Tenants::factory()->create([
@@ -116,8 +115,6 @@ class WorkOrderBoardPayloadTest extends TestCase
         }
 
         $this->assertSame('Maple Court', $payload['building']['name']);
-        // The client-side city show/hide filter reads building.city off the card.
-        $this->assertSame('Nacogdoches', $payload['building']['city']);
         $this->assertSame('Tina', $payload['requested_by']['first_name']);
         $this->assertSame('Olive', $payload['owners'][0]['first_name']);
         $this->assertSame('Fixit Plumbing', $payload['vendors'][0]['name']);

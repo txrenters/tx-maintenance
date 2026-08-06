@@ -4,7 +4,7 @@ import { usePage } from "@inertiajs/vue3";
 const BASE_STORAGE_KEY = "work_order_city_filter";
 const VALUE_PATTERN = /^(only|hide):.+$/;
 
-// Shared singleton so the staff board and the vendor page see the same choice.
+// Module-scoped singleton so every page using the filter sees the same choice.
 const cityFilter = ref("all");
 let loadedForKey = null;
 let activeStorageKey = null;
@@ -80,9 +80,10 @@ export const cityFilterOptions = (cities, currentValue) => {
 };
 
 /**
- * The user's city show/hide filter, persisted per user in localStorage so it
- * survives refreshes (unlike the other board filters, which reset). Keyed by
- * user id so accounts sharing a browser never inherit each other's view.
+ * The user's city show/hide filter on the vendor work orders page, persisted
+ * per user in localStorage so it survives refreshes (unlike the other filters,
+ * which reset). Keyed by user id so accounts sharing a browser never inherit
+ * each other's view.
  */
 export function useCityFilter() {
     const userId = usePage().props.auth?.user?.id ?? "guest";

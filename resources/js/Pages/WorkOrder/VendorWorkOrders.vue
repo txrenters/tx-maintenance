@@ -35,8 +35,8 @@ const { open } = useWorkOrderModal();
 const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
-// City show/hide preference — shared with the main board and persisted per
-// user in localStorage (see useCityFilter).
+// City show/hide preference — persisted per user in localStorage (see
+// useCityFilter), so e.g. THMP can keep another vendor's city hidden.
 const { cityFilter } = useCityFilter();
 
 const vendorCities = computed(() =>

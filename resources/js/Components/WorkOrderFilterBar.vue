@@ -10,8 +10,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/Components/ui/tooltip";
-import { Users2, Tag, TriangleAlert, Palette, MapPin, X } from "lucide-vue-next";
-import { cityFilterOptions } from "@/composables/useCityFilter";
+import { Users2, Tag, TriangleAlert, Palette, X } from "lucide-vue-next";
 
 /**
  * The shared work-order board filter toolbar: search + faceted Vendor /
@@ -25,8 +24,6 @@ const props = defineProps({
     categories: { type: Array, default: () => [] },
     // Some boards (e.g. closed) don't paint status colors — hide the Color chip.
     showColor: { type: Boolean, default: true },
-    // Opt-in: the City chip only renders on boards that pass their city list.
-    cities: { type: Array, default: null },
 });
 
 const search = defineModel("search", { default: "" });
@@ -34,7 +31,6 @@ const vendor = defineModel("vendor", { default: "" });
 const category = defineModel("category", { default: "" });
 const emergency = defineModel("emergency", { default: "all" });
 const color = defineModel("color", { default: "all" });
-const city = defineModel("city", { default: "all" });
 
 const page = usePage();
 const canFilter = computed(() => {
@@ -62,8 +58,6 @@ const colorOptions = [
     { value: "blue", label: "Due today", dot: "bg-primary" },
     { value: "green", label: "Upcoming", dot: "bg-green-500" },
 ];
-const showCity = computed(() => Array.isArray(props.cities));
-const cityOptions = computed(() => cityFilterOptions(props.cities ?? [], city.value));
 
 const hasActiveFilters = computed(
     () =>
@@ -71,8 +65,7 @@ const hasActiveFilters = computed(
         !!vendor.value ||
         !!category.value ||
         (emergency.value && emergency.value !== "all") ||
-        (props.showColor && color.value && color.value !== "all") ||
-        (showCity.value && city.value && city.value !== "all"),
+        (props.showColor && color.value && color.value !== "all"),
 );
 
 const clearAllFilters = () => {
@@ -81,7 +74,6 @@ const clearAllFilters = () => {
     category.value = "";
     emergency.value = "all";
     color.value = "all";
-    city.value = "all";
 };
 </script>
 
@@ -110,16 +102,6 @@ const clearAllFilters = () => {
                 searchable
                 search-placeholder="Search categories…"
                 @update:modelValue="(value) => (category = value)"
-            />
-            <FilterChip
-                v-if="showCity"
-                label="City"
-                :icon="MapPin"
-                :model-value="city"
-                :options="cityOptions"
-                searchable
-                search-placeholder="Search cities…"
-                @update:modelValue="(value) => (city = value)"
             />
             <FilterChip
                 label="Priority"

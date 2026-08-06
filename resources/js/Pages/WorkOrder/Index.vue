@@ -14,7 +14,6 @@ import {
 } from "@/Components/ui/tooltip";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
-import { useCityFilter } from "@/composables/useCityFilter";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -124,22 +123,6 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // upcoming). Colors are computed client-side per card, so this filter is
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
-// City show/hide filter — unlike the refs above it persists per user in
-// localStorage (the whole point: hide another team's city permanently).
-const { cityFilter } = useCityFilter();
-
-// City options come from the buildings actually on the board, so the chip
-// never offers a city with nothing to show or hide.
-const boardCities = computed(() =>
-    [
-        ...new Set(
-            (props.service_status ?? [])
-                .flatMap((status) => status.work_orders ?? [])
-                .map((workOrder) => workOrder.building?.city)
-                .filter(Boolean),
-        ),
-    ].sort(),
-);
 
 // Search, vendor, category, priority and color are filtered client-side on the
 // already-loaded board (see WorkOrderCard); the refs above are bound straight
@@ -982,10 +965,8 @@ const page = usePage();
         v-model:category="filter_category"
         v-model:emergency="filter_emergency"
         v-model:color="filter_color"
-        v-model:city="cityFilter"
         :vendors="vendors"
         :categories="categories"
-        :cities="boardCities"
     >
         <template #actions>
             <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
@@ -1153,7 +1134,6 @@ const page = usePage();
                 :vendor-filter="filter_vendor"
                 :category-filter="filter_category"
                 :emergency-filter="filter_emergency"
-                :city-filter="cityFilter"
                 :date-range="date_range"
                 @showWorkOrder="handleWorkOrder"
             />
