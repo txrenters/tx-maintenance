@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { Head, Deferred } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import { useCityFilter, matchesCityFilter } from "@/composables/useCityFilter";
 import { Skeleton } from "@/Components/ui/skeleton";
+import { ScrollArea } from "@/Components/ui/scroll-area";
 import {
     Select,
     SelectContent,
@@ -71,7 +72,6 @@ const STATUS_TAB_GROUPS = {
 };
 
 const TAB_LABELS = {
-    all: "All",
     new: "New",
     scheduling: "Waiting on Scheduling",
     scheduled: "Scheduled",
@@ -88,10 +88,8 @@ const tabForStatus = (statusName) => {
     return match ? match[0] : "other";
 };
 
-const activeTab = ref("all");
-
-// Search, category, and city narrow the whole list; the tabs then split what
-// remains, so the counts on the tab strip always match the visible grid.
+// Search, category, and city narrow the whole list; the kanban columns then
+// split what remains, so the column counts always match the visible cards.
 const baseFilteredWorkOrders = computed(() => {
     const term = search.value.trim().toLowerCase();
 
@@ -114,35 +112,23 @@ const baseFilteredWorkOrders = computed(() => {
     });
 });
 
-const tabCounts = computed(() => {
-    const counts = { all: baseFilteredWorkOrders.value.length, other: 0 };
+// Kanban columns in workflow order, left-to-right like the staff board.
+// Empty columns disappear, same as the staff board.
+const COLUMN_ORDER = ["new", "scheduling", "scheduled", "payment", "completed", "other"];
 
-    for (const key of Object.keys(STATUS_TAB_GROUPS)) {
-        counts[key] = 0;
-    }
+const columns = computed(() => {
+    const buckets = Object.fromEntries(COLUMN_ORDER.map((key) => [key, []]));
 
     for (const wo of baseFilteredWorkOrders.value) {
-        counts[tabForStatus(wo.service_status?.name)]++;
+        buckets[tabForStatus(wo.service_status?.name)].push(wo);
     }
 
-    return counts;
+    return COLUMN_ORDER.map((key) => ({
+        key,
+        label: TAB_LABELS[key],
+        workOrders: buckets[key],
+    })).filter((column) => column.workOrders.length > 0);
 });
-
-// The Other tab only renders while it has work orders; hop back to All if the
-// active tab disappears (or empties out from a filter change).
-watch(tabCounts, (counts) => {
-    if (activeTab.value === "other" && counts.other === 0) {
-        activeTab.value = "all";
-    }
-});
-
-const filteredWorkOrders = computed(() =>
-    activeTab.value === "all"
-        ? baseFilteredWorkOrders.value
-        : baseFilteredWorkOrders.value.filter(
-              (wo) => tabForStatus(wo.service_status?.name) === activeTab.value,
-          ),
-);
 
 const hasActiveFilters = computed(
     () =>
@@ -150,9 +136,6 @@ const hasActiveFilters = computed(
         selectedCategory.value !== "all" ||
         hiddenCities.value.length > 0,
 );
-
-// Order matches the workflow left-to-right, same as the staff board columns.
-const TAB_ORDER = ["all", "new", "scheduling", "scheduled", "payment", "completed", "other"];
 
 const formatDate = (value) => {
     if (!value) {
@@ -292,39 +275,33 @@ const cardColorClass = (wo) => {
                 </button>
             </div>
 
-            <!-- Status sections styled like the staff board's column headers;
-                 clicking one narrows the grid below to that stage. Inside the
-                 Deferred slot so the counts only ever render from the loaded
-                 list. -->
-            <div class="mb-4 flex flex-wrap gap-2">
-                <template v-for="tab in TAB_ORDER" :key="tab">
-                    <button
-                        v-if="tab !== 'other' || tabCounts.other > 0"
-                        type="button"
-                        class="h-16 min-w-[150px] flex-1 border p-3 text-sm uppercase font-semibold flex items-center justify-center text-center transition-colors"
-                        :class="
-                            activeTab === tab
-                                ? 'border-primary bg-primary/15 text-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                        "
-                        @click="activeTab = tab"
-                    >
-                        {{ TAB_LABELS[tab] }} ({{ tabCounts[tab] ?? 0 }})
-                    </button>
-                </template>
-            </div>
-
+            <!-- Kanban: copies the staff board layout — one column per
+                 workflow stage, the bordered uppercase header on top and the
+                 vendor's cards stacked beneath. Empty columns disappear. -->
             <div
-                v-if="filteredWorkOrders.length"
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                v-if="columns.length"
+                class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
             >
                 <div
-                    v-for="wo in filteredWorkOrders"
-                    :key="wo.id"
-                    @click="open(wo.id)"
-                    class="cursor-pointer rounded-lg p-4 text-white shadow-sm transition-all hover:shadow-lg"
-                    :class="cardColorClass(wo)"
+                    v-for="column in columns"
+                    :key="column.key"
+                    class="overflow-hidden min-w-[240px] flex-1"
                 >
+                    <div class="text-center">
+                        <div
+                            class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
+                        >
+                            <p>{{ column.label }} ({{ column.workOrders.length }})</p>
+                        </div>
+
+                        <ScrollArea class="h-[70vh] overflow-y-auto border-t pt-2 mb-5">
+                            <div
+                                v-for="wo in column.workOrders"
+                                :key="wo.id"
+                                @click="open(wo.id)"
+                                class="mb-2 cursor-pointer rounded-lg p-4 text-white shadow-sm transition-all hover:shadow-lg"
+                                :class="cardColorClass(wo)"
+                            >
                     <!-- Work order number & created date -->
                     <div
                         class="mb-2 flex items-center justify-between border-b border-white/40 pb-2"
@@ -390,6 +367,9 @@ const cardColorClass = (wo) => {
                             Priority: {{ wo.priority }}
                         </span>
                     </div>
+                            </div>
+                        </ScrollArea>
+                    </div>
                 </div>
             </div>
 
@@ -404,9 +384,7 @@ const cardColorClass = (wo) => {
                     {{
                         hasActiveFilters
                             ? "No work orders match your filters."
-                            : activeTab !== "all"
-                              ? `No work orders in "${TAB_LABELS[activeTab]}".`
-                              : "You have no work orders right now."
+                            : "You have no work orders right now."
                     }}
                 </p>
             </div>
