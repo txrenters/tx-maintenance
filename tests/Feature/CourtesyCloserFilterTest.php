@@ -93,9 +93,11 @@ class CourtesyCloserFilterTest extends TestCase
 
     public function test_a_judged_courtesy_closer_stops_counting_everywhere(): void
     {
+        // Warm but wordy — not on the obvious-closer list, so only the AI can
+        // wave it off.
         $thanked = WorkOrder::factory()->create();
         $this->message($thanked, inbound: false, text: 'The vendor is assigned.');
-        $this->message($thanked, inbound: true, text: 'Thank you!');
+        $this->message($thanked, inbound: true, text: 'Awesome, appreciate you getting that sorted');
 
         $leaking = WorkOrder::factory()->create();
         $this->message($leaking, inbound: true, text: 'The sink is still leaking, any update?');
@@ -104,7 +106,7 @@ class CourtesyCloserFilterTest extends TestCase
         $this->assertSame(2, $counter->cachedCount());
 
         $this->aiReady();
-        // Candidates are handed over in id order, so the "Thank you!" is ref 1.
+        // Candidates are handed over in id order, so the closer is ref 1.
         $this->agentReturns([1]);
 
         $this->artisan('inbox:classify-courtesy')->assertSuccessful();
@@ -133,9 +135,11 @@ class CourtesyCloserFilterTest extends TestCase
     public function test_unjudged_threads_keep_counting(): void
     {
         $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true, text: 'Thank you!');
+        $this->message($workOrder, inbound: true, text: 'Appreciate you, see you then');
 
-        // No classifier run: even an obvious "thank you" counts until judged.
+        // No classifier run: an ambiguous closer counts until the AI judges
+        // it. (A whole-message "thank you" is judged instantly on arrival —
+        // see CourtesyFilterImprovementsTest.)
         $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
     }
 
@@ -190,7 +194,7 @@ class CourtesyCloserFilterTest extends TestCase
     public function test_ai_unavailable_is_a_safe_noop(): void
     {
         $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true, text: 'Thank you!');
+        $this->message($workOrder, inbound: true, text: 'Appreciate you, see you then');
 
         // phpunit.xml blanks every AI key, so aiStatus() is not ready.
         $this->agentIsNeverAsked();
