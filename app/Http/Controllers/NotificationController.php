@@ -52,7 +52,7 @@ class NotificationController extends Controller
             }
         }
 
-        $activities = $query->take(100)->get();
+        $activities = $query->take(1000)->get();
 
         $activities->loadMorph('subject', [
             JobberTextMessage::class => ['jobber'],
@@ -72,8 +72,7 @@ class NotificationController extends Controller
                 'twilio_status' => $activity->properties['twilio_status'] ?? null,
                 'work_order_id' => $activity->properties['work_order_id'] ?? $activity->subject?->work_order_id ?? null,
                 'job_id' => $activity->properties['job_id'] ?? $activity->subject?->jobber_id ?? null,
-                'subject' => $activity->subject,
-                'time' => $activity->created_at->timezone('America/Chicago')->diffForHumans(),
+                'subject' => $this->subjectSummary($activity->subject),
                 'timestamp' => $activity->created_at->timestamp,
                 'read' => $activity->properties['read'] ?? false,
             ];
@@ -81,6 +80,37 @@ class NotificationController extends Controller
 
         return response()->json($result);
 
+    }
+
+    /**
+     * Only what the bell's buttons need to identify and reopen the thread.
+     * Serializing the whole subject model shipped every message body, phone
+     * number and Twilio sid in the row to the browser on each poll — the
+     * fat-payload serialization pattern behind earlier production
+     * out-of-memory 500s, at a thousand rows per response.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function subjectSummary(?object $subject): ?array
+    {
+        if (! $subject) {
+            return null;
+        }
+
+        $jobber = method_exists($subject, 'relationLoaded') && $subject->relationLoaded('jobber')
+            ? $subject->getRelation('jobber')
+            : null;
+
+        return [
+            'id' => $subject->id ?? null,
+            'conversation_type' => $subject->conversation_type ?? null,
+            'work_order_id' => $subject->work_order_id ?? null,
+            'work_order_no' => $subject->work_order_no ?? null,
+            'jobber_id' => $subject->jobber_id ?? null,
+            'sender_number' => $subject->sender_number ?? null,
+            'receiver_number' => $subject->receiver_number ?? null,
+            'jobber' => $jobber ? ['job_status' => $jobber->job_status ?? null] : null,
+        ];
     }
 
     public function markAsRead(Activity $activity)

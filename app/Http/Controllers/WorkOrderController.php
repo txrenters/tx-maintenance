@@ -36,17 +36,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class WorkOrderController extends Controller
 {
     /**
-     * Service statuses vendors must never see. Matches the seeder spelling
-     * exactly (notably "Followup", not "Follow Up").
+     * Service statuses vendors must never see. Vendors do see their completed
+     * and paid work orders (read-only) so their status tabs stay meaningful;
+     * only Closed stays internal.
      *
      * @var array<int, string>
      */
     public const VENDOR_HIDDEN_STATUSES = [
-        'Service Completed - Call Tenant for Followup',
-        'Completed - Verified - Updating Owner',
-        'Owner Completing Work',
         'Closed',
-        'Paid',
     ];
 
     /**
@@ -153,8 +150,7 @@ class WorkOrderController extends Controller
      * tagged on (the work_order_vendors pivot) — NOT the broader WorkOrderScope
      * rule, which would also surface work orders the vendor merely has a task or
      * attachment on. Statuses vendors may never see are stripped out here. The
-     * page filters by status client-side, so every visible status is also
-     * returned for the dropdown.
+     * page groups by status into tabs client-side.
      */
     public function vendorWorkOrders(Request $request)
     {
@@ -176,17 +172,31 @@ class WorkOrderController extends Controller
                 ->values()
             : collect();
 
+        // The card renders a handful of fields and the details modal fetches
+        // the full record through data()/details(), which do their own hiding.
+        // Internal notes, money columns and tenant contact details must not
+        // ride along in the list JSON — the template not painting them does
+        // not keep them out of the browser's devtools.
+        $workOrders->each(function (WorkOrder $workOrder) {
+            $workOrder->makeHidden([
+                'notes',
+                'remarks',
+                'closing_comments',
+                'approval_comments',
+                'client_data',
+                'cost_estimate',
+                'total_cost',
+                'service_request_contact_name',
+                'service_request_contact_phone',
+                'service_request_contact_email',
+            ]);
+
+            $this->hideBuildingMaintenanceFromNonStaff($workOrder);
+        });
+
         // Build the filter dropdowns from the values that actually appear in the
         // vendor's own work orders — so options they have none of (e.g. an "HOA
         // Violation" category they never handle) never show up.
-        $statuses = $workOrders
-            ->map(fn (WorkOrder $workOrder) => $workOrder->service_status)
-            ->filter()
-            ->unique('id')
-            ->sortBy('name')
-            ->values()
-            ->map(fn ($status) => ['id' => $status->id, 'name' => $status->name]);
-
         $categories = $workOrders
             ->pluck('category')
             ->filter()
@@ -197,9 +207,8 @@ class WorkOrderController extends Controller
         return inertia('WorkOrder/VendorWorkOrders', [
             'title' => 'Work Orders',
             'workOrders' => Inertia::defer(fn () => $workOrders),
-            'statuses' => $statuses,
             'categories' => $categories,
-            'filter' => $request->only(['status', 'category', 'search']),
+            'filter' => $request->only(['category', 'search']),
         ]);
     }
 
@@ -400,13 +409,9 @@ class WorkOrderController extends Controller
         // pushed above) — filtering the $query builder here is a no-op because it was
         // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for Followup',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-                'Paid',
-            ]))->values();
+            $service_status = $service_status
+                ->reject(fn ($status) => in_array($status->name, self::VENDOR_HIDDEN_STATUSES, true))
+                ->values();
         }
 
         return $service_status;
@@ -430,6 +435,15 @@ class WorkOrderController extends Controller
         ])->first();
 
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
+
+        // Drives the number badge on the modal's Attachments tab — files that
+        // arrived (from a tenant, portal or vendor) that no staff member has
+        // opened the tab for yet.
+        if (request()->user()?->hasAnyRole(['admin', 'woc'])) {
+            $workOrder->loadCount([
+                'attachments as unseen_attachments_count' => fn ($query) => $query->whereNull('viewed_by_staff_at'),
+            ]);
+        }
 
         return response()->json($workOrder, 200);
     }
@@ -519,6 +533,14 @@ class WorkOrderController extends Controller
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
 
         $user = request()->user();
+
+        // Same badge the board modals show: files nobody on staff has opened
+        // the Attachments tab for yet.
+        if ($user?->hasAnyRole(['admin', 'woc'])) {
+            $workOrder->loadCount([
+                'attachments as unseen_attachments_count' => fn ($query) => $query->whereNull('viewed_by_staff_at'),
+            ]);
+        }
 
         if ($user->hasRole('vendor') && $user->vendor) {
             $workOrder->setRelation(
@@ -717,12 +739,7 @@ class WorkOrderController extends Controller
             'service_status' => Inertia::defer(function () use ($query, $request) {
                 // Hide specific statuses from vendors
                 if ($request->user()->hasRole('vendor')) {
-                    $query->whereNotIn('name', [
-                        'Service Completed - Call Tenant for Followup',
-                        'Completed - Verified - Updating Owner',
-                        'Owner Completing Work',
-                        'Closed',
-                    ]);
+                    $query->whereNotIn('name', self::VENDOR_HIDDEN_STATUSES);
                 }
 
                 return $query->get();
@@ -976,13 +993,9 @@ class WorkOrderController extends Controller
         // pushed above) — filtering the $query builder here is a no-op because it was
         // executed with ->get() earlier.
         if ($request->user()->hasRole('vendor')) {
-            $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                'Service Completed - Call Tenant for Followup',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-                'Paid',
-            ]))->values();
+            $service_status = $service_status
+                ->reject(fn ($status) => in_array($status->name, self::VENDOR_HIDDEN_STATUSES, true))
+                ->values();
         }
 
         return $service_status;
@@ -1033,13 +1046,9 @@ class WorkOrderController extends Controller
                 // already materialized collection — filtering the $query builder
                 // after get() would be a no-op.
                 if ($request->user()->hasRole('vendor')) {
-                    $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
-                        'Service Completed - Call Tenant for Followup',
-                        'Completed - Verified - Updating Owner',
-                        'Owner Completing Work',
-                        'Closed',
-                        'Paid',
-                    ]))->values();
+                    $service_status = $service_status
+                        ->reject(fn ($status) => in_array($status->name, self::VENDOR_HIDDEN_STATUSES, true))
+                        ->values();
                 }
 
                 return $service_status;
@@ -1088,13 +1097,7 @@ class WorkOrderController extends Controller
         // every other board; applying it before get() matches the intent and
         // the other boards' behavior.
         if ($request->user()->hasRole('vendor')) {
-            $query->whereNotIn('name', [
-                'Service Completed - Call Tenant for Followup',
-                'Completed - Verified - Updating Owner',
-                'Owner Completing Work',
-                'Closed',
-                'Paid',
-            ]);
+            $query->whereNotIn('name', self::VENDOR_HIDDEN_STATUSES);
         }
 
         // Query execution happens inside the deferred closure; reference lists

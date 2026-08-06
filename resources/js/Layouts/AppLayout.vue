@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import GlobalSearch from "@/Components/GlobalSearch.vue";
 import { router } from "@inertiajs/vue3";
 import { usePage } from "@inertiajs/vue3";
@@ -98,12 +98,14 @@ import {
     ChartBarBig,
     Volume2,
     VolumeX,
+    Sparkles,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
+import { agoLabel } from "@/utils/conversation.js";
 
 const page = usePage();
 
@@ -167,6 +169,54 @@ const awaitingReplyBadge = computed(() => {
 
     return count > 99 ? "99+" : String(count);
 });
+
+// Count on the What's New nav, same look as the Messages badge: how many
+// updates shipped since this browser last opened the page. Last-seen is a
+// release date kept in localStorage, so it needs no server state.
+const WHATS_NEW_SEEN_KEY = "whats-new-last-seen";
+
+// localStorage can throw outright (blocked site data, managed browsers) and
+// this is the global layout — a storage failure must cost the badge, never
+// blank the page.
+const readWhatsNewLastSeen = () => {
+    try {
+        return localStorage.getItem(WHATS_NEW_SEEN_KEY) || "";
+    } catch {
+        return "";
+    }
+};
+
+const whatsNewLastSeen = ref(readWhatsNewLastSeen());
+
+const whatsNewBadge = computed(() => {
+    const dates = page.props.feature_update_dates || [];
+
+    const count = whatsNewLastSeen.value
+        ? dates.filter((date) => date > whatsNewLastSeen.value).length
+        : dates.length;
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
+// Opening the page clears the badge: remember the newest release date shown.
+watch(
+    () => page.component,
+    (component) => {
+        const dates = page.props.feature_update_dates || [];
+
+        if (component !== "FeatureUpdates/Index" || dates.length === 0) return;
+
+        whatsNewLastSeen.value = dates[0];
+        try {
+            localStorage.setItem(WHATS_NEW_SEEN_KEY, dates[0]);
+        } catch {
+            // Unpersisted: the badge clears for this visit only.
+        }
+    },
+    { immediate: true },
+);
 
 // Chime and desktop popup when a message lands on one of this coordinator's
 // work orders. Same roles the endpoint serves and the Messages nav shows.
@@ -419,6 +469,14 @@ const navs = computed(() => {
                 icon: Warehouse,
                 requires: ["admin", "woc"],
             },
+            {
+                name: "What's New",
+                url: route("whats-new"),
+                isActive: page.url.startsWith("/whats-new"),
+                icon: Sparkles,
+                badge: whatsNewBadge.value,
+                requires: ["admin", "woc"],
+            },
         ],
         reports: {
             title: "Reports",
@@ -521,13 +579,50 @@ const unreadCount = computed(() => {
     return notifications.value.filter((n) => !n.read).length;
 });
 
+// Render the popover list in chunks so a large notification set (up to 1000)
+// doesn't jank the dropdown; "Show more" reveals the next chunk.
+const NOTIFICATION_CHUNK = 100;
+const visibleCount = ref(NOTIFICATION_CHUNK);
+const visibleNotifications = computed(() =>
+    notifications.value.slice(0, visibleCount.value),
+);
+const showMoreNotifications = () => {
+    visibleCount.value += NOTIFICATION_CHUNK;
+};
+
+// Change detector for the poll: deep-comparing two 1000-row payloads with
+// JSON.stringify allocated megabytes of string every 5 seconds. Newest id
+// and length catch arrivals, the unread tally catches read-state flips.
+const notificationsFingerprint = (rows) =>
+    `${rows.length}:${rows[0]?.id ?? ""}:${rows.filter((n) => !n.read).length}`;
+
 const fetchNotifications = async () => {
     try {
         const response = await axios.get("/notifications");
-        notifications.value = response.data;
+        // Skip the assignment when nothing changed so Vue doesn't re-patch
+        // up to 1000 keyed rows on every 5s poll.
+        if (
+            notificationsFingerprint(response.data) !==
+            notificationsFingerprint(notifications.value)
+        ) {
+            notifications.value = response.data;
+        }
     } catch (error) {
         console.error("Failed to fetch notifications:", error);
     }
+};
+
+// Relative labels ("5 mins ago") are computed client-side from `timestamp`;
+// the server used to bake the string, which flipped every minute across a
+// thousand rows and defeated the no-change guard above. The tick refreshes
+// the rendered labels once a minute.
+const relativeTimeTick = ref(Date.now());
+let relativeTimeIntervalId = null;
+
+const notificationAgo = (notification) => {
+    void relativeTimeTick.value;
+
+    return agoLabel(new Date(notification.timestamp * 1000));
 };
 
 // Mark notification as read
@@ -916,8 +1011,10 @@ const closeBanner = () => {
 
 onMounted(() => {
     fetchNotifications(); // initial load
-    // Set interval for every 5 minutes (300,000 ms)
-    intervalId = setInterval(fetchNotifications, 5000);
+    intervalId = setInterval(fetchNotifications, 5000); // 5-second poll
+    relativeTimeIntervalId = setInterval(() => {
+        relativeTimeTick.value = Date.now();
+    }, 60000);
 
     // Polls even while muted so the cursor keeps moving; switching alerts on
     // then announces what arrives next, not the backlog behind it.
@@ -935,6 +1032,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
+    if (relativeTimeIntervalId) clearInterval(relativeTimeIntervalId);
 });
 </script>
 
@@ -1088,6 +1186,11 @@ onUnmounted(() => {
                                     >
                                         <component :is="item.icon" />
                                         <span>{{ item.name }}</span>
+                                        <span
+                                            v-if="item.badge"
+                                            class="bg-destructive text-destructive-foreground ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                                            >{{ item.badge }}</span
+                                        >
                                     </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
@@ -1374,7 +1477,7 @@ onUnmounted(() => {
                                                 "
                                             >
                                                 <div
-                                                    v-for="notification in notifications"
+                                                    v-for="notification in visibleNotifications"
                                                     :key="notification.id"
                                                     class="flex items-start border gap-4 p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer relative"
                                                     :class="{
@@ -1516,7 +1619,9 @@ onUnmounted(() => {
                                                         >
                                                             <p class="mr-2">
                                                                 {{
-                                                                    notification.time
+                                                                    notificationAgo(
+                                                                        notification,
+                                                                    )
                                                                 }}
                                                             </p>
                                                             <div>
@@ -1661,6 +1766,34 @@ onUnmounted(() => {
                                                     <p>No new notifications.</p>
                                                 </div>
                                             </template>
+                                            <div
+                                                v-if="
+                                                    notifications.length >
+                                                    visibleCount
+                                                "
+                                                class="flex flex-col items-center gap-1 py-2"
+                                            >
+                                                <Button
+                                                    as="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    @click="
+                                                        showMoreNotifications
+                                                    "
+                                                >
+                                                    Show more
+                                                </Button>
+                                                <span
+                                                    class="text-xs text-gray-500"
+                                                >
+                                                    Showing
+                                                    {{
+                                                        visibleNotifications.length
+                                                    }}
+                                                    of
+                                                    {{ notifications.length }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </template>
                                 </PopoverContent>
@@ -1837,7 +1970,7 @@ onUnmounted(() => {
                         {{ failedNotification.error_code }}
                     </p>
                     <p class="text-xs text-gray-400 mt-1">
-                        {{ failedNotification.time }}
+                        {{ notificationAgo(failedNotification) }}
                     </p>
                 </div>
                 <div class="flex justify-end gap-2">

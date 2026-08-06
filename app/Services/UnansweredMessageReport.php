@@ -39,6 +39,7 @@ class UnansweredMessageReport
     public function __construct(
         private readonly ConversationParticipants $participants,
         private readonly WorkOrderRecommendationService $recommendations,
+        private readonly CourtesyCloserService $courtesyClosers,
     ) {}
 
     /**
@@ -126,10 +127,19 @@ class UnansweredMessageReport
             ->whereIn('work_order_id', Conversation::query()->select('work_order_id'))
             ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
 
+        $courtesyIds = $this->courtesyClosers->courtesyIds();
+
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
-            ->where('c.is_read', false);
+            ->where('c.is_read', false)
+            // A closed work order waits on nobody. NULL-safe: a status-less
+            // row keeps counting rather than going silent.
+            ->where(fn ($query) => $query
+                ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
+                ->orWhereNull('wo.status')
+            )
+            ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds));
     }
 
     /**

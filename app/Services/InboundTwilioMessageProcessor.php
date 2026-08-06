@@ -35,7 +35,10 @@ class InboundTwilioMessageProcessor
      */
     protected const CANDIDATE_LIMIT = 25;
 
-    public function __construct(protected MediaService $mediaService) {}
+    public function __construct(
+        protected MediaService $mediaService,
+        protected TenantPhotoMirrorService $photoMirror
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload  Twilio webhook-shaped payload (From, To, Body, MessageSid, NumMedia, MediaUrl{N}, MediaContentType{N})
@@ -97,6 +100,21 @@ class InboundTwilioMessageProcessor
 
                 if ($isMms) {
                     $this->processMediaAttachments($conversation->id, $payload);
+
+                    // Photos a tenant texts in belong on the Attachments tab
+                    // too, not only inside the message thread. Isolated: the
+                    // message is already stored, and a mirror failure must
+                    // not cost the staff notification logged below.
+                    if ($type === 'tenant') {
+                        try {
+                            $this->photoMirror->mirrorForConversation($conversation, $conversation->media()->get());
+                        } catch (\Throwable $mirrorError) {
+                            Log::warning('Tenant photo mirror failed; message stored without Attachments copy.', [
+                                'conversation_id' => $conversation->id,
+                                'error' => $mirrorError->getMessage(),
+                            ]);
+                        }
+                    }
                 }
 
                 $workOrder = WorkOrder::find($workOrderId);
@@ -117,7 +135,9 @@ class InboundTwilioMessageProcessor
                 Log::info('Inbound work-order message stored.', ['conversation_id' => $conversation->id, 'sid' => $messageSid]);
 
                 return 'work_order';
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
+                // \Throwable, not Exception: a TypeError escaping here would
+                // 500 the Twilio webhook and trigger delivery retries.
                 Log::error('Failed to create work-order conversation: '.$e->getMessage());
 
                 return 'unmatched';

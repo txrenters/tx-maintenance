@@ -56,6 +56,13 @@ class WorkOrder extends Model
     ];
 
     /**
+     * The statuses that mean nobody is waiting on us any more. The inverse of
+     * the 'closed' board branch below; consumers filtering on this should stay
+     * NULL-safe so a status-less row keeps counting rather than going silent.
+     */
+    public const CLOSED_STATUSES = ['Closed', 'Canceled By Tenant'];
+
+    /**
      * The service status whose column the Waiting on Payment board shows.
      */
     public const WAITING_ON_PAYMENT_STATUS = 'Approved - Waiting on Payment';

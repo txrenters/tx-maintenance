@@ -3,7 +3,16 @@ import { ref, computed } from "vue";
 import { Head, Deferred } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
+import { useCityFilter, matchesCityFilter } from "@/composables/useCityFilter";
 import { Skeleton } from "@/Components/ui/skeleton";
+import { ScrollArea } from "@/Components/ui/scroll-area";
+import { Button } from "@/Components/ui/button";
+import { Checkbox } from "@/Components/ui/checkbox";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/Components/ui/popover";
 import {
     Select,
     SelectContent,
@@ -12,40 +21,51 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
-import { ClipboardList, Search, Tag, CircleCheckBig } from "lucide-vue-next";
+import { ClipboardList, Search, Tag, CircleCheckBig, MapPin, ChevronDown } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     title: { type: String, default: "Work Orders" },
     workOrders: { type: Array, default: () => [] },
-    statuses: { type: Array, default: () => [] },
     categories: { type: Array, default: () => [] },
     filter: { type: Object, default: () => ({}) },
 });
 
 const { open } = useWorkOrderModal();
 
-// Filtering is client-side: a vendor's list is small, so narrowing by status,
-// category, or search is instant and needs no server round-trip. The dropdown
-// options themselves are already limited server-side to what the vendor has.
-const selectedStatus = ref(props.filter.status ?? "all");
+// Filtering is client-side: a vendor's list is small, so narrowing by tab,
+// category, city, or search is instant and needs no server round-trip. The
+// category options are already limited server-side to what the vendor has.
 const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
-const filteredWorkOrders = computed(() => {
+// City show/hide preference — persisted per user in localStorage (see
+// useCityFilter), so e.g. THMP can keep another vendor's city hidden. Lives
+// behind a compact "Hide cities" popover with a checklist.
+const { hiddenCities, isCityHidden, toggleCity, showAllCities } = useCityFilter();
+
+const vendorCities = computed(() =>
+    [
+        ...new Set(
+            (props.workOrders ?? [])
+                .map((wo) => wo.building?.city)
+                .filter(Boolean),
+        ),
+    ].sort(),
+);
+
+// Search, category, and city narrow the whole list; the kanban columns then
+// split what remains, so the column counts always match the visible cards.
+const baseFilteredWorkOrders = computed(() => {
     const term = search.value.trim().toLowerCase();
 
     return (props.workOrders ?? []).filter((wo) => {
-        const matchesStatus =
-            selectedStatus.value === "all" ||
-            wo.service_status?.name === selectedStatus.value;
-
         const matchesCategory =
             selectedCategory.value === "all" ||
             wo.category === selectedCategory.value;
 
-        if (!matchesStatus || !matchesCategory) {
+        if (!matchesCategory || !matchesCityFilter(hiddenCities.value, wo.building?.city)) {
             return false;
         }
 
@@ -58,6 +78,55 @@ const filteredWorkOrders = computed(() => {
             .some((field) => String(field).toLowerCase().includes(term));
     });
 });
+
+// One kanban column per actual service status, exactly like the staff board:
+// table order first, with the billing/payment tail pushed to the far right
+// (mirrors mainBoard's reordering). Empty columns disappear.
+const TRAILING_STATUSES = [
+    "Completed - Verified - Waiting on Bill",
+    "Approved - Waiting on Payment",
+    "Paid",
+];
+
+const columns = computed(() => {
+    const byStatus = new Map();
+
+    for (const wo of baseFilteredWorkOrders.value) {
+        const key = wo.service_status?.name ?? "No Status";
+
+        if (!byStatus.has(key)) {
+            byStatus.set(key, {
+                key,
+                label: key,
+                sortId: wo.service_status?.id ?? Number.MAX_SAFE_INTEGER,
+                workOrders: [],
+            });
+        }
+
+        byStatus.get(key).workOrders.push(wo);
+    }
+
+    return [...byStatus.values()].sort((a, b) => {
+        const aTrail = TRAILING_STATUSES.indexOf(a.key);
+        const bTrail = TRAILING_STATUSES.indexOf(b.key);
+
+        if (aTrail !== bTrail) {
+            if (aTrail === -1) return -1;
+            if (bTrail === -1) return 1;
+
+            return aTrail - bTrail;
+        }
+
+        return a.sortId - b.sortId;
+    });
+});
+
+const hasActiveFilters = computed(
+    () =>
+        !!search.value.trim() ||
+        selectedCategory.value !== "all" ||
+        hiddenCities.value.length > 0,
+);
 
 const formatDate = (value) => {
     if (!value) {
@@ -134,28 +203,6 @@ const cardColorClass = (wo) => {
                 </div>
 
                 <Select
-                    v-if="statuses.length"
-                    :modelValue="selectedStatus"
-                    @update:modelValue="(value) => (selectedStatus = value)"
-                >
-                    <SelectTrigger class="w-full sm:w-[200px]">
-                        <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem
-                                v-for="status in statuses"
-                                :key="status.id"
-                                :value="status.name"
-                            >
-                                {{ status.name }}
-                            </SelectItem>
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
-
-                <Select
                     v-if="categories.length"
                     :modelValue="selectedCategory"
                     @update:modelValue="(value) => (selectedCategory = value)"
@@ -176,6 +223,54 @@ const cardColorClass = (wo) => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
+
+                <Popover v-if="vendorCities.length > 1">
+                    <PopoverTrigger as-child>
+                        <Button variant="outline" class="h-10 justify-between gap-2">
+                            <span class="flex items-center gap-1.5">
+                                <MapPin class="h-4 w-4" />
+                                Hide cities
+                                <span
+                                    v-if="hiddenCities.length"
+                                    class="rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground"
+                                >
+                                    {{ hiddenCities.length }}
+                                </span>
+                            </span>
+                            <ChevronDown class="h-4 w-4 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" class="w-56 p-2">
+                        <p class="px-2 pb-2 text-xs text-muted-foreground">
+                            Checked cities are hidden from your board.
+                        </p>
+                        <div class="max-h-64 overflow-y-auto">
+                            <div
+                                v-for="city in vendorCities"
+                                :key="city"
+                                class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                                @click="toggleCity(city)"
+                            >
+                                <Checkbox
+                                    class="pointer-events-none"
+                                    :checked="isCityHidden(city)"
+                                />
+                                <span :class="{ 'text-muted-foreground line-through': isCityHidden(city) }">
+                                    {{ city }}
+                                </span>
+                            </div>
+                        </div>
+                        <Button
+                            v-if="hiddenCities.length"
+                            variant="ghost"
+                            size="sm"
+                            class="mt-1 w-full justify-center text-xs"
+                            @click="showAllCities"
+                        >
+                            Clear all
+                        </Button>
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
 
@@ -192,17 +287,33 @@ const cardColorClass = (wo) => {
                 </div>
             </template>
 
+            <!-- Kanban: copies the staff board layout — one column per
+                 workflow stage, the bordered uppercase header on top and the
+                 vendor's cards stacked beneath. Empty columns disappear. -->
             <div
-                v-if="filteredWorkOrders.length"
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                v-if="columns.length"
+                class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide"
             >
                 <div
-                    v-for="wo in filteredWorkOrders"
-                    :key="wo.id"
-                    @click="open(wo.id)"
-                    class="cursor-pointer rounded-lg p-4 text-white shadow-sm transition-all hover:shadow-lg"
-                    :class="cardColorClass(wo)"
+                    v-for="column in columns"
+                    :key="column.key"
+                    class="overflow-hidden min-w-[240px] flex-1"
                 >
+                    <div class="text-center">
+                        <div
+                            class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
+                        >
+                            <p>{{ column.label }} ({{ column.workOrders.length }})</p>
+                        </div>
+
+                        <ScrollArea class="h-[70vh] overflow-y-auto border-t pt-2 mb-5">
+                            <div
+                                v-for="wo in column.workOrders"
+                                :key="wo.id"
+                                @click="open(wo.id)"
+                                class="mb-2 cursor-pointer rounded-lg p-4 text-white shadow-sm transition-all hover:shadow-lg"
+                                :class="cardColorClass(wo)"
+                            >
                     <!-- Work order number & created date -->
                     <div
                         class="mb-2 flex items-center justify-between border-b border-white/40 pb-2"
@@ -268,6 +379,9 @@ const cardColorClass = (wo) => {
                             Priority: {{ wo.priority }}
                         </span>
                     </div>
+                            </div>
+                        </ScrollArea>
+                    </div>
                 </div>
             </div>
 
@@ -280,9 +394,7 @@ const cardColorClass = (wo) => {
                 />
                 <p class="text-sm text-muted-foreground">
                     {{
-                        search ||
-                        selectedStatus !== "all" ||
-                        selectedCategory !== "all"
+                        hasActiveFilters
                             ? "No work orders match your filters."
                             : "You have no work orders right now."
                     }}

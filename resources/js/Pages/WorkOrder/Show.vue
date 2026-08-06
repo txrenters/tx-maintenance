@@ -5,6 +5,7 @@ import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
+import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
 import WorkOrderDetails from "./Partials/WorkOrderDetails.vue";
 import WorkOrderTask from "./Partials/WorkOrderTask.vue";
 import VendorWocConversation from "./Partials/VendorWocConversation.vue";
@@ -232,6 +233,10 @@ const tabButtons = computed(() =>
             : tab
     )
 );
+
+const { unseenAttachments, buttonsWithAttachmentBadge } =
+    useUnseenAttachments(tabButtons);
+unseenAttachments.value = props.workOrder?.unseen_attachments_count ?? 0;
 
 // ── Work order form (same shape as Index.vue) ─────────────────────────────────
 const order = props.workOrder;
@@ -487,6 +492,8 @@ const fetchAttachments = async () => {
         );
         workOrderAttachments.value = res.data.attachments;
         workOrderDocuments.value = res.data.documents ?? [];
+        // The server marks everything viewed when staff load the tab.
+        unseenAttachments.value = 0;
     } catch (e) {
         console.error(e);
     } finally {
@@ -753,7 +760,7 @@ const handleCloseOrderSubmit = () => {
         <!-- Centered tab switcher -->
         <div class="flex flex-wrap justify-center px-6 pb-4 gap-2">
             <TabSwitcher
-                :buttons="tabButtons"
+                :buttons="buttonsWithAttachmentBadge"
                 :activeTab="activeTab"
                 @switchTab="switchTab"
             />
