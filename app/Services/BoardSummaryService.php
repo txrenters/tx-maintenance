@@ -60,7 +60,10 @@ class BoardSummaryService
         'hoa' => 'HOA Violations',
     ];
 
-    public function __construct(private readonly WorkOrderRecommendationService $recommendationService) {}
+    public function __construct(
+        private readonly WorkOrderRecommendationService $recommendationService,
+        private readonly CourtesyCloserService $courtesyClosers,
+    ) {}
 
     public static function label(string $board): string
     {
@@ -296,10 +299,13 @@ class BoardSummaryService
             ->whereIn('work_order_id', $this->workOrderIdQuery($board, $filters))
             ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
 
+        $courtesyIds = $this->courtesyClosers->courtesyIds();
+
         return DB::table('work_order_conversations as c')
             ->joinSub($latestPerThread, 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
-            ->where('c.is_read', false);
+            ->where('c.is_read', false)
+            ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds));
     }
 
     /**
