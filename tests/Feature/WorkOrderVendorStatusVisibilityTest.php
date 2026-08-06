@@ -36,7 +36,7 @@ class WorkOrderVendorStatusVisibilityTest extends TestCase
             ->all();
     }
 
-    public function test_vendor_does_not_receive_paid_or_closed_status_buckets(): void
+    public function test_vendor_receives_paid_and_completed_buckets_but_never_closed(): void
     {
         Role::findOrCreate('vendor', 'web');
 
@@ -66,7 +66,8 @@ class WorkOrderVendorStatusVisibilityTest extends TestCase
         ]);
         $openWorkOrder->vendors()->attach($vendor->id);
 
-        // Paid work order attached to the vendor -> must NOT appear.
+        // Paid work order attached to the vendor -> its bucket now appears
+        // (vendors track their own payment/completion since the status tabs).
         $paidWorkOrder = WorkOrder::factory()->create([
             'work_order_no' => 6002,
             'status' => 'Closed',
@@ -87,9 +88,9 @@ class WorkOrderVendorStatusVisibilityTest extends TestCase
 
         $statusNames = $this->returnedStatusNames($vendorUser);
 
-        $this->assertNotContains('Paid', $statusNames);
+        $this->assertContains('Paid', $statusNames);
         $this->assertNotContains('Closed', $statusNames);
-        $this->assertNotContains('Service Completed - Call Tenant for Followup', $statusNames);
+        $this->assertContains('Service Completed - Call Tenant for Followup', $statusNames);
         $this->assertContains('In Progress', $statusNames);
     }
 
