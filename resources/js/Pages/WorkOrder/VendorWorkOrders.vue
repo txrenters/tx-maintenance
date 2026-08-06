@@ -6,6 +6,13 @@ import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import { useCityFilter, matchesCityFilter } from "@/composables/useCityFilter";
 import { Skeleton } from "@/Components/ui/skeleton";
 import { ScrollArea } from "@/Components/ui/scroll-area";
+import { Button } from "@/Components/ui/button";
+import { Checkbox } from "@/Components/ui/checkbox";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/Components/ui/popover";
 import {
     Select,
     SelectContent,
@@ -14,7 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
-import { ClipboardList, Search, Tag, CircleCheckBig, MapPin, Eye, EyeOff } from "lucide-vue-next";
+import { ClipboardList, Search, Tag, CircleCheckBig, MapPin, ChevronDown } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -34,9 +41,9 @@ const selectedCategory = ref(props.filter.category ?? "all");
 const search = ref(props.filter.search ?? "");
 
 // City show/hide preference — persisted per user in localStorage (see
-// useCityFilter), so e.g. THMP can keep another vendor's city hidden. Each
-// city renders as a one-click toggle pill, no dropdown.
-const { hiddenCities, isCityHidden, toggleCity } = useCityFilter();
+// useCityFilter), so e.g. THMP can keep another vendor's city hidden. Lives
+// behind a compact "Hide cities" popover with a checklist.
+const { hiddenCities, isCityHidden, toggleCity, showAllCities } = useCityFilter();
 
 const vendorCities = computed(() =>
     [
@@ -216,6 +223,52 @@ const cardColorClass = (wo) => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
+
+                <Popover v-if="vendorCities.length > 1">
+                    <PopoverTrigger as-child>
+                        <Button variant="outline" class="h-10 justify-between gap-2">
+                            <span class="flex items-center gap-1.5">
+                                <MapPin class="h-4 w-4" />
+                                Hide cities
+                                <span
+                                    v-if="hiddenCities.length"
+                                    class="rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground"
+                                >
+                                    {{ hiddenCities.length }}
+                                </span>
+                            </span>
+                            <ChevronDown class="h-4 w-4 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" class="w-56 p-2">
+                        <p class="px-2 pb-2 text-xs text-muted-foreground">
+                            Checked cities are hidden from your board.
+                        </p>
+                        <div
+                            v-for="city in vendorCities"
+                            :key="city"
+                            class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                            @click="toggleCity(city)"
+                        >
+                            <Checkbox
+                                class="pointer-events-none"
+                                :checked="isCityHidden(city)"
+                            />
+                            <span :class="{ 'text-muted-foreground line-through': isCityHidden(city) }">
+                                {{ city }}
+                            </span>
+                        </div>
+                        <Button
+                            v-if="hiddenCities.length"
+                            variant="ghost"
+                            size="sm"
+                            class="mt-1 w-full justify-center text-xs"
+                            @click="showAllCities"
+                        >
+                            Clear all
+                        </Button>
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
 
@@ -231,33 +284,6 @@ const cardColorClass = (wo) => {
                     />
                 </div>
             </template>
-
-            <!-- City visibility pills: one click hides a city, another shows
-                 it again. Only rendered when the vendor spans several cities. -->
-            <div
-                v-if="vendorCities.length > 1"
-                class="mb-3 flex flex-wrap items-center gap-2"
-            >
-                <span class="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                    <MapPin class="h-3.5 w-3.5" />Cities:
-                </span>
-                <button
-                    v-for="city in vendorCities"
-                    :key="city"
-                    type="button"
-                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-                    :class="
-                        isCityHidden(city)
-                            ? 'border-dashed text-muted-foreground line-through opacity-60 hover:opacity-100'
-                            : 'bg-accent text-accent-foreground hover:bg-accent/70'
-                    "
-                    :title="isCityHidden(city) ? `Show ${city} work orders` : `Hide ${city} work orders`"
-                    @click="toggleCity(city)"
-                >
-                    <component :is="isCityHidden(city) ? EyeOff : Eye" class="h-3.5 w-3.5" />
-                    {{ city }}
-                </button>
-            </div>
 
             <!-- Kanban: copies the staff board layout — one column per
                  workflow stage, the bordered uppercase header on top and the
