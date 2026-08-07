@@ -62,6 +62,7 @@ import {
     Phone,
     LayoutTemplate,
     GlobeLock,
+    MonitorSmartphone,
     Settings,
     CalendarDays,
     LayoutDashboard,
@@ -101,6 +102,7 @@ import {
     Sparkles,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
+import { useNotificationToasts } from "@/composables/useNotificationToasts";
 import MessageCard from "@/Components/MessageCard.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
@@ -235,6 +237,17 @@ const openMessageAlert = (banner) => {
     messageAlerts.dismissBanner(banner.key);
     messageAlerts.openInbox();
 };
+
+const notificationToasts = useNotificationToasts({
+    userId: page.props.auth.user.id,
+    // Admin and WOC already get the richer MessageAlert banner for inbound
+    // messages, which names the sender — toasting those too would double-alert
+    // the same arrival. Everyone else (vendors) has no banner, so they do.
+    skipEvents: canReceiveMessageAlerts.value
+        ? ["work_order_message_received"]
+        : [],
+    onNotification: () => fetchNotifications(),
+});
 
 // The in-page banner always shows; this only governs the extras that need
 // permission or make noise.
@@ -1022,6 +1035,8 @@ onMounted(() => {
         messageAlerts.start();
     }
 
+    notificationToasts.start();
+
     document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === "k") {
             e.preventDefault();
@@ -1033,6 +1048,7 @@ onMounted(() => {
 onUnmounted(() => {
     if (intervalId) clearInterval(intervalId); // cleanup when component is destroyed
     if (relativeTimeIntervalId) clearInterval(relativeTimeIntervalId);
+    notificationToasts.stop();
 });
 </script>
 
@@ -1381,6 +1397,21 @@ onUnmounted(() => {
                                         >
                                             <Settings />
                                             Settings
+                                        </DropdownMenuItem>
+                                    </Link>
+                                    <Link
+                                        :href="
+                                            route(
+                                                'settings.desktop-notifications.edit'
+                                            )
+                                        "
+                                        prefetch
+                                    >
+                                        <DropdownMenuItem
+                                            class="cursor-pointer"
+                                        >
+                                            <MonitorSmartphone />
+                                            Desktop Notifications
                                         </DropdownMenuItem>
                                     </Link>
                                 </DropdownMenuGroup>

@@ -1,10 +1,10 @@
 <?php
 
 use App\Http\Controllers\API\ConversationController as APIConversationController;
+use App\Http\Controllers\API\DesktopConnectionController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
-use App\Http\Controllers\ClientContactController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
@@ -17,6 +17,23 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+/*
+ * TexasRenters Desktop client.
+ *
+ * The handshake is throttled because it mints tokens. The broadcasting auth
+ * route it points at (registered in AppServiceProvider) deliberately is not —
+ * the client reconnects with backoff after a network drop, and throttling that
+ * turns a blip into an outage.
+ */
+Route::middleware('auth:sanctum')->prefix('desktop')->group(function () {
+    Route::post('/connect', [DesktopConnectionController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('api.desktop.connect');
+
+    Route::post('/test-notification', [DesktopConnectionController::class, 'testNotification'])
+        ->name('api.desktop.test-notification');
+});
 
 Route::post('/work_orders/{task}/task/change', [TaskController::class, 'update'])->name('api.work_order.task.change');
 Route::post('/work_orders/{workOrder}/service_status/change', [TaskController::class, 'service_status_change'])->name('api.work_order.service_status_change');

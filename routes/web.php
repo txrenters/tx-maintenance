@@ -41,6 +41,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ServiceStatusController;
+use App\Http\Controllers\Settings\DesktopNotificationController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TenantEmailController;
@@ -72,6 +73,11 @@ Route::middleware([
 ])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/user/settings', ProfileController::class)->name('profile.settings');
+
+    Route::get('/user/desktop-notifications', [DesktopNotificationController::class, 'edit'])->name('settings.desktop-notifications.edit');
+    Route::post('/user/desktop-notifications/token', [DesktopNotificationController::class, 'store'])->name('settings.desktop-notifications.store');
+    Route::delete('/user/desktop-notifications/token', [DesktopNotificationController::class, 'destroy'])->name('settings.desktop-notifications.destroy');
+    Route::post('/user/desktop-notifications/test', [DesktopNotificationController::class, 'test'])->name('settings.desktop-notifications.test');
 
     Route::resource('/users', UserController::class);
     Route::post('/users/store', [UserController::class, 'store'])->name('users.store_');

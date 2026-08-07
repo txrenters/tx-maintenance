@@ -30,13 +30,15 @@ class CreateNewUser implements CreatesNewUsers
             'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
         ])->validate();
 
+        // These four are validated "nullable", so a form that omits one is
+        // valid — reading them unconditionally 500'd the registration.
         return User::create([
             'name' => $input['name'],
             'email' => $input['email'],
-            'phone' => $input['phone'],
-            'company' => $input['company'],
-            'address' => $input['address'],
-            'website' => $input['website'],
+            'phone' => $input['phone'] ?? null,
+            'company' => $input['company'] ?? null,
+            'address' => $input['address'] ?? null,
+            'website' => $input['website'] ?? null,
             'password' => Hash::make($input['email']),
         ]);
     }

@@ -35,15 +35,31 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
             $user instanceof MustVerifyEmail) {
             $this->updateVerifiedUser($user, $input);
         } else {
-            $user->forceFill([
-                'name' => $input['name'],
-                'email' => $input['email'],
-                'phone' => $input['phone'],
-                'company' => $input['company'],
-                'address' => $input['address'],
-                'website' => $input['website'],
-            ])->save();
+            $user->forceFill($this->attributesFrom($user, $input))->save();
         }
+    }
+
+    /**
+     * The optional fields are validated "nullable", so a form that omits one
+     * is valid — reading them unconditionally 500'd the profile update.
+     *
+     * An absent key keeps what the user already had rather than nulling it, so
+     * a partial submission cannot silently wipe a phone number. Clearing a
+     * field still works: the form posts it as an empty string.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    protected function attributesFrom(User $user, array $input): array
+    {
+        return [
+            'name' => $input['name'],
+            'email' => $input['email'],
+            'phone' => $input['phone'] ?? $user->phone,
+            'company' => $input['company'] ?? $user->company,
+            'address' => $input['address'] ?? $user->address,
+            'website' => $input['website'] ?? $user->website,
+        ];
     }
 
     /**
@@ -53,13 +69,7 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
      */
     protected function updateVerifiedUser(User $user, array $input): void
     {
-        $user->forceFill([
-            'name' => $input['name'],
-            'email' => $input['email'],
-            'phone' => $input['phone'],
-            'company' => $input['company'],
-            'address' => $input['address'],
-            'website' => $input['website'],
+        $user->forceFill($this->attributesFrom($user, $input) + [
             'email_verified_at' => null,
         ])->save();
 
