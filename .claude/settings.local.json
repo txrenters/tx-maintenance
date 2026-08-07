@@ -138,7 +138,14 @@
       "Bash(git --no-pager show --stat --oneline HEAD)",
       "Bash(timeout 300 npx vite build)",
       "Bash(npx vite *)",
-      "Bash(./vendor/bin/sail artisan *)"
+      "Bash(./vendor/bin/sail artisan *)",
+      "Bash(echo \"BUILD_EXIT=$?\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(len\\(d['packages']\\), len\\(d['packages-dev']\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('composer.lock'\\)\\); print\\(len\\(d['packages']\\), len\\(d['packages-dev']\\)\\)\")",
+      "Bash(python3 *)",
+      "Bash(git --no-pager log --stat --oneline -1)",
+      "Bash(composer validate *)",
+      "Bash(composer check-platform-reqs *)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
