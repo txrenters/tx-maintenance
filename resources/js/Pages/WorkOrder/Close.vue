@@ -36,8 +36,8 @@ import {
     ScanSearch,
     Search,
     Loader2Icon,
-    ExternalLink,
 } from "lucide-vue-next";
+import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
 const { toast } = useToast();
 defineOptions({ layout: AppLayout });
@@ -112,6 +112,7 @@ const workOrderForm = useForm({
     woc: "",
     building: null,
     propertyware_id: "",
+    jobber_web_uri: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -611,6 +612,7 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.woc = order.woc;
         workOrderForm.building = order.building ?? null;
         workOrderForm.propertyware_id = order.propertyware_id;
+        workOrderForm.jobber_web_uri = order.jobber_web_uri ?? "";
 
         // Reset close form
         closeWorkOrderForm.reset();
@@ -814,16 +816,10 @@ const date_range = ref({
                 <DialogTitle class="text-2xl text-primary">
                     <div v-if="!isLoading" class="flex items-center gap-3">
                         <p>#{{ workOrderForm.work_order_no }}</p>
-                        <a
-                            v-if="workOrderForm.propertyware_id"
-                            :href="`https://app.propertyware.com/pw/maintenance/work_order_detail.do?entityID=${workOrderForm.propertyware_id}`"
-                            target="_blank"
-                            rel="noopener"
-                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
-                        >
-                            <ExternalLink class="h-3.5 w-3.5" />
-                            PropertyWare
-                        </a>
+                        <WorkOrderExternalLinks
+                            :propertyware-id="workOrderForm.propertyware_id"
+                            :jobber-web-uri="workOrderForm.jobber_web_uri"
+                        />
                     </div>
                 </DialogTitle>
                 <DialogDescription>

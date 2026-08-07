@@ -37,9 +37,9 @@ import {
     MessagesSquare,
     ArrowLeft,
     Sparkles,
-    ExternalLink,
     Mail,
 } from "lucide-vue-next";
+import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -707,26 +707,12 @@ const handleCloseOrderSubmit = () => {
                 <CardTitle class="text-primary text-xl">
                     #{{ workOrderForm.work_order_no }}
                 </CardTitle>
-                <a
-                    v-if="workOrderForm.propertyware_id"
-                    :href="`https://app.propertyware.com/pw/maintenance/work_order_detail.do?entityID=${workOrderForm.propertyware_id}`"
-                    target="_blank"
-                    rel="noopener"
-                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
-                >
-                    <ExternalLink class="h-3.5 w-3.5" />
-                    PropertyWare
-                </a>
-                <a
-                    v-if="canViewJobberLink && workOrder.jobber_web_uri"
-                    :href="workOrder.jobber_web_uri"
-                    target="_blank"
-                    rel="noopener"
-                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
-                >
-                    <ExternalLink class="h-3.5 w-3.5" />
-                    Open in Jobber
-                </a>
+                <WorkOrderExternalLinks
+                    :propertyware-id="workOrderForm.propertyware_id"
+                    :jobber-web-uri="
+                        canViewJobberLink ? workOrder.jobber_web_uri : null
+                    "
+                />
             </div>
             <div class="flex gap-2 flex-wrap mt-2">
                 <Badge

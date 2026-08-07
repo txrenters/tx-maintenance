@@ -39,9 +39,9 @@ import {
     Notebook,
     MessagesSquare,
     Sparkles,
-    ExternalLink,
     Mail,
 } from "lucide-vue-next";
+import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
 const { toast } = useToast();
 const { state, close } = useWorkOrderModal();
@@ -763,37 +763,10 @@ watch(
                 <DialogTitle class="text-2xl text-primary">
                     <div v-if="!isLoading" class="flex items-center gap-3">
                         <p>#{{ workOrderForm.work_order_no }}</p>
-                        <a
-                            v-if="workOrderForm.propertyware_id"
-                            :href="`https://app.propertyware.com/pw/maintenance/work_order_detail.do?entityID=${workOrderForm.propertyware_id}`"
-                            target="_blank"
-                            rel="noopener"
-                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
-                        >
-                            <ExternalLink class="h-3.5 w-3.5" />
-                            PropertyWare
-                        </a>
-                        <a
-                            v-if="
-                                workOrderForm.jobber_web_uri &&
-                                ($page.props.auth.user.roles.includes(
-                                    'admin',
-                                ) ||
-                                    $page.props.auth.user.roles.includes(
-                                        'woc',
-                                    ) ||
-                                    $page.props.auth.user.roles.includes(
-                                        'accounting',
-                                    ))
-                            "
-                            :href="workOrderForm.jobber_web_uri"
-                            target="_blank"
-                            rel="noopener"
-                            class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
-                        >
-                            <ExternalLink class="h-3.5 w-3.5" />
-                            Open in Jobber
-                        </a>
+                        <WorkOrderExternalLinks
+                            :propertyware-id="workOrderForm.propertyware_id"
+                            :jobber-web-uri="workOrderForm.jobber_web_uri"
+                        />
                     </div>
                 </DialogTitle>
                 <DialogDescription>

@@ -177,8 +177,12 @@ class WorkOrderController extends Controller
         // Internal notes, money columns and tenant contact details must not
         // ride along in the list JSON — the template not painting them does
         // not keep them out of the browser's devtools.
-        $workOrders->each(function (WorkOrder $workOrder) {
-            $workOrder->makeHidden([
+        // THMP's own account works the crew's Jobber jobs, so it keeps the deep
+        // link; every other vendor is kept out of the Jobber schedule entirely.
+        $hidesJobberLink = ! (bool) $vendor?->isThmp();
+
+        $workOrders->each(function (WorkOrder $workOrder) use ($hidesJobberLink) {
+            $workOrder->makeHidden(array_merge([
                 'notes',
                 'remarks',
                 'closing_comments',
@@ -189,7 +193,7 @@ class WorkOrderController extends Controller
                 'service_request_contact_name',
                 'service_request_contact_phone',
                 'service_request_contact_email',
-            ]);
+            ], $hidesJobberLink ? ['jobber_web_uri', 'jobber_job_gid'] : []));
 
             $this->hideBuildingMaintenanceFromNonStaff($workOrder);
         });
@@ -435,6 +439,7 @@ class WorkOrderController extends Controller
         ])->first();
 
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
+        $this->hideJobberLinkFromUnauthorized($workOrder);
 
         // Drives the number badge on the modal's Attachments tab — files that
         // arrived (from a tenant, portal or vendor) that no staff member has
@@ -469,6 +474,36 @@ class WorkOrderController extends Controller
             'custom_fields',
             'details_synced_at',
         ]);
+    }
+
+    /**
+     * Whether the "Open in Jobber" link belongs on this work order for the
+     * current user. The Jobber job only exists when the in-house crew (THMP) is
+     * assigned, and only staff plus THMP's own vendor account work those jobs —
+     * a third-party vendor has no business in the crew's Jobber schedule.
+     */
+    private function canViewJobberLink(WorkOrder $workOrder): bool
+    {
+        $user = request()->user();
+
+        if (! $user || ! $workOrder->loadMissing('vendors')->hasThmpVendor()) {
+            return false;
+        }
+
+        return $user->hasAnyRole(['admin', 'woc', 'accounting'])
+            || (bool) $user->vendor?->isThmp();
+    }
+
+    /**
+     * Keep the Jobber deep link out of the JSON entirely when the user may not
+     * follow it — the modal template not painting the button does not keep the
+     * URL out of the browser's devtools.
+     */
+    private function hideJobberLinkFromUnauthorized(WorkOrder $workOrder): void
+    {
+        if (! $this->canViewJobberLink($workOrder)) {
+            $workOrder->makeHidden(['jobber_web_uri', 'jobber_job_gid']);
+        }
     }
 
     /**
@@ -609,8 +644,7 @@ class WorkOrderController extends Controller
             'categories' => $categories,
             'types' => $types,
             'serviceStatuses' => $serviceStatuses,
-            // Staff-only "Open in Jobber" link (THMP jobs). Never shown to vendors.
-            'canViewJobberLink' => $user->hasAnyRole(['admin', 'woc', 'accounting']),
+            'canViewJobberLink' => $this->canViewJobberLink($workOrder),
         ]);
     }
 

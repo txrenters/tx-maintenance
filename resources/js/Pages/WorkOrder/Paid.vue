@@ -4,6 +4,7 @@ import { router, useForm, usePage, Deferred } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -131,6 +132,8 @@ const workOrderForm = useForm({
     building: null,
     local_status: "",
     woc: "",
+    propertyware_id: "",
+    jobber_web_uri: "",
 });
 
 const closeWorkOrderForm = useForm({
@@ -644,6 +647,8 @@ const handleWorkOrder = async (orderId) => {
         workOrderForm.approval_comments = order.approval_comments;
         workOrderForm.owners = order.owners;
         workOrderForm.building = order.building ?? null;
+        workOrderForm.propertyware_id = order.propertyware_id;
+        workOrderForm.jobber_web_uri = order.jobber_web_uri ?? "";
         workOrderForm.management_plan = order.management_plan;
         workOrderForm.priority = order.priority;
         workOrderForm.status = order.status;
@@ -996,7 +1001,13 @@ const page = usePage();
         >
             <DialogHeader class="p-6 pb-0 text-left">
                 <DialogTitle class="text-2xl text-primary">
-                    <p v-if="!isLoading">#{{ workOrderForm.work_order_no }}</p>
+                    <div v-if="!isLoading" class="flex items-center gap-3">
+                        <p>#{{ workOrderForm.work_order_no }}</p>
+                        <WorkOrderExternalLinks
+                            :propertyware-id="workOrderForm.propertyware_id"
+                            :jobber-web-uri="workOrderForm.jobber_web_uri"
+                        />
+                    </div>
                 </DialogTitle>
                 <DialogDescription>
                     <div class="flex gap-2 mb-2 flex-wrap" v-if="!isLoading">

@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-08',
+            'area' => 'Work Orders',
+            'title' => 'Open in Jobber from every work order window',
+            'description' => 'The "Open in Jobber" button now sits beside the PropertyWare button in every work order pop-up — the board, Closed, Lawn Care, Inspections, Paid, Waiting on Payment, the bell and search — and on the vendor Work Orders page for the in-house crew. It only appears on work orders assigned to Texas Home Maintenance Pros, since those are the ones with a Jobber job.',
+        ],
+        [
             'date' => '2026-08-07',
             'area' => 'Tenant Portal',
             'title' => 'Tenants can open a new request themselves',
