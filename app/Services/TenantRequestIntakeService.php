@@ -233,11 +233,14 @@ class TenantRequestIntakeService
     /**
      * Provenance goes last on purpose: the first line is what the AI classifier
      * reads and what the owner intake text quotes back to the owner.
+     *
+     * Plain ASCII only — PropertyWare drops non-ASCII punctuation on the way
+     * in, so an em dash here comes back as a double space (seen on WO#43761).
      */
     private function propertyWareDescription(WorkOrder $source, string $description): string
     {
         return $description."\n\n(Submitted by the tenant through the tenant portal"
-            .($source->work_order_no ? ' — related to WO#'.$source->work_order_no : '').'.)';
+            .($source->work_order_no ? ' - related to WO#'.$source->work_order_no : '').'.)';
     }
 
     /**

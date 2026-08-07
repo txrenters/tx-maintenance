@@ -501,6 +501,14 @@ class PropertyWareService
      * "PORTFOLIO | BUILDING" location string and its unit ID — before creating
      * a new work order there (see createWorkOrder).
      *
+     * Returns the newest work order that actually carries a location rather
+     * than the newest outright: a work order raised without one comes back with
+     * location empty, and taking it blindly leaves createWorkOrder nothing to
+     * validate against, so the create is refused even though the building has
+     * plenty of usable history. Observed on 123 Demo St., whose two newest work
+     * orders are blank while the eight behind them all read "DEMO | 123DEMOST.".
+     * Falls back to the newest work order so the unit ID is still available.
+     *
      * The WSDL's getWorkOrders request type requires pageNumber; omitting it
      * fails encoding ("object has no 'pageNumber' property") before the
      * request is even sent.
@@ -520,7 +528,17 @@ class PropertyWareService
 
             $workOrders = json_decode(json_encode($response), true);
 
-            return is_array($workOrders) ? ($workOrders[0] ?? null) : null;
+            if (! is_array($workOrders)) {
+                return null;
+            }
+
+            foreach ($workOrders as $workOrder) {
+                if (is_array($workOrder) && filled($workOrder['location'] ?? null)) {
+                    return $workOrder;
+                }
+            }
+
+            return $workOrders[0] ?? null;
         } catch (Exception $e) {
             Log::error('Fetching the latest PropertyWare work order for a building failed: '.$e->getMessage(), [
                 'building_id' => $buildingId,
