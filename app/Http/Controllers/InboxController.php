@@ -7,6 +7,7 @@ use App\Models\InboxThreadRead;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
 use App\Services\CourtesyCloserService;
+use App\Services\TapbackDetector;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -453,6 +454,12 @@ class InboxController extends Controller
 
     private function preview(object $row): string
     {
+        // An inbound tapback reaction quotes the entire original message;
+        // "👍 Liked a message" reads better than that wall of text.
+        if (! $row->is_read && ($tapback = TapbackDetector::detect($row->message)) !== null) {
+            return $tapback['emoji'].' '.$tapback['label'];
+        }
+
         $message = trim(preg_replace('/\s+/', ' ', (string) $row->message));
 
         if ($message === '') {

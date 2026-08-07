@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { detectTapback } from "@/utils/tapback.js";
 
 /**
  * Shared helpers for the work order conversation tabs: naming the people in a
@@ -61,10 +62,17 @@ export function isInboundMessage(message, ourNumber) {
 
 /**
  * True when the newest message in a thread came from the other party, i.e. the
- * coordinator has not replied yet.
+ * coordinator has not replied yet. A positive tapback reaction ("Liked \"…\"")
+ * closes the thread rather than awaiting one — Disliked/Questioned still count.
  */
 export function isAwaitingReply(messages, ourNumber) {
-    return isInboundMessage(lastMessage(messages), ourNumber);
+    const last = lastMessage(messages);
+
+    if (!isInboundMessage(last, ourNumber)) return false;
+
+    const tapback = detectTapback(last.message ?? last.messages);
+
+    return !tapback || tapback.needsReply;
 }
 
 export function lastMessage(messages) {

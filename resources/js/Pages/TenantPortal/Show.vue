@@ -6,6 +6,7 @@ import GalleryTile from "@/Components/PortalGalleryTile.vue";
 import BrandHeader from "@/Components/PortalBrandHeader.vue";
 import BrandFooter from "@/Components/PortalBrandFooter.vue";
 import { usePickedFiles } from "@/composables/usePickedFiles";
+import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
 import {
     Loader2,
     Camera,
@@ -54,6 +55,11 @@ const toggleTheme = () => {
     isDark.value = !isDark.value;
     localStorage.setItem("tenantPortalTheme", isDark.value ? "dark" : "light");
 };
+
+// A tenant's iPhone tapback ("Liked \"…\"") arrives as a text quoting the
+// entire original message; render it as a compact reaction chip instead.
+// Only the tenant's own messages can be tapbacks.
+const tapbackOf = (m) => (m.from_tenant ? detectTapback(m.message) : null);
 
 // Classify a message attachment so it renders as a video player, PDF link, or
 // image. Prefers content_type; falls back to the file extension for older rows.
@@ -572,10 +578,23 @@ watch(photoFilters, (filters) => {
                                              spaces to wrap on: break anywhere so a narrow
                                              phone never gets one character per line. -->
                                         <p
-                                            v-if="m.message"
+                                            v-if="m.message && !tapbackOf(m)"
                                             class="whitespace-pre-line break-words [overflow-wrap:anywhere]"
                                         >
                                             {{ m.message }}
+                                        </p>
+                                        <p
+                                            v-else-if="tapbackOf(m)"
+                                            class="flex items-center gap-1.5 break-words [overflow-wrap:anywhere]"
+                                            :class="tapbackOf(m).removal ? 'opacity-60' : ''"
+                                        >
+                                            <span class="text-base leading-none">{{ tapbackOf(m).emoji }}</span>
+                                            <span>{{ tapbackOf(m).label }}</span>
+                                            <span
+                                                v-if="quotedExcerpt(tapbackOf(m))"
+                                                class="text-xs italic opacity-60"
+                                                >“{{ quotedExcerpt(tapbackOf(m)) }}”</span
+                                            >
                                         </p>
                                         <div
                                             v-if="m.media && m.media.length"

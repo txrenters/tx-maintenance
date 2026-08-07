@@ -159,9 +159,19 @@ class CourtesyCloserService
 
         // A long message always needs a person, and a bare "thank you" never
         // does — both settled here so the AI only ever sees the genuinely
-        // ambiguous middle and truncation can never mislead it.
+        // ambiguous middle and truncation can never mislead it. Tapbacks are
+        // judged before the length guard: their quoted original pushes them
+        // past OBVIOUS_LENGTH, which would otherwise pin them as
+        // needs-a-person forever.
         foreach ($unchecked as $id => $row) {
-            if (mb_strlen($row->text) > self::OBVIOUS_LENGTH) {
+            if (($tapback = TapbackDetector::detect($row->text)) !== null) {
+                $checked[$id] = true;
+                if (! $tapback['needs_reply']) {
+                    $courtesy[$id] = true;
+                }
+                unset($unchecked[$id]);
+                $judged++;
+            } elseif (mb_strlen($row->text) > self::OBVIOUS_LENGTH) {
                 $checked[$id] = true;
                 unset($unchecked[$id]);
                 $judged++;
@@ -240,25 +250,45 @@ class CourtesyCloserService
                 return;
             }
 
+            // A tapback reaction is settled on arrival: positive ones close
+            // the thread, and Disliked/Questioned are pinned checked-without-
+            // courtesy so the AI can never wave them off either.
+            if (($tapback = TapbackDetector::detect($message->message)) !== null) {
+                $this->storeVerdict($message->id, courtesy: ! $tapback['needs_reply']);
+
+                return;
+            }
+
             if (! $this->isObviousCloser($this->normalize($message->message))) {
                 return;
             }
 
-            $courtesy = Cache::get(self::COURTESY_KEY, []);
-            $checked = Cache::get(self::CHECKED_KEY, []);
-
-            $courtesy[$message->id] = true;
-            $checked[$message->id] = true;
-
-            Cache::forever(self::COURTESY_KEY, $courtesy);
-            Cache::forever(self::CHECKED_KEY, $checked);
-            $this->memoizedCourtesyIds = null;
+            $this->storeVerdict($message->id, courtesy: true);
         } catch (\Throwable $e) {
             Log::warning('Obvious courtesy closer could not be recorded; the scheduled run will judge it.', [
                 'conversation_id' => $message->id ?? null,
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Record one just-arrived message's verdict. Checked always; courtesy
+     * only when no reply is owed, matching how classify() stores the pair.
+     */
+    private function storeVerdict(int $conversationId, bool $courtesy): void
+    {
+        $checked = Cache::get(self::CHECKED_KEY, []);
+        $checked[$conversationId] = true;
+        Cache::forever(self::CHECKED_KEY, $checked);
+
+        if ($courtesy) {
+            $courtesyIds = Cache::get(self::COURTESY_KEY, []);
+            $courtesyIds[$conversationId] = true;
+            Cache::forever(self::COURTESY_KEY, $courtesyIds);
+        }
+
+        $this->memoizedCourtesyIds = null;
     }
 
     /**

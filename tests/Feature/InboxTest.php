@@ -76,6 +76,52 @@ class InboxTest extends TestCase
         ], $attributes));
     }
 
+    public function test_an_inbound_tapback_previews_as_a_compact_reaction_and_stops_awaiting(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: [
+            'message' => 'Liked “'.trim(str_repeat('Hello, TexasRenters.com has received a new service request. ', 5)).'”',
+        ]);
+
+        $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
+
+        $threads = $response->viewData('page')['props']['threads'];
+
+        $this->assertCount(1, $threads);
+        $this->assertSame('👍 Liked a message', $threads[0]['preview']);
+        // The created hook judged it a courtesy closer on arrival.
+        $this->assertFalse($threads[0]['awaiting']);
+    }
+
+    public function test_a_disliked_tapback_previews_compactly_but_stays_awaiting(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, attributes: [
+            'message' => 'Disliked “The visit is rescheduled to Friday”',
+        ]);
+
+        $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
+
+        $threads = $response->viewData('page')['props']['threads'];
+
+        $this->assertSame('👎 Disliked a message', $threads[0]['preview']);
+        $this->assertTrue($threads[0]['awaiting']);
+    }
+
+    public function test_an_outbound_tapback_shaped_body_keeps_its_verbatim_preview(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: false, attributes: [
+            'message' => 'Liked “Sounds good”',
+        ]);
+
+        $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
+
+        $threads = $response->viewData('page')['props']['threads'];
+
+        $this->assertSame('Liked “Sounds good”', $threads[0]['preview']);
+    }
+
     public function test_a_thread_whose_newest_message_is_inbound_is_flagged_as_awaiting(): void
     {
         $workOrder = WorkOrder::factory()->create();

@@ -246,4 +246,102 @@ class CourtesyFilterImprovementsTest extends TestCase
         // The ambiguous one waits for the AI rather than being guessed at.
         $this->assertSame(1, $result['pending']);
     }
+
+    // ── Tapback reactions ("Liked \"…\"") ─────────────────────────────────
+
+    public function test_a_liked_tapback_stops_counting_the_moment_it_arrives(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+
+        // The quoted original pushes the body far past OBVIOUS_LENGTH and
+        // carries digits — neither guard applies to a recognized tapback.
+        $quoted = trim(str_repeat('We will send a technician between 2 and 4 PM. ', 6));
+        $this->message($workOrder, inbound: true, text: 'Liked “'.$quoted.'”');
+
+        // No classify() run, no AI — the created hook judged it.
+        $this->assertSame(0, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_a_reaction_removal_stops_counting_instantly(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Removed a like from “We will come Tuesday”');
+
+        $this->assertSame(0, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_disliked_and_questioned_tapbacks_keep_counting_without_spending_ai(): void
+    {
+        $this->aiUnavailable();
+
+        $disliked = WorkOrder::factory()->create();
+        $this->message($disliked, inbound: true, text: 'Disliked “The visit is rescheduled to Friday”');
+
+        $questioned = WorkOrder::factory()->create();
+        $this->message($questioned, inbound: true, text: 'Questioned “Your balance is due”');
+
+        // Counted on arrival...
+        $this->assertSame(2, app(AwaitingReplyCounter::class)->count());
+
+        // ...and pinned checked-without-courtesy: settled locally with the AI
+        // away, yet still counting — the AI can never wave them off.
+        Cache::flush();
+        $result = app(CourtesyCloserService::class)->classify();
+
+        $this->assertSame(2, $result['judged']);
+        $this->assertSame(0, $result['courtesy']);
+        $this->assertSame(0, $result['pending']);
+        $this->assertSame(2, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_the_scheduled_run_clears_a_backlogged_long_tapback_without_ai(): void
+    {
+        $this->aiUnavailable();
+
+        $workOrder = WorkOrder::factory()->create();
+        $tapback = $this->message(
+            $workOrder,
+            inbound: true,
+            text: 'Loved “'.trim(str_repeat('Our vendor will arrive Monday morning. ', 8)).' (Ref: WO#4312)”'
+        );
+
+        // Wipe the instant verdict: this is the pre-deploy backlog case, where
+        // the 200-char guard used to pin the thread as awaiting forever.
+        Cache::flush();
+
+        $result = app(CourtesyCloserService::class)->classify();
+
+        $this->assertSame(1, $result['judged']);
+        $this->assertSame(1, $result['courtesy']);
+        $this->assertSame(0, $result['pending']);
+        $this->assertContains($tapback->id, app(CourtesyCloserService::class)->courtesyIds());
+        $this->assertSame(0, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_a_sentence_starting_with_a_tapback_verb_still_counts(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Liked “the quote” but need to reschedule');
+
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_an_mms_tapback_still_counts(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Liked “We will come Tuesday”', attributes: ['is_mms' => true]);
+
+        // The attachment may be proof of work; the MMS guard wins.
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
+
+    public function test_the_gate_disables_tapback_verdicts_too(): void
+    {
+        config(['services.inbox.courtesy_filter' => false]);
+
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true, text: 'Liked “We will come Tuesday”');
+
+        $this->assertSame(1, app(AwaitingReplyCounter::class)->count());
+    }
 }

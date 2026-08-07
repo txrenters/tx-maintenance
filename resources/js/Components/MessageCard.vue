@@ -19,6 +19,7 @@ import {
     isRetryableTwilioError,
 } from "@/utils/twilioErrorCatalog.js";
 import { linkifyParts } from "@/utils/linkify.js";
+import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
 
 const { toast } = useToast();
 const page = usePage();
@@ -89,6 +90,14 @@ const isOutbound = (msg) => {
 const sourceMessages = computed(() =>
     Array.isArray(props.messages) ? props.messages : [],
 );
+
+/**
+ * An inbound iPhone tapback ("Liked \"…\"") renders as a compact reaction
+ * chip instead of a bubble quoting the entire original message. Outbound
+ * messages never qualify: only the other party reacts to us.
+ */
+const tapbackOf = (msg) =>
+    isOutbound(msg) ? null : detectTapback(msg?.message ?? msg?.messages);
 
 const isAdmin = computed(() =>
     (page.props.auth?.user?.roles || []).includes("admin"),
@@ -271,6 +280,7 @@ const resendMessage = async (msg) => {
                 To: {{ msg.receiver_number }}
             </p>
             <span
+                v-if="!tapbackOf(msg)"
                 class="text-md py-1 whitespace-pre-line break-words [overflow-wrap:anywhere]"
                 :class="isOutbound(msg) ? 'text-white' : 'text-black'"
             >
@@ -290,6 +300,25 @@ const resendMessage = async (msg) => {
                     >
                     <template v-else>{{ part.value }}</template>
                 </template>
+            </span>
+            <span
+                v-else
+                class="flex items-center gap-1.5 py-1 text-sm break-words [overflow-wrap:anywhere]"
+                :class="[
+                    isOutbound(msg) ? 'text-white' : 'text-black',
+                    tapbackOf(msg).removal ? 'opacity-60' : '',
+                ]"
+            >
+                <span class="text-base leading-none">{{
+                    tapbackOf(msg).emoji
+                }}</span>
+                <span>{{ tapbackOf(msg).label }}</span>
+                <span
+                    v-if="quotedExcerpt(tapbackOf(msg))"
+                    class="text-xs italic"
+                    :class="isOutbound(msg) ? 'text-white/60' : 'text-gray-400'"
+                    >“{{ quotedExcerpt(tapbackOf(msg)) }}”</span
+                >
             </span>
             <!-- Handle both formats: is_mms with media array OR single image property -->
             <div
