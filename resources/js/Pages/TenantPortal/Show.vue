@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import GalleryTile from "@/Components/PortalGalleryTile.vue";
 import BrandHeader from "@/Components/PortalBrandHeader.vue";
 import BrandFooter from "@/Components/PortalBrandFooter.vue";
+import { usePickedFiles } from "@/composables/usePickedFiles";
 import {
     Loader2,
     Camera,
@@ -16,6 +17,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     ChevronRight,
+    Plus,
     X,
 } from "lucide-vue-next";
 
@@ -26,6 +28,7 @@ const props = defineProps({
     wocName: String,
     completed: Boolean,
     isHoa: Boolean,
+    canCreateRequest: Boolean,
     deadline: String,
     workOrder: Object,
     messages: { type: Array, default: () => [] },
@@ -104,11 +107,17 @@ watch(
 );
 
 // --- Tabs ---
-// Messages and photos only: the tenant has no estimate, schedule or invoice.
-const tabs = [
-    { key: "message", label: "Messages", icon: MessageSquare },
-    { key: "photos", label: "Photos", icon: Camera },
-];
+// Messages, photos, and opening a new request: the tenant has no estimate,
+// schedule or invoice.
+const tabs = computed(() =>
+    [
+        { key: "message", label: "Messages", icon: MessageSquare },
+        { key: "photos", label: "Photos", icon: Camera },
+        props.canCreateRequest
+            ? { key: "new_request", label: "New request", icon: Plus }
+            : null,
+    ].filter(Boolean)
+);
 // An HOA notice is a request for photos, so open that tab first.
 const activeTab = ref(props.isHoa ? "photos" : "message");
 const localUnread = ref(props.unreadMessages);
@@ -135,26 +144,15 @@ onMounted(() => {
 
 // --- Message coordinator ---
 const messageText = ref("");
-const messageImages = ref([]);
-const messageInput = ref(null);
+const {
+    files: messageImages,
+    previews: messagePreviews,
+    input: messageInput,
+    onPick: onPickMessageImages,
+    remove: removeMessageImage,
+    reset: resetMessageImages,
+} = usePickedFiles();
 const sending = ref(false);
-
-const onPickMessageImages = (e) => {
-    Array.from(e.target.files || []).forEach((file) => {
-        const isDuplicate = messageImages.value.some(
-            (existing) => existing.name === file.name && existing.size === file.size,
-        );
-        if (!isDuplicate) {
-            messageImages.value.push(file);
-        }
-    });
-    // Reset so re-picking the same file still fires @change.
-    e.target.value = "";
-};
-
-const removeMessageImage = (index) => {
-    messageImages.value.splice(index, 1);
-};
 
 const sendMessage = () => {
     if (!messageText.value.trim() && messageImages.value.length === 0) return;
@@ -168,49 +166,22 @@ const sendMessage = () => {
         forceFormData: true,
         onSuccess: () => {
             messageText.value = "";
-            messageImages.value = [];
-            if (messageInput.value) messageInput.value.value = "";
+            resetMessageImages();
         },
         onFinish: () => (sending.value = false),
     });
 };
 
 // --- Photo upload ---
-const selectedFiles = ref([]);
-const selectedPreviews = ref([]);
-const photoInput = ref(null);
+const {
+    files: selectedFiles,
+    previews: selectedPreviews,
+    input: photoInput,
+    onPick: onPickFiles,
+    remove: removeSelectedFile,
+    reset: resetSelectedFiles,
+} = usePickedFiles();
 const uploading = ref(false);
-
-const isImageFile = (file) =>
-    file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic)$/i.test(file.name);
-
-const onPickFiles = (e) => {
-    const picked = Array.from(e.target.files || []);
-    picked.forEach((file) => {
-        const isDuplicate = selectedFiles.value.some(
-            (existing) => existing.name === file.name && existing.size === file.size,
-        );
-        if (isDuplicate) {
-            return;
-        }
-        selectedFiles.value.push(file);
-        const image = isImageFile(file);
-        selectedPreviews.value.push({
-            name: file.name,
-            isImage: image,
-            url: image ? URL.createObjectURL(file) : null,
-        });
-    });
-    e.target.value = "";
-};
-
-const removeSelectedFile = (index) => {
-    const [removed] = selectedPreviews.value.splice(index, 1);
-    if (removed?.url) {
-        URL.revokeObjectURL(removed.url);
-    }
-    selectedFiles.value.splice(index, 1);
-};
 
 const uploadPhotos = () => {
     if (selectedFiles.value.length === 0) return;
@@ -221,12 +192,45 @@ const uploadPhotos = () => {
     router.post(route("tenant.portal.attachments", props.token), data, {
         preserveScroll: true,
         forceFormData: true,
-        onSuccess: () => {
-            selectedFiles.value = [];
-            selectedPreviews.value = [];
-            if (photoInput.value) photoInput.value.value = "";
-        },
+        onSuccess: () => resetSelectedFiles(),
         onFinish: () => (uploading.value = false),
+    });
+};
+
+// --- Report a new issue ---
+// Description + photos only: everything else about the request (its category,
+// whether it is an emergency) is worked out on our side, so the tenant is never
+// asked to classify their own problem.
+const actionsCard = ref(null);
+const newRequestText = ref("");
+const {
+    files: newRequestFiles,
+    previews: newRequestPreviews,
+    input: newRequestInput,
+    onPick: onPickNewRequestFiles,
+    remove: removeNewRequestFile,
+} = usePickedFiles();
+const submittingRequest = ref(false);
+
+const openNewRequest = () => {
+    activeTab.value = "new_request";
+    // The right column stacks below the details on a phone, so scrolling is
+    // what makes the button feel like a button.
+    actionsCard.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const submitNewRequest = () => {
+    if (newRequestText.value.trim().length < 10 || submittingRequest.value) return;
+    submittingRequest.value = true;
+    const data = new FormData();
+    data.append("description", newRequestText.value.trim());
+    newRequestFiles.value.forEach((file) => data.append("photos[]", file));
+
+    // No preserveState: a successful submit navigates to the new request's own
+    // portal page.
+    router.post(route("tenant.portal.request.store", props.token), data, {
+        forceFormData: true,
+        onFinish: () => (submittingRequest.value = false),
     });
 };
 
@@ -467,6 +471,24 @@ watch(photoFilters, (filters) => {
                         </div>
                     </dl>
 
+                    <!-- Something else broken? It becomes its own request
+                         rather than a message someone has to re-key. Outlined
+                         so it never competes with Send and Upload. -->
+                    <button
+                        v-if="canCreateRequest"
+                        type="button"
+                        class="mt-4 flex w-full flex-col items-center gap-0.5 rounded-md border border-input py-3 text-sm font-medium text-foreground hover:bg-accent active:bg-accent"
+                        @click="openNewRequest"
+                    >
+                        <span class="flex items-center gap-2">
+                            <Plus class="w-4 h-4" />
+                            Report a new issue
+                        </span>
+                        <span class="text-[11px] font-normal text-muted-foreground">
+                            Something else broken? Tell us here.
+                        </span>
+                    </button>
+
                     <!-- Photos live in their own tab; link across rather than
                          rendering the whole gallery twice. -->
                     <button
@@ -484,9 +506,17 @@ watch(photoFilters, (filters) => {
                 </div>
 
                 <!-- Right column: tabbed actions -->
-                <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                <div
+                    ref="actionsCard"
+                    class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden scroll-mt-4"
+                >
                     <!-- Tab bar -->
-                    <div class="grid grid-cols-2 border-b">
+                    <div
+                        class="grid border-b"
+                        :style="{
+                            gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+                        }"
+                    >
                         <button
                             v-for="t in tabs"
                             :key="t.key"
@@ -593,11 +623,11 @@ watch(photoFilters, (filters) => {
                             </p>
 
                             <div
-                                v-if="messageImages.length"
+                                v-if="messagePreviews.length"
                                 class="flex flex-wrap gap-2 mb-2"
                             >
                                 <div
-                                    v-for="(img, i) in messageImages"
+                                    v-for="(img, i) in messagePreviews"
                                     :key="i"
                                     class="relative"
                                 >
@@ -776,6 +806,115 @@ watch(photoFilters, (filters) => {
                                     All set — our team has been notified.
                                 </p>
                             </div>
+                        </div>
+
+                        <!-- Report a new issue -->
+                        <div
+                            v-if="canCreateRequest"
+                            v-show="activeTab === 'new_request'"
+                            class="space-y-3"
+                        >
+                            <p class="text-xs text-muted-foreground">
+                                Tell us what's wrong and we'll open a new service
+                                request.
+                                <template v-if="workOrder.work_order_no">
+                                    This won't change request #{{
+                                        workOrder.work_order_no
+                                    }}.
+                                </template>
+                            </p>
+
+                            <div>
+                                <textarea
+                                    v-model="newRequestText"
+                                    rows="5"
+                                    maxlength="2000"
+                                    placeholder="Describe the problem — where it is, when it started, and anything that helps us send the right person."
+                                    class="w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base resize-none focus:border-ring focus:ring-0"
+                                ></textarea>
+                                <p class="mt-1 text-right text-[10px] text-muted-foreground">
+                                    {{ newRequestText.length }}/2000
+                                </p>
+                            </div>
+
+                            <label
+                                class="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-input py-7 text-muted-foreground cursor-pointer active:bg-accent"
+                            >
+                                <Camera class="w-7 h-7" />
+                                <span class="text-sm font-medium">Tap to add photos</span>
+                                <span class="text-[10px] text-muted-foreground">
+                                    Photos help us send the right person the first
+                                    time (optional)
+                                </span>
+                                <input
+                                    ref="newRequestInput"
+                                    type="file"
+                                    accept="image/*,video/*,.pdf"
+                                    multiple
+                                    class="hidden"
+                                    @change="onPickNewRequestFiles"
+                                />
+                            </label>
+
+                            <div
+                                v-if="newRequestPreviews.length"
+                                class="grid grid-cols-3 gap-2"
+                            >
+                                <div
+                                    v-for="(p, i) in newRequestPreviews"
+                                    :key="i"
+                                    class="relative aspect-square rounded-lg overflow-hidden bg-muted border flex items-center justify-center"
+                                >
+                                    <img
+                                        v-if="p.isImage"
+                                        :src="p.url"
+                                        class="w-full h-full object-cover"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex flex-col items-center justify-center gap-1 w-full px-1"
+                                    >
+                                        <FileText class="w-6 h-6 text-muted-foreground" />
+                                        <span
+                                            class="text-[10px] leading-tight text-muted-foreground text-center w-full truncate"
+                                            >{{ p.name }}</span
+                                        >
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="absolute top-1 right-1 bg-foreground/70 text-background rounded-full p-0.5"
+                                        @click="removeNewRequestFile(i)"
+                                    >
+                                        <X class="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                :disabled="
+                                    submittingRequest || newRequestText.trim().length < 10
+                                "
+                                class="w-full rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
+                                @click="submitNewRequest"
+                            >
+                                <Loader2
+                                    v-if="submittingRequest"
+                                    class="w-4 h-4 animate-spin"
+                                />
+                                <Plus v-else class="w-4 h-4" />
+                                {{
+                                    submittingRequest
+                                        ? "Opening your request…"
+                                        : "Send this request"
+                                }}
+                            </button>
+                            <p
+                                v-if="submittingRequest"
+                                class="text-center text-[11px] text-muted-foreground"
+                            >
+                                This can take a few seconds — please don't tap twice.
+                            </p>
                         </div>
                     </div>
                 </div>

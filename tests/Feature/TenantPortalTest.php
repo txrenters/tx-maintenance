@@ -476,4 +476,215 @@ class TenantPortalTest extends TestCase
         $this->get(route('tenant.portal.show', $easyFix->token))->assertOk();
         $this->get(route('tenant.portal.show', $general->token))->assertOk();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Report a new issue
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * A portal link whose work order sits on a real building, with the feature
+     * on and PropertyWare creation off so nothing leaves the app.
+     *
+     * @return array{0: WorkOrder, 1: TenantUploadToken}
+     */
+    private function portalReadyForNewRequests(): array
+    {
+        config([
+            'services.tenant_portal.create_request_enabled' => true,
+            'services.tenant_portal.pw_create_enabled' => false,
+        ]);
+
+        ServiceStatus::query()->firstOrCreate(['name' => 'New'], ['description' => 'New request.']);
+
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-6341DM',
+            'name' => 'Del Monte',
+            'address' => '6341 Del Monte Dr',
+        ]);
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+
+        return [$workOrder, $this->makeToken($workOrder)];
+    }
+
+    public function test_the_portal_exposes_whether_a_new_request_can_be_created(): void
+    {
+        [$workOrder, $token] = $this->portalReadyForNewRequests();
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertInertia(fn (Assert $page) => $page->where('canCreateRequest', true));
+
+        config(['services.tenant_portal.create_request_enabled' => false]);
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertInertia(fn (Assert $page) => $page->where('canCreateRequest', false));
+
+        // No PropertyWare building means there is nothing to hang a request on.
+        config(['services.tenant_portal.create_request_enabled' => true]);
+        $workOrder->update(['building_id' => null]);
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertInertia(fn (Assert $page) => $page->where('canCreateRequest', false));
+    }
+
+    public function test_a_new_request_needs_a_real_description(): void
+    {
+        [, $token] = $this->portalReadyForNewRequests();
+        $before = WorkOrder::query()->count();
+
+        $this->post(route('tenant.portal.request.store', $token->token), ['description' => ''])
+            ->assertSessionHasErrors('description');
+
+        $this->post(route('tenant.portal.request.store', $token->token), ['description' => 'broken'])
+            ->assertSessionHasErrors('description');
+
+        $this->assertSame($before, WorkOrder::query()->count());
+    }
+
+    public function test_a_new_request_rejects_too_many_photos_and_bad_file_types(): void
+    {
+        Storage::fake('public');
+        [, $token] = $this->portalReadyForNewRequests();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+            'photos' => array_map(
+                fn (int $i) => UploadedFile::fake()->image("photo{$i}.jpg"),
+                range(1, 11),
+            ),
+        ])->assertSessionHasErrors('photos');
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+            'photos' => [UploadedFile::fake()->create('script.exe', 10)],
+        ])->assertSessionHasErrors('photos.0');
+    }
+
+    public function test_a_new_request_is_refused_when_the_feature_is_off(): void
+    {
+        [, $token] = $this->portalReadyForNewRequests();
+        config(['services.tenant_portal.create_request_enabled' => false]);
+        $before = WorkOrder::query()->count();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasErrors('description');
+
+        $this->assertSame($before, WorkOrder::query()->count());
+    }
+
+    public function test_a_successful_request_redirects_to_the_new_work_orders_portal(): void
+    {
+        Queue::fake();
+        [$source, $token] = $this->portalReadyForNewRequests();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasNoErrors();
+
+        $new = WorkOrder::query()->where('source', 'Tenant Portal')->firstOrFail();
+        $this->assertNotSame($source->id, $new->id);
+
+        $newToken = TenantUploadToken::query()
+            ->where('work_order_id', $new->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_WORK_ORDER)
+            ->firstOrFail();
+
+        $this->assertNotSame($token->token, $newToken->token);
+
+        // The tenant lands on a page that IS their new request.
+        $this->get(route('tenant.portal.show', $newToken->token))->assertOk();
+    }
+
+    public function test_a_new_request_is_recorded_on_the_work_order_the_tenant_came_in_on(): void
+    {
+        Queue::fake();
+        [$source, $token] = $this->portalReadyForNewRequests();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('work_order_conversations', [
+            'work_order_id' => $source->id,
+            'conversation_type' => 'tenant',
+            'is_read' => false,
+        ]);
+
+        $this->assertNotNull($token->fresh()->responded_at);
+    }
+
+    public function test_a_second_request_inside_the_cooldown_is_refused(): void
+    {
+        Queue::fake();
+        [, $token] = $this->portalReadyForNewRequests();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasNoErrors();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The garage door will not close all the way any more.',
+        ])->assertSessionHasErrors('description');
+
+        $this->assertSame(1, WorkOrder::query()->where('source', 'Tenant Portal')->count());
+
+        // Past the cooldown the same link works again.
+        $this->travel(11)->minutes();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The garage door will not close all the way any more.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, WorkOrder::query()->where('source', 'Tenant Portal')->count());
+    }
+
+    public function test_the_same_description_twice_in_a_day_is_refused(): void
+    {
+        Queue::fake();
+        [, $token] = $this->portalReadyForNewRequests();
+        config(['services.tenant_portal.request_cooldown_minutes' => 0]);
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasNoErrors();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => '  The kitchen faucet has been   dripping for three days. ',
+        ])->assertSessionHasErrors('description');
+
+        $this->assertSame(1, WorkOrder::query()->where('source', 'Tenant Portal')->count());
+    }
+
+    public function test_the_open_request_cap_for_one_property_is_enforced(): void
+    {
+        Queue::fake();
+        [, $token] = $this->portalReadyForNewRequests();
+        config([
+            'services.tenant_portal.request_cooldown_minutes' => 0,
+            'services.tenant_portal.max_open_requests' => 1,
+        ]);
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertSessionHasNoErrors();
+
+        $this->post(route('tenant.portal.request.store', $token->token), [
+            'description' => 'The garage door will not close all the way any more.',
+        ])->assertSessionHasErrors('description');
+
+        $this->assertSame(1, WorkOrder::query()->where('source', 'Tenant Portal')->count());
+    }
+
+    public function test_a_bad_token_cannot_open_a_request(): void
+    {
+        config(['services.tenant_portal.create_request_enabled' => true]);
+
+        $this->post('/tenant-portal/not-a-real-token/request', [
+            'description' => 'The kitchen faucet has been dripping for three days.',
+        ])->assertNotFound();
+    }
 }

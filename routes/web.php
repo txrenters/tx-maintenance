@@ -335,6 +335,11 @@ Route::middleware(['tenant.portal', 'throttle:60,1'])->prefix('tenant-portal/{to
     Route::post('/message', [TenantPortalController::class, 'sendMessage'])->name('tenant.portal.message');
     Route::post('/attachments', [TenantPortalController::class, 'uploadAttachments'])->name('tenant.portal.attachments');
     Route::post('/messages/read', [TenantPortalController::class, 'markMessagesRead'])->name('tenant.portal.messages.read');
+    // Opening a new work order costs several PropertyWare round trips, so this
+    // one is throttled harder than the rest of the portal.
+    Route::post('/request', [TenantPortalController::class, 'storeRequest'])
+        ->middleware('throttle:5,60')
+        ->name('tenant.portal.request.store');
     Route::post('/complete', [TenantPortalController::class, 'complete'])->name('tenant.portal.complete');
 });
 
