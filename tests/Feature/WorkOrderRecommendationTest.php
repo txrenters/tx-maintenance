@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Building;
+use App\Models\FallbackVendor;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -300,6 +301,31 @@ class WorkOrderRecommendationTest extends TestCase
         $serviceStatus = ServiceStatus::query()->create([
             'name' => 'New',
             'description' => 'New',
+        ]);
+
+        // The curated fallbacks live in the fallback_vendors table (see
+        // FallbackVendorSeeder), which RefreshDatabase wipes — arrange the one
+        // this test asserts on rather than relying on seeded data.
+        // Inactive on purpose: a curated fallback is what staff fall back to
+        // precisely when no assignable database vendor matches, and an active
+        // one would be recommended outright and filtered back out of this list.
+        $expressKeyUser = User::factory()->create();
+        $expressKey = Vendor::query()->create([
+            'propertyware_id' => 'V-900',
+            'name' => 'Express Key',
+            'vendor_type' => 'Locksmith',
+            'is_active' => false,
+            'user_id' => $expressKeyUser->id,
+        ]);
+
+        FallbackVendor::query()->create([
+            'vendor_id' => $expressKey->id,
+            'contacts' => [['phone' => '(512) 800-3464']],
+            'notes' => 'Use when the tenant locks themselves out of the home or garage.',
+            'issue_types' => ['Lockout'],
+            'keywords' => ['lockout', 'locked out', 'garage lockout'],
+            'priority' => 10,
+            'is_active' => true,
         ]);
 
         $currentWorkOrder = WorkOrder::factory()->create([

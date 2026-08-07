@@ -1066,11 +1066,23 @@ class WorkOrderRecommendationService
      */
     private function bestRuleMatch(string $loweredText): array
     {
-        $bestIssueType = 'General Maintenance';
+        $rules = $this->classificationRules();
+
+        // "General Maintenance" is the bucket for jobs nothing else describes,
+        // not a competitor. Its needles ("maintenance", "repair") match the
+        // boilerplate in the type and category columns that almost every work
+        // order carries, so scoring it alongside the rest let it outscore a
+        // genuine single-keyword match — a leaking sink classified General
+        // Maintenance, and routed to the wrong vendor pool.
+        $defaultIssueType = 'General Maintenance';
+        $defaultNeedles = $rules[$defaultIssueType] ?? [];
+        unset($rules[$defaultIssueType]);
+
+        $bestIssueType = null;
         $bestScore = 0;
         $keywords = collect();
 
-        foreach ($this->classificationRules() as $issueType => $needles) {
+        foreach ($rules as $issueType => $needles) {
             $matched = collect($needles)->filter(fn (string $needle) => $this->keywordMatches($loweredText, $needle));
             $score = $matched->count();
 
@@ -1081,7 +1093,14 @@ class WorkOrderRecommendationService
             }
         }
 
-        return [$bestIssueType, $bestScore, $keywords];
+        if ($bestIssueType !== null) {
+            return [$bestIssueType, $bestScore, $keywords];
+        }
+
+        $matchedDefault = collect($defaultNeedles)
+            ->filter(fn (string $needle) => $this->keywordMatches($loweredText, $needle));
+
+        return [$defaultIssueType, $matchedDefault->count(), $matchedDefault];
     }
 
     /**

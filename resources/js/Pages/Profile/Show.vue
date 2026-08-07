@@ -7,6 +7,7 @@ import SectionBorder from "@/Components/SectionBorder.vue";
 import TwoFactorAuthenticationForm from "@/Pages/Profile/Partials/TwoFactorAuthenticationForm.vue";
 import UpdatePasswordForm from "@/Pages/Profile/Partials/UpdatePasswordForm.vue";
 import Appearance from "@/Pages/Profile/Partials/Appearance.vue";
+import ActionSection from "@/Components/ActionSection.vue";
 
 defineOptions({ layout: AppLayout });
 
@@ -42,6 +43,21 @@ const title = ref("User Settings");
 
         <SectionBorder />
       </div> -->
+
+      <ActionSection class="mt-10 sm:mt-0">
+        <template #title>Desktop Notifications</template>
+        <template #description>
+          Receive your notifications live on your computer through the
+          TexasRenters Desktop client.
+        </template>
+        <template #content>
+          <Link :href="route('settings.desktop-notifications.edit')">
+            <Button variant="outline">Manage desktop notifications</Button>
+          </Link>
+        </template>
+      </ActionSection>
+
+      <SectionBorder />
 
       <LogoutOtherBrowserSessionsForm :sessions="sessions" class="mt-10 sm:mt-0" />
 
