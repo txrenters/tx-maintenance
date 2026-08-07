@@ -12,6 +12,7 @@ use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use App\Services\PropertyWareService;
 use App\Services\TenantRequestIntakeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,7 +40,7 @@ class TenantRequestIntakeTest extends TestCase
             'services.tenant_portal.create_request_enabled' => true,
             'services.tenant_portal.pw_create_enabled' => true,
             'services.tenant_portal.pw_category' => 'General Maintenance',
-            'services.tenant_portal.pw_type' => 'Repair',
+            'services.tenant_portal.pw_type' => 'Service Request',
         ]);
     }
 
@@ -106,7 +107,7 @@ class TenantRequestIntakeTest extends TestCase
             ->once()
             ->with(Mockery::on(function (array $payload) {
                 return $payload['category'] === 'General Maintenance'
-                    && $payload['type'] === 'Repair'
+                    && $payload['type'] === 'Service Request'
                     && $payload['location'] === 'MULLERJJ | 3235QUARRYPL'
                     && (int) $payload['unit_id'] === 4209311746
                     && $payload['building_id'] === 'B-6341DM'
@@ -127,14 +128,72 @@ class TenantRequestIntakeTest extends TestCase
         $mock = $this->mockPropertyWare(null);
         $mock->shouldReceive('createWorkOrder')
             ->once()
-            ->with(Mockery::on(fn (array $payload) => $payload['category'] === 'General Maintenance' && $payload['type'] === 'Repair'))
+            ->with(Mockery::on(fn (array $payload) => $payload['category'] === 'General Maintenance' && $payload['type'] === 'Service Request'))
             ->andReturn(null);
 
         $result = $this->intake()->createForTenant($source, self::DESCRIPTION);
 
         $this->assertSame('General Maintenance', $result['work_order']->category);
-        $this->assertSame('Repair', $result['work_order']->type);
+        $this->assertSame('Service Request', $result['work_order']->type);
         $this->assertFalse($result['work_order']->skipsAutomatedMessages());
+    }
+
+    public function test_the_shipped_propertyware_defaults_are_values_propertyware_actually_issues(): void
+    {
+        // setUp() overrides these, so read the config file itself.
+        $defaults = require config_path('services.php');
+        $category = $defaults['tenant_portal']['pw_category'];
+        $type = $defaults['tenant_portal']['pw_type'];
+
+        // PropertyWare matches its picklists verbatim. These two are the values
+        // it puts on its own work orders in bulk. "Repair" and "Maintenance"
+        // read as obvious choices but appear only on rows the test factory
+        // made — sending either fails the create silently, exactly the way the
+        // HOA category did until 2026-08-04.
+        $this->assertSame('General Maintenance', $category);
+        $this->assertSame('Service Request', $type);
+
+        // And never a value that would trip skipsAutomatedMessages() or
+        // isHoaViolation() and silence the tenant's own confirmation.
+        $silencing = ['Turnover', 'Re-Key', 'Cleaning', 'Make ready', 'Carpet Steam Clean', 'HOA Violation'];
+        $this->assertNotContains($category, $silencing);
+        $this->assertNotContains($type, $silencing);
+    }
+
+    public function test_the_category_is_sent_with_the_picklists_exact_spelling(): void
+    {
+        Queue::fake();
+        $source = $this->sourceWorkOrder();
+
+        // PropertyWare's real HVAC entry carries a trailing space, and a
+        // visually identical value is rejected.
+        WorkOrderCategory::query()->create(['name' => 'HVAC ']);
+        config(['services.tenant_portal.pw_category' => 'hvac']);
+
+        $mock = $this->mockPropertyWare(null);
+        $mock->shouldReceive('createWorkOrder')
+            ->once()
+            ->with(Mockery::on(fn (array $payload) => $payload['category'] === 'HVAC '))
+            ->andReturn(null);
+
+        $this->intake()->createForTenant($source, self::DESCRIPTION);
+    }
+
+    public function test_a_single_unit_returned_as_a_scalar_is_not_sliced_into_one_character(): void
+    {
+        Queue::fake();
+        $source = $this->sourceWorkOrder();
+
+        $mock = $this->mockPropertyWare(null, [
+            'location' => 'MULLERJJ | 3235QUARRYPL',
+            'unitIDs' => '4209311746',
+        ]);
+        $mock->shouldReceive('createWorkOrder')
+            ->once()
+            ->with(Mockery::on(fn (array $payload) => $payload['unit_id'] === '4209311746'))
+            ->andReturn(null);
+
+        $this->intake()->createForTenant($source, self::DESCRIPTION);
     }
 
     public function test_it_falls_back_to_the_source_work_orders_piped_location_when_propertyware_has_no_history(): void

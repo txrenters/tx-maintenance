@@ -43,9 +43,15 @@ class PropertyWareWorkOrderCreator
 
         $latest = $this->propertyWare->getLatestWorkOrderForBuilding($buildingPropertywareId);
 
+        // A work order with a single unit can come back with unitIDs as a bare
+        // scalar rather than a list. Indexing that would hand PropertyWare the
+        // first *character* of the unit ID — a create it rejects, in the silent
+        // way this whole method exists to prevent.
+        $unitIds = $latest['unitIDs'] ?? null;
+
         return [
             $latest['location'] ?? null,
-            $latest['unitIDs'][0] ?? null,
+            is_array($unitIds) ? ($unitIds[0] ?? null) : $unitIds,
         ];
     }
 

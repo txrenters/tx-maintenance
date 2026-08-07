@@ -13,6 +13,7 @@ use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -130,7 +131,10 @@ class TenantRequestIntakeService
                 $workOrder = $this->creator->createAndImport([
                     'building_id' => $source->building_id,
                     'portfolio_id' => $source->portfolio_id ?: $source->building?->portfolio_id,
-                    'category' => config('services.tenant_portal.pw_category'),
+                    // PropertyWare matches picklist values verbatim — its real
+                    // HVAC entry is "HVAC " with a trailing space — so resolve
+                    // the configured name to the exact stored spelling.
+                    'category' => WorkOrderCategory::canonicalName(config('services.tenant_portal.pw_category')),
                     'description' => $pwDescription,
                     'type' => config('services.tenant_portal.pw_type'),
                     'location' => $location,

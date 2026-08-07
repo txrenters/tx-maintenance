@@ -157,15 +157,22 @@ return [
         // tenant's words and photos are never lost.
         'pw_create_enabled' => env('TENANT_PORTAL_PW_CREATE_ENABLED', true),
         // PropertyWare's type and category are curated picklists that reject
-        // unknown values. Fixed neutral defaults, deliberately NOT the source
-        // work order's values: copying those would misroute the AI vendor
-        // recommendation, and when the source is a turnover, re-key, cleaning
-        // or HOA work order, skipsAutomatedMessages()/isHoaViolation() would
-        // silently suppress every tenant and owner intake message on a request
-        // the tenant is waiting to hear about. Never set these to Turnover,
-        // Re-Key, Cleaning, Make ready or HOA Violation.
+        // unknown values. Both defaults are the values PropertyWare itself uses
+        // most on imported work orders ("General Maintenance" on 15k+ of them,
+        // "Service Request" on 19k+), so they are known-good rather than
+        // plausible — "Repair" and "Maintenance" look right but appear only on
+        // rows the test factory made, and would fail the create exactly the way
+        // the HOA category did before 2026-08-04.
+        //
+        // Fixed values, deliberately NOT the source work order's: copying those
+        // would misroute the AI vendor recommendation, and when the source is a
+        // turnover, re-key, cleaning or HOA work order,
+        // skipsAutomatedMessages()/isHoaViolation() would silently suppress
+        // every tenant and owner intake message on a request the tenant is
+        // waiting to hear about. Never set these to Turnover, Re-Key, Cleaning,
+        // Make ready or HOA Violation.
         'pw_category' => env('TENANT_PORTAL_PW_CATEGORY', 'General Maintenance'),
-        'pw_type' => env('TENANT_PORTAL_PW_TYPE', 'Repair'),
+        'pw_type' => env('TENANT_PORTAL_PW_TYPE', 'Service Request'),
         // Anti-spam: minutes before the same portal link may open another
         // request, and the ceiling on requests opened for one property in 24h.
         'request_cooldown_minutes' => (int) env('TENANT_PORTAL_REQUEST_COOLDOWN_MINUTES', 10),
