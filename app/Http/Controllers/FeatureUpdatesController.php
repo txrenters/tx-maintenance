@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-07',
+            'area' => 'Tenant Portal',
+            'title' => 'Tenants can open a new request themselves',
+            'description' => 'The tenant portal has a "Report a new issue" button: the tenant describes the problem, adds photos, and a brand new work order is created in PropertyWare and lands on the board like any other. It arrives labelled "Tenant Portal", the notification bell announces it, and the tenant is taken to their new request\'s own portal page.',
+        ],
+        [
+            'date' => '2026-08-07',
             'area' => 'Attachments',
             'title' => 'Tenant photos land on the Attachments tab',
             'description' => 'Photos a tenant sends — by text reply or through their portal chat — now appear on the work order\'s Attachments tab as Before Pictures, and the tab shows a number badge for new arrivals until someone opens it.',

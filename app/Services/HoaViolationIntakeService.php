@@ -29,6 +29,7 @@ class HoaViolationIntakeService
     public function __construct(
         private readonly PropertyWareService $propertyWare,
         private readonly TenantPortalLinkService $linkService,
+        private readonly PropertyWareWorkOrderCreator $creator,
     ) {}
 
     /**
@@ -176,9 +177,9 @@ class HoaViolationIntakeService
     private function createWorkOrder(Building $building, string $description): array
     {
         if (config('services.hoa.pw_create_enabled')) {
-            [$location, $unitId] = $this->propertyWareLocationFor($building);
+            [$location, $unitId] = $this->creator->locationFor($building->propertyware_id);
 
-            $propertywareId = $this->propertyWare->createWorkOrder([
+            $workOrder = $this->creator->createAndImport([
                 'building_id' => $building->propertyware_id,
                 'portfolio_id' => $building->portfolio_id,
                 'category' => config('services.hoa.pw_category'),
@@ -188,12 +189,8 @@ class HoaViolationIntakeService
                 'unit_id' => $unitId,
             ]);
 
-            if ($propertywareId !== null) {
-                $workOrder = $this->importCreatedWorkOrder($propertywareId);
-
-                if ($workOrder !== null) {
-                    return [$workOrder, true];
-                }
+            if ($workOrder !== null) {
+                return [$workOrder, true];
             }
         }
 
@@ -220,54 +217,6 @@ class HoaViolationIntakeService
         ]);
 
         return [$workOrder, false];
-    }
-
-    /**
-     * PropertyWare validates a create against its "Location" (the unit) and
-     * fails the whole call with "Location is invalid" unless the piped
-     * "PORTFOLIO | BUILDING" location string and the unit ID both match what it
-     * has on record — omitting them is what silently turned every HOA intake
-     * into a local-only work order until 2026-08-04.
-     *
-     * Rather than reconstruct either value (the local rows only carry the REST
-     * variant of the string, without the pipe), copy both off the newest work
-     * order PropertyWare itself holds for the building. A building with no work
-     * order history yields nulls, and createWorkOrder then refuses rather than
-     * send a payload PropertyWare is known to reject.
-     *
-     * @return array{0: ?string, 1: int|string|null}
-     */
-    private function propertyWareLocationFor(Building $building): array
-    {
-        $latest = $this->propertyWare->getLatestWorkOrderForBuilding($building->propertyware_id);
-
-        return [
-            $latest['location'] ?? null,
-            $latest['unitIDs'][0] ?? null,
-        ];
-    }
-
-    private function importCreatedWorkOrder(string $propertywareId): ?WorkOrder
-    {
-        try {
-            $pwWorkOrder = $this->propertyWare->getWorkOrder($propertywareId);
-            $number = is_array($pwWorkOrder) ? ($pwWorkOrder['number'] ?? null) : null;
-
-            if ($number) {
-                $workOrders = $this->propertyWare->getWorkOrderByNumber((int) $number);
-
-                if (is_array($workOrders) && $workOrders !== []) {
-                    (new WorkOrderService)->handle($workOrders);
-                }
-            }
-        } catch (\Throwable $exception) {
-            Log::error('Importing the created HOA work order back from PropertyWare failed.', [
-                'propertyware_id' => $propertywareId,
-                'error' => $exception->getMessage(),
-            ]);
-        }
-
-        return WorkOrder::query()->where('propertyware_id', $propertywareId)->first();
     }
 
     private function attachNotice(WorkOrder $workOrder, string $noticeContents, ?string $originalName, ?string $mime): void

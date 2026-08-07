@@ -11,8 +11,10 @@ use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
 use App\Services\TenantPhotoMirrorService;
+use App\Services\TenantRequestIntakeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -89,6 +91,12 @@ class TenantPortalController extends Controller
             'wocName' => $workOrder->woc?->name,
             'completed' => $uploadToken->isCompleted(),
             'isHoa' => $isHoa,
+            // Deliberately not gated on the request being open: a closed request
+            // is the likeliest moment a tenant notices something new, and this
+            // link is the only way in they have. Without a PropertyWare building
+            // there is nothing to hang a new request on, so hide it instead.
+            'canCreateRequest' => (bool) config('services.tenant_portal.create_request_enabled')
+                && filled($workOrder->building_id),
             'deadline' => $isHoa
                 ? $uploadToken->hoa_deadline_at?->timezone('America/Chicago')->format('l, F j, Y')
                 : null,
@@ -406,6 +414,92 @@ class TenantPortalController extends Controller
 
             return back()->withErrors(['error' => 'Could not upload photos. Please try again.']);
         }
+    }
+
+    /**
+     * Open a brand new work order from this portal link. The tenant is here
+     * about one request; anything else they notice broken becomes its own
+     * request in PropertyWare rather than a message a coordinator has to
+     * re-key by hand.
+     *
+     * On success the tenant is sent to the new request's own portal page — the
+     * same link their confirmation text will carry, so the URL in their browser
+     * and the one in their messages match.
+     */
+    public function storeRequest(Request $request, TenantRequestIntakeService $intake)
+    {
+        /** @var WorkOrder $workOrder */
+        $workOrder = $request->attributes->get('portal_work_order');
+        /** @var TenantUploadToken $uploadToken */
+        $uploadToken = $request->attributes->get('portal_upload_token');
+
+        if (! config('services.tenant_portal.create_request_enabled') || blank($workOrder->building_id)) {
+            return back()->withErrors(['description' => 'New requests cannot be opened here right now. Please message your coordinator in the Messages tab.']);
+        }
+
+        $validated = $request->validate([
+            'description' => ['required', 'string', 'min:10', 'max:2000'],
+            'photos' => ['nullable', 'array', 'max:10'],
+            'photos.*' => ['required', 'file', 'max:51200', new UploadedMediaFile(['pdf'])],
+        ]);
+
+        // Opening a request takes several PropertyWare round trips, so a tenant
+        // who taps twice would otherwise get two work orders. The durable
+        // cooldown inside the service is the real guard; this just stops the
+        // second tap of the same submission racing the first.
+        $lock = Cache::lock('tenant-portal:new-request:'.$uploadToken->id, 60);
+
+        if (! $lock->get()) {
+            return back()->withErrors(['description' => 'We are still opening your last request — give it a moment.']);
+        }
+
+        try {
+            $result = $intake->createForTenant(
+                $workOrder,
+                $validated['description'],
+                $request->file('photos') ?? [],
+            );
+        } catch (\Throwable $e) {
+            Log::error('Tenant portal new request failed', [
+                'work_order_id' => $workOrder->id,
+                'tenant_upload_token_id' => $uploadToken->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $result = ['work_order' => null, 'token' => null, 'reason' => 'failed'];
+        } finally {
+            $lock->release();
+        }
+
+        if ($result['work_order'] === null || $result['token'] === null) {
+            return back()->withErrors(['description' => $this->requestRefusalMessage($result['reason'] ?? 'failed')]);
+        }
+
+        // The tenant has engaged: stop the schedule follow-up on the request
+        // they came in on.
+        $uploadToken->markResponded();
+
+        $new = $result['work_order'];
+
+        return redirect()
+            ->route('tenant.portal.show', $result['token']->token)
+            ->with('success', 'Request #'.($new->work_order_no ?? $new->id).' is open — this page is now your new request. '
+                .($workOrder->work_order_no ? 'Request #'.$workOrder->work_order_no.' is unchanged. ' : '')
+                .'We have also texted you this link.');
+    }
+
+    /**
+     * Every refusal ends somewhere a human can help, because the tenant has
+     * just typed out a problem and must not be left with a dead end.
+     */
+    private function requestRefusalMessage(string $reason): string
+    {
+        return match ($reason) {
+            'cooldown' => 'You just sent us a request — give us a few minutes before opening another one.',
+            'capped' => 'You already have several open requests for this property. Message your coordinator in the Messages tab and we will help.',
+            'duplicate' => 'Looks like you have already told us about this — we are on it. Message your coordinator in the Messages tab if anything has changed.',
+            default => 'We could not open your request just now. Please message your coordinator in the Messages tab.',
+        };
     }
 
     /**
