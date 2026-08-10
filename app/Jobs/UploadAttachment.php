@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Models\Attachments;
+use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,60 +12,134 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Spatie\ImageOptimizer\OptimizerChainFactory;
+use Throwable;
 
+/**
+ * Mirror a work order attachment (before/after photos and files) to the
+ * PropertyWare work order's documents.
+ *
+ * pw_file_name on the attachment row stays null until PropertyWare confirms
+ * the upload; the document sync uses that name to skip re-importing our own
+ * upload, so writing it early would permanently mask a failed push. A false
+ * from the service is converted into a throw so $tries/$backoff actually arm —
+ * the old inline call swallowed every failure and could never retry.
+ */
 class UploadAttachment implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $data;
+    public int $tries = 3;
 
-    public $tries = 3;
+    public int $backoff = 10;
 
-    public $backoff = 10;
+    public int $attachmentId;
 
     /**
-     * Create a new job instance.
+     * Frozen at dispatch time so every retry uploads under the same
+     * PropertyWare filename — a per-attempt timestamp would strand a partial
+     * success under a name the app cannot match.
      */
-    public function __construct($data)
+    public string $pwFileName;
+
+    public function __construct(Attachments $attachment)
     {
-        $this->data = $data;
+        $this->attachmentId = $attachment->id;
+        $this->pwFileName = self::propertyWareFileName($attachment);
+    }
+
+    /**
+     * The PropertyWare filename for an attachment, deterministic from row data
+     * alone: the repair sweep recomputes it to check whether the upload already
+     * landed, and the embedded id keeps same-title bulk uploads distinct.
+     */
+    public static function propertyWareFileName(Attachments $attachment): string
+    {
+        $cleaned = str_replace(' ', '_', $attachment->title ?? '');
+        $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
+        $sanitized = preg_replace('/[^a-zA-Z0-9_\-]/', '', $cleaned);
+
+        if ($sanitized === '' || $sanitized === null) {
+            $sanitized = 'Attachment';
+        }
+
+        return $sanitized.'_'.$attachment->id.'_'.$attachment->created_at->format('Ymd')
+            .'.'.pathinfo($attachment->filename, PATHINFO_EXTENSION);
     }
 
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(PropertyWareService $propertyWare): void
     {
-        $validatedData = [
-            'title' => $this->data->title,
-            'type' => $this->data->type,
-            'filename' => $this->data->filename,
-            'filetype' => $this->data->filetype,
-            'is_publish_to_tenant_portal' => $this->data->is_publish_to_tenant_portal,
-            'is_publish_to_owner_portal' => $this->data->is_publish_to_owner_portal,
-        ];
+        $attachment = Attachments::withoutGlobalScopes()->find($this->attachmentId);
+
+        if (! $attachment) {
+            return;
+        }
+
+        $workOrder = WorkOrder::withoutGlobalScopes()->find($attachment->work_order_id);
+
+        if (! $workOrder?->propertyware_id) {
+            // Not retryable here, but the daily repair sweep picks the row up
+            // if the work order gets linked to PropertyWare later.
+            Log::warning('Attachment upload skipped: work order has no PropertyWare id.', [
+                'attachment_id' => $this->attachmentId,
+                'work_order_id' => $attachment->work_order_id,
+            ]);
+
+            return;
+        }
+
+        if (! Storage::disk('public')->exists($attachment->filename)) {
+            // Retrying cannot conjure the file back; fail straight to failed_jobs.
+            $this->fail(new Exception('Attachment file missing from public disk: '.$attachment->filename));
+
+            return;
+        }
 
         // Optimize image before uploading to PropertyWare (huge win for iPhone photos)
-        $this->optimizeImage($validatedData['filename']);
+        $this->optimizeImage($attachment->filename);
 
-        $propertyware = new PropertyWareService;
+        $uploaded = $propertyWare->uploadVendorAttachment($attachment->work_order_id, [
+            'title' => $attachment->title,
+            'type' => $attachment->type,
+            'filename' => $attachment->filename,
+            'filetype' => $attachment->filetype,
+            'is_publish_to_tenant_portal' => (bool) $attachment->is_publish_to_tenant_portal,
+            // Before/after repair photos are always published to the PropertyWare
+            // owner portal — the owner is who the photos are taken for. Plain
+            // attachments keep following the upload dialog's checkbox. The local
+            // row is untouched; only the PropertyWare copy is affected.
+            'is_publish_to_owner_portal' => in_array($attachment->type, ['before', 'after'], true)
+                ? true
+                : (bool) $attachment->is_publish_to_owner_portal,
+        ], $this->pwFileName);
 
-        try {
-            $uploaded = $propertyware->uploadVendorAttachment($this->data->work_order_id, $validatedData);
-
-            // Record the exact PropertyWare filename so the document pull can skip
-            // re-importing this upload as a duplicate work order document.
-            if (is_string($uploaded) && $uploaded !== '') {
-                $this->data->forceFill(['pw_file_name' => $uploaded])->save();
-            }
-        } catch (Exception $e) {
-            Log::error('Upload failed', [
-                'filename' => $this->data->filename,
-                'message' => $e->getMessage(),
-            ]);
-            throw $e; // allows retry
+        if ($uploaded === false || $uploaded === '') {
+            // The service logs the response and returns false; throwing is what
+            // arms $tries/$backoff — the old inline call could never retry.
+            throw new Exception('PropertyWare rejected the attachment upload for attachment '.$this->attachmentId);
         }
+
+        // Record the exact PropertyWare filename so the document pull can skip
+        // re-importing this upload as a duplicate work order document.
+        $attachment->forceFill(['pw_file_name' => $this->pwFileName])->save();
+    }
+
+    /**
+     * All retries exhausted: PropertyWare has no copy of the attachment. The
+     * row stays in failed_jobs for a manual retry, and the daily
+     * attachments:repair-pw-uploads sweep re-dispatches it on its own.
+     */
+    public function failed(Throwable $exception): void
+    {
+        Log::error('Attachment upload to PropertyWare permanently failed.', [
+            'attachment_id' => $this->attachmentId,
+            'pw_file_name' => $this->pwFileName,
+            'error' => $exception->getMessage(),
+        ]);
     }
 
     /**
@@ -71,7 +147,7 @@ class UploadAttachment implements ShouldQueue
      */
     protected function optimizeImage(string $filename): void
     {
-        $absolutePath = public_path('storage/'.$filename);
+        $absolutePath = Storage::disk('public')->path($filename);
 
         if (! file_exists($absolutePath)) {
             return;

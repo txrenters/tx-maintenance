@@ -139,6 +139,17 @@ Schedule::command('owner-emails:sync-replies')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Self-healing backstop for the photo/attachment mirror to PropertyWare: any
+// upload whose confirmation never landed (pw_file_name still null) is checked
+// against PropertyWare and re-dispatched, so a silently lost photo cannot stay
+// lost past a day. Steady state is zero candidates, which means zero
+// PropertyWare API calls.
+Schedule::command('attachments:repair-pw-uploads')
+    ->timezone('America/Chicago')
+    ->dailyAt('02:00')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Courtesy closers: ask the AI which newest inbound messages are just "thank
 // you" / "ok great" so the awaiting-reply badge, Inbox and unanswered report
 // stop holding those threads open. Fails open - an unjudged message or an AI

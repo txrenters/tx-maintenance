@@ -13,6 +13,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class PropertyWareService
@@ -1118,34 +1119,49 @@ class PropertyWareService
 
     }
 
-    public function uploadVendorAttachment($workOrderId, $attachment)
+    /**
+     * @param  array{title: ?string, filename: string, is_publish_to_owner_portal: bool, is_publish_to_tenant_portal: bool}  $attachment
+     * @param  ?string  $fileName  PropertyWare filename frozen by the caller; retries must
+     *                             reuse the same name so a partial success never strands a
+     *                             document under a name the app cannot match.
+     * @return string|false the PropertyWare filename on success, false on any failure
+     */
+    public function uploadVendorAttachment($workOrderId, $attachment, ?string $fileName = null)
     {
         try {
 
             $workOrder = WorkOrder::find($workOrderId);
 
-            $absolutePath = public_path('storage/attachments/'.basename($attachment['filename']));
+            if (! $workOrder?->propertyware_id) {
+                Log::warning('Attachment upload skipped: work order missing or has no PropertyWare id', [
+                    'work_order_id' => $workOrderId,
+                    'filename' => $attachment['filename'] ?? null,
+                ]);
 
-            if (! file_exists($absolutePath)) {
-                throw new Exception('File does not exist: '.$absolutePath);
+                return false;
             }
 
-            $title = $attachment['title'] ?? 'Invoice';
+            if (! Storage::disk('public')->exists($attachment['filename'])) {
+                throw new Exception('File does not exist on public disk: '.$attachment['filename']);
+            }
 
-            // Replace spaces with underscores
-            $cleaned = str_replace(' ', '_', $title);
+            if ($fileName === null) {
+                $title = $attachment['title'] ?? 'Invoice';
 
-            // Replace slashes and other unsafe characters with dashes or remove them
-            $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
+                // Replace spaces with underscores
+                $cleaned = str_replace(' ', '_', $title);
 
-            // Optional: remove anything that's not alphanumeric, underscore, or dash
-            $sanitized = preg_replace('/[^a-zA-Z0-9_\-]/', '', $cleaned);
+                // Replace slashes and other unsafe characters with dashes or remove them
+                $cleaned = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $cleaned);
 
-            // Ensure filename is always unique
-            $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($attachment['filename'], PATHINFO_EXTENSION);
+                // Optional: remove anything that's not alphanumeric, underscore, or dash
+                $sanitized = preg_replace('/[^a-zA-Z0-9_\-]/', '', $cleaned);
 
-            // Read file once (fixed duplicate read)
-            $fileContents = file_get_contents($absolutePath);
+                // Ensure filename is always unique
+                $fileName = $sanitized.'_'.now()->format('Ymd_His').'.'.pathinfo($attachment['filename'], PATHINFO_EXTENSION);
+            }
+
+            $fileContents = Storage::disk('public')->get($attachment['filename']);
 
             $formFields = [
                 'entityId' => $workOrder->propertyware_id,
@@ -1170,6 +1186,12 @@ class PropertyWareService
                     ]);
 
                 if (! $putResponse->successful()) {
+                    // The document already exists in PropertyWare at this point, but
+                    // without its metadata (description, portal publish flags) it does
+                    // not serve its purpose — report failure so the caller retries.
+                    // With a frozen $fileName the retry re-posts under the same name,
+                    // so the worst case is a same-named duplicate PropertyWare can
+                    // show twice, which documents:dedupe / staff can clean up.
                     Log::error('Failed to update attachment metadata', [
                         'doc_id' => $postData['id'],
                         'status' => $putResponse->status(),
