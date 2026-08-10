@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\UploadHoaNoticeToPropertyWare;
 use App\Models\Attachments;
 use App\Models\Building;
 use App\Models\ServiceStatus;
@@ -229,28 +230,26 @@ class HoaViolationIntakeService
 
         Storage::disk('public')->put($storedPath, $noticeContents);
 
-        Attachments::create([
+        $attachment = Attachments::create([
             'title' => 'HOA violation notice',
             'filename' => $storedPath,
             'filetype' => $mime,
             'type' => 'attachment',
             'work_order_id' => $workOrder->id,
             'user_id' => auth()->id() ?? $workOrder->requested_by?->user_id ?? User::query()->value('id'),
-            'pw_file_name' => $fileName,
+            // pw_file_name stays null until the queued upload confirms; the
+            // document sync skips names it finds here, so an early write would
+            // permanently hide a notice whose push failed.
             // Staff put the notice here themselves — never badge it as new.
             'viewed_by_staff_at' => now(),
             'created_at' => now(),
         ]);
 
         // PropertyWare's upload endpoint expects a PDF; only push when the notice
-        // is one (a photo upload still lives on the local work order).
+        // is one (a photo upload still lives on the local work order). Queued
+        // with retries — a transient PropertyWare error must not lose the notice.
         if ($workOrder->propertyware_id && $mime === 'application/pdf') {
-            $this->propertyWare->uploadWorkOrderPdf(
-                (string) $workOrder->propertyware_id,
-                $noticeContents,
-                $fileName,
-                'HOA violation notice uploaded via the maintenance app.'
-            );
+            UploadHoaNoticeToPropertyWare::dispatch($attachment->id, $fileName);
         }
     }
 

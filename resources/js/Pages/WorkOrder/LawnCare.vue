@@ -463,6 +463,7 @@ const fetchVendorServiceSchedules = async (workOrderId) => {
 };
 
 const workOrderAttachments = ref([]);
+const workOrderDocuments = ref([]);
 const { unseenAttachments, buttonsWithAttachmentBadge } =
     useUnseenAttachments(tabButtons);
 const fetchAttachments = async (workOrderId) => {
@@ -473,6 +474,7 @@ const fetchAttachments = async (workOrderId) => {
         );
 
         workOrderAttachments.value = response.data.attachments;
+        workOrderDocuments.value = response.data.documents ?? [];
         // The server marks everything viewed when staff load the tab.
         unseenAttachments.value = 0;
     } catch (error) {
@@ -1108,6 +1110,7 @@ const page = usePage();
 
             <Attachments
                 :workOrderAttachments="workOrderAttachments"
+                :workOrderDocuments="workOrderDocuments"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-attachments="fetchAttachments(workOrderForm.id)"

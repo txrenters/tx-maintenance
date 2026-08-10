@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\UploadHoaNoticeToPropertyWare;
+use App\Models\Attachments;
 use App\Models\Building;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
@@ -631,5 +633,90 @@ class HoaViolationIntakeTest extends TestCase
                 'file' => UploadedFile::fake()->create('notes.txt', 10, 'text/plain'),
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertSessionHasErrors('file');
+    }
+
+    public function test_the_notice_upload_to_propertyware_is_queued_and_the_name_waits_for_confirmation(): void
+    {
+        config(['services.hoa.pw_create_enabled' => true]);
+        Storage::fake('public');
+        Queue::fake();
+
+        $this->mockPropertyWare('88999');
+        WorkOrder::factory()->create([
+            'propertyware_id' => '88999',
+            'work_order_no' => 55123,
+            'category' => 'Maintenance',
+        ]);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        $attachment = Attachments::withoutGlobalScopes()
+            ->where('title', 'HOA violation notice')
+            ->firstOrFail();
+
+        // The push now runs on the queue with retries, replacing the old inline
+        // call whose failures were swallowed while intake reported success.
+        Queue::assertPushed(UploadHoaNoticeToPropertyWare::class, function (UploadHoaNoticeToPropertyWare $job) use ($attachment) {
+            return $job->attachmentId === $attachment->id
+                && str_starts_with($job->pwFileName, 'HOA Notice - WO55123 - ');
+        });
+
+        // Null until PropertyWare confirms — the document sync skips names it
+        // finds here, so an eager write would hide a failed upload forever.
+        $this->assertNull($attachment->pw_file_name);
+    }
+
+    public function test_no_upload_is_queued_for_a_local_only_work_order(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        // Nothing to push to: the work order only exists locally.
+        Queue::assertNotPushed(UploadHoaNoticeToPropertyWare::class);
+    }
+
+    public function test_no_upload_is_queued_for_a_photo_notice(): void
+    {
+        config(['services.hoa.pw_create_enabled' => true]);
+        Storage::fake('public');
+        Queue::fake();
+
+        $this->mockPropertyWare('88999');
+        WorkOrder::factory()->create([
+            'propertyware_id' => '88999',
+            'work_order_no' => 55123,
+            'category' => 'Maintenance',
+        ]);
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        // PropertyWare's upload endpoint expects a PDF; a phone photo stays on
+        // the local work order only.
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->image('notice.jpg'),
+                'notices' => [$this->notice($building->propertyware_id)],
+            ])->assertRedirect();
+
+        Queue::assertNotPushed(UploadHoaNoticeToPropertyWare::class);
     }
 }
