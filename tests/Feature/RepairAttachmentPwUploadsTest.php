@@ -166,6 +166,41 @@ class RepairAttachmentPwUploadsTest extends TestCase
         $this->assertNull($landed->refresh()->pw_file_name);
     }
 
+    public function test_the_work_order_option_scopes_the_sweep_to_that_work_order_only(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $target = WorkOrder::factory()->create(['propertyware_id' => '777', 'work_order_no' => 43487]);
+        $other = WorkOrder::factory()->create(['propertyware_id' => '888', 'work_order_no' => 55123]);
+        $targetAttachment = $this->photoAttachment($target);
+        $this->photoAttachment($other);
+
+        // Only the target's documents are listed; the mock throws if the
+        // other work order is queried.
+        $this->mockDocuments(['777' => []]);
+
+        $this->artisan('attachments:repair-pw-uploads --work-order=43487')->assertExitCode(0);
+
+        Queue::assertPushed(UploadAttachment::class, 1);
+        Queue::assertPushed(UploadAttachment::class, fn (UploadAttachment $job) => $job->attachmentId === $targetAttachment->id);
+    }
+
+    public function test_an_unknown_work_order_number_fails_without_doing_anything(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => '999', 'work_order_no' => 43487]);
+        $this->photoAttachment($workOrder);
+
+        $this->mockDocuments([]);
+
+        $this->artisan('attachments:repair-pw-uploads --work-order=99999')->assertExitCode(1);
+
+        Queue::assertNotPushed(UploadAttachment::class);
+    }
+
     public function test_local_only_work_orders_are_skipped_without_calling_propertyware(): void
     {
         Queue::fake();

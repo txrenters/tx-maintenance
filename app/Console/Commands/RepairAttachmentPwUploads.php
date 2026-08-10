@@ -31,7 +31,8 @@ class RepairAttachmentPwUploads extends Command
     protected $signature = 'attachments:repair-pw-uploads
         {--dry-run : Report what would be re-uploaded without dispatching or writing anything}
         {--days=14 : Only consider attachments created within this many days}
-        {--limit=100 : Maximum attachments to process per run}';
+        {--limit=100 : Maximum attachments to process per run}
+        {--work-order= : Only consider attachments on this work order number}';
 
     /**
      * The console command description.
@@ -48,9 +49,25 @@ class RepairAttachmentPwUploads extends Command
         $dryRun = (bool) $this->option('dry-run');
         $days = max(1, (int) $this->option('days'));
         $limit = max(1, (int) $this->option('limit'));
+        $workOrderNo = $this->option('work-order');
+
+        $targetWorkOrder = null;
+
+        if ($workOrderNo !== null) {
+            $targetWorkOrder = WorkOrder::withoutGlobalScopes()
+                ->where('work_order_no', $workOrderNo)
+                ->first();
+
+            if (! $targetWorkOrder) {
+                $this->error("No work order found with number {$workOrderNo}.");
+
+                return self::FAILURE;
+            }
+        }
 
         $candidates = Attachments::withoutGlobalScopes()
             ->whereNull('pw_file_name')
+            ->when($targetWorkOrder, fn ($query) => $query->where('work_order_id', $targetWorkOrder->id))
             // HOA notice PDFs have their own job and repair command.
             ->where(fn ($query) => $query
                 ->where('title', '!=', 'HOA violation notice')
