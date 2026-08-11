@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AppSetting;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Runtime kill-switch for Jobber's automated outbound messages, flipped from
@@ -49,7 +50,19 @@ class JobberAutomationSettings
      */
     public static function disabled(): array
     {
-        $stored = AppSetting::getValue(self::KEY, []);
+        // Fail OPEN on any read failure (e.g. the app_settings migration has
+        // not run on the server yet): a missing kill-switch must mean
+        // "automation runs as before", never a crashed reminder command or a
+        // failed vendor-notification job.
+        try {
+            $stored = AppSetting::getValue(self::KEY, []);
+        } catch (\Throwable $exception) {
+            Log::warning('Jobber automation settings unreadable; treating all automations as enabled.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
 
         return is_array($stored) ? array_values($stored) : [];
     }

@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -104,6 +105,18 @@ class JobberAutomationSettingsTest extends TestCase
         ])->assertForbidden();
 
         $this->assertFalse(JobberAutomationSettings::masterOff());
+    }
+
+    public function test_a_missing_settings_table_fails_open_instead_of_crashing_senders(): void
+    {
+        // Simulates a deploy where the code lands before the app_settings
+        // migration has run on the server: every automation must read as
+        // enabled and nothing may throw.
+        Schema::drop('app_settings');
+
+        $this->assertFalse(JobberAutomationSettings::masterOff());
+        $this->assertFalse(JobberAutomationSettings::isDisabled('tenant_job_reminder_sms'));
+        $this->assertSame([], JobberAutomationSettings::disabled());
     }
 
     public function test_unknown_automation_keys_are_rejected(): void
