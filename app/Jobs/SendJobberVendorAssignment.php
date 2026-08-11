@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\Vendor;
 use App\Services\AutomatedMessageLogService;
+use App\Services\JobberAutomationSettings;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -72,7 +73,10 @@ class SendJobberVendorAssignment implements ShouldQueue
 
         $details = $this->details($job, $vendor);
 
-        if (filled($vendor->email)) {
+        // The header kill-switch on the Jobber pages. Checked per channel after
+        // the claim above, so flipping a switch back on later never blasts the
+        // backlog either — messages skipped while off are dropped, not queued.
+        if (! JobberAutomationSettings::isDisabled('vendor_jobber_assignment_email') && filled($vendor->email)) {
             try {
                 Mail::to($vendor->email)->send(new JobberVendorAssignmentMail(...$details));
 
@@ -91,6 +95,10 @@ class SendJobberVendorAssignment implements ShouldQueue
                     'error' => $exception->getMessage(),
                 ]);
             }
+        }
+
+        if (JobberAutomationSettings::isDisabled('vendor_jobber_assignment_sms')) {
+            return;
         }
 
         try {

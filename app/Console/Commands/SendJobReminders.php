@@ -8,6 +8,7 @@ use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Models\Tenants;
 use App\Services\AutomatedMessageLogService;
+use App\Services\JobberAutomationSettings;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
@@ -305,6 +306,21 @@ class SendJobReminders extends Command
             return;
         }
 
+        // The header kill-switch on the Jobber pages, read once per run and
+        // checked BEFORE any visit is flagged as notified — a gate below the
+        // flag write at the top of the visit loop would burn the reminder
+        // permanently. With both channels off nothing is flagged, so flipping
+        // back on within the 7/3-day window resumes cleanly.
+        $smsDisabled = JobberAutomationSettings::isDisabled('tenant_job_reminder_sms');
+        $emailDisabled = JobberAutomationSettings::isDisabled('tenant_job_reminder_email');
+
+        if ($smsDisabled && $emailDisabled) {
+            $this->info('Jobber automation toggle: tenant visit reminders are off; skipping '.$scheduled_date->toDateString());
+            Log::info('Job reminders skipped: automation toggled off', ['date' => $scheduled_date->toDateString()]);
+
+            return;
+        }
+
         $visits = JobberVisit::with(['job.client'])
             ->whereDate('start_at', $scheduled_date)
             ->whereNull('completed_at')
@@ -549,6 +565,17 @@ class SendJobReminders extends Command
             // Mark visit as notified BEFORE sending to prevent duplicates if script crashes mid-send
             $visit->{$notifiedField} = true;
             $visit->save();
+
+            // With only one channel muted the visit is still flagged by the
+            // other, so the muted channel's copy is dropped, not queued —
+            // "off means dropped", same as the vendor-assignment gate.
+            if ($smsDisabled) {
+                $uniqueRecipients = [];
+            }
+
+            if ($emailDisabled) {
+                $uniqueEmails = [];
+            }
 
             foreach ($uniqueRecipients as $recipient) {
                 $phoneNumber = $recipient['phone'];

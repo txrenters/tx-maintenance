@@ -104,6 +104,7 @@ import {
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import { useNotificationToasts } from "@/composables/useNotificationToasts";
 import MessageCard from "@/Components/MessageCard.vue";
+import JobberAutomationToggle from "@/Components/JobberAutomationToggle.vue";
 import BoardSummaryDialog from "@/Components/WorkOrder/BoardSummaryDialog.vue";
 import MessageAlertToast from "@/Components/WorkOrder/MessageAlertToast.vue";
 import { friendlyTwilioError } from "@/utils/twilioErrorCatalog.js";
@@ -226,6 +227,22 @@ const canReceiveMessageAlerts = computed(() => {
     const userRoles = page.props.auth.user.roles || [];
 
     return ["admin", "woc"].some((role) => userRoles.includes(role));
+});
+
+// The Jobber automation kill-switch in the header: only on the Jobber section
+// pages, and only for the roles allowed to flip it (admin + WOC — the
+// endpoint enforces the same gate server-side).
+const showJobberAutomationToggle = computed(() => {
+    const userRoles = page.props.auth.user.roles || [];
+    const onJobberPage =
+        page.url.startsWith("/inspections") ||
+        page.url.startsWith("/visits") ||
+        page.url.startsWith("/jobber-text-messages");
+
+    return (
+        onJobberPage &&
+        ["admin", "woc"].some((role) => userRoles.includes(role))
+    );
 });
 
 const messageAlerts = useMessageAlerts({
@@ -1444,6 +1461,9 @@ onUnmounted(() => {
                     <div class="flex justify-between w-full">
                         <BreadcrumbContainer :title="page.props.title" />
                         <div class="mr-5 flex gap-2">
+                            <JobberAutomationToggle
+                                v-if="showJobberAutomationToggle"
+                            />
                             <Button
                                 @click="openSearch"
                                 variant="icon"

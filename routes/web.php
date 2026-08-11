@@ -27,6 +27,7 @@ use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\ItToolsController;
 use App\Http\Controllers\JobberAuthController;
+use App\Http\Controllers\JobberAutomationSettingsController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberTextMessageController;
@@ -154,6 +155,11 @@ Route::middleware([
     Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
+
+    // App-wide Jobber automation kill-switch (header toggle on the Jobber
+    // pages). Admin + WOC, enforced in the controller.
+    Route::get('/jobber/automation-settings', [JobberAutomationSettingsController::class, 'show'])->name('jobber.automation.show');
+    Route::patch('/jobber/automation-settings', [JobberAutomationSettingsController::class, 'update'])->name('jobber.automation.toggle');
 
     // Staff changelog of every update shipped to the system (admin + woc).
     Route::get('/whats-new', [FeatureUpdatesController::class, 'index'])->name('whats-new');
