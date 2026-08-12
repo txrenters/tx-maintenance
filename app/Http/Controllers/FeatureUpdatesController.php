@@ -21,6 +21,48 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-12',
+            'area' => 'Jobber',
+            'title' => 'Day-before reminder for TBP visits',
+            'description' => 'Tenants with a Tenant Benefit Package visit scheduled for tomorrow now get a final courtesy text and email at 8:00 AM the day before, on top of the existing 7-day and 3-day notices. The automation switches on the Jobber pages cover it.',
+        ],
+        [
+            'date' => '2026-08-12',
+            'area' => 'Jobber',
+            'title' => 'Automation switches on the Jobber pages',
+            'description' => 'The Jobber pages have a new Automations control in the header: a master switch plus individual switches for the tenant visit reminders and vendor assignment messages, so any of them can be paused instantly without IT.',
+        ],
+        [
+            'date' => '2026-08-12',
+            'area' => 'Vendors',
+            'title' => 'Photo descriptions now optional for vendors',
+            'description' => 'Vendors can upload work photos without typing a description — the system fills in a sensible title automatically, so uploads are no longer blocked by the description box.',
+        ],
+        [
+            'date' => '2026-08-12',
+            'area' => 'Tenants',
+            'title' => 'Simpler tenant appointment texts',
+            'description' => 'The appointment confirmation and reminder texts no longer invite tenants to reply for a reschedule — they simply state the date and time and ask that someone 18 or older is home.',
+        ],
+        [
+            'date' => '2026-08-11',
+            'area' => 'Attachments',
+            'title' => 'Photos reach PropertyWare reliably again',
+            'description' => 'Work order photos upload to PropertyWare dependably again, and a repair sweep re-uploaded the ones that had silently failed.',
+        ],
+        [
+            'date' => '2026-08-11',
+            'area' => 'HOA',
+            'title' => 'HOA notice PDFs file into PropertyWare',
+            'description' => 'The violation notice PDF now lands in the PropertyWare work order\'s Documents section automatically when an HOA work order is created.',
+        ],
+        [
+            'date' => '2026-08-08',
+            'area' => 'Messaging',
+            'title' => 'Text reactions show as reaction chips',
+            'description' => 'When a tenant reacts to a text with a thumbs-up, heart, or similar, the conversation shows it as a small reaction chip on the original message instead of a confusing "Liked ..." text.',
+        ],
+        [
             'date' => '2026-08-08',
             'area' => 'Work Orders',
             'title' => 'Open in Jobber from every work order window',
