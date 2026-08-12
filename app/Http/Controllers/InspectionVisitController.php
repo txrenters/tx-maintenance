@@ -50,6 +50,7 @@ class InspectionVisitController extends Controller
                 'is_complete' => $visit->is_complete,
                 'notified_7_days' => $visit->notified_7_days,
                 'notified_3_days' => $visit->notified_3_days,
+                'notified_1_days' => $visit->notified_1_days,
                 'job' => [
                     'id' => $visit->job->id,
                     'job_number' => $visit->job->job_number,

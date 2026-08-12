@@ -22,6 +22,7 @@ class JobberVisit extends Model
             'is_complete' => 'boolean',
             'notified_7_days' => 'boolean',
             'notified_3_days' => 'boolean',
+            'notified_1_days' => 'boolean',
         ];
     }
 

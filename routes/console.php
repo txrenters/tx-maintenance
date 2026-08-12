@@ -60,6 +60,14 @@ Schedule::command('jobs:send-reminders')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Last reminder for TBP visits happening tomorrow. Runs earlier than the
+// 10:00 tiers on purpose; --days=1 leaves the 3/7-day defaults untouched.
+Schedule::command('jobs:send-reminders --days=1')
+    ->timezone('America/Chicago')
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('vendors:followup-unscheduled')
     ->timezone('America/Chicago')
     ->dailyAt('10:05')

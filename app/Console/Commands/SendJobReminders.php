@@ -32,7 +32,7 @@ class SendJobReminders extends Command
                             {--days=* : Send reminders only for the provided day offsets}
                             {--run-date= : Run reminders as if the command were executed on this date (Y-m-d)}
                             {--search : Search all TBP visits for the given date(s) against PropertyWare JSON without sending SMS}
-                            {--test-email= : Send a sample reminder email to the given address using the 7-day template, then exit}';
+                            {--test-email= : Send a sample reminder email to the given address using each reminder template, then exit}';
 
     /**
      * The console command description.
@@ -76,7 +76,21 @@ class SendJobReminders extends Command
             Warm regards,
             TexasRenters.com, LLC";
 
+        $notifyMessageFor1day = "Dear {CLIENT_NAME},\n
+            This is a friendly reminder that your scheduled visit for the * Pest control treatment * Air filter replacement * Occupied inspection is tomorrow, {SCHEDULED_DATE}.\n
+            Please note:\n
+                * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
+                * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
+                * Please make sure air filters are unobstructed - kindly move any furniture or items blocking access beforehand.
+            Thank you for your cooperation. Should you have any questions, feel free to reach out to us.\n
+            Warm regards,
+            TexasRenters.com, LLC";
+
         $reminderConfigurations = [
+            1 => [
+                'notified_field' => 'notified_1_days',
+                'message' => $notifyMessageFor1day,
+            ],
             3 => [
                 'notified_field' => 'notified_3_days',
                 'message' => $notifyMessageFor3days,
@@ -100,7 +114,7 @@ class SendJobReminders extends Command
             ->all();
 
         if ($invalidDays !== []) {
-            $this->error('Unsupported reminder day override(s): '.implode(', ', $invalidDays).'. Supported values: 3, 7.');
+            $this->error('Unsupported reminder day override(s): '.implode(', ', $invalidDays).'. Supported values: 1, 3, 7.');
 
             return self::FAILURE;
         }
@@ -111,6 +125,7 @@ class SendJobReminders extends Command
             $templates = [
                 7 => $notifyMessageFor7days,
                 3 => $notifyMessageFor3days,
+                1 => $notifyMessageFor1day,
             ];
 
             $testDaysOption = collect($this->option('days'))
@@ -119,7 +134,7 @@ class SendJobReminders extends Command
                 ->unique()
                 ->values();
 
-            $daysToSend = $testDaysOption->isEmpty() ? [7, 3] : $testDaysOption->all();
+            $daysToSend = $testDaysOption->isEmpty() ? [7, 3, 1] : $testDaysOption->all();
 
             foreach ($daysToSend as $day) {
                 $result = $this->sendTestEmail((string) $testEmail, $templates[$day], $day);
