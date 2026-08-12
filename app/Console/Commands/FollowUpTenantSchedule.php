@@ -272,7 +272,7 @@ class FollowUpTenantSchedule extends Command
         return TenantMessageFormatter::paragraphs([
             $greeting,
             'This is TexasRenters.com Maintenance. '.$line,
-            'Please make sure someone 18 or older is home to let the technician in. If that time no longer works, just reply here and we will help reschedule.',
+            'Please make sure someone 18 or older is home to let the technician in.',
             'Thank you!',
         ]);
     }

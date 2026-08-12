@@ -128,7 +128,7 @@ class TenantAppointmentNotificationService
 
     /**
      * The tenant-facing appointment message: when the vendor is coming, who
-     * they are, and a nudge to tell us if the time does not work.
+     * they are, and a reminder to have the property accessible.
      */
     private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder): string
     {
@@ -147,7 +147,7 @@ class TenantAppointmentNotificationService
             $greeting,
             "This is TexasRenters.com Maintenance. The service appointment for your home{$property} has been scheduled with {$vendorName}.",
             $when !== '' ? "Scheduled: {$when}" : null,
-            'Please make sure someone 18 or older is home to let the technician in. If that time does not work for you, just reply here and we will help reschedule.',
+            'Please make sure someone 18 or older is home to let the technician in.',
             'Thank you!',
         ]);
     }
