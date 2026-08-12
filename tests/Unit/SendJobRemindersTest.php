@@ -103,6 +103,38 @@ class SendJobRemindersTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_it_sends_the_one_day_reminder_when_requested(): void
+    {
+        Carbon::setTestNow('2026-03-31 08:00:00');
+
+        $command = new class extends SendJobReminders
+        {
+            /** @var array<int, array{date: string, field: string}> */
+            public array $calls = [];
+
+            protected function sendMessages(Carbon $scheduled_date, string $notifiedField, string $messageText): void
+            {
+                $this->calls[] = [
+                    'date' => $scheduled_date->toDateString(),
+                    'field' => $notifiedField,
+                ];
+            }
+        };
+
+        $command->setLaravel($this->app);
+
+        $exitCode = $command->run(new ArrayInput([
+            '--days' => ['1'],
+        ]), new BufferedOutput);
+
+        $this->assertSame(Command::SUCCESS, $exitCode);
+        $this->assertSame([
+            ['date' => '2026-04-01', 'field' => 'notified_1_days'],
+        ], $command->calls);
+
+        Carbon::setTestNow();
+    }
+
     public function test_it_rejects_unsupported_manual_day_overrides(): void
     {
         Carbon::setTestNow('2026-03-31 10:00:00');
@@ -126,7 +158,7 @@ class SendJobRemindersTest extends TestCase
 
         $this->assertSame(Command::FAILURE, $exitCode);
         $this->assertFalse($command->wasCalled);
-        $this->assertStringContainsString('Unsupported reminder day override(s): 5. Supported values: 3, 7.', $output->fetch());
+        $this->assertStringContainsString('Unsupported reminder day override(s): 5. Supported values: 1, 3, 7.', $output->fetch());
 
         Carbon::setTestNow();
     }
