@@ -98,22 +98,30 @@ class JobberVendorPortalController extends Controller
         $this->abortIfClosed($job);
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
+            'title' => 'nullable|string|max:255',
             'type' => 'nullable|in:before,after,attachment',
             'files' => 'required|array|min:1',
             'files.*' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt|max:51200',
         ]);
 
         try {
+            $type = $validated['type'] ?? 'after';
+            $title = trim($validated['title'] ?? '');
+            if ($title === '') {
+                $title = $type === 'attachment'
+                    ? 'Vendor attachment - Job #'.$job->job_number
+                    : 'Vendor photo ('.$type.') - Job #'.$job->job_number;
+            }
+
             foreach ($request->file('files') as $file) {
                 JobberJobAttachment::create([
                     'jobber_job_id' => $job->id,
                     'user_id' => $vendor->user_id,
                     'vendor_id' => $vendor->id,
-                    'title' => $validated['title'],
+                    'title' => $title,
                     'filename' => $file->store('jobber-attachments', 'public'),
                     'filetype' => $file->getMimeType(),
-                    'type' => $validated['type'] ?? 'after',
+                    'type' => $type,
                     'uploaded_via' => 'vendor_portal',
                 ]);
             }

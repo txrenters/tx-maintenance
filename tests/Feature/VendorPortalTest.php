@@ -299,6 +299,49 @@ class VendorPortalTest extends TestCase
         Queue::assertPushed(UploadAttachment::class);
     }
 
+    public function test_vendor_can_upload_photo_without_a_description(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'type' => 'before',
+            'files' => [UploadedFile::fake()->image('leak.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendor->user_id,
+            'type' => 'before',
+            'title' => 'Vendor photo (before) - WO#4567',
+        ]);
+    }
+
+    public function test_blank_description_falls_back_to_a_generated_title(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.attachments', 'token-acme'), [
+            'title' => '   ',
+            'type' => 'attachment',
+            'files' => [UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attachments', [
+            'work_order_id' => $workOrder->id,
+            'title' => 'Vendor attachment - WO#4567',
+        ]);
+    }
+
     public function test_portal_shows_only_tasks_assigned_to_the_vendor(): void
     {
         $vendor = $this->makeVendor('V-1', 'Acme Plumbing');

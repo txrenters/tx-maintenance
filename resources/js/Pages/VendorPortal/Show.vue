@@ -245,10 +245,10 @@ const removeSelectedFile = (index) => {
 };
 
 const uploadPhotos = () => {
-    if (selectedFiles.value.length === 0 || !photoTitle.value.trim()) return;
+    if (selectedFiles.value.length === 0) return;
     uploading.value = true;
     const data = new FormData();
-    data.append("title", photoTitle.value);
+    data.append("title", photoTitle.value.trim());
     data.append("type", photoType.value);
     selectedFiles.value.forEach((file) => data.append("files[]", file));
 
@@ -976,7 +976,7 @@ const confirmCompleteTask = () => {
                             <div>
                                 <label
                                     class="text-xs font-medium text-muted-foreground"
-                                    >Description</label
+                                    >Description (optional)</label
                                 >
                                 <input
                                     v-model="photoTitle"
@@ -986,7 +986,8 @@ const confirmCompleteTask = () => {
                                 />
                                 <p class="mt-1 text-xs text-muted-foreground">
                                     This name is sent to PropertyWare and shown
-                                    to the owner & tenant.
+                                    to the owner & tenant. Leave it blank and
+                                    one is filled in for you.
                                 </p>
                             </div>
 
@@ -1069,7 +1070,7 @@ const confirmCompleteTask = () => {
                             <button
                                 v-if="selectedFiles.length"
                                 type="button"
-                                :disabled="uploading || !photoTitle.trim()"
+                                :disabled="uploading"
                                 class="w-full rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
                                 @click="uploadPhotos"
                             >
