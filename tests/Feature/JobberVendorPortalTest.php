@@ -186,6 +186,29 @@ class JobberVendorPortalTest extends TestCase
         $this->assertDatabaseCount('attachments', 0);
     }
 
+    public function test_a_vendor_can_upload_photos_without_a_title(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        Http::fake();
+
+        $job = $this->makeJob();
+        $vendor = $this->makeVendor();
+        $token = $this->assign($job, $vendor, str_repeat('i', 48));
+
+        $this->post(route('jobber.portal.attachments', $token), [
+            'type' => 'before',
+            'files' => [UploadedFile::fake()->image('before.jpg')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('jobber_job_attachments', [
+            'jobber_job_id' => $job->id,
+            'vendor_id' => $vendor->id,
+            'type' => 'before',
+            'title' => 'Vendor photo (before) - Job #3001',
+        ]);
+    }
+
     public function test_a_vendor_can_upload_an_invoice_attributed_to_themselves(): void
     {
         Storage::fake('public');

@@ -43,13 +43,13 @@ const handlePhotoSelect = (event) => {
 };
 
 const uploadPhotos = () => {
-  if (!photoForm.value.title.trim() || photoForm.value.files.length === 0) {
-    toast({ variant: "destructive", title: "Error", description: "Add a title and choose at least one photo." });
+  if (photoForm.value.files.length === 0) {
+    toast({ variant: "destructive", title: "Error", description: "Choose at least one photo." });
     return;
   }
 
   const formData = new FormData();
-  formData.append("title", photoForm.value.title);
+  formData.append("title", photoForm.value.title.trim());
   formData.append("type", photoForm.value.type);
   photoForm.value.files.forEach((file) => formData.append("files[]", file));
 
@@ -157,7 +157,7 @@ const uploadInvoice = () => {
           </div>
           <div v-else class="space-y-2">
             <div>
-              <Label class="text-sm">Title</Label>
+              <Label class="text-sm">Title (optional)</Label>
               <Input v-model="photoForm.title" placeholder="e.g. Kitchen sink - after" />
             </div>
             <div>

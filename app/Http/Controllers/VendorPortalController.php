@@ -338,7 +338,7 @@ class VendorPortalController extends Controller
         $vendor = $request->attributes->get('portal_vendor');
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
+            'title' => 'nullable|string|max:255',
             'type' => 'nullable|in:before,after,attachment',
             'files' => 'required|array|min:1',
             'files.*' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt|max:51200',
@@ -346,10 +346,16 @@ class VendorPortalController extends Controller
 
         try {
             $type = $validated['type'] ?? 'after';
+            $title = trim($validated['title'] ?? '');
+            if ($title === '') {
+                $title = $type === 'attachment'
+                    ? 'Vendor attachment - WO#'.$workOrder->work_order_no
+                    : 'Vendor photo ('.$type.') - WO#'.$workOrder->work_order_no;
+            }
 
             foreach ($request->file('files') as $file) {
                 $attachment = Attachments::create([
-                    'title' => $validated['title'],
+                    'title' => $title,
                     'filename' => $file->store('attachments', 'public'),
                     'filetype' => $file->getMimeType(),
                     'type' => $type,
