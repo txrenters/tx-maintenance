@@ -51,6 +51,7 @@ use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TwilioMessageSearchController;
 use App\Http\Controllers\TwilioPhoneNumberController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VendorAssignmentNotificationController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorNotesController;
 use App\Http\Controllers\VendorPortalController;
@@ -218,6 +219,7 @@ Route::middleware([
     Route::post('/notification/messages', [ConversationController::class, 'get_conversation'])->name('work_order.notification_messages');
     Route::get('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'show'])->name('work_order.automation.show');
     Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
+    Route::post('/work_orders/{workOrder}/vendors/{vendor}/notify-assignment', [VendorAssignmentNotificationController::class, 'store'])->name('work_orders.vendor.notify_assignment');
 
     Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');

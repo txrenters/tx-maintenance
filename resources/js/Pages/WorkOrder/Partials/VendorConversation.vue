@@ -1,7 +1,10 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
+import axios from "axios";
+import { Send } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { Button } from "@/Components/ui/button";
 import MessageCard from "@/Components/MessageCard.vue";
 import {
     Select,
@@ -198,6 +201,45 @@ watch(
 onMounted(() => {
     scrollToBottom(true);
 });
+
+const notifyingAssignment = ref(false);
+
+// Manually (re)send the selected vendor their assignment email + text. The
+// automated dispatch only fires when a vendor is attached through the app's
+// own assign flow, so vendors assigned in PropertyWare — or whose contact
+// info was fixed later — need this button.
+const notifyAssignment = async () => {
+    if (!selectedVendor.value || notifyingAssignment.value) return;
+
+    notifyingAssignment.value = true;
+    try {
+        const { data } = await axios.post(
+            `/work_orders/${props.workOrder.id}/vendors/${selectedVendor.value}/notify-assignment`,
+        );
+        const channels = [
+            data.email ? "email" : null,
+            data.text ? "text" : null,
+        ]
+            .filter(Boolean)
+            .join(" + ");
+        toast({
+            title: "Vendor notified",
+            description: `Assignment ${channels} queued for the vendor.`,
+        });
+        setTimeout(() => emit("update-vendor-convo"), 4000);
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Could not notify vendor",
+            description:
+                error?.response?.data?.error ||
+                error?.response?.data?.message ||
+                "Please try again.",
+        });
+    } finally {
+        notifyingAssignment.value = false;
+    }
+};
 </script>
 
 <template>
@@ -207,11 +249,30 @@ onMounted(() => {
                 <p class="text-xs font-semibold uppercase tracking-wide">
                     Vendor ↔ Coordinator
                 </p>
-                <AutomationToggle
-                    v-if="workOrder?.id"
-                    :work-order-id="workOrder.id"
-                    channel="vendor"
-                />
+                <div class="flex items-center gap-2">
+                    <Button
+                        v-if="selectedVendor"
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        class="h-7 gap-1.5 text-xs"
+                        :disabled="notifyingAssignment"
+                        title="Send this vendor the assignment email and text (work order PDF + portal link)"
+                        @click="notifyAssignment"
+                    >
+                        <Send class="h-3.5 w-3.5" />
+                        {{
+                            notifyingAssignment
+                                ? "Sending..."
+                                : "Send assignment info"
+                        }}
+                    </Button>
+                    <AutomationToggle
+                        v-if="workOrder?.id"
+                        :work-order-id="workOrder.id"
+                        channel="vendor"
+                    />
+                </div>
             </div>
 
             <div
