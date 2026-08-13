@@ -177,6 +177,23 @@ class TenantAppointmentNotificationTest extends TestCase
         $this->assertNull($schedule->fresh()->tenant_notified_at);
     }
 
+    public function test_it_skips_a_property_with_no_lease_on_file(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        // WO#43485: a new-to-market home's work order imports with no lease,
+        // so its requested-by contact must not get the appointment text.
+        $schedule = $this->makeSchedule();
+        $schedule->work_order->update(['propertyware_id' => 43485001, 'lease_id' => null]);
+
+        $this->notify($schedule->fresh());
+
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($schedule->fresh()->tenant_notified_at);
+    }
+
     public function test_a_cancelled_schedule_is_never_announced(): void
     {
         config(['services.twilio.tenant_schedule_sms' => true]);

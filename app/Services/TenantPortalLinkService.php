@@ -115,6 +115,12 @@ class TenantPortalLinkService
                 return;
             }
 
+            // Easy-fix links follow the same vacancy rules as every other
+            // automated tenant message; the HOA window above keeps its own.
+            if ($workOrder->skipsAutomatedMessages()) {
+                return;
+            }
+
             if ($token->notified_count >= self::MAX_NOTIFICATIONS) {
                 return;
             }
@@ -163,6 +169,12 @@ class TenantPortalLinkService
 
     private function send(WorkOrder $workOrder): void
     {
+        // Checked before the token is claimed, so a mis-flagged work order
+        // still gets its link once the data is corrected.
+        if ($workOrder->skipsAutomatedMessages()) {
+            return;
+        }
+
         // One token per work order per purpose: if one exists, this work order
         // has already been sent its link (reminders are handled separately).
         $existing = TenantUploadToken::query()

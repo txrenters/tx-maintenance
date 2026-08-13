@@ -286,4 +286,56 @@ class TenantServiceRequestNotificationTest extends TestCase
             $this->tenantMessage($workOrder)->message,
         );
     }
+
+    public function test_it_skips_a_propertyware_work_order_with_no_lease_on_file(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // Imported from PropertyWare with no lease attached: the property is
+        // vacant / new to market, and requested_by is a leasing agent or
+        // former occupant rather than a tenant awaiting repairs (WO#43485).
+        $workOrder = $this->makeWorkOrder(['propertyware_id' => 43485001, 'lease_id' => null]);
+
+        $this->notify($workOrder);
+
+        $this->assertNull($this->tenantMessage($workOrder));
+        $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+
+        // Messages-only opt-out, like refresh/cleaning: vendors and owners
+        // keep their usual content, only the automated messages stop.
+        $this->assertFalse($workOrder->isVacant());
+        $this->assertTrue($workOrder->skipsAutomatedMessages());
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_a_lease_or_lease_tenants_keep_the_messages_flowing(): void
+    {
+        // A lease id alone is proof of an occupied home...
+        $leased = $this->makeWorkOrder(['propertyware_id' => 43485002, 'lease_id' => 555001]);
+        $this->assertFalse($leased->hasNoLeaseOnFile());
+
+        // ...as is the lease-tenant roster the import fills in.
+        $rostered = $this->makeWorkOrder(['propertyware_id' => 43485003, 'lease_id' => null]);
+        $rostered->tenants()->attach($this->makeTenant()->id);
+        $this->assertFalse($rostered->hasNoLeaseOnFile());
+
+        // A local-only row never came from PropertyWare, so it cannot claim
+        // PropertyWare reported no lease.
+        $local = $this->makeWorkOrder(['propertyware_id' => null, 'lease_id' => null]);
+        $this->assertFalse($local->hasNoLeaseOnFile());
+    }
+
+    public function test_app_created_work_orders_are_exempt_from_the_lease_check(): void
+    {
+        // Tenant portal requests are stamped at intake and HOA violations are
+        // recognised by isHoaViolation(); neither ever carries a PW lease, so
+        // the lease check must not silence them.
+        $portal = $this->makeWorkOrder(['propertyware_id' => 43485004, 'source' => 'Tenant Portal']);
+        $this->assertFalse($portal->hasNoLeaseOnFile());
+
+        $hoa = $this->makeWorkOrder(['propertyware_id' => 43485005, 'category' => WorkOrder::HOA_VIOLATION_CATEGORY]);
+        $this->assertFalse($hoa->hasNoLeaseOnFile());
+    }
 }

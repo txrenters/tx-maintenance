@@ -186,6 +186,28 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 
+    public function test_it_does_not_notify_a_property_with_no_lease_on_file(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant = $this->makeTenant();
+        $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->owners()->attach($owner->id);
+
+        // A PropertyWare work order with no lease attached is a vacant /
+        // new-to-market home, so the "submitted by your tenant" confirmation
+        // would be wrong for it.
+        $workOrder->update(['propertyware_id' => 43485001, 'lease_id' => null]);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
     public function test_it_does_not_notify_on_a_turnover_work_order(): void
     {
         $this->enableGate();

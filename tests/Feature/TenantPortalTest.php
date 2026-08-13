@@ -222,6 +222,39 @@ class TenantPortalTest extends TestCase
         $this->assertSame(3, $token->fresh()->notified_count);
     }
 
+    public function test_no_link_or_token_for_a_property_with_no_lease_on_file(): void
+    {
+        config(['services.twilio.tenant_portal_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->update(['propertyware_id' => 43485001, 'lease_id' => null]);
+
+        $this->artisan('tenant-portal:send-links')->assertSuccessful();
+
+        // No token is claimed, so importing the lease data later re-arms the link.
+        $this->assertDatabaseCount('tenant_upload_tokens', 0);
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
+    public function test_no_reminder_for_a_property_with_no_lease_on_file(): void
+    {
+        config(['services.twilio.tenant_portal_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $token = $this->makeToken($workOrder);
+        $token->update(['notified_count' => 1, 'last_notified_at' => now()->subWeekdays(3)]);
+        $workOrder->update(['propertyware_id' => 43485001, 'lease_id' => null]);
+
+        $this->artisan('tenant-portal:send-links')->assertSuccessful();
+
+        $this->assertSame(1, $token->fresh()->notified_count);
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+    }
+
     public function test_a_completed_request_gets_no_reminder(): void
     {
         config(['services.twilio.tenant_portal_sms' => true]);

@@ -184,13 +184,41 @@ class WorkOrder extends Model
     /**
      * Whether automated tenant/owner messages must stay silent for this work
      * order: vacant homes (turnover, re-key, the manual toggle) plus
-     * company-ordered refresh/cleaning jobs. Broader than isVacant() on
-     * purpose — a cleaning can happen while a tenant lives there, so vendors
-     * still get the tenant's contact info; only the automated messages stop.
+     * company-ordered refresh/cleaning jobs and PropertyWare work orders whose
+     * property holds no active lease (new-to-market and between-tenant homes).
+     * Broader than isVacant() on purpose — a cleaning can happen while a
+     * tenant lives there, so vendors still get the tenant's contact info; only
+     * the automated messages stop.
      */
     public function skipsAutomatedMessages(): bool
     {
-        return $this->isVacant() || $this->isRefreshCleaning();
+        return $this->isVacant() || $this->isRefreshCleaning() || $this->hasNoLeaseOnFile();
+    }
+
+    /**
+     * Whether PropertyWare reported no active lease for this work order's
+     * property. PropertyWare attaches the property's current lease (and its
+     * tenant roster) to every work order it returns for an occupied home, so
+     * an imported row with neither belongs to a vacant / new-to-market
+     * property — its requestedByContact is a leasing agent, staff member, or
+     * former occupant, not a tenant awaiting repairs (see WO#43485).
+     *
+     * Rows the app creates itself never carry a lease, so they are exempt:
+     * local-only rows have no propertyware_id, tenant portal requests are
+     * stamped source "Tenant Portal" at intake, and HOA violations are
+     * recognised by isHoaViolation().
+     */
+    public function hasNoLeaseOnFile(): bool
+    {
+        if ($this->propertyware_id === null || $this->lease_id !== null) {
+            return false;
+        }
+
+        if ($this->source === 'Tenant Portal' || $this->isHoaViolation()) {
+            return false;
+        }
+
+        return ! $this->tenants()->exists();
     }
 
     /**

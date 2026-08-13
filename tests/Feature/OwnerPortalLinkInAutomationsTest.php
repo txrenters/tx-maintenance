@@ -92,6 +92,9 @@ class OwnerPortalLinkInAutomationsTest extends TestCase
             'service_status_id' => $status->id,
             'work_order_no' => 44100,
             'propertyware_id' => 4377411585,
+            // An occupied home: a PropertyWare row without a lease on file is
+            // vacant, and vacant homes get no automated owner intake text.
+            'lease_id' => 555001,
             'building_id' => $building->propertyware_id,
             'tenant_id' => $tenant->id,
             'description' => 'Water heater is leaking in the garage',
