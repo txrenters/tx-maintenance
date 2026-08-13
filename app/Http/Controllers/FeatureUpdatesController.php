@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-14',
+            'area' => 'Messaging',
+            'title' => 'Vacant properties stop getting automated messages',
+            'description' => 'Work orders on homes with no active lease in PropertyWare — new to market or between tenants — no longer send the automated tenant texts and emails (appointment, follow-ups, photo-link) or the owner "new request" text. No toggle needed: the system reads the lease straight from PropertyWare, and if the lease appears later the messages resume on their own.',
+        ],
+        [
             'date' => '2026-08-12',
             'area' => 'Jobber',
             'title' => 'Day-before reminder for TBP visits',
