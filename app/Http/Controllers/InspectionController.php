@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ImportJobberDataJob;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberJobAttachment;
@@ -14,8 +15,6 @@ use App\Models\Vendor;
 use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -459,27 +458,14 @@ class InspectionController extends Controller
                 ], 401);
             }
 
-            // Execute the Artisan command
-            $exitCode = Artisan::call('jobber:import-jobs');
-
-            $output = Artisan::output();
-
-            // The command reports a bad Jobber response through its exit code
-            // rather than an exception, so a non-zero code must not read as success.
-            if ($exitCode !== 0) {
-                Log::error('Jobber sync command failed', ['output' => $output]);
-
-                return response()->json([
-                    'error' => 'Failed to sync with Jobber',
-                    'message' => 'Jobber returned an unexpected response. Check the logs for details.',
-                ], 500);
-            }
+            // A full account walk takes minutes, so it runs on the queue. Doing
+            // it inline held the request open until Azure or the browser cut it.
+            ImportJobberDataJob::dispatch();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Jobber sync initiated successfully',
-                'output' => $output,
-            ]);
+                'message' => 'Jobber sync started. New jobs will appear as they import.',
+            ], 202);
         } catch (\Exception $e) {
             // Check if it's a token-related error
             if (str_contains($e->getMessage(), 'token') || str_contains($e->getMessage(), 'reconnect')) {
