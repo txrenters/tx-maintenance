@@ -18,13 +18,14 @@ class ImportJobberJobs extends Command
 
     protected $description = 'Import jobs from Jobber GraphQL API';
 
-    public function handle()
+    public function handle(): int
     {
         $this->info('Importing jobs from Jobber...');
         Log::info('Importing jobs from Jobber');
 
         $cursor = null;
         $importedCount = 0;
+        $skippedCount = 0;
 
         do {
             $responseData = $this->getJobs($cursor);
@@ -34,7 +35,7 @@ class ImportJobberJobs extends Command
                 $this->error('Unexpected API response structure');
                 Log::error('Unexpected API response structure:', ['response' => $responseData]);
 
-                return;
+                return self::FAILURE;
             }
 
             $jobs = $responseData['data']['jobs']['edges'];
@@ -43,7 +44,7 @@ class ImportJobberJobs extends Command
                 $this->error('Jobs data is not an array');
                 Log::error('Jobs data is not an array:', ['jobs' => $jobs]);
 
-                return;
+                return self::FAILURE;
             }
 
             if (empty($jobs)) {
@@ -57,40 +58,72 @@ class ImportJobberJobs extends Command
             foreach ($jobs as $jobEdge) {
                 $jobData = $jobEdge['node'];
 
-                $client = $this->getClient($jobData['id']);
-                $clientData = $client['data']['job']['client'];
+                $clientResponse = $this->getClient($jobData['id']);
+                $clientData = $clientResponse['data']['job']['client'] ?? null;
+
+                if (! is_array($clientData)) {
+                    $this->warn("Skipping job {$jobData['id']}: no client data returned");
+                    Log::warning('Skipping Jobber job, no client data returned', [
+                        'job_id' => $jobData['id'],
+                        'response' => $clientResponse,
+                    ]);
+
+                    $skippedCount++;
+
+                    continue;
+                }
 
                 $client = $this->createClient($clientData);
 
-                $property = $this->getProperty($jobData['id']);
-                $propertyData = $property['data']['job']['property'];
+                $propertyResponse = $this->getProperty($jobData['id']);
+                $propertyData = $propertyResponse['data']['job']['property'] ?? null;
+
+                if (! is_array($propertyData)) {
+                    $this->warn("Skipping job {$jobData['id']}: no property data returned");
+                    Log::warning('Skipping Jobber job, no property data returned', [
+                        'job_id' => $jobData['id'],
+                        'response' => $propertyResponse,
+                    ]);
+
+                    $skippedCount++;
+
+                    continue;
+                }
 
                 $property = $this->createProperty($propertyData, $client);
 
                 $job = $this->createJob($jobData, $client, $property);
 
-                $visits = $this->getVisits($jobData['id']);
-                $visitsData = $visits['data']['job']['visits']['edges'];
+                $visitsResponse = $this->getVisits($jobData['id']);
+                $visitsData = $visitsResponse['data']['job']['visits']['edges'] ?? null;
 
-                if (isset($visitsData) && is_array($visitsData)) {
+                if (is_array($visitsData)) {
                     foreach ($visitsData as $visitEdge) {
                         $visitData = $visitEdge['node'];
                         $this->createVisits($visitData, $client, $property, $job);
                     }
+                } else {
+                    $this->warn("No visit data returned for job {$jobData['id']}");
+                    Log::warning('No visit data returned for Jobber job', [
+                        'job_id' => $jobData['id'],
+                        'response' => $visitsResponse,
+                    ]);
                 }
 
                 $importedCount++;
             }
 
             // Get next page cursor
-            $pageInfo = $responseData['data']['jobs']['pageInfo'];
-            $cursor = $pageInfo['endCursor'];
-            $hasNextPage = $pageInfo['hasNextPage'];
+            $pageInfo = $responseData['data']['jobs']['pageInfo'] ?? [];
+            $cursor = $pageInfo['endCursor'] ?? null;
+            $hasNextPage = $pageInfo['hasNextPage'] ?? false;
 
         } while ($hasNextPage);
 
-        $this->info("Successfully imported {$importedCount} jobs from Jobber");
-        Log::info("Successfully imported {$importedCount} jobs from Jobber");
+        $this->info("Successfully imported {$importedCount} jobs from Jobber ({$skippedCount} skipped)");
+        Log::info("Successfully imported {$importedCount} jobs from Jobber", ['skipped' => $skippedCount]);
+
+        return self::SUCCESS;
     }
 
     public function createClient(array $clientData): object
@@ -332,13 +365,13 @@ class ImportJobberJobs extends Command
                                 visitStatus
                                 duration
                                 instructions
-                                startAt...................................................................
+                                startAt
                                 endAt
                                 completedAt
                             }
                         }
                     }
-                }..................................
+                }
             }';
 
         $response = Http::withHeaders($headers)

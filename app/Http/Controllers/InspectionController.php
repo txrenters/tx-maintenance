@@ -15,6 +15,7 @@ use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -459,9 +460,20 @@ class InspectionController extends Controller
             }
 
             // Execute the Artisan command
-            Artisan::call('jobber:import-jobs');
+            $exitCode = Artisan::call('jobber:import-jobs');
 
             $output = Artisan::output();
+
+            // The command reports a bad Jobber response through its exit code
+            // rather than an exception, so a non-zero code must not read as success.
+            if ($exitCode !== 0) {
+                Log::error('Jobber sync command failed', ['output' => $output]);
+
+                return response()->json([
+                    'error' => 'Failed to sync with Jobber',
+                    'message' => 'Jobber returned an unexpected response. Check the logs for details.',
+                ], 500);
+            }
 
             return response()->json([
                 'success' => true,
