@@ -248,15 +248,34 @@ class ImportAllWorkOrdersCommand extends Command
                 }
 
                 if ($vendorId) {
-                    DB::table('work_order_vendors')->updateOrInsert(
-                        ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
-                        ['created_at' => now(), 'updated_at' => now()]
-                    );
+                    $this->recordVendorAssignment($workOrder->id, $vendorId);
                 }
             }
         }
 
         return $workOrder;
+    }
+
+    /**
+     * Record that a vendor is assigned to a work order, leaving created_at
+     * alone once the row exists — the assignment date the tenant
+     * vendor-contact follow-up ages off must survive a re-import.
+     */
+    private function recordVendorAssignment(int $workOrderId, int $vendorId): void
+    {
+        $touched = DB::table('work_order_vendors')
+            ->where('work_order_id', $workOrderId)
+            ->where('vendor_id', $vendorId)
+            ->update(['updated_at' => now()]);
+
+        if ($touched === 0) {
+            DB::table('work_order_vendors')->insert([
+                'work_order_id' => $workOrderId,
+                'vendor_id' => $vendorId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function findOrCreateBuilding(int $propertywareId, array $headers): int

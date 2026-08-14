@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendConversationMessageJob;
+use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -29,6 +30,24 @@ class FollowUpTenantVendorContact extends Command
     public const MAX_NOTIFICATIONS = 5;
 
     /**
+     * app_settings key holding the moment this command was first able to trust
+     * work_order_vendors.created_at as a real assignment date.
+     *
+     * Until that point the PropertyWare sync rewrote created_at on every pass
+     * (every 15 minutes), so every assignment looked permanently brand new and
+     * the one-day age gate below could never be satisfied — the command ran
+     * daily for weeks and sent nothing. Now that the sync leaves created_at
+     * alone, the pre-existing rows still carry those rewritten timestamps, so
+     * they are not an assignment date anyone can act on.
+     *
+     * The epoch is written once, on the first run after deploy, and only
+     * assignments recorded from that moment on are ever followed up. That is a
+     * clean fresh start with no retroactive blast at the backlog, and it needs
+     * no migration.
+     */
+    public const EPOCH_KEY = 'tenant_vendor_followup_epoch';
+
+    /**
      * Runs daily. Every open work order whose vendor was assigned at least a day
      * ago, still has no service schedule, and has not yet hit the cap is texted
      * once per day.
@@ -49,12 +68,21 @@ class FollowUpTenantVendorContact extends Command
             return self::SUCCESS;
         }
 
+        $epoch = $this->freshStartEpoch();
+
+        // First run after deploy: the epoch was just recorded, so nothing is
+        // old enough to follow up yet. Deliberate — see EPOCH_KEY.
+        if ($epoch === null) {
+            return self::SUCCESS;
+        }
+
         $startOfToday = now()->startOfDay();
         $dayAgo = now()->subDay();
 
         // Candidate work orders: open, not excluded, under the cap, not already
-        // texted today, and with a vendor assigned at least a day ago. The
-        // vendor-age check lives in SQL so we never load the whole open board.
+        // texted today, and with a vendor assigned at least a day ago but no
+        // earlier than the fresh-start epoch. The vendor-age check lives in SQL
+        // so we never load the whole open board.
         $workOrderIds = DB::table('work_orders')
             ->where('status', 'Open')
             ->whereNull('tenant_contact_followup_excluded_at')
@@ -63,10 +91,11 @@ class FollowUpTenantVendorContact extends Command
                 $query->whereNull('tenant_contact_followup_last_sent_at')
                     ->orWhere('tenant_contact_followup_last_sent_at', '<', $startOfToday);
             })
-            ->whereExists(function ($query) use ($dayAgo) {
+            ->whereExists(function ($query) use ($dayAgo, $epoch) {
                 $query->select(DB::raw(1))
                     ->from('work_order_vendors')
                     ->whereColumn('work_order_vendors.work_order_id', 'work_orders.id')
+                    ->where('work_order_vendors.created_at', '>=', $epoch)
                     ->where('work_order_vendors.created_at', '<=', $dayAgo);
             })
             ->pluck('id');
@@ -104,7 +133,7 @@ class FollowUpTenantVendorContact extends Command
             // A real vendor exists but none has been assigned a full day yet
             // (e.g. only a fresh assignment alongside an old placeholder): wait
             // without excluding, so tomorrow's run still texts.
-            if (! $this->hasAgedAssignment($realVendors, $dayAgo)) {
+            if (! $this->hasAgedAssignment($realVendors, $dayAgo, $epoch)) {
                 continue;
             }
 
@@ -159,18 +188,58 @@ class FollowUpTenantVendorContact extends Command
     }
 
     /**
-     * Whether any of the given assignments was created a full day or more ago.
+     * Whether any of the given assignments was created a full day or more ago,
+     * and on or after the fresh-start epoch. Assignments predating the epoch
+     * carry timestamps the PropertyWare sync rewrote, so their age is not a
+     * fact about when the vendor was actually assigned.
      *
      * @param  Collection<int, Vendor>  $vendors
      */
-    private function hasAgedAssignment(Collection $vendors, Carbon $dayAgo): bool
+    private function hasAgedAssignment(Collection $vendors, Carbon $dayAgo, Carbon $epoch): bool
     {
-        return $vendors->contains(function ($vendor) use ($dayAgo) {
+        return $vendors->contains(function ($vendor) use ($dayAgo, $epoch) {
             $assignedAt = $vendor->pivot->created_at;
 
-            return $assignedAt !== null
-                && Carbon::parse($assignedAt)->lessThanOrEqualTo($dayAgo);
+            if ($assignedAt === null) {
+                return false;
+            }
+
+            $assignedAt = Carbon::parse($assignedAt);
+
+            return $assignedAt->greaterThanOrEqualTo($epoch)
+                && $assignedAt->lessThanOrEqualTo($dayAgo);
         });
+    }
+
+    /**
+     * The fresh-start epoch, recording it on the very first run. Returns null
+     * when this run must not send anything: either the epoch was just written,
+     * or it could not be read at all.
+     *
+     * Fails CLOSED on a read error, unlike the Jobber kill-switch: an
+     * unreadable epoch here would otherwise mean "every assignment qualifies",
+     * which is precisely the retroactive blast this guards against.
+     */
+    private function freshStartEpoch(): ?Carbon
+    {
+        try {
+            $stored = AppSetting::getValue(self::EPOCH_KEY);
+        } catch (\Throwable $exception) {
+            Log::warning('Tenant vendor-contact follow-up epoch unreadable; skipping this run.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if (is_string($stored) && $stored !== '') {
+            return Carbon::parse($stored);
+        }
+
+        AppSetting::putValue(self::EPOCH_KEY, now()->toDateTimeString());
+        $this->info('Fresh-start epoch recorded; no follow-ups sent on this first run.');
+
+        return null;
     }
 
     /**

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\FollowUpTenantVendorContact;
 use App\Jobs\SendVendorWorkOrderInformation;
+use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ServiceSchedule;
 use App\Models\Tenants;
@@ -41,6 +43,13 @@ class TenantPortalLinkInAutomationsTest extends TestCase
             'services.twilio.maintenance_from' => '+12813787957',
             'services.twilio.maintenance_number' => '+12813787957',
         ]);
+
+        // Long-past fresh-start epoch so the vendor-contact follow-up treats
+        // these fixtures as post-epoch assignments and actually sends.
+        AppSetting::putValue(
+            FollowUpTenantVendorContact::EPOCH_KEY,
+            now()->subYear()->toDateTimeString(),
+        );
 
         Queue::fake();
     }
