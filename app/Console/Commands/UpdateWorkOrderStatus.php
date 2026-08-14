@@ -154,13 +154,7 @@ class UpdateWorkOrderStatus extends Command
 
                                     $incomingVendorIds[] = $vendorId;
 
-                                    DB::table('work_order_vendors')->updateOrInsert(
-                                        ['vendor_id' => $vendorId, 'work_order_id' => $workOrder->id],
-                                        [
-                                            'created_at' => now(),
-                                            'updated_at' => now(),
-                                        ]
-                                    );
+                                    $this->recordVendorAssignment($workOrder->id, $vendorId);
                                 }
 
                                 // REMOVE vendors not in the new list
@@ -182,6 +176,32 @@ class UpdateWorkOrderStatus extends Command
             Log::error('Updating Work order failed: '.$th->getMessage());
         }
 
+    }
+
+    /**
+     * Record that a vendor is assigned to a work order, leaving created_at
+     * alone once the row exists.
+     *
+     * created_at is the assignment date the tenant vendor-contact follow-up
+     * ages off. This sync runs every fifteen minutes, so stamping created_at
+     * on update kept every assignment permanently one sync old and that
+     * follow-up could never fire.
+     */
+    private function recordVendorAssignment(int $workOrderId, int $vendorId): void
+    {
+        $touched = DB::table('work_order_vendors')
+            ->where('work_order_id', $workOrderId)
+            ->where('vendor_id', $vendorId)
+            ->update(['updated_at' => now()]);
+
+        if ($touched === 0) {
+            DB::table('work_order_vendors')->insert([
+                'work_order_id' => $workOrderId,
+                'vendor_id' => $vendorId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function createVendor(array $vendorData): ?int

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Console\Commands\FollowUpTenantVendorContact;
 use App\Jobs\SendConversationMessageJob;
+use App\Models\AppSetting;
 use App\Models\ServiceSchedule;
 use App\Models\Tenants;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class TenantVendorContactFollowupTest extends TestCase
@@ -27,6 +29,13 @@ class TenantVendorContactFollowupTest extends TestCase
             'services.twilio.tenant_vendor_followup_sms' => false,
             'services.twilio.maintenance_number' => '+12813787957',
         ]);
+
+        // Long-past fresh-start epoch so the assignments these tests back-date
+        // are all "post-epoch". The epoch itself is exercised separately below.
+        AppSetting::putValue(
+            FollowUpTenantVendorContact::EPOCH_KEY,
+            now()->subYear()->toDateTimeString(),
+        );
     }
 
     private function makeTenant(?string $phone = '5125559999'): Tenants
@@ -361,5 +370,91 @@ class TenantVendorContactFollowupTest extends TestCase
 
         Queue::assertPushed(SendConversationMessageJob::class, FollowUpTenantVendorContact::MAX_NOTIFICATIONS);
         $this->assertSame(FollowUpTenantVendorContact::MAX_NOTIFICATIONS, $this->followupCount($workOrder));
+    }
+
+    public function test_the_first_run_records_the_epoch_and_sends_nothing(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        // No epoch yet: this is the deploy-day state.
+        AppSetting::query()->where('key', FollowUpTenantVendorContact::EPOCH_KEY)->delete();
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor(), assignedDaysAgo: 30);
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        $this->assertSame(0, $this->followupCount($workOrder));
+        $this->assertNotNull(
+            AppSetting::getValue(FollowUpTenantVendorContact::EPOCH_KEY),
+            'The first run must record the epoch so later runs have a floor.',
+        );
+    }
+
+    public function test_it_never_texts_for_an_assignment_predating_the_epoch(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        // The backlog: assigned long ago, but before this fix went live. Their
+        // created_at was being rewritten by the sync, so it is not a real
+        // assignment date and must never trigger a retroactive text.
+        AppSetting::putValue(
+            FollowUpTenantVendorContact::EPOCH_KEY,
+            now()->subDays(2)->toDateTimeString(),
+        );
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor(), assignedDaysAgo: 10);
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseCount('work_order_conversations', 0);
+        $this->assertSame(0, $this->followupCount($workOrder));
+        $this->assertNull(
+            $this->excludedAt($workOrder),
+            'A pre-epoch work order is skipped, not permanently excluded.',
+        );
+    }
+
+    public function test_it_texts_for_an_assignment_made_after_the_epoch(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        AppSetting::putValue(
+            FollowUpTenantVendorContact::EPOCH_KEY,
+            now()->subDays(5)->toDateTimeString(),
+        );
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor(), assignedDaysAgo: 1);
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertSame(1, $this->followupCount($workOrder));
+    }
+
+    public function test_an_unreadable_epoch_sends_nothing(): void
+    {
+        config(['services.twilio.tenant_vendor_followup_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $this->makeVendor());
+
+        // Fail closed: if the epoch cannot be read, "everything qualifies" is
+        // the one outcome we must never fall back to.
+        Schema::drop('app_settings');
+
+        $this->artisan('tenants:followup-vendor-contact')->assertExitCode(0);
+
+        Queue::assertNothingPushed();
+        $this->assertSame(0, $this->followupCount($workOrder));
     }
 }
