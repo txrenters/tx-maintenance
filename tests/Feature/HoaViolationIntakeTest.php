@@ -693,7 +693,7 @@ class HoaViolationIntakeTest extends TestCase
         Queue::assertNotPushed(UploadHoaNoticeToPropertyWare::class);
     }
 
-    public function test_no_upload_is_queued_for_a_photo_notice(): void
+    public function test_a_photo_notice_is_queued_to_propertyware_under_its_own_extension(): void
     {
         config(['services.hoa.pw_create_enabled' => true]);
         Storage::fake('public');
@@ -709,14 +709,28 @@ class HoaViolationIntakeTest extends TestCase
         $building = $this->building();
         $user = User::factory()->create();
 
-        // PropertyWare's upload endpoint expects a PDF; a phone photo stays on
-        // the local work order only.
+        // A photographed notice is the same document as a scanned one and
+        // belongs in PropertyWare's DOCS just the same. Gating the push on
+        // application/pdf is what left WO#43822's notice on the dashboard only,
+        // with no log line and no failed job to find it by.
         $this->actingAs($user)
             ->post(route('work_orders.hoa.store'), [
                 'file' => UploadedFile::fake()->image('notice.jpg'),
                 'notices' => [$this->notice($building->propertyware_id)],
             ])->assertRedirect();
 
-        Queue::assertNotPushed(UploadHoaNoticeToPropertyWare::class);
+        $attachment = Attachments::withoutGlobalScopes()
+            ->where('title', 'HOA violation notice')
+            ->firstOrFail();
+
+        // PropertyWare types the document off the name, so the photo must not
+        // arrive called .pdf.
+        Queue::assertPushed(UploadHoaNoticeToPropertyWare::class, function (UploadHoaNoticeToPropertyWare $job) use ($attachment) {
+            return $job->attachmentId === $attachment->id
+                && str_starts_with($job->pwFileName, 'HOA Notice - WO55123 - ')
+                && str_ends_with($job->pwFileName, '.jpg');
+        });
+
+        $this->assertNull($attachment->pw_file_name);
     }
 }

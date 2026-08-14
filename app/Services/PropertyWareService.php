@@ -1229,10 +1229,12 @@ class PropertyWareService
     }
 
     /**
-     * Upload raw PDF bytes as a document on a PropertyWare work order. Mirrors
+     * Upload raw file bytes as a document on a PropertyWare work order. Mirrors
      * uploadVendorAttachment but takes in-memory content instead of a file on
      * disk, for documents we generate ourselves (e.g. the Work Order
-     * Information sheet).
+     * Information sheet) and for HOA violation notices, which staff upload as
+     * either a PDF or a photo. The bytes are sent as-is; PropertyWare types the
+     * document off $fileName's extension, so that extension must match them.
      *
      * @return string|false the created PropertyWare document id on success, false on failure
      */

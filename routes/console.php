@@ -158,6 +158,17 @@ Schedule::command('attachments:repair-pw-uploads')
     ->withoutOverlapping(30)
     ->runInBackground();
 
+// The same backstop for HOA violation notices, which take a separate upload
+// job and so are skipped by the sweep above. Fifteen minutes later so the two
+// don't hit the PropertyWare document API at the same time. Steady state is
+// zero candidates missing from PropertyWare, which means one listing call per
+// work order that still has an unconfirmed notice and nothing else.
+Schedule::command('hoa:repair-notice-uploads')
+    ->timezone('America/Chicago')
+    ->dailyAt('02:15')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Courtesy closers: ask the AI which newest inbound messages are just "thank
 // you" / "ok great" so the awaiting-reply badge, Inbox and unanswered report
 // stop holding those threads open. Fails open - an unjudged message or an AI

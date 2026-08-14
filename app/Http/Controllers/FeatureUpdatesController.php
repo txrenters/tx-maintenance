@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-15',
+            'area' => 'HOA',
+            'title' => 'Photographed HOA notices reach PropertyWare',
+            'description' => 'An HOA violation notice uploaded as a phone photo instead of a PDF now lands in the PropertyWare work order\'s Notes & Docs like every other notice. Before, it showed on the work order here but was never copied over. The nightly check that re-sends anything PropertyWare missed now covers notices too, so a lost one repairs itself by the next morning.',
+        ],
+        [
             'date' => '2026-08-14',
             'area' => 'Vendors',
             'title' => 'Send assignment info to a vendor by hand',
