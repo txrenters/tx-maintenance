@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-15',
+            'area' => 'Jobber',
+            'title' => 'Sync Jobber actually works again',
+            'description' => 'The "Sync Jobber" button on the Jobs page had been failing since it was added, so any job that never arrived through Jobber automatically — for example one created while the Jobber connection was down — had no way to reach the dashboard. It now works, and it starts straight away instead of freezing the page: you get a "Sync Started" message and the jobs and visits appear as they come in. Give it a few minutes on a big catch-up, then refresh.',
+        ],
+        [
             'date' => '2026-08-14',
             'area' => 'Vendors',
             'title' => 'Send assignment info to a vendor by hand',
