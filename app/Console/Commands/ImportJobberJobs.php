@@ -9,14 +9,36 @@ use App\Models\JobberVisit;
 use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ImportJobberJobs extends Command
 {
+    /**
+     * Jobs per page. Each page is a single GraphQL call that also carries the
+     * client, property and visits for every job on it, so this is the only
+     * request the import makes per page. Kept well under Jobber's 100 maximum
+     * because the nested fields multiply the query's cost score.
+     */
+    private const PAGE_SIZE = 50;
+
+    /**
+     * Visits fetched inline per job. A job with more than this many visits is
+     * logged rather than silently truncated.
+     */
+    private const VISITS_PAGE_SIZE = 50;
+
+    private const THROTTLE_ATTEMPTS = 5;
+
+    private const THROTTLE_BACKOFF_SECONDS = 5;
+
     protected $signature = 'jobber:import-jobs';
 
     protected $description = 'Import jobs from Jobber GraphQL API';
+
+    public function __construct(private JobberTokenService $tokens)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -56,16 +78,26 @@ class ImportJobberJobs extends Command
             $this->info('Found '.count($jobs).' jobs to import this page');
 
             foreach ($jobs as $jobEdge) {
-                $jobData = $jobEdge['node'];
+                $jobData = $jobEdge['node'] ?? null;
 
-                $clientResponse = $this->getClient($jobData['id']);
-                $clientData = $clientResponse['data']['job']['client'] ?? null;
+                if (! is_array($jobData)) {
+                    $skippedCount++;
 
-                if (! is_array($clientData)) {
-                    $this->warn("Skipping job {$jobData['id']}: no client data returned");
-                    Log::warning('Skipping Jobber job, no client data returned', [
+                    continue;
+                }
+
+                // The client and property ride along on the job node, so a job
+                // missing either is a Jobber-side data problem, not a failed
+                // call. Skip that one job; the rest of the page still imports.
+                $clientData = $jobData['client'] ?? null;
+                $propertyData = $jobData['property'] ?? null;
+
+                if (! is_array($clientData) || ! is_array($propertyData)) {
+                    $this->warn("Skipping job {$jobData['id']}: missing client or property");
+                    Log::warning('Skipping Jobber job with no client or property', [
                         'job_id' => $jobData['id'],
-                        'response' => $clientResponse,
+                        'has_client' => is_array($clientData),
+                        'has_property' => is_array($propertyData),
                     ]);
 
                     $skippedCount++;
@@ -74,40 +106,26 @@ class ImportJobberJobs extends Command
                 }
 
                 $client = $this->createClient($clientData);
-
-                $propertyResponse = $this->getProperty($jobData['id']);
-                $propertyData = $propertyResponse['data']['job']['property'] ?? null;
-
-                if (! is_array($propertyData)) {
-                    $this->warn("Skipping job {$jobData['id']}: no property data returned");
-                    Log::warning('Skipping Jobber job, no property data returned', [
-                        'job_id' => $jobData['id'],
-                        'response' => $propertyResponse,
-                    ]);
-
-                    $skippedCount++;
-
-                    continue;
-                }
-
                 $property = $this->createProperty($propertyData, $client);
-
                 $job = $this->createJob($jobData, $client, $property);
 
-                $visitsResponse = $this->getVisits($jobData['id']);
-                $visitsData = $visitsResponse['data']['job']['visits']['edges'] ?? null;
+                $visitsData = $jobData['visits']['edges'] ?? null;
 
                 if (is_array($visitsData)) {
                     foreach ($visitsData as $visitEdge) {
-                        $visitData = $visitEdge['node'];
-                        $this->createVisits($visitData, $client, $property, $job);
+                        $visitData = $visitEdge['node'] ?? null;
+
+                        if (is_array($visitData)) {
+                            $this->createVisits($visitData, $client, $property, $job);
+                        }
                     }
-                } else {
-                    $this->warn("No visit data returned for job {$jobData['id']}");
-                    Log::warning('No visit data returned for Jobber job', [
-                        'job_id' => $jobData['id'],
-                        'response' => $visitsResponse,
-                    ]);
+
+                    if ($jobData['visits']['pageInfo']['hasNextPage'] ?? false) {
+                        Log::warning('Job has more visits than one page', [
+                            'job_id' => $jobData['id'],
+                            'imported' => count($visitsData),
+                        ]);
+                    }
                 }
 
                 $importedCount++;
@@ -212,13 +230,24 @@ class ImportJobberJobs extends Command
         );
     }
 
+    /**
+     * One page of jobs with their client, property and visits nested inline.
+     *
+     * Fetching those three as separate per-job calls meant 3N round trips for N
+     * jobs, which for a full account never finished inside a request. This is
+     * the same nested shape JobberWebhookController already uses for a single
+     * job, so it is one call per page instead.
+     *
+     * @return array<string, mixed>|null
+     */
     public function getJobs($cursor = null)
     {
-        $headers = $this->accessToken();
+        $pageSize = self::PAGE_SIZE;
+        $visitsPageSize = self::VISITS_PAGE_SIZE;
 
-        $query = <<<'GRAPHQL'
-        query ($cursor: String) {
-            jobs(first: 100, after: $cursor) {
+        $query = <<<GRAPHQL
+        query (\$cursor: String) {
+            jobs(first: {$pageSize}, after: \$cursor) {
                 pageInfo {
                     hasNextPage
                     endCursor
@@ -240,162 +269,112 @@ class ImportJobberJobs extends Command
                         completedAt
                         createdAt
                         updatedAt
+                        client {
+                            id
+                            firstName
+                            lastName
+                            companyName
+                            name
+                            secondaryName
+                            title
+                            balance
+                            jobberWebUri
+                            emails {
+                                address
+                            }
+                        }
+                        property {
+                            id
+                            isBillingAddress
+                            jobberWebUri
+                            address {
+                                street
+                                city
+                                province
+                                postalCode
+                                country
+                            }
+                        }
+                        visits(first: {$visitsPageSize}) {
+                            pageInfo {
+                                hasNextPage
+                            }
+                            edges {
+                                node {
+                                    id
+                                    title
+                                    visitStatus
+                                    duration
+                                    instructions
+                                    startAt
+                                    endAt
+                                    completedAt
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
         GRAPHQL;
 
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-                'variables' => ['cursor' => $cursor],
-            ]);
-
-        if ($response->failed()) {
-            $this->error('Failed to fetch jobs: '.$response->body());
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-
-            return null;
-        }
-
-        return $response->json();
+        return $this->postWithThrottleRetry([
+            'query' => $query,
+            'variables' => ['cursor' => $cursor],
+        ]);
     }
 
-    public function getClient($jobberId)
+    /**
+     * POST a GraphQL body, backing off and retrying while Jobber reports the
+     * request as throttled. Nesting three sub-selections raises the query's
+     * cost, so a large import can outrun the rate limiter and must wait rather
+     * than treat the throttle as a hard failure.
+     *
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>|null
+     */
+    private function postWithThrottleRetry(array $body): ?array
     {
+        for ($attempt = 1; $attempt <= self::THROTTLE_ATTEMPTS; $attempt++) {
+            $response = $this->tokens->graphql($body);
 
-        $headers = $this->accessToken();
+            if ($response->failed()) {
+                $this->error('Failed to fetch jobs: '.$response->body());
+                Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
 
-        $query = 'query {
-                job(id: "'.$jobberId.'") {
-                    client {
-                        id
-                        firstName
-                        lastName
-                        companyName
-                        name
-                        secondaryName
-                        title
-                        balance
-                        jobberWebUri
-                        emails {
-                            address
-                        }
-                    }
-                }
-            }';
+                return null;
+            }
 
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)  // Increase timeout to 30 seconds
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-            ]);
+            $json = $response->json();
 
-        if ($response->failed()) {
-            $this->error('Failed to fetch jobs: '.$response->body());
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
+            if (! $this->isThrottled($json)) {
+                return $json;
+            }
 
-            return;
+            $this->warn("Jobber throttled the request, waiting (attempt {$attempt})");
+            Log::warning('Jobber throttled the jobs query', ['attempt' => $attempt]);
+
+            sleep(self::THROTTLE_BACKOFF_SECONDS * $attempt);
         }
 
-        Log::info('Client:', ['response' => $response->json()]);
+        Log::error('Gave up on the Jobber jobs query after repeated throttling');
 
-        // Debug the response structure
-        return $response->json();
+        return null;
     }
 
-    public function getProperty($jobberId)
+    /**
+     * Jobber reports a rate limit as HTTP 200 with a THROTTLED error code.
+     *
+     * @param  array<string, mixed>|null  $json
+     */
+    private function isThrottled(?array $json): bool
     {
-
-        $headers = $this->accessToken();
-
-        $query = 'query {
-                job(id: "'.$jobberId.'") {
-                    property{
-                        id
-                        isBillingAddress
-                        jobberWebUri
-                        address {
-                            street
-                            city
-                            province
-                            postalCode
-                            country
-                        }
-                    }
-                }
-            }';
-
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)  // Increase timeout to 30 seconds
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-            ]);
-
-        if ($response->failed()) {
-            $this->error('Failed to fetch jobs: '.$response->body());
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-
-            return;
+        foreach ($json['errors'] ?? [] as $error) {
+            if (($error['extensions']['code'] ?? null) === 'THROTTLED') {
+                return true;
+            }
         }
 
-        Log::info('Property:', ['response' => $response->json()]);
-
-        // Debug the response structure
-        return $response->json();
-    }
-
-    public function getVisits($jobberId)
-    {
-
-        $headers = $this->accessToken();
-
-        $query = 'query {
-                job(id: "'.$jobberId.'") {
-                    visits {
-                        edges {
-                            node {
-                                id
-                                title
-                                visitStatus
-                                duration
-                                instructions
-                                startAt
-                                endAt
-                                completedAt
-                            }
-                        }
-                    }
-                }
-            }';
-
-        $response = Http::withHeaders($headers)
-            ->timeout(60)
-            ->retry(3, 2000)  // Increase timeout to 30 seconds
-            ->post('https://api.getjobber.com/api/graphql', [
-                'query' => $query,
-            ]);
-
-        if ($response->failed()) {
-            $this->error('Failed to fetch jobs: '.$response->body());
-            Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-
-            return;
-        }
-
-        Log::info('Visits:', ['response' => $response->json()]);
-
-        // Debug the response structure
-        return $response->json();
-    }
-
-    public function accessToken()
-    {
-        return app(JobberTokenService::class)->headers();
+        return false;
     }
 }

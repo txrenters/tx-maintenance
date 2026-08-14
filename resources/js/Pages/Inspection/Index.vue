@@ -803,16 +803,14 @@ const manualSync = async () => {
         const response = await axios.post(route("jobber.sync"));
 
         if (response.data.success) {
+            // The import runs on the queue, so there is nothing new to show
+            // yet - say it started rather than claiming it finished.
             toast({
-                title: "Sync Successful",
-                description: "Jobber data has been synced successfully",
+                title: "Sync Started",
+                description:
+                    response.data.message ||
+                    "Jobber sync started. New jobs will appear as they import.",
                 variant: "default",
-            });
-
-            // Reload the page to show updated data
-            router.reload({
-                preserveState: false,
-                preserveScroll: true,
             });
         }
     } catch (error) {

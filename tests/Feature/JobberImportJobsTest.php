@@ -46,11 +46,15 @@ class JobberImportJobsTest extends TestCase
     }
 
     /**
+     * A job node carrying its client, property and visits inline, the way the
+     * real nested query returns them.
+     *
+     * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
      */
-    private function jobNode(string $id, int $jobNumber): array
+    private function jobNode(string $id, int $jobNumber, array $overrides = []): array
     {
-        return [
+        return array_merge([
             'id' => $id,
             'jobNumber' => $jobNumber,
             'title' => "Job {$jobNumber}",
@@ -66,166 +70,102 @@ class JobberImportJobsTest extends TestCase
             'completedAt' => null,
             'createdAt' => null,
             'updatedAt' => null,
-        ];
-    }
-
-    /**
-     * Jobber answers every GraphQL call on the same URL, so the fake is driven
-     * by the query text in the request body.
-     */
-    private function fakeJobber(?array $visitsResponse = null): void
-    {
-        $visitsResponse ??= [
-            'data' => [
-                'job' => [
-                    'visits' => [
-                        'edges' => [
-                            ['node' => [
-                                'id' => 'visit-1',
-                                'title' => 'Visit',
-                                'visitStatus' => 'UNSCHEDULED',
-                                'duration' => 0,
-                                'instructions' => null,
-                                'startAt' => null,
-                                'endAt' => null,
-                                'completedAt' => null,
-                            ]],
-                        ],
-                    ],
+            'client' => [
+                'id' => "client-{$id}",
+                'firstName' => 'Pat',
+                'lastName' => 'Owner',
+                'companyName' => null,
+                'name' => 'Pat Owner',
+                'secondaryName' => null,
+                'title' => null,
+                'balance' => 0,
+                'jobberWebUri' => 'https://secure.getjobber.com/clients/1',
+                'emails' => [],
+            ],
+            'property' => [
+                'id' => "property-{$id}",
+                'isBillingAddress' => false,
+                'jobberWebUri' => 'https://secure.getjobber.com/properties/1',
+                'address' => [
+                    'street' => '123 Main St',
+                    'city' => 'Austin',
+                    'province' => 'TX',
+                    'postalCode' => '78701',
+                    'country' => 'USA',
                 ],
             ],
-        ];
-
-        Http::fake([
-            'api.getjobber.com/api/graphql' => function ($request) use ($visitsResponse) {
-                $query = $request->data()['query'];
-
-                if (str_contains($query, 'visits')) {
-                    return Http::response($visitsResponse);
-                }
-
-                if (str_contains($query, 'firstName')) {
-                    return Http::response(['data' => ['job' => ['client' => [
-                        'id' => 'client-1',
-                        'firstName' => 'Pat',
-                        'lastName' => 'Owner',
-                        'companyName' => null,
-                        'name' => 'Pat Owner',
-                        'secondaryName' => null,
-                        'title' => null,
-                        'balance' => 0,
-                        'jobberWebUri' => 'https://secure.getjobber.com/clients/1',
-                        'emails' => [],
-                    ]]]]);
-                }
-
-                if (str_contains($query, 'isBillingAddress')) {
-                    return Http::response(['data' => ['job' => ['property' => [
-                        'id' => 'property-1',
-                        'isBillingAddress' => false,
-                        'jobberWebUri' => 'https://secure.getjobber.com/properties/1',
-                        'address' => [
-                            'street' => '123 Main St',
-                            'city' => 'Austin',
-                            'province' => 'TX',
-                            'postalCode' => '78701',
-                            'country' => 'USA',
-                        ],
-                    ]]]]);
-                }
-
-                return Http::response($this->jobsPage());
-            },
-        ]);
+            'visits' => [
+                'pageInfo' => ['hasNextPage' => false],
+                'edges' => [
+                    ['node' => [
+                        'id' => "visit-{$id}",
+                        'title' => 'Visit',
+                        'visitStatus' => 'UNSCHEDULED',
+                        'duration' => 0,
+                        'instructions' => null,
+                        'startAt' => null,
+                        'endAt' => null,
+                        'completedAt' => null,
+                    ]],
+                ],
+            ],
+        ], $overrides);
     }
 
-    public function test_the_visits_query_is_valid_graphql(): void
+    public function test_a_page_of_jobs_costs_exactly_one_request(): void
     {
-        $this->fakeJobber();
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
 
         $this->artisan('jobber:import-jobs')->assertSuccessful();
 
-        // The stray characters that used to sit in this query made Jobber reject
-        // it, which took the whole import down with it.
+        // The import used to make three extra calls per job, which for a full
+        // account was tens of thousands of round trips and never finished.
+        Http::assertSentCount(1);
+    }
+
+    public function test_the_page_query_asks_for_client_property_and_visits_inline(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
         Http::assertSent(function ($request) {
             $query = $request->data()['query'];
 
-            return str_contains($query, 'visits {') && ! str_contains($query, '..');
+            return str_contains($query, 'jobs(first:')
+                && str_contains($query, 'client {')
+                && str_contains($query, 'property {')
+                && str_contains($query, 'visits(first:')
+                // The stray characters that once sat in the visits query made
+                // Jobber reject it outright.
+                && ! str_contains($query, '..');
         });
     }
 
     public function test_every_job_on_the_page_is_imported_with_its_visits(): void
     {
-        $this->fakeJobber();
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
 
         $this->artisan('jobber:import-jobs')->assertSuccessful();
 
         $this->assertSame(2, Jobber::query()->count());
         $this->assertTrue(Jobber::query()->where('job_number', 19485)->exists());
-        $this->assertSame(1, JobberVisit::query()->count());
+        $this->assertSame(2, JobberVisit::query()->count());
     }
 
-    public function test_a_graphql_error_on_visits_does_not_abort_the_whole_import(): void
+    public function test_a_job_missing_its_client_is_skipped_and_the_rest_still_import(): void
     {
-        // A GraphQL error comes back as HTTP 200 with no "data" key at all.
-        $this->fakeJobber(visitsResponse: [
-            'errors' => [['message' => 'Parse error on "..." (error) at [8, 40]']],
-        ]);
-
-        $this->artisan('jobber:import-jobs')->assertSuccessful();
-
-        // Both jobs still land; only their visits are missing.
-        $this->assertSame(2, Jobber::query()->count());
-        $this->assertTrue(Jobber::query()->where('job_number', 19485)->exists());
-        $this->assertSame(0, JobberVisit::query()->count());
-    }
-
-    public function test_a_job_with_no_client_data_is_skipped_and_the_rest_still_import(): void
-    {
-        Http::fake([
-            'api.getjobber.com/api/graphql' => function ($request) {
-                $query = $request->data()['query'];
-
-                if (str_contains($query, 'visits')) {
-                    return Http::response(['data' => ['job' => ['visits' => ['edges' => []]]]]);
-                }
-
-                if (str_contains($query, 'firstName')) {
-                    // First job errors, second job resolves.
-                    return str_contains($query, 'job-1')
-                        ? Http::response(['errors' => [['message' => 'Not found']]])
-                        : Http::response(['data' => ['job' => ['client' => [
-                            'id' => 'client-1',
-                            'firstName' => 'Pat',
-                            'lastName' => 'Owner',
-                            'companyName' => null,
-                            'name' => 'Pat Owner',
-                            'secondaryName' => null,
-                            'title' => null,
-                            'balance' => 0,
-                            'jobberWebUri' => 'https://secure.getjobber.com/clients/1',
-                            'emails' => [],
-                        ]]]]);
-                }
-
-                if (str_contains($query, 'isBillingAddress')) {
-                    return Http::response(['data' => ['job' => ['property' => [
-                        'id' => 'property-1',
-                        'isBillingAddress' => false,
-                        'jobberWebUri' => 'https://secure.getjobber.com/properties/1',
-                        'address' => [
-                            'street' => '123 Main St',
-                            'city' => 'Austin',
-                            'province' => 'TX',
-                            'postalCode' => '78701',
-                            'country' => 'USA',
-                        ],
-                    ]]]]);
-                }
-
-                return Http::response($this->jobsPage());
-            },
-        ]);
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
+            'data' => [
+                'jobs' => [
+                    'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                    'edges' => [
+                        ['node' => $this->jobNode('job-1', 19484, ['client' => null])],
+                        ['node' => $this->jobNode('job-2', 19485)],
+                    ],
+                ],
+            ],
+        ])]);
 
         $this->artisan('jobber:import-jobs')->assertSuccessful();
 
@@ -233,14 +173,74 @@ class JobberImportJobsTest extends TestCase
         $this->assertTrue(Jobber::query()->where('job_number', 19485)->exists());
     }
 
+    public function test_a_job_with_no_visits_still_imports(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
+            'data' => [
+                'jobs' => [
+                    'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                    'edges' => [
+                        ['node' => $this->jobNode('job-1', 19485, ['visits' => null])],
+                    ],
+                ],
+            ],
+        ])]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        $this->assertTrue(Jobber::query()->where('job_number', 19485)->exists());
+        $this->assertSame(0, JobberVisit::query()->count());
+    }
+
+    public function test_every_page_is_walked_until_the_cursor_runs_out(): void
+    {
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push([
+                'data' => [
+                    'jobs' => [
+                        'pageInfo' => ['hasNextPage' => true, 'endCursor' => 'page-2'],
+                        'edges' => [['node' => $this->jobNode('job-1', 19484)]],
+                    ],
+                ],
+            ])
+            ->push([
+                'data' => [
+                    'jobs' => [
+                        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                        'edges' => [['node' => $this->jobNode('job-2', 19485)]],
+                    ],
+                ],
+            ]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        $this->assertSame(2, Jobber::query()->count());
+
+        // The second page must be requested with the cursor the first returned.
+        Http::assertSent(fn ($request) => ($request->data()['variables']['cursor'] ?? null) === 'page-2');
+    }
+
     public function test_a_malformed_jobs_response_reports_a_failing_exit_code(): void
     {
-        Http::fake([
-            'api.getjobber.com/api/graphql' => Http::response([
-                'errors' => [['message' => 'Something went wrong']],
-            ]),
-        ]);
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
+            'errors' => [['message' => 'Something went wrong']],
+        ])]);
 
         $this->artisan('jobber:import-jobs')->assertFailed();
+    }
+
+    public function test_a_throttled_response_is_retried_rather_than_treated_as_a_failure(): void
+    {
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push(['errors' => [[
+                'message' => 'Throttled',
+                'extensions' => ['code' => 'THROTTLED'],
+            ]]])
+            ->push($this->jobsPage());
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        $this->assertSame(2, Jobber::query()->count());
+        Http::assertSentCount(2);
     }
 }
