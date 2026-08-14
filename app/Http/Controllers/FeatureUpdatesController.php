@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-14',
+            'area' => 'Vendors',
+            'title' => 'Send assignment info to a vendor by hand',
+            'description' => 'The vendor conversation tab has a "Send assignment info" button next to the automation switch. It sends the vendor the same assignment email (with the work order PDF and their portal link) and text the system sends automatically — useful when the vendor was assigned in PropertyWare, or when their email or phone number was added after the assignment. It tells you if the vendor has no contact details on file.',
+        ],
+        [
+            'date' => '2026-08-14',
             'area' => 'Messaging',
             'title' => 'Vacant properties stop getting automated messages',
             'description' => 'Work orders on homes with no active lease in PropertyWare — new to market or between tenants — no longer send the automated tenant texts and emails (appointment, follow-ups, photo-link) or the owner "new request" text. No toggle needed: the system reads the lease straight from PropertyWare, and if the lease appears later the messages resume on their own.',
