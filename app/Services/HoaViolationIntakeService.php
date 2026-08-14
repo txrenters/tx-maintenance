@@ -245,10 +245,13 @@ class HoaViolationIntakeService
             'created_at' => now(),
         ]);
 
-        // PropertyWare's upload endpoint expects a PDF; only push when the notice
-        // is one (a photo upload still lives on the local work order). Queued
-        // with retries — a transient PropertyWare error must not lose the notice.
-        if ($workOrder->propertyware_id && $mime === 'application/pdf') {
+        // Every notice goes to PropertyWare's DOCS, PDF or photo alike — the
+        // upload dialog accepts both and a photographed notice is the same
+        // document. PropertyWare takes the raw bytes and reads the type off the
+        // file name, whose extension extensionForMime() already matched to the
+        // upload. Queued with retries — a transient PropertyWare error must not
+        // lose the notice.
+        if ($workOrder->propertyware_id) {
             UploadHoaNoticeToPropertyWare::dispatch($attachment->id, $fileName);
         }
     }
@@ -256,7 +259,10 @@ class HoaViolationIntakeService
     private function extensionForMime(string $mime): string
     {
         return match ($mime) {
-            'image/jpeg' => 'jpg',
+            // PropertyWare types the document off this extension, so a mime it
+            // does not know must never fall through to the pdf default and hand
+            // PropertyWare an image named .pdf.
+            'image/jpeg', 'image/jpg' => 'jpg',
             'image/png' => 'png',
             'image/webp' => 'webp',
             default => 'pdf',
