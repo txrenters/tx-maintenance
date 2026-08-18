@@ -25,20 +25,35 @@ const props = defineProps({
     aiDigest: { type: Boolean, default: false },
 });
 
-// Per-row AI digests, keyed by work order id. On demand only — one click,
-// one row, one AI call (cached server-side for a day).
+// Per-row AI digests, keyed by work order id, shown in a modal. On demand
+// only — one click, one row, one AI call (cached server-side for a day).
 const digests = ref({});
+const digestOpen = ref(false);
+const digestRow = ref(null);
 
-const analyzeRow = async (row) => {
+const digest = computed(() =>
+    digestRow.value ? digests.value[digestRow.value.id] : null,
+);
+
+const analyzeRow = async (row, refresh = false) => {
     digests.value[row.id] = { loading: true };
     try {
         const { data } = await axios.post(
             route(`reports.${props.reportKey}.analyze`),
-            { work_order_id: row.id },
+            { work_order_id: row.id, refresh },
         );
         digests.value[row.id] = { loading: false, ...data };
     } catch {
         digests.value[row.id] = { loading: false, available: false };
+    }
+};
+
+const openDigest = (row) => {
+    digestRow.value = row;
+    digestOpen.value = true;
+
+    if (!digests.value[row.id]) {
+        analyzeRow(row);
     }
 };
 
@@ -254,44 +269,23 @@ const subtitle = computed(() => {
                             >
                             <span v-else>{{ cellValue(row, col) }}</span>
                         </TableCell>
-                        <TableCell v-if="aiDigest" class="max-w-sm align-top">
-                            <template v-if="digests[row.id]?.loading">
-                                <Loader2 class="h-4 w-4 animate-spin" />
-                            </template>
-                            <template
-                                v-else-if="digests[row.id]?.available"
-                            >
-                                <p class="text-xs">
-                                    {{ digests[row.id].stuck_reason }}
-                                </p>
-                                <p class="mt-1 text-xs font-medium">
-                                    → {{ digests[row.id].next_action }}
-                                </p>
-                            </template>
-                            <template
-                                v-else-if="
-                                    digests[row.id] &&
-                                    !digests[row.id].available
-                                "
-                            >
-                                <span class="text-xs text-muted-foreground">
-                                    AI unavailable —
-                                    <button
-                                        type="button"
-                                        class="underline"
-                                        @click="analyzeRow(row)"
-                                    >
-                                        try again
-                                    </button>
-                                </span>
-                            </template>
+                        <TableCell v-if="aiDigest">
                             <Button
-                                v-else
                                 size="sm"
                                 variant="outline"
-                                @click="analyzeRow(row)"
+                                :disabled="digests[row.id]?.loading"
+                                @click="openDigest(row)"
                             >
-                                <Sparkles class="mr-1 h-3.5 w-3.5" /> Analyze
+                                <Loader2
+                                    v-if="digests[row.id]?.loading"
+                                    class="mr-1 h-3.5 w-3.5 animate-spin"
+                                />
+                                <Sparkles v-else class="mr-1 h-3.5 w-3.5" />
+                                {{
+                                    digests[row.id]?.available
+                                        ? "View"
+                                        : "Analyze"
+                                }}
                             </Button>
                         </TableCell>
                     </TableRow>
@@ -336,6 +330,80 @@ const subtitle = computed(() => {
                     </button>
                 </div>
             </div>
+
+            <!-- AI digest modal (teleported; kept inside the single root) -->
+            <Dialog v-model:open="digestOpen">
+                <DialogContent class="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle class="flex items-center gap-2">
+                            <Sparkles class="h-4 w-4" />
+                            WO #{{ digestRow?.work_order_no }} — AI analysis
+                        </DialogTitle>
+                        <DialogDescription class="line-clamp-2">
+                            {{ digestRow?.description }}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div
+                        v-if="digest?.loading"
+                        class="flex items-center gap-2 py-6 text-sm text-muted-foreground"
+                    >
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        Reading the work order's messages, notes and tasks…
+                    </div>
+
+                    <div v-else-if="digest?.available" class="space-y-4 py-2">
+                        <div>
+                            <p
+                                class="text-xs font-semibold uppercase text-muted-foreground"
+                            >
+                                Why it looks stuck
+                            </p>
+                            <p class="mt-1 text-sm">
+                                {{ digest.stuck_reason }}
+                            </p>
+                        </div>
+                        <div>
+                            <p
+                                class="text-xs font-semibold uppercase text-muted-foreground"
+                            >
+                                Next step
+                            </p>
+                            <p class="mt-1 text-sm font-medium">
+                                {{ digest.next_action }}
+                            </p>
+                        </div>
+                        <p class="text-[11px] text-muted-foreground">
+                            AI-written from this work order's own messages,
+                            notes, tasks and schedules — double-check before
+                            acting on it.
+                        </p>
+                    </div>
+
+                    <div
+                        v-else
+                        class="py-6 text-sm text-muted-foreground"
+                    >
+                        The AI analysis is unavailable right now — try again in
+                        a moment.
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            :disabled="digest?.loading"
+                            @click="analyzeRow(digestRow, true)"
+                        >
+                            <Loader2
+                                v-if="digest?.loading"
+                                class="mr-1 h-3.5 w-3.5 animate-spin"
+                            />
+                            Re-analyze
+                        </Button>
+                        <Button @click="digestOpen = false">Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </CardContent>
     </Card>
 </template>

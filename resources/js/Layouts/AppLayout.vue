@@ -72,7 +72,6 @@ import {
     Files,
     ClipboardList,
     Wrench,
-    BotMessageSquare,
     BadgeAlert,
     Bell,
     Users2,
@@ -100,7 +99,6 @@ import {
     Volume2,
     VolumeX,
     Sparkles,
-    BrainCircuit,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import { useNotificationToasts } from "@/composables/useNotificationToasts";
@@ -534,6 +532,30 @@ const navs = computed(() => {
                     title: "Open Over 30 Days",
                     url: route("reports.open_over_30_days"),
                     isActive: page.url.startsWith("/reports/open-over-30-days"),
+                },
+            ],
+        },
+        itTools: {
+            title: "IT Tools",
+            icon: Wrench,
+            isActive: page.url.startsWith("/it-tools"),
+            items: [
+                {
+                    title: "Jobber",
+                    url: "/it-tools/jobber",
+                    isActive: page.url.startsWith("/it-tools/jobber"),
+                },
+                {
+                    title: "Automated Messages",
+                    url: "/it-tools/automated-messages",
+                    isActive: page.url.startsWith(
+                        "/it-tools/automated-messages",
+                    ),
+                },
+                {
+                    title: "AI Settings",
+                    url: "/it-tools/ai-settings",
+                    isActive: page.url.startsWith("/it-tools/ai-settings"),
                 },
             ],
         },
@@ -1308,30 +1330,50 @@ onUnmounted(() => {
                                 <a href="/log-viewer"><GlobeLock /> Logs</a>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <Link href="/it-tools/jobber" prefetch>
-                                    <Wrench />
-                                    <span>IT Tools</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <Link href="/it-tools/automated-messages" prefetch>
-                                    <BotMessageSquare />
-                                    <span>Automated Messages</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <Link href="/it-tools/ai-settings" prefetch>
-                                    <BrainCircuit />
-                                    <span>AI Settings</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <Collapsible
+                            as-child
+                            :default-open="navs.itTools.isActive"
+                            :data-state="navs.itTools.isActive"
+                            class="group/collapsible"
+                        >
+                            <SidebarMenuItem>
+                                <CollapsibleTrigger as-child>
+                                    <SidebarMenuButton
+                                        :tooltip="navs.itTools.title"
+                                    >
+                                        <component :is="navs.itTools.icon" />
+                                        <span>{{ navs.itTools.title }}</span>
+                                        <ChevronRight
+                                            class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                        />
+                                    </SidebarMenuButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                    <SidebarMenuSub>
+                                        <SidebarMenuSubItem
+                                            v-for="subItem in navs.itTools
+                                                .items"
+                                            :key="subItem.title"
+                                        >
+                                            <SidebarMenuSubButton as-child>
+                                                <Link
+                                                    :href="subItem.url"
+                                                    prefetch
+                                                    :class="{
+                                                        'font-semibold p-2 border':
+                                                            subItem.isActive,
+                                                    }"
+                                                >
+                                                    <span>{{
+                                                        subItem.title
+                                                    }}</span>
+                                                </Link>
+                                            </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                    </SidebarMenuSub>
+                                </CollapsibleContent>
+                            </SidebarMenuItem>
+                        </Collapsible>
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>
