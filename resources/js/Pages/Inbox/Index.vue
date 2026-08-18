@@ -85,7 +85,7 @@ const INTENT_META = {
         classes: "bg-orange-100 text-orange-800",
     },
     job_done: { label: "Job done", classes: "bg-green-100 text-green-800" },
-    question: { label: "Question", classes: "bg-blue-100 text-blue-800" },
+    question: { label: "Needs reply", classes: "bg-blue-100 text-blue-800" },
     appointment_confirmed: {
         label: "Confirmed",
         classes: "bg-emerald-100 text-emerald-800",
