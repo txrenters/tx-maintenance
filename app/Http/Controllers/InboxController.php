@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
  */
 class InboxController extends Controller
 {
-    private const THREADS_PER_PAGE = 40;
+    private const THREADS_PER_PAGE = 50;
 
     /** How many characters of the latest message the list shows. */
     private const PREVIEW_LENGTH = 120;
