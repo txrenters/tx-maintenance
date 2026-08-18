@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
+use App\Models\AiInsight;
 use App\Models\Attachments;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
@@ -170,7 +171,41 @@ class AttachmentsController extends Controller
                 ->update(['viewed_by_staff_at' => now()]);
         }
 
+        $this->attachPhotoReviews($workOrder);
+
         return response()->json($workOrder, 200);
+    }
+
+    /**
+     * Decorate each attachment with its AI photo-review verdict, staff-only
+     * and fail-open: vendors/tenants never see the flags, and an unreadable
+     * ai_insights table just renders the tab without them.
+     */
+    private function attachPhotoReviews(WorkOrder $workOrder): void
+    {
+        if (! auth()->user()?->hasAnyRole(['admin', 'woc'])) {
+            return;
+        }
+
+        try {
+            $reviews = AiInsight::query()
+                ->ofType(AiInsight::TYPE_PHOTO_REVIEW)
+                ->where('subject_type', Attachments::class)
+                ->whereIn('subject_id', $workOrder->attachments->pluck('id'))
+                ->get(['subject_id', 'data'])
+                ->keyBy('subject_id');
+        } catch (\Throwable) {
+            return;
+        }
+
+        $workOrder->attachments->each(function (Attachments $attachment) use ($reviews) {
+            $review = $reviews->get($attachment->id);
+
+            $attachment->setAttribute('ai_review', $review ? [
+                'verdict' => data_get($review->data, 'verdict'),
+                'note' => data_get($review->data, 'note'),
+            ] : null);
+        });
     }
 
     /**

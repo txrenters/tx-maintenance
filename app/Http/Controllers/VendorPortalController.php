@@ -6,6 +6,7 @@ use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Jobs\GenerateThumbnail;
 use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
+use App\Jobs\ReviewCompletionPhoto;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
 use App\Models\Conversation;
@@ -368,6 +369,13 @@ class VendorPortalController extends Controller
 
                 UploadAttachment::dispatch($attachment);
                 GenerateThumbnail::dispatch(Attachments::class, $attachment->id);
+
+                // Read-only AI check that the "after" photo plausibly shows
+                // the reported issue addressed. Delayed so the in-place
+                // optimizer rewrite (UploadAttachment) finishes first.
+                if ($attachment->type === 'after' && str_starts_with((string) $attachment->filetype, 'image/')) {
+                    ReviewCompletionPhoto::dispatch($attachment->id)->delay(now()->addSeconds(90));
+                }
             }
 
             return back()->with('success', 'Photos uploaded. They are syncing in the background.');

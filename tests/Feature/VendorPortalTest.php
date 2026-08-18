@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ReviewCompletionPhoto;
 use App\Jobs\UploadAttachment;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
@@ -297,6 +298,8 @@ class VendorPortalTest extends TestCase
         ]);
 
         Queue::assertPushed(UploadAttachment::class);
+        // "After" images also queue the read-only AI photo review.
+        Queue::assertPushed(ReviewCompletionPhoto::class);
     }
 
     public function test_vendor_can_upload_photo_without_a_description(): void

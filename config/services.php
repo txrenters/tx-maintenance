@@ -263,4 +263,14 @@ return [
         'intent_triage' => env('INTENT_TRIAGE_ENABLED', true),
     ],
 
+    'ai' => [
+        // Vision check that a vendor's "after" photo plausibly shows the
+        // reported issue addressed — a read-only flag on the Attachments tab,
+        // never a block on the upload. Fails open: no review, no flag.
+        'photo_review' => env('PHOTO_REVIEW_ENABLED', true),
+
+        // On-demand "why is this stuck" summaries on the open-over-30 report.
+        'stale_digest' => env('STALE_DIGEST_ENABLED', true),
+    ],
+
 ];
