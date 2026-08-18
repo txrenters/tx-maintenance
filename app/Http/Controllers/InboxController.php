@@ -9,6 +9,7 @@ use App\Services\ConversationParticipants;
 use App\Services\CourtesyCloserService;
 use App\Services\MessageTriageService;
 use App\Services\TapbackDetector;
+use App\Services\UnreadThreadCounter;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +29,7 @@ use Illuminate\Support\Facades\Log;
  */
 class InboxController extends Controller
 {
-    private const THREADS_PER_PAGE = 40;
+    private const THREADS_PER_PAGE = 50;
 
     /** How many characters of the latest message the list shows. */
     private const PREVIEW_LENGTH = 120;
@@ -49,6 +50,56 @@ class InboxController extends Controller
 
     public function index(Request $request)
     {
+        $filters = $this->filtersFrom($request);
+        $page = $this->threads($filters);
+        $threads = $page['threads'];
+
+        return inertia('Inbox/Index', [
+            'title' => 'Inbox',
+            'threads' => $threads,
+            'hasMore' => $page['has_more'],
+            'nextCursor' => $page['next_cursor'],
+            'filters' => $filters,
+            // Counted before the party filter is applied, so each chip can say
+            // what is behind it without being clicked.
+            'partyCounts' => $this->partyCounts($filters),
+            'stats' => [
+                'total' => $threads->count(),
+                'awaiting' => $threads->where('awaiting', true)->count(),
+                'unread' => $threads->where('unread', true)->count(),
+                'overdue' => $threads->where('awaiting', true)
+                    ->where('waiting_hours', '>=', 24)
+                    ->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * The next page of the thread list, appended client-side by the list's
+     * Load-more. The cursor is the newest-message position the previous page
+     * ended on, so new arrivals at the top never shift what comes next.
+     */
+    public function more(Request $request): JsonResponse
+    {
+        $cursor = $request->validate([
+            'before_created_at' => ['required', 'string', 'max:32'],
+            'before_id' => ['required', 'integer'],
+        ]);
+
+        $page = $this->threads($this->filtersFrom($request), $cursor);
+
+        return response()->json([
+            'threads' => $page['threads'],
+            'has_more' => $page['has_more'],
+            'next_cursor' => $page['next_cursor'],
+        ]);
+    }
+
+    /**
+     * @return array{search: string, party: string, status: string}
+     */
+    private function filtersFrom(Request $request): array
+    {
         $filters = [
             'search' => trim((string) $request->input('search', '')),
             'party' => (string) $request->input('party', 'all'),
@@ -63,24 +114,7 @@ class InboxController extends Controller
             $filters['party'] = 'all';
         }
 
-        $threads = $this->threads($filters);
-
-        return inertia('Inbox/Index', [
-            'title' => 'Inbox',
-            'threads' => $threads,
-            'filters' => $filters,
-            // Counted before the party filter is applied, so each chip can say
-            // what is behind it without being clicked.
-            'partyCounts' => $this->partyCounts($filters),
-            'stats' => [
-                'total' => $threads->count(),
-                'awaiting' => $threads->where('awaiting', true)->count(),
-                'unread' => $threads->where('unread', true)->count(),
-                'overdue' => $threads->where('awaiting', true)
-                    ->where('waiting_hours', '>=', 24)
-                    ->count(),
-            ],
-        ]);
+        return $filters;
     }
 
     /**
@@ -180,6 +214,10 @@ class InboxController extends Controller
                 ->where($threadKey)
                 ->where('last_read_conversation_id', '<', $lastId)
                 ->update(['last_read_conversation_id' => $lastId]);
+
+            // The nav badge counts unseen threads, so reading one should pull
+            // it down right away rather than after the cache TTL.
+            app(UnreadThreadCounter::class)->forgetFor($user->id);
         } catch (\Throwable $exception) {
             Log::warning('Inbox read marker could not be stored.', [
                 'work_order_id' => $workOrder->id,
@@ -197,10 +235,14 @@ class InboxController extends Controller
      * rather than in four more joins — the page is bounded, and the fallbacks
      * for legacy untagged rows read better as code.
      *
+     * With a cursor, only threads whose newest message sits strictly before
+     * that position are considered — the next page, ordered the same way.
+     *
      * @param  array<string, mixed>  $filters
-     * @return Collection<int, array<string, mixed>>
+     * @param  array{before_created_at: string, before_id: int}|null  $cursor
+     * @return array{threads: Collection<int, array<string, mixed>>, has_more: bool, next_cursor: array{before_created_at: string, before_id: int}|null}
      */
-    private function threads(array $filters): Collection
+    private function threads(array $filters, ?array $cursor = null): array
     {
         // Judged courtesy closers ("thank you") stop counting as awaiting: they
         // are hidden from the awaiting filters but still listed under 'all',
@@ -244,7 +286,18 @@ class InboxController extends Controller
                     ->whereNull('r.id')
                     ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
             )
+            ->when(
+                $cursor !== null,
+                fn ($query) => $query->where(fn ($query) => $query
+                    ->where('c.created_at', '<', $cursor['before_created_at'])
+                    ->orWhere(fn ($query) => $query
+                        ->where('c.created_at', $cursor['before_created_at'])
+                        ->where('c.id', '<', $cursor['before_id'])))
+            )
             ->orderByDesc('c.created_at')
+            // Deterministic under created_at ties, so the cursor never skips
+            // or repeats a thread between pages.
+            ->orderByDesc('c.id')
             // Room to spare so the PHP-side search and age filters still have
             // a full page to draw from.
             ->limit(self::THREADS_PER_PAGE * 4)
@@ -262,7 +315,7 @@ class InboxController extends Controller
         // absent entries simply render no chip.
         $intents = $this->triage->intentsForMessages($rows->pluck('id')->map(fn ($id) => (int) $id)->all());
 
-        return $rows
+        $presented = $rows
             ->map(fn ($row) => $this->presentThread($row, $workOrders->get($row->work_order_id), $now, $courtesyIds, $intents))
             ->when(
                 $filters['status'] === 'unanswered_24h',
@@ -274,8 +327,33 @@ class InboxController extends Controller
                     fn (array $thread) => $this->matchesSearch($thread, $filters['search'])
                 )
             )
-            ->take(self::THREADS_PER_PAGE)
             ->values();
+
+        $page = $presented->take(self::THREADS_PER_PAGE)->values();
+
+        // More may exist when this window held threads beyond the page, or the
+        // SQL buffer came back full — the PHP-side filters may have eaten this
+        // window, but the next one can still hold matches.
+        $hasMore = $presented->count() > self::THREADS_PER_PAGE
+            || $rows->count() === self::THREADS_PER_PAGE * 4;
+
+        // When nothing was withheld, everything scanned was either shown or
+        // rejected, so the next page can start after the whole SQL window
+        // instead of rescanning its filtered-out tail.
+        if ($presented->count() > self::THREADS_PER_PAGE) {
+            $last = $page->last();
+            $nextCursor = ['before_created_at' => (string) $last['last_message_at'], 'before_id' => (int) $last['id']];
+        } elseif (($lastRow = $rows->last()) !== null) {
+            $nextCursor = ['before_created_at' => (string) $lastRow->created_at, 'before_id' => (int) $lastRow->id];
+        } else {
+            $nextCursor = null;
+        }
+
+        return [
+            'threads' => $page,
+            'has_more' => $hasMore,
+            'next_cursor' => $nextCursor,
+        ];
     }
 
     /**
@@ -391,6 +469,9 @@ class InboxController extends Controller
     private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now, array $courtesyIds = [], array $intents = []): array
     {
         return [
+            // The newest message's id: the pagination cursor and the summary
+            // report's view scoping both key on it.
+            'id' => (int) $row->id,
             'intent' => $intents[(int) $row->id] ?? null,
             'key' => implode(':', [
                 $row->work_order_id,

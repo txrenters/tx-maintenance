@@ -161,11 +161,12 @@ const data = computed(() => ({
     ],
 }));
 
-// Conversations whose newest message came in from the outside and are still
-// unanswered. Shared from the server so the badge is right on every page, not
-// only inside the Inbox.
-const awaitingReplyBadge = computed(() => {
-    const count = Number(page.props.awaiting_reply_count ?? 0);
+// Conversations holding a message this user has not opened yet — Messenger
+// semantics: reading a thread clears it, replying is not required, so the
+// badge drains as you work instead of sitting at the whole reply backlog.
+// Shared from the server so it is right on every page, not only in the Inbox.
+const unreadThreadsBadge = computed(() => {
+    const count = Number(page.props.unread_thread_count ?? 0);
 
     if (!count) return null;
 
@@ -421,13 +422,13 @@ const navs = computed(() => {
                     page.component === "Inbox/Index" ||
                     page.component === "ConversationLogs" ||
                     page.component === "TwilioMessageSearch",
-                badge: awaitingReplyBadge.value,
+                badge: unreadThreadsBadge.value,
                 items: [
                     {
                         title: "Inbox",
                         url: route("inbox.index"),
                         isActive: page.component === "Inbox/Index",
-                        badge: awaitingReplyBadge.value,
+                        badge: unreadThreadsBadge.value,
                     },
                     {
                         title: "Message Log",

@@ -284,6 +284,14 @@ class WorkOrderService
                 'user_id' => $woc?->id,
             ];
 
+            // A payload without requestedByContact must not erase a tenant link
+            // a previous import or an intake relink stamped: requested_by is
+            // what every automated tenant message reads, so nulling it silently
+            // kills the work order's whole tenant workflow (WO#43864, 2026-08-19).
+            if (empty($tenant)) {
+                unset($work_order_data['tenant_id']);
+            }
+
             $customFieldData = [];
             if (! empty($data['customFields']) && is_array($data['customFields'])) {
                 foreach ($data['customFields'] as $customField) {

@@ -40,6 +40,7 @@ class AiInsight extends Model
         'complaint',
         'access_issue',
         'job_done',
+        'approval',
         'question',
         'none',
     ];

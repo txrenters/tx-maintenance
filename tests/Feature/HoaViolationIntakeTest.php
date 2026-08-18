@@ -234,6 +234,40 @@ class HoaViolationIntakeTest extends TestCase
         $this->assertSame('2026-08-06', $token->hoa_deadline_at->toDateString());
     }
 
+    public function test_a_stated_deadline_already_past_still_gives_the_tenant_two_business_days(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        // The real WO#43864 case: a notice demanding 8/16 (Sun) uploaded 8/18
+        // (Tue). Honoring the blown date as-is made the violation born-overdue —
+        // staff were flagged to send a vendor the day it was uploaded, before
+        // the tenant got a single message.
+        $this->travelTo(Carbon::parse('2026-08-18 09:00:00'));
+
+        $building = $this->building();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id, [
+                    'notice_date' => '2026-08-11',
+                    'deadline_date' => '2026-08-16',
+                ])],
+            ])->assertRedirect();
+
+        $token = TenantUploadToken::query()
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->firstOrFail();
+
+        // Floored to 8/18 (Tue) + 2 business days => 8/20 (Thu).
+        $this->assertSame('2026-08-20', $token->hoa_deadline_at->toDateString());
+        $this->assertFalse($token->hoa_deadline_at->isPast());
+    }
+
     public function test_store_creates_one_work_order_per_notice(): void
     {
         config(['services.hoa.pw_create_enabled' => false]);

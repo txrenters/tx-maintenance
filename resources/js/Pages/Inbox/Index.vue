@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import AppLayout from "@/Layouts/AppLayout.vue";
@@ -22,6 +22,7 @@ import {
     House,
     Inbox as InboxIcon,
     KeyRound,
+    Loader2,
     MessagesSquare,
     Search,
     Wrench,
@@ -32,6 +33,8 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({
     title: String,
     threads: { type: Array, default: () => [] },
+    hasMore: { type: Boolean, default: false },
+    nextCursor: { type: Object, default: null },
     filters: { type: Object, default: () => ({}) },
     partyCounts: { type: Object, default: () => ({}) },
     stats: { type: Object, default: () => ({}) },
@@ -85,7 +88,8 @@ const INTENT_META = {
         classes: "bg-orange-100 text-orange-800",
     },
     job_done: { label: "Job done", classes: "bg-green-100 text-green-800" },
-    question: { label: "Question", classes: "bg-blue-100 text-blue-800" },
+    approval: { label: "Approved", classes: "bg-violet-100 text-violet-800" },
+    question: { label: "Needs reply", classes: "bg-blue-100 text-blue-800" },
     appointment_confirmed: {
         label: "Confirmed",
         classes: "bg-emerald-100 text-emerald-800",
@@ -146,17 +150,92 @@ const detachedThread = ref(null);
  */
 const readKeys = ref(new Set());
 
+/**
+ * The rendered list: the server's newest page plus every older page appended
+ * by Load-more. Fresh props (a filter change, a reload) reset it to page one.
+ */
+const loadedThreads = ref([...props.threads]);
+const hasMoreThreads = ref(Boolean(props.hasMore));
+const threadsCursor = ref(props.nextCursor ?? null);
+const loadingMore = ref(false);
+
+// Auto-load pauses after a page comes back empty (the PHP-side search filter
+// can eat a whole window) so a rare search cannot chain-scan the entire
+// history unattended; the button still works for another page on demand.
+const autoLoadMore = ref(true);
+
 watch(
     () => props.threads,
     () => {
         readKeys.value = new Set();
+        loadedThreads.value = [...props.threads];
+        hasMoreThreads.value = Boolean(props.hasMore);
+        threadsCursor.value = props.nextCursor ?? null;
+        autoLoadMore.value = true;
     }
 );
 
 const isUnread = (item) => item.unread && !readKeys.value.has(item.key);
 
+const loadMoreThreads = async () => {
+    if (loadingMore.value || !hasMoreThreads.value || !threadsCursor.value) {
+        return;
+    }
+
+    loadingMore.value = true;
+
+    try {
+        const { data } = await axios.get(route("inbox.threads.more"), {
+            params: { ...props.filters, ...threadsCursor.value },
+        });
+
+        // A thread that moved down since page one was rendered could come back
+        // again; the first (fresher) copy wins.
+        const known = new Set(loadedThreads.value.map((item) => item.key));
+        const fresh = data.threads.filter((item) => !known.has(item.key));
+
+        loadedThreads.value = [...loadedThreads.value, ...fresh];
+        hasMoreThreads.value = Boolean(data.has_more);
+        threadsCursor.value = data.next_cursor ?? null;
+        autoLoadMore.value = fresh.length > 0;
+    } catch {
+        toast({
+            variant: "destructive",
+            title: "Could not load more conversations",
+            description: "Please try again.",
+        });
+    } finally {
+        loadingMore.value = false;
+    }
+};
+
+// Messenger-style infinite scroll: when the tail of the list scrolls into
+// view the next page loads by itself; the button remains as the visible
+// affordance and the fallback.
+const loadMoreSentinel = ref(null);
+const sentinelObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting) && autoLoadMore.value) {
+        loadMoreThreads();
+    }
+});
+
+watch(loadMoreSentinel, (element, previous) => {
+    if (previous) sentinelObserver.unobserve(previous);
+    if (element) sentinelObserver.observe(element);
+});
+
+onBeforeUnmount(() => sentinelObserver.disconnect());
+
+// The newest-message id of every listed thread — the Summary report is scoped
+// to these, so it describes the view on screen.
+const loadedThreadIds = computed(() =>
+    loadedThreads.value.map((item) => item.id).filter(Boolean)
+);
+
 const activeThread = computed(() => {
-    const listed = props.threads.find((item) => item.key === activeKey.value);
+    const listed = loadedThreads.value.find(
+        (item) => item.key === activeKey.value
+    );
 
     if (listed) return listed;
 
@@ -329,6 +408,7 @@ const sendMessage = ({ text, files }) => {
                     </h1>
                     <UnansweredSummaryDialog
                         v-if="canSeeSummary"
+                        :conversation-ids="loadedThreadIds"
                         @open-thread="openThread"
                     />
                 </div>
@@ -385,14 +465,14 @@ const sendMessage = ({ text, files }) => {
 
             <ScrollArea class="min-h-0 flex-1">
                 <p
-                    v-if="!threads.length"
+                    v-if="!loadedThreads.length"
                     class="text-muted-foreground p-6 text-center text-sm"
                 >
                     No conversations match these filters.
                 </p>
 
                 <button
-                    v-for="item in threads"
+                    v-for="item in loadedThreads"
                     :key="item.key"
                     type="button"
                     class="hover:bg-accent flex w-full items-start gap-3 border-b p-3 text-left transition-colors"
@@ -469,6 +549,32 @@ const sendMessage = ({ text, files }) => {
                         "
                     />
                 </button>
+
+                <!-- Scrolling to the tail loads the next page by itself; the
+                     button is the visible affordance and the fallback. -->
+                <div
+                    v-if="hasMoreThreads"
+                    ref="loadMoreSentinel"
+                    class="p-3"
+                >
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="h-8 w-full text-xs"
+                        :disabled="loadingMore"
+                        @click="loadMoreThreads"
+                    >
+                        <Loader2
+                            v-if="loadingMore"
+                            class="mr-1 h-3.5 w-3.5 animate-spin"
+                        />
+                        {{
+                            loadingMore
+                                ? "Loading…"
+                                : "Load older conversations"
+                        }}
+                    </Button>
+                </div>
             </ScrollArea>
         </div>
 

@@ -384,4 +384,75 @@ class InboxTest extends TestCase
     {
         $this->get(route('inbox.index'))->assertRedirect(route('login'));
     }
+
+    public function test_older_threads_page_in_behind_a_cursor(): void
+    {
+        $now = now();
+
+        for ($i = 0; $i < 55; $i++) {
+            $workOrder = WorkOrder::factory()->create();
+            $this->message($workOrder, inbound: true, attributes: [
+                'created_at' => $now->copy()->subMinutes($i + 1),
+                'updated_at' => $now->copy()->subMinutes($i + 1),
+            ]);
+        }
+
+        $user = $this->staffUser();
+        $props = $this->actingAs($user)
+            ->get(route('inbox.index'))
+            ->viewData('page')['props'];
+
+        $this->assertCount(50, $props['threads']);
+        $this->assertTrue($props['hasMore']);
+        $this->assertNotNull($props['nextCursor']);
+
+        $more = $this->actingAs($user)
+            ->getJson(route('inbox.threads.more', array_merge(
+                ['search' => '', 'party' => 'all', 'status' => 'all'],
+                $props['nextCursor'],
+            )))
+            ->assertOk()
+            ->json();
+
+        $this->assertCount(5, $more['threads']);
+        $this->assertFalse($more['has_more']);
+
+        // The two pages never overlap, and together they cover everything.
+        $firstPageKeys = array_column($props['threads'], 'key');
+        $olderKeys = array_column($more['threads'], 'key');
+        $this->assertSame([], array_intersect($firstPageKeys, $olderKeys));
+        $this->assertCount(55, array_unique(array_merge($firstPageKeys, $olderKeys)));
+    }
+
+    public function test_the_cursor_page_respects_the_active_filters(): void
+    {
+        $now = now();
+
+        $tenantThread = WorkOrder::factory()->create();
+        $this->message($tenantThread, inbound: true, attributes: [
+            'created_at' => $now->copy()->subMinutes(2),
+            'updated_at' => $now->copy()->subMinutes(2),
+        ]);
+
+        $ownerThread = WorkOrder::factory()->create();
+        $this->message($ownerThread, inbound: true, attributes: [
+            'conversation_type' => 'owner',
+            'created_at' => $now->copy()->subMinutes(3),
+            'updated_at' => $now->copy()->subMinutes(3),
+        ]);
+
+        $more = $this->actingAs($this->staffUser())
+            ->getJson(route('inbox.threads.more', [
+                'search' => '',
+                'party' => 'owner',
+                'status' => 'all',
+                'before_created_at' => $now->format('Y-m-d H:i:s'),
+                'before_id' => PHP_INT_MAX,
+            ]))
+            ->assertOk()
+            ->json();
+
+        $this->assertCount(1, $more['threads']);
+        $this->assertSame('owner', $more['threads'][0]['conversation_type']);
+    }
 }

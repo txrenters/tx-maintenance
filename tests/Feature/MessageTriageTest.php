@@ -138,6 +138,35 @@ class MessageTriageTest extends TestCase
         $this->assertNull($thread['intent']);
     }
 
+    public function test_an_approval_is_tagged_and_an_unknown_intent_falls_to_none(): void
+    {
+        $this->aiReady();
+
+        $approved = WorkOrder::factory()->create();
+        $this->message($approved, inbound: false, text: 'The quote is $450 — how would you like to proceed?');
+        $this->message($approved, inbound: true, text: 'Please place service call to fix. Thank you', attributes: ['conversation_type' => 'owner']);
+
+        $novel = WorkOrder::factory()->create();
+        $this->message($novel, inbound: true, text: 'The moon is made of cheese.');
+
+        $this->agentReturns([
+            ['ref' => 1, 'intent' => 'approval', 'summary' => 'Owner approves placing a service call.', 'schedule_start' => null, 'schedule_end' => null],
+            ['ref' => 2, 'intent' => 'made_up_intent', 'summary' => 'Nonsense.', 'schedule_start' => null, 'schedule_end' => null],
+        ]);
+
+        $this->artisan('inbox:triage-messages')->assertSuccessful();
+
+        $response = $this->actingAs($this->staff())->get(route('inbox.index'));
+        $threads = collect($response->viewData('page')['props']['threads']);
+
+        $this->assertSame(
+            'approval',
+            $threads->firstWhere('work_order_id', $approved->id)['intent']['intent']
+        );
+        // An intent the model invented is stored as none and renders no chip.
+        $this->assertNull($threads->firstWhere('work_order_id', $novel->id)['intent']);
+    }
+
     public function test_disabled_gate_or_ai_not_ready_does_nothing(): void
     {
         $workOrder = WorkOrder::factory()->create();
