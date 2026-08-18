@@ -7,8 +7,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * How many conversations are sitting on a reply from us, for the red badge on
- * the Messages nav.
+ * How many conversations are sitting on a reply from us — the workload metric
+ * behind the Inbox's awaiting-reply views. (The red nav badge counts unseen
+ * threads per user instead; see UnreadThreadCounter.)
  *
  * A thread is one work order plus one party, matching the Inbox and
  * BoardSummaryService. A thread counts when its newest message came in from the

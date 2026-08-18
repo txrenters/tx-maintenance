@@ -211,6 +211,24 @@ class UnansweredMessageReportTest extends TestCase
         $this->assertStringContainsString('Nothing is waiting', $report['summary']['headline']);
     }
 
+    public function test_ids_scope_the_report_to_the_threads_on_screen(): void
+    {
+        $visible = WorkOrder::factory()->create();
+        $visibleMessage = $this->message($visible, inbound: true);
+
+        $offScreen = WorkOrder::factory()->create();
+        $this->message($offScreen, inbound: true);
+
+        $report = $this->actingAs($this->staffUser())
+            ->getJson(route('inbox.summary', ['ids' => [$visibleMessage->id]]))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(1, $report['stats']['threads']);
+        $this->assertCount(1, $report['stats']['details']);
+        $this->assertSame($visible->id, $report['stats']['details'][0]['work_order_id']);
+    }
+
     public function test_a_vendor_cannot_pull_the_report(): void
     {
         Role::findOrCreate('vendor', 'web');

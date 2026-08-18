@@ -21,9 +21,19 @@ class InboxSummaryController extends Controller
 
         $request->validate([
             'refresh' => ['nullable', 'boolean'],
+            // The Inbox scopes the report to the threads currently on screen
+            // by sending their newest-message ids; absent means the whole
+            // queue. The report only ever narrows with these — visibility is
+            // enforced inside it regardless of what is posted here.
+            'ids' => ['nullable', 'array', 'max:600'],
+            'ids.*' => ['integer'],
         ]);
 
-        $result = $report->build($request->boolean('refresh'));
+        $ids = $request->has('ids')
+            ? array_map('intval', $request->input('ids', []))
+            : null;
+
+        $result = $report->build($request->boolean('refresh'), $ids);
 
         $aiStatus = $report->aiStatus();
 

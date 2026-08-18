@@ -3,7 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\FeatureUpdatesController;
-use App\Services\AwaitingReplyCounter;
+use App\Services\UnreadThreadCounter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -73,10 +73,12 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
-            // Drives the red badge on the Messages nav. Only the staff who see
-            // that nav pay for the query, and the result is cached for a minute.
-            'awaiting_reply_count' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
-                ? app(AwaitingReplyCounter::class)->cachedCount()
+            // Drives the red badge on the Messages nav: threads holding a
+            // message this user has not opened yet (Messenger semantics —
+            // reading clears it, replying is not required). Only the staff who
+            // see that nav pay for the query; cached per user for a minute.
+            'unread_thread_count' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
+                ? app(UnreadThreadCounter::class)->cachedCountFor($request->user()->id)
                 : 0,
             // Drives the badge on the What's New nav: release dates of every
             // shipped update, newest first; the layout counts the ones newer

@@ -27,10 +27,21 @@ import {
  * The unanswered-message report: who has written in and not been answered,
  * which of them matter, and what to do about each.
  *
+ * Scoped to the threads currently on screen — the parent passes the newest
+ * message id of every listed thread, and the server builds the report from
+ * only those, so the dialog describes what the user is looking at rather than
+ * the historic queue.
+ *
  * The figures come counted from the server; the AI only writes over them. When
  * the provider is down the same report renders from a deterministic write-up,
  * so this is never blank.
  */
+const props = defineProps({
+    // Newest-message ids of the threads in the current view; null summarizes
+    // the whole queue (legacy behavior, kept for callers that pass nothing).
+    conversationIds: { type: Array, default: null },
+});
+
 const emit = defineEmits(["open-thread"]);
 
 const open = ref(false);
@@ -41,19 +52,42 @@ const summary = ref(null);
 const source = ref(null);
 const aiProvider = ref(null);
 
+// What the current report was built over, so reopening after the list changed
+// (new filter, loaded more threads) rebuilds instead of showing a stale view.
+const fetchedSignature = ref(null);
+
+const viewSignature = computed(() =>
+    props.conversationIds ? props.conversationIds.join(",") : "all",
+);
+
 const fetchSummary = async (refresh = false) => {
+    // An empty view needs no server round-trip — nothing is waiting in it.
+    if (props.conversationIds && props.conversationIds.length === 0) {
+        stats.value = { threads: 0 };
+        summary.value = null;
+        source.value = "empty";
+        fetchedSignature.value = viewSignature.value;
+        return;
+    }
+
     isLoading.value = true;
     errorMessage.value = "";
 
     try {
         const { data } = await axios.get(route("inbox.summary"), {
-            params: { refresh: refresh ? 1 : 0 },
+            params: {
+                refresh: refresh ? 1 : 0,
+                ...(props.conversationIds
+                    ? { ids: props.conversationIds }
+                    : {}),
+            },
         });
 
         stats.value = data.stats;
         summary.value = data.summary;
         source.value = data.source;
         aiProvider.value = data.ai_provider;
+        fetchedSignature.value = viewSignature.value;
     } catch (error) {
         errorMessage.value =
             error.response?.status === 403
@@ -65,10 +99,13 @@ const fetchSummary = async (refresh = false) => {
     }
 };
 
-// Build on first open only; Refresh is the way to rebuild. A failed fetch is
-// not retried automatically so a broken provider cannot loop.
+// Build on open when the view changed since the last build; Refresh is the way
+// to force a rebuild of the same view. A failed fetch is not retried
+// automatically so a broken provider cannot loop.
 watch(open, (isOpen) => {
-    if (isOpen && !stats.value && !isLoading.value) fetchSummary();
+    if (isOpen && fetchedSignature.value !== viewSignature.value && !isLoading.value) {
+        fetchSummary();
+    }
 });
 
 const priorities = computed(() => summary.value?.priorities ?? []);
@@ -136,8 +173,11 @@ const generatedAtLabel = computed(() => {
                     Messages that have not been answered
                 </DialogTitle>
                 <DialogDescription>
-                    Every conversation where a tenant, owner or vendor sent the
-                    last message and nobody has replied.
+                    {{
+                        conversationIds
+                            ? "Of the conversations in your current view, the ones where the other side sent the last message and nobody has replied."
+                            : "Every conversation where a tenant, owner or vendor sent the last message and nobody has replied."
+                    }}
                 </DialogDescription>
             </DialogHeader>
 
@@ -165,7 +205,11 @@ const generatedAtLabel = computed(() => {
                     <CheckCircle2 class="h-10 w-10 text-emerald-500" />
                     <p class="text-sm font-medium">Everyone has been answered.</p>
                     <p class="text-muted-foreground text-xs">
-                        No conversation is waiting on a reply right now.
+                        {{
+                            conversationIds
+                                ? "No conversation in this view is waiting on a reply."
+                                : "No conversation is waiting on a reply right now."
+                        }}
                     </p>
                 </div>
 

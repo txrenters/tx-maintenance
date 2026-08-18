@@ -11,8 +11,9 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The red count on the Messages nav: how many conversations are still sitting
- * on a reply from us.
+ * The awaiting-reply metric: how many conversations are still sitting on a
+ * reply from us. The red nav badge itself counts unseen threads per user —
+ * see UnreadThreadBadgeTest — but the shared-prop gating is asserted here.
  */
 class AwaitingReplyBadgeTest extends TestCase
 {
@@ -81,7 +82,7 @@ class AwaitingReplyBadgeTest extends TestCase
         $this->assertSame(0, $counter->cachedCount());
     }
 
-    public function test_staff_receive_the_count_as_a_shared_prop(): void
+    public function test_staff_receive_the_unread_count_as_a_shared_prop(): void
     {
         $workOrder = WorkOrder::factory()->create();
         $this->message($workOrder, inbound: true);
@@ -89,7 +90,8 @@ class AwaitingReplyBadgeTest extends TestCase
         $response = $this->actingAs($this->user('woc'))->get(route('dashboard'));
 
         $response->assertOk();
-        $this->assertSame(1, $response->viewData('page')['props']['awaiting_reply_count']);
+        // Never opened, so the thread is unseen for this user.
+        $this->assertSame(1, $response->viewData('page')['props']['unread_thread_count']);
     }
 
     public function test_non_staff_never_pay_for_the_query(): void
@@ -99,6 +101,6 @@ class AwaitingReplyBadgeTest extends TestCase
 
         $response = $this->actingAs($this->user('vendor'))->get(route('dashboard'));
 
-        $this->assertSame(0, $response->viewData('page')['props']['awaiting_reply_count']);
+        $this->assertSame(0, $response->viewData('page')['props']['unread_thread_count']);
     }
 }

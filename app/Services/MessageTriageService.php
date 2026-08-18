@@ -14,9 +14,10 @@ use Illuminate\Support\Str;
 
 /**
  * Tags each thread's newest unanswered inbound message with an intent
- * (reschedule request, complaint, access issue, job done, question,
- * confirmation) and, when the message proposes a concrete appointment
- * day/time, records a schedule SUGGESTION for staff to accept or dismiss.
+ * (reschedule request, complaint, access issue, job done, approval,
+ * question, confirmation) and, when the message proposes a concrete
+ * appointment day/time, records a schedule SUGGESTION for staff to accept or
+ * dismiss.
  *
  * Read-only: this service never sends anything and never edits a work
  * order — it writes ai_insights rows the Inbox and the Service Schedule tab

@@ -51,11 +51,17 @@ class UnansweredMessageReport
     }
 
     /**
+     * When the Inbox sends the newest-message ids of the threads on screen,
+     * the whole report — counts, ages, priorities, the AI briefing — is scoped
+     * to that view, so the dialog describes what the user is looking at rather
+     * than the historic queue. Null means the full queue.
+     *
+     * @param  array<int, int>|null  $conversationIds
      * @return array{stats: array<string, mixed>, summary: array<string, mixed>, source: string}
      */
-    public function build(bool $refresh = false): array
+    public function build(bool $refresh = false, ?array $conversationIds = null): array
     {
-        $stats = $this->stats();
+        $stats = $this->stats($conversationIds);
 
         // Keyed on the figures themselves, so the briefing is rebuilt exactly
         // when the queue changes and not on a timer. generated_at is excluded
@@ -85,12 +91,13 @@ class UnansweredMessageReport
     /**
      * Every figure the report quotes.
      *
+     * @param  array<int, int>|null  $conversationIds
      * @return array<string, mixed>
      */
-    public function stats(): array
+    public function stats(?array $conversationIds = null): array
     {
         $now = Carbon::now();
-        $unanswered = $this->unansweredThreads();
+        $unanswered = $this->unansweredThreads($conversationIds);
 
         $totals = (clone $unanswered)
             ->selectRaw('COUNT(*) as threads')
@@ -118,9 +125,12 @@ class UnansweredMessageReport
      * derives the same set for a single board. This one spans everything the
      * signed-in user may see: the work order set is filtered through the
      * Conversation model as a subquery, so its global scope applies and no id
-     * list is ever pulled into PHP.
+     * list is ever pulled into PHP. A caller-supplied id list only ever
+     * narrows that set further — it can never widen visibility.
+     *
+     * @param  array<int, int>|null  $conversationIds
      */
-    private function unansweredThreads(): Builder
+    private function unansweredThreads(?array $conversationIds = null): Builder
     {
         $latestPerThread = DB::table('work_order_conversations')
             ->selectRaw('MAX(id) as last_id')
@@ -139,7 +149,8 @@ class UnansweredMessageReport
                 ->whereNotIn('wo.status', WorkOrder::CLOSED_STATUSES)
                 ->orWhereNull('wo.status')
             )
-            ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds));
+            ->when($courtesyIds !== [], fn ($query) => $query->whereNotIn('c.id', $courtesyIds))
+            ->when($conversationIds !== null, fn ($query) => $query->whereIn('c.id', $conversationIds));
     }
 
     /**

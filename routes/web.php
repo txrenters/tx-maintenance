@@ -214,6 +214,7 @@ Route::middleware([
     Route::post('/reports/open-over-30-days/analyze', [ReportController::class, 'analyzeStaleWorkOrder'])->name('reports.open_over_30_days.analyze');
 
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
+    Route::get('/inbox/threads', [InboxController::class, 'more'])->name('inbox.threads.more');
     Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');
     Route::get('/inbox/summary', InboxSummaryController::class)->name('inbox.summary');
     Route::get('/message-alerts', MessageAlertController::class)->name('message_alerts');
