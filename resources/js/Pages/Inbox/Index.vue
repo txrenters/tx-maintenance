@@ -71,6 +71,30 @@ const STATUS_TABS = [
 ];
 
 /**
+ * AI triage chip per intent key (thread.intent.intent from the server).
+ * Unknown keys render nothing, so a new server-side intent fails soft.
+ */
+const INTENT_META = {
+    reschedule_request: {
+        label: "Reschedule",
+        classes: "bg-amber-100 text-amber-800",
+    },
+    complaint: { label: "Complaint", classes: "bg-red-100 text-red-800" },
+    access_issue: {
+        label: "Access issue",
+        classes: "bg-orange-100 text-orange-800",
+    },
+    job_done: { label: "Job done", classes: "bg-green-100 text-green-800" },
+    question: { label: "Question", classes: "bg-blue-100 text-blue-800" },
+    appointment_confirmed: {
+        label: "Confirmed",
+        classes: "bg-emerald-100 text-emerald-800",
+    },
+};
+
+const intentMeta = (item) => INTENT_META[item?.intent?.intent] ?? null;
+
+/**
  * Who the thread is with. The first four always show; the vendor-brokered
  * threads are rare enough that they only earn a chip when they hold something
  * (or are the current filter, so the active one never disappears).
@@ -414,6 +438,14 @@ const sendMessage = ({ text, files }) => {
                                 WO#{{ item.work_order_no }}
                             </span>
                             · {{ item.party }}
+                            <span
+                                v-if="intentMeta(item)"
+                                class="ml-1 inline-block rounded-full px-1.5 py-px text-[10px] font-medium"
+                                :class="intentMeta(item).classes"
+                                :title="item.intent?.summary || undefined"
+                            >
+                                {{ intentMeta(item).label }}
+                            </span>
                         </p>
                         <p
                             class="mt-0.5 truncate text-xs"
@@ -460,6 +492,14 @@ const sendMessage = ({ text, files }) => {
                             {{ activeThread?.counterparty }}
                             <span class="text-muted-foreground font-normal">
                                 · {{ activeThread?.party }}
+                            </span>
+                            <span
+                                v-if="intentMeta(activeThread)"
+                                class="ml-1 inline-block rounded-full px-1.5 py-px align-middle text-[10px] font-medium"
+                                :class="intentMeta(activeThread).classes"
+                                :title="activeThread?.intent?.summary || undefined"
+                            >
+                                {{ intentMeta(activeThread).label }}
                             </span>
                         </p>
                         <p class="text-muted-foreground truncate text-xs">

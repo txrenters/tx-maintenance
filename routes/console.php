@@ -179,3 +179,14 @@ Schedule::command('inbox:classify-courtesy')
     ->everyTenMinutes()
     ->withoutOverlapping(15)
     ->runInBackground();
+
+// Message triage: tag each thread's newest unanswered inbound message with
+// what it is (reschedule request, complaint, access issue, job done,
+// question) and record concretely proposed appointment times as suggestions
+// staff accept or dismiss. Read-only — it labels threads, it never sends
+// anything. Fails open: an unjudged message simply shows no chip.
+// INTENT_TRIAGE_ENABLED=false switches it off without losing stored labels.
+Schedule::command('inbox:triage-messages')
+    ->everyTenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground();

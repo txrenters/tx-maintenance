@@ -7,6 +7,7 @@ use App\Models\InboxThreadRead;
 use App\Models\WorkOrder;
 use App\Services\ConversationParticipants;
 use App\Services\CourtesyCloserService;
+use App\Services\MessageTriageService;
 use App\Services\TapbackDetector;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
@@ -43,6 +44,7 @@ class InboxController extends Controller
     public function __construct(
         private ConversationParticipants $participants,
         private CourtesyCloserService $courtesyClosers,
+        private MessageTriageService $triage,
     ) {}
 
     public function index(Request $request)
@@ -256,8 +258,12 @@ class InboxController extends Controller
 
         $now = Carbon::now();
 
+        // AI intent chips for the newest message of each listed thread —
+        // absent entries simply render no chip.
+        $intents = $this->triage->intentsForMessages($rows->pluck('id')->map(fn ($id) => (int) $id)->all());
+
         return $rows
-            ->map(fn ($row) => $this->presentThread($row, $workOrders->get($row->work_order_id), $now, $courtesyIds))
+            ->map(fn ($row) => $this->presentThread($row, $workOrders->get($row->work_order_id), $now, $courtesyIds, $intents))
             ->when(
                 $filters['status'] === 'unanswered_24h',
                 fn (Collection $threads) => $threads->where('waiting_hours', '>=', 24)
@@ -379,11 +385,13 @@ class InboxController extends Controller
 
     /**
      * @param  array<int, int>  $courtesyIds
+     * @param  array<int, array{intent: string, summary: ?string}>  $intents
      * @return array<string, mixed>
      */
-    private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now, array $courtesyIds = []): array
+    private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now, array $courtesyIds = [], array $intents = []): array
     {
         return [
+            'intent' => $intents[(int) $row->id] ?? null,
             'key' => implode(':', [
                 $row->work_order_id,
                 $row->conversation_type ?: 'unknown',
