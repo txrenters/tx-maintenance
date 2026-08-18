@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
+use App\Services\StaleWorkOrderDigestService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -286,6 +287,8 @@ class ReportController extends Controller
         $compliant = $workOrders->reject($isOld);
 
         return $this->respond('open_over_30_days', [
+            // Enables the per-row "Analyze" AI column on the KPI page.
+            'aiDigest' => app(StaleWorkOrderDigestService::class)->enabled(),
             'title' => 'Open WOs Over 30 Days Old',
             'description' => 'Work orders created through the selected month that are still open more than 30 days later. Target is zero.',
             'hasMonthFilter' => true,
@@ -306,6 +309,27 @@ class ReportController extends Controller
                 ['key' => 'compliant', 'label' => 'Open within 30 days', 'rows' => $compliant->map($map)->values()],
             ],
         ]);
+    }
+
+    /**
+     * On-demand AI digest for one stale work order — why it looks stuck and
+     * the next step. One row per click, cached a day in the service; never
+     * run across the whole report at once.
+     */
+    public function analyzeStaleWorkOrder(Request $request, StaleWorkOrderDigestService $digests)
+    {
+        $this->authorizeReports($request);
+
+        $validated = $request->validate([
+            'work_order_id' => ['required', 'integer', 'exists:work_orders,id'],
+            'refresh' => ['nullable', 'boolean'],
+        ]);
+
+        $workOrder = WorkOrder::withoutGlobalScopes()->findOrFail($validated['work_order_id']);
+
+        return response()->json(
+            $digests->analyze($workOrder, $request->boolean('refresh'))
+        );
     }
 
     /**

@@ -211,6 +211,7 @@ Route::middleware([
     Route::get('/reports/not-scheduled-3-days', [ReportController::class, 'notScheduledWithin3Days'])->name('reports.not_scheduled_3_days');
     Route::get('/reports/tasks-on-time', [ReportController::class, 'tasksCompletedOnTime'])->name('reports.tasks_on_time');
     Route::get('/reports/open-over-30-days', [ReportController::class, 'openOver30Days'])->name('reports.open_over_30_days');
+    Route::post('/reports/open-over-30-days/analyze', [ReportController::class, 'analyzeStaleWorkOrder'])->name('reports.open_over_30_days.analyze');
 
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
     Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');

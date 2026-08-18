@@ -2,6 +2,8 @@
 import { ref, computed, watch } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { router } from "@inertiajs/vue3";
+import axios from "axios";
+import { Sparkles } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -18,7 +20,27 @@ const props = defineProps({
     countLabel: { type: String, default: "No. of WOs" },
     columns: { type: Array, default: () => [] },
     lists: { type: Array, default: () => [] },
+    // Reports that support the per-row "why is this stuck" AI digest pass
+    // true and expose a matching reports.{reportKey}.analyze endpoint.
+    aiDigest: { type: Boolean, default: false },
 });
+
+// Per-row AI digests, keyed by work order id. On demand only — one click,
+// one row, one AI call (cached server-side for a day).
+const digests = ref({});
+
+const analyzeRow = async (row) => {
+    digests.value[row.id] = { loading: true };
+    try {
+        const { data } = await axios.post(
+            route(`reports.${props.reportKey}.analyze`),
+            { work_order_id: row.id },
+        );
+        digests.value[row.id] = { loading: false, ...data };
+    } catch {
+        digests.value[row.id] = { loading: false, available: false };
+    }
+};
 
 const months = [
     "January", "February", "March", "April", "May", "June",
@@ -204,6 +226,7 @@ const subtitle = computed(() => {
                         >
                             {{ col.label }}
                         </TableHead>
+                        <TableHead v-if="aiDigest">Why stuck (AI)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -230,6 +253,46 @@ const subtitle = computed(() => {
                                 >{{ truncateWords(row[col.key]) }}</span
                             >
                             <span v-else>{{ cellValue(row, col) }}</span>
+                        </TableCell>
+                        <TableCell v-if="aiDigest" class="max-w-sm align-top">
+                            <template v-if="digests[row.id]?.loading">
+                                <Loader2 class="h-4 w-4 animate-spin" />
+                            </template>
+                            <template
+                                v-else-if="digests[row.id]?.available"
+                            >
+                                <p class="text-xs">
+                                    {{ digests[row.id].stuck_reason }}
+                                </p>
+                                <p class="mt-1 text-xs font-medium">
+                                    → {{ digests[row.id].next_action }}
+                                </p>
+                            </template>
+                            <template
+                                v-else-if="
+                                    digests[row.id] &&
+                                    !digests[row.id].available
+                                "
+                            >
+                                <span class="text-xs text-muted-foreground">
+                                    AI unavailable —
+                                    <button
+                                        type="button"
+                                        class="underline"
+                                        @click="analyzeRow(row)"
+                                    >
+                                        try again
+                                    </button>
+                                </span>
+                            </template>
+                            <Button
+                                v-else
+                                size="sm"
+                                variant="outline"
+                                @click="analyzeRow(row)"
+                            >
+                                <Sparkles class="mr-1 h-3.5 w-3.5" /> Analyze
+                            </Button>
                         </TableCell>
                     </TableRow>
                 </TableBody>

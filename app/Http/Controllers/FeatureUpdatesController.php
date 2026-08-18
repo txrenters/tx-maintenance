@@ -22,6 +22,30 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-18',
+            'area' => 'Inbox',
+            'title' => 'The Inbox tells you what each message wants',
+            'description' => 'Threads in the Inbox now carry a small chip on their newest unanswered message — Reschedule, Complaint, Access issue, Job done, Question, or Confirmed — read by AI every few minutes, so you can see what a thread needs without opening it. Hover the chip for a one-line summary. Purely informational: nothing is sent and nothing changes on the work order.',
+        ],
+        [
+            'date' => '2026-08-18',
+            'area' => 'Scheduling',
+            'title' => 'Appointment suggestions pulled from texts',
+            'description' => 'When a tenant or vendor texts a concrete day or time ("Tuesday after 2 works"), it now appears as a suggestion card on the work order\'s Service Schedule tab. "Use" pre-fills the normal schedule form with that date — you still pick the vendor and hit save, so PropertyWare sync and the tenant notification work exactly as always. Dismissed suggestions stay dismissed.',
+        ],
+        [
+            'date' => '2026-08-18',
+            'area' => 'Vendors',
+            'title' => 'AI double-checks vendor "after" photos',
+            'description' => 'When a vendor uploads an after photo, AI compares it against the reported issue. Photos that don\'t seem to match, or are too unclear to tell, get a small staff-only flag on the Attachments tab — worth a look before the work order moves toward payment. Clean photos show nothing, vendors never see the flags, and uploads are never blocked.',
+        ],
+        [
+            'date' => '2026-08-18',
+            'area' => 'Reports',
+            'title' => 'The over-30-days report explains why',
+            'description' => 'Each row on the "Open WOs Over 30 Days" report has an Analyze button: AI reads the work order\'s messages, notes, tasks and schedules and answers two things — why it looks stuck, and the single next step to move it. One click per work order, answers are kept for a day.',
+        ],
+        [
+            'date' => '2026-08-18',
             'area' => 'System',
             'title' => 'Choose the AI engine from IT Tools',
             'description' => 'Admins can now pick which AI provider and model power the work order classifier, vendor picker, HOA notice reader, board summaries and inbox reports — Settings → AI Settings in the sidebar. Paste a provider\'s API key right on the page, hit Test to try the choice live, then Save; changes apply immediately with no deploy. Reset puts everything back to the server default.',
