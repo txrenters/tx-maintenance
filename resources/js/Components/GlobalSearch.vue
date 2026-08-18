@@ -3,7 +3,8 @@ import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useFilter } from "reka-ui";
 import axios from "axios";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
-import { Search, Loader2, AlertCircle } from "lucide-vue-next";
+import { useRecentSearches } from "@/composables/useRecentSearches";
+import { Search, Loader2, AlertCircle, History, X } from "lucide-vue-next";
 import {
     Dialog,
     DialogContent,
@@ -32,6 +33,13 @@ const buildingSearchTerm = ref("");
 
 const { contains } = useFilter({ sensitivity: "base" });
 const { open: openWorkOrderModal } = useWorkOrderModal();
+const {
+    recentSearches,
+    rememberSearch,
+    forgetSearch,
+    clearSearches,
+    searchedAgo,
+} = useRecentSearches();
 
 const filteredBuildings = computed(() => {
     if (!buildingSearchTerm.value) {
@@ -97,8 +105,22 @@ watch([query, selectedBuilding], () => {
     debounceTimer = setTimeout(performSearch, 300);
 });
 
+// Snapshot the current search into the recent-searches list. Recording only
+// here and on result clicks (not on every debounce tick) keeps half-typed
+// prefixes like "plum" from being saved on the way to "plumbing".
+const recordCurrentSearch = () => {
+    if (query.value.length < 2 && !selectedBuilding.value) return;
+
+    rememberSearch({
+        query: query.value.length >= 2 ? query.value : "",
+        buildingId: selectedBuilding.value,
+        buildingName: getBuildingLabel(selectedBuilding.value),
+    });
+};
+
 watch(isOpen, (value) => {
     if (!value) {
+        recordCurrentSearch();
         query.value = "";
         selectedBuilding.value = null;
         results.value = [];
@@ -107,10 +129,20 @@ watch(isOpen, (value) => {
 });
 
 const selectWorkOrder = (id) => {
+    // A clicked result proves the search was useful — remember it even if the
+    // user later edits the query before closing.
+    recordCurrentSearch();
     // Show the work order in the shared modal. Per the lead's request, keep the
     // search dialog open in the background so the user can return to their
     // results after closing the work order modal.
     openWorkOrderModal(id);
+};
+
+const runRecentSearch = (recent) => {
+    // Restoring query + building trips the debounce watcher, which re-runs the
+    // search on its own.
+    query.value = recent.query ?? "";
+    selectedBuilding.value = recent.building_id ?? null;
 };
 
 const getPriorityVariant = (priority) => {
@@ -224,6 +256,76 @@ onUnmounted(() => {
                     <Loader2
                         class="w-6 h-6 animate-spin text-muted-foreground"
                     />
+                </div>
+
+                <!-- Recent searches -->
+                <div
+                    v-else-if="
+                        query.length < 2 &&
+                        !selectedBuilding &&
+                        recentSearches.length > 0
+                    "
+                    class="p-2"
+                >
+                    <div
+                        class="flex items-center justify-between px-4 py-1.5 text-xs text-muted-foreground"
+                    >
+                        <span class="flex items-center gap-1.5 font-medium">
+                            <History class="w-3.5 h-3.5" />
+                            Recent searches
+                        </span>
+                        <button
+                            type="button"
+                            class="rounded px-1.5 py-0.5 transition-colors hover:bg-accent/60 hover:text-accent-foreground"
+                            @click="clearSearches"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                    <ul class="divide-y divide-border/60">
+                        <li
+                            v-for="recent in recentSearches"
+                            :key="`${recent.query}|${recent.building_id}`"
+                            class="group relative flex items-center gap-2 px-4 py-2.5 cursor-pointer transition-colors hover:bg-accent/60 hover:text-accent-foreground"
+                            @click="runRecentSearch(recent)"
+                        >
+                            <span
+                                class="pointer-events-none absolute left-0 top-0 h-full w-1 bg-primary opacity-0 transition-opacity group-hover:opacity-100"
+                            ></span>
+                            <Search
+                                class="w-3.5 h-3.5 text-muted-foreground shrink-0"
+                            />
+                            <span class="flex-1 min-w-0 truncate text-sm">
+                                <template v-if="recent.query">{{
+                                    recent.query
+                                }}</template>
+                                <span
+                                    v-else
+                                    class="italic text-muted-foreground"
+                                    >All work orders</span
+                                >
+                                <span
+                                    v-if="recent.building_name"
+                                    class="ml-1.5 text-xs text-muted-foreground"
+                                >
+                                    in {{ recent.building_name }}
+                                </span>
+                            </span>
+                            <span
+                                class="text-[10px] text-muted-foreground shrink-0"
+                            >
+                                {{ searchedAgo(recent) }}
+                            </span>
+                            <button
+                                type="button"
+                                class="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus:opacity-100"
+                                aria-label="Remove from recent searches"
+                                @click.stop="forgetSearch(recent)"
+                            >
+                                <X class="w-3.5 h-3.5" />
+                            </button>
+                        </li>
+                    </ul>
                 </div>
 
                 <!-- Empty state -->

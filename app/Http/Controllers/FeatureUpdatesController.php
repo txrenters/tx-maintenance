@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-19',
+            'area' => 'Search',
+            'title' => 'Search remembers your recent lookups',
+            'description' => 'The search dialog (Ctrl+K) now shows your last 10 searches when you open it, including any property filter. Click one to run it again, hit the X to drop a single entry, or Clear to wipe the list. The list is yours alone — it is kept in your browser per login and never shared between accounts.',
+        ],
+        [
+            'date' => '2026-08-19',
             'area' => 'System',
             'title' => 'Choose the AI engine from IT Tools',
             'description' => 'Admins can now pick which AI provider and model power the work order classifier, vendor picker, HOA notice reader, board summaries and inbox reports — IT Tools → AI Settings in the sidebar. Paste a provider\'s API key right on the page, hit Test to try the choice live, then Save; changes apply immediately with no deploy. Reset puts everything back to the server default.',
