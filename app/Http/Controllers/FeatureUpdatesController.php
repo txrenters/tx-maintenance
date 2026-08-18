@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-19',
+            'area' => 'HOA Violations',
+            'title' => 'HOA violation texts reach the tenant again',
+            'description' => 'HOA violation work orders created from an uploaded notice were coming back from PropertyWare without a requesting tenant, so the photo-link text and the daily reminders were silently skipped — the tenant never heard from us while the violation still escalated to "needs vendor". The tenant on the lease is now linked automatically when the work order is created (and a repair pass fixes the existing ones), so the texts go out. Also: when a notice arrives with an HOA deadline that has already passed, the tenant now gets at least two business days to self-fix before staff are flagged to send a vendor.',
+        ],
+        [
+            'date' => '2026-08-19',
             'area' => 'Inbox',
             'title' => 'The Inbox works more like Messenger',
             'description' => 'Four quality-of-life changes. The list shows the 50 newest conversations and quietly loads older ones as you scroll — no more hard wall. The red badge on the Messages nav now counts only conversations with messages YOU have not opened yet, so it drains as you read instead of sitting at the whole backlog (the workload number still lives on the Awaiting reply filter). The Summary button now reports on the conversations currently on your screen — your active tab, filter and search — instead of the all-time queue. And message chips got smarter: a new violet "Approved" chip for go-aheads ("please proceed", "place the service call"), short replies like "yes" are read in the context of what we asked, and the old Question chip is now called "Needs reply".',

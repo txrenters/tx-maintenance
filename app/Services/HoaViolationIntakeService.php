@@ -6,6 +6,7 @@ use App\Jobs\UploadHoaNoticeToPropertyWare;
 use App\Models\Attachments;
 use App\Models\Building;
 use App\Models\ServiceStatus;
+use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
@@ -64,6 +65,7 @@ class HoaViolationIntakeService
 
         $this->attachNotice($workOrder, $pagePdfContents, $notice['file_name'] ?? null, $notice['mime'] ?? null);
         $this->applyEasyFixStatus($workOrder, $description, $created);
+        $this->linkTenantFromLease($workOrder);
         $this->openHoaToken(
             $workOrder,
             $noticeDate,
@@ -116,9 +118,64 @@ class HoaViolationIntakeService
             : now();
 
         $this->applyEasyFixStatus($workOrder, (string) $workOrder->description, false);
+        $this->linkTenantFromLease($workOrder);
         $this->openHoaToken($workOrder, $noticeDate);
 
         return true;
+    }
+
+    /**
+     * Stamp requested_by from the work order's lease tenants when the import
+     * left it empty.
+     *
+     * The PropertyWare create sends no requestedByContact, so a created-then-
+     * imported work order comes back tenant-less — and every automated tenant
+     * message reads requested_by only, so the whole HOA workflow (intake text,
+     * daily reminders) silently no-ops while the vendor escalation still fires
+     * (WO#43864, 2026-08-19: ten violations reached "needs vendor" without the
+     * tenant ever being texted). The import does fill the work_order_tenants
+     * pivot from the active lease, so link the most reachable lease tenant
+     * before the token opens. Public so hoa:relink-tenants can repair old rows.
+     */
+    public function linkTenantFromLease(WorkOrder $workOrder): bool
+    {
+        if (filled($workOrder->tenant_id)) {
+            return true;
+        }
+
+        $tenant = $this->leaseTenantFor($workOrder);
+
+        if ($tenant === null) {
+            Log::warning('HOA violation work order has no lease tenant to link — automated tenant messages will not send.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+            ]);
+
+            return false;
+        }
+
+        WorkOrder::query()->withoutGlobalScopes()->whereKey($workOrder->id)->update([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $workOrder->setAttribute('tenant_id', $tenant->id);
+        $workOrder->unsetRelation('requested_by');
+
+        return true;
+    }
+
+    /**
+     * The lease tenant to treat as the requester: the one staff can actually
+     * text, so a tenant with a mobile number wins, then one with a home phone,
+     * then any lease tenant at all.
+     */
+    public function leaseTenantFor(WorkOrder $workOrder): ?Tenants
+    {
+        $leaseTenants = $workOrder->tenants()->get();
+
+        return $leaseTenants->first(fn (Tenants $leaseTenant) => filled($leaseTenant->mobile_phone))
+            ?? $leaseTenants->first(fn (Tenants $leaseTenant) => filled($leaseTenant->home_phone))
+            ?? $leaseTenants->first();
     }
 
     /**
@@ -341,7 +398,11 @@ class HoaViolationIntakeService
      *
      * The HOA's own stated deadline caps it. Running past the date the
      * association actually set would escalate too late to be any use, so
-     * whichever comes first wins.
+     * whichever comes first wins — but never earlier than two business days
+     * from now. Notices regularly arrive after the date the HOA printed on
+     * them, and honoring a deadline that has already passed made the violation
+     * born-overdue: staff were flagged to send a vendor before the tenant got
+     * a single reminder (WO#43864 was flagged the day it was uploaded).
      */
     private function resolveDeadline(Carbon $noticeDate, ?Carbon $statedDeadline = null): Carbon
     {
@@ -352,7 +413,9 @@ class HoaViolationIntakeService
             ->endOfDay();
 
         if ($statedDeadline instanceof Carbon && $statedDeadline->copy()->endOfDay()->lt($deadline)) {
-            return $statedDeadline->copy()->endOfDay();
+            $floor = now()->addWeekdays(2)->endOfDay();
+
+            return $statedDeadline->copy()->endOfDay()->max($floor);
         }
 
         return $deadline;

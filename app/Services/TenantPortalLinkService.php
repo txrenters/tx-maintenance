@@ -217,6 +217,19 @@ class TenantPortalLinkService
             ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
 
         if (blank($tenantNumber) || blank($fromNumber)) {
+            // Skipping is correct (nothing to send to), but it must never be
+            // silent: a missing requested_by looks exactly like a healthy send
+            // from the outside, and that is how ten HOA violations reached
+            // "needs vendor" without one tenant text (2026-08-19).
+            Log::warning('Automated tenant text skipped: no usable recipient or sender number.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'automation_key' => $automationKey,
+                'has_tenant' => $tenant !== null,
+                'has_tenant_number' => filled($tenantNumber),
+                'has_from_number' => filled($fromNumber),
+            ]);
+
             return;
         }
 
