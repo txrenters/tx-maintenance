@@ -21,6 +21,18 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-19',
+            'area' => 'System',
+            'title' => 'Choose the AI engine from IT Tools',
+            'description' => 'Admins can now pick which AI provider and model power the work order classifier, vendor picker, HOA notice reader, board summaries and inbox reports — IT Tools → AI Settings in the sidebar. Paste a provider\'s API key right on the page, hit Test to try the choice live, then Save; changes apply immediately with no deploy. Reset puts everything back to the server default.',
+        ],
+        [
+            'date' => '2026-08-19',
+            'area' => 'System',
+            'title' => 'IT Tools links grouped in the sidebar',
+            'description' => 'Jobber, Automated Messages and AI Settings now sit together under one collapsible IT Tools menu in the sidebar instead of separate links, so the Settings section stays short as more tools are added.',
+        ],
+        [
             'date' => '2026-08-15',
             'area' => 'Jobber',
             'title' => 'Sync Jobber actually works again',

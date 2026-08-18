@@ -16,7 +16,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Laravel\Ai\Promptable;
 
 class WorkOrderRecommendationService
 {
@@ -40,26 +39,10 @@ class WorkOrderRecommendationService
      */
     public function aiStatus(): array
     {
-        if (! trait_exists(Promptable::class)) {
-            return [
-                'ready' => false,
-                'provider' => null,
-            ];
-        }
-
-        $provider = (string) config('ai.default');
-        $providerConfig = config("ai.providers.{$provider}", []);
-        $driver = data_get($providerConfig, 'driver');
-        $key = (string) data_get($providerConfig, 'key', '');
-
-        $isReady = filled($driver) && filled($key);
-
-        if ($provider === 'azure') {
-            $isReady = $isReady && filled(data_get($providerConfig, 'url')) && filled(data_get($providerConfig, 'deployment'));
-        }
+        $provider = AiSettings::effectiveProvider();
 
         return [
-            'ready' => $isReady,
+            'ready' => AiSettings::ready(),
             'provider' => $provider !== '' ? $provider : null,
         ];
     }
@@ -1128,13 +1111,9 @@ class WorkOrderRecommendationService
 
     private function aiModelName(): ?string
     {
-        $provider = (string) config('ai.default');
+        $model = AiSettings::effectiveModel();
 
-        return match ($provider) {
-            'azure' => config('ai.providers.azure.deployment'),
-            'openai' => config('services.openai.model'),
-            default => $provider !== '' ? $provider : null,
-        };
+        return $model !== '' && $model !== 'unknown' ? $model : null;
     }
 
     /**

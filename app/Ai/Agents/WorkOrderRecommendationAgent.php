@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Concerns\ConfigurableAiProvider;
 use App\Ai\EmergencyCriteria;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
@@ -11,6 +12,7 @@ use Stringable;
 
 class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
 {
+    use ConfigurableAiProvider;
     use Promptable;
 
     /**

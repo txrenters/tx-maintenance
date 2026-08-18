@@ -552,6 +552,11 @@ const navs = computed(() => {
                         "/it-tools/automated-messages",
                     ),
                 },
+                {
+                    title: "AI Settings",
+                    url: "/it-tools/ai-settings",
+                    isActive: page.url.startsWith("/it-tools/ai-settings"),
+                },
             ],
         },
         settings: [

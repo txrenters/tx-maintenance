@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\AiSettings;
 use App\Services\Desktop\DesktopTokenService;
 use App\Services\Images\GdImageProcessor;
 use App\Services\Images\ImageProcessor;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
@@ -37,6 +39,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(Request $request): void
     {
+        // UI-entered AI provider keys live in app_settings; copy them into
+        // config here (and again before every queued job, so long-running
+        // workers stay current) for the AI SDK and the vision extractor.
+        AiSettings::applyDbKeysToConfig();
+        Queue::before(function () {
+            AiSettings::applyDbKeysToConfig();
+        });
+
         Gate::before(function ($user) {
             return $user->hasRole('admin') ? true : null;
         });
