@@ -253,6 +253,24 @@ return [
         // Internal-only — nothing here ever messages a tenant, owner or
         // vendor.
         'courtesy_filter' => env('COURTESY_CLOSER_FILTER_ENABLED', true),
+
+        // AI triage that tags each thread's newest inbound message with an
+        // intent (reschedule request, complaint, access issue, job done,
+        // question) and extracts concretely proposed appointment times as
+        // suggestions staff accept or dismiss. Read-only and fail-open like
+        // the courtesy filter: nothing here ever messages anyone, and an
+        // unjudged thread simply shows no chip.
+        'intent_triage' => env('INTENT_TRIAGE_ENABLED', true),
+    ],
+
+    'ai' => [
+        // Vision check that a vendor's "after" photo plausibly shows the
+        // reported issue addressed — a read-only flag on the Attachments tab,
+        // never a block on the upload. Fails open: no review, no flag.
+        'photo_review' => env('PHOTO_REVIEW_ENABLED', true),
+
+        // On-demand "why is this stuck" summaries on the open-over-30 report.
+        'stale_digest' => env('STALE_DIGEST_ENABLED', true),
     ],
 
 ];

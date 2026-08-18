@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiInsightController;
 use App\Http\Controllers\AiSettingsController;
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
@@ -158,6 +159,11 @@ Route::middleware([
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
 
+    // Read-only AI insights: a work order's open schedule suggestions, and
+    // resolving one (accept/dismiss). Admin + WOC, enforced in the controller.
+    Route::get('/work_orders/{workOrder}/schedule-suggestions', [AiInsightController::class, 'scheduleSuggestions'])->name('work_orders.schedule_suggestions');
+    Route::patch('/ai-insights/{aiInsight}/status', [AiInsightController::class, 'updateStatus'])->name('ai-insights.status');
+
     // Runtime AI provider/model switch + UI-entered API keys. Admin-only,
     // enforced in the controller.
     Route::get('/it-tools/ai-settings', [AiSettingsController::class, 'show'])->name('it-tools.ai-settings');
@@ -205,6 +211,7 @@ Route::middleware([
     Route::get('/reports/not-scheduled-3-days', [ReportController::class, 'notScheduledWithin3Days'])->name('reports.not_scheduled_3_days');
     Route::get('/reports/tasks-on-time', [ReportController::class, 'tasksCompletedOnTime'])->name('reports.tasks_on_time');
     Route::get('/reports/open-over-30-days', [ReportController::class, 'openOver30Days'])->name('reports.open_over_30_days');
+    Route::post('/reports/open-over-30-days/analyze', [ReportController::class, 'analyzeStaleWorkOrder'])->name('reports.open_over_30_days.analyze');
 
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
     Route::get('/inbox/thread', [InboxController::class, 'thread'])->name('inbox.thread');

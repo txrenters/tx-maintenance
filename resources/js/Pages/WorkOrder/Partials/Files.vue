@@ -126,6 +126,30 @@ const formatDate = (date) => {
                             class="w-full h-full object-contain opacity-100 group-hover:opacity-20 transition-opacity duration-200"
                         />
                     </div>
+
+                    <!-- Read-only AI photo-review flag (staff only; the API
+                         omits ai_review for everyone else). Only doubtful
+                         verdicts render — a clean review stays silent. -->
+                    <span
+                        v-if="
+                            file.ai_review &&
+                            file.ai_review.verdict !== 'looks_resolved'
+                        "
+                        class="absolute bottom-1 left-1 right-1 truncate rounded px-1 py-0.5 text-center text-[10px] font-medium"
+                        :class="
+                            file.ai_review.verdict === 'mismatch'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-amber-100 text-amber-800'
+                        "
+                        :title="file.ai_review.note"
+                        @click.stop="openImageModal(file)"
+                    >
+                        {{
+                            file.ai_review.verdict === "mismatch"
+                                ? "AI: check this photo"
+                                : "AI: unclear photo"
+                        }}
+                    </span>
                 </div>
 
                 <div

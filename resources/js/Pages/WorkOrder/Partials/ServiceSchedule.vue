@@ -1,7 +1,8 @@
 <script setup>
 import { ref, watch, onMounted, nextTick } from "vue";
 import { router, useForm } from "@inertiajs/vue3";
-import { Loader2, EllipsisVertical, CalendarPlus } from "lucide-vue-next";
+import axios from "axios";
+import { Loader2, EllipsisVertical, CalendarPlus, Sparkles } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { useToast } from "@/Components/ui/toast/use-toast";
 const { toast } = useToast();
@@ -59,16 +60,82 @@ const formatDate = (date) => {
         : "Invalid Date";
 };
 
-// Set default dates when opening the service schedule dialog
+// Set default dates when opening the service schedule dialog — unless the
+// form was just pre-filled from an AI suggestion.
 watch(openService, (newValue) => {
-    if (newValue) {
+    if (newValue && !acceptingSuggestionId.value) {
         const today = DateTime.now().toFormat("yyyy-MM-dd");
         const tomorrow = DateTime.now().plus({ days: 1 }).toFormat("yyyy-MM-dd");
 
         serviceScheduleForm.date = today;
         serviceScheduleForm.end_date = tomorrow;
     }
+
+    if (!newValue) {
+        acceptingSuggestionId.value = null;
+    }
 });
+
+// ---- AI schedule suggestions (extracted from tenant/vendor texts) ----
+// Read-only proposals: "Use" only pre-fills the create form below; nothing
+// is saved until the form is submitted. Staff-only endpoint — a 403 (e.g.
+// vendors) just hides the card.
+const scheduleSuggestions = ref([]);
+const acceptingSuggestionId = ref(null);
+
+const fetchSuggestions = async () => {
+    try {
+        const { data } = await axios.get(
+            route("work_orders.schedule_suggestions", props.workOrder.id),
+        );
+        scheduleSuggestions.value = data.suggestions ?? [];
+    } catch {
+        scheduleSuggestions.value = [];
+    }
+};
+
+onMounted(fetchSuggestions);
+
+const formatSuggestionDate = (value) => {
+    if (!value) return "";
+    const parsed = DateTime.fromSQL(value);
+    if (!parsed.isValid) return value;
+
+    // 00:00 is the "date only" convention — no time was proposed.
+    return parsed.hour === 0 && parsed.minute === 0
+        ? parsed.toFormat("EEE, MMMM d, yyyy")
+        : parsed.toFormat("EEE, MMMM d, yyyy h:mm a");
+};
+
+const resolveSuggestion = async (suggestionId, status) => {
+    try {
+        await axios.patch(route("ai-insights.status", suggestionId), { status });
+    } catch {
+        // Resolving is best-effort; the card hides either way.
+    }
+    scheduleSuggestions.value = scheduleSuggestions.value.filter(
+        (s) => s.id !== suggestionId,
+    );
+};
+
+const useSuggestion = (suggestion) => {
+    acceptingSuggestionId.value = suggestion.id;
+    openCreateMode();
+
+    const start = DateTime.fromSQL(suggestion.start ?? "");
+    serviceScheduleForm.date = start.isValid
+        ? start.toFormat("yyyy-MM-dd")
+        : serviceScheduleForm.date;
+
+    const end = suggestion.end ? DateTime.fromSQL(suggestion.end) : null;
+    serviceScheduleForm.end_date = end?.isValid
+        ? end.toFormat("yyyy-MM-dd")
+        : serviceScheduleForm.date;
+
+    if ((props.workOrderVendors ?? []).length === 1) {
+        serviceScheduleForm.vendor_id = String(props.workOrderVendors[0].id);
+    }
+};
 
 const updateScheduleStatus = async (service_schedule_id, status) => {
     router.post(
@@ -198,6 +265,9 @@ const handleMeetingSubmit = () => {
                     title: "Success",
                     description: "Service schedule has been created successfully!",
                 });
+                if (acceptingSuggestionId.value) {
+                    resolveSuggestion(acceptingSuggestionId.value, "accepted");
+                }
                 openService.value = false;
                 serviceScheduleForm.reset();
                 emit("fetch-schedule");
@@ -235,6 +305,54 @@ const handleMeetingSubmit = () => {
                 <Loader2 v-else class="w-4 h-4 animate-spin" />
             </Button>
         </div>
+        <Card
+            v-if="scheduleSuggestions.length"
+            class="w-full p-4 mb-3 border-amber-300 bg-amber-50"
+        >
+            <div
+                class="mb-2 flex items-center gap-1 text-xs font-semibold uppercase text-amber-800"
+            >
+                <Sparkles class="h-3.5 w-3.5" /> Suggested from messages
+            </div>
+            <div
+                v-for="suggestion in scheduleSuggestions"
+                :key="suggestion.id"
+                class="flex items-start justify-between gap-2 py-1 text-sm text-amber-900"
+            >
+                <div class="min-w-0">
+                    <p class="font-medium">
+                        📅 {{ formatSuggestionDate(suggestion.start) }}
+                        <template v-if="suggestion.end">
+                            – {{ formatSuggestionDate(suggestion.end) }}
+                        </template>
+                    </p>
+                    <p class="text-xs">{{ suggestion.summary }}</p>
+                    <p v-if="suggestion.quote" class="truncate text-xs italic">
+                        "{{ suggestion.quote }}" — {{ suggestion.party }}
+                    </p>
+                </div>
+                <div class="flex shrink-0 gap-1">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        @click.prevent="useSuggestion(suggestion)"
+                    >
+                        Use
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        @click.prevent="resolveSuggestion(suggestion.id, 'dismissed')"
+                    >
+                        Dismiss
+                    </Button>
+                </div>
+            </div>
+            <p class="mt-1 text-[11px] text-amber-700">
+                "Use" only pre-fills the schedule form — nothing is saved until
+                you submit it.
+            </p>
+        </Card>
         <div
             class="flex"
             v-if="!isLoading && vendorServiceSchedules.length === 0"
