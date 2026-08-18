@@ -112,7 +112,14 @@ return [
             'driver' => 'openai',
             'key' => env('OPENAI_API_KEY'),
             'url' => env('OPENAI_URL', 'https://api.openai.com/v1'),
-            'model' => env('OPENAI_MODEL', 'gpt-4o'),
+            // The nested path is the one OpenAiProvider::defaultTextModel()
+            // actually reads; a flat 'model' key here is silently ignored and
+            // the SDK falls back to its own hardcoded default.
+            'models' => [
+                'text' => [
+                    'default' => env('OPENAI_MODEL', 'gpt-5.4'),
+                ],
+            ],
         ],
 
         'openrouter' => [

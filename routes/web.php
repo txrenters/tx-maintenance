@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiSettingsController;
 use App\Http\Controllers\API\AttachmentsController;
 use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\JobberAttachmentsController;
@@ -156,6 +157,14 @@ Route::middleware([
     Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
+
+    // Runtime AI provider/model switch + UI-entered API keys. Admin-only,
+    // enforced in the controller.
+    Route::get('/it-tools/ai-settings', [AiSettingsController::class, 'show'])->name('it-tools.ai-settings');
+    Route::put('/it-tools/ai-settings', [AiSettingsController::class, 'update'])->name('it-tools.ai-settings.update');
+    Route::put('/it-tools/ai-settings/keys', [AiSettingsController::class, 'storeKey'])->name('it-tools.ai-settings.keys');
+    Route::delete('/it-tools/ai-settings/keys/{provider}', [AiSettingsController::class, 'destroyKey'])->name('it-tools.ai-settings.keys.destroy');
+    Route::post('/it-tools/ai-settings/test', [AiSettingsController::class, 'test'])->name('it-tools.ai-settings.test');
 
     // App-wide Jobber automation kill-switch (header toggle on the Jobber
     // pages). Admin + WOC, enforced in the controller.

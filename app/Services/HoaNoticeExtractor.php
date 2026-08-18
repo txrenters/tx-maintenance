@@ -6,7 +6,6 @@ use App\Ai\Agents\HoaNoticeExtractionAgent;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Laravel\Ai\Promptable;
 use Smalot\PdfParser\Parser;
 
 /**
@@ -106,25 +105,11 @@ class HoaNoticeExtractor
     }
 
     /**
-     * Mirrors WorkOrderRecommendationService::aiStatus() — AI is optional and
-     * the fallback must always work without it.
+     * AI is optional and the fallback must always work without it.
      */
     private function aiReady(): bool
     {
-        if (! trait_exists(Promptable::class)) {
-            return false;
-        }
-
-        $provider = (string) config('ai.default');
-        $providerConfig = config("ai.providers.{$provider}", []);
-
-        $ready = filled(data_get($providerConfig, 'driver')) && filled(data_get($providerConfig, 'key'));
-
-        if ($provider === 'azure') {
-            $ready = $ready && filled(data_get($providerConfig, 'url')) && filled(data_get($providerConfig, 'deployment'));
-        }
-
-        return $ready;
+        return AiSettings::ready();
     }
 
     /**

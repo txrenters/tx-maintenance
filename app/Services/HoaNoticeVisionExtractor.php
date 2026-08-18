@@ -25,7 +25,7 @@ class HoaNoticeVisionExtractor
     public function extract(string $contents, string $mime = 'application/pdf'): ?array
     {
         $key = (string) config('ai.providers.openai.key');
-        $model = (string) config('ai.providers.openai.model');
+        $model = AiSettings::visionModel();
         $baseUrl = rtrim((string) config('ai.providers.openai.url', 'https://api.openai.com/v1'), '/');
 
         if ($key === '' || $model === '') {

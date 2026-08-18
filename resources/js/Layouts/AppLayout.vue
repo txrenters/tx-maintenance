@@ -100,6 +100,7 @@ import {
     Volume2,
     VolumeX,
     Sparkles,
+    BrainCircuit,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import { useNotificationToasts } from "@/composables/useNotificationToasts";
@@ -1320,6 +1321,14 @@ onUnmounted(() => {
                                 <Link href="/it-tools/automated-messages" prefetch>
                                     <BotMessageSquare />
                                     <span>Automated Messages</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton as-child>
+                                <Link href="/it-tools/ai-settings" prefetch>
+                                    <BrainCircuit />
+                                    <span>AI Settings</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

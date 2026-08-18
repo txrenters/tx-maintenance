@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Concerns\ConfigurableAiProvider;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
@@ -26,6 +27,7 @@ use Stringable;
  */
 class CourtesyCloserAgent implements Agent, HasStructuredOutput
 {
+    use ConfigurableAiProvider;
     use Promptable;
 
     public function instructions(): Stringable|string
