@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-20',
+            'area' => 'Owners',
+            'title' => 'One-click "appointment scheduled" message for owners',
+            'description' => 'The owner conversation tab now has an "Insert appointment scheduled message" button under the thread. One click fills the composer with the standard owner appointment wording — property address, vendor and the latest scheduled date filled in automatically — and you review and hit Send as usual. Nothing is ever sent on its own, and if the work order has no service schedule yet the button tells you instead of inserting a dateless message.',
+        ],
+        [
             'date' => '2026-08-19',
             'area' => 'HOA Violations',
             'title' => 'HOA violation texts reach the tenant again',

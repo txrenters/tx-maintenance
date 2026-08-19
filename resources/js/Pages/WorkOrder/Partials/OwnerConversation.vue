@@ -1,8 +1,12 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
+import axios from "axios";
+import { DateTime } from "luxon";
+import { Loader2 } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import MessageCard from "@/Components/MessageCard.vue";
+import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Skeleton } from "@/Components/ui/skeleton";
@@ -75,6 +79,125 @@ watch(selectedOwner, (newOwner) => {
 });
 
 const loading = ref(false);
+
+// Manual counterpart of the automated owner appointment text (gated off in
+// OwnerAppointmentNotificationService): one click fills the composer with the
+// same canned wording, dated from the latest service schedule. Staff still
+// review + Send; it never sends on its own.
+const insertingAppointment = ref(false);
+
+// Same tolerant parsing as the Service Schedule tab: the API may return ISO,
+// MySQL datetime, or date-only strings.
+const parseScheduleDate = (date) => {
+    const iso = DateTime.fromISO(date, { zone: "utc" });
+    if (iso.isValid) return iso;
+
+    const sql = DateTime.fromSQL(date, { zone: "utc" });
+    if (sql.isValid) return sql;
+
+    return DateTime.fromFormat(String(date ?? ""), "yyyy-MM-dd", {
+        zone: "utc",
+    });
+};
+
+const formatAppointment = (schedule) => {
+    if (!schedule?.scheduled_date) return "";
+
+    const when = parseScheduleDate(schedule.scheduled_date);
+    if (!when.isValid) return "";
+
+    const day = when.toFormat("EEEE, MMMM d, yyyy");
+
+    // A midnight timestamp means no time was picked, so show the date alone.
+    return when.hour === 0 && when.minute === 0
+        ? day
+        : `${day} at ${when.toFormat("h:mm a")}`;
+};
+
+const latestSchedule = (schedules) => {
+    let latest = null;
+    let latestMillis = -Infinity;
+
+    for (const schedule of Array.isArray(schedules) ? schedules : []) {
+        if (!schedule?.scheduled_date || schedule.status === "cancelled") {
+            continue;
+        }
+
+        const when = parseScheduleDate(schedule.scheduled_date);
+        if (!when.isValid || when.toMillis() <= latestMillis) continue;
+
+        latest = schedule;
+        latestMillis = when.toMillis();
+    }
+
+    return latest;
+};
+
+const scheduleVendorName = (schedule, workOrderData) => {
+    const direct = (schedule?.vendor?.name || "").trim();
+    if (direct) return direct;
+
+    const match = (workOrderData?.vendors ?? []).find(
+        (vendor) => vendor.id === schedule?.vendor_id
+    );
+
+    return (
+        (match?.name || match?.user?.name || "").trim() || "the assigned vendor"
+    );
+};
+
+const insertAppointmentTemplate = async () => {
+    if (insertingAppointment.value) return;
+    insertingAppointment.value = true;
+
+    try {
+        const response = await axios.get(
+            route("work_order.service_schedules", props.workOrder.id)
+        );
+
+        const schedule = latestSchedule(response.data?.service_schedules);
+
+        if (!schedule) {
+            toast({
+                variant: "destructive",
+                title: "No service schedule yet",
+                description:
+                    "Add a service schedule first so the message can include the appointment date.",
+            });
+            return;
+        }
+
+        const when = formatAppointment(schedule);
+        const address = (
+            props.workOrder?.building?.address ||
+            props.workOrder?.building?.name ||
+            ""
+        ).trim();
+        const property = address ? ` at ${address}` : "";
+
+        composer.value?.insert(
+            [
+                "Hello,",
+                `The service appointment for your property${property} has been scheduled with ${scheduleVendorName(schedule, response.data)}.`,
+                when ? `Scheduled Date: ${when}` : null,
+                "If any major issues or additional repairs are identified during the visit related to the reported concern, please keep your phone lines available so we can reach out for approval before any additional work is performed, except in the case of an emergency repair that requires immediate action.",
+                "We will keep you updated once the service has been completed.",
+                "Thank you!",
+            ]
+                .filter(Boolean)
+                .join("\n\n")
+        );
+    } catch (error) {
+        console.error(error);
+        toast({
+            variant: "destructive",
+            title: "Couldn't load the appointment",
+            description: "Please try again, or type the message manually.",
+        });
+    } finally {
+        insertingAppointment.value = false;
+    }
+};
 
 const sendMessage = ({ text, files }) => {
     if (!owner_phone_number.value) {
@@ -238,6 +361,24 @@ watch(
                 />
                 <div ref="bottomAnchor" class="h-px" />
             </ScrollArea>
+
+            <!-- Quick-insert templates -->
+            <div class="flex flex-wrap gap-2">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    :disabled="insertingAppointment"
+                    @click="insertAppointmentTemplate"
+                >
+                    <Loader2
+                        v-if="insertingAppointment"
+                        class="mr-1.5 h-3.5 w-3.5 animate-spin"
+                    />
+                    Insert appointment scheduled message
+                </Button>
+            </div>
 
             <div class="mb-6 mt-2">
                 <MessageComposer
