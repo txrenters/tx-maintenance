@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-20',
+            'area' => 'Owners',
+            'title' => 'One-click "appointment scheduled" message for owners',
+            'description' => 'The owner conversation tab now has an "Insert appointment scheduled message" button under the thread. One click fills the composer with the standard owner appointment wording — property address, vendor and the latest scheduled date filled in automatically — and you review and hit Send as usual. Nothing is ever sent on its own, and if the work order has no service schedule yet the button tells you instead of inserting a dateless message.',
+        ],
+        [
+            'date' => '2026-08-20',
             'area' => 'Vendor Portal',
             'title' => 'Vendors can send PDFs in the portal chat',
             'description' => 'Vendors kept telling us they "can\'t upload PDFs". The upload forms actually take PDFs fine — the places that tripped them up are now fixed. The message-to-coordinator box only accepted photos, so a vendor trying to send a PDF (usually their invoice) through the chat was stuck; it now takes PDFs up to 10 MB, and the attach button shows a paperclip instead of a camera so it reads as "any file". On the invoice form, the Submit button silently stays greyed out until an amount is entered — there is now a hint under the button saying exactly that, so an attached PDF no longer looks broken. And on the Jobber portal, the invoice title is no longer required: leave it blank and the file name is used, same as the main portal.',
