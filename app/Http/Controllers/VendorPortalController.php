@@ -497,14 +497,14 @@ class VendorPortalController extends Controller
         $validated = $request->validate([
             'text' => 'nullable|string|max:1600',
             'images' => 'nullable|array|max:10',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'images.*' => 'file|mimes:jpeg,png,jpg,gif,webp,pdf|max:10240',
         ]);
 
         $hasImages = $request->hasFile('images');
         $messageText = trim($validated['text'] ?? '');
 
         if ($messageText === '' && ! $hasImages) {
-            return back()->withErrors(['message' => 'Please type a message or attach an image.']);
+            return back()->withErrors(['message' => 'Please type a message or attach a photo or PDF.']);
         }
 
         $workOrder->loadMissing('woc.wocNumber.twilioPhoneNumber');
@@ -551,7 +551,7 @@ class VendorPortalController extends Controller
                 ->withProperties([
                     'senderNumber' => $vendorNumber,
                     'receiverNumber' => $wocNumber,
-                    'message' => $messageText !== '' ? $messageText : '[image]',
+                    'message' => $messageText !== '' ? $messageText : '[attachment]',
                     'work_order_id' => $workOrder->id,
                     'vendor_id' => $vendor->id,
                     'source' => 'vendor_portal',

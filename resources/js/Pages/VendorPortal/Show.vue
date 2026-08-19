@@ -8,6 +8,7 @@ import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
 import {
     Loader2,
     Camera,
+    Paperclip,
     Send,
     Pencil,
     FileText,
@@ -1181,6 +1182,12 @@ const confirmCompleteTask = () => {
                                 />
                                 Submit invoice
                             </button>
+                            <p
+                                v-if="invoiceFile && !invoiceForm.amount"
+                                class="text-xs text-muted-foreground text-center"
+                            >
+                                Enter the invoice amount above to submit.
+                            </p>
                         </div>
 
                         <!-- Message coordinator -->
@@ -1315,11 +1322,11 @@ const confirmCompleteTask = () => {
                                 <label
                                     class="flex items-center justify-center rounded-md border border-input px-4 text-muted-foreground cursor-pointer active:bg-accent"
                                 >
-                                    <Camera class="w-5 h-5" />
+                                    <Paperclip class="w-5 h-5" />
                                     <input
                                         ref="messageInput"
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/*,application/pdf"
                                         multiple
                                         class="hidden"
                                         @change="onPickMessageImages"
