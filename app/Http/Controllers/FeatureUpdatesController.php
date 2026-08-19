@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-19',
+            'area' => 'Work Orders',
+            'title' => 'Closed work orders without a completed date show up again',
+            'description' => 'Work orders closed in PropertyWare without a Completed Date filled in were invisible on the main board — searching their number came back empty even though the work order existed (like #42487). Searching now always finds them in the Closed column, and recently-closed ones appear there for 30 days based on when they last changed. Nothing floods: older ones stay tucked away exactly like before.',
+        ],
+        [
+            'date' => '2026-08-19',
             'area' => 'HOA Violations',
             'title' => 'HOA violation texts reach the tenant again',
             'description' => 'HOA violation work orders created from an uploaded notice were coming back from PropertyWare without a requesting tenant, so the photo-link text and the daily reminders were silently skipped — the tenant never heard from us while the violation still escalated to "needs vendor". The tenant on the lease is now linked automatically when the work order is created (and a repair pass fixes the existing ones), so the texts go out. Also: when a notice arrives with an HOA deadline that has already passed, the tenant now gets at least two business days to self-fix before staff are flagged to send a vendor.',
