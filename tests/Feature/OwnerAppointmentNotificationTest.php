@@ -160,7 +160,7 @@ class OwnerAppointmentNotificationTest extends TestCase
 
     public function test_the_service_is_silent_when_disabled(): void
     {
-        // Gate defaults to off.
+        config(['services.twilio.owner_schedule_sms' => false]);
         Queue::fake();
 
         $vendor = $this->makeVendor();
@@ -195,6 +195,35 @@ class OwnerAppointmentNotificationTest extends TestCase
 
         $this->assertSame(1, $workOrder->owner_conversation()->count());
         Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_a_second_schedule_on_the_same_work_order_stays_silent(): void
+    {
+        config(['services.twilio.owner_schedule_sms' => true]);
+        config(['services.twilio.maintenance_from' => '+15120000000']);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $owner = $this->makeOwner('5125551234');
+        $workOrder = $this->makeWorkOrder($owner);
+
+        $service = app(OwnerAppointmentNotificationService::class);
+        $service->notify($this->makeSchedule($workOrder, $vendor));
+
+        // A second appointment — e.g. set after an estimate approval — must not
+        // text the owner again.
+        $secondSchedule = $this->makeSchedule($workOrder, $vendor, '2026-07-27 09:00:00');
+        $service->notify($secondSchedule);
+
+        $this->assertSame(1, $workOrder->owner_conversation()->count());
+        $this->assertNull($secondSchedule->fresh()->owner_notified_at);
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+
+        // A different work order still gets its own notification.
+        $otherWorkOrder = $this->makeWorkOrder($this->makeOwner('5125559876', 50));
+        $service->notify($this->makeSchedule($otherWorkOrder, $vendor));
+
+        $this->assertSame(1, $otherWorkOrder->owner_conversation()->count());
     }
 
     public function test_an_owner_with_no_phone_is_logged_but_not_texted(): void

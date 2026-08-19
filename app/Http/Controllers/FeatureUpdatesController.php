@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-08-20',
             'area' => 'Owners',
+            'title' => 'Owners get the appointment text automatically',
+            'description' => 'When a vendor books the service appointment through their portal, the owner is now texted the standard appointment message automatically — property address, vendor, date, and the ask to stay reachable in case extra repairs need approval. It goes out at most once per work order, so a second appointment (say, after an estimate is approved) stays silent. Appointments set by a coordinator do not auto-text — use the insert button on the owner tab for those. The per-work-order owner automation Off switch is respected as usual.',
+        ],
+        [
+            'date' => '2026-08-20',
+            'area' => 'Owners',
             'title' => 'One-click "appointment scheduled" message for owners',
             'description' => 'The owner conversation tab now has an "Insert appointment scheduled message" button under the thread. One click fills the composer with the standard owner appointment wording — property address, vendor and the latest scheduled date filled in automatically — and you review and hit Send as usual. Nothing is ever sent on its own, and if the work order has no service schedule yet the button tells you instead of inserting a dateless message.',
         ],
