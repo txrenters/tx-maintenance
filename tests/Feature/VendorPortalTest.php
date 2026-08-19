@@ -559,6 +559,31 @@ class VendorPortalTest extends TestCase
         ]);
     }
 
+    public function test_vendor_can_attach_a_pdf_to_a_message(): void
+    {
+        Storage::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing', '5125550001');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.message', 'token-acme'), [
+            'text' => 'Invoice attached',
+            'images' => [UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf')],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $conversation = Conversation::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'vendor')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('work_order_conversation_medias', [
+            'message_id' => $conversation->id,
+            'content_type' => 'application/pdf',
+            'file_name' => 'invoice.pdf',
+        ]);
+    }
+
     public function test_portal_shows_the_tenant_the_vendor_should_call(): void
     {
         $tenant = Tenants::factory()->create([

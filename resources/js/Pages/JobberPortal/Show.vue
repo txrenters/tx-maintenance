@@ -75,13 +75,13 @@ const handleInvoiceSelect = (event) => {
 };
 
 const uploadInvoice = () => {
-  if (!invoiceForm.value.title.trim() || !invoiceForm.value.filename) {
-    toast({ variant: "destructive", title: "Error", description: "Add a title and choose your invoice file." });
+  if (!invoiceForm.value.filename) {
+    toast({ variant: "destructive", title: "Error", description: "Choose your invoice file." });
     return;
   }
 
   const formData = new FormData();
-  formData.append("title", invoiceForm.value.title);
+  formData.append("title", invoiceForm.value.title.trim() || invoiceForm.value.filename.name);
   formData.append("amount", invoiceForm.value.amount || 0);
   formData.append("filename", invoiceForm.value.filename);
 
@@ -214,7 +214,7 @@ const uploadInvoice = () => {
           </div>
           <div v-else class="space-y-2">
             <div>
-              <Label class="text-sm">Title</Label>
+              <Label class="text-sm">Title (optional)</Label>
               <Input v-model="invoiceForm.title" placeholder="Invoice title" />
             </div>
             <div>
