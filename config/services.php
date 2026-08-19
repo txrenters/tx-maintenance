@@ -86,12 +86,10 @@ return [
         // sets the service appointment (details + ask them to stay reachable in
         // case additional repairs need approval during the visit).
         //
-        // Held off pending operations' scope decision: the message currently goes
-        // out on every vendor-set appointment, with no emergency/estimate-value
-        // limit, and repeats when a second schedule is set after an estimate is
-        // approved. Flip back on once that scope is agreed and the once-per-work-
-        // order rule is in.
-        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', false),
+        // On by default since 2026-08-20 (wording approved): sent when a vendor
+        // sets the appointment, at most once per work order — a second schedule
+        // set after an estimate approval stays silent.
+        'owner_schedule_sms' => env('OWNER_SCHEDULE_SMS_ENABLED', true),
         // Daily follow-up to each owner after the appointment is scheduled,
         // chasing that same question until they reply (capped). Off by default
         // until the wording is approved.

@@ -20,9 +20,8 @@ class OwnerAppointmentNotificationService
      *
      * Posts the update into the owner<->WOC conversation thread and texts each
      * owner, asking them to stay reachable during the visit in case additional
-     * repairs need their approval. Gated off by default, fired at most once per
-     * schedule, and wrapped so a failure is logged but never breaks schedule
-     * creation.
+     * repairs need their approval. Fired at most once per work order, and
+     * wrapped so a failure is logged but never breaks schedule creation.
      */
     public function notify(ServiceSchedule $serviceSchedule): void
     {
@@ -33,6 +32,17 @@ class OwnerAppointmentNotificationService
         // A WOC can mute this work order's owner automation from the owner
         // conversation tab; manual sends are unaffected.
         if ($serviceSchedule->work_order?->automationPausedFor('owner')) {
+            return;
+        }
+
+        // At most once per work order, not just per schedule: a return visit or
+        // a second appointment set after an estimate approval stays silent.
+        $ownerAlreadyNotified = DB::table('service_schedules')
+            ->where('work_order_id', $serviceSchedule->work_order_id)
+            ->whereNotNull('owner_notified_at')
+            ->exists();
+
+        if ($ownerAlreadyNotified) {
             return;
         }
 
