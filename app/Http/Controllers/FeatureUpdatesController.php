@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-21',
+            'area' => 'Messaging',
+            'title' => 'Edit the automated message wording yourself',
+            'description' => 'The Automated Messages page has a new Message Templates tab where admins and work order coordinators can rewrite the canned text every automation sends — tenant, owner, vendor, and the Jobber visit reminders. Placeholders fill in the details per message, a preview shows the result, and any message can be reset to its original wording. The page itself is now open to coordinators as well.',
+        ],
+        [
             'date' => '2026-08-12',
             'area' => 'Jobber',
             'title' => 'Day-before reminder for TBP visits',
