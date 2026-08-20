@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-21',
+            'area' => 'Messaging',
+            'title' => 'Edit the automated message wording yourself',
+            'description' => 'The Automated Messages page has a new Message Templates tab where admins and work order coordinators can rewrite the canned text every automation sends — tenant, owner, vendor, and the Jobber visit reminders. Placeholders fill in the details per message, a preview shows the result, and any message can be reset to its original wording. The page itself is now open to coordinators as well.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'Vendors',
             'title' => 'Daily schedule reminders to vendors no longer repeat the same text',
             'description' => 'The daily "please set a service schedule" text to an assigned vendor used to be the identical message every day, which read as a bot easy to ignore. The first notice is unchanged, but from day two the reminder now rotates through five polite rephrasings of the same request, so no two consecutive days read the same. Same rules as before: once per day, stops as soon as the vendor sets a schedule or the work order closes, and respects the per-work-order vendor automation Off switch.',

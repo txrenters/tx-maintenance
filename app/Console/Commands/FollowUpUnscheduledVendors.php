@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\VendorPortalLinkService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -18,50 +19,6 @@ class FollowUpUnscheduledVendors extends Command
     protected $signature = 'vendors:followup-unscheduled';
 
     protected $description = 'Text vendors every day, starting right after assignment, until they set a service schedule.';
-
-    /**
-     * The first notice, approved by operations (Chana). Sent on the first nudge
-     * of an assignment only — repeats use FOLLOW_UP_MESSAGES so the vendor
-     * never receives the identical canned text day after day.
-     */
-    private const FIRST_MESSAGE = "Hello,\n"
-        ."We noticed that a service schedule has not yet been set for this work order.\n"
-        ."Please make sure to update the work order by creating a schedule under the Service Schedule tab on your dashboard once confirmed with the tenant.\n"
-        ."Once the appointment has been scheduled, please ensure that the completed tasks are checked off accordingly so the work order status can be updated to Scheduled.\n"
-        ."Please complete this update as soon as possible and let us know once it has been done.\n"
-        .'Thank you.';
-
-    /**
-     * Polite rephrasings of the first notice — same content (set the schedule
-     * under the Service Schedule tab once confirmed with the tenant, check off
-     * the completed tasks so the status moves to Scheduled, tell us when done),
-     * different voice each day. Rotated by how many nudges this assignment has
-     * already received, so consecutive days never read as the same automation.
-     *
-     * @var array<int, string>
-     */
-    private const FOLLOW_UP_MESSAGES = [
-        "Hello,\n"
-            ."Just following up on our earlier message - we still don't see a service schedule for this work order.\n"
-            ."Once you've confirmed a time with the tenant, please add it under the Service Schedule tab on your dashboard, and check off the completed tasks so the status can be updated to Scheduled.\n"
-            ."We'd appreciate an update as soon as you're able. Thank you!",
-        "Hi,\n"
-            ."A quick reminder about this work order - the service schedule still hasn't been added.\n"
-            ."When you and the tenant have agreed on a time, please enter it under the Service Schedule tab on your dashboard and mark the completed tasks so we can move the status to Scheduled.\n"
-            ."Please let us know once it's done. Thank you so much!",
-        "Hello,\n"
-            ."We wanted to check in, as this work order is still showing without a service schedule.\n"
-            ."If you've already confirmed with the tenant, please take a moment to record the appointment under the Service Schedule tab on your dashboard and tick off the completed tasks so the status updates to Scheduled.\n"
-            .'If something is holding this up, just reply here and let us know. Thank you!',
-        "Hi,\n"
-            ."Checking in again on this work order - we're still waiting on the service schedule.\n"
-            ."Please confirm a visit time with the tenant if you haven't yet, then add it under the Service Schedule tab on your dashboard and check off the completed tasks so the status can change to Scheduled.\n"
-            ."A quick note once that's in would be much appreciated. Thanks for your help!",
-        "Hello,\n"
-            ."A friendly nudge on this one - the service schedule for this work order hasn't come through yet.\n"
-            ."Once the time is set with the tenant, please log it under the Service Schedule tab on your dashboard and mark the completed tasks so the work order can move to Scheduled.\n"
-            ."Thank you for keeping this moving - please update us when it's done.",
-    ];
 
     /**
      * Runs daily. Every unscheduled assignment created after go-live is nudged
@@ -230,15 +187,19 @@ class FollowUpUnscheduledVendors extends Command
     /**
      * First nudge gets the approved first notice; every later nudge cycles
      * through the rephrasings, so no two consecutive days repeat the same text
-     * and the exact first-notice wording is never reused.
+     * and the exact first-notice wording is never reused. The wording itself
+     * lives in AutomatedMessageTemplates, editable from the Automated Messages
+     * page.
      */
     private function messageBody(int $priorNudges): string
     {
         if ($priorNudges === 0) {
-            return self::FIRST_MESSAGE;
+            return AutomatedMessageTemplates::text('vendor_schedule_follow_up_first');
         }
 
-        return self::FOLLOW_UP_MESSAGES[($priorNudges - 1) % count(self::FOLLOW_UP_MESSAGES)];
+        $variants = AutomatedMessageTemplates::variants('vendor_schedule_follow_up_variant_');
+
+        return AutomatedMessageTemplates::text($variants[($priorNudges - 1) % count($variants)]);
     }
 
     /**

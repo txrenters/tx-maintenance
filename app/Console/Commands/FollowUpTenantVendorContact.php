@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\TenantMessageFormatter;
 use App\Services\TenantPortalLinkService;
 use Carbon\Carbon;
@@ -291,18 +292,18 @@ class FollowUpTenantVendorContact extends Command
     }
 
     /**
-     * The follow-up wording. Placeholder pending the approved canned message
-     * from operations (Chana); swap this text only, no structural change.
+     * The follow-up wording, editable from the Automated Messages page via the
+     * AutomatedMessageTemplates registry.
      */
     private function messageFor(WorkOrder $workOrder): string
     {
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
         $ref = $workOrder->work_order_no ?? $workOrder->id;
 
-        $body = $greeting.'this is TexasRenters.com Maintenance about your service request (WO#'.$ref.'). '
-            .'Has the assigned vendor reached out to you yet to schedule the repair? '
-            .'Please reply to let us know so we can help. Thank you!';
+        $body = AutomatedMessageTemplates::text('tenant_vendor_contact_follow_up_sms', [
+            'greeting' => $name !== '' ? "Hi {$name}, " : 'Hi, ',
+            'work_order_no' => (string) $ref,
+        ]);
 
         return TenantMessageFormatter::compose(
             $body,

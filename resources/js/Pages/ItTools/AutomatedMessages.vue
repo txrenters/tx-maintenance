@@ -32,12 +32,21 @@ import {
     TableRow,
 } from "@/Components/ui/table";
 import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/Components/ui/tabs";
+import MessageTemplateEditor from "./Partials/MessageTemplateEditor.vue";
+import {
     Bot,
     Briefcase,
     Eye,
     Mail,
     MessageSquare,
+    PenLine,
     RefreshCcw,
+    ScrollText,
     Wrench,
 } from "lucide-vue-next";
 
@@ -53,6 +62,25 @@ const props = defineProps({
 
 const isViewModalOpen = ref(false);
 const selectedLog = ref(null);
+
+// The active tab survives the full page reloads the log filters trigger via
+// the URL hash, so applying a filter never bounces staff out of the editor.
+const activeTab = ref(
+    typeof window !== "undefined" && window.location.hash === "#templates"
+        ? "templates"
+        : "log"
+);
+
+const onTabChange = (tab) => {
+    activeTab.value = tab;
+    if (typeof window !== "undefined") {
+        window.history.replaceState(
+            null,
+            "",
+            tab === "templates" ? "#templates" : window.location.pathname + window.location.search
+        );
+    }
+};
 
 const filterForm = reactive({
     audience: props.filters?.audience || "all",
@@ -169,10 +197,25 @@ const statTiles = computed(() => [
             </h1>
             <p class="text-sm text-muted-foreground">
                 Every automated text and email sent to owners, tenants, and
-                vendors, with the work order and the exact date and time.
+                vendors, with the work order and the exact date and time —
+                plus the canned wording each automation sends, editable under
+                Message Templates.
             </p>
         </div>
 
+        <Tabs :model-value="activeTab" @update:model-value="onTabChange">
+            <TabsList>
+                <TabsTrigger value="log" class="gap-1.5">
+                    <ScrollText class="h-4 w-4" />
+                    Message Log
+                </TabsTrigger>
+                <TabsTrigger value="templates" class="gap-1.5">
+                    <PenLine class="h-4 w-4" />
+                    Message Templates
+                </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="log" class="mt-4 space-y-6">
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Card v-for="tile in statTiles" :key="tile.label">
                 <CardContent class="p-4">
@@ -393,6 +436,12 @@ const statTiles = computed(() => [
                 </div>
             </CardContent>
         </Card>
+            </TabsContent>
+
+            <TabsContent value="templates" class="mt-4">
+                <MessageTemplateEditor />
+            </TabsContent>
+        </Tabs>
 
         <Dialog v-model:open="isViewModalOpen">
             <DialogContent class="max-w-2xl">

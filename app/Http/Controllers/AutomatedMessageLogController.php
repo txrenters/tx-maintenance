@@ -10,16 +10,19 @@ use Inertia\Response;
 use Spatie\Activitylog\Models\Activity;
 
 /**
- * Admin IT tools page listing every automated message the app has sent to
+ * IT tools page listing every automated message the app has sent to
  * owners, tenants, and vendors — audience, channel, automation, recipient,
  * work order, and timestamp — from the activity_log ledger written by
- * AutomatedMessageLogService at each send.
+ * AutomatedMessageLogService at each send. Admin + WOC (widened from
+ * admin-only when the Message Templates editor moved in): coordinators own
+ * the message wording day-to-day, and the log shows nothing they don't
+ * already see in their own conversation threads.
  */
 class AutomatedMessageLogController extends Controller
 {
     public function index(Request $request): Response
     {
-        $this->authorizeAdmin($request);
+        $this->authorizeStaff($request);
 
         $filters = [
             'audience' => (string) $request->input('audience', 'all'),
@@ -147,8 +150,10 @@ class AutomatedMessageLogController extends Controller
         ];
     }
 
-    private function authorizeAdmin(Request $request): void
+    private function authorizeStaff(Request $request): void
     {
-        abort_unless($request->user()?->hasRole('admin'), 403);
+        $user = $request->user();
+
+        abort_unless((bool) ($user?->hasRole('admin') || $user?->hasRole('woc')), 403);
     }
 }

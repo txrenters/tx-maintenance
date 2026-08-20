@@ -133,7 +133,6 @@ class TenantAppointmentNotificationService
     private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder): string
     {
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}," : 'Hi,';
 
         $vendorName = trim((string) ($serviceSchedule->vendor?->name
             ?: $serviceSchedule->vendor?->user?->name
@@ -141,14 +140,12 @@ class TenantAppointmentNotificationService
 
         $when = $this->formatAppointment($serviceSchedule);
         $address = $workOrder->propertyAddress();
-        $property = $address !== null ? ' at '.$address : '';
 
-        return TenantMessageFormatter::paragraphs([
-            $greeting,
-            "This is TexasRenters.com Maintenance. The service appointment for your home{$property} has been scheduled with {$vendorName}.",
-            $when !== '' ? "Scheduled: {$when}" : null,
-            'Please make sure someone 18 or older is home to let the technician in.',
-            'Thank you!',
+        return AutomatedMessageTemplates::text('tenant_appointment_sms', [
+            'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
+            'property' => $address !== null ? ' at '.$address : '',
+            'vendor_name' => $vendorName,
+            'scheduled_line' => $when !== '' ? "Scheduled: {$when}" : '',
         ]);
     }
 

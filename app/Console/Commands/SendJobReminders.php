@@ -8,6 +8,7 @@ use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
 use App\Models\Tenants;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\JobberAutomationSettings;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\TenantJobberEmailSender;
@@ -52,39 +53,13 @@ class SendJobReminders extends Command
             return self::FAILURE;
         }
 
-        $notifyMessageFor7days = "Dear {CLIENT_NAME},\n
-            As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}:
-                * Pest control treatment
-                * Air filter replacement
-                * Occupied inspection
-            Please note the following important details:
-                * Access & Preparation: You do not need to be present during the visit. We will provide access to our technician. Please secure all valuables and crate any pets. If any areas are inaccessible, a trip charge may be applied in accordance with your lease agreement.
-                * Timing: We cannot provide an exact arrival time, as our technicians have multiple appointments, and job durations may vary. However, the technician will call or notify you prior to arrival.
-                * Body Cameras: For security and documentation purposes, our technicians wear body cameras during all visits.
-                * Filter Access: Filters will only be replaced if they are unobstructed. Please ensure furniture or other items are moved beforehand to allow access.
-                * Rescheduling: If the technician is unable to attend for any reason, we will promptly reschedule and notify you.
-            Please confirm receipt of this notice and your approval by replying to this message. We appreciate your cooperation and understanding.\n
-            Warm regards,
-            TexasRenters.com, LLC";
-
-        $notifyMessageFor3days = "Dear {CLIENT_NAME},\n
-            This is a friendly reminder of the scheduled visit on {SCHEDULED_DATE} for the * Pest control treatment * Air filter replacement * Occupied inspection.\n
-            Please note:\n
-                * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
-                * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
-            Thank you for your cooperation. Should you have any questions, feel free to reach out to us\n
-            Warm regards,
-            TexasRenters.com, LLC";
-
-        $notifyMessageFor1day = "Dear {CLIENT_NAME},\n
-            This is a friendly reminder that your scheduled visit for the * Pest control treatment * Air filter replacement * Occupied inspection is tomorrow, {SCHEDULED_DATE}.\n
-            Please note:\n
-                * We are unable to provide an exact arrival time, as our technicians have multiple appointments and job durations may vary. The technician will call or notify you prior to arrival.
-                * For safety and efficiency, please ensure all pets are secured in a crate or on a leash before the visit. Technicians will be unable to enter the property otherwise.
-                * Please make sure air filters are unobstructed - kindly move any furniture or items blocking access beforehand.
-            Thank you for your cooperation. Should you have any questions, feel free to reach out to us.\n
-            Warm regards,
-            TexasRenters.com, LLC";
+        // The 7/3/1-day bodies live in the AutomatedMessageTemplates registry
+        // (editable from the Automated Messages page) and keep their
+        // {CLIENT_NAME}/{SCHEDULED_DATE} tokens: substitution happens
+        // per-recipient further down, so raw() is the right accessor here.
+        $notifyMessageFor7days = AutomatedMessageTemplates::raw('tenant_job_reminder_7_day');
+        $notifyMessageFor3days = AutomatedMessageTemplates::raw('tenant_job_reminder_3_day');
+        $notifyMessageFor1day = AutomatedMessageTemplates::raw('tenant_job_reminder_1_day');
 
         $reminderConfigurations = [
             1 => [

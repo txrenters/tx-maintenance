@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberTextMessage;
 use App\Models\Vendor;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\JobberAutomationSettings;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -151,15 +152,12 @@ class SendJobberVendorAssignment implements ShouldQueue
             return;
         }
 
-        $body = 'You have been assigned Job #'.$job->job_number.' - '.$job->title;
-
-        if ($job->property?->full_address) {
-            $body .= ' at '.$job->property->full_address;
-        }
-
-        if ($portalUrl) {
-            $body .= '. Details and photo/invoice upload: '.$portalUrl;
-        }
+        $body = AutomatedMessageTemplates::text('vendor_jobber_assignment_sms', [
+            'job_number' => (string) $job->job_number,
+            'title' => (string) $job->title,
+            'property_clause' => $job->property?->full_address ? ' at '.$job->property->full_address : '',
+            'portal_clause' => $portalUrl ? '. Details and photo/invoice upload: '.$portalUrl : '',
+        ]);
 
         $message = JobberTextMessage::create([
             'messages' => $body,

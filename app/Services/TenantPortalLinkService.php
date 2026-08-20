@@ -263,25 +263,28 @@ class TenantPortalLinkService
 
     private function initialMessage(WorkOrder $workOrder, TenantUploadToken $token): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
-        $ref = $workOrder->work_order_no;
-
-        return $greeting."this is TexasRenters.com Maintenance about your service request (WO#{$ref}). "
-            .'To help us resolve it quickly, please upload photos of the issue using this secure link - no login needed: '
-            .$this->urlFor($token)
-            ."\n(Ref: WO#{$ref})";
+        return AutomatedMessageTemplates::text('tenant_portal_link_sms', $this->portalLinkTokens($workOrder, $token));
     }
 
     private function reminderMessage(WorkOrder $workOrder, TenantUploadToken $token): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
-        $ref = $workOrder->work_order_no;
+        return AutomatedMessageTemplates::text('tenant_portal_link_reminder_sms', $this->portalLinkTokens($workOrder, $token));
+    }
 
-        return $greeting."a quick reminder from TexasRenters.com Maintenance: please upload photos for your service request (WO#{$ref}) using this secure link - no login needed: "
-            .$this->urlFor($token)
-            ."\n(Ref: WO#{$ref})";
+    /**
+     * The substitution values shared by the two portal-link templates.
+     *
+     * @return array<string, string>
+     */
+    private function portalLinkTokens(WorkOrder $workOrder, TenantUploadToken $token): array
+    {
+        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+
+        return [
+            'greeting' => $name !== '' ? "Hi {$name}, " : 'Hi, ',
+            'work_order_no' => (string) $workOrder->work_order_no,
+            'link' => $this->urlFor($token),
+        ];
     }
 
     private function hoaInitialMessage(WorkOrder $workOrder, TenantUploadToken $token): string

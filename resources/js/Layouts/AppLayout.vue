@@ -99,6 +99,7 @@ import {
     Volume2,
     VolumeX,
     Sparkles,
+    BotMessageSquare,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import { useNotificationToasts } from "@/composables/useNotificationToasts";
@@ -1304,77 +1305,101 @@ onUnmounted(() => {
                         </Collapsible>
                     </SidebarMenu>
                 </SidebarGroup>
+                <!-- Admin sees the full Settings group (with the IT Tools
+                     menu); a WOC only Automated Messages (log + canned-message
+                     editor, admin+woc on the server too). -->
                 <SidebarGroup
-                    v-if="page.props.auth.user.roles.includes('admin')"
+                    v-if="
+                        page.props.auth.user.roles.includes('admin') ||
+                        page.props.auth.user.roles.includes('woc')
+                    "
                 >
                     <SidebarGroupLabel>Settings</SidebarGroupLabel>
                     <SidebarMenu>
+                        <template
+                            v-if="page.props.auth.user.roles.includes('admin')"
+                        >
+                            <SidebarMenuItem
+                                v-for="item in navs.settings"
+                                :key="item.name"
+                            >
+                                <SidebarMenuButton as-child>
+                                    <Link
+                                        :href="item.url"
+                                        prefetch
+                                        :class="{
+                                            'font-bold border': item.isActive,
+                                        }"
+                                    >
+                                        <component :is="item.icon" />
+                                        <span>{{ item.name }}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton as-child>
+                                    <a href="/log-viewer"><GlobeLock /> Logs</a>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <Collapsible
+                                as-child
+                                :default-open="navs.itTools.isActive"
+                                :data-state="navs.itTools.isActive"
+                                class="group/collapsible"
+                            >
+                                <SidebarMenuItem>
+                                    <CollapsibleTrigger as-child>
+                                        <SidebarMenuButton
+                                            :tooltip="navs.itTools.title"
+                                        >
+                                            <component
+                                                :is="navs.itTools.icon"
+                                            />
+                                            <span>{{
+                                                navs.itTools.title
+                                            }}</span>
+                                            <ChevronRight
+                                                class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                            />
+                                        </SidebarMenuButton>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <SidebarMenuSub>
+                                            <SidebarMenuSubItem
+                                                v-for="subItem in navs.itTools
+                                                    .items"
+                                                :key="subItem.title"
+                                            >
+                                                <SidebarMenuSubButton as-child>
+                                                    <Link
+                                                        :href="subItem.url"
+                                                        prefetch
+                                                        :class="{
+                                                            'font-semibold p-2 border':
+                                                                subItem.isActive,
+                                                        }"
+                                                    >
+                                                        <span>{{
+                                                            subItem.title
+                                                        }}</span>
+                                                    </Link>
+                                                </SidebarMenuSubButton>
+                                            </SidebarMenuSubItem>
+                                        </SidebarMenuSub>
+                                    </CollapsibleContent>
+                                </SidebarMenuItem>
+                            </Collapsible>
+                        </template>
                         <SidebarMenuItem
-                            v-for="item in navs.settings"
-                            :key="item.name"
+                            v-if="!page.props.auth.user.roles.includes('admin')"
                         >
                             <SidebarMenuButton as-child>
-                                <Link
-                                    :href="item.url"
-                                    prefetch
-                                    :class="{
-                                        'font-bold border': item.isActive,
-                                    }"
-                                >
-                                    <component :is="item.icon" />
-                                    <span>{{ item.name }}</span>
+                                <Link href="/it-tools/automated-messages" prefetch>
+                                    <BotMessageSquare />
+                                    <span>Automated Messages</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <a href="/log-viewer"><GlobeLock /> Logs</a>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <Collapsible
-                            as-child
-                            :default-open="navs.itTools.isActive"
-                            :data-state="navs.itTools.isActive"
-                            class="group/collapsible"
-                        >
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger as-child>
-                                    <SidebarMenuButton
-                                        :tooltip="navs.itTools.title"
-                                    >
-                                        <component :is="navs.itTools.icon" />
-                                        <span>{{ navs.itTools.title }}</span>
-                                        <ChevronRight
-                                            class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                                        />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem
-                                            v-for="subItem in navs.itTools
-                                                .items"
-                                            :key="subItem.title"
-                                        >
-                                            <SidebarMenuSubButton as-child>
-                                                <Link
-                                                    :href="subItem.url"
-                                                    prefetch
-                                                    :class="{
-                                                        'font-semibold p-2 border':
-                                                            subItem.isActive,
-                                                    }"
-                                                >
-                                                    <span>{{
-                                                        subItem.title
-                                                    }}</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

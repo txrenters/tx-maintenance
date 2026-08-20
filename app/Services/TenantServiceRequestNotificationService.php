@@ -120,21 +120,17 @@ class TenantServiceRequestNotificationService
     /**
      * The confirmation wording, matching the acknowledgement tenants already
      * receive today so the message reads as familiar rather than as a second,
-     * different system talking to them.
+     * different system talking to them. Editable from the Automated Messages
+     * page via the AutomatedMessageTemplates registry.
      */
     private function confirmationMessage(WorkOrder $workOrder): string
     {
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
-        $greeting = $name !== '' ? "Hi {$name}," : 'Hi,';
-
         $address = $workOrder->propertyAddress();
-        $property = $address !== null ? " for {$address}" : '';
 
-        return TenantMessageFormatter::paragraphs([
-            $greeting,
-            "This is TexasRenters.com Maintenance. We wanted to let you know we have received your service request{$property}.",
-            'Once we review the details with our maintenance team and, if needed, the owner, we will provide you with further information on how we will proceed with any necessary repairs.',
-            'Photos of the issue help us get the right person out the first time, so please add them if you can.',
+        return AutomatedMessageTemplates::text('tenant_service_request_sms', [
+            'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
+            'property' => $address !== null ? " for {$address}" : '',
         ]);
     }
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\API\JobberAttachmentsController;
 use App\Http\Controllers\API\JobberInvoiceController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\AutomatedMessageLogController;
+use App\Http\Controllers\AutomatedMessageTemplatesController;
 use App\Http\Controllers\BoardSummaryController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarController;
@@ -158,6 +159,12 @@ Route::middleware([
     Route::post('/it-tools/jobber/failed-jobs/{uuid}/retry', [ItToolsController::class, 'retryFailedJob'])->name('it-tools.jobber.retry');
     Route::delete('/it-tools/jobber/failed-jobs/{uuid}', [ItToolsController::class, 'forgetFailedJob'])->name('it-tools.jobber.forget');
     Route::get('/it-tools/automated-messages', [AutomatedMessageLogController::class, 'index'])->name('it-tools.automated-messages');
+
+    // Canned-message editor on the Automated Messages page. Admin + WOC,
+    // enforced in the controller.
+    Route::get('/it-tools/automated-messages/templates', [AutomatedMessageTemplatesController::class, 'index'])->name('it-tools.automated-messages.templates');
+    Route::put('/it-tools/automated-messages/templates/{key}', [AutomatedMessageTemplatesController::class, 'update'])->name('it-tools.automated-messages.templates.update');
+    Route::delete('/it-tools/automated-messages/templates/{key}', [AutomatedMessageTemplatesController::class, 'reset'])->name('it-tools.automated-messages.templates.reset');
 
     // Read-only AI insights: a work order's open schedule suggestions, and
     // resolving one (accept/dismiss). Admin + WOC, enforced in the controller.
