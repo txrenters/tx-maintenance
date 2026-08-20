@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-21',
+            'area' => 'Vendor Portal',
+            'title' => 'The vendor checklist now appears on every work order',
+            'description' => 'Vendors reported that some work orders in their portal had the "What needs to be done" checkboxes and others did not — and those checkboxes are how a vendor moves a work order to Scheduled on their own. The checklist was only created when the status was changed inside our system, so work orders statused or vendor-assigned in PropertyWare never got one, the vendor could not update the status, and staff kept chasing vendors who had already scheduled. The checklist is now added automatically whenever a vendor is assigned — from the assign button, the PropertyWare sync, or an import — so every vendor can check off their steps and the status updates itself. Vendor schedule reminder texts that could not actually send (no phone number on file) now also show in the Automated Messages log with the reason, instead of disappearing silently.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'Messaging',
             'title' => 'Edit the automated message wording yourself',
             'description' => 'The Automated Messages page has a new Message Templates tab where admins and work order coordinators can rewrite the canned text every automation sends — tenant, owner, vendor, and the Jobber visit reminders. Placeholders fill in the details per message, a preview shows the result, and any message can be reset to its original wording. The page itself is now open to coordinators as well.',
