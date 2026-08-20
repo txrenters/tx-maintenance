@@ -48,6 +48,7 @@ class InspectionVisitController extends Controller
                 'end' => $endDate->toIso8601String(),
                 'description' => $visit->instructions,
                 'is_complete' => $visit->is_complete,
+                'notified_14_days' => $visit->notified_14_days ?? false,
                 'notified_7_days' => $visit->notified_7_days,
                 'notified_3_days' => $visit->notified_3_days,
                 'notified_1_days' => $visit->notified_1_days,

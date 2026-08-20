@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-21',
+            'area' => 'Jobber',
+            'title' => 'Tenants now get a 14-day advance notice for TBP visits',
+            'description' => 'Tenant Benefit Package visits now announce themselves two weeks ahead: tenants get the full visit notice by text and email 14 days before the scheduled date, on top of the existing 7-day, 3-day and day-before reminders. It only applies to visits already on the calendar 14 or more days out — anything booked closer just gets the usual reminders. The wording is editable on the Message Templates tab, and the Jobber tenant reminder switches cover it like the other tiers.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'Messaging',
             'title' => 'Edit the automated message wording yourself',
             'description' => 'The Automated Messages page has a new Message Templates tab where admins and work order coordinators can rewrite the canned text every automation sends — tenant, owner, vendor, and the Jobber visit reminders. Placeholders fill in the details per message, a preview shows the result, and any message can be reset to its original wording. The page itself is now open to coordinators as well.',

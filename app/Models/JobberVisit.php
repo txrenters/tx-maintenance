@@ -20,6 +20,7 @@ class JobberVisit extends Model
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'is_complete' => 'boolean',
+            'notified_14_days' => 'boolean',
             'notified_7_days' => 'boolean',
             'notified_3_days' => 'boolean',
             'notified_1_days' => 'boolean',

@@ -586,7 +586,8 @@ JobberToken (OAuth token storage)</code></pre>
           <tr><td>Every 5 min</td><td><code>twilio:import-inbound-messages</code></td><td>Safety-net backfill for missed inbound SMS.</td></tr>
           <tr><td>Every 30 min</td><td><code>jobber:refresh-token</code></td><td>Keeps Jobber OAuth alive.</td></tr>
           <tr><td>Daily</td><td><code>import:buildings-from-work-orders</code></td><td>Fills missing building records.</td></tr>
-          <tr><td>Daily 16:00 CT</td><td><code>jobs:send-reminders</code></td><td>Tenant SMS reminders for upcoming jobs.</td></tr>
+          <tr><td>Daily 10:00 CT</td><td><code>jobs:send-reminders</code></td><td>Tenant SMS/email reminders 14, 7 and 3 days before a TBP visit.</td></tr>
+          <tr><td>Daily 08:00 CT</td><td><code>jobs:send-reminders --days=1</code></td><td>Day-before "visit tomorrow" reminder for TBP visits.</td></tr>
           <tr><td>Daily 01:30 CT</td><td><code>twilio:sync-phone-numbers</code></td><td>Nightly Twilio number sync.</td></tr>
         </tbody>
       </table>

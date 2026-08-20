@@ -271,6 +271,7 @@ class JobberAutomationSettingsTest extends TestCase
             'jobber_id' => 'visit-'.uniqid(),
             'title' => 'Q3 2026 Tenant Benefit Package',
             'start_at' => $startAt,
+            'notified_14_days' => false,
             'notified_7_days' => false,
             'notified_3_days' => false,
             'notified_1_days' => false,
@@ -380,6 +381,57 @@ class JobberAutomationSettingsTest extends TestCase
         $this->assertTrue($fresh->notified_1_days);
         $this->assertFalse($fresh->notified_3_days);
         $this->assertFalse($fresh->notified_7_days);
+    }
+
+    public function test_the_fourteen_day_reminder_claims_its_own_flag(): void
+    {
+        config([
+            'cache.default' => 'array',
+            'services.microsoft.job_reminder_mailbox' => 'service@txhomemp.com',
+            'services.twilio.sid' => 'ACtest',
+            'services.twilio.auth_token' => 'test-token',
+        ]);
+        Cache::forget('microsoft.graph.token');
+        Mail::fake();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://app.propertyware.com/*' => Http::response(json_encode([
+                'records' => [[
+                    0 => '1',
+                    1 => 'x',
+                    2 => 'Active',
+                    3 => 'Jane Tenant',
+                    4 => '100 Elm St',
+                    5 => '',
+                    6 => '',
+                    7 => '',
+                    8 => '',
+                    9 => '',
+                    10 => '2145550123',
+                    11 => 'jane@example.com',
+                    12 => '',
+                    13 => '',
+                    14 => 'Yes',
+                ]],
+            ])),
+            'https://login.microsoftonline.com/*' => Http::response(['access_token' => 'test-token', 'expires_in' => 3600]),
+            'https://graph.microsoft.com/*/messages/*/send' => Http::response([], 202),
+            'https://graph.microsoft.com/*/messages' => Http::response(['id' => 'REMINDER_GRAPH_ID']),
+        ]);
+
+        // SMS off so the run exercises the email channel without Twilio.
+        JobberAutomationSettings::set('tenant_job_reminder_sms', true);
+
+        $monday = Carbon::parse('next monday', 'America/Chicago')->setTime(9, 0);
+        $visit = $this->makeTbpVisit($monday);
+
+        $this->remindersCommand()->runSendMessages($monday, 'notified_14_days', 'Dear {CLIENT_NAME}, visit on {SCHEDULED_DATE}');
+
+        $fresh = $visit->fresh();
+        $this->assertTrue($fresh->notified_14_days);
+        $this->assertFalse($fresh->notified_7_days);
+        $this->assertFalse($fresh->notified_3_days);
+        $this->assertFalse($fresh->notified_1_days);
     }
 
     public function test_sms_switch_off_still_sends_the_reminder_email(): void

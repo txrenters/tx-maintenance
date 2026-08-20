@@ -54,6 +54,7 @@ Schedule::command('jobber:refresh-token')
     ->withoutOverlapping(10)
     ->runInBackground();
 
+// With no --days the command runs its defaults: the 3, 7, and 14-day tiers.
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')
     ->dailyAt('10:00')
@@ -61,7 +62,7 @@ Schedule::command('jobs:send-reminders')
     ->runInBackground();
 
 // Last reminder for TBP visits happening tomorrow. Runs earlier than the
-// 10:00 tiers on purpose; --days=1 leaves the 3/7-day defaults untouched.
+// 10:00 tiers on purpose; --days=1 leaves the 3/7/14-day defaults untouched.
 Schedule::command('jobs:send-reminders --days=1')
     ->timezone('America/Chicago')
     ->dailyAt('08:00')
