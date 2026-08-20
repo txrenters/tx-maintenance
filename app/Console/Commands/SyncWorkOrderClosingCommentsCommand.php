@@ -41,9 +41,12 @@ class SyncWorkOrderClosingCommentsCommand extends Command
                 $workOrders = $this->fetchBatch($headers, $limit, $offset);
 
                 if ($workOrders === null) {
-                    $offset += $limit;
+                    // All retries exhausted. Abort rather than advance the
+                    // offset: with PropertyWare down every page returns null
+                    // and the "skip this batch" loop never terminates.
+                    $this->error("PropertyWare could not be fetched at offset {$offset}; aborting this run.");
 
-                    continue;
+                    return self::FAILURE;
                 }
 
                 if (empty($workOrders)) {

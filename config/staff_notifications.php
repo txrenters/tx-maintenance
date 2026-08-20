@@ -62,6 +62,7 @@ return [
 
         'message_undelivered' => ['audience' => 'assigned', 'priority' => 'high'],
         'hoa_violation_overdue' => ['audience' => 'assigned', 'priority' => 'high'],
+        'hoa_tenant_link_missing' => ['audience' => 'staff', 'priority' => 'high'],
         'jobber_not_sent' => ['audience' => 'staff', 'priority' => 'high'],
         'jobber_reconnect_required' => ['audience' => 'admin', 'priority' => 'high'],
 
@@ -72,6 +73,7 @@ return [
         'owner_portal_approval' => ['audience' => 'assigned', 'priority' => 'normal'],
         'invoice_uploaded' => ['audience' => 'assigned', 'priority' => 'normal'],
         'hoa_violation_photos_by_text' => ['audience' => 'assigned', 'priority' => 'normal'],
+        'owner_data_audit' => ['audience' => 'admin', 'priority' => 'normal'],
     ],
 
 ];

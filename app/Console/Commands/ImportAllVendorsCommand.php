@@ -37,9 +37,12 @@ class ImportAllVendorsCommand extends Command
                 $vendors = $this->fetchBatch($headers, $batchSize, $offset);
 
                 if ($vendors === null) {
-                    $offset += $batchSize;
+                    // All retries exhausted. Abort rather than advance the
+                    // offset: with PropertyWare down every page returns null
+                    // and the "skip this batch" loop never terminates.
+                    $this->error("PropertyWare could not be fetched at offset {$offset}; aborting this run.");
 
-                    continue;
+                    return Command::FAILURE;
                 }
 
                 if (empty($vendors)) {
@@ -144,15 +147,27 @@ class ImportAllVendorsCommand extends Command
         $phone = $data['phone'] ?? $data['otherPhone'] ?? null;
         $address = $this->joinAddress($data);
 
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            [
+        // The password is set only when the user is first created: an
+        // updateOrCreate that included it would silently reset the portal
+        // password of every vendor on every run (and burn a bcrypt per vendor,
+        // which makes a scheduled full walk infeasible).
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            $user->update([
+                'name' => $name,
+                'phone' => $phone,
+                'address' => $address,
+            ]);
+        } else {
+            $user = User::create([
+                'email' => $email,
                 'name' => $name,
                 'phone' => $phone,
                 'address' => $address,
                 'password' => bcrypt($email),
-            ],
-        );
+            ]);
+        }
 
         if (! $user->hasRole('vendor')) {
             $user->assignRole('vendor');
