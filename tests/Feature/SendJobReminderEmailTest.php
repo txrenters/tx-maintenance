@@ -8,6 +8,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\Tenants;
+use App\Services\AutomatedMessageTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -52,6 +53,41 @@ class SendJobReminderEmailTest extends TestCase
         Http::assertSent(fn ($request) => $request->url()
             === 'https://graph.microsoft.com/v1.0/users/service@txhomemp.com/messages/REMINDER_GRAPH_ID/send');
         Mail::assertNothingSent();
+    }
+
+    public function test_an_edited_reminder_template_is_used_with_tokens_substituted(): void
+    {
+        AutomatedMessageTemplates::put(
+            'tenant_job_reminder_7_day',
+            'CUSTOM REMINDER for {CLIENT_NAME} on {SCHEDULED_DATE}.',
+        );
+
+        config([
+            'cache.default' => 'array',
+            'services.microsoft.job_reminder_mailbox' => 'service@txhomemp.com',
+        ]);
+        Cache::forget('microsoft.graph.token');
+        Mail::fake();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://login.microsoftonline.com/*' => Http::response([
+                'access_token' => 'test-token',
+                'expires_in' => 3600,
+            ]),
+            'https://graph.microsoft.com/*/messages/*/send' => Http::response([], 202),
+            'https://graph.microsoft.com/*/messages' => Http::response([
+                'id' => 'REMINDER_GRAPH_ID',
+            ]),
+        ]);
+
+        $this->artisan('jobs:send-reminders', [
+            '--test-email' => 'tenant@example.com',
+            '--days' => ['7'],
+        ])->assertSuccessful();
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/messages')
+            && str_contains($request['body']['content'], 'CUSTOM REMINDER for Sample Tenant on')
+            && ! str_contains($request['body']['content'], '{CLIENT_NAME}'));
     }
 
     public function test_production_reminder_history_is_linked_by_exact_tenant_email(): void

@@ -152,15 +152,11 @@ class OwnerAppointmentNotificationService
 
         $when = $this->formatAppointment($serviceSchedule);
         $address = $workOrder->propertyAddress();
-        $property = $address !== null ? ' at '.$address : '';
 
-        return OwnerMessageFormatter::paragraphs([
-            'Hello,',
-            "The service appointment for your property{$property} has been scheduled with {$vendorName}.",
-            $when !== '' ? "Scheduled Date: {$when}" : null,
-            'If any major issues or additional repairs are identified during the visit related to the reported concern, please keep your phone lines available so we can reach out for approval before any additional work is performed, except in the case of an emergency repair that requires immediate action.',
-            'We will keep you updated once the service has been completed.',
-            'Thank you!',
+        return AutomatedMessageTemplates::text('owner_appointment_sms', [
+            'property' => $address !== null ? ' at '.$address : '',
+            'vendor_name' => $vendorName,
+            'scheduled_line' => $when !== '' ? "Scheduled Date: {$when}" : '',
         ]);
     }
 

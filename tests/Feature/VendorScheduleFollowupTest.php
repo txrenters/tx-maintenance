@@ -7,6 +7,8 @@ use App\Models\ServiceSchedule;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageTemplates;
+use App\Services\VendorPortalLinkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -296,5 +298,26 @@ class VendorScheduleFollowupTest extends TestCase
             // The first-notice copy is reserved for day 1.
             $this->assertStringNotContainsString('a service schedule has not yet been set', $messages[$i]);
         }
+    }
+
+    public function test_an_edited_template_changes_the_outbound_text_and_keeps_the_link_block(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        AutomatedMessageTemplates::put('vendor_schedule_follow_up_first', 'CUSTOM NAG WORDING.');
+
+        $vendor = $this->makeVendor();
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+
+        $messages = $this->sentMessages($workOrder, $vendor);
+
+        $this->assertCount(1, $messages);
+        $this->assertStringStartsWith('CUSTOM NAG WORDING.', $messages[0]);
+        // The portal link block is appended in code, outside the editable text.
+        $this->assertStringContainsString(VendorPortalLinkService::LINK_LEAD, $messages[0]);
     }
 }

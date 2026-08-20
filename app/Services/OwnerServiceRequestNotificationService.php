@@ -160,19 +160,15 @@ class OwnerServiceRequestNotificationService
      */
     private function confirmationMessage(WorkOrder $workOrder, string $address): string
     {
-        $ref = $workOrder->work_order_no;
-
         // "your property" already stands in for an unknown address, so only add
         // the "at ..." clause when we have a real one.
-        $property = $address === 'your property' ? 'your property' : "your property at {$address}";
-
+        //
         // No mention of the PropertyWare email or portal: that email is sent by
         // PropertyWare, not by us, so we cannot confirm the owner received it,
         // and the no-login link below is now the place to read the request.
-        return OwnerMessageFormatter::paragraphs([
-            'Hello,',
-            "TexasRenters.com has received a new service request for {$property} (request #{$ref}).",
-            'We will take care of arranging the estimate and any repairs needed, as outlined in your property management agreement.',
+        return AutomatedMessageTemplates::text('owner_service_request_confirmation_sms', [
+            'property' => $address === 'your property' ? 'your property' : "your property at {$address}",
+            'work_order_no' => (string) $workOrder->work_order_no,
         ]);
     }
 
@@ -189,9 +185,8 @@ class OwnerServiceRequestNotificationService
         }
 
         return OwnerMessageFormatter::compose(
-            OwnerMessageFormatter::paragraphs([
-                'Here are the details of the request:',
-                $description,
+            AutomatedMessageTemplates::text('owner_service_request_description_sms', [
+                'description' => $description,
             ]),
             $workOrder->work_order_no,
         );

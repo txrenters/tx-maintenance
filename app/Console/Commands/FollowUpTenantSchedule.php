@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\TenantMessageFormatter;
 use App\Services\TenantPortalLinkService;
 use Carbon\Carbon;
@@ -245,8 +246,9 @@ class FollowUpTenantSchedule extends Command
     }
 
     /**
-     * The reminder wording. Placeholder pending the approved canned message
-     * from operations (Chana); swap this text only, no structural change.
+     * The reminder wording, editable from the Automated Messages page via the
+     * AutomatedMessageTemplates registry. The date shape picks the template:
+     * no scheduled date, a date only, or a date with a time.
      */
     private function messageFor(WorkOrder $workOrder): string
     {
@@ -263,17 +265,23 @@ class FollowUpTenantSchedule extends Command
             ? Carbon::parse($appointment->scheduled_date)
             : null;
 
-        $line = $when === null
-            ? 'This is a reminder about the upcoming service appointment for your home.'
-            : ($when->format('H:i') === '00:00'
-                ? 'This is a reminder that your service appointment is set for '.$when->format('l, F j, Y').'.'
-                : 'This is a reminder that your service appointment is set for '.$when->format('l, F j, Y').' at '.$when->format('g:i A').'.');
+        if ($when === null) {
+            return AutomatedMessageTemplates::text('tenant_schedule_follow_up_no_date', [
+                'greeting' => $greeting,
+            ]);
+        }
 
-        return TenantMessageFormatter::paragraphs([
-            $greeting,
-            'This is TexasRenters.com Maintenance. '.$line,
-            'Please make sure someone 18 or older is home to let the technician in.',
-            'Thank you!',
+        if ($when->format('H:i') === '00:00') {
+            return AutomatedMessageTemplates::text('tenant_schedule_follow_up_date', [
+                'greeting' => $greeting,
+                'date' => $when->format('l, F j, Y'),
+            ]);
+        }
+
+        return AutomatedMessageTemplates::text('tenant_schedule_follow_up_date_time', [
+            'greeting' => $greeting,
+            'date' => $when->format('l, F j, Y'),
+            'time' => $when->format('g:i A'),
         ]);
     }
 

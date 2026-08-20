@@ -8,6 +8,7 @@ use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use Carbon\Carbon;
@@ -241,19 +242,15 @@ class FollowUpOwnerSchedule extends Command
     }
 
     /**
-     * The follow-up wording. Placeholder pending the approved canned message
-     * from operations (Chana); swap this text only, no structural change.
+     * The follow-up wording, editable from the Automated Messages page via the
+     * AutomatedMessageTemplates registry.
      */
     private function messageFor(WorkOrder $workOrder): string
     {
         $address = $workOrder->propertyAddress();
-        $property = $address !== null ? ' at '.$address : '';
 
-        return OwnerMessageFormatter::paragraphs([
-            'Hello,',
-            'We wanted to follow up on the upcoming service appointment for your property'.$property.'.',
-            'Please let us know if you would like to be available at the appointment time to speak with the technician directly, or to approve the work order, and we will coordinate that with you.',
-            'Thank you!',
+        return AutomatedMessageTemplates::text('owner_schedule_follow_up_sms', [
+            'property' => $address !== null ? ' at '.$address : '',
         ]);
     }
 }
