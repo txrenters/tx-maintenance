@@ -68,22 +68,20 @@ class DashboardController extends Controller
             ', [$now, $now])
             ->first();
 
-        // Calculate monthly growth rate efficiently
-        $currentMonth = now()->month;
-        $lastMonth = $currentMonth > 1 ? $currentMonth - 1 : 12;
-        $currentYear = now()->year;
-        $lastMonthYear = $currentMonth > 1 ? $currentYear : $currentYear - 1;
+        // Calculate monthly growth rate efficiently. Plain ranges on
+        // created_date, not whereMonth/whereYear — those wrap the column in a
+        // function and the created_date index can't serve them.
+        $thisMonthStart = now()->startOfMonth();
+        $lastMonthStart = $thisMonthStart->copy()->subMonth();
 
         $thisMonthOrders = WorkOrder::scoped()
             ->taggedForVendor()
-            ->whereMonth('created_date', $currentMonth)
-            ->whereYear('created_date', $currentYear)
+            ->whereBetween('created_date', [$thisMonthStart, $thisMonthStart->copy()->endOfMonth()])
             ->count();
 
         $lastMonthOrders = WorkOrder::scoped()
             ->taggedForVendor()
-            ->whereMonth('created_date', $lastMonth)
-            ->whereYear('created_date', $lastMonthYear)
+            ->whereBetween('created_date', [$lastMonthStart, $lastMonthStart->copy()->endOfMonth()])
             ->count();
 
         $monthlyGrowthRate = $lastMonthOrders > 0 ?
@@ -183,7 +181,11 @@ class DashboardController extends Controller
             ")
             ->scoped()
             ->taggedForVendor()
-            ->whereYear('created_date', $year)
+            // Range instead of whereYear so the created_date index applies.
+            ->whereBetween('created_date', [
+                Carbon::create((int) $year, 1, 1)->startOfYear(),
+                Carbon::create((int) $year, 1, 1)->endOfYear(),
+            ])
             ->groupByRaw("{$monthNameExpr}, {$monthExpr}")
             ->orderByRaw("{$monthExpr}")
             ->get()
