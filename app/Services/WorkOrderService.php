@@ -430,6 +430,11 @@ class WorkOrderService
         }
         if ($vendorsData) {
             DB::table('work_order_vendors')->insert($vendorsData);
+
+            // Imported work orders can arrive already past the status change that
+            // generates checklist tasks; without them the vendor portal cannot
+            // advance the status.
+            TaskService::backfillVendorTasks($work_order, array_column($vendorsData, 'vendor_id'));
         }
     }
 
