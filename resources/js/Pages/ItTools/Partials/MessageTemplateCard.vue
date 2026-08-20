@@ -61,14 +61,40 @@ const segmentEstimate = computed(() => {
     return length <= 160 ? 1 : Math.ceil(length / 153);
 });
 
-const preview = computed(() => {
-    let text = draft.value;
+// The card's uppercase automation line follows the audience, matching the
+// badge colors on the log tab.
+const audienceAccent = computed(
+    () =>
+        ({
+            tenant: "text-blue-500",
+            owner: "text-emerald-500",
+            vendor: "text-amber-500",
+        })[props.template.audience] ?? "text-muted-foreground"
+);
+
+const escapeHtml = (value) =>
+    String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+// Preview as HTML so the values the system filled in are highlighted. The
+// draft and sample values are escaped first — only our own <span> wrappers
+// survive as markup.
+const previewHtml = computed(() => {
+    let html = escapeHtml(draft.value);
     for (const token of props.template.tokens) {
-        text = text.split(`{${token.name}}`).join(
-            props.template.sample[token.name] ?? ""
-        );
+        html = html
+            .split(`{${token.name}}`)
+            .join(
+                `<span class="rounded bg-indigo-500/15 px-1 font-medium text-indigo-600 dark:text-indigo-400" title="Filled in from {${token.name}}">` +
+                    escapeHtml(props.template.sample[token.name] ?? "") +
+                    "</span>"
+            );
     }
-    return text;
+    return html;
 });
 
 const insertToken = (name) => {
@@ -155,7 +181,12 @@ const reset = () => {
         <CardHeader class="pb-3">
             <div class="flex flex-wrap items-start justify-between gap-2">
                 <div class="space-y-1">
-                    <p class="text-xs uppercase text-muted-foreground">
+                    <p
+                        :class="[
+                            'text-xs font-medium uppercase',
+                            audienceAccent,
+                        ]"
+                    >
                         {{ template.automation_label }}
                     </p>
                     <p class="flex items-center gap-2 text-sm font-semibold">
@@ -200,7 +231,10 @@ const reset = () => {
                     :title="token.description"
                     @click="insertToken(token.name)"
                 >
-                    <Badge variant="secondary" class="font-mono font-normal">
+                    <Badge
+                        variant="outline"
+                        class="border-indigo-500/40 bg-indigo-500/10 font-mono font-normal text-indigo-600 dark:text-indigo-400"
+                    >
                         {{ "{" + token.name + "}" }}
                     </Badge>
                 </button>
@@ -255,9 +289,16 @@ const reset = () => {
 
             <div v-if="showPreview" class="rounded-md border bg-muted/40 p-3">
                 <p class="mb-2 text-xs uppercase text-muted-foreground">
-                    Preview with sample details
+                    Preview with sample details — the
+                    <span class="text-indigo-600 dark:text-indigo-400"
+                        >highlighted parts</span
+                    >
+                    are filled in by the system
                 </p>
-                <p class="whitespace-pre-wrap break-words text-sm">{{ preview }}</p>
+                <p
+                    class="whitespace-pre-wrap break-words text-sm"
+                    v-html="previewHtml"
+                ></p>
             </div>
         </CardContent>
     </Card>

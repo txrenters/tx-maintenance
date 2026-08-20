@@ -32,9 +32,9 @@ onMounted(load);
 
 const sections = computed(() =>
     [
-        { key: "tenant", title: "Tenant messages" },
-        { key: "owner", title: "Owner messages" },
-        { key: "vendor", title: "Vendor messages" },
+        { key: "tenant", title: "Tenant messages", accent: "bg-blue-500" },
+        { key: "owner", title: "Owner messages", accent: "bg-emerald-500" },
+        { key: "vendor", title: "Vendor messages", accent: "bg-amber-500" },
     ]
         .map((section) => ({
             ...section,
@@ -55,10 +55,17 @@ const replaceTemplate = (updated) => {
 <template>
     <div class="space-y-6">
         <p class="text-sm text-muted-foreground">
-            The wording each automation sends. Placeholders in
-            <span class="font-mono">{curly braces}</span> are filled in
-            per message — click one to insert it. Sign-offs and portal links
-            are added automatically and cannot be edited away.
+            The wording each automation sends. The parts in
+            <span
+                class="rounded bg-indigo-500/10 px-1 font-mono text-indigo-600 dark:text-indigo-400"
+                >{curly braces}</span
+            >
+            are placeholders the system fills in automatically on every send —
+            for example <span class="font-mono">{greeting}</span> becomes "Hi
+            Jane," — so keep them in the text (click a chip to insert one) and
+            never type a real name or address in their place. Use Preview to
+            see the message with the details filled in. Sign-offs and portal
+            links are added automatically and cannot be edited away.
         </p>
 
         <div v-if="loading" class="space-y-4">
@@ -86,7 +93,12 @@ const replaceTemplate = (updated) => {
                 :key="section.key"
                 class="space-y-3"
             >
-                <h2 class="text-base font-semibold">{{ section.title }}</h2>
+                <h2 class="flex items-center gap-2 text-base font-semibold">
+                    <span
+                        :class="['h-2.5 w-2.5 rounded-full', section.accent]"
+                    />
+                    {{ section.title }}
+                </h2>
                 <div class="space-y-4">
                     <MessageTemplateCard
                         v-for="template in section.items"
