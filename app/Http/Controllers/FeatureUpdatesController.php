@@ -21,6 +21,18 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-21',
+            'area' => 'Vendors',
+            'title' => 'Daily schedule reminders to vendors no longer repeat the same text',
+            'description' => 'The daily "please set a service schedule" text to an assigned vendor used to be the identical message every day, which read as a bot easy to ignore. The first notice is unchanged, but from day two the reminder now rotates through five polite rephrasings of the same request, so no two consecutive days read the same. Same rules as before: once per day, stops as soon as the vendor sets a schedule or the work order closes, and respects the per-work-order vendor automation Off switch.',
+        ],
+        [
+            'date' => '2026-08-21',
+            'area' => 'Messaging',
+            'title' => 'Long automated texts deliver reliably again',
+            'description' => 'Some longer automated texts — vendor schedule reminders, tenant photo requests, HOA notices — were being rejected by certain phone carriers as "too large" and showed up as Undelivered in the conversation threads. The cause was a special dash character that silently doubled the size of every message it appeared in. All automated message wording now uses plain characters, so the same texts send at half the size and land reliably (this also halves what those messages cost to send).',
+        ],
+        [
             'date' => '2026-08-20',
             'area' => 'Owners',
             'title' => 'Owners get the appointment text automatically',
