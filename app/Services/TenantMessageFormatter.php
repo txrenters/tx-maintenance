@@ -23,7 +23,7 @@ class TenantMessageFormatter
      * of their own request — rather than around uploading, which only some of
      * the messages are asking for.
      */
-    public const LINK_LEAD = 'You can check on your request, send us a message, or add photos here anytime — no login needed: ';
+    public const LINK_LEAD = 'You can check on your request, send us a message, or add photos here anytime - no login needed: ';
 
     /**
      * Assemble a message from its body, an optional portal link, and the

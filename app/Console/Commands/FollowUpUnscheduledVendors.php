@@ -42,11 +42,11 @@ class FollowUpUnscheduledVendors extends Command
      */
     private const FOLLOW_UP_MESSAGES = [
         "Hello,\n"
-            ."Just following up on our earlier message — we still don't see a service schedule for this work order.\n"
+            ."Just following up on our earlier message - we still don't see a service schedule for this work order.\n"
             ."Once you've confirmed a time with the tenant, please add it under the Service Schedule tab on your dashboard, and check off the completed tasks so the status can be updated to Scheduled.\n"
             ."We'd appreciate an update as soon as you're able. Thank you!",
         "Hi,\n"
-            ."A quick reminder about this work order — the service schedule still hasn't been added.\n"
+            ."A quick reminder about this work order - the service schedule still hasn't been added.\n"
             ."When you and the tenant have agreed on a time, please enter it under the Service Schedule tab on your dashboard and mark the completed tasks so we can move the status to Scheduled.\n"
             ."Please let us know once it's done. Thank you so much!",
         "Hello,\n"
@@ -54,13 +54,13 @@ class FollowUpUnscheduledVendors extends Command
             ."If you've already confirmed with the tenant, please take a moment to record the appointment under the Service Schedule tab on your dashboard and tick off the completed tasks so the status updates to Scheduled.\n"
             .'If something is holding this up, just reply here and let us know. Thank you!',
         "Hi,\n"
-            ."Checking in again on this work order — we're still waiting on the service schedule.\n"
+            ."Checking in again on this work order - we're still waiting on the service schedule.\n"
             ."Please confirm a visit time with the tenant if you haven't yet, then add it under the Service Schedule tab on your dashboard and check off the completed tasks so the status can change to Scheduled.\n"
             ."A quick note once that's in would be much appreciated. Thanks for your help!",
         "Hello,\n"
-            ."A friendly nudge on this one — the service schedule for this work order hasn't come through yet.\n"
+            ."A friendly nudge on this one - the service schedule for this work order hasn't come through yet.\n"
             ."Once the time is set with the tenant, please log it under the Service Schedule tab on your dashboard and mark the completed tasks so the work order can move to Scheduled.\n"
-            ."Thank you for keeping this moving — please update us when it's done.",
+            ."Thank you for keeping this moving - please update us when it's done.",
     ];
 
     /**

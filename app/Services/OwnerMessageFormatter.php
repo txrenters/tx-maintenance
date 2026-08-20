@@ -22,7 +22,7 @@ class OwnerMessageFormatter
      * Deliberately makes no promise about photos: most work orders have none
      * when the owner is first messaged.
      */
-    public const LINK_LEAD = 'Feel free to view your request or send us a message here anytime — no login needed: ';
+    public const LINK_LEAD = 'Feel free to view your request or send us a message here anytime - no login needed: ';
 
     /**
      * Assemble a message from its body, an optional portal link, and the
