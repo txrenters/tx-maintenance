@@ -1280,41 +1280,51 @@ onUnmounted(() => {
                         </Collapsible>
                     </SidebarMenu>
                 </SidebarGroup>
+                <!-- Admin sees the full Settings group; a WOC only Automated
+                     Messages (log + canned-message editor, admin+woc on the
+                     server too). -->
                 <SidebarGroup
-                    v-if="page.props.auth.user.roles.includes('admin')"
+                    v-if="
+                        page.props.auth.user.roles.includes('admin') ||
+                        page.props.auth.user.roles.includes('woc')
+                    "
                 >
                     <SidebarGroupLabel>Settings</SidebarGroupLabel>
                     <SidebarMenu>
-                        <SidebarMenuItem
-                            v-for="item in navs.settings"
-                            :key="item.name"
+                        <template
+                            v-if="page.props.auth.user.roles.includes('admin')"
                         >
-                            <SidebarMenuButton as-child>
-                                <Link
-                                    :href="item.url"
-                                    prefetch
-                                    :class="{
-                                        'font-bold border': item.isActive,
-                                    }"
-                                >
-                                    <component :is="item.icon" />
-                                    <span>{{ item.name }}</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <a href="/log-viewer"><GlobeLock /> Logs</a>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton as-child>
-                                <Link href="/it-tools/jobber" prefetch>
-                                    <Wrench />
-                                    <span>IT Tools</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                            <SidebarMenuItem
+                                v-for="item in navs.settings"
+                                :key="item.name"
+                            >
+                                <SidebarMenuButton as-child>
+                                    <Link
+                                        :href="item.url"
+                                        prefetch
+                                        :class="{
+                                            'font-bold border': item.isActive,
+                                        }"
+                                    >
+                                        <component :is="item.icon" />
+                                        <span>{{ item.name }}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton as-child>
+                                    <a href="/log-viewer"><GlobeLock /> Logs</a>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton as-child>
+                                    <Link href="/it-tools/jobber" prefetch>
+                                        <Wrench />
+                                        <span>IT Tools</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </template>
                         <SidebarMenuItem>
                             <SidebarMenuButton as-child>
                                 <Link href="/it-tools/automated-messages" prefetch>

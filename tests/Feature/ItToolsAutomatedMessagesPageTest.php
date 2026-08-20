@@ -18,7 +18,7 @@ class ItToolsAutomatedMessagesPageTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['admin', 'woc'] as $role) {
+        foreach (['admin', 'woc', 'accounting'] as $role) {
             Role::findOrCreate($role, 'web');
         }
     }
@@ -44,9 +44,18 @@ class ItToolsAutomatedMessagesPageTest extends TestCase
         $this->get('/it-tools/automated-messages')->assertRedirect();
     }
 
-    public function test_non_admin_staff_are_forbidden(): void
+    public function test_a_woc_can_view_the_page(): void
     {
+        // Widened from admin-only alongside the Message Templates editor:
+        // coordinators edit the canned wording, so they see the page too.
         $user = User::factory()->create()->assignRole('woc');
+
+        $this->actingAs($user)->get('/it-tools/automated-messages')->assertOk();
+    }
+
+    public function test_non_staff_roles_are_forbidden(): void
+    {
+        $user = User::factory()->create()->assignRole('accounting');
 
         $this->actingAs($user)->get('/it-tools/automated-messages')->assertForbidden();
     }
