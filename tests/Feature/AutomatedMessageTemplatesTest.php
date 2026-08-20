@@ -219,6 +219,31 @@ class AutomatedMessageTemplatesTest extends TestCase
         );
     }
 
+    public function test_every_default_is_gsm7_safe(): void
+    {
+        // Standing rule: outbound SMS must stay in the GSM-7 alphabet (em
+        // dashes and curly quotes make Twilio drop the text, error 30019).
+        foreach (AutomatedMessageTemplates::TEMPLATES as $key => $entry) {
+            $this->assertSame(
+                [],
+                AutomatedMessageTemplates::nonGsmCharacters($entry['default']),
+                "Template [{$key}]'s default contains non-GSM-7 characters.",
+            );
+        }
+    }
+
+    public function test_non_gsm_characters_flags_em_dashes_and_curly_quotes(): void
+    {
+        $this->assertSame(
+            ['—', '“', '”'],
+            AutomatedMessageTemplates::nonGsmCharacters('Hello — please read “this” twice — thanks'),
+        );
+        $this->assertSame(
+            [],
+            AutomatedMessageTemplates::nonGsmCharacters("Plain - \"quotes\" and £10 for the café\nare all fine"),
+        );
+    }
+
     public function test_missing_required_tokens_flags_a_dropped_link(): void
     {
         $this->assertSame(

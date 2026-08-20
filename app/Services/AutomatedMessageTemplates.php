@@ -722,4 +722,25 @@ class AutomatedMessageTemplates
             fn (string $token): bool => ! str_contains($text, '{'.$token.'}'),
         ));
     }
+
+    /**
+     * Characters that would push an SMS out of the GSM-7 alphabet — em dashes,
+     * curly quotes, and friends. Twilio rejects such texts outright on this
+     * account (error 30019, undelivered at double the cost), so every template
+     * body must stay GSM-7: printable ASCII, newlines, and the GSM accented
+     * set.
+     *
+     * @return list<string> unique offending characters, in order of appearance
+     */
+    public static function nonGsmCharacters(string $text): array
+    {
+        $allowedBeyondAscii = '£¥èéùìòÇØøÅåÆæßÉÄÖÑÜäöñüà€§¿¡ΔΦΓΛΩΠΨΣΘΞ';
+
+        preg_match_all('/[^\x20-\x7E\n\r]/u', $text, $matches);
+
+        return array_values(array_unique(array_filter(
+            $matches[0],
+            fn (string $char): bool => ! str_contains($allowedBeyondAscii, $char),
+        )));
+    }
 }

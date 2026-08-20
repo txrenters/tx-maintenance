@@ -50,6 +50,14 @@ class AutomatedMessageTemplatesController extends Controller
             ]);
         }
 
+        $nonGsm = AutomatedMessageTemplates::nonGsmCharacters($validated['text']);
+
+        if ($nonGsm !== []) {
+            throw ValidationException::withMessages([
+                'text' => 'The character'.(count($nonGsm) === 1 ? '' : 's').' "'.implode('", "', $nonGsm).'" would make the text undeliverable as SMS. Please use plain dashes (-) and straight quotes instead.',
+            ]);
+        }
+
         AutomatedMessageTemplates::put($key, $validated['text']);
 
         $this->audit($request, $key, 'updated');

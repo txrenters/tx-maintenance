@@ -118,6 +118,19 @@ class AutomatedMessageTemplatesPageTest extends TestCase
         $this->assertFalse(AutomatedMessageTemplates::isOverridden('tenant_portal_link_sms'));
     }
 
+    public function test_non_gsm_characters_block_the_save(): void
+    {
+        // An em dash or curly quote would make Twilio drop the text (30019).
+        $this->actingAs($this->staff('woc'))
+            ->putJson(route('it-tools.automated-messages.templates.update', 'vendor_schedule_follow_up_first'), [
+                'text' => 'Hello — please set the schedule.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('text');
+
+        $this->assertFalse(AutomatedMessageTemplates::isOverridden('vendor_schedule_follow_up_first'));
+    }
+
     public function test_an_unknown_template_key_is_a_404(): void
     {
         $this->actingAs($this->staff())
