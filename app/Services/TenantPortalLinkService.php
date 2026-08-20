@@ -268,7 +268,7 @@ class TenantPortalLinkService
         $ref = $workOrder->work_order_no;
 
         return $greeting."this is TexasRenters.com Maintenance about your service request (WO#{$ref}). "
-            .'To help us resolve it quickly, please upload photos of the issue using this secure link — no login needed: '
+            .'To help us resolve it quickly, please upload photos of the issue using this secure link - no login needed: '
             .$this->urlFor($token)
             ."\n(Ref: WO#{$ref})";
     }
@@ -279,7 +279,7 @@ class TenantPortalLinkService
         $greeting = $name !== '' ? "Hi {$name}, " : 'Hi, ';
         $ref = $workOrder->work_order_no;
 
-        return $greeting."a quick reminder from TexasRenters.com Maintenance: please upload photos for your service request (WO#{$ref}) using this secure link — no login needed: "
+        return $greeting."a quick reminder from TexasRenters.com Maintenance: please upload photos for your service request (WO#{$ref}) using this secure link - no login needed: "
             .$this->urlFor($token)
             ."\n(Ref: WO#{$ref})";
     }
@@ -298,7 +298,7 @@ class TenantPortalLinkService
                 : ' listing a few items that need a little attention')
             .'. Whenever you have a chance, we\'d truly appreciate it if you could take care of'
             .($summary ? ' it' : ' them').' and send us a quick photo as proof.'
-            .' Here is your secure link — no login needed: '
+            .' Here is your secure link - no login needed: '
             .$this->urlFor($token)
             .". Thank you so much for your help!\n(Ref: WO#{$ref})";
     }
@@ -340,11 +340,11 @@ class TenantPortalLinkService
         $about = filled($summary) ? " regarding {$summary}" : '';
 
         return [
-            "{$greeting}just checking in from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Whenever you get a chance, please take care of it and send us a quick photo as proof using this secure link — no login needed: {$link}. Thanks so much for your help!",
-            "{$greeting}following up from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. If it works for you, go ahead and handle it, then snap a photo through this link so we can confirm it — no login needed: {$link}. We really appreciate it!",
+            "{$greeting}just checking in from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Whenever you get a chance, please take care of it and send us a quick photo as proof using this secure link - no login needed: {$link}. Thanks so much for your help!",
+            "{$greeting}following up from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. If it works for you, go ahead and handle it, then snap a photo through this link so we can confirm it - no login needed: {$link}. We really appreciate it!",
             "{$greeting}TexasRenters.com Maintenance here, touching base again about the HOA notice for your home (WO#{$ref}){$about}. Once it's sorted, a quick photo through this secure link lets us close it out: {$link}. Thank you!",
             "{$greeting}checking in once more from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. If you've already taken care of it, a quick photo through this secure link is all we need: {$link}. If it hasn't been handled yet, we'll need to send a vendor out to correct it. Thanks for your help!",
-            "{$greeting}hope you're doing well — this is TexasRenters.com Maintenance with a last note on the HOA notice for your home (WO#{$ref}){$about}. If it's been taken care of, just send a photo through this secure link and we'll close it out: {$link}. If not, we'll be sending a vendor out to correct it so the notice gets resolved. Much appreciated!",
+            "{$greeting}hope you're doing well - this is TexasRenters.com Maintenance with a last note on the HOA notice for your home (WO#{$ref}){$about}. If it's been taken care of, just send a photo through this secure link and we'll close it out: {$link}. If not, we'll be sending a vendor out to correct it so the notice gets resolved. Much appreciated!",
         ];
     }
 

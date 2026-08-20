@@ -83,7 +83,7 @@ class VendorPortalLinkInAutomationsTest extends TestCase
         $this->assertStringContainsString(route('vendor.portal.show', 'tok-assignment'), $message);
         $this->assertStringContainsString(VendorPortalLinkService::LINK_LEAD, $message);
         // The link sits above the sign-off, not after it.
-        $this->assertStringEndsWith('— TX Maintenance Team', $message);
+        $this->assertStringEndsWith('- TX Maintenance Team', $message);
     }
 
     public function test_assignment_text_still_sends_when_no_token_exists(): void

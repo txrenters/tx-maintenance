@@ -447,7 +447,7 @@ class SendVendorWorkOrderInformation implements ShouldQueue
         }
 
         $lines[] = '';
-        $lines[] = '— TX Maintenance Team';
+        $lines[] = '- TX Maintenance Team';
 
         return implode("\n", $lines);
     }

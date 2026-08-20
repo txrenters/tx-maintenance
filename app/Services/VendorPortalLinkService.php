@@ -22,7 +22,7 @@ class VendorPortalLinkService
      * How every automated vendor text introduces the portal link. Kept in one
      * place so the wording can be changed without touching the messages.
      */
-    public const LINK_LEAD = 'Set the schedule, upload photos or invoices, or message us here — no login needed:';
+    public const LINK_LEAD = 'Set the schedule, upload photos or invoices, or message us here - no login needed:';
 
     /**
      * The link as it appears in a text: its own paragraph, with the URL on its

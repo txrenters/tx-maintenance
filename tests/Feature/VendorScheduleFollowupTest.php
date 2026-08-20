@@ -229,4 +229,72 @@ class VendorScheduleFollowupTest extends TestCase
         $this->assertDatabaseCount('work_order_conversations', 2);
         Queue::assertPushed(SendConversationMessageJob::class, 2);
     }
+
+    /**
+     * @return array<int, string> the nudge texts sent so far, oldest first
+     */
+    private function sentMessages(WorkOrder $workOrder, Vendor $vendor): array
+    {
+        return DB::table('work_order_conversations')
+            ->where('work_order_id', $workOrder->id)
+            ->where('vendor_id', $vendor->id)
+            ->orderBy('id')
+            ->pluck('message')
+            ->all();
+    }
+
+    public function test_repeat_nudges_use_different_wording_each_day(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        foreach (range(1, 3) as $day) {
+            $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+            $this->travel(1)->days();
+        }
+
+        $messages = $this->sentMessages($workOrder, $vendor);
+
+        $this->assertCount(3, $messages);
+        // Day 1 is the operations-approved first notice.
+        $this->assertStringContainsString('a service schedule has not yet been set', $messages[0]);
+        // Repeats rephrase instead of resending the same canned text.
+        $this->assertNotSame($messages[0], $messages[1]);
+        $this->assertNotSame($messages[1], $messages[2]);
+        $this->assertNotSame($messages[0], $messages[2]);
+        // The instructions survive every rephrasing.
+        foreach ($messages as $message) {
+            $this->assertStringContainsString('Service Schedule tab', $message);
+            $this->assertStringContainsString('Scheduled', $message);
+        }
+    }
+
+    public function test_rotation_never_repeats_the_same_text_two_days_in_a_row(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        // Long enough to wrap around the rephrasing pool.
+        foreach (range(1, 8) as $day) {
+            $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+            $this->travel(1)->days();
+        }
+
+        $messages = $this->sentMessages($workOrder, $vendor);
+
+        $this->assertCount(8, $messages);
+        foreach (range(1, 7) as $i) {
+            $this->assertNotSame($messages[$i - 1], $messages[$i], "Days {$i} and ".($i + 1).' sent identical texts.');
+            // The first-notice copy is reserved for day 1.
+            $this->assertStringNotContainsString('a service schedule has not yet been set', $messages[$i]);
+        }
+    }
 }
