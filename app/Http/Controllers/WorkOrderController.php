@@ -1299,16 +1299,15 @@ class WorkOrderController extends Controller
         ]);
 
         // Then sync to PropertyWare with the completion date
-        $closeWorder = $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
+        $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
 
-        // if ($closeWorder) {
-        //     $workOrder->tasks()->each(function ($task) {
-        //         $task->delete();
-        //     });
-
-        //     // Broadcast the work order update
-        //     $workOrder->load('service_status');
-        // }
+        // A closed work order's checklist is finished by definition: complete
+        // (never delete — the rows are the audit trail) whatever is left. Bare
+        // query update so the task-completion cascade cannot fire.
+        WorkOrderTask::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('status', '!=', 'completed')
+            ->update(['status' => 'completed']);
 
         return redirect()->back();
     }
