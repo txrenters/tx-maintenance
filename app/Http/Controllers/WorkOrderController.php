@@ -380,14 +380,17 @@ class WorkOrderController extends Controller
                 })
                 ->emergencyFilter()
                 ->where('status', 'Closed')
-                ->whereNotNull('completed_date')
+                // Work orders closed in PropertyWare can arrive with no Completed
+                // Date, so the 30-day window falls back to updated_at — otherwise
+                // those work orders are invisible on every board (WO#42487).
                 // While searching, surface matching closed work orders regardless of age.
-                ->when(! request('search'), fn ($q) => $q->where('completed_date', '>=', now()->subDays(30)))
+                ->when(! request('search'), fn ($q) => $q->whereRaw('COALESCE(completed_date, updated_at) >= ?', [now()->subDays(30)]))
                 ->where(function ($query) {
                     $query->whereNull('category')
                         ->orWhere('category', 'NOT LIKE', '%lawn care%');
                 })
                 ->latest('completed_date')
+                ->latest('updated_at')
                 ->get();
 
             // Add the closed work orders to the Closed status
