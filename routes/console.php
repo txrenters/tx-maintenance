@@ -46,6 +46,15 @@ Schedule::command('sync:building-details')
     ->withoutOverlapping(30)
     ->runInBackground();
 
+// Geocode building addresses via the free US Census geocoder (no API key).
+// Runs after sync:building-details above so tonight's new addresses get
+// coordinates tonight. Only new/changed addresses are sent, so steady state
+// is near-zero API calls.
+Schedule::command('geocode:buildings')
+    ->dailyAt('01:00')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // Refresh Jobber token every 30 minutes to prevent expiration. Never overlap:
 // Jobber refresh tokens are single-use, so two concurrent refreshes kill the
 // stored token permanently (the service also serializes behind a cache lock).

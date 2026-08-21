@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Building;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -89,18 +91,71 @@ class JobberSchedulerController extends Controller
         return inertia('Inspection/Scheduler', [
             'title' => 'Scheduler',
             'cities' => $this->coverageCities(),
+            'properties' => $this->coverageProperties(),
         ]);
     }
 
     /**
-     * @return list<array{name: string, properties: int, zone: string|null, lat: float|null, lng: float|null}>
+     * Detail panel for one property pin, loaded on click: the building plus
+     * its work order history and an open count. Keyed by propertyware_id —
+     * that is what work_orders.building_id references and what the map pins
+     * carry as id.
+     */
+    public function property(Request $request, int $propertywareId): JsonResponse
+    {
+        abort_unless((bool) $request->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        $building = Building::query()
+            ->where('propertyware_id', $propertywareId)
+            ->firstOrFail();
+
+        $workOrders = $building->workOrders()
+            ->with('service_status:id,name')
+            ->orderByDesc('created_date')
+            ->limit(10)
+            ->get(['id', 'work_order_no', 'description', 'category', 'created_date', 'completed_date', 'service_status_id']);
+
+        $openCount = $building->workOrders()
+            ->whereNull('completed_date')
+            ->whereDoesntHave('service_status', fn ($q) => $q->whereIn('name', ['Closed', 'Paid']))
+            ->count();
+
+        return response()->json([
+            'id' => (int) $building->propertyware_id,
+            'name' => $building->name,
+            'address' => implode(', ', array_filter([
+                trim((string) $building->address),
+                trim((string) $building->city),
+                trim(trim((string) $building->state_region).' '.trim((string) $building->postal_code)),
+            ])),
+            'active' => (bool) $building->active,
+            'zone' => $this->buildingZoneMap()[(int) $building->propertyware_id] ?? null,
+            'lat' => $building->latitude,
+            'lng' => $building->longitude,
+            'open_work_orders' => $openCount,
+            'total_work_orders' => $building->workOrders()->count(),
+            'work_orders' => $workOrders->map(fn ($workOrder) => [
+                'id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'description' => Str::limit((string) $workOrder->description, 120),
+                'category' => $workOrder->category,
+                'status' => $workOrder->service_status?->name,
+                'created_date' => $workOrder->created_date ? substr((string) $workOrder->created_date, 0, 10) : null,
+                'completed_date' => $workOrder->completed_date ? substr((string) $workOrder->completed_date, 0, 10) : null,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * @return list<array{name: string, properties: int, ungeocoded: int, zone: string|null, lat: float|null, lng: float|null}>
      */
     private function coverageCities(): array
     {
         $propertyCounts = [];
+        $ungeocodedCounts = [];
 
         $buildings = DB::table('buildings')
-            ->select('city', DB::raw('COUNT(*) as n'))
+            ->select('city', DB::raw('COUNT(*) as n'), DB::raw('SUM(CASE WHEN latitude IS NULL THEN 1 ELSE 0 END) as ungeocoded'))
             ->where('active', true)
             ->groupBy('city')
             ->get();
@@ -111,11 +166,75 @@ class JobberSchedulerController extends Controller
                 continue;
             }
             $propertyCounts[$key] = ($propertyCounts[$key] ?? 0) + (int) $row->n;
+            $ungeocodedCounts[$key] = ($ungeocodedCounts[$key] ?? 0) + (int) $row->ungeocoded;
         }
 
-        // Dominant zone per city, from work order history. Zone is a
-        // PropertyWare custom field; only 1-5 are real (0 and stray numbers
-        // are noise), so anything else is ignored.
+        $cityZones = $this->cityZoneMap();
+
+        $cities = [];
+        foreach ($propertyCounts as $key => $count) {
+            $coordinates = self::CITY_COORDINATES[$key] ?? null;
+
+            $cities[] = [
+                'name' => Str::title($key),
+                'properties' => $count,
+                'ungeocoded' => $ungeocodedCounts[$key] ?? 0,
+                'zone' => $cityZones[$key] ?? null,
+                'lat' => $coordinates[0] ?? null,
+                'lng' => $coordinates[1] ?? null,
+            ];
+        }
+
+        usort($cities, fn (array $a, array $b) => $b['properties'] <=> $a['properties']);
+
+        return $cities;
+    }
+
+    /**
+     * Active buildings with exact coordinates (filled in by
+     * geocode:buildings), each colored by its own dominant zone, falling back
+     * to its city's.
+     *
+     * @return list<array{id: int, name: string, address: string, zone: string|null, lat: float, lng: float}>
+     */
+    private function coverageProperties(): array
+    {
+        $buildingZones = $this->buildingZoneMap();
+        $cityZones = $this->cityZoneMap();
+
+        return DB::table('buildings')
+            ->where('active', true)
+            ->whereNotNull('latitude')
+            ->get(['propertyware_id', 'name', 'address', 'city', 'latitude', 'longitude'])
+            ->map(function ($building) use ($buildingZones, $cityZones) {
+                $cityKey = $this->normalizeCity($building->city);
+
+                return [
+                    'id' => (int) $building->propertyware_id,
+                    'name' => (string) $building->name,
+                    'address' => implode(', ', array_filter([
+                        trim((string) $building->address),
+                        trim((string) $building->city),
+                    ])),
+                    'zone' => $buildingZones[(int) $building->propertyware_id]
+                        ?? ($cityKey !== null ? ($cityZones[$cityKey] ?? null) : null),
+                    'lat' => (float) $building->latitude,
+                    'lng' => (float) $building->longitude,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Dominant zone per normalized city, from work order history. Zone is a
+     * PropertyWare custom field; only 1-5 are real (0 and stray numbers are
+     * noise), so anything else is ignored.
+     *
+     * @return array<string, string>
+     */
+    private function cityZoneMap(): array
+    {
         $zoneCounts = [];
         $zoneRows = DB::table('work_orders as w')
             ->join('buildings as b', 'b.propertyware_id', '=', 'w.building_id')
@@ -132,24 +251,42 @@ class JobberSchedulerController extends Controller
             $zoneCounts[$key][$row->zone] = ($zoneCounts[$key][$row->zone] ?? 0) + (int) $row->n;
         }
 
-        $cities = [];
-        foreach ($propertyCounts as $key => $count) {
-            $zones = $zoneCounts[$key] ?? [];
+        $map = [];
+        foreach ($zoneCounts as $key => $zones) {
             arsort($zones);
-            $coordinates = self::CITY_COORDINATES[$key] ?? null;
-
-            $cities[] = [
-                'name' => Str::title($key),
-                'properties' => $count,
-                'zone' => $zones === [] ? null : (string) array_key_first($zones),
-                'lat' => $coordinates[0] ?? null,
-                'lng' => $coordinates[1] ?? null,
-            ];
+            $map[$key] = (string) array_key_first($zones);
         }
 
-        usort($cities, fn (array $a, array $b) => $b['properties'] <=> $a['properties']);
+        return $map;
+    }
 
-        return $cities;
+    /**
+     * Dominant zone per building (keyed by propertyware_id), same noise
+     * filter as the city map.
+     *
+     * @return array<int, string>
+     */
+    private function buildingZoneMap(): array
+    {
+        $zoneCounts = [];
+        $zoneRows = DB::table('work_orders')
+            ->whereIn('zone', ['1', '2', '3', '4', '5'])
+            ->whereNotNull('building_id')
+            ->select('building_id', 'zone', DB::raw('COUNT(*) as n'))
+            ->groupBy('building_id', 'zone')
+            ->get();
+
+        foreach ($zoneRows as $row) {
+            $zoneCounts[(int) $row->building_id][$row->zone] = (int) $row->n;
+        }
+
+        $map = [];
+        foreach ($zoneCounts as $buildingId => $zones) {
+            arsort($zones);
+            $map[$buildingId] = (string) array_key_first($zones);
+        }
+
+        return $map;
     }
 
     private function normalizeCity(?string $city): ?string

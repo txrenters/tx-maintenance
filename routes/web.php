@@ -190,9 +190,11 @@ Route::middleware([
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
 
-    // Scheduling & dispatch engine placeholder. Admin + WOC, enforced in the
-    // controller.
+    // Coverage map + property panel. Admin + WOC, enforced in the controller.
     Route::get('/scheduler', [JobberSchedulerController::class, 'index'])->name('scheduler.index');
+    Route::get('/scheduler/properties/{propertywareId}', [JobberSchedulerController::class, 'property'])
+        ->whereNumber('propertywareId')
+        ->name('scheduler.property');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');
