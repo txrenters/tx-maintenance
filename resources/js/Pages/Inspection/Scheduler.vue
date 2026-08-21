@@ -74,13 +74,15 @@ let map = null;
 let pinRecords = [];
 let circleRecords = [];
 let radiusCircle = null;
+let pulseMarker = null;
 
 const FIVE_MILES_IN_METERS = 8046.72;
 
-// Yellow 5-mile radius around the selected property — the radius the
-// future TBP-filler rule is defined with.
+// Yellow 5-mile radius + pulsing ring around the selected property — the
+// radius the future TBP-filler rule is defined with.
 const showRadius = (property) => {
     radiusCircle?.remove();
+    pulseMarker?.remove();
     radiusCircle = L.circle([property.lat, property.lng], {
         radius: FIVE_MILES_IN_METERS,
         color: "#eab308",
@@ -91,6 +93,14 @@ const showRadius = (property) => {
     })
         .bindTooltip(`5-mile radius around ${property.name}`)
         .addTo(map);
+    pulseMarker = L.marker([property.lat, property.lng], {
+        icon: L.divIcon({
+            className: "",
+            html: '<span class="scheduler-pulse"></span>',
+            iconSize: [0, 0],
+        }),
+        interactive: false,
+    }).addTo(map);
 };
 
 const matchesFilters = (meta) => {
@@ -156,6 +166,8 @@ const clearSelection = () => {
     highlight(null);
     radiusCircle?.remove();
     radiusCircle = null;
+    pulseMarker?.remove();
+    pulseMarker = null;
 };
 
 onMounted(() => {
@@ -261,18 +273,21 @@ onBeforeUnmount(() => {
     pinRecords = [];
     circleRecords = [];
     radiusCircle = null;
+    pulseMarker = null;
 });
 </script>
 
 <template>
     <Head :title="title" />
 
-    <div class="relative -m-4 h-[calc(100dvh-4rem-1px)] overflow-hidden">
+    <div
+        class="scheduler-map relative -m-4 h-[calc(100dvh-4rem-1px)] overflow-hidden"
+    >
         <div ref="mapElement" class="absolute inset-0 z-0" />
 
         <!-- Floating search + zone filter card -->
         <div
-            class="absolute left-4 top-4 z-[1001] w-[21rem] max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border bg-background/90 p-3 shadow-lg backdrop-blur"
+            class="scheduler-drop absolute left-4 top-4 z-[1001] w-[21rem] max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border bg-background/90 p-3 shadow-lg backdrop-blur"
         >
             <div class="flex items-baseline justify-between gap-2">
                 <h2 class="font-semibold leading-none">Scheduler</h2>
@@ -291,7 +306,7 @@ onBeforeUnmount(() => {
                     :key="chip.zone"
                     type="button"
                     :title="chip.label"
-                    class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-opacity"
+                    class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-accent"
                     :class="
                         activeZones.has(chip.zone)
                             ? ''
@@ -312,6 +327,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Floating property panel -->
+        <Transition name="panel">
         <div
             v-if="selectedId"
             class="absolute bottom-4 right-4 top-4 z-[1001] flex w-96 max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg border bg-background/95 shadow-lg backdrop-blur"
@@ -424,5 +440,75 @@ onBeforeUnmount(() => {
                 </template>
             </template>
         </div>
+        </Transition>
     </div>
 </template>
+
+<style>
+/* Minimalist black & white basemap: color lives only in the zone pins. */
+.scheduler-map .leaflet-tile-pane {
+    filter: grayscale(1) contrast(1.05);
+}
+
+.dark .scheduler-map .leaflet-tile-pane {
+    filter: grayscale(1) invert(1) brightness(0.85) contrast(1.1);
+}
+
+.scheduler-map .leaflet-control-zoom a {
+    transition: background-color 0.15s ease;
+}
+
+/* Pulsing ring on the selected property. */
+.scheduler-pulse {
+    position: absolute;
+    left: -22px;
+    top: -22px;
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    border: 2px solid #eab308;
+    animation: scheduler-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes scheduler-ping {
+    0% {
+        transform: scale(0.2);
+        opacity: 0.9;
+    }
+    80%,
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
+}
+
+/* Search card drops in on load. */
+.scheduler-drop {
+    animation: scheduler-drop-in 0.35s ease-out both;
+}
+
+@keyframes scheduler-drop-in {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Property panel slides in from the right. */
+.panel-enter-active,
+.panel-leave-active {
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
+}
+
+.panel-enter-from,
+.panel-leave-to {
+    transform: translateX(1.5rem);
+    opacity: 0;
+}
+</style>
