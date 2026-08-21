@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-21',
+            'area' => 'Jobber',
+            'title' => 'Tenants now get a 14-day advance notice for TBP visits',
+            'description' => 'Tenant Benefit Package visits now announce themselves two weeks ahead: tenants get the full visit notice by text and email 14 days before the scheduled date, on top of the existing 7-day, 3-day and day-before reminders. It only applies to visits already on the calendar 14 or more days out — anything booked closer just gets the usual reminders. The wording is editable on the Message Templates tab, and the Jobber tenant reminder switches cover it like the other tiers.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'System',
             'title' => 'Work order boards and dashboard load faster',
             'description' => 'The database now keeps lookup indexes on the work order fields the boards, dashboard, and searches filter by, and the dashboard charts ask for date ranges the database can jump to directly. Nothing looks different — the same pages simply come back quicker, especially the kanban boards, the dashboard tiles, and work order number search.',

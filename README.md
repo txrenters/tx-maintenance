@@ -373,7 +373,8 @@ A single console command `asana:set-dues` (`UpdateTaskDueDate`) sets due dates o
 | Every 5 min | `twilio:import-inbound-messages` | Safety-net backfill for missed inbound SMS. |
 | Every 30 min | `jobber:refresh-token` | Keeps Jobber OAuth alive. |
 | Daily | `import:buildings-from-work-orders` | Fills missing building records. |
-| Daily 16:00 CT | `jobs:send-reminders` | Tenant SMS reminders for upcoming jobs. |
+| Daily 10:00 CT | `jobs:send-reminders` | Tenant SMS/email reminders 14, 7 and 3 days before a TBP visit. |
+| Daily 08:00 CT | `jobs:send-reminders --days=1` | Day-before "visit tomorrow" reminder for TBP visits. |
 | Daily 01:30 CT | `twilio:sync-phone-numbers` | Nightly Twilio number sync. |
 
 Manual/triggered: `import:all-work-orders`, `import:all-vendors`, `sync:building-details`, `sync:work-order-closing-comments`, `jobber:import-jobs`, `asana:set-dues`.

@@ -53,10 +53,11 @@ class SendJobReminders extends Command
             return self::FAILURE;
         }
 
-        // The 7/3/1-day bodies live in the AutomatedMessageTemplates registry
+        // The 14/7/3/1-day bodies live in the AutomatedMessageTemplates registry
         // (editable from the Automated Messages page) and keep their
         // {CLIENT_NAME}/{SCHEDULED_DATE} tokens: substitution happens
         // per-recipient further down, so raw() is the right accessor here.
+        $notifyMessageFor14days = AutomatedMessageTemplates::raw('tenant_job_reminder_14_day');
         $notifyMessageFor7days = AutomatedMessageTemplates::raw('tenant_job_reminder_7_day');
         $notifyMessageFor3days = AutomatedMessageTemplates::raw('tenant_job_reminder_3_day');
         $notifyMessageFor1day = AutomatedMessageTemplates::raw('tenant_job_reminder_1_day');
@@ -74,6 +75,10 @@ class SendJobReminders extends Command
                 'notified_field' => 'notified_7_days',
                 'message' => $notifyMessageFor7days,
             ],
+            14 => [
+                'notified_field' => 'notified_14_days',
+                'message' => $notifyMessageFor14days,
+            ],
         ];
 
         $requestedDays = collect($this->option('days'))
@@ -81,7 +86,7 @@ class SendJobReminders extends Command
             ->values();
 
         if ($requestedDays->isEmpty()) {
-            $requestedDays = collect([3, 7]);
+            $requestedDays = collect([3, 7, 14]);
         }
 
         $invalidDays = $requestedDays
@@ -89,7 +94,7 @@ class SendJobReminders extends Command
             ->all();
 
         if ($invalidDays !== []) {
-            $this->error('Unsupported reminder day override(s): '.implode(', ', $invalidDays).'. Supported values: 1, 3, 7.');
+            $this->error('Unsupported reminder day override(s): '.implode(', ', $invalidDays).'. Supported values: 1, 3, 7, 14.');
 
             return self::FAILURE;
         }
@@ -98,6 +103,7 @@ class SendJobReminders extends Command
 
         if ($testEmail !== null && $testEmail !== '') {
             $templates = [
+                14 => $notifyMessageFor14days,
                 7 => $notifyMessageFor7days,
                 3 => $notifyMessageFor3days,
                 1 => $notifyMessageFor1day,
@@ -109,7 +115,7 @@ class SendJobReminders extends Command
                 ->unique()
                 ->values();
 
-            $daysToSend = $testDaysOption->isEmpty() ? [7, 3, 1] : $testDaysOption->all();
+            $daysToSend = $testDaysOption->isEmpty() ? [14, 7, 3, 1] : $testDaysOption->all();
 
             foreach ($daysToSend as $day) {
                 $result = $this->sendTestEmail((string) $testEmail, $templates[$day], $day);
@@ -135,6 +141,19 @@ class SendJobReminders extends Command
         foreach ($requestedDays->unique()->sort()->values() as $day) {
             $configuration = $reminderConfigurations[$day];
 
+            // The 14-day tier shipped with a new jobber_visits column; until
+            // production has run that migration, skip just the tiers whose
+            // column is missing so the older tiers keep sending.
+            if (! $this->notifiedColumnExists($configuration['notified_field'])) {
+                $this->warn("Skipping {$day}-day reminders: jobber_visits.{$configuration['notified_field']} column is missing (migration not run yet).");
+                Log::warning('Job reminders tier skipped: notified column missing', [
+                    'day' => $day,
+                    'column' => $configuration['notified_field'],
+                ]);
+
+                continue;
+            }
+
             $this->sendMessages(
                 $today->copy()->timezone(self::COMMAND_TIMEZONE)->addDays($day),
                 $configuration['notified_field'],
@@ -143,6 +162,11 @@ class SendJobReminders extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    protected function notifiedColumnExists(string $notifiedField): bool
+    {
+        return Schema::hasColumn('jobber_visits', $notifiedField);
     }
 
     protected function sendTestEmail(string $to, string $messageText, int $reminderDays): int

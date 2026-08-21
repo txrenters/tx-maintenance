@@ -421,6 +421,38 @@ class AutomatedMessageTemplates
                 ."{link}\n"
                 .'(Ref: WO#{work_order_no})',
         ],
+        'tenant_job_reminder_14_day' => [
+            'automation' => 'tenant_job_reminder_sms',
+            'label' => '14 days before',
+            'group' => 'tenant_job_reminder',
+            'channel' => 'sms_email',
+            'audience' => 'tenant',
+            'sends_when' => 'The Jobber Tenant Benefit Package advance notice sent 14 days before the scheduled visit. The same text goes out by SMS and email.',
+            'tokens' => [
+                'CLIENT_NAME' => "The tenant's name as it appears on the Jobber client",
+                'SCHEDULED_DATE' => 'The scheduled visit date',
+            ],
+            'required' => ['SCHEDULED_DATE'],
+            'sample' => [
+                'CLIENT_NAME' => 'Jane Doe',
+                'SCHEDULED_DATE' => 'Monday, August 24, 2026',
+            ],
+            'collapse' => false,
+            'default' => "Dear {CLIENT_NAME},\n\n"
+                ."            As part of your Tenant Benefit Package (TBP), we have scheduled the following services on {SCHEDULED_DATE}:\n"
+                ."                * Pest control treatment\n"
+                ."                * Air filter replacement\n"
+                ."                * Occupied inspection\n"
+                ."            This advance notice is sent two weeks ahead so you have time to prepare, and reminders will follow closer to the date. Please note the following important details:\n"
+                ."                * Access & Preparation: You do not need to be present during the visit. We will provide access to our technician. Please secure all valuables and crate any pets. If any areas are inaccessible, a trip charge may be applied in accordance with your lease agreement.\n"
+                ."                * Timing: We cannot provide an exact arrival time, as our technicians have multiple appointments, and job durations may vary. However, the technician will call or notify you prior to arrival.\n"
+                ."                * Body Cameras: For security and documentation purposes, our technicians wear body cameras during all visits.\n"
+                ."                * Filter Access: Filters will only be replaced if they are unobstructed. Please ensure furniture or other items are moved beforehand to allow access.\n"
+                ."                * Rescheduling: If the technician is unable to attend for any reason, we will promptly reschedule and notify you.\n"
+                ."            Please confirm receipt of this notice and your approval by replying to this message. We appreciate your cooperation and understanding.\n\n"
+                ."            Warm regards,\n"
+                .'            TexasRenters.com, LLC',
+        ],
         'tenant_job_reminder_7_day' => [
             'automation' => 'tenant_job_reminder_sms',
             'label' => '7 days before',

@@ -343,7 +343,10 @@ const getStatusCardClasses = (event) => {
     const baseClasses =
         "border-l-4 text-slate-900 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md";
     const isNotified =
-        event.notified_7_days || event.notified_3_days || event.notified_1_days;
+        event.notified_14_days ||
+        event.notified_7_days ||
+        event.notified_3_days ||
+        event.notified_1_days;
 
     if (isNotified) {
         return `${baseClasses} border-emerald-200 border-l-emerald-500 bg-emerald-50 hover:bg-emerald-100`;
