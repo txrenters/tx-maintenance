@@ -73,6 +73,25 @@ const mapElement = ref(null);
 let map = null;
 let pinRecords = [];
 let circleRecords = [];
+let radiusCircle = null;
+
+const FIVE_MILES_IN_METERS = 8046.72;
+
+// Yellow 5-mile radius around the selected property — the radius the
+// future TBP-filler rule is defined with.
+const showRadius = (property) => {
+    radiusCircle?.remove();
+    radiusCircle = L.circle([property.lat, property.lng], {
+        radius: FIVE_MILES_IN_METERS,
+        color: "#eab308",
+        weight: 2,
+        dashArray: "6 6",
+        fillColor: "#eab308",
+        fillOpacity: 0.08,
+    })
+        .bindTooltip(`5-mile radius around ${property.name}`)
+        .addTo(map);
+};
 
 const matchesFilters = (meta) => {
     const zoneKey = meta.zone ?? "none";
@@ -116,6 +135,7 @@ const highlight = (id) => {
 const selectProperty = async (property) => {
     selectedId.value = property.id;
     highlight(property.id);
+    showRadius(property);
     selectedLoading.value = true;
     selected.value = null;
     try {
@@ -134,6 +154,8 @@ const clearSelection = () => {
     selected.value = null;
     selectedId.value = null;
     highlight(null);
+    radiusCircle?.remove();
+    radiusCircle = null;
 };
 
 onMounted(() => {
@@ -223,6 +245,7 @@ onBeforeUnmount(() => {
     map = null;
     pinRecords = [];
     circleRecords = [];
+    radiusCircle = null;
 });
 </script>
 
