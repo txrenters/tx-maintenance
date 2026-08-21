@@ -278,6 +278,13 @@ class TaskController extends Controller
             'completed_date' => now()->toDateString(),
         ]);
 
+        // A closed work order's checklist is finished by definition: complete
+        // (never delete — the rows are the audit trail) whatever is left. Bare
+        // query update so the completion cascade cannot re-enter.
+        WorkOrderTask::where('work_order_id', $work_order->id)
+            ->where('status', '!=', 'completed')
+            ->update(['status' => 'completed']);
+
         $conversation_url = route('conversation.show', $work_order->id);
 
         $propertyWare = new PropertyWareService;

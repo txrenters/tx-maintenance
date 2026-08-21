@@ -41,10 +41,12 @@ class ImportAllWorkOrdersCommand extends Command
                 $workOrders = $this->fetchBatch($headers, $batchSize, $offset);
 
                 if ($workOrders === null) {
-                    // All retries exhausted for this batch — skip and continue
-                    $offset += $batchSize;
+                    // All retries exhausted. Abort rather than advance the
+                    // offset: with PropertyWare down every page returns null
+                    // and the "skip this batch" loop never terminates.
+                    $this->error("PropertyWare could not be fetched at offset {$offset}; aborting this run.");
 
-                    continue;
+                    return Command::FAILURE;
                 }
 
                 if (empty($workOrders)) {

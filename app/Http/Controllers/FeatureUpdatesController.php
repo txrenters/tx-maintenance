@@ -34,6 +34,24 @@ class FeatureUpdatesController extends Controller
         ],
         [
             'date' => '2026-08-21',
+            'area' => 'Work Orders',
+            'title' => 'Checklist tasks tick themselves when the work is already done',
+            'description' => 'Every 30 minutes the system now completes the checklist tasks it can verify on its own: "Fill in scheduled date" once a schedule exists, "Assign to Appropriate Vendor" once a vendor is on, the category/zone/management-plan updates once those fields are filled, and the photo and invoice confirmations once the uploads are actually there (including "synced to PW" once every photo has its PropertyWare copy). Only the pure data-entry confirmations are touched — anything that moves the work order to a new status, and every Yes/No question, is still yours. The service status never changes on its own.',
+        ],
+        [
+            'date' => '2026-08-21',
+            'area' => 'Work Orders',
+            'title' => 'Closing a work order finishes its checklist',
+            'description' => 'Closing a work order now marks whatever is left on its checklist as completed, however it is closed — the Completed button or the "Close Work Order" task. No more open tasks lingering on closed work orders, and no more bulk clean-up sweeps. The tasks stay on the work order as the record of what was done.',
+        ],
+        [
+            'date' => '2026-08-21',
+            'area' => 'Notifications',
+            'title' => 'The system now audits its own data overnight',
+            'description' => 'A set of overnight housekeeping jobs keeps the data clean without anyone remembering to run anything: duplicate documents on the attachments tab are collapsed, closing comments written in PropertyWare after import are pulled in, and the vendor list refreshes weekly. Two of them ring the bell when they find trouble: an HOA violation work order with no tenant linked (which silently stops that tenant\'s texts) raises an alert the morning it appears, and a nightly owner-data audit reports duplicate owners and owners who have work orders but no phone number on file — the reason some owner texts go nowhere.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'Messaging',
             'title' => 'Edit the automated message wording yourself',
             'description' => 'The Automated Messages page has a new Message Templates tab where admins and work order coordinators can rewrite the canned text every automation sends — tenant, owner, vendor, and the Jobber visit reminders. Placeholders fill in the details per message, a preview shows the result, and any message can be reset to its original wording. The page itself is now open to coordinators as well.',

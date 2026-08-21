@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Attachments;
 use App\Models\WorkOrderDocuments;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class DedupeWorkOrderDocuments extends Command
 {
@@ -20,7 +22,7 @@ class DedupeWorkOrderDocuments extends Command
      *
      * @var string
      */
-    protected $description = 'Remove duplicate work order documents: collapse repeated file names per work order (keeping the oldest), drop documents matching attachments this app uploaded to PropertyWare, and remove PropertyWare thumbnails (THMP_).';
+    protected $description = 'Remove duplicate work order documents: collapse repeated file names per work order (keeping the app-written copy, else the oldest), drop documents matching attachments this app uploaded to PropertyWare, and remove PropertyWare thumbnails (THMP_). Scheduled nightly; safe to re-run.';
 
     /**
      * Execute the console command.
@@ -43,13 +45,16 @@ class DedupeWorkOrderDocuments extends Command
     }
 
     /**
-     * Within each work order, keep the oldest document for any given file name and
-     * delete the rest. This collapses PropertyWare's repeated system files such as
-     * multiple "Work Order Information.pdf".
+     * Within each work order, keep one document for any given file name and
+     * delete the rest. This collapses PropertyWare's repeated system files such
+     * as multiple "Work Order Information.pdf". The copy this app wrote (its
+     * download link is the one staff use) is preferred as the keeper; with no
+     * app-written copy the oldest survives.
      */
     private function collapseDuplicateFileNames(bool $dryRun): int
     {
         $removed = 0;
+        $appUser = (string) config('services.propertyware.username');
 
         $duplicateGroups = WorkOrderDocuments::query()
             ->selectRaw('work_order_id, file_name, COUNT(*) as total')
@@ -59,18 +64,22 @@ class DedupeWorkOrderDocuments extends Command
             ->get();
 
         foreach ($duplicateGroups as $group) {
-            $idsToRemove = WorkOrderDocuments::query()
+            $documents = WorkOrderDocuments::query()
                 ->where('work_order_id', $group->work_order_id)
                 ->where('file_name', $group->file_name)
                 ->orderBy('id')
-                ->pluck('id')
-                ->slice(1) // keep the oldest, remove the rest
-                ->values();
+                ->get(['id', 'work_order_id', 'file_name', 'propertyware_id', 'created_by_id']);
 
-            $removed += $idsToRemove->count();
+            $keeper = ($appUser !== '' ? $documents->firstWhere('created_by_id', $appUser) : null)
+                ?? $documents->first();
 
-            if (! $dryRun && $idsToRemove->isNotEmpty()) {
-                WorkOrderDocuments::whereIn('id', $idsToRemove)->delete();
+            $toRemove = $documents->where('id', '!=', $keeper->id)->values();
+
+            $removed += $toRemove->count();
+
+            if (! $dryRun && $toRemove->isNotEmpty()) {
+                $this->logRemovals('duplicate-named', $toRemove);
+                WorkOrderDocuments::whereIn('id', $toRemove->pluck('id'))->delete();
             }
         }
 
@@ -92,14 +101,16 @@ class DedupeWorkOrderDocuments extends Command
         foreach ($uploaded->groupBy('work_order_id') as $workOrderId => $rows) {
             $names = $rows->pluck('pw_file_name')->unique()->all();
 
-            $query = WorkOrderDocuments::query()
+            $matches = WorkOrderDocuments::query()
                 ->where('work_order_id', $workOrderId)
-                ->whereIn('file_name', $names);
+                ->whereIn('file_name', $names)
+                ->get(['id', 'work_order_id', 'file_name', 'propertyware_id']);
 
-            $removed += (clone $query)->count();
+            $removed += $matches->count();
 
-            if (! $dryRun) {
-                $query->delete();
+            if (! $dryRun && $matches->isNotEmpty()) {
+                $this->logRemovals('upload-matching', $matches);
+                WorkOrderDocuments::whereIn('id', $matches->pluck('id'))->delete();
             }
         }
 
@@ -115,17 +126,36 @@ class DedupeWorkOrderDocuments extends Command
     {
         // Cheap, portable prefilter, then match the exact "THMP_" prefix via the
         // shared helper (avoids database-specific LIKE escaping of the underscore).
-        $ids = WorkOrderDocuments::query()
+        $thumbnails = WorkOrderDocuments::query()
             ->where('file_name', 'like', 'THMP%')
-            ->get(['id', 'file_name'])
+            ->get(['id', 'work_order_id', 'file_name', 'propertyware_id'])
             ->filter(fn ($doc) => WorkOrderDocuments::isThumbnailFileName($doc->file_name))
-            ->pluck('id');
+            ->values();
 
-        if (! $dryRun && $ids->isNotEmpty()) {
-            WorkOrderDocuments::whereIn('id', $ids)->delete();
+        if (! $dryRun && $thumbnails->isNotEmpty()) {
+            $this->logRemovals('thumbnail', $thumbnails);
+            WorkOrderDocuments::whereIn('id', $thumbnails->pluck('id'))->delete();
         }
 
-        return $ids->count();
+        return $thumbnails->count();
+    }
+
+    /**
+     * Deletes on this table are permanent (no soft deletes), so a scheduled run
+     * keeps an audit trail of exactly which rows it removed and why.
+     *
+     * @param  Collection<int, WorkOrderDocuments>  $documents
+     */
+    private function logRemovals(string $reason, Collection $documents): void
+    {
+        Log::info("Work order document dedupe removing {$reason} document(s).", [
+            'documents' => $documents->map(fn (WorkOrderDocuments $document): array => [
+                'id' => $document->id,
+                'work_order_id' => $document->work_order_id,
+                'file_name' => $document->file_name,
+                'propertyware_id' => $document->propertyware_id,
+            ])->all(),
+        ]);
     }
 
     /**

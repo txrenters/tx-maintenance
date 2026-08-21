@@ -191,3 +191,65 @@ Schedule::command('inbox:triage-messages')
     ->everyTenMinutes()
     ->withoutOverlapping(15)
     ->runInBackground();
+
+// Auto-tick checklist tasks the database already proves done (category/zone/
+// plan filled, vendor assigned, schedule set, photos or invoice uploaded,
+// photos synced/published), so coordinators stop re-confirming facts the
+// system already knows. Never advances the service status — it only touches
+// "Not Changed" templates and completes with a cascade-free update.
+Schedule::command('tasks:auto-complete')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping(20)
+    ->runInBackground();
+
+// The document import above steadily accumulates duplicate-named PropertyWare
+// system files, round-tripped copies of our own uploads on old rows, and
+// THMP_ thumbnails; this collapses them. The import's skip-guards mean deleted
+// rows are not re-imported, so the cleanup converges instead of churning.
+// 02:30 stays off the :00/:10 import ticks and clear of the 02:00/02:15
+// repair backstops.
+Schedule::command('work-order-documents:dedupe')
+    ->timezone('America/Chicago')
+    ->dailyAt('02:30')
+    ->withoutOverlapping(60)
+    ->runInBackground();
+
+// Closing comments keep changing in PropertyWare after a work order was
+// imported; this fills local blanks nightly. No --overwrite on purpose: a
+// non-empty local comment (staff-written) always wins.
+Schedule::command('sync:work-order-closing-comments')
+    ->timezone('America/Chicago')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(60)
+    ->runInBackground();
+
+// Detector for the PropertyWare bug where HOA violation work orders arrive
+// tenant-less — which silently stops every tenant text for that violation.
+// Dry-run on purpose: linking a tenant resumes their SMS at the next
+// hoa:send-reminders run, so the actual fix stays a human decision. This only
+// raises a one-time bell per affected work order.
+Schedule::command('hoa:relink-tenants --dry-run --notify')
+    ->timezone('America/Chicago')
+    ->dailyAt('03:15')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
+// Read-only owner-data audit: duplicate owners, shared emails, duplicate
+// work-order links, and owners with work orders but no phone on file (their
+// texts no-op silently). Raises one summary bell, and only when the counts
+// change, so standing problems don't ring nightly.
+Schedule::command('owners:audit --notify')
+    ->timezone('America/Chicago')
+    ->dailyAt('03:30')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
+// Weekly vendor roster refresh from PropertyWare — new vendors appear and
+// contact details update without anyone importing them by hand. Profile
+// fields only: portal passwords are set once on create, never overwritten.
+// Sunday 04:00, well clear of the nightly jobs above.
+Schedule::command('import:all-vendors')
+    ->timezone('America/Chicago')
+    ->weeklyOn(0, '04:00')
+    ->withoutOverlapping(120)
+    ->runInBackground();

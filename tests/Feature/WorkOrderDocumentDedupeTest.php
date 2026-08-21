@@ -95,6 +95,24 @@ class WorkOrderDocumentDedupeTest extends TestCase
         $this->assertDatabaseHas('work_order_documents', ['id' => $unrelated->id]);
     }
 
+    public function test_dedupe_command_prefers_keeping_the_app_written_copy(): void
+    {
+        config(['services.propertyware.username' => 'api-user@texasrenters.com']);
+
+        $workOrder = $this->makeWorkOrder();
+        // The stale PropertyWare import came first (lower id); the app wrote
+        // its own downloadable copy later. The app's copy must survive.
+        $staleImport = $this->makeDocument($workOrder, 'Work Order Information.pdf');
+        $appWritten = $this->makeDocument($workOrder, 'Work Order Information.pdf', [
+            'created_by_id' => 'api-user@texasrenters.com',
+        ]);
+
+        $this->artisan('work-order-documents:dedupe')->assertSuccessful();
+
+        $this->assertDatabaseHas('work_order_documents', ['id' => $appWritten->id]);
+        $this->assertDatabaseMissing('work_order_documents', ['id' => $staleImport->id]);
+    }
+
     public function test_thumbnail_file_names_are_detected(): void
     {
         $this->assertTrue(WorkOrderDocuments::isThumbnailFileName('THMP_Invoice INV-4803_WO#43114.pdf'));
