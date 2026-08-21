@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('jobber_visits', 'notified_14_days')) {
+            return;
+        }
+
         Schema::table('jobber_visits', function (Blueprint $table) {
             $table->boolean('notified_14_days')->default(false);
         });
