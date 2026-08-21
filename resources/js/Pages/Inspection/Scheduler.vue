@@ -183,12 +183,24 @@ onMounted(() => {
             '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    const bounds = L.latLngBounds(
-        [...pins, ...circles].map((point) => [point.lat, point.lng])
+    const allPoints = [...pins, ...circles].map((point) => [
+        point.lat,
+        point.lng,
+    ]);
+    // Open focused on the Houston metro; the Nacogdoches exclave (~140 mi
+    // out) would otherwise zoom the default view out to half of East Texas.
+    // It stays reachable — panning and zoom-out are only clamped to the
+    // full coverage area.
+    const houston = L.latLng(29.7604, -95.3698);
+    const metroPoints = allPoints.filter(
+        (point) => houston.distanceTo(point) < 130_000
     );
-    map.fitBounds(bounds.pad(0.08));
-    // Keep the view on the coverage area only.
-    map.setMaxBounds(bounds.pad(0.6));
+    map.fitBounds(L.latLngBounds(metroPoints.length ? metroPoints : allPoints), {
+        // Keep pins clear of the floating search card.
+        paddingTopLeft: [360, 24],
+        paddingBottomRight: [24, 24],
+    });
+    map.setMaxBounds(L.latLngBounds(allPoints).pad(0.6));
 
     circleRecords = circles.map((city) => {
         const color = zoneColor(city.zone);
