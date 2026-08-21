@@ -7,7 +7,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Input } from "@/Components/ui/input";
 import { Badge } from "@/Components/ui/badge";
-import { Loader2, MapPin, X } from "lucide-vue-next";
+import { Loader2, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -173,7 +173,10 @@ onMounted(() => {
         minZoom: 7,
         maxZoom: 17,
         preferCanvas: true,
+        // The floating search card sits over Leaflet's default top-left spot.
+        zoomControl: false,
     });
+    L.control.zoom({ position: "bottomleft" }).addTo(map);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
@@ -252,28 +255,31 @@ onBeforeUnmount(() => {
 <template>
     <Head :title="title" />
 
-    <div class="bg-background border rounded-lg p-4">
-        <h2 class="text-lg font-semibold">Scheduler</h2>
-        <p class="text-sm text-muted-foreground">
-            Coverage area: Greater Houston, TX + Nacogdoches, TX —
-            {{ mappedCount }} of {{ totalProperties }} active properties mapped
-            to exact addresses. Click a pin for the property's work orders.
-        </p>
-    </div>
+    <div class="relative -m-4 h-[calc(100dvh-4rem-1px)] overflow-hidden">
+        <div ref="mapElement" class="absolute inset-0 z-0" />
 
-    <div class="bg-background border rounded-lg p-4 space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <!-- Floating search + zone filter card -->
+        <div
+            class="absolute left-4 top-4 z-[1001] w-[21rem] max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border bg-background/90 p-3 shadow-lg backdrop-blur"
+        >
+            <div class="flex items-baseline justify-between gap-2">
+                <h2 class="font-semibold leading-none">Scheduler</h2>
+                <span class="text-xs text-muted-foreground">
+                    {{ mappedCount }} of {{ totalProperties }} mapped
+                </span>
+            </div>
             <Input
                 v-model="search"
                 placeholder="Search property, address or city..."
-                class="sm:max-w-xs"
+                class="h-8"
             />
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap gap-1.5">
                 <button
                     v-for="chip in zoneChips"
                     :key="chip.zone"
                     type="button"
-                    class="flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-opacity"
+                    :title="chip.label"
+                    class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-opacity"
                     :class="
                         activeZones.has(chip.zone)
                             ? ''
@@ -282,42 +288,24 @@ onBeforeUnmount(() => {
                     @click="toggleZone(chip.zone)"
                 >
                     <span
-                        class="inline-block h-3 w-3 rounded-full"
+                        class="inline-block h-2.5 w-2.5 rounded-full"
                         :style="{ backgroundColor: chip.color }"
                     />
-                    <span>{{ chip.label }}</span>
+                    <span>{{
+                        chip.zone === "none" ? "No zone" : `Z${chip.zone}`
+                    }}</span>
                     <span class="text-muted-foreground">{{ chip.count }}</span>
                 </button>
             </div>
         </div>
-        <p class="text-xs text-muted-foreground">
-            Zones come from the PropertyWare "Zone" field on work orders (the
-            same "Zone N" that appears in Jobber job titles). Each pin is
-            colored by the property's most common zone. Click a chip to hide or
-            show a zone.
-        </p>
-    </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
+        <!-- Floating property panel -->
         <div
-            class="bg-background border rounded-lg overflow-hidden lg:col-span-2"
+            v-if="selectedId"
+            class="absolute bottom-4 right-4 top-4 z-[1001] flex w-96 max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg border bg-background/95 shadow-lg backdrop-blur"
         >
-            <div ref="mapElement" class="h-[32rem] w-full z-0" />
-        </div>
-
-        <div class="bg-background border rounded-lg flex flex-col h-[32rem]">
             <div
-                v-if="!selectedId"
-                class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-muted-foreground"
-            >
-                <MapPin class="h-8 w-8" />
-                <p class="text-sm text-center">
-                    Click a property pin to see its details and work orders.
-                </p>
-            </div>
-
-            <div
-                v-else-if="selectedLoading"
+                v-if="selectedLoading"
                 class="flex flex-1 items-center justify-center"
             >
                 <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
