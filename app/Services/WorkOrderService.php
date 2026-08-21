@@ -319,9 +319,18 @@ class WorkOrderService
             // an import must always find the existing row, so bypass it for
             // the lookup and the write. (The scheduled command runs in console
             // context where the scope is already a no-op.)
-            $workOrderExists = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
+            $existingWorkOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->exists();
+                ->first(['id', 'status', 'completed_date', 'created_date']);
+            $workOrderExists = $existingWorkOrder !== null;
+
+            $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
+                $work_order_data['completed_date'],
+                $work_order_data['status'],
+                $existingWorkOrder?->status,
+                $existingWorkOrder?->completed_date,
+                $work_order_data['created_date'] ?? $existingWorkOrder?->created_date,
+            );
 
             // service_status_id is NOT NULL: a payload without the "Service
             // Status" custom field would otherwise fail the insert outright.

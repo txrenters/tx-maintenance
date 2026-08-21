@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-22',
+            'area' => 'Work Orders',
+            'title' => 'The Closed column shows the last 30 days again',
+            'description' => 'The Closed column on the main board ballooned to over 1,000 cards: PropertyWare reports many closed work orders without a completion date, and after a bulk sync touched those records the board mistook years-old work orders for freshly closed ones. The system now records its own completion date the moment it first sees a work order close, so the Closed column is back to what actually closed in the last 30 days. Searching by work order number still finds any closed work order, no matter how old.',
+        ],
+        [
             'date' => '2026-08-21',
             'area' => 'Vendor Portal',
             'title' => 'The vendor checklist now appears on every work order',

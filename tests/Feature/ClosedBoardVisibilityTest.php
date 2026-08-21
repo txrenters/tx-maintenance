@@ -69,21 +69,28 @@ class ClosedBoardVisibilityTest extends TestCase
         $this->assertContains(42487, $numbers);
     }
 
-    public function test_recently_closed_work_order_without_completed_date_appears_on_board(): void
+    public function test_recently_created_closed_work_order_without_completed_date_appears_on_board(): void
     {
-        $this->createClosedWorkOrder(1001, ['completed_date' => null]);
+        $this->createClosedWorkOrder(1001, [
+            'completed_date' => null,
+            'created_date' => now()->subDays(5),
+        ]);
 
         $numbers = $this->returnedWorkOrderNumbers([]);
 
         $this->assertContains(1001, $numbers);
     }
 
-    public function test_stale_closed_work_order_without_completed_date_stays_off_the_board(): void
+    public function test_sync_touched_historical_work_order_without_completed_date_stays_off_the_board(): void
     {
-        $workOrder = $this->createClosedWorkOrder(1002, ['completed_date' => null]);
-
-        DB::table('work_orders')->where('id', $workOrder->id)
-            ->update(['updated_at' => now()->subDays(45)]);
+        // A years-old closed work order whose updated_at a bulk PropertyWare
+        // sync just refreshed: the window must key off created_date, not
+        // updated_at, or every sync floods the board with 1,000+ old cards
+        // (2026-08-22).
+        $this->createClosedWorkOrder(1002, [
+            'completed_date' => null,
+            'created_date' => now()->subDays(400),
+        ]);
 
         $numbers = $this->returnedWorkOrderNumbers([]);
 

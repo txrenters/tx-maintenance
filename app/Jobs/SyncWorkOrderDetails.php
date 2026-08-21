@@ -35,6 +35,17 @@ class SyncWorkOrderDetails implements ShouldQueue
     {
         $now = now();
 
+        // Find the work order first: resolving completed_date needs the
+        // existing row (a Closed payload without a date must not null out a
+        // date we already hold).
+        $workOrder = WorkOrder::find($this->work_order_id);
+
+        if (! $workOrder) {
+            Log::error('Work Order not found', ['work_order_id' => $this->work_order_id]);
+
+            return;
+        }
+
         // Prepare the work order data
         $workOrderData = [
             'approval_comments' => $this->data['approvalComments'] ?? null,
@@ -44,7 +55,13 @@ class SyncWorkOrderDetails implements ShouldQueue
             'authorized_to_enter' => $this->data['authorizedToEnter'] ?? null,
             'category' => $this->data['category'] ?? null,
             'closing_comments' => $this->data['closingComments'] ?? '',
-            'completed_date' => $this->parseDate($this->data['completedDate'] ?? null),
+            'completed_date' => WorkOrder::resolveImportCompletedDate(
+                $this->parseDate($this->data['completedDate'] ?? null),
+                $this->data['status'] ?? null,
+                $workOrder->status,
+                $workOrder->completed_date,
+                $this->parseDate($this->data['createdDate'] ?? null) ?? $workOrder->created_date,
+            ),
             'cost_estimate' => $this->data['costEstimate'] ?? null,
             'created_date' => $this->parseDate($this->data['createdDate'] ?? null),
             'date_to_enter' => $this->parseDate($this->data['dateToEnter'] ?? null),
@@ -76,15 +93,6 @@ class SyncWorkOrderDetails implements ShouldQueue
             'work_order_id' => $this->work_order_id,
             'data' => $workOrderData,
         ]);
-
-        // Find the work order
-        $workOrder = WorkOrder::find($this->work_order_id);
-
-        if (! $workOrder) {
-            Log::error('Work Order not found', ['work_order_id' => $this->work_order_id]);
-
-            return;
-        }
 
         // Update the work order
         $workOrder->update($workOrderData);

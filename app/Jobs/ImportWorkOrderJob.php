@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Owner;
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\TaskService;
 use Carbon\Carbon;
@@ -285,6 +286,20 @@ class ImportWorkOrderJob implements ShouldQueue
                     }
                 }
             }
+
+            // A Closed payload without a Completed Date must not null out a
+            // date already on the row (or the closed board loses the card).
+            $existingWorkOrder = DB::table('work_orders')
+                ->where('propertyware_id', $work_order_propertyware_id)
+                ->first(['status', 'completed_date', 'created_date']);
+
+            $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
+                $work_order_data['completed_date'],
+                $work_order_data['status'],
+                $existingWorkOrder?->status,
+                $existingWorkOrder?->completed_date,
+                $work_order_data['created_date'] ?? $existingWorkOrder?->created_date,
+            );
 
             Log::info('Work order data: ', ['data' => $work_order_data]);
 

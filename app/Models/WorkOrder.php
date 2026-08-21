@@ -83,6 +83,49 @@ class WorkOrder extends Model
     }
 
     /**
+     * Resolve the completed_date an import may write for a work order.
+     *
+     * PropertyWare frequently reports Closed work orders with no Completed
+     * Date. Writing the payload value verbatim nulls the date on every sync,
+     * so ~1,200 historical closed work orders can never keep a date — and the
+     * closed board's fallback window then mistook every bulk-sync touch for a
+     * fresh close, flooding the column with years-old cards (2026-08-22).
+     *
+     * The rules, in order: a payload date always wins; a non-Closed status
+     * clears the date (a reopened work order is not completed); an existing
+     * date is preserved; a work order first seen transitioning to Closed is
+     * stamped today (the WO#42487 case — closed in PropertyWare with no
+     * date); one that was already Closed with no date (historical backlog,
+     * or arriving already Closed on first import) is dated by its creation
+     * so it ages out of the board window instead of resurfacing as new.
+     */
+    public static function resolveImportCompletedDate(
+        ?string $payloadDate,
+        ?string $incomingStatus,
+        ?string $existingStatus,
+        ?string $existingCompletedDate,
+        mixed $createdDate,
+    ): ?string {
+        if ($payloadDate !== null) {
+            return $payloadDate;
+        }
+
+        if ($incomingStatus !== 'Closed') {
+            return null;
+        }
+
+        if ($existingCompletedDate !== null) {
+            return Carbon::parse($existingCompletedDate)->toDateString();
+        }
+
+        if ($existingStatus !== null && $existingStatus !== 'Closed') {
+            return now()->toDateString();
+        }
+
+        return $createdDate ? Carbon::parse((string) $createdDate)->toDateString() : null;
+    }
+
+    /**
      * Whether automated (non-manual) messages on a given channel are muted for
      * this work order. Manual sends never consult this. Unknown/blank channels
      * are treated as active so a bad value never silences everything.
