@@ -13,43 +13,43 @@ use Throwable;
 class GeocodeService
 {
     /**
-     * Resolve a street address to coordinates via the free US Census
-     * geocoder. A null return means the request itself failed (worth
-     * retrying later); found=false means the API answered and had no match
-     * for the address.
+     * Resolve many addresses in one request via the Census batch geocoder
+     * (one CSV upload, up to 10k rows) — far friendlier to their firewall
+     * than per-address calls.
      *
-     * @return array{found: bool, lat: float|null, lng: float|null, matched: string|null}|null
+     * @param  array<int, array{street: string, city: string|null, state: string, zip: string|null}>  $rows  keyed by caller id
+     * @return array<int, array{found: bool, lat: float|null, lng: float|null, matched: string|null}>|null
+     *                                                                                                     null = the request itself failed (worth retrying later). A row
+     *                                                                                                     missing from the returned array also counts as unresolved.
      */
-    public function geocode(string $street, ?string $city, ?string $state, ?string $zip): ?array
+    public function geocodeBatch(array $rows): ?array
     {
-        $query = [
-            'street' => $street,
-            'benchmark' => (string) config('services.census.benchmark'),
-            'format' => 'json',
-        ];
-
-        if ($city !== null && trim($city) !== '') {
-            $query['city'] = trim($city);
+        $handle = fopen('php://temp', 'r+');
+        foreach ($rows as $id => $parts) {
+            // PropertyWare sometimes holds ZIP+4; the Census API wants 5 digits.
+            $zip5 = substr(trim((string) ($parts['zip'] ?? '')), 0, 5);
+            fputcsv($handle, [
+                $id,
+                $parts['street'],
+                $parts['city'] ?? '',
+                $parts['state'] ?? '',
+                strlen($zip5) === 5 ? $zip5 : '',
+            ], ',', '"', '');
         }
+        rewind($handle);
+        $csv = (string) stream_get_contents($handle);
+        fclose($handle);
 
-        if ($state !== null && trim($state) !== '') {
-            $query['state'] = trim($state);
-        }
-
-        // PropertyWare sometimes holds ZIP+4; the Census API wants 5 digits.
-        $zip5 = substr(trim((string) $zip), 0, 5);
-        if (strlen($zip5) === 5) {
-            $query['zip'] = $zip5;
-        }
-
-        $response = $this->request()->get(
-            config('services.census.geocoder_url').'/locations/address',
-            $query
-        );
+        $response = $this->request()
+            ->timeout(300)
+            ->attach('addressFile', $csv, 'addresses.csv')
+            ->post(config('services.census.geocoder_url').'/locations/addressbatch', [
+                'benchmark' => (string) config('services.census.benchmark'),
+            ]);
 
         if (! $response->successful()) {
-            Log::error('Census geocode request failed', [
-                'street' => $street,
+            Log::error('Census batch geocode request failed', [
+                'rows' => count($rows),
                 'status_code' => $response->status(),
                 'body' => substr($response->body(), 0, 500),
             ]);
@@ -57,33 +57,43 @@ class GeocodeService
             return null;
         }
 
-        $json = $response->json();
+        $body = $response->body();
 
         // The Census WAF answers rate-limited requests with an HTML block
-        // page and HTTP 200. Anything that is not the documented JSON shape
+        // page and HTTP 200. Anything that is not the documented CSV shape
         // is a failure to retry later, never a definitive no-match.
-        if (! is_array($json) || ! array_key_exists('result', $json)) {
-            Log::error('Census geocode returned a non-JSON response (rate limited?)', [
-                'street' => $street,
-                'body' => substr($response->body(), 0, 200),
+        if (str_starts_with(ltrim($body), '<')) {
+            Log::error('Census batch geocode returned a non-CSV response (rate limited?)', [
+                'rows' => count($rows),
+                'body' => substr($body, 0, 200),
             ]);
 
             return null;
         }
 
-        $match = $json['result']['addressMatches'][0] ?? null;
-
-        if (! is_array($match)) {
-            return ['found' => false, 'lat' => null, 'lng' => null, 'matched' => null];
+        $results = [];
+        foreach (preg_split('/\r\n|\r|\n/', trim($body)) as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            // Response columns: id, input address, Match|No_Match|Tie,
+            // Exact|Non_Exact, matched address, "lng,lat", tigerline, side.
+            $fields = str_getcsv($line, ',', '"', '');
+            $id = $fields[0] ?? null;
+            if ($id === null || ! array_key_exists((int) $id, $rows)) {
+                continue;
+            }
+            $status = $fields[2] ?? '';
+            if ($status === 'Match' && isset($fields[5]) && str_contains($fields[5], ',')) {
+                // Census returns GIS-style "longitude,latitude".
+                [$lng, $lat] = array_map('floatval', explode(',', $fields[5], 2));
+                $results[(int) $id] = ['found' => true, 'lat' => $lat, 'lng' => $lng, 'matched' => $fields[4] ?? null];
+            } elseif (in_array($status, ['No_Match', 'Tie'], true)) {
+                $results[(int) $id] = ['found' => false, 'lat' => null, 'lng' => null, 'matched' => null];
+            }
         }
 
-        // Census returns GIS-style coordinates: x is longitude, y is latitude.
-        return [
-            'found' => true,
-            'lat' => (float) $match['coordinates']['y'],
-            'lng' => (float) $match['coordinates']['x'],
-            'matched' => $match['matchedAddress'] ?? null,
-        ];
+        return $results;
     }
 
     /**

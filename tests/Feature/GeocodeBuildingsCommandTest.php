@@ -30,27 +30,26 @@ class GeocodeBuildingsCommandTest extends TestCase
         ], $attributes));
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function censusMatch(float $lat = 29.968934, float $lng = -95.697215): array
+    private function batchMatchLine(Building $building, float $lat = 29.968934, float $lng = -95.697215): string
     {
-        return ['result' => ['addressMatches' => [[
-            'matchedAddress' => '12026 MEADOW BREEZE DR, CYPRESS, TX, 77429',
-            'coordinates' => ['x' => $lng, 'y' => $lat],
-        ]]]];
+        return "\"{$building->id}\",\"input\",\"Match\",\"Exact\",\"12026 MEADOW BREEZE DR, CYPRESS, TX, 77429\",\"{$lng},{$lat}\",\"647231\",\"L\"";
+    }
+
+    private function batchNoMatchLine(Building $building): string
+    {
+        return "\"{$building->id}\",\"input\",\"No_Match\"";
     }
 
     public function test_a_match_saves_coordinates_and_stamps(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch())]);
-
         $building = $this->building();
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($building))]);
 
         $this->artisan('geocode:buildings')->assertSuccessful();
 
+        Http::assertSentCount(1);
         $building->refresh();
-        // Census answers GIS-style: y is latitude, x is longitude.
+        // Census answers GIS-style "longitude,latitude" in one CSV field.
         $this->assertEqualsWithDelta(29.968934, $building->latitude, 0.000001);
         $this->assertEqualsWithDelta(-95.697215, $building->longitude, 0.000001);
         $this->assertNotNull($building->geocoded_at);
@@ -59,9 +58,8 @@ class GeocodeBuildingsCommandTest extends TestCase
 
     public function test_a_no_match_is_marked_tried_with_null_coordinates(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response(['result' => ['addressMatches' => []]])]);
-
         $building = $this->building();
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchNoMatchLine($building))]);
 
         $this->artisan('geocode:buildings')->assertSuccessful();
 
@@ -71,13 +69,27 @@ class GeocodeBuildingsCommandTest extends TestCase
         $this->assertNotNull($building->geocoded_at);
     }
 
-    public function test_a_transport_failure_leaves_the_row_untouched(): void
+    public function test_a_row_missing_from_the_response_stays_retryable(): void
+    {
+        $answered = $this->building(['name' => 'Answered House']);
+        $dropped = $this->building(['name' => 'Dropped House', 'address' => '99 Dropped St']);
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($answered))]);
+
+        $this->artisan('geocode:buildings')->assertSuccessful();
+
+        $this->assertNotNull($answered->refresh()->latitude);
+        $this->assertNull($dropped->refresh()->geocoded_at, 'An unanswered row must stay retryable.');
+    }
+
+    public function test_a_transport_failure_leaves_every_row_untouched(): void
     {
         Http::fake(['geocoding.geo.census.gov/*' => Http::response('oops', 500)]);
 
         $building = $this->building();
 
-        $this->artisan('geocode:buildings')->assertSuccessful();
+        $this->artisan('geocode:buildings')
+            ->expectsOutputToContain('Census batch request failed')
+            ->assertSuccessful();
 
         $building->refresh();
         $this->assertNull($building->latitude);
@@ -103,23 +115,6 @@ class GeocodeBuildingsCommandTest extends TestCase
         $this->assertNull($building->geocoded_at, 'A rate-limit block page must not be stamped as a definitive miss.');
     }
 
-    public function test_consecutive_failures_abort_the_run_early(): void
-    {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response('oops', 500)]);
-
-        for ($i = 0; $i < 15; $i++) {
-            $this->building(['name' => "House {$i}"]);
-        }
-
-        $this->artisan('geocode:buildings')
-            ->expectsOutputToContain('Aborted early')
-            ->assertSuccessful();
-
-        // 10 failures trip the breaker; the remaining 5 buildings are never
-        // attempted. Each attempt makes 3 tries via the retry() wrapper.
-        Http::assertSentCount(30);
-    }
-
     public function test_an_unchanged_geocoded_building_sends_no_request(): void
     {
         Http::fake();
@@ -139,8 +134,6 @@ class GeocodeBuildingsCommandTest extends TestCase
 
     public function test_a_changed_address_is_geocoded_again(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch(30.1, -95.1))]);
-
         $building = $this->building();
         $building->update([
             'latitude' => 29.9,
@@ -148,6 +141,7 @@ class GeocodeBuildingsCommandTest extends TestCase
             'geocoded_address' => '99 Old Address St, Cypress, TX 77429',
             'geocoded_at' => now()->subDay(),
         ]);
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($building, 30.1, -95.1))]);
 
         $this->artisan('geocode:buildings')->assertSuccessful();
 
@@ -157,8 +151,6 @@ class GeocodeBuildingsCommandTest extends TestCase
 
     public function test_a_fresh_miss_is_skipped_but_an_old_miss_is_retried(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch())]);
-
         $freshMiss = $this->building(['name' => 'Fresh Miss']);
         $freshMiss->update([
             'geocoded_address' => GeocodeService::assembleAddress($freshMiss),
@@ -171,17 +163,18 @@ class GeocodeBuildingsCommandTest extends TestCase
             'geocoded_at' => now()->subDays(31),
         ]);
 
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($oldMiss))]);
+
         $this->artisan('geocode:buildings')->assertSuccessful();
 
         Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => ! str_contains($request->body(), 'Meadow Breeze'));
         $this->assertNull($freshMiss->refresh()->latitude);
         $this->assertNotNull($oldMiss->refresh()->latitude);
     }
 
     public function test_force_geocodes_everything_again(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch())]);
-
         $building = $this->building();
         $building->update([
             'latitude' => 29.9,
@@ -189,6 +182,7 @@ class GeocodeBuildingsCommandTest extends TestCase
             'geocoded_address' => GeocodeService::assembleAddress($building),
             'geocoded_at' => now()->subDay(),
         ]);
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($building))]);
 
         $this->artisan('geocode:buildings --force')->assertSuccessful();
 
@@ -234,23 +228,20 @@ class GeocodeBuildingsCommandTest extends TestCase
         Http::assertSentCount(0);
     }
 
-    public function test_a_one_line_address_with_blank_city_is_parsed_into_parts(): void
+    public function test_a_one_line_address_with_blank_city_is_parsed_into_csv_parts(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch())]);
-
         $building = $this->building([
             'address' => '6341 Del Monte Dr, Houston, TX 77057',
             'city' => null,
             'state_region' => null,
             'postal_code' => null,
         ]);
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->batchMatchLine($building))]);
 
         $this->artisan('geocode:buildings')->assertSuccessful();
 
         Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'street=6341%20Del%20Monte%20Dr')
-                && str_contains($request->url(), 'city=Houston')
-                && str_contains($request->url(), 'zip=77057');
+            return str_contains($request->body(), '"6341 Del Monte Dr",Houston,TX,77057');
         });
         $this->assertSame(
             '6341 Del Monte Dr, Houston, TX 77057',
@@ -258,19 +249,20 @@ class GeocodeBuildingsCommandTest extends TestCase
         );
     }
 
-    public function test_zip_plus_four_is_truncated_and_a_missing_zip_is_omitted(): void
+    public function test_zip_plus_four_is_truncated_and_a_missing_zip_is_left_empty(): void
     {
-        Http::fake(['geocoding.geo.census.gov/*' => Http::response($this->censusMatch())]);
-
-        $this->building(['postal_code' => '77429-1234']);
-        $this->building(['name' => 'No Zip House', 'postal_code' => null]);
+        $zipPlusFour = $this->building(['postal_code' => '77429-1234']);
+        $noZip = $this->building(['name' => 'No Zip House', 'address' => '77 Bare St', 'postal_code' => null]);
+        Http::fake(['geocoding.geo.census.gov/*' => Http::response(
+            $this->batchMatchLine($zipPlusFour)."\n".$this->batchNoMatchLine($noZip)
+        )]);
 
         $this->artisan('geocode:buildings')->assertSuccessful();
 
         Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'zip=77429')
-                && ! str_contains($request->url(), '77429-1234');
+            return str_contains($request->body(), 'TX,77429')
+                && ! str_contains($request->body(), '77429-1234')
+                && str_contains($request->body(), "\"77 Bare St\",Cypress,TX,\n");
         });
-        Http::assertSent(fn ($request) => ! str_contains($request->url(), 'zip='));
     }
 }
