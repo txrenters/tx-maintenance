@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Scopes\TaskScope;
+use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use Carbon\Carbon;
@@ -43,34 +45,7 @@ class TaskService
 
         $now = now();
 
-        // Check if work order has a scheduled date
-        $hasScheduledDate = ! empty($workOrder->scheduled_end_date);
-
-        // Fetch the task template based on emergency status and service status ID.
-        // Work order types with their own template set (e.g. Turnover) use only
-        // that set: a status they skip generates no tasks rather than falling
-        // back to the generic workflow. Types without a dedicated set use the
-        // generic (null work_order_type) templates as before. Turnover is
-        // matched via isTurnover() (type OR category) since PropertyWare data
-        // carries it in either field.
-        $templateType = $workOrder->isTurnover() ? 'Turnover' : $workOrder->type;
-
-        $hasTypeSpecificTemplates = ! empty($templateType)
-            && TaskTemplate::where('work_order_type', $templateType)
-                ->where('is_current_service_status_emergency', $isEmergency)
-                ->exists();
-
-        $taskTemplate = TaskTemplate::with(['currentServiceStatus', 'tasks'])
-            ->whereHas('currentServiceStatus', function ($q) use ($serviceStatus_Id) {
-                $q->where('id', $serviceStatus_Id); // Use service_status_id
-            })
-            ->where('is_current_service_status_emergency', $isEmergency)
-            ->when(
-                $hasTypeSpecificTemplates,
-                fn ($q) => $q->where('work_order_type', $templateType),
-                fn ($q) => $q->whereNull('work_order_type')
-            )
-            ->first();
+        $taskTemplate = self::resolveTemplate($workOrder, $isEmergency, $serviceStatus_Id);
 
         if (empty($taskTemplate) || $taskTemplate->tasks->isEmpty()) {
             return;
@@ -82,31 +57,7 @@ class TaskService
         $vendors = $workOrder->vendors; // Assuming a relationship exists between WorkOrder and Vendor
 
         foreach ($taskTemplate->tasks as $task) {
-            // "N days from start date" due dates are anchored to the work
-            // order's start date (falling back to today when it is missing),
-            // regardless of any scheduled end date.
-            if ($task->due_date && str_contains($task->due_date, 'from start date')) {
-                preg_match('/\d+/', $task->due_date, $matches);
-                $days = ! empty($matches) ? (int) $matches[0] : 0;
-
-                $taskDueDate = ($workOrder->start_date ? Carbon::parse($workOrder->start_date) : $now->copy())
-                    ->addDays($days);
-            }
-            // If scheduled_end_date exists, use it directly; otherwise calculate from current date
-            elseif ($hasScheduledDate) {
-                $taskDueDate = Carbon::parse($workOrder->scheduled_end_date);
-            } else {
-                $taskDueDate = $now;
-
-                // Calculate due date based on task's due_date field
-                if ($task->due_date !== 'same day') {
-                    preg_match('/\d+/', $task->due_date, $matches);
-                    if (! empty($matches)) {
-                        $days = (int) $matches[0];
-                        $taskDueDate = $taskDueDate->addDays($days);
-                    }
-                }
-            }
+            $taskDueDate = self::templateTaskDueDate($task, $workOrder, $now);
 
             // Assign task to WOC (Work Order Coordinator)
             if ($task->type === 'Woc') {
@@ -127,12 +78,7 @@ class TaskService
             // Assign task to vendors
             elseif (! empty($vendors)) {
                 foreach ($vendors as $vendor) {
-                    $assignedUserId = User::with('vendor')
-                        ->whereHas('vendor', function ($q) use ($vendor) {
-                            $q->where('id', $vendor->id); // Use vendor ID instead of name
-                        })
-                        ->role('vendor')
-                        ->first();
+                    $assignedUserId = self::vendorUser($vendor);
 
                     if ($assignedUserId) {
                         $tasks[] = [
@@ -152,6 +98,107 @@ class TaskService
         // Insert tasks into the database
         if (! empty($tasks)) {
             DB::table('work_order_tasks')->insert($tasks);
+        }
+    }
+
+    /**
+     * Give a vendor the checklist for the work order's current service status
+     * when it was never generated for them. Status changes made in
+     * PropertyWare — and vendors attached after an in-app status change —
+     * skip createTasksForWorkOrder, leaving the vendor portal without the
+     * "What needs to be done" checkboxes, and those checkboxes are the only
+     * way a vendor can move the status forward.
+     *
+     * Only Vendor-type template tasks are created, and only for a vendor whose
+     * user has no open task on the work order; a row that already exists for
+     * the same template task — even soft-deleted, i.e. removed by a
+     * coordinator — is never re-created. Safe to call repeatedly (the
+     * PropertyWare sync does, every run) and never throws, so a failure here
+     * cannot break vendor assignment or a sync loop.
+     *
+     * @param  array<int, int>  $vendorIds
+     */
+    public static function backfillVendorTasks(WorkOrder|int $workOrder, array $vendorIds): void
+    {
+        try {
+            if (empty($vendorIds)) {
+                return;
+            }
+
+            $workOrder = $workOrder instanceof WorkOrder ? $workOrder : WorkOrder::query()->find($workOrder);
+
+            if (! $workOrder
+                || $workOrder->skip_automated_tasks
+                || $workOrder->status !== 'Open'
+                || empty($workOrder->service_status_id)) {
+                return;
+            }
+
+            $template = self::resolveTemplate($workOrder, (bool) $workOrder->is_emergency, $workOrder->service_status_id);
+
+            $templateTasks = $template ? $template->tasks->where('type', 'Vendor') : collect();
+
+            if ($templateTasks->isEmpty()) {
+                return;
+            }
+
+            $now = now();
+
+            foreach (Vendor::query()->whereIn('id', $vendorIds)->get() as $vendor) {
+                if ($vendor->isOwnerPlaceholder()) {
+                    continue;
+                }
+
+                $user = self::vendorUser($vendor);
+
+                if (! $user) {
+                    continue;
+                }
+
+                // A vendor who already has an open checklist keeps it untouched,
+                // whichever status it was generated for.
+                $hasOpenTasks = WorkOrderTask::withoutGlobalScope(TaskScope::class)
+                    ->where('work_order_id', $workOrder->id)
+                    ->where('assigned_user_id', $user->id)
+                    ->where('status', '!=', 'completed')
+                    ->exists();
+
+                if ($hasOpenTasks) {
+                    continue;
+                }
+
+                $existingTaskIds = WorkOrderTask::withoutGlobalScope(TaskScope::class)
+                    ->withTrashed()
+                    ->where('work_order_id', $workOrder->id)
+                    ->where('assigned_user_id', $user->id)
+                    ->whereNotNull('task_id')
+                    ->pluck('task_id')
+                    ->all();
+
+                $rows = $templateTasks
+                    ->reject(fn (Task $task) => in_array($task->id, $existingTaskIds))
+                    ->map(fn (Task $task) => [
+                        'description' => $task->name,
+                        'due_date' => self::templateTaskDueDate($task, $workOrder, $now),
+                        'work_order_id' => $workOrder->id,
+                        'assigned_user_id' => $user->id,
+                        'task_id' => $task->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ])
+                    ->values()
+                    ->all();
+
+                if (! empty($rows)) {
+                    DB::table('work_order_tasks')->insert($rows);
+                }
+            }
+        } catch (\Throwable $exception) {
+            Log::error('Vendor task backfill failed.', [
+                'work_order_id' => $workOrder instanceof WorkOrder ? $workOrder->id : $workOrder,
+                'vendor_ids' => $vendorIds,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 
@@ -261,6 +308,82 @@ class TaskService
 
         return User::role($routing['role'])
             ->where('email', $routing['email'])
+            ->first();
+    }
+
+    /**
+     * The template that generates tasks for this status/emergency combination.
+     * Work order types with their own template set (e.g. Turnover) use only
+     * that set: a status they skip generates no tasks rather than falling
+     * back to the generic workflow. Types without a dedicated set use the
+     * generic (null work_order_type) templates. Turnover is matched via
+     * isTurnover() (type OR category) since PropertyWare data carries it in
+     * either field.
+     */
+    private static function resolveTemplate(WorkOrder $workOrder, bool $isEmergency, int|string $serviceStatusId): ?TaskTemplate
+    {
+        $templateType = $workOrder->isTurnover() ? 'Turnover' : $workOrder->type;
+
+        $hasTypeSpecificTemplates = ! empty($templateType)
+            && TaskTemplate::where('work_order_type', $templateType)
+                ->where('is_current_service_status_emergency', $isEmergency)
+                ->exists();
+
+        return TaskTemplate::with(['currentServiceStatus', 'tasks'])
+            ->whereHas('currentServiceStatus', function ($q) use ($serviceStatusId) {
+                $q->where('id', $serviceStatusId);
+            })
+            ->where('is_current_service_status_emergency', $isEmergency)
+            ->when(
+                $hasTypeSpecificTemplates,
+                fn ($q) => $q->where('work_order_type', $templateType),
+                fn ($q) => $q->whereNull('work_order_type')
+            )
+            ->first();
+    }
+
+    /**
+     * Due date for a template task: "N days from start date" rules anchor to
+     * the work order's start date (falling back to today), any scheduled end
+     * date wins next, and otherwise "same day" / "N days" counts from today.
+     * $now is never mutated.
+     */
+    private static function templateTaskDueDate(Task $task, WorkOrder $workOrder, Carbon $now): Carbon
+    {
+        if ($task->due_date && str_contains($task->due_date, 'from start date')) {
+            preg_match('/\d+/', $task->due_date, $matches);
+            $days = ! empty($matches) ? (int) $matches[0] : 0;
+
+            return ($workOrder->start_date ? Carbon::parse($workOrder->start_date) : $now->copy())
+                ->addDays($days);
+        }
+
+        if (! empty($workOrder->scheduled_end_date)) {
+            return Carbon::parse($workOrder->scheduled_end_date);
+        }
+
+        $taskDueDate = $now->copy();
+
+        if ($task->due_date !== 'same day') {
+            preg_match('/\d+/', (string) $task->due_date, $matches);
+            if (! empty($matches)) {
+                $taskDueDate = $taskDueDate->addDays((int) $matches[0]);
+            }
+        }
+
+        return $taskDueDate;
+    }
+
+    /**
+     * The vendor-role user a vendor's tasks are assigned to (the account the
+     * vendor portal filters by); null when the vendor has no such user.
+     */
+    private static function vendorUser(Vendor $vendor): ?User
+    {
+        return User::whereHas('vendor', function ($q) use ($vendor) {
+            $q->where('id', $vendor->id);
+        })
+            ->role('vendor')
             ->first();
     }
 }

@@ -32,6 +32,10 @@ class VendorAssignmentService
             $vendor->id => ['access_token' => $token],
         ]);
 
+        // An auto-assigned vendor arrives after the status change that generates
+        // checklist tasks; without them their portal cannot advance the status.
+        TaskService::backfillVendorTasks($workOrder, [$vendor->id]);
+
         if (filled($vendor->email)) {
             try {
                 $vendor->notify(new NewWorkOrderAssignNotification(

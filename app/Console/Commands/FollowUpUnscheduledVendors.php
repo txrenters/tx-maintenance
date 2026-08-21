@@ -148,13 +148,17 @@ class FollowUpUnscheduledVendors extends Command
             'is_mms' => false,
         ]);
 
-        // No usable numbers: the message is still logged in the vendor's portal
-        // thread, but there is nothing to text.
-        if (blank($vendorNumber) || blank($wocNumber)) {
-            return;
-        }
+        // No usable numbers: the message still lands in the vendor's portal
+        // thread, but there is nothing to text. The ledger entry is written
+        // either way — a nudge that could not be texted must stay visible on
+        // the Automated Messages page, not silently vanish.
+        $notTextedReason = blank($vendorNumber)
+            ? 'missing_vendor_number'
+            : (blank($wocNumber) ? 'missing_woc_number' : null);
 
-        SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $message, null, $conversation->id);
+        if ($notTextedReason === null) {
+            SendConversationMessageJob::dispatch($vendorNumber, $wocNumber, $message, null, $conversation->id);
+        }
 
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
@@ -163,7 +167,11 @@ class FollowUpUnscheduledVendors extends Command
             $vendorNumber,
             $workOrder,
             $message,
-            ['vendor_id' => $vendor->id, 'conversation_id' => $conversation->id],
+            array_filter([
+                'vendor_id' => $vendor->id,
+                'conversation_id' => $conversation->id,
+                'not_texted_reason' => $notTextedReason,
+            ]),
         );
     }
 

@@ -7,11 +7,14 @@ use App\Models\ServiceSchedule;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
 use App\Services\VendorPortalLinkService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class VendorScheduleFollowupTest extends TestCase
@@ -319,5 +322,74 @@ class VendorScheduleFollowupTest extends TestCase
         $this->assertStringStartsWith('CUSTOM NAG WORDING.', $messages[0]);
         // The portal link block is appended in code, outside the editable text.
         $this->assertStringContainsString(VendorPortalLinkService::LINK_LEAD, $messages[0]);
+    }
+
+    /**
+     * @return Collection<int, Activity> this work order's nudge ledger rows
+     */
+    private function ledgerEntries(WorkOrder $workOrder)
+    {
+        return Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'vendor_schedule_follow_up_sms')
+            ->where('subject_id', $workOrder->id)
+            ->get();
+    }
+
+    public function test_a_nudge_with_no_vendor_number_is_still_ledgered(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        $vendor = $this->makeVendor(phone: null);
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+
+        // The thread message exists but nothing could be texted...
+        $this->assertDatabaseCount('work_order_conversations', 1);
+        Queue::assertNothingPushed();
+        // ...and the attempt is still visible on the Automated Messages page.
+        $entries = $this->ledgerEntries($workOrder);
+        $this->assertCount(1, $entries);
+        $this->assertSame('missing_vendor_number', $entries->first()->properties->get('not_texted_reason'));
+    }
+
+    public function test_a_nudge_with_no_sending_number_is_still_ledgered(): void
+    {
+        config([
+            'services.twilio.schedule_followup_sms' => true,
+            'services.twilio.maintenance_number' => '',
+        ]);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+
+        Queue::assertNothingPushed();
+        $entries = $this->ledgerEntries($workOrder);
+        $this->assertCount(1, $entries);
+        $this->assertSame('missing_woc_number', $entries->first()->properties->get('not_texted_reason'));
+    }
+
+    public function test_a_texted_nudge_logs_exactly_one_ledger_entry_without_a_skip_reason(): void
+    {
+        config(['services.twilio.schedule_followup_sms' => true]);
+        Queue::fake();
+
+        $vendor = $this->makeVendor();
+        $workOrder = $this->openWorkOrder();
+        $this->assignVendor($workOrder, $vendor);
+
+        $this->artisan('vendors:followup-unscheduled')->assertExitCode(0);
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $entries = $this->ledgerEntries($workOrder);
+        $this->assertCount(1, $entries);
+        $this->assertArrayNotHasKey('not_texted_reason', $entries->first()->properties->toArray());
     }
 }

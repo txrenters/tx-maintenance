@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-21',
+            'area' => 'Vendor Portal',
+            'title' => 'The vendor checklist now appears on every work order',
+            'description' => 'Vendors reported that some work orders in their portal had the "What needs to be done" checkboxes and others did not — and those checkboxes are how a vendor moves a work order to Scheduled on their own. The checklist was only created when the status was changed inside our system, so work orders statused or vendor-assigned in PropertyWare never got one, the vendor could not update the status, and staff kept chasing vendors who had already scheduled. The checklist is now added automatically whenever a vendor is assigned — from the assign button, the PropertyWare sync, or an import — so every vendor can check off their steps and the status updates itself. Vendor schedule reminder texts that could not actually send (no phone number on file) now also show in the Automated Messages log with the reason, instead of disappearing silently.',
+        ],
+        [
+            'date' => '2026-08-21',
             'area' => 'Jobber',
             'title' => 'Tenants now get a 14-day advance notice for TBP visits',
             'description' => 'Tenant Benefit Package visits now announce themselves two weeks ahead: tenants get the full visit notice by text and email 14 days before the scheduled date, on top of the existing 7-day, 3-day and day-before reminders. It only applies to visits already on the calendar 14 or more days out — anything booked closer just gets the usual reminders. The wording is editable on the Message Templates tab, and the Jobber tenant reminder switches cover it like the other tiers.',

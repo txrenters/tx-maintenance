@@ -7,6 +7,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
+use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -162,6 +163,11 @@ class UpdateWorkOrderStatus extends Command
                                     ->where('work_order_id', $workOrder->id)
                                     ->whereNotIn('vendor_id', $incomingVendorIds)
                                     ->delete();
+
+                                // PropertyWare-side status changes never generate
+                                // checklist tasks; without them a vendor cannot
+                                // move the status forward from their portal.
+                                TaskService::backfillVendorTasks($workOrder, $incomingVendorIds);
                             }
                         }
                     }

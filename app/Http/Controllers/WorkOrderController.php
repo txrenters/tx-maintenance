@@ -1191,6 +1191,11 @@ class WorkOrderController extends Controller
                     SendVendorWorkOrderInformation::dispatch($workOrder->id, $vendor->id);
                     SendOwnerVendorAssignmentEmail::dispatch($workOrder->id, $vendor->id);
                 });
+
+                // A vendor attached after the status change missed the checklist
+                // generation that ran with it; without those tasks the vendor
+                // portal cannot move the status forward.
+                TaskService::backfillVendorTasks($workOrder, $newVendorIds);
             }
 
             // Build XML once

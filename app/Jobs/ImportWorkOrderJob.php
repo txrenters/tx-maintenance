@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Owner;
 use App\Models\User;
 use App\Models\WorkOrderDocuments;
+use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -369,6 +370,11 @@ class ImportWorkOrderJob implements ShouldQueue
         }
         if ($vendorsData) {
             DB::table('work_order_vendors')->insert($vendorsData);
+
+            // Imported work orders can arrive already past the status change that
+            // generates checklist tasks; without them the vendor portal cannot
+            // advance the status.
+            TaskService::backfillVendorTasks($work_order, array_column($vendorsData, 'vendor_id'));
         }
     }
 
