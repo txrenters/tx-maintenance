@@ -197,6 +197,7 @@ class JobberSchedulerController extends Controller
                     'city' => $visit->city,
                     // THMP encodes the zone in every job title ("Zone N - ...").
                     'zone' => preg_match('/zone\s*(\d)/i', (string) $visit->title, $matches) === 1 ? $matches[1] : null,
+                    'category' => $this->visitCategory((string) $visit->title),
                     'technicians' => collect(json_decode((string) $visit->assigned_to, true) ?: [])
                         ->pluck('name')
                         ->filter()
@@ -208,6 +209,22 @@ class JobberSchedulerController extends Controller
             });
 
         return response()->json(['month' => $month, 'days' => $days]);
+    }
+
+    /**
+     * Bucket a visit by its job title: move in / move out / TBP, everything
+     * else is maintenance. The TBP wording matches JobberVisit::scopeTbp().
+     */
+    private function visitCategory(string $title): string
+    {
+        $title = Str::lower($title);
+
+        return match (true) {
+            str_contains($title, 'move in') || str_contains($title, 'move-in') => 'move_in',
+            str_contains($title, 'move out') || str_contains($title, 'move-out') => 'move_out',
+            str_contains($title, 'tenant benefit') || str_contains($title, 'tbp') => 'tbp',
+            default => 'maintenance',
+        };
     }
 
     /**

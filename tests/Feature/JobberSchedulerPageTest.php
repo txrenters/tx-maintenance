@@ -368,9 +368,11 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('19989', $day[0]['job_number']);
         $this->assertEqualsWithDelta(29.8123, $day[0]['lat'], 0.000001, 'Normalized address match pins the visit.');
         $this->assertSame('2', $day[0]['zone'], 'Zone is parsed from the job title.');
+        $this->assertSame('tbp', $day[0]['category'], 'Tenant Benefit Package titles bucket as TBP.');
         $this->assertSame(['Jimmie Gendke'], $day[0]['technicians'], 'Visit assignees surface for the technician filter.');
         $this->assertNull($day[1]['lat'], 'A visit with no matching building stays unpinned.');
         $this->assertSame('1', $day[1]['zone']);
+        $this->assertSame('maintenance', $day[1]['category'], 'Anything not move in/out or TBP is maintenance.');
         $this->assertSame([], $day[1]['technicians'], 'An unassigned visit has no technicians.');
     }
 

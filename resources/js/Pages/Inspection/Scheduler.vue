@@ -214,19 +214,25 @@ const monthDays = computed(
     () => calendarData.value[calendarMonth.value] ?? {}
 );
 
-// Zone filter over the month's visits. Zones come from the job titles
-// ("Zone N - ..."), colored like the property view.
-const calendarZone = ref("all");
-const zonesInMonth = computed(() => {
+// Category filter over the month's visits, classified server-side from the
+// job titles. These colors are the calendar's visual language.
+const VISIT_CATEGORIES = [
+    { key: "move_in", label: "Move in", color: "#34d399" },
+    { key: "move_out", label: "Move out", color: "#f87171" },
+    { key: "tbp", label: "TBP", color: "#38bdf8" },
+    { key: "maintenance", label: "Maintenance", color: "#c084fc" },
+];
+const calendarCategory = ref("all");
+const categoriesInMonth = computed(() => {
     const present = new Set();
     Object.values(monthDays.value).forEach((visits) =>
-        visits.forEach((visit) => present.add(visit.zone ?? "none"))
+        visits.forEach((visit) => present.add(visit.category))
     );
-    return [
-        ...ZONES.filter((z) => present.has(z.zone)).map((z) => z.zone),
-        ...(present.has("none") ? ["none"] : []),
-    ];
+    return VISIT_CATEGORIES.filter((category) => present.has(category.key));
 });
+const categoryColor = (key) =>
+    VISIT_CATEGORIES.find((category) => category.key === key)?.color ??
+    NO_ZONE_COLOR;
 
 // Technician filter, from the visit assignees the Jobber sync stores. Each
 // technician keeps a stable color for chips and map dots.
@@ -256,17 +262,13 @@ const techColor = (name) => {
         ? NO_ZONE_COLOR
         : TECH_COLORS[index % TECH_COLORS.length];
 };
-// Dot color: the technician's color when the visit has one, zone otherwise.
-const visitColor = (visit) =>
-    visit.technicians?.length
-        ? techColor(visit.technicians[0])
-        : zoneColor(visit.zone);
+const visitColor = (visit) => categoryColor(visit.category);
 
 const dayVisits = (date) =>
     (monthDays.value[date] ?? []).filter(
         (visit) =>
-            (calendarZone.value === "all" ||
-                (visit.zone ?? "none") === calendarZone.value) &&
+            (calendarCategory.value === "all" ||
+                visit.category === calendarCategory.value) &&
             (calendarTech.value === "all" ||
                 (visit.technicians ?? []).includes(calendarTech.value))
     );
@@ -413,7 +415,7 @@ const selectDay = (date) => {
 };
 
 // Re-plot the selected day when a calendar filter changes.
-watch([calendarZone, calendarTech], () => {
+watch([calendarCategory, calendarTech], () => {
     if (selectedDay.value) {
         selectDay(selectedDay.value);
     }
@@ -737,42 +739,38 @@ onBeforeUnmount(() => {
                 </p>
 
                 <div
-                    v-if="zonesInMonth.length"
+                    v-if="categoriesInMonth.length"
                     class="flex flex-wrap gap-1"
                 >
                     <button
                         type="button"
                         class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
                         :class="
-                            calendarZone === 'all'
+                            calendarCategory === 'all'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'text-muted-foreground hover:bg-accent'
                         "
-                        @click="calendarZone = 'all'"
+                        @click="calendarCategory = 'all'"
                     >
-                        All zones
+                        All types
                     </button>
                     <button
-                        v-for="zone in zonesInMonth"
-                        :key="zone"
+                        v-for="category in categoriesInMonth"
+                        :key="category.key"
                         type="button"
                         class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors"
                         :class="
-                            calendarZone === zone
+                            calendarCategory === category.key
                                 ? 'bg-primary text-primary-foreground'
                                 : 'text-muted-foreground hover:bg-accent'
                         "
-                        @click="calendarZone = zone"
+                        @click="calendarCategory = category.key"
                     >
                         <span
                             class="inline-block h-2 w-2 rounded-full"
-                            :style="{
-                                backgroundColor: zoneColor(
-                                    zone === 'none' ? null : zone
-                                ),
-                            }"
+                            :style="{ backgroundColor: category.color }"
                         />
-                        {{ zone === "none" ? "No zone" : `Z${zone}` }}
+                        {{ category.label }}
                     </button>
                 </div>
 
