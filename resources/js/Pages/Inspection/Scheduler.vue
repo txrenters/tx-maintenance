@@ -31,20 +31,6 @@ const NO_ZONE_COLOR = "#9ca3af";
 const zoneColor = (zone) =>
     ZONES.find((z) => z.zone === zone)?.color ?? NO_ZONE_COLOR;
 
-const zoneChips = computed(() => [
-    ...ZONES.map((z) => ({
-        ...z,
-        count: (props.properties ?? []).filter((p) => p.zone === z.zone)
-            .length,
-    })),
-    {
-        zone: "none",
-        label: "No zone",
-        color: NO_ZONE_COLOR,
-        count: (props.properties ?? []).filter((p) => !p.zone).length,
-    },
-]);
-
 const totalProperties = computed(() =>
     (props.cities ?? []).reduce((sum, c) => sum + c.properties, 0)
 );
@@ -52,19 +38,8 @@ const totalProperties = computed(() =>
 const mappedCount = computed(() => (props.properties ?? []).length);
 
 const search = ref("");
-const activeZones = ref(new Set(["1", "2", "3", "4", "5", "none"]));
 // "property" = one pin per property; "zone" = one territory per zone.
 const viewMode = ref("property");
-
-const toggleZone = (zone) => {
-    const next = new Set(activeZones.value);
-    if (next.has(zone)) {
-        next.delete(zone);
-    } else {
-        next.add(zone);
-    }
-    activeZones.value = next;
-};
 
 // Selected property panel state.
 const selected = ref(null);
@@ -138,10 +113,6 @@ const showRadius = (property) => {
 };
 
 const matchesFilters = (meta) => {
-    const zoneKey = meta.zone ?? "none";
-    if (!activeZones.value.has(zoneKey)) {
-        return false;
-    }
     const needle = search.value.trim().toLowerCase();
     if (needle === "") {
         return true;
@@ -166,12 +137,12 @@ const refreshVisibility = () => {
     });
     zoneAreaRecords.forEach((record) => {
         record.layers.forEach((layer) => {
-            setShown(layer, !propertyMode && activeZones.value.has(record.zone));
+            setShown(layer, !propertyMode);
         });
     });
 };
 
-watch([search, activeZones], refreshVisibility);
+watch(search, refreshVisibility);
 watch(viewMode, (mode) => {
     if (mode === "zone") {
         clearSelection();
@@ -432,30 +403,6 @@ onBeforeUnmount(() => {
                 placeholder="Search property, address or city..."
                 class="h-8"
             />
-            <div class="flex flex-wrap gap-1.5">
-                <button
-                    v-for="chip in zoneChips"
-                    :key="chip.zone"
-                    type="button"
-                    :title="chip.label"
-                    class="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-accent"
-                    :class="
-                        activeZones.has(chip.zone)
-                            ? ''
-                            : 'opacity-40 line-through'
-                    "
-                    @click="toggleZone(chip.zone)"
-                >
-                    <span
-                        class="inline-block h-2.5 w-2.5 rounded-full"
-                        :style="{ backgroundColor: chip.color }"
-                    />
-                    <span>{{
-                        chip.zone === "none" ? "No zone" : `Z${chip.zone}`
-                    }}</span>
-                    <span class="text-muted-foreground">{{ chip.count }}</span>
-                </button>
-            </div>
         </div>
 
         <!-- Floating property panel -->
