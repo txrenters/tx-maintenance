@@ -119,6 +119,9 @@ class JobberSchedulerController extends Controller
 
         $openCount = $building->workOrders()
             ->whereNull('completed_date')
+            ->where(function ($query) {
+                $query->whereNull('status')->orWhereNotIn('status', self::PW_CLOSED_STATUSES);
+            })
             ->whereDoesntHave('service_status', fn ($q) => $q->whereIn('name', ['Closed', 'Paid']))
             ->count();
 
@@ -233,14 +236,27 @@ class JobberSchedulerController extends Controller
     }
 
     /**
+     * PropertyWare's NATIVE work order statuses that mean the order is done.
+     * PW has two status fields: this native one, and the "Service Status"
+     * custom field mirrored in service_status_id. Staff often close an order
+     * in PW without touching the custom field or Date Completed, so the
+     * native status is the authoritative openness signal.
+     */
+    private const PW_CLOSED_STATUSES = ['Closed', 'Canceled By Tenant'];
+
+    /**
      * Base query for currently open work orders — same open rule as the
-     * property panel: no completed_date, status not Closed/Paid.
+     * property panel: no completed_date, native PW status not closed or
+     * canceled, Service Status custom field not Closed/Paid.
      */
     private function openWorkOrders(): Builder
     {
         return DB::table('work_orders as w')
             ->leftJoin('service_status as ss', 'ss.id', '=', 'w.service_status_id')
             ->whereNull('w.completed_date')
+            ->where(function ($query) {
+                $query->whereNull('w.status')->orWhereNotIn('w.status', self::PW_CLOSED_STATUSES);
+            })
             ->where(function ($query) {
                 $query->whereNull('ss.name')->orWhereNotIn('ss.name', ['Closed', 'Paid']);
             })

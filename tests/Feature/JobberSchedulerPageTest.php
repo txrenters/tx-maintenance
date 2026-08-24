@@ -87,6 +87,16 @@ class JobberSchedulerPageTest extends TestCase
             'completed_date' => '2026-07-05 00:00:00',
         ]);
 
+        // Closed natively in PW but with a stale Service Status custom field
+        // and no Date Completed — the common real-world shape. Must not count
+        // as open.
+        WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '2',
+            'created_date' => '2026-06-01 00:00:00',
+            'status' => 'Closed',
+        ]);
+
         $user = User::factory()->create()->assignRole('admin');
 
         $response = $this->actingAs($user)
@@ -97,9 +107,9 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('Panel House', $response['name']);
         $this->assertSame('500 Panel St, Katy, TX 77494', $response['address']);
         $this->assertSame('2', $response['zone']);
-        $this->assertSame(1, $response['open_work_orders']);
-        $this->assertSame(2, $response['total_work_orders']);
-        $this->assertCount(2, $response['work_orders']);
+        $this->assertSame(1, $response['open_work_orders'], 'Native-Closed PW status must not count as open.');
+        $this->assertSame(3, $response['total_work_orders']);
+        $this->assertCount(3, $response['work_orders']);
         $this->assertSame($open->work_order_no, $response['work_orders'][0]['work_order_no'], 'Newest first.');
         $this->assertSame('2026-08-10', $response['work_orders'][0]['created_date']);
     }
@@ -153,6 +163,15 @@ class JobberSchedulerPageTest extends TestCase
             'completed_date' => '2026-07-01 00:00:00',
         ]);
         $completed->vendors()->attach($thmp->id);
+
+        // Closed natively in PW with a stale open Service Status and no Date
+        // Completed: must count as neither THMP work nor unscheduled work.
+        $nativeClosed = WorkOrder::factory()->create([
+            'building_id' => 998812,
+            'zone' => '0',
+            'status' => 'Closed',
+        ]);
+        $nativeClosed->vendors()->attach($thmp->id);
 
         // Both open work orders on Own Zone House are scheduled, so that
         // building must NOT count as unscheduled.
