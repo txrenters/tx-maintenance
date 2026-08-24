@@ -228,11 +228,47 @@ const zonesInMonth = computed(() => {
     ];
 });
 
+// Technician filter, from the visit assignees the Jobber sync stores. Each
+// technician keeps a stable color for chips and map dots.
+const calendarTech = ref("all");
+const TECH_COLORS = [
+    "#38bdf8",
+    "#34d399",
+    "#fbbf24",
+    "#f87171",
+    "#c084fc",
+    "#f472b6",
+    "#a3e635",
+    "#2dd4bf",
+];
+const techniciansInMonth = computed(() => {
+    const present = new Set();
+    Object.values(monthDays.value).forEach((visits) =>
+        visits.forEach((visit) =>
+            (visit.technicians ?? []).forEach((name) => present.add(name))
+        )
+    );
+    return [...present].sort();
+});
+const techColor = (name) => {
+    const index = techniciansInMonth.value.indexOf(name);
+    return index === -1
+        ? NO_ZONE_COLOR
+        : TECH_COLORS[index % TECH_COLORS.length];
+};
+// Dot color: the technician's color when the visit has one, zone otherwise.
+const visitColor = (visit) =>
+    visit.technicians?.length
+        ? techColor(visit.technicians[0])
+        : zoneColor(visit.zone);
+
 const dayVisits = (date) =>
     (monthDays.value[date] ?? []).filter(
         (visit) =>
-            calendarZone.value === "all" ||
-            (visit.zone ?? "none") === calendarZone.value
+            (calendarZone.value === "all" ||
+                (visit.zone ?? "none") === calendarZone.value) &&
+            (calendarTech.value === "all" ||
+                (visit.technicians ?? []).includes(calendarTech.value))
     );
 const today = new Date().toISOString().slice(0, 10);
 
@@ -287,10 +323,16 @@ const selectDay = (date) => {
             radius: 7,
             color: outline,
             weight: 1.5,
-            fillColor: zoneColor(visit.zone),
+            fillColor: visitColor(visit),
             fillOpacity: 0.95,
         })
-            .bindTooltip(`#${visit.job_number} — ${visit.title}`)
+            .bindTooltip(
+                `#${visit.job_number} — ${visit.title}${
+                    visit.technicians?.length
+                        ? ` — ${visit.technicians.join(", ")}`
+                        : ""
+                }`
+            )
             .addTo(map)
     );
     if (located.length > 0) {
@@ -303,8 +345,8 @@ const selectDay = (date) => {
     }
 };
 
-// Re-plot the selected day when the zone filter changes.
-watch(calendarZone, () => {
+// Re-plot the selected day when a calendar filter changes.
+watch([calendarZone, calendarTech], () => {
     if (selectedDay.value) {
         selectDay(selectedDay.value);
     }
@@ -666,6 +708,48 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
+                <div
+                    v-if="techniciansInMonth.length"
+                    class="flex flex-wrap gap-1"
+                >
+                    <button
+                        type="button"
+                        class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                        :class="
+                            calendarTech === 'all'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent'
+                        "
+                        @click="calendarTech = 'all'"
+                    >
+                        All techs
+                    </button>
+                    <button
+                        v-for="technician in techniciansInMonth"
+                        :key="technician"
+                        type="button"
+                        class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                        :class="
+                            calendarTech === technician
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent'
+                        "
+                        @click="calendarTech = technician"
+                    >
+                        <span
+                            class="inline-block h-2 w-2 rounded-full"
+                            :style="{ backgroundColor: techColor(technician) }"
+                        />
+                        {{ technician }}
+                    </button>
+                </div>
+                <p
+                    v-else-if="Object.keys(monthDays).length"
+                    class="text-[10px] text-muted-foreground"
+                >
+                    Technician info appears after the next Jobber sync.
+                </p>
+
                 <div class="grid grid-cols-7 gap-1 text-center">
                     <span
                         v-for="weekday in WEEKDAYS"
@@ -737,7 +821,7 @@ onBeforeUnmount(() => {
                     >
                         <span
                             class="mr-1 inline-block h-2 w-2 rounded-full"
-                            :style="{ backgroundColor: zoneColor(visit.zone) }"
+                            :style="{ backgroundColor: visitColor(visit) }"
                         />
                         <span class="font-medium">#{{ visit.job_number }}</span>
                         <span
@@ -749,6 +833,12 @@ onBeforeUnmount(() => {
                         </span>
                         <p class="text-muted-foreground line-clamp-1">
                             {{ visit.title }}
+                        </p>
+                        <p
+                            v-if="visit.technicians?.length"
+                            class="text-[10px] text-muted-foreground"
+                        >
+                            {{ visit.technicians.join(", ") }}
                         </p>
                     </div>
                 </div>

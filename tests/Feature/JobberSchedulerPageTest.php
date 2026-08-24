@@ -335,16 +335,17 @@ class JobberSchedulerPageTest extends TestCase
         ]);
 
         foreach ([
-            ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00'],
-            ['visit-cal-2', $unmatchedJob, $unmatchedProperty, '2026-08-24 13:00:00'],
-            ['visit-cal-3', $matchedJob, $matchedProperty, '2026-09-02 09:00:00'],
-        ] as [$gid, $job, $property, $startAt]) {
+            ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00', [['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']]],
+            ['visit-cal-2', $unmatchedJob, $unmatchedProperty, '2026-08-24 13:00:00', null],
+            ['visit-cal-3', $matchedJob, $matchedProperty, '2026-09-02 09:00:00', null],
+        ] as [$gid, $job, $property, $startAt, $assignedTo]) {
             JobberVisit::query()->create([
                 'jobber_id' => $gid,
                 'jobber_job_id' => $job->id,
                 'jobber_client_id' => $client->id,
                 'jobber_property_id' => $property->id,
                 'start_at' => $startAt,
+                'assigned_to' => $assignedTo,
             ]);
         }
 
@@ -367,8 +368,10 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('19989', $day[0]['job_number']);
         $this->assertEqualsWithDelta(29.8123, $day[0]['lat'], 0.000001, 'Normalized address match pins the visit.');
         $this->assertSame('2', $day[0]['zone'], 'Zone is parsed from the job title.');
+        $this->assertSame(['Jimmie Gendke'], $day[0]['technicians'], 'Visit assignees surface for the technician filter.');
         $this->assertNull($day[1]['lat'], 'A visit with no matching building stays unpinned.');
         $this->assertSame('1', $day[1]['zone']);
+        $this->assertSame([], $day[1]['technicians'], 'An unassigned visit has no technicians.');
     }
 
     public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void

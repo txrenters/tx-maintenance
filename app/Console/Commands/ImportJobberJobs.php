@@ -218,6 +218,7 @@ class ImportJobberJobs extends Command
                 'jobber_id' => $visitData['id'],
                 'title' => $visitData['title'],
                 'visit_status' => $visitData['visitStatus'],
+                'assigned_to' => JobberVisit::assignedUsersFromApi($visitData),
                 'duration' => $visitData['duration'],
                 'instructions' => $visitData['instructions'],
                 'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
@@ -309,6 +310,14 @@ class ImportJobberJobs extends Command
                                     startAt
                                     endAt
                                     completedAt
+                                    assignedUsers(first: 10) {
+                                        nodes {
+                                            id
+                                            name {
+                                                full
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

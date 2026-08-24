@@ -187,7 +187,7 @@ class JobberSchedulerController extends Controller
             ->where('v.start_at', '>=', $start)
             ->where('v.start_at', '<', $end)
             ->orderBy('v.start_at')
-            ->get(['v.start_at', 'j.job_number', 'j.title', 'p.street', 'p.city'])
+            ->get(['v.start_at', 'v.assigned_to', 'j.job_number', 'j.title', 'p.street', 'p.city'])
             ->each(function ($visit) use (&$days, $buildingsByAddress, $normalize) {
                 $building = $buildingsByAddress[$normalize($visit->street).'|'.$normalize($visit->city)] ?? null;
                 $days[substr((string) $visit->start_at, 0, 10)][] = [
@@ -197,6 +197,11 @@ class JobberSchedulerController extends Controller
                     'city' => $visit->city,
                     // THMP encodes the zone in every job title ("Zone N - ...").
                     'zone' => preg_match('/zone\s*(\d)/i', (string) $visit->title, $matches) === 1 ? $matches[1] : null,
+                    'technicians' => collect(json_decode((string) $visit->assigned_to, true) ?: [])
+                        ->pluck('name')
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'lat' => $building?->latitude,
                     'lng' => $building?->longitude,
                 ];

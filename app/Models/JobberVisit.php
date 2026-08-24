@@ -19,6 +19,7 @@ class JobberVisit extends Model
         return [
             'start_at' => 'datetime',
             'end_at' => 'datetime',
+            'assigned_to' => 'array',
             'is_complete' => 'boolean',
             'notified_14_days' => 'boolean',
             'notified_7_days' => 'boolean',
@@ -30,6 +31,28 @@ class JobberVisit extends Model
     public function job(): BelongsTo
     {
         return $this->belongsTo(Jobber::class, 'jobber_job_id');
+    }
+
+    /**
+     * Map a visit's assignedUsers from the Jobber API payload to the
+     * [{id, name}, ...] shape stored in assigned_to. Null when the visit has
+     * no assignees.
+     *
+     * @param  array<string, mixed>  $visitData
+     * @return list<array{id: string|null, name: string}>|null
+     */
+    public static function assignedUsersFromApi(array $visitData): ?array
+    {
+        $users = collect($visitData['assignedUsers']['nodes'] ?? [])
+            ->map(fn ($user) => [
+                'id' => $user['id'] ?? null,
+                'name' => trim((string) data_get($user, 'name.full')),
+            ])
+            ->filter(fn ($user) => $user['name'] !== '')
+            ->values()
+            ->all();
+
+        return $users === [] ? null : $users;
     }
 
     public function scopeFilter($query, array $filter): void
