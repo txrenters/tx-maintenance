@@ -539,11 +539,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* Dark mode: tint Dark Matter's gray streets green — black map, glowing
-   mint roads. Light mode renders Voyager untouched. */
+/* Dark mode: Apple-Maps-style monochrome — near-black ground with white
+   streets and labels. Light mode renders Voyager untouched. */
 .dark .scheduler-map .leaflet-tile-pane {
-    filter: sepia(1) hue-rotate(85deg) saturate(3) brightness(0.95)
-        contrast(1.05);
+    filter: grayscale(1) brightness(1.9) contrast(1.2);
 }
 
 .scheduler-map .leaflet-control-zoom a {
