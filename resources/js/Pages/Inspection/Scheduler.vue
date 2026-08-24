@@ -53,6 +53,8 @@ const mappedCount = computed(() => (props.properties ?? []).length);
 
 const search = ref("");
 const activeZones = ref(new Set(["1", "2", "3", "4", "5", "none"]));
+// "property" = one pin per property; "zone" = one territory per zone.
+const viewMode = ref("property");
 
 const toggleZone = (zone) => {
     const next = new Set(activeZones.value);
@@ -73,8 +75,40 @@ const mapElement = ref(null);
 let map = null;
 let pinRecords = [];
 let circleRecords = [];
+let zoneAreaRecords = [];
 let radiusCircle = null;
 let pulseMarker = null;
+
+// Andrew's monotone chain convex hull over [lat, lng] points.
+const convexHull = (points) => {
+    const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    if (sorted.length < 3) {
+        return sorted;
+    }
+    const cross = (o, a, b) =>
+        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lower = [];
+    for (const point of sorted) {
+        while (
+            lower.length >= 2 &&
+            cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0
+        ) {
+            lower.pop();
+        }
+        lower.push(point);
+    }
+    const upper = [];
+    for (const point of [...sorted].reverse()) {
+        while (
+            upper.length >= 2 &&
+            cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0
+        ) {
+            upper.pop();
+        }
+        upper.push(point);
+    }
+    return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+};
 
 const FIVE_MILES_IN_METERS = 8046.72;
 
@@ -119,18 +153,31 @@ const refreshVisibility = () => {
     if (!map) {
         return;
     }
-    [...pinRecords, ...circleRecords].forEach((record) => {
-        if (matchesFilters(record.meta)) {
-            if (!map.hasLayer(record.marker)) {
-                record.marker.addTo(map);
-            }
-        } else if (map.hasLayer(record.marker)) {
-            record.marker.remove();
+    const propertyMode = viewMode.value === "property";
+    const setShown = (layer, show) => {
+        if (show && !map.hasLayer(layer)) {
+            layer.addTo(map);
+        } else if (!show && map.hasLayer(layer)) {
+            layer.remove();
         }
+    };
+    [...pinRecords, ...circleRecords].forEach((record) => {
+        setShown(record.marker, propertyMode && matchesFilters(record.meta));
+    });
+    zoneAreaRecords.forEach((record) => {
+        record.layers.forEach((layer) => {
+            setShown(layer, !propertyMode && activeZones.value.has(record.zone));
+        });
     });
 };
 
 watch([search, activeZones], refreshVisibility);
+watch(viewMode, (mode) => {
+    if (mode === "zone") {
+        clearSelection();
+    }
+    refreshVisibility();
+});
 
 const highlight = (id) => {
     pinRecords.forEach((record) => {
@@ -265,6 +312,63 @@ onMounted(() => {
             },
         };
     });
+
+    // Zone territories for the "By zone" view: a hull polygon plus a count
+    // bubble at the centroid, built from every pin and the not-yet-geocoded
+    // remainder (city circles). Hidden until that view is selected.
+    const zoneGroups = {};
+    const addZonePoint = (zone, lat, lng, count) => {
+        const key = zone ?? "none";
+        zoneGroups[key] ??= { points: [], count: 0 };
+        zoneGroups[key].points.push([lat, lng]);
+        zoneGroups[key].count += count;
+    };
+    pins.forEach((pin) => addZonePoint(pin.zone, pin.lat, pin.lng, 1));
+    circles.forEach((city) =>
+        addZonePoint(city.zone, city.lat, city.lng, city.ungeocoded)
+    );
+
+    zoneAreaRecords = Object.entries(zoneGroups).map(([zone, group]) => {
+        const color = zoneColor(zone === "none" ? null : zone);
+        const layers = [];
+        if (group.points.length >= 3) {
+            layers.push(
+                L.polygon(convexHull(group.points), {
+                    color,
+                    weight: 2,
+                    dashArray: "4 6",
+                    fillColor: color,
+                    fillOpacity: 0.12,
+                })
+            );
+        }
+        const centroid = [
+            group.points.reduce((sum, point) => sum + point[0], 0) /
+                group.points.length,
+            group.points.reduce((sum, point) => sum + point[1], 0) /
+                group.points.length,
+        ];
+        const label = ZONES.find((z) => z.zone === zone)?.label ?? "No zone";
+        layers.push(
+            L.circleMarker(centroid, {
+                radius: 12 + Math.sqrt(group.count),
+                color,
+                weight: 2,
+                fillColor: color,
+                fillOpacity: 0.5,
+            }).bindTooltip(
+                `${label} — ${group.count} ${
+                    group.count === 1 ? "property" : "properties"
+                }`
+            )
+        );
+        const zoneBounds = L.latLngBounds(group.points);
+        layers.forEach((layer) =>
+            layer.on("click", () => map.fitBounds(zoneBounds.pad(0.15)))
+        );
+
+        return { zone, layers };
+    });
 });
 
 onBeforeUnmount(() => {
@@ -272,6 +376,7 @@ onBeforeUnmount(() => {
     map = null;
     pinRecords = [];
     circleRecords = [];
+    zoneAreaRecords = [];
     radiusCircle = null;
     pulseMarker = null;
 });
@@ -295,7 +400,34 @@ onBeforeUnmount(() => {
                     {{ mappedCount }} of {{ totalProperties }} mapped
                 </span>
             </div>
+            <div class="flex rounded-md border p-0.5">
+                <button
+                    type="button"
+                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
+                    :class="
+                        viewMode === 'property'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="viewMode = 'property'"
+                >
+                    By property
+                </button>
+                <button
+                    type="button"
+                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
+                    :class="
+                        viewMode === 'zone'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="viewMode = 'zone'"
+                >
+                    By zone
+                </button>
+            </div>
             <Input
+                v-if="viewMode === 'property'"
                 v-model="search"
                 placeholder="Search property, address or city..."
                 class="h-8"
