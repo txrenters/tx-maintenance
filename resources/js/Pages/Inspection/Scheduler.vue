@@ -40,6 +40,12 @@ const mappedCount = computed(() => (props.properties ?? []).length);
 const search = ref("");
 // "property" = one pin per property; "zone" = one territory per zone.
 const viewMode = ref("property");
+// false = every property; true = only buildings with a THMP work order.
+const thmpOnly = ref(false);
+
+const thmpCount = computed(
+    () => (props.properties ?? []).filter((p) => p.thmp).length
+);
 
 // Selected property panel state.
 const selected = ref(null);
@@ -121,6 +127,9 @@ const showRadius = (property) => {
 };
 
 const matchesFilters = (meta) => {
+    if (thmpOnly.value && !meta.thmp) {
+        return false;
+    }
     const needle = search.value.trim().toLowerCase();
     if (needle === "") {
         return true;
@@ -150,7 +159,7 @@ const refreshVisibility = () => {
     });
 };
 
-watch(search, refreshVisibility);
+watch([search, thmpOnly], refreshVisibility);
 watch(viewMode, (mode) => {
     if (mode === "zone") {
         clearSelection();
@@ -265,6 +274,9 @@ onMounted(() => {
             meta: {
                 id: null,
                 zone: city.zone,
+                // Aggregate of ungeocoded properties — THMP status unknown,
+                // so the THMP-only filter hides these circles.
+                thmp: false,
                 searchText: city.name.toLowerCase(),
             },
         };
@@ -291,6 +303,7 @@ onMounted(() => {
             meta: {
                 id: property.id,
                 zone: property.zone,
+                thmp: property.thmp,
                 searchText:
                     `${property.name} ${property.address}`.toLowerCase(),
             },
@@ -410,6 +423,33 @@ onBeforeUnmount(() => {
                     @click="viewMode = 'zone'"
                 >
                     By zone
+                </button>
+            </div>
+            <div v-if="viewMode === 'property'" class="flex rounded-md border p-0.5">
+                <button
+                    type="button"
+                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
+                    :class="
+                        !thmpOnly
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="thmpOnly = false"
+                >
+                    All properties
+                </button>
+                <button
+                    type="button"
+                    :title="`Only buildings with a THMP work order (${thmpCount})`"
+                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
+                    :class="
+                        thmpOnly
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="thmpOnly = true"
+                >
+                    THMP only · {{ thmpCount }}
                 </button>
             </div>
             <Input

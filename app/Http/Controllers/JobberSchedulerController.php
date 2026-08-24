@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Building;
+use App\Models\Vendor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -201,12 +202,13 @@ class JobberSchedulerController extends Controller
     {
         $buildingZones = $this->buildingZoneMap();
         $cityZones = $this->cityZoneMap();
+        $thmpBuildings = $this->thmpBuildingIds();
 
         return DB::table('buildings')
             ->where('active', true)
             ->whereNotNull('latitude')
             ->get(['propertyware_id', 'name', 'address', 'city', 'latitude', 'longitude'])
-            ->map(function ($building) use ($buildingZones, $cityZones) {
+            ->map(function ($building) use ($buildingZones, $cityZones, $thmpBuildings) {
                 $cityKey = $this->normalizeCity($building->city);
 
                 return [
@@ -218,11 +220,32 @@ class JobberSchedulerController extends Controller
                     ])),
                     'zone' => $buildingZones[(int) $building->propertyware_id]
                         ?? ($cityKey !== null ? ($cityZones[$cityKey] ?? null) : null),
+                    'thmp' => isset($thmpBuildings[(int) $building->propertyware_id]),
                     'lat' => (float) $building->latitude,
                     'lng' => (float) $building->longitude,
                 ];
             })
             ->values()
+            ->all();
+    }
+
+    /**
+     * Buildings (keyed by propertyware_id) with at least one work order
+     * assigned to the in-house vendor THMP, matched by the same trimmed
+     * case-insensitive name rule as Vendor::isThmp().
+     *
+     * @return array<int, true>
+     */
+    private function thmpBuildingIds(): array
+    {
+        return DB::table('work_orders as w')
+            ->join('work_order_vendors as wov', 'wov.work_order_id', '=', 'w.id')
+            ->join('vendors as v', 'v.id', '=', 'wov.vendor_id')
+            ->whereRaw('LOWER(TRIM(v.name)) = ?', [Str::lower(Vendor::THMP_NAME)])
+            ->whereNotNull('w.building_id')
+            ->distinct()
+            ->pluck('w.building_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
     }
 

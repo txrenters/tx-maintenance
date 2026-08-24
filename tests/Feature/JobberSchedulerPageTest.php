@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Building;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -124,10 +125,19 @@ class JobberSchedulerPageTest extends TestCase
             'latitude' => 29.97,
             'longitude' => -95.7,
         ]);
-        WorkOrder::factory()->count(2)->create([
+        $ownZoneOrders = WorkOrder::factory()->count(2)->create([
             'building_id' => $ownZone->propertyware_id,
             'zone' => '4',
         ]);
+
+        // Odd casing and whitespace on purpose: the THMP flag must match the
+        // same forgiving rule as Vendor::isThmp().
+        $thmp = Vendor::query()->create([
+            'propertyware_id' => 555001,
+            'name' => ' texas home maintenance pros ',
+            'user_id' => User::factory()->create()->id,
+        ]);
+        $ownZoneOrders->first()->vendors()->attach($thmp->id);
 
         Building::query()->create([
             'propertyware_id' => 998812,
@@ -179,6 +189,10 @@ class JobberSchedulerPageTest extends TestCase
 
                 $inherited = $properties->firstWhere('name', 'City Zone House');
                 $this->assertSame('2', $inherited['zone'], 'A building without zoned work orders inherits the city zone.');
+
+                $own = $properties->firstWhere('name', 'Own Zone House');
+                $this->assertTrue($own['thmp'], 'A building with a THMP work order is flagged.');
+                $this->assertFalse($inherited['thmp'], 'A building without THMP work orders is not flagged.');
 
                 $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
                 $this->assertSame(3, $cypress['properties']);
