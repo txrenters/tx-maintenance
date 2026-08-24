@@ -267,24 +267,84 @@ class JobberSchedulerController extends Controller
     }
 
     /**
+     * Statuses that mean the work order is not waiting on scheduling:
+     * "Scheduled" is scheduled in Jobber without an app schedule row, and
+     * the rest are done, in billing, or out of our hands.
+     */
+    private const NOT_AWAITING_SCHEDULING_STATUSES = [
+        'Scheduled',
+        'Owner Completing Work',
+        'Completed - Verified - Waiting on Bill',
+        'Completed - Verified - Updating Owner',
+        'Approved - Waiting on Payment',
+        'Service Completed - Call Tenant for Followup',
+        'Waiting Tenants Decision - Non Real Property Item',
+    ];
+
+    /**
      * Buildings (keyed by propertyware_id) with at least one currently open
-     * work order that has no service schedule row — the same "has it been
-     * scheduled" signal the not-scheduled-in-3-days report uses.
+     * work order still waiting to be scheduled: no service schedule row, no
+     * Jobber visit on the linked Jobber job, and a status that is actually
+     * awaiting scheduling (see NOT_AWAITING_SCHEDULING_STATUSES).
      *
      * @return array<int, true>
      */
     private function unscheduledBuildingIds(): array
     {
+        $jobberScheduledGids = $this->jobberScheduledJobGids();
+
         return $this->openWorkOrders()
+            ->where(function ($query) {
+                $query->whereNull('ss.name')
+                    ->orWhereNotIn('ss.name', self::NOT_AWAITING_SCHEDULING_STATUSES);
+            })
             ->whereNotExists(function ($query) {
                 $query->select(DB::raw(1))
                     ->from('service_schedules as sched')
                     ->whereColumn('sched.work_order_id', 'w.id');
             })
+            ->where(function ($query) use ($jobberScheduledGids) {
+                $query->whereNull('w.jobber_job_gid');
+                if ($jobberScheduledGids !== []) {
+                    $query->orWhereNotIn('w.jobber_job_gid', $jobberScheduledGids);
+                }
+            })
             ->distinct()
             ->pluck('w.building_id')
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
+    }
+
+    /**
+     * Jobber job ids that have at least one visit with a start date — work
+     * scheduled in Jobber rather than via an app service schedule. Jobber ids
+     * appear both raw ("gid://Jobber/Job/123") and base64-encoded depending
+     * on which sync wrote them, so both spellings are returned.
+     *
+     * @return list<string>
+     */
+    private function jobberScheduledJobGids(): array
+    {
+        $gids = [];
+
+        DB::table('jobber_jobs as j')
+            ->join('jobber_visits as jv', 'jv.jobber_job_id', '=', 'j.id')
+            ->whereNotNull('jv.start_at')
+            ->distinct()
+            ->pluck('j.jobber_id')
+            ->each(function ($gid) use (&$gids) {
+                $gid = (string) $gid;
+                $gids[$gid] = true;
+
+                $decoded = base64_decode($gid, true);
+                if ($decoded !== false && str_starts_with($decoded, 'gid://')) {
+                    $gids[$decoded] = true;
+                }
+                $encoded = base64_encode($gid);
+                $gids[$encoded] = true;
+            });
+
+        return array_keys($gids);
     }
 
     /**

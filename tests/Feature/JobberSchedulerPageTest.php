@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Building;
+use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
+use App\Models\JobberVisit;
 use App\Models\ServiceSchedule;
 use App\Models\User;
 use App\Models\Vendor;
@@ -176,6 +180,47 @@ class JobberSchedulerPageTest extends TestCase
             'zone' => '0',
         ]);
 
+        // Open work order scheduled as a JOBBER visit (THMP-style): the
+        // linked Jobber job has a visit with a start date, so the building
+        // must not count as unscheduled even without an app schedule row.
+        $jobberHouse = Building::query()->create([
+            'propertyware_id' => 998816,
+            'name' => 'Jobber Booked House',
+            'address' => '700 Zeta St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.95,
+            'longitude' => -95.68,
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $jobberHouse->propertyware_id,
+            'zone' => '0',
+            'jobber_job_gid' => 'gid://Jobber/Job/777001',
+        ]);
+        $jobberClient = JobberClient::query()->create([
+            'jobber_id' => 'client-777001',
+            'name' => 'Jobber Client',
+            'jobber_web_uri' => 'https://secure.getjobber.com/clients/777001',
+        ]);
+        $jobberProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-777001',
+            'jobber_client_id' => $jobberClient->id,
+        ]);
+        $jobberJob = Jobber::query()->create([
+            // Stored base64-encoded on purpose: the matcher must bridge the
+            // two gid spellings.
+            'jobber_id' => base64_encode('gid://Jobber/Job/777001'),
+            'jobber_client_id' => $jobberClient->id,
+            'jobber_property_id' => $jobberProperty->id,
+        ]);
+        JobberVisit::query()->create([
+            'jobber_id' => 'visit-gid-777001',
+            'jobber_job_id' => $jobberJob->id,
+            'jobber_client_id' => $jobberClient->id,
+            'jobber_property_id' => $jobberProperty->id,
+            'start_at' => '2026-08-25 09:00:00',
+        ]);
+
         Building::query()->create([
             'propertyware_id' => 998812,
             'name' => 'City Zone House',
@@ -217,7 +262,7 @@ class JobberSchedulerPageTest extends TestCase
                 $props = $page->toArray()['props'];
                 $properties = collect($props['properties']);
 
-                $this->assertCount(3, $properties, 'Only active geocoded buildings are pins.');
+                $this->assertCount(4, $properties, 'Only active geocoded buildings are pins.');
 
                 $own = $properties->firstWhere('name', 'Own Zone House');
                 $this->assertSame('4', $own['zone'], 'A building with its own work orders uses its own dominant zone.');
@@ -234,9 +279,13 @@ class JobberSchedulerPageTest extends TestCase
                 $this->assertFalse($own['unscheduled'], 'An open work order with a schedule row is not unscheduled.');
                 $this->assertTrue($properties->firstWhere('name', 'Unscheduled House')['unscheduled'], 'An open work order without a schedule row flags the building.');
                 $this->assertFalse($inherited['unscheduled'], 'Completed work orders never count as unscheduled.');
+                $this->assertFalse(
+                    $properties->firstWhere('name', 'Jobber Booked House')['unscheduled'],
+                    'A Jobber visit with a start date counts as scheduled.'
+                );
 
                 $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
-                $this->assertSame(4, $cypress['properties']);
+                $this->assertSame(5, $cypress['properties']);
                 $this->assertSame(1, $cypress['ungeocoded']);
 
                 return $page->component('Inspection/Scheduler');
