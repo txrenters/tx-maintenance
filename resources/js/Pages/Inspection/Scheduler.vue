@@ -306,6 +306,71 @@ const clearVisitMarkers = () => {
     visitMarkers = [];
 };
 
+// One focused visit: yellow 5-mile radius + the unscheduled properties
+// inside it — the "what could ride along on this trip" question.
+const focusedVisitKey = ref(null);
+const nearbyUnscheduledCount = ref(0);
+let nearbyMarkers = [];
+
+const visitKey = (visit) => `${visit.job_number}-${visit.street}`;
+
+const clearVisitFocus = () => {
+    focusedVisitKey.value = null;
+    nearbyUnscheduledCount.value = 0;
+    nearbyMarkers.forEach((marker) => marker.remove());
+    nearbyMarkers = [];
+    radiusCircle?.remove();
+    radiusCircle = null;
+    pulseMarker?.remove();
+    pulseMarker = null;
+};
+
+const focusVisit = (visit) => {
+    if (!map || !visit.lat || !visit.lng) {
+        return;
+    }
+    if (focusedVisitKey.value === visitKey(visit)) {
+        clearVisitFocus();
+        return;
+    }
+    clearVisitFocus();
+    focusedVisitKey.value = visitKey(visit);
+    showRadius({
+        lat: visit.lat,
+        lng: visit.lng,
+        name: `visit #${visit.job_number}`,
+    });
+
+    const center = L.latLng(visit.lat, visit.lng);
+    const nearby = (props.properties ?? []).filter(
+        (property) =>
+            property.unscheduled &&
+            property.lat &&
+            property.lng &&
+            center.distanceTo([property.lat, property.lng]) <=
+                FIVE_MILES_IN_METERS
+    );
+    nearbyUnscheduledCount.value = nearby.length;
+    nearbyMarkers = nearby.map((property) =>
+        L.circleMarker([property.lat, property.lng], {
+            radius: 9,
+            color: "#eab308",
+            weight: 2.5,
+            fillColor: "#eab308",
+            fillOpacity: 0.15,
+        })
+            .bindTooltip(
+                `${property.name} — unscheduled work within 5 miles`
+            )
+            .addTo(map)
+    );
+
+    map.fitBounds(radiusCircle.getBounds().pad(0.1), {
+        paddingTopLeft: [380, 24],
+        paddingBottomRight: [24, 24],
+    });
+};
+
 // White outline keeps the zone-colored dots readable on the dark basemap.
 const visitDotOutline = () =>
     document.documentElement.classList.contains("dark") ? "#ffffff" : "#111111";
@@ -313,6 +378,7 @@ const visitDotOutline = () =>
 const selectDay = (date) => {
     selectedDay.value = date;
     clearVisitMarkers();
+    clearVisitFocus();
     if (!map || !date) {
         return;
     }
@@ -333,6 +399,7 @@ const selectDay = (date) => {
                         : ""
                 }`
             )
+            .on("click", () => focusVisit(visit))
             .addTo(map)
     );
     if (located.length > 0) {
@@ -579,6 +646,7 @@ onBeforeUnmount(() => {
     radiusCircle = null;
     pulseMarker = null;
     visitMarkers = [];
+    nearbyMarkers = [];
 });
 </script>
 
@@ -814,10 +882,19 @@ onBeforeUnmount(() => {
                     >
                         No visits booked this day.
                     </p>
-                    <div
+                    <button
                         v-for="visit in dayVisits(selectedDay)"
-                        :key="`${visit.job_number}-${visit.street}`"
-                        class="rounded-md px-2 py-1.5 text-xs hover:bg-accent"
+                        :key="visitKey(visit)"
+                        type="button"
+                        class="block w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors"
+                        :class="
+                            focusedVisitKey === visitKey(visit)
+                                ? 'bg-accent ring-1 ring-[#eab308]'
+                                : visit.lat
+                                  ? 'hover:bg-accent'
+                                  : 'cursor-default opacity-70'
+                        "
+                        @click="focusVisit(visit)"
                     >
                         <span
                             class="mr-1 inline-block h-2 w-2 rounded-full"
@@ -840,7 +917,19 @@ onBeforeUnmount(() => {
                         >
                             {{ visit.technicians.join(", ") }}
                         </p>
-                    </div>
+                        <p
+                            v-if="focusedVisitKey === visitKey(visit)"
+                            class="mt-0.5 text-[10px] font-medium text-[#eab308]"
+                        >
+                            {{ nearbyUnscheduledCount }} unscheduled
+                            {{
+                                nearbyUnscheduledCount === 1
+                                    ? "property"
+                                    : "properties"
+                            }}
+                            within 5 miles
+                        </p>
+                    </button>
                 </div>
             </template>
         </div>
