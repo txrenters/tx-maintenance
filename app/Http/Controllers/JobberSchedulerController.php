@@ -283,84 +283,31 @@ class JobberSchedulerController extends Controller
     }
 
     /**
-     * Statuses that mean the work order is not waiting on scheduling:
-     * "Scheduled" is scheduled in Jobber without an app schedule row, and
-     * the rest are done, in billing, or out of our hands.
+     * The Service Status custom field value the scheduler works from — the
+     * same column the maintenance board shows. Per Earl (2026-08-25) the
+     * Unscheduled filter means exactly this status with THMP assigned,
+     * nothing broader.
      */
-    private const NOT_AWAITING_SCHEDULING_STATUSES = [
-        'Scheduled',
-        'Owner Completing Work',
-        'Completed - Verified - Waiting on Bill',
-        'Completed - Verified - Updating Owner',
-        'Approved - Waiting on Payment',
-        'Service Completed - Call Tenant for Followup',
-        'Waiting Tenants Decision - Non Real Property Item',
-    ];
+    private const AWAITING_SCHEDULING_STATUS = 'Assigned - Waiting on Scheduling';
 
     /**
-     * Buildings (keyed by propertyware_id) with at least one currently open
-     * work order still waiting to be scheduled: no service schedule row, no
-     * Jobber visit on the linked Jobber job, and a status that is actually
-     * awaiting scheduling (see NOT_AWAITING_SCHEDULING_STATUSES).
+     * Buildings (keyed by propertyware_id) with at least one open work order
+     * sitting in "Assigned - Waiting on Scheduling" with THMP assigned —
+     * the work the scheduling engine will feed into Jobber.
      *
      * @return array<int, true>
      */
     private function unscheduledBuildingIds(): array
     {
-        $jobberScheduledGids = $this->jobberScheduledJobGids();
-
         return $this->openWorkOrders()
-            ->where(function ($query) {
-                $query->whereNull('ss.name')
-                    ->orWhereNotIn('ss.name', self::NOT_AWAITING_SCHEDULING_STATUSES);
-            })
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('service_schedules as sched')
-                    ->whereColumn('sched.work_order_id', 'w.id');
-            })
-            ->where(function ($query) use ($jobberScheduledGids) {
-                $query->whereNull('w.jobber_job_gid');
-                if ($jobberScheduledGids !== []) {
-                    $query->orWhereNotIn('w.jobber_job_gid', $jobberScheduledGids);
-                }
-            })
+            ->where('ss.name', self::AWAITING_SCHEDULING_STATUS)
+            ->join('work_order_vendors as wov', 'wov.work_order_id', '=', 'w.id')
+            ->join('vendors as v', 'v.id', '=', 'wov.vendor_id')
+            ->whereRaw('LOWER(TRIM(v.name)) = ?', [Str::lower(Vendor::THMP_NAME)])
             ->distinct()
             ->pluck('w.building_id')
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
-    }
-
-    /**
-     * Jobber job ids that have at least one visit with a start date — work
-     * scheduled in Jobber rather than via an app service schedule. Jobber ids
-     * appear both raw ("gid://Jobber/Job/123") and base64-encoded depending
-     * on which sync wrote them, so both spellings are returned.
-     *
-     * @return list<string>
-     */
-    private function jobberScheduledJobGids(): array
-    {
-        $gids = [];
-
-        DB::table('jobber_jobs as j')
-            ->join('jobber_visits as jv', 'jv.jobber_job_id', '=', 'j.id')
-            ->whereNotNull('jv.start_at')
-            ->distinct()
-            ->pluck('j.jobber_id')
-            ->each(function ($gid) use (&$gids) {
-                $gid = (string) $gid;
-                $gids[$gid] = true;
-
-                $decoded = base64_decode($gid, true);
-                if ($decoded !== false && str_starts_with($decoded, 'gid://')) {
-                    $gids[$decoded] = true;
-                }
-                $encoded = base64_encode($gid);
-                $gids[$encoded] = true;
-            });
-
-        return array_keys($gids);
     }
 
     /**

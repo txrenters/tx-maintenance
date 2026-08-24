@@ -3,11 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Building;
-use App\Models\Jobber;
-use App\Models\JobberClient;
-use App\Models\JobberProperty;
-use App\Models\JobberVisit;
-use App\Models\ServiceSchedule;
+use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -131,6 +127,14 @@ class JobberSchedulerPageTest extends TestCase
 
     public function test_geocoded_properties_are_listed_with_zone_fallback(): void
     {
+        // Create 'New' first so the WorkOrder factory default stays 'New';
+        // only work orders explicitly given $waiting are in the queue.
+        ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $waiting = ServiceStatus::query()->create([
+            'name' => 'Assigned - Waiting on Scheduling',
+            'description' => 'THMP scheduling queue',
+        ]);
+
         $ownZone = Building::query()->create([
             'propertyware_id' => 998811,
             'name' => 'Own Zone House',
@@ -164,27 +168,18 @@ class JobberSchedulerPageTest extends TestCase
         ]);
         $completed->vendors()->attach($thmp->id);
 
-        // Closed natively in PW with a stale open Service Status and no Date
-        // Completed: must count as neither THMP work nor unscheduled work.
+        // Closed natively in PW with a stale waiting Service Status and no
+        // Date Completed: THMP is attached, but native-Closed work must count
+        // as neither THMP work nor unscheduled work.
         $nativeClosed = WorkOrder::factory()->create([
             'building_id' => 998812,
             'zone' => '0',
             'status' => 'Closed',
+            'service_status_id' => $waiting->id,
         ]);
         $nativeClosed->vendors()->attach($thmp->id);
 
-        // Both open work orders on Own Zone House are scheduled, so that
-        // building must NOT count as unscheduled.
-        foreach ($ownZoneOrders as $order) {
-            ServiceSchedule::query()->create([
-                'work_order_id' => $order->id,
-                'vendor_id' => $thmp->id,
-                'title' => 'Service visit',
-                'status' => 'scheduled',
-            ]);
-        }
-
-        // Geocoded building whose open work order has no schedule row.
+        // The queue: waiting-on-scheduling status AND THMP assigned.
         $unscheduledHouse = Building::query()->create([
             'propertyware_id' => 998815,
             'name' => 'Unscheduled House',
@@ -197,14 +192,14 @@ class JobberSchedulerPageTest extends TestCase
         WorkOrder::factory()->create([
             'building_id' => $unscheduledHouse->propertyware_id,
             'zone' => '0',
-        ]);
+            'service_status_id' => $waiting->id,
+        ])->vendors()->attach($thmp->id);
 
-        // Open work order scheduled as a JOBBER visit (THMP-style): the
-        // linked Jobber job has a visit with a start date, so the building
-        // must not count as unscheduled even without an app schedule row.
-        $jobberHouse = Building::query()->create([
+        // Waiting-on-scheduling status but no THMP: another vendor's problem,
+        // not our scheduling queue.
+        $otherVendorHouse = Building::query()->create([
             'propertyware_id' => 998816,
-            'name' => 'Jobber Booked House',
+            'name' => 'Other Vendor House',
             'address' => '700 Zeta St',
             'city' => 'Cypress',
             'active' => true,
@@ -212,32 +207,9 @@ class JobberSchedulerPageTest extends TestCase
             'longitude' => -95.68,
         ]);
         WorkOrder::factory()->create([
-            'building_id' => $jobberHouse->propertyware_id,
+            'building_id' => $otherVendorHouse->propertyware_id,
             'zone' => '0',
-            'jobber_job_gid' => 'gid://Jobber/Job/777001',
-        ]);
-        $jobberClient = JobberClient::query()->create([
-            'jobber_id' => 'client-777001',
-            'name' => 'Jobber Client',
-            'jobber_web_uri' => 'https://secure.getjobber.com/clients/777001',
-        ]);
-        $jobberProperty = JobberProperty::query()->create([
-            'jobber_id' => 'property-777001',
-            'jobber_client_id' => $jobberClient->id,
-        ]);
-        $jobberJob = Jobber::query()->create([
-            // Stored base64-encoded on purpose: the matcher must bridge the
-            // two gid spellings.
-            'jobber_id' => base64_encode('gid://Jobber/Job/777001'),
-            'jobber_client_id' => $jobberClient->id,
-            'jobber_property_id' => $jobberProperty->id,
-        ]);
-        JobberVisit::query()->create([
-            'jobber_id' => 'visit-gid-777001',
-            'jobber_job_id' => $jobberJob->id,
-            'jobber_client_id' => $jobberClient->id,
-            'jobber_property_id' => $jobberProperty->id,
-            'start_at' => '2026-08-25 09:00:00',
+            'service_status_id' => $waiting->id,
         ]);
 
         Building::query()->create([
@@ -295,12 +267,12 @@ class JobberSchedulerPageTest extends TestCase
                 $this->assertTrue($own['thmp'], 'A building with an open THMP work order is flagged.');
                 $this->assertFalse($inherited['thmp'], 'A completed THMP work order must not flag the building.');
 
-                $this->assertFalse($own['unscheduled'], 'An open work order with a schedule row is not unscheduled.');
-                $this->assertTrue($properties->firstWhere('name', 'Unscheduled House')['unscheduled'], 'An open work order without a schedule row flags the building.');
-                $this->assertFalse($inherited['unscheduled'], 'Completed work orders never count as unscheduled.');
+                $this->assertFalse($own['unscheduled'], 'Open THMP work not in the waiting-on-scheduling status is not unscheduled.');
+                $this->assertTrue($properties->firstWhere('name', 'Unscheduled House')['unscheduled'], 'Waiting-on-scheduling status with THMP assigned flags the building.');
+                $this->assertFalse($inherited['unscheduled'], 'Native-Closed work orders never count, even with the waiting status and THMP.');
                 $this->assertFalse(
-                    $properties->firstWhere('name', 'Jobber Booked House')['unscheduled'],
-                    'A Jobber visit with a start date counts as scheduled.'
+                    $properties->firstWhere('name', 'Other Vendor House')['unscheduled'],
+                    'The waiting status without THMP is not our scheduling queue.'
                 );
 
                 $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
