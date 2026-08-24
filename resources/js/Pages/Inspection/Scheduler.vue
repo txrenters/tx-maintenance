@@ -274,9 +274,11 @@ const dayVisits = (date) =>
     );
 const today = new Date().toISOString().slice(0, 10);
 
-// Tenant Benefit Package jobs with no visit date yet — the pool the boss's
-// fill rule draws from ("TBPs within 5 miles of the inspection").
+// This quarter's Tenant Benefit Package jobs with no visit date yet — the
+// pool the boss's fill rule draws from ("TBPs within 5 miles of the
+// inspection").
 const tbpBacklog = ref([]);
+const tbpQuarter = ref("");
 
 const loadCalendarMonth = async () => {
     if (calendarData.value[calendarMonth.value]) {
@@ -293,6 +295,7 @@ const loadCalendarMonth = async () => {
             [data.month]: data.days,
         };
         tbpBacklog.value = data.tbp_backlog ?? [];
+        tbpQuarter.value = data.tbp_quarter ?? "";
     } catch (error) {
         calendarError.value = true;
     } finally {
@@ -926,7 +929,7 @@ onBeforeUnmount(() => {
                             v-if="focusedVisitKey === visitKey(visit)"
                             class="mt-0.5 text-[10px] font-medium text-[#38bdf8]"
                         >
-                            {{ nearbyTbpCount }} unscheduled
+                            {{ nearbyTbpCount }} unscheduled {{ tbpQuarter }}
                             {{ nearbyTbpCount === 1 ? "TBP" : "TBPs" }}
                             within 5 miles
                         </p>

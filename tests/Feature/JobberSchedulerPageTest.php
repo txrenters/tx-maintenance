@@ -333,11 +333,20 @@ class JobberSchedulerPageTest extends TestCase
             'jobber_client_id' => $client->id,
             'jobber_property_id' => $unmatchedProperty->id,
         ]);
-        // A TBP job with no dated visit: the backlog the 5-mile fill rule
-        // draws from.
+        // A current-quarter TBP job with no dated visit: the backlog the
+        // 5-mile fill rule draws from. The clock is pinned below so "current
+        // quarter" stays Q3 whenever this test runs.
         Jobber::query()->create([
             'jobber_id' => 'job-cal-3',
             'job_number' => '20050',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+        // Next quarter's TBP: not this quarter's fill pool.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-4',
+            'job_number' => '20051',
             'title' => 'Zone 2 - Q4 2026 Tenant Benefit Package',
             'jobber_client_id' => $client->id,
             'jobber_property_id' => $matchedProperty->id,
@@ -357,6 +366,8 @@ class JobberSchedulerPageTest extends TestCase
                 'assigned_to' => $assignedTo,
             ]);
         }
+
+        $this->travelTo('2026-08-25');
 
         $vendor = User::factory()->create()->assignRole('vendor');
         $this->actingAs($vendor)->getJson('/scheduler/visits?month=2026-08')->assertForbidden();
@@ -384,8 +395,9 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('maintenance', $day[1]['category'], 'Anything not move in/out or TBP is maintenance.');
         $this->assertSame([], $day[1]['technicians'], 'An unassigned visit has no technicians.');
 
+        $this->assertSame('Q3', $response['tbp_quarter']);
         $backlog = collect($response['tbp_backlog']);
-        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Only TBP jobs with no dated visit are backlog; the visited TBP job is not.');
+        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one.');
         $this->assertEqualsWithDelta(29.8123, $backlog->first()['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
     }
 

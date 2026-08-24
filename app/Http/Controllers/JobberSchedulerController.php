@@ -208,9 +208,12 @@ class JobberSchedulerController extends Controller
                 ];
             });
 
-        // The TBP backlog: Tenant Benefit Package jobs with no dated visit.
-        // The boss's fill rule anchors on these — inspectors get TBPs within
-        // 5 miles of their move in / move out inspections. Month-independent.
+        // The TBP backlog: this quarter's Tenant Benefit Package jobs with no
+        // dated visit. The boss's fill rule anchors on these — inspectors get
+        // the current quarter's TBPs within 5 miles of their move in / move
+        // out inspections. A job titled for a different quarter is excluded;
+        // TBP titles with no quarter marking stay in.
+        $currentQuarter = (string) now()->quarter;
         $tbpBacklog = [];
         DB::table('jobber_jobs as j')
             ->leftJoin('jobber_properties as p', 'p.id', '=', 'j.jobber_property_id')
@@ -226,7 +229,10 @@ class JobberSchedulerController extends Controller
                     ->whereNotNull('v.start_at');
             })
             ->get(['j.job_number', 'j.title', 'p.street', 'p.city'])
-            ->each(function ($job) use (&$tbpBacklog, $buildingsByAddress, $normalize) {
+            ->each(function ($job) use (&$tbpBacklog, $buildingsByAddress, $normalize, $currentQuarter) {
+                if (preg_match('/q([1-4])/i', (string) $job->title, $matches) === 1 && $matches[1] !== $currentQuarter) {
+                    return;
+                }
                 $building = $buildingsByAddress[$normalize($job->street).'|'.$normalize($job->city)] ?? null;
                 if ($building === null) {
                     return;
@@ -239,7 +245,12 @@ class JobberSchedulerController extends Controller
                 ];
             });
 
-        return response()->json(['month' => $month, 'days' => $days, 'tbp_backlog' => $tbpBacklog]);
+        return response()->json([
+            'month' => $month,
+            'days' => $days,
+            'tbp_backlog' => $tbpBacklog,
+            'tbp_quarter' => 'Q'.$currentQuarter,
+        ]);
     }
 
     /**
