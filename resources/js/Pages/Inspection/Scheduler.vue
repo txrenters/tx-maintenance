@@ -274,6 +274,10 @@ const dayVisits = (date) =>
     );
 const today = new Date().toISOString().slice(0, 10);
 
+// Tenant Benefit Package jobs with no visit date yet — the pool the boss's
+// fill rule draws from ("TBPs within 5 miles of the inspection").
+const tbpBacklog = ref([]);
+
 const loadCalendarMonth = async () => {
     if (calendarData.value[calendarMonth.value]) {
         return;
@@ -288,6 +292,7 @@ const loadCalendarMonth = async () => {
             ...calendarData.value,
             [data.month]: data.days,
         };
+        tbpBacklog.value = data.tbp_backlog ?? [];
     } catch (error) {
         calendarError.value = true;
     } finally {
@@ -308,17 +313,18 @@ const clearVisitMarkers = () => {
     visitMarkers = [];
 };
 
-// One focused visit: yellow 5-mile radius + the unscheduled properties
-// inside it — the "what could ride along on this trip" question.
+// One focused visit: yellow 5-mile radius + the unscheduled TBP jobs inside
+// it — the boss's fill rule ("give the inspector TBPs within 5 miles of the
+// move in / move out inspection").
 const focusedVisitKey = ref(null);
-const nearbyUnscheduledCount = ref(0);
+const nearbyTbpCount = ref(0);
 let nearbyMarkers = [];
 
 const visitKey = (visit) => `${visit.job_number}-${visit.street}`;
 
 const clearVisitFocus = () => {
     focusedVisitKey.value = null;
-    nearbyUnscheduledCount.value = 0;
+    nearbyTbpCount.value = 0;
     nearbyMarkers.forEach((marker) => marker.remove());
     nearbyMarkers = [];
     radiusCircle?.remove();
@@ -344,26 +350,22 @@ const focusVisit = (visit) => {
     });
 
     const center = L.latLng(visit.lat, visit.lng);
-    const nearby = (props.properties ?? []).filter(
-        (property) =>
-            property.unscheduled &&
-            property.lat &&
-            property.lng &&
-            center.distanceTo([property.lat, property.lng]) <=
-                FIVE_MILES_IN_METERS
+    const nearby = tbpBacklog.value.filter(
+        (job) =>
+            job.lat &&
+            job.lng &&
+            center.distanceTo([job.lat, job.lng]) <= FIVE_MILES_IN_METERS
     );
-    nearbyUnscheduledCount.value = nearby.length;
-    nearbyMarkers = nearby.map((property) =>
-        L.circleMarker([property.lat, property.lng], {
+    nearbyTbpCount.value = nearby.length;
+    nearbyMarkers = nearby.map((job) =>
+        L.circleMarker([job.lat, job.lng], {
             radius: 9,
-            color: "#eab308",
+            color: "#38bdf8",
             weight: 2.5,
-            fillColor: "#eab308",
+            fillColor: "#38bdf8",
             fillOpacity: 0.15,
         })
-            .bindTooltip(
-                `${property.name} — unscheduled work within 5 miles`
-            )
+            .bindTooltip(`#${job.job_number} — ${job.title} — unscheduled TBP`)
             .addTo(map)
     );
 
@@ -917,14 +919,10 @@ onBeforeUnmount(() => {
                         </p>
                         <p
                             v-if="focusedVisitKey === visitKey(visit)"
-                            class="mt-0.5 text-[10px] font-medium text-[#eab308]"
+                            class="mt-0.5 text-[10px] font-medium text-[#38bdf8]"
                         >
-                            {{ nearbyUnscheduledCount }} unscheduled
-                            {{
-                                nearbyUnscheduledCount === 1
-                                    ? "property"
-                                    : "properties"
-                            }}
+                            {{ nearbyTbpCount }} unscheduled
+                            {{ nearbyTbpCount === 1 ? "TBP" : "TBPs" }}
                             within 5 miles
                         </p>
                     </button>

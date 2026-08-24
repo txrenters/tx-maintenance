@@ -208,7 +208,38 @@ class JobberSchedulerController extends Controller
                 ];
             });
 
-        return response()->json(['month' => $month, 'days' => $days]);
+        // The TBP backlog: Tenant Benefit Package jobs with no dated visit.
+        // The boss's fill rule anchors on these — inspectors get TBPs within
+        // 5 miles of their move in / move out inspections. Month-independent.
+        $tbpBacklog = [];
+        DB::table('jobber_jobs as j')
+            ->leftJoin('jobber_properties as p', 'p.id', '=', 'j.jobber_property_id')
+            ->where(function ($query) {
+                $query->whereRaw("LOWER(j.title) LIKE '%tenant benefit%'")
+                    ->orWhereRaw("LOWER(j.title) LIKE '%tbp%'");
+            })
+            ->whereNull('j.closed_at')
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('jobber_visits as v')
+                    ->whereColumn('v.jobber_job_id', 'j.id')
+                    ->whereNotNull('v.start_at');
+            })
+            ->get(['j.job_number', 'j.title', 'p.street', 'p.city'])
+            ->each(function ($job) use (&$tbpBacklog, $buildingsByAddress, $normalize) {
+                $building = $buildingsByAddress[$normalize($job->street).'|'.$normalize($job->city)] ?? null;
+                if ($building === null) {
+                    return;
+                }
+                $tbpBacklog[] = [
+                    'job_number' => $job->job_number,
+                    'title' => Str::limit((string) $job->title, 90),
+                    'lat' => $building->latitude,
+                    'lng' => $building->longitude,
+                ];
+            });
+
+        return response()->json(['month' => $month, 'days' => $days, 'tbp_backlog' => $tbpBacklog]);
     }
 
     /**

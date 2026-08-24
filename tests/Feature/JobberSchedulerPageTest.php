@@ -333,6 +333,15 @@ class JobberSchedulerPageTest extends TestCase
             'jobber_client_id' => $client->id,
             'jobber_property_id' => $unmatchedProperty->id,
         ]);
+        // A TBP job with no dated visit: the backlog the 5-mile fill rule
+        // draws from.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-3',
+            'job_number' => '20050',
+            'title' => 'Zone 2 - Q4 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
 
         foreach ([
             ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00', [['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']]],
@@ -374,6 +383,10 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('1', $day[1]['zone']);
         $this->assertSame('maintenance', $day[1]['category'], 'Anything not move in/out or TBP is maintenance.');
         $this->assertSame([], $day[1]['technicians'], 'An unassigned visit has no technicians.');
+
+        $backlog = collect($response['tbp_backlog']);
+        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Only TBP jobs with no dated visit are backlog; the visited TBP job is not.');
+        $this->assertEqualsWithDelta(29.8123, $backlog->first()['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
     }
 
     public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void
