@@ -321,13 +321,28 @@ const clearVisitMarkers = () => {
 // move in / move out inspection").
 const focusedVisitKey = ref(null);
 const nearbyTbpCount = ref(0);
+const nearbyTbpSpots = ref(0);
 let nearbyMarkers = [];
+
+const escapeHtml = (value) =>
+    String(value).replace(
+        /[&<>"']/g,
+        (ch) =>
+            ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+            })[ch]
+    );
 
 const visitKey = (visit) => `${visit.job_number}-${visit.street}`;
 
 const clearVisitFocus = () => {
     focusedVisitKey.value = null;
     nearbyTbpCount.value = 0;
+    nearbyTbpSpots.value = 0;
     nearbyMarkers.forEach((marker) => marker.remove());
     nearbyMarkers = [];
     radiusCircle?.remove();
@@ -360,17 +375,49 @@ const focusVisit = (visit) => {
             center.distanceTo([job.lat, job.lng]) <= FIVE_MILES_IN_METERS
     );
     nearbyTbpCount.value = nearby.length;
-    nearbyMarkers = nearby.map((job) =>
-        L.circleMarker([job.lat, job.lng], {
-            radius: 9,
-            color: "#38bdf8",
-            weight: 2.5,
-            fillColor: "#38bdf8",
-            fillOpacity: 0.15,
-        })
-            .bindTooltip(`#${job.job_number} — ${job.title} — unscheduled TBP`)
-            .addTo(map)
-    );
+
+    // Several TBP jobs often live at one property (filter change + pest
+    // control + inspection); one ring per property with a count badge, or
+    // five rings stack into what looks like one.
+    const byLocation = new Map();
+    nearby.forEach((job) => {
+        const key = `${job.lat},${job.lng}`;
+        byLocation.set(key, [...(byLocation.get(key) ?? []), job]);
+    });
+    nearbyTbpSpots.value = byLocation.size;
+
+    nearbyMarkers = [...byLocation.values()].flatMap((jobs) => {
+        const { lat, lng } = jobs[0];
+        const markers = [
+            L.circleMarker([lat, lng], {
+                radius: 9,
+                color: "#38bdf8",
+                weight: 2.5,
+                fillColor: "#38bdf8",
+                fillOpacity: 0.15,
+            }).bindTooltip(
+                jobs
+                    .map(
+                        (job) =>
+                            `#${escapeHtml(job.job_number)} — ${escapeHtml(job.title)}`
+                    )
+                    .join("<br>")
+            ),
+        ];
+        if (jobs.length > 1) {
+            markers.push(
+                L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: "",
+                        html: `<span class="scheduler-tbp-count">${jobs.length}</span>`,
+                        iconSize: [0, 0],
+                    }),
+                    interactive: false,
+                })
+            );
+        }
+        return markers.map((marker) => marker.addTo(map));
+    });
 
     map.fitBounds(radiusCircle.getBounds().pad(0.1), {
         paddingTopLeft: [380, 24],
@@ -931,6 +978,14 @@ onBeforeUnmount(() => {
                         >
                             {{ nearbyTbpCount }} unscheduled {{ tbpQuarter }}
                             {{ nearbyTbpCount === 1 ? "TBP" : "TBPs" }}
+                            <template v-if="nearbyTbpSpots < nearbyTbpCount">
+                                at {{ nearbyTbpSpots }}
+                                {{
+                                    nearbyTbpSpots === 1
+                                        ? "property"
+                                        : "properties"
+                                }}
+                            </template>
                             within 5 miles
                         </p>
                     </button>
@@ -1065,6 +1120,23 @@ onBeforeUnmount(() => {
 
 .scheduler-map .leaflet-control-zoom a {
     transition: background-color 0.15s ease;
+}
+
+/* Count badge on a TBP location holding several jobs. */
+.scheduler-tbp-count {
+    position: absolute;
+    left: 5px;
+    top: -16px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 9999px;
+    background: #38bdf8;
+    color: #0c1220;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
 }
 
 /* Pulsing ring on the selected property. */
