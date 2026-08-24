@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Building;
+use App\Models\ServiceSchedule;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -149,6 +150,32 @@ class JobberSchedulerPageTest extends TestCase
         ]);
         $completed->vendors()->attach($thmp->id);
 
+        // Both open work orders on Own Zone House are scheduled, so that
+        // building must NOT count as unscheduled.
+        foreach ($ownZoneOrders as $order) {
+            ServiceSchedule::query()->create([
+                'work_order_id' => $order->id,
+                'vendor_id' => $thmp->id,
+                'title' => 'Service visit',
+                'status' => 'scheduled',
+            ]);
+        }
+
+        // Geocoded building whose open work order has no schedule row.
+        $unscheduledHouse = Building::query()->create([
+            'propertyware_id' => 998815,
+            'name' => 'Unscheduled House',
+            'address' => '600 Epsilon St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.96,
+            'longitude' => -95.69,
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $unscheduledHouse->propertyware_id,
+            'zone' => '0',
+        ]);
+
         Building::query()->create([
             'propertyware_id' => 998812,
             'name' => 'City Zone House',
@@ -190,7 +217,7 @@ class JobberSchedulerPageTest extends TestCase
                 $props = $page->toArray()['props'];
                 $properties = collect($props['properties']);
 
-                $this->assertCount(2, $properties, 'Only active geocoded buildings are pins.');
+                $this->assertCount(3, $properties, 'Only active geocoded buildings are pins.');
 
                 $own = $properties->firstWhere('name', 'Own Zone House');
                 $this->assertSame('4', $own['zone'], 'A building with its own work orders uses its own dominant zone.');
@@ -204,8 +231,12 @@ class JobberSchedulerPageTest extends TestCase
                 $this->assertTrue($own['thmp'], 'A building with an open THMP work order is flagged.');
                 $this->assertFalse($inherited['thmp'], 'A completed THMP work order must not flag the building.');
 
+                $this->assertFalse($own['unscheduled'], 'An open work order with a schedule row is not unscheduled.');
+                $this->assertTrue($properties->firstWhere('name', 'Unscheduled House')['unscheduled'], 'An open work order without a schedule row flags the building.');
+                $this->assertFalse($inherited['unscheduled'], 'Completed work orders never count as unscheduled.');
+
                 $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
-                $this->assertSame(3, $cypress['properties']);
+                $this->assertSame(4, $cypress['properties']);
                 $this->assertSame(1, $cypress['ungeocoded']);
 
                 return $page->component('Inspection/Scheduler');

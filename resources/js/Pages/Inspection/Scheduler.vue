@@ -40,12 +40,20 @@ const mappedCount = computed(() => (props.properties ?? []).length);
 const search = ref("");
 // "property" = one pin per property; "zone" = one territory per zone.
 const viewMode = ref("property");
-// false = every property; true = only buildings with an OPEN THMP work order.
-const thmpOnly = ref(false);
+// Which properties to show: "all", "thmp" (an open THMP work order), or
+// "unscheduled" (an open work order with no service schedule yet).
+const propertyFilter = ref("all");
 
-const thmpCount = computed(
-    () => (props.properties ?? []).filter((p) => p.thmp).length
-);
+const PROPERTY_FILTERS = [
+    { key: "all", label: "All", hint: "Every mapped property" },
+    { key: "thmp", label: "THMP", hint: "Buildings with an open THMP work order" },
+    { key: "unscheduled", label: "Unscheduled", hint: "Buildings with an open work order not yet scheduled" },
+];
+
+const filterCount = (key) =>
+    key === "all"
+        ? (props.properties ?? []).length
+        : (props.properties ?? []).filter((p) => p[key]).length;
 
 // Selected property panel state.
 const selected = ref(null);
@@ -127,7 +135,7 @@ const showRadius = (property) => {
 };
 
 const matchesFilters = (meta) => {
-    if (thmpOnly.value && !meta.thmp) {
+    if (propertyFilter.value !== "all" && !meta[propertyFilter.value]) {
         return false;
     }
     const needle = search.value.trim().toLowerCase();
@@ -159,7 +167,7 @@ const refreshVisibility = () => {
     });
 };
 
-watch([search, thmpOnly], refreshVisibility);
+watch([search, propertyFilter], refreshVisibility);
 watch(viewMode, (mode) => {
     if (mode === "zone") {
         clearSelection();
@@ -274,9 +282,10 @@ onMounted(() => {
             meta: {
                 id: null,
                 zone: city.zone,
-                // Aggregate of ungeocoded properties — THMP status unknown,
-                // so the THMP-only filter hides these circles.
+                // Aggregate of ungeocoded properties — per-building status
+                // unknown, so the THMP/Unscheduled filters hide these circles.
                 thmp: false,
+                unscheduled: false,
                 searchText: city.name.toLowerCase(),
             },
         };
@@ -304,6 +313,7 @@ onMounted(() => {
                 id: property.id,
                 zone: property.zone,
                 thmp: property.thmp,
+                unscheduled: property.unscheduled,
                 searchText:
                     `${property.name} ${property.address}`.toLowerCase(),
             },
@@ -427,29 +437,19 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="viewMode === 'property'" class="flex rounded-md border p-0.5">
                 <button
+                    v-for="filter in PROPERTY_FILTERS"
+                    :key="filter.key"
                     type="button"
+                    :title="filter.hint"
                     class="flex-1 rounded px-2 py-1 text-xs transition-colors"
                     :class="
-                        !thmpOnly
+                        propertyFilter === filter.key
                             ? 'bg-primary text-primary-foreground'
                             : 'text-muted-foreground hover:bg-accent'
                     "
-                    @click="thmpOnly = false"
+                    @click="propertyFilter = filter.key"
                 >
-                    All properties
-                </button>
-                <button
-                    type="button"
-                    :title="`Only buildings with an open THMP work order (${thmpCount})`"
-                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
-                    :class="
-                        thmpOnly
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:bg-accent'
-                    "
-                    @click="thmpOnly = true"
-                >
-                    THMP only · {{ thmpCount }}
+                    {{ filter.label }} · {{ filterCount(filter.key) }}
                 </button>
             </div>
             <Input

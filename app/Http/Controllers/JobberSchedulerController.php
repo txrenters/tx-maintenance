@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Building;
 use App\Models\Vendor;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -203,12 +204,13 @@ class JobberSchedulerController extends Controller
         $buildingZones = $this->buildingZoneMap();
         $cityZones = $this->cityZoneMap();
         $thmpBuildings = $this->thmpBuildingIds();
+        $unscheduledBuildings = $this->unscheduledBuildingIds();
 
         return DB::table('buildings')
             ->where('active', true)
             ->whereNotNull('latitude')
             ->get(['propertyware_id', 'name', 'address', 'city', 'latitude', 'longitude'])
-            ->map(function ($building) use ($buildingZones, $cityZones, $thmpBuildings) {
+            ->map(function ($building) use ($buildingZones, $cityZones, $thmpBuildings, $unscheduledBuildings) {
                 $cityKey = $this->normalizeCity($building->city);
 
                 return [
@@ -221,6 +223,7 @@ class JobberSchedulerController extends Controller
                     'zone' => $buildingZones[(int) $building->propertyware_id]
                         ?? ($cityKey !== null ? ($cityZones[$cityKey] ?? null) : null),
                     'thmp' => isset($thmpBuildings[(int) $building->propertyware_id]),
+                    'unscheduled' => isset($unscheduledBuildings[(int) $building->propertyware_id]),
                     'lat' => (float) $building->latitude,
                     'lng' => (float) $building->longitude,
                 ];
@@ -230,25 +233,54 @@ class JobberSchedulerController extends Controller
     }
 
     /**
-     * Buildings (keyed by propertyware_id) with at least one CURRENTLY OPEN
-     * work order assigned to the in-house vendor THMP — same open rule as the
-     * property panel (no completed_date, status not Closed/Paid), same
+     * Base query for currently open work orders — same open rule as the
+     * property panel: no completed_date, status not Closed/Paid.
+     */
+    private function openWorkOrders(): Builder
+    {
+        return DB::table('work_orders as w')
+            ->leftJoin('service_status as ss', 'ss.id', '=', 'w.service_status_id')
+            ->whereNull('w.completed_date')
+            ->where(function ($query) {
+                $query->whereNull('ss.name')->orWhereNotIn('ss.name', ['Closed', 'Paid']);
+            })
+            ->whereNotNull('w.building_id');
+    }
+
+    /**
+     * Buildings (keyed by propertyware_id) with at least one currently open
+     * work order assigned to the in-house vendor THMP, matched by the same
      * trimmed case-insensitive name rule as Vendor::isThmp().
      *
      * @return array<int, true>
      */
     private function thmpBuildingIds(): array
     {
-        return DB::table('work_orders as w')
+        return $this->openWorkOrders()
             ->join('work_order_vendors as wov', 'wov.work_order_id', '=', 'w.id')
             ->join('vendors as v', 'v.id', '=', 'wov.vendor_id')
-            ->leftJoin('service_status as ss', 'ss.id', '=', 'w.service_status_id')
             ->whereRaw('LOWER(TRIM(v.name)) = ?', [Str::lower(Vendor::THMP_NAME)])
-            ->whereNull('w.completed_date')
-            ->where(function ($query) {
-                $query->whereNull('ss.name')->orWhereNotIn('ss.name', ['Closed', 'Paid']);
+            ->distinct()
+            ->pluck('w.building_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+    }
+
+    /**
+     * Buildings (keyed by propertyware_id) with at least one currently open
+     * work order that has no service schedule row — the same "has it been
+     * scheduled" signal the not-scheduled-in-3-days report uses.
+     *
+     * @return array<int, true>
+     */
+    private function unscheduledBuildingIds(): array
+    {
+        return $this->openWorkOrders()
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('service_schedules as sched')
+                    ->whereColumn('sched.work_order_id', 'w.id');
             })
-            ->whereNotNull('w.building_id')
             ->distinct()
             ->pluck('w.building_id')
             ->mapWithKeys(fn ($id) => [(int) $id => true])
