@@ -167,17 +167,7 @@ class JobberSchedulerController extends Controller
         $start = $month.'-01 00:00:00';
         $end = date('Y-m-01 00:00:00', strtotime($start.' +1 month'));
 
-        $normalize = fn (?string $value): string => Str::of((string) $value)->squish()->lower()->toString();
-
-        $buildingsByAddress = [];
-        DB::table('buildings')
-            ->where('active', true)
-            ->whereNotNull('latitude')
-            ->get(['address', 'city', 'latitude', 'longitude'])
-            ->each(function ($building) use (&$buildingsByAddress, $normalize) {
-                $key = $normalize($building->address).'|'.$normalize($building->city);
-                $buildingsByAddress[$key] ??= $building;
-            });
+        $index = $this->buildingAddressIndex();
 
         $days = [];
         DB::table('jobber_visits as v')
@@ -188,8 +178,8 @@ class JobberSchedulerController extends Controller
             ->where('v.start_at', '<', $end)
             ->orderBy('v.start_at')
             ->get(['v.start_at', 'v.assigned_to', 'j.job_number', 'j.title', 'p.street', 'p.city'])
-            ->each(function ($visit) use (&$days, $buildingsByAddress, $normalize) {
-                $building = $buildingsByAddress[$normalize($visit->street).'|'.$normalize($visit->city)] ?? null;
+            ->each(function ($visit) use (&$days, $index) {
+                $building = $this->matchBuilding($index, $visit->street, $visit->city);
                 $days[substr((string) $visit->start_at, 0, 10)][] = [
                     'job_number' => $visit->job_number,
                     'title' => Str::limit((string) $visit->title, 90),
@@ -229,11 +219,11 @@ class JobberSchedulerController extends Controller
                     ->whereNotNull('v.start_at');
             })
             ->get(['j.job_number', 'j.title', 'p.street', 'p.city'])
-            ->each(function ($job) use (&$tbpBacklog, $buildingsByAddress, $normalize, $currentQuarter) {
+            ->each(function ($job) use (&$tbpBacklog, $index, $currentQuarter) {
                 if (preg_match('/q([1-4])/i', (string) $job->title, $matches) === 1 && $matches[1] !== $currentQuarter) {
                     return;
                 }
-                $building = $buildingsByAddress[$normalize($job->street).'|'.$normalize($job->city)] ?? null;
+                $building = $this->matchBuilding($index, $job->street, $job->city);
                 if ($building === null) {
                     return;
                 }
@@ -251,6 +241,99 @@ class JobberSchedulerController extends Controller
             'tbp_backlog' => $tbpBacklog,
             'tbp_quarter' => 'Q'.$currentQuarter,
         ]);
+    }
+
+    /**
+     * Street suffix words shortened to their postal forms so "Tain Drive"
+     * matches "Tain Dr" and so on. Applied to every word on both sides.
+     *
+     * @var array<string, string>
+     */
+    private const STREET_SUFFIXES = [
+        'drive' => 'dr', 'lane' => 'ln', 'street' => 'st', 'court' => 'ct',
+        'circle' => 'cir', 'road' => 'rd', 'avenue' => 'ave', 'boulevard' => 'blvd',
+        'place' => 'pl', 'trail' => 'trl', 'parkway' => 'pkwy', 'highway' => 'hwy',
+        'terrace' => 'ter', 'cove' => 'cv', 'crossing' => 'xing', 'square' => 'sq',
+    ];
+
+    /**
+     * Canonical form of a street line for matching: lowercase, note-blocks
+     * like "{Do not use}" stripped, anything after a comma dropped (Jobber
+     * and PW both sometimes embed "City, TX zip" in the street), punctuation
+     * removed, apartment/unit tails cut, suffix words shortened.
+     */
+    private function canonicalStreet(?string $value): string
+    {
+        $street = Str::of((string) $value)
+            ->lower()
+            ->replaceMatches('/[{(\[].*?[})\]]/', ' ')
+            ->before(',')
+            ->replaceMatches('/#\s*\S+/', ' ')
+            ->replaceMatches('/[^a-z0-9\s]/', ' ')
+            ->replaceMatches('/\b(?:apt|apartment|unit|ste|suite|bldg|trlr|lot)\b.*$/', '')
+            ->squish()
+            ->toString();
+
+        return implode(' ', array_map(
+            fn (string $word) => self::STREET_SUFFIXES[$word] ?? $word,
+            explode(' ', $street)
+        ));
+    }
+
+    /**
+     * Canonical city for matching: lowercase, trailing ", TX ..." dropped,
+     * known alias spellings folded in.
+     */
+    private function canonicalCity(?string $value): string
+    {
+        $city = Str::of((string) $value)->lower()->before(',')->squish()->toString();
+
+        return self::CITY_ALIASES[$city] ?? $city;
+    }
+
+    /**
+     * Geocoded buildings indexed for address matching: by street + city, and
+     * by street alone when that street is unique in the portfolio (false
+     * marks an ambiguous street).
+     *
+     * @return array{byStreetCity: array<string, object>, byStreet: array<string, object|false>}
+     */
+    private function buildingAddressIndex(): array
+    {
+        $byStreetCity = [];
+        $byStreet = [];
+
+        DB::table('buildings')
+            ->where('active', true)
+            ->whereNotNull('latitude')
+            ->get(['address', 'city', 'latitude', 'longitude'])
+            ->each(function ($building) use (&$byStreetCity, &$byStreet) {
+                $street = $this->canonicalStreet($building->address);
+                if ($street === '') {
+                    return;
+                }
+                $byStreetCity[$street.'|'.$this->canonicalCity($building->city)] ??= $building;
+                $byStreet[$street] = array_key_exists($street, $byStreet) ? false : $building;
+            });
+
+        return ['byStreetCity' => $byStreetCity, 'byStreet' => $byStreet];
+    }
+
+    /**
+     * Match a Jobber property address to a geocoded building: street + city
+     * first, then street alone when unambiguous.
+     *
+     * @param  array{byStreetCity: array<string, object>, byStreet: array<string, object|false>}  $index
+     */
+    private function matchBuilding(array $index, ?string $street, ?string $city): ?object
+    {
+        $streetKey = $this->canonicalStreet($street);
+        if ($streetKey === '') {
+            return null;
+        }
+
+        return $index['byStreetCity'][$streetKey.'|'.$this->canonicalCity($city)]
+            ?? (($index['byStreet'][$streetKey] ?? null) ?: null);
     }
 
     /**

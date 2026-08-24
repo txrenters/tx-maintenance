@@ -304,13 +304,14 @@ class JobberSchedulerPageTest extends TestCase
             'name' => 'Cal Client',
             'jobber_web_uri' => 'https://secure.getjobber.com/clients/1',
         ]);
-        // Messy casing and spacing on purpose: address matching must be
-        // normalized (squish + lowercase) on both sides.
+        // Messy on purpose: casing, spacing, the long "Drive" suffix, a unit
+        // tail, and an embedded ", TX" — canonical matching must see through
+        // all of it to the building's "311 San Julio Dr".
         $matchedProperty = JobberProperty::query()->create([
             'jobber_id' => 'property-cal-1',
             'jobber_client_id' => $client->id,
-            'street' => ' 311  SAN JULIO DR ',
-            'city' => 'HOUSTON',
+            'street' => ' 311  SAN JULIO DRIVE # 4, TX 77091',
+            'city' => 'HOUSTON, TX',
         ]);
         $unmatchedProperty = JobberProperty::query()->create([
             'jobber_id' => 'property-cal-2',
