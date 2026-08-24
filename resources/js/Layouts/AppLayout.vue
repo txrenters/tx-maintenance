@@ -374,7 +374,7 @@ const navs = computed(() => {
                         isActive: page.url.startsWith("/visits"),
                     },
                     {
-                        title: "Scheduler",
+                        title: "Scheduler (Still developing)",
                         url: route("scheduler.index"),
                         isActive: page.url.startsWith("/scheduler"),
                     },

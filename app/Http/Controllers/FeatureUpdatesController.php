@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-25',
+            'area' => 'Jobber',
+            'title' => 'Scheduler map preview (still developing)',
+            'description' => 'A new Scheduler page under Jobs (Jobber) maps the whole portfolio: every property pinned by its real location, colored by zone, with filters for properties with open THMP work and for the Assigned - Waiting on Scheduling queue. A Calendar tab shows each month of Jobber visits colored by type (move in, move out, TBP, maintenance) — click a day to see its visits on the map, click a visit to draw its 5-mile radius and highlight the unscheduled TBPs inside it. Admins and coordinators only. Property positions fill in after the nightly geocoding run, and technician names appear as visits sync from Jobber. This page is a working preview — the scheduling automation it is built for comes later.',
+        ],
+        [
             'date' => '2026-08-21',
             'area' => 'Jobber',
             'title' => 'Tenants now get a 14-day advance notice for TBP visits',
@@ -193,6 +199,12 @@ class FeatureUpdatesController extends Controller
             'area' => 'Work Orders',
             'title' => 'Open in Jobber from every work order window',
             'description' => 'The "Open in Jobber" button now sits beside the PropertyWare button in every work order pop-up — the board, Closed, Lawn Care, Inspections, Paid, Waiting on Payment, the bell and search — and on the vendor Work Orders page for the in-house crew. It only appears on work orders assigned to Texas Home Maintenance Pros, since those are the ones with a Jobber job.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Notifications',
+            'title' => 'No more undelivered alerts for automated texts',
+            'description' => 'The bell only reports an undelivered text when a person sent it. Failed automatic messages — vendor schedule reminders, portal links, visit reminders — no longer fill the bell, and the ones already there are gone. Every send is still recorded on the work order and on the Automated Messages page.',
         ],
         [
             'date' => '2026-08-07',

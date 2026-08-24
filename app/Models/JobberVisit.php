@@ -34,6 +34,29 @@ class JobberVisit extends Model
     }
 
     /**
+     * The per-visit GraphQL selection both syncs add. One place, so the
+     * fallback below stays uniform everywhere it is used.
+     */
+    public const ASSIGNED_USERS_QUERY = 'assignedUsers(first: 10) { nodes { id name { full } } }';
+
+    /**
+     * True when a GraphQL response rejected the assignedUsers selection —
+     * the cue to retry the query without it instead of failing the sync.
+     *
+     * @param  array<string, mixed>|null  $json
+     */
+    public static function responseRejectsAssignedUsers(?array $json): bool
+    {
+        foreach (($json['errors'] ?? []) as $error) {
+            if (str_contains((string) ($error['message'] ?? ''), 'assignedUsers')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Map a visit's assignedUsers from the Jobber API payload to the
      * [{id, name}, ...] shape stored in assigned_to. Null when the visit has
      * no assignees.

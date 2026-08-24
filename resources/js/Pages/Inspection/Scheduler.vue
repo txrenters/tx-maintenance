@@ -668,7 +668,12 @@ onBeforeUnmount(() => {
             :class="viewMode === 'calendar' ? 'w-[23rem]' : 'w-[21rem]'"
         >
             <div class="flex items-baseline justify-between gap-2">
-                <h2 class="font-semibold leading-none">Scheduler</h2>
+                <h2 class="flex items-baseline gap-1.5 font-semibold leading-none">
+                    Scheduler
+                    <Badge variant="outline" class="text-[9px] font-normal">
+                        Still developing
+                    </Badge>
+                </h2>
                 <span class="text-xs text-muted-foreground">
                     {{ mappedCount }} of {{ totalProperties }} mapped
                 </span>

@@ -14,6 +14,12 @@ use Illuminate\Support\Facades\Log;
 
 class JobberWebhookController extends Controller
 {
+    /**
+     * Flips off when Jobber's schema rejects the assignedUsers selection,
+     * so one bad field never breaks webhook processing.
+     */
+    private bool $assignedUsersSupported = true;
+
     public function __construct(private JobberTokenService $tokens) {}
 
     public function handle(Request $request)
@@ -319,14 +325,7 @@ class JobberWebhookController extends Controller
                                 startAt
                                 endAt
                                 completedAt
-                                assignedUsers(first: 10) {
-                                    nodes {
-                                        id
-                                        name {
-                                            full
-                                        }
-                                    }
-                                }
+                                '.($this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '').'
                             }
                         }
                     }
@@ -346,7 +345,18 @@ class JobberWebhookController extends Controller
             return response()->json(['error' => 'Failed to fetch job details'], 500);
         }
 
-        return $response->json();
+        $json = $response->json();
+
+        // Schema safety net — retry without the assignedUsers selection
+        // rather than dropping the webhook on the floor.
+        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($json)) {
+            $this->assignedUsersSupported = false;
+            Log::warning('Jobber rejected the assignedUsers selection; fetching job details without assignees.');
+
+            return $this->getJobDetails($jobberId);
+        }
+
+        return $json;
     }
 
     public function getVisitDetails($jobberId)
@@ -361,14 +371,7 @@ class JobberWebhookController extends Controller
                     startAt
                     endAt
                     completedAt
-                    assignedUsers(first: 10) {
-                        nodes {
-                            id
-                            name {
-                                full
-                            }
-                        }
-                    }
+                    '.($this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '').'
                     job{
                         id
                         jobNumber
@@ -424,7 +427,16 @@ class JobberWebhookController extends Controller
             return;
         }
 
-        return $response->json();
+        $json = $response->json();
+
+        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($json)) {
+            $this->assignedUsersSupported = false;
+            Log::warning('Jobber rejected the assignedUsers selection; fetching visit details without assignees.');
+
+            return $this->getVisitDetails($jobberId);
+        }
+
+        return $json;
     }
 
     public function updateOrCreateClient(array $clientData): object
@@ -495,23 +507,27 @@ class JobberWebhookController extends Controller
 
     public function updateOrCreateVisit(array $visitData, object $client, object $property, object $job): void
     {
-        JobberVisit::updateOrCreate(
-            ['jobber_id' => $visitData['id']],
-            [
-                'jobber_id' => $visitData['id'],
-                'title' => $visitData['title'],
-                'visit_status' => $visitData['visitStatus'],
-                'assigned_to' => JobberVisit::assignedUsersFromApi($visitData),
-                'duration' => $visitData['duration'],
-                'instructions' => $visitData['instructions'],
-                'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
-                'end_at' => $visitData['endAt'] ? Carbon::parse($visitData['endAt'])->toDateTimeString() : null,
-                'completed_at' => $visitData['completedAt'] ? Carbon::parse($visitData['completedAt'])->toDateTimeString() : null,
-                'jobber_job_id' => $job->id,
-                'jobber_client_id' => $client->id,
-                'jobber_property_id' => $property->id,
-            ]
-        );
+        $attributes = [
+            'jobber_id' => $visitData['id'],
+            'title' => $visitData['title'],
+            'visit_status' => $visitData['visitStatus'],
+            'duration' => $visitData['duration'],
+            'instructions' => $visitData['instructions'],
+            'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
+            'end_at' => $visitData['endAt'] ? Carbon::parse($visitData['endAt'])->toDateTimeString() : null,
+            'completed_at' => $visitData['completedAt'] ? Carbon::parse($visitData['completedAt'])->toDateTimeString() : null,
+            'jobber_job_id' => $job->id,
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $property->id,
+        ];
+
+        // Only touch assignees when the payload carried them — a fallback
+        // fetch without the selection must not wipe what an earlier run wrote.
+        if (array_key_exists('assignedUsers', $visitData)) {
+            $attributes['assigned_to'] = JobberVisit::assignedUsersFromApi($visitData);
+        }
+
+        JobberVisit::updateOrCreate(['jobber_id' => $visitData['id']], $attributes);
     }
 
     public function accessTokenHeaders()

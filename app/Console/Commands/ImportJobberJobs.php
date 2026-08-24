@@ -31,6 +31,12 @@ class ImportJobberJobs extends Command
 
     private const THROTTLE_BACKOFF_SECONDS = 5;
 
+    /**
+     * Flips off for the rest of the run when Jobber's schema rejects the
+     * assignedUsers selection, so one bad field never sinks the import.
+     */
+    private bool $assignedUsersSupported = true;
+
     protected $signature = 'jobber:import-jobs';
 
     protected $description = 'Import jobs from Jobber GraphQL API';
@@ -212,23 +218,27 @@ class ImportJobberJobs extends Command
 
     public function createVisits(array $visitData, object $client, object $property, object $job): void
     {
-        JobberVisit::updateOrCreate(
-            ['jobber_id' => $visitData['id']],
-            [
-                'jobber_id' => $visitData['id'],
-                'title' => $visitData['title'],
-                'visit_status' => $visitData['visitStatus'],
-                'assigned_to' => JobberVisit::assignedUsersFromApi($visitData),
-                'duration' => $visitData['duration'],
-                'instructions' => $visitData['instructions'],
-                'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
-                'end_at' => $visitData['endAt'] ? Carbon::parse($visitData['endAt'])->toDateTimeString() : null,
-                'completed_at' => $visitData['completedAt'] ? Carbon::parse($visitData['completedAt'])->toDateTimeString() : null,
-                'jobber_job_id' => $job->id,
-                'jobber_client_id' => $client->id,
-                'jobber_property_id' => $property->id,
-            ]
-        );
+        $attributes = [
+            'jobber_id' => $visitData['id'],
+            'title' => $visitData['title'],
+            'visit_status' => $visitData['visitStatus'],
+            'duration' => $visitData['duration'],
+            'instructions' => $visitData['instructions'],
+            'start_at' => $visitData['startAt'] ? Carbon::parse($visitData['startAt'])->toDateTimeString() : null,
+            'end_at' => $visitData['endAt'] ? Carbon::parse($visitData['endAt'])->toDateTimeString() : null,
+            'completed_at' => $visitData['completedAt'] ? Carbon::parse($visitData['completedAt'])->toDateTimeString() : null,
+            'jobber_job_id' => $job->id,
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $property->id,
+        ];
+
+        // Only touch assignees when the payload carried them — a fallback
+        // fetch without the selection must not wipe what an earlier run wrote.
+        if (array_key_exists('assignedUsers', $visitData)) {
+            $attributes['assigned_to'] = JobberVisit::assignedUsersFromApi($visitData);
+        }
+
+        JobberVisit::updateOrCreate(['jobber_id' => $visitData['id']], $attributes);
     }
 
     /**
@@ -245,6 +255,7 @@ class ImportJobberJobs extends Command
     {
         $pageSize = self::PAGE_SIZE;
         $visitsPageSize = self::VISITS_PAGE_SIZE;
+        $assignedUsers = $this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '';
 
         $query = <<<GRAPHQL
         query (\$cursor: String) {
@@ -310,14 +321,7 @@ class ImportJobberJobs extends Command
                                     startAt
                                     endAt
                                     completedAt
-                                    assignedUsers(first: 10) {
-                                        nodes {
-                                            id
-                                            name {
-                                                full
-                                            }
-                                        }
-                                    }
+                                    {$assignedUsers}
                                 }
                             }
                         }
@@ -327,10 +331,22 @@ class ImportJobberJobs extends Command
         }
         GRAPHQL;
 
-        return $this->postWithThrottleRetry([
+        $response = $this->postWithThrottleRetry([
             'query' => $query,
             'variables' => ['cursor' => $cursor],
         ]);
+
+        // Schema safety net: if this Jobber API version rejects the
+        // assignedUsers selection, drop it for the rest of the run instead
+        // of failing the whole import.
+        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($response)) {
+            $this->assignedUsersSupported = false;
+            Log::warning('Jobber rejected the assignedUsers selection; importing visits without assignees.');
+
+            return $this->getJobs($cursor);
+        }
+
+        return $response;
     }
 
     /**
