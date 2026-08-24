@@ -366,7 +366,9 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertCount(2, $day);
         $this->assertSame('19989', $day[0]['job_number']);
         $this->assertEqualsWithDelta(29.8123, $day[0]['lat'], 0.000001, 'Normalized address match pins the visit.');
+        $this->assertSame('2', $day[0]['zone'], 'Zone is parsed from the job title.');
         $this->assertNull($day[1]['lat'], 'A visit with no matching building stays unpinned.');
+        $this->assertSame('1', $day[1]['zone']);
     }
 
     public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void

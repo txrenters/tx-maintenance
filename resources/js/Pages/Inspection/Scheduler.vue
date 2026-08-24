@@ -213,7 +213,27 @@ const calendarCells = computed(() => {
 const monthDays = computed(
     () => calendarData.value[calendarMonth.value] ?? {}
 );
-const dayVisits = (date) => monthDays.value[date] ?? [];
+
+// Zone filter over the month's visits. Zones come from the job titles
+// ("Zone N - ..."), colored like the property view.
+const calendarZone = ref("all");
+const zonesInMonth = computed(() => {
+    const present = new Set();
+    Object.values(monthDays.value).forEach((visits) =>
+        visits.forEach((visit) => present.add(visit.zone ?? "none"))
+    );
+    return [
+        ...ZONES.filter((z) => present.has(z.zone)).map((z) => z.zone),
+        ...(present.has("none") ? ["none"] : []),
+    ];
+});
+
+const dayVisits = (date) =>
+    (monthDays.value[date] ?? []).filter(
+        (visit) =>
+            calendarZone.value === "all" ||
+            (visit.zone ?? "none") === calendarZone.value
+    );
 const today = new Date().toISOString().slice(0, 10);
 
 const loadCalendarMonth = async () => {
@@ -245,14 +265,14 @@ const shiftMonth = (delta) => {
     loadCalendarMonth();
 };
 
-// Visit dots follow the basemap: white on the dark map, black on Voyager.
-const visitDotColor = () =>
-    document.documentElement.classList.contains("dark") ? "#ffffff" : "#111111";
-
 const clearVisitMarkers = () => {
     visitMarkers.forEach((marker) => marker.remove());
     visitMarkers = [];
 };
+
+// White outline keeps the zone-colored dots readable on the dark basemap.
+const visitDotOutline = () =>
+    document.documentElement.classList.contains("dark") ? "#ffffff" : "#111111";
 
 const selectDay = (date) => {
     selectedDay.value = date;
@@ -260,15 +280,15 @@ const selectDay = (date) => {
     if (!map || !date) {
         return;
     }
-    const color = visitDotColor();
+    const outline = visitDotOutline();
     const located = dayVisits(date).filter((visit) => visit.lat && visit.lng);
     visitMarkers = located.map((visit) =>
         L.circleMarker([visit.lat, visit.lng], {
             radius: 7,
-            color,
-            weight: 2,
-            fillColor: color,
-            fillOpacity: 0.85,
+            color: outline,
+            weight: 1.5,
+            fillColor: zoneColor(visit.zone),
+            fillOpacity: 0.95,
         })
             .bindTooltip(`#${visit.job_number} — ${visit.title}`)
             .addTo(map)
@@ -282,6 +302,13 @@ const selectDay = (date) => {
         );
     }
 };
+
+// Re-plot the selected day when the zone filter changes.
+watch(calendarZone, () => {
+    if (selectedDay.value) {
+        selectDay(selectedDay.value);
+    }
+});
 
 watch([search, propertyFilter], refreshVisibility);
 watch(viewMode, (mode) => {
@@ -593,11 +620,51 @@ onBeforeUnmount(() => {
                 </div>
 
                 <p
-                    v-if="calendarError"
+                    v-if="calendarError && Object.keys(monthDays).length === 0"
                     class="text-xs text-destructive"
                 >
                     Could not load visits for this month.
                 </p>
+
+                <div
+                    v-if="zonesInMonth.length"
+                    class="flex flex-wrap gap-1"
+                >
+                    <button
+                        type="button"
+                        class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                        :class="
+                            calendarZone === 'all'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent'
+                        "
+                        @click="calendarZone = 'all'"
+                    >
+                        All zones
+                    </button>
+                    <button
+                        v-for="zone in zonesInMonth"
+                        :key="zone"
+                        type="button"
+                        class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                        :class="
+                            calendarZone === zone
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent'
+                        "
+                        @click="calendarZone = zone"
+                    >
+                        <span
+                            class="inline-block h-2 w-2 rounded-full"
+                            :style="{
+                                backgroundColor: zoneColor(
+                                    zone === 'none' ? null : zone
+                                ),
+                            }"
+                        />
+                        {{ zone === "none" ? "No zone" : `Z${zone}` }}
+                    </button>
+                </div>
 
                 <div class="grid grid-cols-7 gap-1 text-center">
                     <span
@@ -668,6 +735,10 @@ onBeforeUnmount(() => {
                         :key="`${visit.job_number}-${visit.street}`"
                         class="rounded-md px-2 py-1.5 text-xs hover:bg-accent"
                     >
+                        <span
+                            class="mr-1 inline-block h-2 w-2 rounded-full"
+                            :style="{ backgroundColor: zoneColor(visit.zone) }"
+                        />
                         <span class="font-medium">#{{ visit.job_number }}</span>
                         <span
                             v-if="!visit.lat"

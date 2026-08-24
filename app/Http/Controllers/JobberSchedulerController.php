@@ -195,6 +195,8 @@ class JobberSchedulerController extends Controller
                     'title' => Str::limit((string) $visit->title, 90),
                     'street' => $visit->street,
                     'city' => $visit->city,
+                    // THMP encodes the zone in every job title ("Zone N - ...").
+                    'zone' => preg_match('/zone\s*(\d)/i', (string) $visit->title, $matches) === 1 ? $matches[1] : null,
                     'lat' => $building?->latitude,
                     'lng' => $building?->longitude,
                 ];
