@@ -51,7 +51,7 @@ let map = null;
 let themeObserver = null;
 
 // Light theme: CARTO Voyager (soft colors). Dark theme: CARTO Dark Matter,
-// tinted into black-with-green-streets by the CSS filter below.
+// pushed to black-with-white-streets by the CSS filter below.
 const tileUrl = () =>
     document.documentElement.classList.contains("dark")
         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
