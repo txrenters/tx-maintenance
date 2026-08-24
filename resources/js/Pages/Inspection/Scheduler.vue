@@ -48,6 +48,14 @@ const selectedId = ref(null);
 
 const mapElement = ref(null);
 let map = null;
+let themeObserver = null;
+
+// Light theme: CARTO Voyager (soft colors). Dark theme: CARTO Dark Matter,
+// tinted into black-with-green-streets by the CSS filter below.
+const tileUrl = () =>
+    document.documentElement.classList.contains("dark")
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 let pinRecords = [];
 let circleRecords = [];
 let zoneAreaRecords = [];
@@ -208,15 +216,15 @@ onMounted(() => {
     });
     L.control.zoom({ position: "bottomleft" }).addTo(map);
 
-    // CARTO Voyager: minimalist but softly colored (beige land, blue water,
-    // warm roads) — never a black map, in either app theme.
-    L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        {
-            attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        }
-    ).addTo(map);
+    const tiles = L.tileLayer(tileUrl(), {
+        attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }).addTo(map);
+    themeObserver = new MutationObserver(() => tiles.setUrl(tileUrl()));
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+    });
 
     const allPoints = [...pins, ...circles].map((point) => [
         point.lat,
@@ -348,6 +356,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    themeObserver?.disconnect();
+    themeObserver = null;
     map?.remove();
     map = null;
     pinRecords = [];
@@ -529,6 +539,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+/* Dark mode: tint Dark Matter's gray streets green — black map, glowing
+   mint roads. Light mode renders Voyager untouched. */
+.dark .scheduler-map .leaflet-tile-pane {
+    filter: sepia(1) hue-rotate(85deg) saturate(3) brightness(0.95)
+        contrast(1.05);
+}
+
 .scheduler-map .leaflet-control-zoom a {
     transition: background-color 0.15s ease;
 }
