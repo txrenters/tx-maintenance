@@ -230,9 +230,10 @@ class JobberSchedulerController extends Controller
     }
 
     /**
-     * Buildings (keyed by propertyware_id) with at least one work order
-     * assigned to the in-house vendor THMP, matched by the same trimmed
-     * case-insensitive name rule as Vendor::isThmp().
+     * Buildings (keyed by propertyware_id) with at least one CURRENTLY OPEN
+     * work order assigned to the in-house vendor THMP — same open rule as the
+     * property panel (no completed_date, status not Closed/Paid), same
+     * trimmed case-insensitive name rule as Vendor::isThmp().
      *
      * @return array<int, true>
      */
@@ -241,7 +242,12 @@ class JobberSchedulerController extends Controller
         return DB::table('work_orders as w')
             ->join('work_order_vendors as wov', 'wov.work_order_id', '=', 'w.id')
             ->join('vendors as v', 'v.id', '=', 'wov.vendor_id')
+            ->leftJoin('service_status as ss', 'ss.id', '=', 'w.service_status_id')
             ->whereRaw('LOWER(TRIM(v.name)) = ?', [Str::lower(Vendor::THMP_NAME)])
+            ->whereNull('w.completed_date')
+            ->where(function ($query) {
+                $query->whereNull('ss.name')->orWhereNotIn('ss.name', ['Closed', 'Paid']);
+            })
             ->whereNotNull('w.building_id')
             ->distinct()
             ->pluck('w.building_id')

@@ -40,7 +40,7 @@ const mappedCount = computed(() => (props.properties ?? []).length);
 const search = ref("");
 // "property" = one pin per property; "zone" = one territory per zone.
 const viewMode = ref("property");
-// false = every property; true = only buildings with a THMP work order.
+// false = every property; true = only buildings with an OPEN THMP work order.
 const thmpOnly = ref(false);
 
 const thmpCount = computed(
@@ -440,7 +440,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                     type="button"
-                    :title="`Only buildings with a THMP work order (${thmpCount})`"
+                    :title="`Only buildings with an open THMP work order (${thmpCount})`"
                     class="flex-1 rounded px-2 py-1 text-xs transition-colors"
                     :class="
                         thmpOnly

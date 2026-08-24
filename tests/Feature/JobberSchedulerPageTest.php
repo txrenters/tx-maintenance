@@ -139,6 +139,16 @@ class JobberSchedulerPageTest extends TestCase
         ]);
         $ownZoneOrders->first()->vendors()->attach($thmp->id);
 
+        // THMP on a COMPLETED work order must not flag the building — the
+        // filter means "currently open THMP work", not "THMP ever worked
+        // here". Zone '0' keeps this row out of the zone maps.
+        $completed = WorkOrder::factory()->create([
+            'building_id' => 998812,
+            'zone' => '0',
+            'completed_date' => '2026-07-01 00:00:00',
+        ]);
+        $completed->vendors()->attach($thmp->id);
+
         Building::query()->create([
             'propertyware_id' => 998812,
             'name' => 'City Zone House',
@@ -191,8 +201,8 @@ class JobberSchedulerPageTest extends TestCase
                 $this->assertSame('2', $inherited['zone'], 'A building without zoned work orders inherits the city zone.');
 
                 $own = $properties->firstWhere('name', 'Own Zone House');
-                $this->assertTrue($own['thmp'], 'A building with a THMP work order is flagged.');
-                $this->assertFalse($inherited['thmp'], 'A building without THMP work orders is not flagged.');
+                $this->assertTrue($own['thmp'], 'A building with an open THMP work order is flagged.');
+                $this->assertFalse($inherited['thmp'], 'A completed THMP work order must not flag the building.');
 
                 $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
                 $this->assertSame(3, $cypress['properties']);
