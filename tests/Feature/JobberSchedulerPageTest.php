@@ -352,6 +352,16 @@ class JobberSchedulerPageTest extends TestCase
             'jobber_client_id' => $client->id,
             'jobber_property_id' => $matchedProperty->id,
         ]);
+        // LAST year's "Q3" — no year in the title and created 2025. Prod
+        // holds hundreds of these dead jobs; the creation date keeps them out.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-5',
+            'job_number' => '14271',
+            'title' => 'Zone 4 - Q3 TBP Pest Control',
+            'created_at_jobber' => '2025-06-15 00:00:00',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
 
         foreach ([
             ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00', [['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']]],
@@ -398,7 +408,7 @@ class JobberSchedulerPageTest extends TestCase
 
         $this->assertSame('Q3', $response['tbp_quarter']);
         $backlog = collect($response['tbp_backlog']);
-        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one.');
+        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one, not last year\'s yearless "Q3".');
         $this->assertEqualsWithDelta(29.8123, $backlog->first()['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
     }
 

@@ -201,9 +201,13 @@ class JobberSchedulerController extends Controller
         // The TBP backlog: this quarter's Tenant Benefit Package jobs with no
         // dated visit. The boss's fill rule anchors on these — inspectors get
         // the current quarter's TBPs within 5 miles of their move in / move
-        // out inspections. A job titled for a different quarter is excluded;
-        // TBP titles with no quarter marking stay in.
+        // out inspections. Titles often say "Q3" with no year, so the year is
+        // proven by the title carrying "Q3 2026" or by the job having been
+        // created inside the current quarter — prod holds hundreds of dead
+        // "Q3" jobs from 2024/2025 that would otherwise slip in.
         $currentQuarter = (string) now()->quarter;
+        $currentQuarterLabel = 'q'.$currentQuarter.' '.now()->year;
+        $quarterStart = now()->startOfQuarter()->toDateTimeString();
         $tbpBacklog = [];
         DB::table('jobber_jobs as j')
             ->leftJoin('jobber_properties as p', 'p.id', '=', 'j.jobber_property_id')
@@ -218,9 +222,13 @@ class JobberSchedulerController extends Controller
                     ->whereColumn('v.jobber_job_id', 'j.id')
                     ->whereNotNull('v.start_at');
             })
-            ->get(['j.job_number', 'j.title', 'p.street', 'p.city'])
-            ->each(function ($job) use (&$tbpBacklog, $index, $currentQuarter) {
+            ->get(['j.job_number', 'j.title', 'j.created_at_jobber', 'p.street', 'p.city'])
+            ->each(function ($job) use (&$tbpBacklog, $index, $currentQuarter, $currentQuarterLabel, $quarterStart) {
                 if (preg_match('/q([1-4])/i', (string) $job->title, $matches) === 1 && $matches[1] !== $currentQuarter) {
+                    return;
+                }
+                $titleProvesYear = stripos((string) $job->title, $currentQuarterLabel) !== false;
+                if (! $titleProvesYear && (string) $job->created_at_jobber < $quarterStart) {
                     return;
                 }
                 $building = $this->matchBuilding($index, $job->street, $job->city);
