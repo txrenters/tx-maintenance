@@ -48,14 +48,6 @@ const selectedId = ref(null);
 
 const mapElement = ref(null);
 let map = null;
-let themeObserver = null;
-
-// CARTO's minimalist basemaps (Positron / Dark Matter), following the app's
-// light/dark theme.
-const tileUrl = () =>
-    document.documentElement.classList.contains("dark")
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 let pinRecords = [];
 let circleRecords = [];
 let zoneAreaRecords = [];
@@ -216,15 +208,15 @@ onMounted(() => {
     });
     L.control.zoom({ position: "bottomleft" }).addTo(map);
 
-    const tiles = L.tileLayer(tileUrl(), {
-        attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    }).addTo(map);
-    themeObserver = new MutationObserver(() => tiles.setUrl(tileUrl()));
-    themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["class"],
-    });
+    // CARTO Voyager: minimalist but softly colored (beige land, blue water,
+    // warm roads) — never a black map, in either app theme.
+    L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        {
+            attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        }
+    ).addTo(map);
 
     const allPoints = [...pins, ...circles].map((point) => [
         point.lat,
@@ -356,8 +348,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    themeObserver?.disconnect();
-    themeObserver = null;
     map?.remove();
     map = null;
     pinRecords = [];
