@@ -195,6 +195,7 @@ Route::middleware([
     Route::get('/scheduler/properties/{propertywareId}', [JobberSchedulerController::class, 'property'])
         ->whereNumber('propertywareId')
         ->name('scheduler.property');
+    Route::get('/scheduler/visits', [JobberSchedulerController::class, 'visits'])->name('scheduler.visits');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');

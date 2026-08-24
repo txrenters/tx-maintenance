@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Building;
+use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
+use App\Models\JobberVisit;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -281,6 +285,88 @@ class JobberSchedulerPageTest extends TestCase
 
                 return $page->component('Inspection/Scheduler');
             });
+    }
+
+    public function test_calendar_visits_are_grouped_by_day_and_matched_to_buildings(): void
+    {
+        Building::query()->create([
+            'propertyware_id' => 998831,
+            'name' => 'Visit House',
+            'address' => '311 San Julio Dr',
+            'city' => 'Houston',
+            'active' => true,
+            'latitude' => 29.8123,
+            'longitude' => -95.4321,
+        ]);
+
+        $client = JobberClient::query()->create([
+            'jobber_id' => 'client-cal-1',
+            'name' => 'Cal Client',
+            'jobber_web_uri' => 'https://secure.getjobber.com/clients/1',
+        ]);
+        // Messy casing and spacing on purpose: address matching must be
+        // normalized (squish + lowercase) on both sides.
+        $matchedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-1',
+            'jobber_client_id' => $client->id,
+            'street' => ' 311  SAN JULIO DR ',
+            'city' => 'HOUSTON',
+        ]);
+        $unmatchedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-2',
+            'jobber_client_id' => $client->id,
+            'street' => '999 Nowhere Ln',
+            'city' => 'Houston',
+        ]);
+
+        $matchedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-1',
+            'job_number' => '19989',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+        $unmatchedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-2',
+            'job_number' => '20001',
+            'title' => 'Zone 1 - General Maintenance',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $unmatchedProperty->id,
+        ]);
+
+        foreach ([
+            ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00'],
+            ['visit-cal-2', $unmatchedJob, $unmatchedProperty, '2026-08-24 13:00:00'],
+            ['visit-cal-3', $matchedJob, $matchedProperty, '2026-09-02 09:00:00'],
+        ] as [$gid, $job, $property, $startAt]) {
+            JobberVisit::query()->create([
+                'jobber_id' => $gid,
+                'jobber_job_id' => $job->id,
+                'jobber_client_id' => $client->id,
+                'jobber_property_id' => $property->id,
+                'start_at' => $startAt,
+            ]);
+        }
+
+        $vendor = User::factory()->create()->assignRole('vendor');
+        $this->actingAs($vendor)->getJson('/scheduler/visits?month=2026-08')->assertForbidden();
+
+        $admin = User::factory()->create()->assignRole('admin');
+        $this->actingAs($admin)->getJson('/scheduler/visits?month=2026-8')->assertStatus(422);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/scheduler/visits?month=2026-08')
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('2026-08', $response['month']);
+        $this->assertArrayNotHasKey('2026-09-02', $response['days'], 'Only the requested month is returned.');
+
+        $day = $response['days']['2026-08-24'];
+        $this->assertCount(2, $day);
+        $this->assertSame('19989', $day[0]['job_number']);
+        $this->assertEqualsWithDelta(29.8123, $day[0]['lat'], 0.000001, 'Normalized address match pins the visit.');
+        $this->assertNull($day[1]['lat'], 'A visit with no matching building stays unpinned.');
     }
 
     public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void

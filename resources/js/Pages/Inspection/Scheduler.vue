@@ -38,8 +38,14 @@ const totalProperties = computed(() =>
 const mappedCount = computed(() => (props.properties ?? []).length);
 
 const search = ref("");
-// "property" = one pin per property; "zone" = one territory per zone.
+// "property" = one pin per property; "zone" = one territory per zone;
+// "calendar" = month of Jobber visits, day click pins them on the map.
 const viewMode = ref("property");
+const VIEW_MODES = [
+    { key: "property", label: "By property" },
+    { key: "zone", label: "By zone" },
+    { key: "calendar", label: "Calendar" },
+];
 // Which properties to show: "all", "thmp" (an open THMP work order), or
 // "unscheduled" (an open work order with no service schedule yet).
 const propertyFilter = ref("all");
@@ -150,6 +156,7 @@ const refreshVisibility = () => {
         return;
     }
     const propertyMode = viewMode.value === "property";
+    const zoneMode = viewMode.value === "zone";
     const setShown = (layer, show) => {
         if (show && !map.hasLayer(layer)) {
             layer.addTo(map);
@@ -162,15 +169,129 @@ const refreshVisibility = () => {
     });
     zoneAreaRecords.forEach((record) => {
         record.layers.forEach((layer) => {
-            setShown(layer, !propertyMode);
+            setShown(layer, zoneMode);
         });
     });
 };
 
+// ---- Calendar tab: a month of Jobber visits -------------------------------
+
+const calendarMonth = ref(new Date().toISOString().slice(0, 7));
+const calendarData = ref({}); // "YYYY-MM" -> { "YYYY-MM-DD": [visit, ...] }
+const calendarLoading = ref(false);
+const calendarError = ref(false);
+const selectedDay = ref(null);
+let visitMarkers = [];
+
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+const monthLabel = computed(() => {
+    const [year, month] = calendarMonth.value.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+    });
+});
+
+// Sunday-first grid; leading nulls pad the first week.
+const calendarCells = computed(() => {
+    const [year, month] = calendarMonth.value.split("-").map(Number);
+    const cells = Array.from(
+        { length: new Date(Date.UTC(year, month - 1, 1)).getUTCDay() },
+        () => null
+    );
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+        cells.push(
+            `${calendarMonth.value}-${String(day).padStart(2, "0")}`
+        );
+    }
+    return cells;
+});
+
+const monthDays = computed(
+    () => calendarData.value[calendarMonth.value] ?? {}
+);
+const dayVisits = (date) => monthDays.value[date] ?? [];
+const today = new Date().toISOString().slice(0, 10);
+
+const loadCalendarMonth = async () => {
+    if (calendarData.value[calendarMonth.value]) {
+        return;
+    }
+    calendarLoading.value = true;
+    calendarError.value = false;
+    try {
+        const { data } = await axios.get(route("scheduler.visits"), {
+            params: { month: calendarMonth.value },
+        });
+        calendarData.value = {
+            ...calendarData.value,
+            [data.month]: data.days,
+        };
+    } catch (error) {
+        calendarError.value = true;
+    } finally {
+        calendarLoading.value = false;
+    }
+};
+
+const shiftMonth = (delta) => {
+    const [year, month] = calendarMonth.value.split("-").map(Number);
+    const shifted = new Date(Date.UTC(year, month - 1 + delta, 1));
+    calendarMonth.value = shifted.toISOString().slice(0, 7);
+    selectDay(null);
+    loadCalendarMonth();
+};
+
+// Visit dots follow the basemap: white on the dark map, black on Voyager.
+const visitDotColor = () =>
+    document.documentElement.classList.contains("dark") ? "#ffffff" : "#111111";
+
+const clearVisitMarkers = () => {
+    visitMarkers.forEach((marker) => marker.remove());
+    visitMarkers = [];
+};
+
+const selectDay = (date) => {
+    selectedDay.value = date;
+    clearVisitMarkers();
+    if (!map || !date) {
+        return;
+    }
+    const color = visitDotColor();
+    const located = dayVisits(date).filter((visit) => visit.lat && visit.lng);
+    visitMarkers = located.map((visit) =>
+        L.circleMarker([visit.lat, visit.lng], {
+            radius: 7,
+            color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.85,
+        })
+            .bindTooltip(`#${visit.job_number} — ${visit.title}`)
+            .addTo(map)
+    );
+    if (located.length > 0) {
+        map.fitBounds(
+            L.latLngBounds(located.map((visit) => [visit.lat, visit.lng])).pad(
+                0.25
+            ),
+            { paddingTopLeft: [380, 24], paddingBottomRight: [24, 24] }
+        );
+    }
+};
+
 watch([search, propertyFilter], refreshVisibility);
 watch(viewMode, (mode) => {
-    if (mode === "zone") {
+    if (mode !== "property") {
         clearSelection();
+    }
+    if (mode === "calendar") {
+        loadCalendarMonth();
+    } else {
+        selectDay(null);
     }
     refreshVisibility();
 });
@@ -388,6 +509,7 @@ onBeforeUnmount(() => {
     zoneAreaRecords = [];
     radiusCircle = null;
     pulseMarker = null;
+    visitMarkers = [];
 });
 </script>
 
@@ -401,7 +523,8 @@ onBeforeUnmount(() => {
 
         <!-- Floating search + zone filter card -->
         <div
-            class="scheduler-drop absolute left-4 top-4 z-[1001] w-[21rem] max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border bg-background/90 p-3 shadow-lg backdrop-blur"
+            class="scheduler-drop absolute left-4 top-4 z-[1001] max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border bg-background/90 p-3 shadow-lg backdrop-blur"
+            :class="viewMode === 'calendar' ? 'w-[23rem]' : 'w-[21rem]'"
         >
             <div class="flex items-baseline justify-between gap-2">
                 <h2 class="font-semibold leading-none">Scheduler</h2>
@@ -411,28 +534,18 @@ onBeforeUnmount(() => {
             </div>
             <div class="flex rounded-md border p-0.5">
                 <button
+                    v-for="mode in VIEW_MODES"
+                    :key="mode.key"
                     type="button"
                     class="flex-1 rounded px-2 py-1 text-xs transition-colors"
                     :class="
-                        viewMode === 'property'
+                        viewMode === mode.key
                             ? 'bg-primary text-primary-foreground'
                             : 'text-muted-foreground hover:bg-accent'
                     "
-                    @click="viewMode = 'property'"
+                    @click="viewMode = mode.key"
                 >
-                    By property
-                </button>
-                <button
-                    type="button"
-                    class="flex-1 rounded px-2 py-1 text-xs transition-colors"
-                    :class="
-                        viewMode === 'zone'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:bg-accent'
-                    "
-                    @click="viewMode = 'zone'"
-                >
-                    By zone
+                    {{ mode.label }}
                 </button>
             </div>
             <div v-if="viewMode === 'property'" class="flex rounded-md border p-0.5">
@@ -458,6 +571,117 @@ onBeforeUnmount(() => {
                 placeholder="Search property, address or city..."
                 class="h-8"
             />
+
+            <!-- Full-month Jobber visit calendar -->
+            <template v-if="viewMode === 'calendar'">
+                <div class="flex items-center justify-between">
+                    <button
+                        type="button"
+                        class="rounded px-2 py-0.5 text-sm text-muted-foreground hover:bg-accent"
+                        @click="shiftMonth(-1)"
+                    >
+                        ‹
+                    </button>
+                    <span class="text-sm font-medium">{{ monthLabel }}</span>
+                    <button
+                        type="button"
+                        class="rounded px-2 py-0.5 text-sm text-muted-foreground hover:bg-accent"
+                        @click="shiftMonth(1)"
+                    >
+                        ›
+                    </button>
+                </div>
+
+                <p
+                    v-if="calendarError"
+                    class="text-xs text-destructive"
+                >
+                    Could not load visits for this month.
+                </p>
+
+                <div class="grid grid-cols-7 gap-1 text-center">
+                    <span
+                        v-for="weekday in WEEKDAYS"
+                        :key="weekday"
+                        class="text-[10px] font-medium uppercase text-muted-foreground"
+                    >
+                        {{ weekday }}
+                    </span>
+                    <template v-for="(cell, index) in calendarCells" :key="index">
+                        <span v-if="cell === null" />
+                        <button
+                            v-else
+                            type="button"
+                            class="relative rounded-md py-1.5 text-xs transition-colors"
+                            :class="[
+                                selectedDay === cell
+                                    ? 'bg-primary text-primary-foreground'
+                                    : dayVisits(cell).length
+                                      ? 'font-medium hover:bg-accent'
+                                      : 'text-muted-foreground hover:bg-accent',
+                                cell === today && selectedDay !== cell
+                                    ? 'ring-1 ring-foreground/40'
+                                    : '',
+                            ]"
+                            @click="selectDay(selectedDay === cell ? null : cell)"
+                        >
+                            {{ Number(cell.slice(8)) }}
+                            <span
+                                v-if="dayVisits(cell).length"
+                                class="absolute inset-x-0 -bottom-0.5 text-[9px] leading-none"
+                                :class="
+                                    selectedDay === cell
+                                        ? 'text-primary-foreground/80'
+                                        : 'text-muted-foreground'
+                                "
+                            >
+                                {{ dayVisits(cell).length }}
+                            </span>
+                        </button>
+                    </template>
+                </div>
+
+                <div
+                    v-if="calendarLoading"
+                    class="flex justify-center py-2"
+                >
+                    <Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+
+                <div
+                    v-if="selectedDay"
+                    class="max-h-56 space-y-1 overflow-y-auto border-t pt-2"
+                >
+                    <p class="px-1 text-xs text-muted-foreground">
+                        {{ dayVisits(selectedDay).length }}
+                        {{ dayVisits(selectedDay).length === 1 ? "visit" : "visits" }}
+                        on {{ selectedDay }} — dots on the map
+                    </p>
+                    <p
+                        v-if="dayVisits(selectedDay).length === 0"
+                        class="px-1 text-xs text-muted-foreground"
+                    >
+                        No visits booked this day.
+                    </p>
+                    <div
+                        v-for="visit in dayVisits(selectedDay)"
+                        :key="`${visit.job_number}-${visit.street}`"
+                        class="rounded-md px-2 py-1.5 text-xs hover:bg-accent"
+                    >
+                        <span class="font-medium">#{{ visit.job_number }}</span>
+                        <span
+                            v-if="!visit.lat"
+                            class="ml-1 text-[10px] text-muted-foreground"
+                            title="No geocoded building matches this Jobber property address"
+                        >
+                            (not on map)
+                        </span>
+                        <p class="text-muted-foreground line-clamp-1">
+                            {{ visit.title }}
+                        </p>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <!-- Floating property panel -->

@@ -152,6 +152,58 @@ class JobberSchedulerController extends Controller
     }
 
     /**
+     * One month of Jobber visits for the calendar tab, grouped by day.
+     * Visits are pinned on the map when the Jobber property address matches
+     * a geocoded building (normalized street + city); unmatched visits still
+     * appear in the day list, just without coordinates.
+     */
+    public function visits(Request $request): JsonResponse
+    {
+        abort_unless((bool) $request->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        $month = (string) $request->query('month', now()->format('Y-m'));
+        abort_unless(preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month) === 1, 422);
+
+        $start = $month.'-01 00:00:00';
+        $end = date('Y-m-01 00:00:00', strtotime($start.' +1 month'));
+
+        $normalize = fn (?string $value): string => Str::of((string) $value)->squish()->lower()->toString();
+
+        $buildingsByAddress = [];
+        DB::table('buildings')
+            ->where('active', true)
+            ->whereNotNull('latitude')
+            ->get(['address', 'city', 'latitude', 'longitude'])
+            ->each(function ($building) use (&$buildingsByAddress, $normalize) {
+                $key = $normalize($building->address).'|'.$normalize($building->city);
+                $buildingsByAddress[$key] ??= $building;
+            });
+
+        $days = [];
+        DB::table('jobber_visits as v')
+            ->join('jobber_jobs as j', 'j.id', '=', 'v.jobber_job_id')
+            ->leftJoin('jobber_properties as p', 'p.id', '=', 'v.jobber_property_id')
+            ->whereNotNull('v.start_at')
+            ->where('v.start_at', '>=', $start)
+            ->where('v.start_at', '<', $end)
+            ->orderBy('v.start_at')
+            ->get(['v.start_at', 'j.job_number', 'j.title', 'p.street', 'p.city'])
+            ->each(function ($visit) use (&$days, $buildingsByAddress, $normalize) {
+                $building = $buildingsByAddress[$normalize($visit->street).'|'.$normalize($visit->city)] ?? null;
+                $days[substr((string) $visit->start_at, 0, 10)][] = [
+                    'job_number' => $visit->job_number,
+                    'title' => Str::limit((string) $visit->title, 90),
+                    'street' => $visit->street,
+                    'city' => $visit->city,
+                    'lat' => $building?->latitude,
+                    'lng' => $building?->longitude,
+                ];
+            });
+
+        return response()->json(['month' => $month, 'days' => $days]);
+    }
+
+    /**
      * @return list<array{name: string, properties: int, ungeocoded: int, zone: string|null, lat: float|null, lng: float|null}>
      */
     private function coverageCities(): array
