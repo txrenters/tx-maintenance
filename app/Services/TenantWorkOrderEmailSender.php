@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\TenantEmailNotification;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
@@ -55,6 +56,10 @@ class TenantWorkOrderEmailSender
                 return false;
             }
 
+            if ($this->alreadySent($workOrder)) {
+                return false;
+            }
+
             $html = View::make('emails.tenant-work-order-intake', [
                 'workOrder' => $workOrder,
                 'tenantName' => trim((string) ($tenant->first_name ?? '')),
@@ -95,6 +100,20 @@ class TenantWorkOrderEmailSender
 
             return false;
         }
+    }
+
+    /**
+     * Whether this work order's intake email already went out. Unlike the SMS
+     * twin there is no one-shot stamp column, so the sent-mail record is the
+     * guard: intake is re-run when a lease-less work order gains its lease
+     * (WorkOrderLeaseService), and the tenant must not get the email twice.
+     */
+    private function alreadySent(WorkOrder $workOrder): bool
+    {
+        return TenantEmailNotification::query()
+            ->where('metadata->type', 'work_order_intake')
+            ->where('metadata->work_order_id', $workOrder->id)
+            ->exists();
     }
 
     /**

@@ -86,6 +86,7 @@ import {
     HammerIcon,
     FileIcon,
     FilePenIcon,
+    FileWarningIcon,
     WrenchIcon,
     Briefcase,
     Search,
@@ -1654,6 +1655,9 @@ onUnmounted(() => {
                                                             'bg-orange-500':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
+                                                            'bg-amber-500':
+                                                                notification.event ===
+                                                                'work_order_lease_missing',
                                                         }"
                                                     ></div>
 
@@ -1680,6 +1684,9 @@ onUnmounted(() => {
                                                             'bg-orange-100 text-orange-600':
                                                                 notification.event ===
                                                                 'work_order_description_updated',
+                                                            'bg-amber-100 text-amber-600':
+                                                                notification.event ===
+                                                                'work_order_lease_missing',
                                                         }"
                                                     >
                                                         <WrenchIcon
@@ -1719,6 +1726,13 @@ onUnmounted(() => {
                                                             v-else-if="
                                                                 notification.event ===
                                                                 'work_order_description_updated'
+                                                            "
+                                                        />
+                                                        <FileWarningIcon
+                                                            class="w-4 h-4"
+                                                            v-else-if="
+                                                                notification.event ===
+                                                                'work_order_lease_missing'
                                                             "
                                                         />
                                                         <Bell

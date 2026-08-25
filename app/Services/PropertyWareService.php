@@ -1024,6 +1024,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                        '.$this->sourceElement($workOrder).'
                         '.$vendorIDsXml.'
                     </workOrder>
                     </ser:updateWorkOrder>
@@ -1053,6 +1054,12 @@ class PropertyWareService
             $this->approvedWorkOrder($workOrder);
         }
 
+        // PropertyWare attaches a website request's lease on the work order's
+        // next save - the save this call just made. Pull it now so the
+        // automated tenant messages that follow an assignment do not run
+        // against the stale "no lease" the import captured.
+        $this->refreshLeaseAfterSave($workOrder);
+
         // When THMP is among the assigned vendors, create the matching Jobber
         // job and store its link on the work order. Queued + gated + idempotent,
         // so this is safe to fire on every vendor change. Replaces the previous
@@ -1066,6 +1073,87 @@ class PropertyWareService
         ]);
 
         return true;
+    }
+
+    /**
+     * The work order's Source for the updateWorkOrder payloads. PropertyWare
+     * resets a picklist the payload leaves out: work orders synced through
+     * these calls came back with Source flipped from "Website" to "None"
+     * (WO#43937 and #43931, 2026-08-25), erasing how the request came in.
+     * Empty when nothing is on file, so a blank never overwrites a value.
+     */
+    private function sourceElement($workOrder): string
+    {
+        $source = trim((string) ($workOrder->source ?? ''));
+
+        if ($source === '') {
+            return '';
+        }
+
+        return '<source xsi:type="xsd:string">'.htmlspecialchars($source, ENT_XML1, 'UTF-8').'</source>';
+    }
+
+    /**
+     * Re-read the lease PropertyWare holds on a lease-less work order right
+     * after a save, store it, and hand a newly arrived lease to
+     * WorkOrderLeaseService so the muted intake messages go out. Log-never-
+     * throw: the vendor sync that calls this has already succeeded.
+     */
+    private function refreshLeaseAfterSave($workOrder): void
+    {
+        try {
+            if (! $workOrder instanceof WorkOrder || $workOrder->lease_id !== null || blank($workOrder->work_order_no)) {
+                return;
+            }
+
+            $leaseId = $this->fetchLeaseId($workOrder->work_order_no);
+
+            if ($leaseId === null) {
+                return;
+            }
+
+            // Query-builder write: no model events, no global scope, and the
+            // caller's transaction (if any) still owns the commit.
+            WorkOrder::withoutGlobalScopes()->whereKey($workOrder->id)->update(['lease_id' => $leaseId]);
+            $workOrder->lease_id = $leaseId;
+            $workOrder->syncOriginalAttribute('lease_id');
+
+            app(WorkOrderLeaseService::class)->handleArrival($workOrder, 'vendor_assignment');
+        } catch (Throwable $exception) {
+            Log::warning('Lease refresh after PropertyWare save failed.', [
+                'work_order_id' => $workOrder->id ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The lease ID PropertyWare currently holds on a work order, by number.
+     * Null when the work order carries no lease or the lookup fails.
+     */
+    public function fetchLeaseId(int|string $workOrderNo): ?int
+    {
+        $result = $this->getWorkOrderByNumber($workOrderNo);
+
+        if (! is_array($result)) {
+            return null;
+        }
+
+        $rows = isset($result['number']) ? [$result] : $result;
+
+        foreach ($rows as $row) {
+            $row = (array) $row;
+
+            if ((string) ($row['number'] ?? '') !== (string) $workOrderNo) {
+                continue;
+            }
+
+            $leaseId = $row['lease']['ID'] ?? null;
+
+            return filled($leaseId) ? (int) $leaseId : null;
+        }
+
+        return null;
     }
 
     public function addVendorNotes($notes)
@@ -1475,6 +1563,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.$category.'</category>
                         <description xsi:type="xsd:string">'.$description.'</description>
                         <type xsi:type="xsd:string">'.$type.'</type>
+                        '.$this->sourceElement($workOrder).'
                     </workOrder>
                 </ser:updateWorkOrder>
                 </soapenv:Body>
