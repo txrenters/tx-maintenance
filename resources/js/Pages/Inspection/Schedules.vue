@@ -5,6 +5,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import SearchBar from "@/Components/SearchBar.vue";
 import Navigation from "./partials/Navigation.vue";
 import MessageCard from "@/Components/MessageCard.vue";
+import TbpVisitNoticeDialog from "@/Components/TbpVisitNoticeDialog.vue";
 import { router, usePage, Head } from "@inertiajs/vue3";
 import debounce from "lodash.debounce";
 import { useEchoPublic } from "@laravel/echo-vue";
@@ -416,6 +417,25 @@ const customePhoneNumber = ref("");
 const selectedContact = ref("");
 const contactPhoneNumber = ref("");
 const jobContacts = ref([]);
+
+// "Send notification": the canned TBP visit notice, offered on Tenant Benefit
+// Package visits for when the automated reminders did not reach the tenant.
+const noticeVisit = ref(null);
+
+const isTbpVisit = (event) =>
+    /tenant benefit|tbp/i.test(`${event?.title ?? ""} ${event?.job?.title ?? ""}`);
+
+const openNoticeDialog = () => {
+    if (selectedEvent.value) {
+        noticeVisit.value = selectedEvent.value;
+    }
+};
+
+const onNoticeSent = () => {
+    if (selectedEvent.value?.id) {
+        fetchJobMessages(selectedEvent.value.id);
+    }
+};
 
 const tabButtons = [
     {
@@ -1344,6 +1364,14 @@ onMounted(() => {
                     Close
                 </Button>
                 <Button
+                    v-if="isTbpVisit(selectedEvent)"
+                    variant="secondary"
+                    title="Text the TBP visit notice for this date to the tenant"
+                    @click="openNoticeDialog"
+                >
+                    <Send class="h-4 w-4" /> Send notification
+                </Button>
+                <Button
                     v-if="
                         selectedEvent?.job.jobber_web_uri || selectedEvent?.id
                     "
@@ -1356,6 +1384,12 @@ onMounted(() => {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    <TbpVisitNoticeDialog
+        v-model:visit="noticeVisit"
+        :sender-number="senderPhoneNumber || ''"
+        @sent="onNoticeSent"
+    />
 </template>
 
 <style scoped>

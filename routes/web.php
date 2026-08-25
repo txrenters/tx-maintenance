@@ -49,6 +49,7 @@ use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\Settings\DesktopNotificationController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
+use App\Http\Controllers\TbpVisitNoticeController;
 use App\Http\Controllers\TenantEmailController;
 use App\Http\Controllers\TenantPortalController;
 use App\Http\Controllers\TenantsController;
@@ -189,6 +190,12 @@ Route::middleware([
     Route::get('/whats-new', [FeatureUpdatesController::class, 'index'])->name('whats-new');
     Route::get('/visits', [InspectionVisitController::class, 'index'])->name('visits.index');
     Route::get('/visits/{visit}/details', [InspectionVisitController::class, 'visitDetails'])->name('visits.details');
+
+    // The "Send notification" button on a TBP visit: the canned visit notice
+    // with the date filled in plus suggested recipients. Admin + WOC,
+    // enforced in the controller. The send itself goes through
+    // jobber-text-messages.store below.
+    Route::get('/visits/{visit}/tbp-notice', [TbpVisitNoticeController::class, 'show'])->name('visits.tbp_notice');
 
     // Coverage map + property panel. Admin + WOC, enforced in the controller.
     Route::get('/scheduler', [JobberSchedulerController::class, 'index'])->name('scheduler.index');
