@@ -21,7 +21,7 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
-            'date' => '2026-08-25',
+            'date' => '2026-08-26',
             'area' => 'Work Orders',
             'title' => 'Notes added on the dashboard no longer disappear, and are private',
             'description' => 'Notes typed on a work order\'s Notes tab were being wiped by the PropertyWare sync a few minutes after they were saved, even though the screen had said "Success". The sync now only refreshes PropertyWare\'s own notes and leaves dashboard notes alone, so a technician\'s repair, diagnosis and visit notes stay put with their author and real date. Every note added here is now saved to PropertyWare as Private (internal only, hidden from the tenant and owner portals) and is hidden from tenant and owner logins on the dashboard too. If PropertyWare does not accept a note when it is added, the note is still kept on the dashboard and you get a "Saved here only" message instead of "Success". Notes that came from PropertyWare can no longer be deleted here (they would only come back at the next sync) — remove those in PropertyWare.',
