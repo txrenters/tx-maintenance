@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
 use App\Models\JobberToken;
 use App\Models\JobberVisit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,6 +94,7 @@ class JobberImportJobsTest extends TestCase
                     'province' => 'TX',
                     'postalCode' => '78701',
                     'country' => 'USA',
+                    'coordinates' => ['latitude' => 30.2672, 'longitude' => -97.7431],
                 ],
             ],
             'visits' => [
@@ -106,10 +109,87 @@ class JobberImportJobsTest extends TestCase
                         'startAt' => null,
                         'endAt' => null,
                         'completedAt' => null,
+                        'assignedUsers' => ['nodes' => [
+                            ['id' => 'gid://Jobber/User/42', 'name' => ['full' => 'Jimmie Gendke']],
+                        ]],
                     ]],
                 ],
             ],
         ], $overrides);
+    }
+
+    public function test_the_page_query_asks_for_assignees_and_coordinates_and_stores_them(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        Http::assertSent(function ($request) {
+            $query = $request->data()['query'];
+
+            return str_contains($query, 'assignedUsers(first: 10)')
+                && str_contains($query, 'coordinates { latitude longitude }');
+        });
+
+        $property = JobberProperty::query()->where('jobber_id', 'property-job-1')->firstOrFail();
+        $this->assertEqualsWithDelta(30.2672, $property->latitude, 0.000001, 'Jobber\'s own coordinates are kept for the map.');
+        $this->assertEqualsWithDelta(-97.7431, $property->longitude, 0.000001);
+
+        $visit = JobberVisit::query()->where('jobber_id', 'visit-job-1')->firstOrFail();
+        $this->assertSame([['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']], $visit->assigned_to);
+    }
+
+    public function test_a_rejected_optional_field_is_dropped_and_the_page_asked_for_again(): void
+    {
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push(['errors' => [['message' => "Field 'coordinates' doesn't exist on type 'PropertyAddress'"]]])
+            ->push($this->jobsPage());
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        $queries = Http::recorded()->map(fn (array $pair) => $pair[0]->data()['query']);
+        $this->assertCount(2, $queries);
+        $this->assertStringContainsString('coordinates {', $queries[0]);
+        $this->assertStringNotContainsString('coordinates', $queries[1], 'The retry leaves the rejected field out.');
+        $this->assertStringContainsString('assignedUsers(first: 10)', $queries[1], 'Other optional fields stay in.');
+
+        $this->assertSame(2, Jobber::query()->count(), 'The page still imports in full.');
+        $this->assertNotNull(JobberVisit::query()->where('jobber_id', 'visit-job-1')->firstOrFail()->assigned_to);
+    }
+
+    public function test_a_fallback_fetch_without_coordinates_keeps_the_ones_already_stored(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
+            'data' => [
+                'jobs' => [
+                    'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                    'edges' => [['node' => $this->jobNode('job-1', 19484, [
+                        'property' => [
+                            'id' => 'property-job-1',
+                            'isBillingAddress' => false,
+                            'jobberWebUri' => 'https://secure.getjobber.com/properties/1',
+                            'address' => ['street' => '123 Main St', 'city' => 'Austin', 'province' => 'TX', 'postalCode' => '78701', 'country' => 'USA'],
+                        ],
+                    ])]],
+                ],
+            ],
+        ])]);
+
+        $property = JobberProperty::query()->create([
+            'jobber_id' => 'property-job-1',
+            'jobber_client_id' => JobberClient::query()->create([
+                'jobber_id' => 'client-job-1',
+                'name' => 'Pat Owner',
+                'jobber_web_uri' => 'https://secure.getjobber.com/clients/1',
+            ])->id,
+            'street' => '123 Main St',
+            'latitude' => 30.2672,
+            'longitude' => -97.7431,
+        ]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        $this->assertEqualsWithDelta(30.2672, $property->refresh()->latitude, 0.000001, 'A payload without coordinates must not wipe stored ones.');
     }
 
     public function test_a_page_of_jobs_costs_exactly_one_request(): void

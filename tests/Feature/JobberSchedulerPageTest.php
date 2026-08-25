@@ -1,0 +1,538 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Building;
+use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
+use App\Models\JobberVisit;
+use App\Models\ServiceStatus;
+use App\Models\User;
+use App\Models\Vendor;
+use App\Models\WorkOrder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+class JobberSchedulerPageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutVite();
+
+        foreach (['admin', 'woc', 'vendor', 'tenant'] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
+    }
+
+    public function test_guests_are_redirected(): void
+    {
+        $this->get('/scheduler')->assertRedirect();
+    }
+
+    public function test_vendors_and_tenants_are_forbidden(): void
+    {
+        foreach (['vendor', 'tenant'] as $role) {
+            $user = User::factory()->create()->assignRole($role);
+
+            $this->actingAs($user)->get('/scheduler')->assertForbidden();
+        }
+    }
+
+    public function test_admins_and_wocs_see_the_page(): void
+    {
+        foreach (['admin', 'woc'] as $role) {
+            $user = User::factory()->create()->assignRole($role);
+
+            $this->actingAs($user)
+                ->get('/scheduler')
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->component('Inspection/Scheduler')
+                    ->where('title', 'Scheduler')
+                    ->has('cities')
+                    ->has('properties'));
+        }
+    }
+
+    public function test_property_panel_returns_details_and_work_orders(): void
+    {
+        $building = Building::query()->create([
+            'propertyware_id' => 998821,
+            'name' => 'Panel House',
+            'address' => '500 Panel St',
+            'city' => 'Katy',
+            'state_region' => 'TX',
+            'postal_code' => '77494',
+            'active' => true,
+            'latitude' => 29.78,
+            'longitude' => -95.82,
+        ]);
+
+        $open = WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '2',
+            'created_date' => '2026-08-10 00:00:00',
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '2',
+            'created_date' => '2026-07-01 00:00:00',
+            'completed_date' => '2026-07-05 00:00:00',
+        ]);
+
+        // Closed natively in PW but with a stale Service Status custom field
+        // and no Date Completed — the common real-world shape. Must not count
+        // as open.
+        WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '2',
+            'created_date' => '2026-06-01 00:00:00',
+            'status' => 'Closed',
+        ]);
+
+        $user = User::factory()->create()->assignRole('admin');
+
+        $response = $this->actingAs($user)
+            ->getJson("/scheduler/properties/{$building->propertyware_id}")
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('Panel House', $response['name']);
+        $this->assertSame('500 Panel St, Katy, TX 77494', $response['address']);
+        $this->assertSame('2', $response['zone']);
+        $this->assertSame(1, $response['open_work_orders'], 'Native-Closed PW status must not count as open.');
+        $this->assertSame(3, $response['total_work_orders']);
+        $this->assertCount(3, $response['work_orders']);
+        $this->assertSame($open->work_order_no, $response['work_orders'][0]['work_order_no'], 'Newest first.');
+        $this->assertSame('2026-08-10', $response['work_orders'][0]['created_date']);
+    }
+
+    public function test_property_panel_is_forbidden_for_vendors_and_missing_ids_404(): void
+    {
+        Building::query()->create([
+            'propertyware_id' => 998822,
+            'name' => 'Some House',
+            'active' => true,
+        ]);
+
+        $vendor = User::factory()->create()->assignRole('vendor');
+        $this->actingAs($vendor)->getJson('/scheduler/properties/998822')->assertForbidden();
+
+        $admin = User::factory()->create()->assignRole('admin');
+        $this->actingAs($admin)->getJson('/scheduler/properties/123456789')->assertNotFound();
+    }
+
+    public function test_geocoded_properties_are_listed_with_zone_fallback(): void
+    {
+        // Create 'New' first so the WorkOrder factory default stays 'New';
+        // only work orders explicitly given $waiting are in the queue.
+        ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $waiting = ServiceStatus::query()->create([
+            'name' => 'Assigned - Waiting on Scheduling',
+            'description' => 'THMP scheduling queue',
+        ]);
+
+        $ownZone = Building::query()->create([
+            'propertyware_id' => 998811,
+            'name' => 'Own Zone House',
+            'address' => '100 Alpha St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.97,
+            'longitude' => -95.7,
+        ]);
+        $ownZoneOrders = WorkOrder::factory()->count(2)->create([
+            'building_id' => $ownZone->propertyware_id,
+            'zone' => '4',
+        ]);
+
+        // Odd casing and whitespace on purpose: the THMP flag must match the
+        // same forgiving rule as Vendor::isThmp().
+        $thmp = Vendor::query()->create([
+            'propertyware_id' => 555001,
+            'name' => ' texas home maintenance pros ',
+            'user_id' => User::factory()->create()->id,
+        ]);
+        $ownZoneOrders->first()->vendors()->attach($thmp->id);
+
+        // THMP on a COMPLETED work order must not flag the building — the
+        // filter means "currently open THMP work", not "THMP ever worked
+        // here". Zone '0' keeps this row out of the zone maps.
+        $completed = WorkOrder::factory()->create([
+            'building_id' => 998812,
+            'zone' => '0',
+            'completed_date' => '2026-07-01 00:00:00',
+        ]);
+        $completed->vendors()->attach($thmp->id);
+
+        // Closed natively in PW with a stale waiting Service Status and no
+        // Date Completed: THMP is attached, but native-Closed work must count
+        // as neither THMP work nor unscheduled work.
+        $nativeClosed = WorkOrder::factory()->create([
+            'building_id' => 998812,
+            'zone' => '0',
+            'status' => 'Closed',
+            'service_status_id' => $waiting->id,
+        ]);
+        $nativeClosed->vendors()->attach($thmp->id);
+
+        // The queue: waiting-on-scheduling status AND THMP assigned.
+        $unscheduledHouse = Building::query()->create([
+            'propertyware_id' => 998815,
+            'name' => 'Unscheduled House',
+            'address' => '600 Epsilon St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.96,
+            'longitude' => -95.69,
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $unscheduledHouse->propertyware_id,
+            'zone' => '0',
+            'service_status_id' => $waiting->id,
+        ])->vendors()->attach($thmp->id);
+
+        // Waiting-on-scheduling status but no THMP: another vendor's problem,
+        // not our scheduling queue.
+        $otherVendorHouse = Building::query()->create([
+            'propertyware_id' => 998816,
+            'name' => 'Other Vendor House',
+            'address' => '700 Zeta St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.95,
+            'longitude' => -95.68,
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $otherVendorHouse->propertyware_id,
+            'zone' => '0',
+            'service_status_id' => $waiting->id,
+        ]);
+
+        Building::query()->create([
+            'propertyware_id' => 998812,
+            'name' => 'City Zone House',
+            'address' => '200 Beta St',
+            'city' => 'Cypress',
+            'active' => true,
+            'latitude' => 29.98,
+            'longitude' => -95.71,
+        ]);
+
+        // Ungeocoded, but its work orders make zone 2 the city's dominant zone.
+        $ungeocoded = Building::query()->create([
+            'propertyware_id' => 998813,
+            'name' => 'Ungeocoded House',
+            'address' => '300 Gamma St',
+            'city' => 'Cypress',
+            'active' => true,
+        ]);
+        WorkOrder::factory()->count(3)->create([
+            'building_id' => $ungeocoded->propertyware_id,
+            'zone' => '2',
+        ]);
+
+        Building::query()->create([
+            'propertyware_id' => 998814,
+            'name' => 'Inactive House',
+            'address' => '400 Delta St',
+            'city' => 'Cypress',
+            'active' => false,
+            'latitude' => 29.99,
+            'longitude' => -95.72,
+        ]);
+
+        $user = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($user)
+            ->get('/scheduler')
+            ->assertInertia(function (Assert $page) {
+                $props = $page->toArray()['props'];
+                $properties = collect($props['properties']);
+
+                $this->assertCount(4, $properties, 'Only active geocoded buildings are pins.');
+
+                $own = $properties->firstWhere('name', 'Own Zone House');
+                $this->assertSame('4', $own['zone'], 'A building with its own work orders uses its own dominant zone.');
+                $this->assertSame('100 Alpha St, Cypress', $own['address']);
+                $this->assertEqualsWithDelta(29.97, $own['lat'], 0.000001);
+
+                $inherited = $properties->firstWhere('name', 'City Zone House');
+                $this->assertSame('2', $inherited['zone'], 'A building without zoned work orders inherits the city zone.');
+
+                $own = $properties->firstWhere('name', 'Own Zone House');
+                $this->assertTrue($own['thmp'], 'A building with an open THMP work order is flagged.');
+                $this->assertFalse($inherited['thmp'], 'A completed THMP work order must not flag the building.');
+
+                $this->assertFalse($own['unscheduled'], 'Open THMP work not in the waiting-on-scheduling status is not unscheduled.');
+                $this->assertTrue($properties->firstWhere('name', 'Unscheduled House')['unscheduled'], 'Waiting-on-scheduling status with THMP assigned flags the building.');
+                $this->assertFalse($inherited['unscheduled'], 'Native-Closed work orders never count, even with the waiting status and THMP.');
+                $this->assertFalse(
+                    $properties->firstWhere('name', 'Other Vendor House')['unscheduled'],
+                    'The waiting status without THMP is not our scheduling queue.'
+                );
+
+                $cypress = collect($props['cities'])->firstWhere('name', 'Cypress');
+                $this->assertSame(5, $cypress['properties']);
+                $this->assertSame(1, $cypress['ungeocoded']);
+
+                return $page->component('Inspection/Scheduler');
+            });
+    }
+
+    public function test_calendar_visits_are_grouped_by_day_and_matched_to_buildings(): void
+    {
+        Building::query()->create([
+            'propertyware_id' => 998831,
+            'name' => 'Visit House',
+            'address' => '311 San Julio Dr',
+            'city' => 'Houston',
+            'active' => true,
+            'latitude' => 29.8123,
+            'longitude' => -95.4321,
+        ]);
+        Building::query()->create([
+            'propertyware_id' => 998832,
+            'name' => 'Pepper Wood House',
+            'address' => '2919 Pepper Wood Dr',
+            'city' => 'Sugar Land',
+            'active' => true,
+            'latitude' => 29.6,
+            'longitude' => -95.6,
+        ]);
+
+        $client = JobberClient::query()->create([
+            'jobber_id' => 'client-cal-1',
+            'name' => 'Cal Client',
+            'jobber_web_uri' => 'https://secure.getjobber.com/clients/1',
+        ]);
+        // Messy on purpose: casing, spacing, the long "Drive" suffix, a unit
+        // tail, and an embedded ", TX" — canonical matching must see through
+        // all of it to the building's "311 San Julio Dr".
+        $matchedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-1',
+            'jobber_client_id' => $client->id,
+            'street' => ' 311  SAN JULIO DRIVE # 4, TX 77091',
+            'city' => 'HOUSTON, TX',
+        ]);
+        $unmatchedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-2',
+            'jobber_client_id' => $client->id,
+            'street' => '999 Nowhere Ln',
+            'city' => 'Houston',
+        ]);
+        // Jobber runs the words together; the building says "Pepper Wood".
+        $spacedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-3',
+            'jobber_client_id' => $client->id,
+            'street' => '2919 Pepperwood Dr',
+            'city' => 'Sugar Land',
+        ]);
+        // A new-build street no free geocoder knows: no building matches,
+        // but the Jobber sync stored Jobber's own coordinates for it.
+        $jobberLocatedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-4',
+            'jobber_client_id' => $client->id,
+            'street' => '21227 Teal Lovegrass Ln',
+            'city' => 'Cypress',
+            'latitude' => 29.95,
+            'longitude' => -95.75,
+        ]);
+
+        $matchedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-1',
+            'job_number' => '19989',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+        $unmatchedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-2',
+            'job_number' => '20001',
+            'title' => 'Zone 1 - General Maintenance',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $unmatchedProperty->id,
+        ]);
+        $spacedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-6',
+            'job_number' => '20002',
+            'title' => '2919 Pepper Wood - Zone 3 - HVAC - #43856',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $spacedProperty->id,
+        ]);
+        $moveOutJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-7',
+            'job_number' => '20003',
+            'title' => 'Zone 2 - Move out inspection',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $jobberLocatedProperty->id,
+        ]);
+        // A backlog TBP at the Jobber-located property: the fill pool must
+        // not lose jobs just because the building has no coordinates.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-8',
+            'job_number' => '20052',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $jobberLocatedProperty->id,
+        ]);
+        // A current-quarter TBP job with no dated visit: the backlog the
+        // 5-mile fill rule draws from. The clock is pinned below so "current
+        // quarter" stays Q3 whenever this test runs.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-3',
+            'job_number' => '20050',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+        // Next quarter's TBP: not this quarter's fill pool.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-4',
+            'job_number' => '20051',
+            'title' => 'Zone 2 - Q4 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+        // LAST year's "Q3" — no year in the title and created 2025. Prod
+        // holds hundreds of these dead jobs; the creation date keeps them out.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-5',
+            'job_number' => '14271',
+            'title' => 'Zone 4 - Q3 TBP Pest Control',
+            'created_at_jobber' => '2025-06-15 00:00:00',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $matchedProperty->id,
+        ]);
+
+        foreach ([
+            ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00', [['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']]],
+            ['visit-cal-2', $unmatchedJob, $unmatchedProperty, '2026-08-24 13:00:00', null],
+            ['visit-cal-3', $matchedJob, $matchedProperty, '2026-09-02 09:00:00', null],
+            ['visit-cal-4', $spacedJob, $spacedProperty, '2026-08-24 10:30:00', null],
+            // Midnight start = a Jobber "anytime" visit.
+            ['visit-cal-5', $moveOutJob, $jobberLocatedProperty, '2026-08-24 00:00:00', null],
+        ] as [$gid, $job, $property, $startAt, $assignedTo]) {
+            JobberVisit::query()->create([
+                'jobber_id' => $gid,
+                'jobber_job_id' => $job->id,
+                'jobber_client_id' => $client->id,
+                'jobber_property_id' => $property->id,
+                'start_at' => $startAt,
+                'assigned_to' => $assignedTo,
+            ]);
+        }
+
+        $this->travelTo('2026-08-25');
+
+        $vendor = User::factory()->create()->assignRole('vendor');
+        $this->actingAs($vendor)->getJson('/scheduler/visits?month=2026-08')->assertForbidden();
+
+        $admin = User::factory()->create()->assignRole('admin');
+        $this->actingAs($admin)->getJson('/scheduler/visits?month=2026-8')->assertStatus(422);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/scheduler/visits?month=2026-08')
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('2026-08', $response['month']);
+        $this->assertArrayNotHasKey('2026-09-02', $response['days'], 'Only the requested month is returned.');
+
+        $this->assertSame(
+            ['20003', '19989', '20002', '20001'],
+            collect($response['days']['2026-08-24'])->pluck('job_number')->all(),
+            'A day lists its visits in start order, anytime visits first.'
+        );
+        $day = collect($response['days']['2026-08-24'])->keyBy('job_number');
+
+        $tbp = $day['19989'];
+        $this->assertEqualsWithDelta(29.8123, $tbp['lat'], 0.000001, 'Normalized address match pins the visit.');
+        $this->assertSame('2', $tbp['zone'], 'Zone is parsed from the job title.');
+        $this->assertSame('tbp', $tbp['category'], 'Tenant Benefit Package titles bucket as TBP.');
+        $this->assertSame('9:00 AM', $tbp['time']);
+        $this->assertSame(['Jimmie Gendke'], $tbp['technicians'], 'Visit assignees surface for the technician filter.');
+
+        $unmatched = $day['20001'];
+        $this->assertNull($unmatched['lat'], 'No matching building and no Jobber coordinates: the visit stays unpinned.');
+        $this->assertSame('1', $unmatched['zone']);
+        $this->assertSame('maintenance', $unmatched['category'], 'Anything not move in/out or TBP is maintenance.');
+        $this->assertSame('1:00 PM', $unmatched['time']);
+        $this->assertSame([], $unmatched['technicians'], 'An unassigned visit has no technicians.');
+
+        $this->assertEqualsWithDelta(29.6, $day['20002']['lat'], 0.000001, 'Street matching ignores spacing: "Pepperwood" finds "Pepper Wood".');
+        $this->assertSame('10:30 AM', $day['20002']['time']);
+
+        $moveOut = $day['20003'];
+        $this->assertEqualsWithDelta(29.95, $moveOut['lat'], 0.000001, 'No building coordinates: the visit pins from the coordinates Jobber holds.');
+        $this->assertEqualsWithDelta(-95.75, $moveOut['lng'], 0.000001);
+        $this->assertSame('move_out', $moveOut['category']);
+        $this->assertNull($moveOut['time'], 'A midnight start is a Jobber "anytime" visit.');
+
+        $this->assertSame('Q3', $response['tbp_quarter']);
+        $backlog = collect($response['tbp_backlog'])->keyBy('job_number');
+        $this->assertSame(['20050', '20052'], $backlog->pluck('job_number')->sort()->values()->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one, not last year\'s yearless "Q3".');
+        $this->assertEqualsWithDelta(29.8123, $backlog['20050']['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
+        $this->assertEqualsWithDelta(29.95, $backlog['20052']['lat'], 0.000001, 'Backlog jobs at streets the geocoder does not know pin from Jobber coordinates.');
+    }
+
+    public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void
+    {
+        $building = Building::query()->create([
+            'propertyware_id' => 998801,
+            'name' => 'Cypress House A',
+            'city' => 'Cypress',
+            'state_region' => 'TX',
+            'active' => true,
+        ]);
+        Building::query()->create([
+            'propertyware_id' => 998802,
+            'name' => 'Cypress House B',
+            'city' => 'CYPRESS',
+            'state_region' => 'TX',
+            'active' => true,
+        ]);
+        Building::query()->create([
+            'propertyware_id' => 998803,
+            'name' => 'Old House',
+            'city' => 'Inactive Town',
+            'state_region' => 'TX',
+            'active' => false,
+        ]);
+
+        WorkOrder::factory()->count(2)->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '2',
+        ]);
+        WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'zone' => '0',
+        ]);
+
+        $user = User::factory()->create()->assignRole('admin');
+
+        $this->actingAs($user)
+            ->get('/scheduler')
+            ->assertInertia(function (Assert $page) {
+                $cities = collect($page->toArray()['props']['cities']);
+
+                $cypress = $cities->firstWhere('name', 'Cypress');
+                $this->assertNotNull($cypress);
+                $this->assertSame(2, $cypress['properties'], 'City casing variants must be merged.');
+                $this->assertSame('2', $cypress['zone'], 'Zone 0 is noise and must not win.');
+                $this->assertNotNull($cypress['lat']);
+                $this->assertNotNull($cypress['lng']);
+
+                $this->assertNull($cities->firstWhere('name', 'Inactive Town'), 'Inactive buildings are not coverage.');
+
+                return $page->component('Inspection/Scheduler');
+            });
+    }
+}

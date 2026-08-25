@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-25',
+            'area' => 'Jobber',
+            'title' => 'Scheduler map preview (still developing)',
+            'description' => 'A new Scheduler page under Jobs (Jobber) maps the whole portfolio: every property pinned by its real location, colored by zone, with filters for properties with open THMP work and for the Assigned - Waiting on Scheduling queue. A Calendar tab shows each month of Jobber visits colored by type (move in, move out, TBP, maintenance) — click a day to see its visits on the map, click a visit to draw its 5-mile radius and highlight the unscheduled TBPs inside it. Dots can be colored by type or by technician, each technician\'s stops for the day are joined into a route (a suggested drive order when the visits are booked as "anytime"), and picking a technician on the property view shows just the properties they are booked at this month. Admins and coordinators only. Property positions fill in after the nightly geocoding run — addresses the geocoder does not know yet pin from Jobber\'s own coordinates — and technician names appear as visits sync from Jobber. This page is a working preview — the scheduling automation it is built for comes later.',
+        ],
+        [
+            'date' => '2026-08-25',
             'area' => 'Automated Messages',
             'title' => 'Website requests that arrive without a lease no longer go silent',
             'description' => 'A service request submitted through the PropertyWare website can arrive without the property\'s lease attached, even on an occupied home - PropertyWare only fills the lease in the next time the work order is saved. Because the system reads new work orders within minutes, it saw "no lease" and treated the home as vacant, muting every automated tenant and owner message on that work order, including the "we received your request" texts, which are sent once and were lost for good (WO#43937). Three changes: the notification bell now flags a work order that comes in without a lease, and the Automated Messages log shows the muted texts with the reason, so the silence is visible; the moment the lease shows up - on a sync, an Import Work Order click, or when a vendor is assigned - the intake texts and email go out on their own; and assigning a vendor now pulls the lease straight from PropertyWare instead of waiting for the next sync, so the "vendor assigned" text reaches the tenant too. The vendor sync also sends the work order\'s Source back to PropertyWare so it is no longer reset to "None". Work orders without a tenant contact, and turnover, re-key and cleaning jobs, stay muted on purpose.',
@@ -235,6 +241,12 @@ class FeatureUpdatesController extends Controller
             'area' => 'Work Orders',
             'title' => 'Open in Jobber from every work order window',
             'description' => 'The "Open in Jobber" button now sits beside the PropertyWare button in every work order pop-up — the board, Closed, Lawn Care, Inspections, Paid, Waiting on Payment, the bell and search — and on the vendor Work Orders page for the in-house crew. It only appears on work orders assigned to Texas Home Maintenance Pros, since those are the ones with a Jobber job.',
+        ],
+        [
+            'date' => '2026-08-07',
+            'area' => 'Notifications',
+            'title' => 'No more undelivered alerts for automated texts',
+            'description' => 'The bell only reports an undelivered text when a person sent it. Failed automatic messages — vendor schedule reminders, portal links, visit reminders — no longer fill the bell, and the ones already there are gone. Every send is still recorded on the work order and on the Automated Messages page.',
         ],
         [
             'date' => '2026-08-07',

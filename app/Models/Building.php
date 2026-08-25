@@ -20,6 +20,9 @@ class Building extends Model
         'details_synced_at' => 'datetime',
         'maintenance_spending_limit_amount' => 'decimal:2',
         'maintenance_labor_surcharge_amount' => 'decimal:2',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'geocoded_at' => 'datetime',
     ];
 
     public function workOrders(): HasMany

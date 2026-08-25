@@ -361,7 +361,8 @@ const navs = computed(() => {
                 icon: Briefcase,
                 isActive:
                     page.url.startsWith("/inspections") ||
-                    page.url.startsWith("/visits"),
+                    page.url.startsWith("/visits") ||
+                    page.url.startsWith("/scheduler"),
                 items: [
                     {
                         title: "All Jobs",
@@ -372,6 +373,11 @@ const navs = computed(() => {
                         title: "Visits",
                         url: route("visits.index"),
                         isActive: page.url.startsWith("/visits"),
+                    },
+                    {
+                        title: "Scheduler (Still developing)",
+                        url: route("scheduler.index"),
+                        isActive: page.url.startsWith("/scheduler"),
                     },
                 ],
                 // THMP vendor keeps access via the email bypass in canAccess(); other vendors don't.
