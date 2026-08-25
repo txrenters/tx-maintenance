@@ -177,9 +177,10 @@ class JobberSchedulerController extends Controller
             ->where('v.start_at', '>=', $start)
             ->where('v.start_at', '<', $end)
             ->orderBy('v.start_at')
-            ->get(['v.start_at', 'v.assigned_to', 'j.job_number', 'j.title', 'p.street', 'p.city'])
+            ->get(['v.start_at', 'v.assigned_to', 'j.job_number', 'j.title', 'p.street', 'p.city', 'p.latitude as property_lat', 'p.longitude as property_lng'])
             ->each(function ($visit) use (&$days, $index) {
                 $building = $this->matchBuilding($index, $visit->street, $visit->city);
+                [$lat, $lng] = $this->coordinatesFor($building, $visit->property_lat, $visit->property_lng);
                 $days[substr((string) $visit->start_at, 0, 10)][] = [
                     'job_number' => $visit->job_number,
                     'title' => Str::limit((string) $visit->title, 90),
@@ -188,13 +189,15 @@ class JobberSchedulerController extends Controller
                     // THMP encodes the zone in every job title ("Zone N - ...").
                     'zone' => preg_match('/zone\s*(\d)/i', (string) $visit->title, $matches) === 1 ? $matches[1] : null,
                     'category' => $this->visitCategory((string) $visit->title),
+                    'start_at' => (string) $visit->start_at,
+                    'time' => $this->visitTime((string) $visit->start_at),
                     'technicians' => collect(json_decode((string) $visit->assigned_to, true) ?: [])
                         ->pluck('name')
                         ->filter()
                         ->values()
                         ->all(),
-                    'lat' => $building?->latitude,
-                    'lng' => $building?->longitude,
+                    'lat' => $lat,
+                    'lng' => $lng,
                 ];
             });
 
@@ -222,7 +225,7 @@ class JobberSchedulerController extends Controller
                     ->whereColumn('v.jobber_job_id', 'j.id')
                     ->whereNotNull('v.start_at');
             })
-            ->get(['j.job_number', 'j.title', 'j.created_at_jobber', 'p.street', 'p.city'])
+            ->get(['j.job_number', 'j.title', 'j.created_at_jobber', 'p.street', 'p.city', 'p.latitude as property_lat', 'p.longitude as property_lng'])
             ->each(function ($job) use (&$tbpBacklog, $index, $currentQuarter, $currentQuarterLabel, $quarterStart) {
                 if (preg_match('/q([1-4])/i', (string) $job->title, $matches) === 1 && $matches[1] !== $currentQuarter) {
                     return;
@@ -232,14 +235,15 @@ class JobberSchedulerController extends Controller
                     return;
                 }
                 $building = $this->matchBuilding($index, $job->street, $job->city);
-                if ($building === null) {
+                [$lat, $lng] = $this->coordinatesFor($building, $job->property_lat, $job->property_lng);
+                if ($lat === null) {
                     return;
                 }
                 $tbpBacklog[] = [
                     'job_number' => $job->job_number,
                     'title' => Str::limit((string) $job->title, 90),
-                    'lat' => $building->latitude,
-                    'lng' => $building->longitude,
+                    'lat' => $lat,
+                    'lng' => $lng,
                 ];
             });
 
@@ -265,10 +269,47 @@ class JobberSchedulerController extends Controller
     ];
 
     /**
+     * Where to pin something at a Jobber property: the matched PropertyWare
+     * building's coordinates first, else the coordinates Jobber itself holds
+     * for the property — Jobber geocodes every address for its own map and
+     * knows new-build streets the free Census geocoder does not yet.
+     *
+     * @return array{0: float|null, 1: float|null}
+     */
+    private function coordinatesFor(?object $building, mixed $propertyLat, mixed $propertyLng): array
+    {
+        if ($building !== null) {
+            return [(float) $building->latitude, (float) $building->longitude];
+        }
+
+        if ($propertyLat !== null && $propertyLng !== null) {
+            return [(float) $propertyLat, (float) $propertyLng];
+        }
+
+        return [null, null];
+    }
+
+    /**
+     * Clock time of a visit ("9:30 AM"), or null for Jobber's "anytime"
+     * visits, which arrive with a midnight start.
+     */
+    private function visitTime(string $startAt): ?string
+    {
+        $time = substr($startAt, 11, 5);
+
+        if ($time === '' || $time === '00:00') {
+            return null;
+        }
+
+        return date('g:i A', (int) strtotime($startAt));
+    }
+
+    /**
      * Canonical form of a street line for matching: lowercase, note-blocks
      * like "{Do not use}" stripped, anything after a comma dropped (Jobber
      * and PW both sometimes embed "City, TX zip" in the street), punctuation
-     * removed, apartment/unit tails cut, suffix words shortened.
+     * removed, apartment/unit tails cut, suffix words shortened, and finally
+     * spaces dropped so "Pepper Wood Dr" and "Pepperwood Dr" agree.
      */
     private function canonicalStreet(?string $value): string
     {
@@ -282,7 +323,7 @@ class JobberSchedulerController extends Controller
             ->squish()
             ->toString();
 
-        return implode(' ', array_map(
+        return implode('', array_map(
             fn (string $word) => self::STREET_SUFFIXES[$word] ?? $word,
             explode(' ', $street)
         ));

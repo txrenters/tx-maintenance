@@ -6,6 +6,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\JobberVisit;
+use App\Services\JobberOptionalSelections;
 use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -32,10 +33,11 @@ class ImportJobberJobs extends Command
     private const THROTTLE_BACKOFF_SECONDS = 5;
 
     /**
-     * Flips off for the rest of the run when Jobber's schema rejects the
-     * assignedUsers selection, so one bad field never sinks the import.
+     * Visit assignees and property coordinates: dropped one at a time for
+     * the rest of the run if Jobber's schema rejects them, so one unknown
+     * field never sinks the import.
      */
-    private bool $assignedUsersSupported = true;
+    private JobberOptionalSelections $optional;
 
     protected $signature = 'jobber:import-jobs';
 
@@ -44,6 +46,8 @@ class ImportJobberJobs extends Command
     public function __construct(private JobberTokenService $tokens)
     {
         parent::__construct();
+
+        $this->optional = new JobberOptionalSelections;
     }
 
     public function handle(): int
@@ -172,21 +176,24 @@ class ImportJobberJobs extends Command
 
     public function createProperty(array $propertyData, object $client): object
     {
-        $property = JobberProperty::updateOrCreate(
-            ['jobber_id' => $propertyData['id']],
-            [
-                'jobber_client_id' => $client->id,
-                'is_billing_address' => $propertyData['isBillingAddress'],
-                'street' => $propertyData['address']['street'] ?? null,
-                'city' => $propertyData['address']['city'] ?? null,
-                'province' => $propertyData['address']['province'] ?? null,
-                'postal_code' => $propertyData['address']['postalCode'] ?? null,
-                'country' => $propertyData['address']['country'] ?? null,
-                'jobber_web_uri' => $propertyData['jobberWebUri'],
-            ]
-        );
+        $attributes = [
+            'jobber_client_id' => $client->id,
+            'is_billing_address' => $propertyData['isBillingAddress'],
+            'street' => $propertyData['address']['street'] ?? null,
+            'city' => $propertyData['address']['city'] ?? null,
+            'province' => $propertyData['address']['province'] ?? null,
+            'postal_code' => $propertyData['address']['postalCode'] ?? null,
+            'country' => $propertyData['address']['country'] ?? null,
+            'jobber_web_uri' => $propertyData['jobberWebUri'],
+        ];
 
-        return $property;
+        // Only touch coordinates when the payload carried them — a fallback
+        // fetch without the selection must not wipe what an earlier run wrote.
+        if (array_key_exists('coordinates', $propertyData['address'] ?? [])) {
+            $attributes += JobberProperty::coordinatesFromApi($propertyData);
+        }
+
+        return JobberProperty::updateOrCreate(['jobber_id' => $propertyData['id']], $attributes);
     }
 
     public function createJob(array $jobData, object $client, object $property): object
@@ -255,7 +262,8 @@ class ImportJobberJobs extends Command
     {
         $pageSize = self::PAGE_SIZE;
         $visitsPageSize = self::VISITS_PAGE_SIZE;
-        $assignedUsers = $this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '';
+        $assignedUsers = $this->optional->fragment(JobberOptionalSelections::ASSIGNED_USERS);
+        $coordinates = $this->optional->fragment(JobberOptionalSelections::COORDINATES);
 
         $query = <<<GRAPHQL
         query (\$cursor: String) {
@@ -305,6 +313,7 @@ class ImportJobberJobs extends Command
                                 province
                                 postalCode
                                 country
+                                {$coordinates}
                             }
                         }
                         visits(first: {$visitsPageSize}) {
@@ -336,12 +345,13 @@ class ImportJobberJobs extends Command
             'variables' => ['cursor' => $cursor],
         ]);
 
-        // Schema safety net: if this Jobber API version rejects the
-        // assignedUsers selection, drop it for the rest of the run instead
-        // of failing the whole import.
-        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($response)) {
-            $this->assignedUsersSupported = false;
-            Log::warning('Jobber rejected the assignedUsers selection; importing visits without assignees.');
+        // Schema safety net: if this Jobber API version rejects one of the
+        // optional selections, drop it for the rest of the run and ask again
+        // instead of failing the whole import.
+        $rejected = $this->optional->rejectedBy($response);
+
+        if ($rejected !== null) {
+            Log::warning("Jobber rejected the {$rejected} selection; importing without it.");
 
             return $this->getJobs($cursor);
         }

@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\JobberVisit;
+use App\Services\JobberOptionalSelections;
 use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -15,12 +16,16 @@ use Illuminate\Support\Facades\Log;
 class JobberWebhookController extends Controller
 {
     /**
-     * Flips off when Jobber's schema rejects the assignedUsers selection,
-     * so one bad field never breaks webhook processing.
+     * Visit assignees and property coordinates: dropped one at a time if
+     * Jobber's schema rejects them, so one unknown field never breaks
+     * webhook processing.
      */
-    private bool $assignedUsersSupported = true;
+    private JobberOptionalSelections $optional;
 
-    public function __construct(private JobberTokenService $tokens) {}
+    public function __construct(private JobberTokenService $tokens)
+    {
+        $this->optional = new JobberOptionalSelections;
+    }
 
     public function handle(Request $request)
     {
@@ -176,13 +181,9 @@ class JobberWebhookController extends Controller
             $propertyData = [
                 'id' => $jobberProperty['id'],
                 'isBillingAddress' => $jobberProperty['isBillingAddress'],
-                'address' => [
-                    'street' => $jobberProperty['address']['street'] ?? null,
-                    'city' => $jobberProperty['address']['city'] ?? null,
-                    'province' => $jobberProperty['address']['province'] ?? null,
-                    'postalCode' => $jobberProperty['address']['postalCode'] ?? null,
-                    'country' => $jobberProperty['address']['country'] ?? null,
-                ],
+                // The whole address block, so coordinates ride along when
+                // Jobber served them.
+                'address' => is_array($jobberProperty['address'] ?? null) ? $jobberProperty['address'] : [],
                 'jobberWebUri' => $jobberProperty['jobberWebUri'],
             ];
 
@@ -312,6 +313,7 @@ class JobberWebhookController extends Controller
                             province
                             postalCode
                             country
+                            '.$this->optional->fragment(JobberOptionalSelections::COORDINATES).'
                         }
                     }
                     visits {
@@ -325,7 +327,7 @@ class JobberWebhookController extends Controller
                                 startAt
                                 endAt
                                 completedAt
-                                '.($this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '').'
+                                '.$this->optional->fragment(JobberOptionalSelections::ASSIGNED_USERS).'
                             }
                         }
                     }
@@ -347,11 +349,12 @@ class JobberWebhookController extends Controller
 
         $json = $response->json();
 
-        // Schema safety net — retry without the assignedUsers selection
+        // Schema safety net — retry without a rejected optional selection
         // rather than dropping the webhook on the floor.
-        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($json)) {
-            $this->assignedUsersSupported = false;
-            Log::warning('Jobber rejected the assignedUsers selection; fetching job details without assignees.');
+        $rejected = $this->optional->rejectedBy($json);
+
+        if ($rejected !== null) {
+            Log::warning("Jobber rejected the {$rejected} selection; fetching job details without it.");
 
             return $this->getJobDetails($jobberId);
         }
@@ -371,7 +374,7 @@ class JobberWebhookController extends Controller
                     startAt
                     endAt
                     completedAt
-                    '.($this->assignedUsersSupported ? JobberVisit::ASSIGNED_USERS_QUERY : '').'
+                    '.$this->optional->fragment(JobberOptionalSelections::ASSIGNED_USERS).'
                     job{
                         id
                         jobNumber
@@ -413,6 +416,7 @@ class JobberWebhookController extends Controller
                             province
                             postalCode
                             country
+                            '.$this->optional->fragment(JobberOptionalSelections::COORDINATES).'
                         }
                     }
                 }
@@ -429,9 +433,10 @@ class JobberWebhookController extends Controller
 
         $json = $response->json();
 
-        if ($this->assignedUsersSupported && JobberVisit::responseRejectsAssignedUsers($json)) {
-            $this->assignedUsersSupported = false;
-            Log::warning('Jobber rejected the assignedUsers selection; fetching visit details without assignees.');
+        $rejected = $this->optional->rejectedBy($json);
+
+        if ($rejected !== null) {
+            Log::warning("Jobber rejected the {$rejected} selection; fetching visit details without it.");
 
             return $this->getVisitDetails($jobberId);
         }
@@ -461,21 +466,24 @@ class JobberWebhookController extends Controller
 
     public function updateOrCreateProperty(array $propertyData, object $client): object
     {
-        $property = JobberProperty::updateOrCreate(
-            ['jobber_id' => $propertyData['id']],
-            [
-                'jobber_client_id' => $client->id,
-                'is_billing_address' => $propertyData['isBillingAddress'],
-                'street' => $propertyData['address']['street'] ?? null,
-                'city' => $propertyData['address']['city'] ?? null,
-                'province' => $propertyData['address']['province'] ?? null,
-                'postal_code' => $propertyData['address']['postalCode'] ?? null,
-                'country' => $propertyData['address']['country'] ?? null,
-                'jobber_web_uri' => $propertyData['jobberWebUri'],
-            ]
-        );
+        $attributes = [
+            'jobber_client_id' => $client->id,
+            'is_billing_address' => $propertyData['isBillingAddress'],
+            'street' => $propertyData['address']['street'] ?? null,
+            'city' => $propertyData['address']['city'] ?? null,
+            'province' => $propertyData['address']['province'] ?? null,
+            'postal_code' => $propertyData['address']['postalCode'] ?? null,
+            'country' => $propertyData['address']['country'] ?? null,
+            'jobber_web_uri' => $propertyData['jobberWebUri'],
+        ];
 
-        return $property;
+        // Only touch coordinates when the payload carried them — a fallback
+        // fetch without the selection must not wipe what an earlier run wrote.
+        if (array_key_exists('coordinates', $propertyData['address'] ?? [])) {
+            $attributes += JobberProperty::coordinatesFromApi($propertyData);
+        }
+
+        return JobberProperty::updateOrCreate(['jobber_id' => $propertyData['id']], $attributes);
     }
 
     public function updateOrCreateJob(array $jobData, object $client, object $property): object

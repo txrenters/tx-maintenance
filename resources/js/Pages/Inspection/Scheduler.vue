@@ -144,6 +144,14 @@ const matchesFilters = (meta) => {
     if (propertyFilter.value !== "all" && !meta[propertyFilter.value]) {
         return false;
     }
+    // A selected technician narrows the map to the properties they are
+    // booked at this month.
+    if (
+        selectedTech.value !== "all" &&
+        !(meta.locKey && techPropertyKeys.value.has(meta.locKey))
+    ) {
+        return false;
+    }
     const needle = search.value.trim().toLowerCase();
     if (needle === "") {
         return true;
@@ -166,6 +174,14 @@ const refreshVisibility = () => {
     };
     [...pinRecords, ...circleRecords].forEach((record) => {
         setShown(record.marker, propertyMode && matchesFilters(record.meta));
+    });
+    // A selected technician's properties take that technician's color;
+    // clearing the chip restores the zone colors.
+    const techTint =
+        selectedTech.value === "all" ? null : techColor(selectedTech.value);
+    pinRecords.forEach((record) => {
+        const color = techTint ?? zoneColor(record.meta.zone);
+        record.marker.setStyle({ color, fillColor: color });
     });
     zoneAreaRecords.forEach((record) => {
         record.layers.forEach((layer) => {
@@ -234,9 +250,11 @@ const categoryColor = (key) =>
     VISIT_CATEGORIES.find((category) => category.key === key)?.color ??
     NO_ZONE_COLOR;
 
-// Technician filter, from the visit assignees the Jobber sync stores. Each
-// technician keeps a stable color for chips and map dots.
-const calendarTech = ref("all");
+// Technician filter, from the visit assignees the Jobber sync stores. Shared
+// by the property view (which properties a tech is booked at this month)
+// and the calendar (which visits to show). Each technician keeps a stable
+// color for chips, dots and routes.
+const selectedTech = ref("all");
 const TECH_COLORS = [
     "#38bdf8",
     "#34d399",
@@ -262,15 +280,54 @@ const techColor = (name) => {
         ? NO_ZONE_COLOR
         : TECH_COLORS[index % TECH_COLORS.length];
 };
-const visitColor = (visit) => categoryColor(visit.category);
+// What colors the calendar dots: the visit type, or the technician it is
+// assigned to (the way Jobber's own map does it).
+const colorBy = ref("category");
+const COLOR_MODES = [
+    { key: "category", label: "Type" },
+    { key: "technician", label: "Technician" },
+];
+const visitColor = (visit) =>
+    colorBy.value === "technician"
+        ? visit.technicians?.length
+            ? techColor(visit.technicians[0])
+            : NO_ZONE_COLOR
+        : categoryColor(visit.category);
+
+// Route lines joining a day's stops, one per technician.
+const showRoutes = ref(true);
+const routeNote = ref("");
+
+const locationKey = (lat, lng) =>
+    `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+
+// The selected technician's visits this month, and the properties they sit
+// at, for the property view.
+const techMonthVisits = computed(() =>
+    selectedTech.value === "all"
+        ? []
+        : Object.values(monthDays.value)
+              .flat()
+              .filter((visit) =>
+                  (visit.technicians ?? []).includes(selectedTech.value)
+              )
+);
+const techPropertyKeys = computed(
+    () =>
+        new Set(
+            techMonthVisits.value
+                .filter((visit) => visit.lat && visit.lng)
+                .map((visit) => locationKey(visit.lat, visit.lng))
+        )
+);
 
 const dayVisits = (date) =>
     (monthDays.value[date] ?? []).filter(
         (visit) =>
             (calendarCategory.value === "all" ||
                 visit.category === calendarCategory.value) &&
-            (calendarTech.value === "all" ||
-                (visit.technicians ?? []).includes(calendarTech.value))
+            (selectedTech.value === "all" ||
+                (visit.technicians ?? []).includes(selectedTech.value))
     );
 const today = new Date().toISOString().slice(0, 10);
 
@@ -311,9 +368,109 @@ const shiftMonth = (delta) => {
     loadCalendarMonth();
 };
 
+let routeLayers = [];
+
 const clearVisitMarkers = () => {
     visitMarkers.forEach((marker) => marker.remove());
     visitMarkers = [];
+    routeLayers.forEach((layer) => layer.remove());
+    routeLayers = [];
+    routeNote.value = "";
+};
+
+// Order a technician's stops for the day: by clock time when Jobber has
+// times, otherwise a nearest-neighbor chain from the outermost stop — a
+// suggested drive order for the "anytime" visits THMP books.
+const orderStops = (visits) => {
+    if (visits.length < 2) {
+        return { stops: visits, suggested: false };
+    }
+    if (visits.every((visit) => visit.time)) {
+        return {
+            stops: [...visits].sort((a, b) =>
+                a.start_at < b.start_at ? -1 : a.start_at > b.start_at ? 1 : 0
+            ),
+            suggested: false,
+        };
+    }
+    const centroid = L.latLng(
+        visits.reduce((sum, visit) => sum + visit.lat, 0) / visits.length,
+        visits.reduce((sum, visit) => sum + visit.lng, 0) / visits.length
+    );
+    const distance = (a, b) =>
+        L.latLng(a.lat, a.lng).distanceTo([b.lat, b.lng]);
+    let remaining = [...visits];
+    let current = remaining.reduce((farthest, visit) =>
+        centroid.distanceTo([visit.lat, visit.lng]) >
+        centroid.distanceTo([farthest.lat, farthest.lng])
+            ? visit
+            : farthest
+    );
+    const stops = [];
+    while (current) {
+        stops.push(current);
+        const from = current;
+        remaining = remaining.filter((visit) => visit !== from);
+        current = remaining.reduce(
+            (nearest, visit) =>
+                !nearest || distance(from, visit) < distance(from, nearest)
+                    ? visit
+                    : nearest,
+            null
+        );
+    }
+    return { stops, suggested: true };
+};
+
+// One route per technician through their located stops, numbered in
+// order. Unassigned visits form a grey route of their own.
+const drawRoutes = (located) => {
+    if (!showRoutes.value || located.length < 2) {
+        return;
+    }
+    const groups = new Map();
+    located.forEach((visit) => {
+        const tech = visit.technicians?.[0] ?? "";
+        groups.set(tech, [...(groups.get(tech) ?? []), visit]);
+    });
+    let anySuggested = false;
+    groups.forEach((visits, tech) => {
+        const { stops, suggested } = orderStops(visits);
+        if (stops.length < 2) {
+            return;
+        }
+        if (suggested) {
+            anySuggested = true;
+        }
+        const color = tech ? techColor(tech) : NO_ZONE_COLOR;
+        routeLayers.push(
+            L.polyline(
+                stops.map((visit) => [visit.lat, visit.lng]),
+                {
+                    color,
+                    weight: 2.5,
+                    opacity: 0.85,
+                    dashArray: suggested ? "6 6" : null,
+                    interactive: false,
+                }
+            ).addTo(map)
+        );
+        stops.forEach((visit, index) => {
+            routeLayers.push(
+                L.marker([visit.lat, visit.lng], {
+                    icon: L.divIcon({
+                        className: "",
+                        html: `<span class="scheduler-stop" style="background:${color}">${index + 1}</span>`,
+                        iconSize: [0, 0],
+                    }),
+                    interactive: false,
+                }).addTo(map)
+            );
+        });
+    });
+    routeNote.value = anySuggested
+        ? "Dashed routes are a suggested drive order — these visits are booked as \"anytime\" in Jobber."
+        : "";
 };
 
 // One focused visit: yellow 5-mile radius + the unscheduled TBP jobs inside
@@ -456,6 +613,7 @@ const selectDay = (date) => {
             .on("click", () => focusVisit(visit))
             .addTo(map)
     );
+    drawRoutes(located);
     if (located.length > 0) {
         map.fitBounds(
             L.latLngBounds(located.map((visit) => [visit.lat, visit.lng])).pad(
@@ -466,14 +624,14 @@ const selectDay = (date) => {
     }
 };
 
-// Re-plot the selected day when a calendar filter changes.
-watch([calendarCategory, calendarTech], () => {
+// Re-plot the selected day when a calendar filter or display option changes.
+watch([calendarCategory, selectedTech, colorBy, showRoutes], () => {
     if (selectedDay.value) {
         selectDay(selectedDay.value);
     }
 });
 
-watch([search, propertyFilter], refreshVisibility);
+watch([search, propertyFilter, selectedTech, techPropertyKeys], refreshVisibility);
 watch(viewMode, (mode) => {
     if (mode !== "property") {
         clearSelection();
@@ -625,11 +783,15 @@ onMounted(() => {
                 zone: property.zone,
                 thmp: property.thmp,
                 unscheduled: property.unscheduled,
+                locKey: locationKey(property.lat, property.lng),
                 searchText:
                     `${property.name} ${property.address}`.toLowerCase(),
             },
         };
     });
+
+    // The technician chips need this month's visits in every view.
+    loadCalendarMonth();
 
     // Zone territories for the "By zone" view: a hull polygon plus a count
     // bubble at the centroid, built from every pin and the not-yet-geocoded
@@ -700,6 +862,7 @@ onBeforeUnmount(() => {
     radiusCircle = null;
     pulseMarker = null;
     visitMarkers = [];
+    routeLayers = [];
     nearbyMarkers = [];
 });
 </script>
@@ -768,6 +931,54 @@ onBeforeUnmount(() => {
                 class="h-8"
             />
 
+            <!-- Technician chips: filter properties (property view) or
+                 visits (calendar) to one technician's bookings this month -->
+            <div
+                v-if="viewMode !== 'zone' && techniciansInMonth.length"
+                class="flex flex-wrap gap-1"
+            >
+                <button
+                    type="button"
+                    class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                    :class="
+                        selectedTech === 'all'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="selectedTech = 'all'"
+                >
+                    All techs
+                </button>
+                <button
+                    v-for="technician in techniciansInMonth"
+                    :key="technician"
+                    type="button"
+                    class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors"
+                    :class="
+                        selectedTech === technician
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent'
+                    "
+                    @click="selectedTech = technician"
+                >
+                    <span
+                        class="inline-block h-2 w-2 rounded-full"
+                        :style="{ backgroundColor: techColor(technician) }"
+                    />
+                    {{ technician }}
+                </button>
+            </div>
+            <p
+                v-if="viewMode === 'property' && selectedTech !== 'all'"
+                class="text-[10px] text-muted-foreground"
+            >
+                {{ selectedTech }}: {{ techMonthVisits.length }}
+                {{ techMonthVisits.length === 1 ? "visit" : "visits" }} at
+                {{ techPropertyKeys.size }}
+                {{ techPropertyKeys.size === 1 ? "property" : "properties" }}
+                in {{ monthLabel }}
+            </p>
+
             <!-- Full-month Jobber visit calendar -->
             <template v-if="viewMode === 'calendar'">
                 <div class="flex items-center justify-between">
@@ -794,6 +1005,47 @@ onBeforeUnmount(() => {
                 >
                     Could not load visits for this month.
                 </p>
+
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        Color by
+                        <div class="flex rounded-md border p-0.5">
+                            <button
+                                v-for="mode in COLOR_MODES"
+                                :key="mode.key"
+                                type="button"
+                                :disabled="mode.key === 'technician' && !techniciansInMonth.length"
+                                :title="
+                                    mode.key === 'technician' && !techniciansInMonth.length
+                                        ? 'Technician info appears after the next Jobber sync'
+                                        : ''
+                                "
+                                class="rounded px-1.5 py-0.5 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                :class="
+                                    colorBy === mode.key
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:bg-accent'
+                                "
+                                @click="colorBy = mode.key"
+                            >
+                                {{ mode.label }}
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-md border px-2 py-0.5 text-[10px] transition-colors"
+                        :class="
+                            showRoutes
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent'
+                        "
+                        title="Join each technician's stops for the selected day into a route"
+                        @click="showRoutes = !showRoutes"
+                    >
+                        Routes {{ showRoutes ? "on" : "off" }}
+                    </button>
+                </div>
 
                 <div
                     v-if="categoriesInMonth.length"
@@ -824,6 +1076,7 @@ onBeforeUnmount(() => {
                         @click="calendarCategory = category.key"
                     >
                         <span
+                            v-if="colorBy === 'category'"
                             class="inline-block h-2 w-2 rounded-full"
                             :style="{ backgroundColor: category.color }"
                         />
@@ -831,43 +1084,8 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
-                <div
-                    v-if="techniciansInMonth.length"
-                    class="flex flex-wrap gap-1"
-                >
-                    <button
-                        type="button"
-                        class="rounded-full border px-2 py-0.5 text-[10px] transition-colors"
-                        :class="
-                            calendarTech === 'all'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-accent'
-                        "
-                        @click="calendarTech = 'all'"
-                    >
-                        All techs
-                    </button>
-                    <button
-                        v-for="technician in techniciansInMonth"
-                        :key="technician"
-                        type="button"
-                        class="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors"
-                        :class="
-                            calendarTech === technician
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-accent'
-                        "
-                        @click="calendarTech = technician"
-                    >
-                        <span
-                            class="inline-block h-2 w-2 rounded-full"
-                            :style="{ backgroundColor: techColor(technician) }"
-                        />
-                        {{ technician }}
-                    </button>
-                </div>
                 <p
-                    v-else-if="Object.keys(monthDays).length"
+                    v-if="!techniciansInMonth.length && Object.keys(monthDays).length"
                     class="text-[10px] text-muted-foreground"
                 >
                     Technician info appears after the next Jobber sync.
@@ -937,6 +1155,12 @@ onBeforeUnmount(() => {
                     >
                         No visits booked this day.
                     </p>
+                    <p
+                        v-if="routeNote"
+                        class="px-1 text-[10px] text-muted-foreground"
+                    >
+                        {{ routeNote }}
+                    </p>
                     <button
                         v-for="visit in dayVisits(selectedDay)"
                         :key="visitKey(visit)"
@@ -956,10 +1180,13 @@ onBeforeUnmount(() => {
                             :style="{ backgroundColor: visitColor(visit) }"
                         />
                         <span class="font-medium">#{{ visit.job_number }}</span>
+                        <span class="ml-1 text-[10px] text-muted-foreground">
+                            {{ visit.time ?? "Anytime" }}
+                        </span>
                         <span
                             v-if="!visit.lat"
                             class="ml-1 text-[10px] text-muted-foreground"
-                            title="No geocoded building matches this Jobber property address"
+                            title="Neither our geocoder nor Jobber has coordinates for this address yet"
                         >
                             (not on map)
                         </span>
@@ -1137,6 +1364,24 @@ onBeforeUnmount(() => {
     font-weight: 700;
     line-height: 15px;
     text-align: center;
+}
+
+/* Stop number along a technician's route for the day. */
+.scheduler-stop {
+    position: absolute;
+    left: 6px;
+    top: -19px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    border: 1.5px solid #ffffff;
+    color: #0c1220;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 13px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* Pulsing ring on the selected property. */

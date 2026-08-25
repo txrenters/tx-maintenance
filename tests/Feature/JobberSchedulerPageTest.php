@@ -298,6 +298,15 @@ class JobberSchedulerPageTest extends TestCase
             'latitude' => 29.8123,
             'longitude' => -95.4321,
         ]);
+        Building::query()->create([
+            'propertyware_id' => 998832,
+            'name' => 'Pepper Wood House',
+            'address' => '2919 Pepper Wood Dr',
+            'city' => 'Sugar Land',
+            'active' => true,
+            'latitude' => 29.6,
+            'longitude' => -95.6,
+        ]);
 
         $client = JobberClient::query()->create([
             'jobber_id' => 'client-cal-1',
@@ -319,6 +328,23 @@ class JobberSchedulerPageTest extends TestCase
             'street' => '999 Nowhere Ln',
             'city' => 'Houston',
         ]);
+        // Jobber runs the words together; the building says "Pepper Wood".
+        $spacedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-3',
+            'jobber_client_id' => $client->id,
+            'street' => '2919 Pepperwood Dr',
+            'city' => 'Sugar Land',
+        ]);
+        // A new-build street no free geocoder knows: no building matches,
+        // but the Jobber sync stored Jobber's own coordinates for it.
+        $jobberLocatedProperty = JobberProperty::query()->create([
+            'jobber_id' => 'property-cal-4',
+            'jobber_client_id' => $client->id,
+            'street' => '21227 Teal Lovegrass Ln',
+            'city' => 'Cypress',
+            'latitude' => 29.95,
+            'longitude' => -95.75,
+        ]);
 
         $matchedJob = Jobber::query()->create([
             'jobber_id' => 'job-cal-1',
@@ -333,6 +359,29 @@ class JobberSchedulerPageTest extends TestCase
             'title' => 'Zone 1 - General Maintenance',
             'jobber_client_id' => $client->id,
             'jobber_property_id' => $unmatchedProperty->id,
+        ]);
+        $spacedJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-6',
+            'job_number' => '20002',
+            'title' => '2919 Pepper Wood - Zone 3 - HVAC - #43856',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $spacedProperty->id,
+        ]);
+        $moveOutJob = Jobber::query()->create([
+            'jobber_id' => 'job-cal-7',
+            'job_number' => '20003',
+            'title' => 'Zone 2 - Move out inspection',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $jobberLocatedProperty->id,
+        ]);
+        // A backlog TBP at the Jobber-located property: the fill pool must
+        // not lose jobs just because the building has no coordinates.
+        Jobber::query()->create([
+            'jobber_id' => 'job-cal-8',
+            'job_number' => '20052',
+            'title' => 'Zone 2 - Q3 2026 Tenant Benefit Package',
+            'jobber_client_id' => $client->id,
+            'jobber_property_id' => $jobberLocatedProperty->id,
         ]);
         // A current-quarter TBP job with no dated visit: the backlog the
         // 5-mile fill rule draws from. The clock is pinned below so "current
@@ -367,6 +416,9 @@ class JobberSchedulerPageTest extends TestCase
             ['visit-cal-1', $matchedJob, $matchedProperty, '2026-08-24 09:00:00', [['id' => 'gid://Jobber/User/42', 'name' => 'Jimmie Gendke']]],
             ['visit-cal-2', $unmatchedJob, $unmatchedProperty, '2026-08-24 13:00:00', null],
             ['visit-cal-3', $matchedJob, $matchedProperty, '2026-09-02 09:00:00', null],
+            ['visit-cal-4', $spacedJob, $spacedProperty, '2026-08-24 10:30:00', null],
+            // Midnight start = a Jobber "anytime" visit.
+            ['visit-cal-5', $moveOutJob, $jobberLocatedProperty, '2026-08-24 00:00:00', null],
         ] as [$gid, $job, $property, $startAt, $assignedTo]) {
             JobberVisit::query()->create([
                 'jobber_id' => $gid,
@@ -394,22 +446,41 @@ class JobberSchedulerPageTest extends TestCase
         $this->assertSame('2026-08', $response['month']);
         $this->assertArrayNotHasKey('2026-09-02', $response['days'], 'Only the requested month is returned.');
 
-        $day = $response['days']['2026-08-24'];
-        $this->assertCount(2, $day);
-        $this->assertSame('19989', $day[0]['job_number']);
-        $this->assertEqualsWithDelta(29.8123, $day[0]['lat'], 0.000001, 'Normalized address match pins the visit.');
-        $this->assertSame('2', $day[0]['zone'], 'Zone is parsed from the job title.');
-        $this->assertSame('tbp', $day[0]['category'], 'Tenant Benefit Package titles bucket as TBP.');
-        $this->assertSame(['Jimmie Gendke'], $day[0]['technicians'], 'Visit assignees surface for the technician filter.');
-        $this->assertNull($day[1]['lat'], 'A visit with no matching building stays unpinned.');
-        $this->assertSame('1', $day[1]['zone']);
-        $this->assertSame('maintenance', $day[1]['category'], 'Anything not move in/out or TBP is maintenance.');
-        $this->assertSame([], $day[1]['technicians'], 'An unassigned visit has no technicians.');
+        $this->assertSame(
+            ['20003', '19989', '20002', '20001'],
+            collect($response['days']['2026-08-24'])->pluck('job_number')->all(),
+            'A day lists its visits in start order, anytime visits first.'
+        );
+        $day = collect($response['days']['2026-08-24'])->keyBy('job_number');
+
+        $tbp = $day['19989'];
+        $this->assertEqualsWithDelta(29.8123, $tbp['lat'], 0.000001, 'Normalized address match pins the visit.');
+        $this->assertSame('2', $tbp['zone'], 'Zone is parsed from the job title.');
+        $this->assertSame('tbp', $tbp['category'], 'Tenant Benefit Package titles bucket as TBP.');
+        $this->assertSame('9:00 AM', $tbp['time']);
+        $this->assertSame(['Jimmie Gendke'], $tbp['technicians'], 'Visit assignees surface for the technician filter.');
+
+        $unmatched = $day['20001'];
+        $this->assertNull($unmatched['lat'], 'No matching building and no Jobber coordinates: the visit stays unpinned.');
+        $this->assertSame('1', $unmatched['zone']);
+        $this->assertSame('maintenance', $unmatched['category'], 'Anything not move in/out or TBP is maintenance.');
+        $this->assertSame('1:00 PM', $unmatched['time']);
+        $this->assertSame([], $unmatched['technicians'], 'An unassigned visit has no technicians.');
+
+        $this->assertEqualsWithDelta(29.6, $day['20002']['lat'], 0.000001, 'Street matching ignores spacing: "Pepperwood" finds "Pepper Wood".');
+        $this->assertSame('10:30 AM', $day['20002']['time']);
+
+        $moveOut = $day['20003'];
+        $this->assertEqualsWithDelta(29.95, $moveOut['lat'], 0.000001, 'No building coordinates: the visit pins from the coordinates Jobber holds.');
+        $this->assertEqualsWithDelta(-95.75, $moveOut['lng'], 0.000001);
+        $this->assertSame('move_out', $moveOut['category']);
+        $this->assertNull($moveOut['time'], 'A midnight start is a Jobber "anytime" visit.');
 
         $this->assertSame('Q3', $response['tbp_quarter']);
-        $backlog = collect($response['tbp_backlog']);
-        $this->assertSame(['20050'], $backlog->pluck('job_number')->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one, not last year\'s yearless "Q3".');
-        $this->assertEqualsWithDelta(29.8123, $backlog->first()['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
+        $backlog = collect($response['tbp_backlog'])->keyBy('job_number');
+        $this->assertSame(['20050', '20052'], $backlog->pluck('job_number')->sort()->values()->all(), 'Backlog is this quarter\'s unvisited TBPs only — not the visited TBP job, not the Q4 one, not last year\'s yearless "Q3".');
+        $this->assertEqualsWithDelta(29.8123, $backlog['20050']['lat'], 0.000001, 'Backlog jobs carry the matched building coordinates.');
+        $this->assertEqualsWithDelta(29.95, $backlog['20052']['lat'], 0.000001, 'Backlog jobs at streets the geocoder does not know pin from Jobber coordinates.');
     }
 
     public function test_coverage_cities_are_aggregated_with_zone_and_coordinates(): void
