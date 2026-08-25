@@ -17,10 +17,16 @@ class JobberOptionalSelections
     public const COORDINATES = 'coordinates';
 
     /**
+     * Jobber prices a query by the objects it could return, and a connection
+     * costs its `first` times the child — nested three deep inside the jobs
+     * page, every extra assignee slot multiplies out across thousands of
+     * visits. THMP assigns one technician, occasionally two, so three is
+     * plenty and keeps the page far under Jobber's 10,000-point ceiling.
+     *
      * @var array<string, string>
      */
     private const FRAGMENTS = [
-        self::ASSIGNED_USERS => 'assignedUsers(first: 10) { nodes { id name { full } } }',
+        self::ASSIGNED_USERS => 'assignedUsers(first: 3) { nodes { id name { full } } }',
         self::COORDINATES => 'coordinates { latitude longitude }',
     ];
 
