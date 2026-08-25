@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
+use App\Services\WorkOrderLeaseService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -41,11 +42,14 @@ class WorkOrderImportCommand extends Command
 
     protected DescriptionChangeAlertService $descriptionChangeAlertService;
 
-    public function __construct(PropertyWareService $propertyWareService, DescriptionChangeAlertService $descriptionChangeAlertService)
+    protected WorkOrderLeaseService $leaseService;
+
+    public function __construct(PropertyWareService $propertyWareService, DescriptionChangeAlertService $descriptionChangeAlertService, WorkOrderLeaseService $leaseService)
     {
         parent::__construct();
         $this->propertyWareService = $propertyWareService;
         $this->descriptionChangeAlertService = $descriptionChangeAlertService;
+        $this->leaseService = $leaseService;
     }
 
     /**
@@ -202,11 +206,14 @@ class WorkOrderImportCommand extends Command
             // );
 
             // Captured before the write so a PropertyWare-side description
-            // edit can be detected below. WorkOrderScope is a no-op in
-            // console context, so the lookup sees the row.
-            $previousDescription = WorkOrder::query()
+            // edit, or a lease showing up on a lease-less work order, can be
+            // detected below. WorkOrderScope is a no-op in console context,
+            // so the lookup sees the row.
+            $previousState = WorkOrder::query()
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->value('description');
+                ->first(['id', 'description', 'lease_id']);
+            $previousDescription = $previousState?->description;
+            $previousLeaseId = $previousState?->lease_id;
 
             $savedWorkOrder = WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
@@ -236,6 +243,14 @@ class WorkOrderImportCommand extends Command
                     $work_order_data['description'],
                     'soap_import'
                 );
+            }
+
+            // PropertyWare attaches a website request's lease only on the work
+            // order's next save, so a work order imported lease-less (and
+            // therefore muted) can gain its lease on any later sync. Re-run the
+            // intake messages it had to skip.
+            if (! $isNewWorkOrder && $previousLeaseId === null && $workOrder->lease_id !== null) {
+                $this->leaseService->handleArrival($workOrder, 'soap_import');
             }
 
             // Documents (and the vendor service-request email that depends on
@@ -275,6 +290,11 @@ class WorkOrderImportCommand extends Command
                 // texts but not email. Independently gated, so either channel
                 // can be turned off without the other.
                 SendTenantServiceRequestNotificationJob::dispatch($workOrder->id);
+
+                // A work order that came in without its lease is muted by the
+                // vacant-home skip; show staff that rather than letting the
+                // silence pass unnoticed.
+                $this->leaseService->alertMissingOnIntake($workOrder);
             }
         } catch (\Throwable $th) {
             DB::rollBack();

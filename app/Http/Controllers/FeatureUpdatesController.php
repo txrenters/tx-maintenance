@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-25',
+            'area' => 'Automated Messages',
+            'title' => 'Website requests that arrive without a lease no longer go silent',
+            'description' => 'A service request submitted through the PropertyWare website can arrive without the property\'s lease attached, even on an occupied home - PropertyWare only fills the lease in the next time the work order is saved. Because the system reads new work orders within minutes, it saw "no lease" and treated the home as vacant, muting every automated tenant and owner message on that work order, including the "we received your request" texts, which are sent once and were lost for good (WO#43937). Three changes: the notification bell now flags a work order that comes in without a lease, and the Automated Messages log shows the muted texts with the reason, so the silence is visible; the moment the lease shows up - on a sync, an Import Work Order click, or when a vendor is assigned - the intake texts and email go out on their own; and assigning a vendor now pulls the lease straight from PropertyWare instead of waiting for the next sync, so the "vendor assigned" text reaches the tenant too. The vendor sync also sends the work order\'s Source back to PropertyWare so it is no longer reset to "None". Work orders without a tenant contact, and turnover, re-key and cleaning jobs, stay muted on purpose.',
+        ],
+        [
             'date' => '2026-08-22',
             'area' => 'Work Orders',
             'title' => 'The Closed column shows the last 30 days again',

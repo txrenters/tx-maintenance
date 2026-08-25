@@ -321,7 +321,7 @@ class WorkOrderService
             // context where the scope is already a no-op.)
             $existingWorkOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['id', 'status', 'completed_date', 'created_date']);
+                ->first(['id', 'status', 'completed_date', 'created_date', 'lease_id']);
             $workOrderExists = $existingWorkOrder !== null;
 
             $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
@@ -369,9 +369,24 @@ class WorkOrderService
                     AdoptCategorizedHoaViolationJob::dispatch($work_order);
                     SendTenantWorkOrderIntakeEmailJob::dispatch($work_order);
                     SendTenantServiceRequestNotificationJob::dispatch($work_order);
+
+                    // A work order that came in without its lease is muted by
+                    // the vacant-home skip; show staff that rather than letting
+                    // the silence pass unnoticed.
+                    app(WorkOrderLeaseService::class)->alertMissingOnIntake(
+                        WorkOrder::withoutGlobalScope(WorkOrderScope::class)->findOrFail($work_order),
+                    );
                 } else {
                     GenerateWorkOrderRecommendationJob::dispatch($work_order);
                 }
+            } elseif ($dispatchNewWorkOrderAutomations && $existingWorkOrder?->lease_id === null && $savedWorkOrder->lease_id !== null) {
+                // PropertyWare attaches a website request's lease only on the
+                // work order's next save; a re-import that brings it in re-arms
+                // the intake messages the lease-less import had to skip.
+                app(WorkOrderLeaseService::class)->handleArrival(
+                    WorkOrder::withoutGlobalScope(WorkOrderScope::class)->findOrFail($work_order),
+                    'work_order_import',
+                );
             }
 
             return $work_order;
