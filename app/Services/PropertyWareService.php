@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Jobs\CreateJobberJobForWorkOrder;
+use App\Models\Scopes\WorkOrderScope;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
+use App\Models\WorkOrderNotes;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
@@ -1156,9 +1158,33 @@ class PropertyWareService
         return null;
     }
 
-    public function addVendorNotes($notes)
+    /**
+     * Mirror a dashboard note to PropertyWare as a Private work order note.
+     *
+     * Private so tenants and owners never see internal notes on PropertyWare's
+     * portals. Subject and body are XML-escaped (a bare "&" used to make the
+     * whole envelope malformed) and the date is a real xsd:dateTime. Returns
+     * false without calling PropertyWare when the work order has no
+     * PropertyWare id yet. On success the note id PropertyWare hands back is
+     * stamped on the local row so the importer recognises it as the same
+     * note; when the id cannot be read the importer links it by content.
+     */
+    public function addVendorNotes(WorkOrderNotes $note): bool
     {
-        $workOrder = WorkOrder::find($notes->work_order_id);
+        $workOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)->find($note->work_order_id);
+
+        if ($workOrder === null || blank($workOrder->propertyware_id)) {
+            Log::warning('Work order note not pushed: the work order has no PropertyWare id.', [
+                'work_order_id' => $note->work_order_id,
+                'note_id' => $note->id,
+            ]);
+
+            return false;
+        }
+
+        $subject = htmlspecialchars($note->subject ?? '', ENT_XML1, 'UTF-8');
+        $body = htmlspecialchars($note->body ?? '', ENT_XML1, 'UTF-8');
+        $date = now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $xmlPayload = '
             <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -1173,16 +1199,16 @@ class PropertyWareService
                     <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
                     soapenc:arrayType="urn:ClientDataItem[]"
                     xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
-                    <body xsi:type="xsd:string">'.$notes->body.'</body>
-                    <date xsi:type="xsd:dateTime">'.date('Y-m-d').'</date>
-                    <private xsi:type="xsd:boolean">0</private>
-                    <subject xsi:type="xsd:string">'.$notes->subject.'</subject>
+                    <body xsi:type="xsd:string">'.$body.'</body>
+                    <date xsi:type="xsd:dateTime">'.$date.'</date>
+                    <private xsi:type="xsd:boolean">1</private>
+                    <subject xsi:type="xsd:string">'.$subject.'</subject>
                 </note>
                 <workOrder xsi:type="urn:WorkOrder" xmlns:urn="urn:PWServices">
                     <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
                     soapenc:arrayType="urn:ClientDataItem[]"
                     xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
-                    <ID xsi:type="xsd:long">'.$workOrder->propertyware_id.'</ID>
+                    <ID xsi:type="xsd:long">'.(int) $workOrder->propertyware_id.'</ID>
                 </workOrder>
             </ser:attachNoteToWorkOrder>
             </soapenv:Body>
@@ -1190,21 +1216,55 @@ class PropertyWareService
 
         $response = $this->execute($xmlPayload);
 
-        // Log and return response status
-        if ($response) {
-            Log::info('Vendor notes has been added successfully!', [
-                'Work order no' => $workOrder->work_order_no,
+        // execute() always returns an array; only its success flag says
+        // whether PropertyWare accepted the note (a fault array is truthy).
+        if (! is_array($response) || ($response['success'] ?? false) !== true) {
+            Log::error('PropertyWare rejected the work order note.', [
+                'work_order_no' => $workOrder->work_order_no,
+                'note_id' => $note->id,
+                'error' => is_array($response) ? ($response['error'] ?? null) : null,
+                'message' => is_array($response) && is_string($response['message'] ?? null)
+                    ? mb_substr($response['message'], 0, 500)
+                    : null,
             ]);
 
-            return true;
+            return false;
         }
 
-        Log::error('Vendor attachment upload failed!', [
-            'Work order no' => $workOrder->work_order_no,
+        $propertyWareNoteId = $this->extractReturnedNoteId(
+            (string) ($response['response'] ?? ''),
+            (string) $workOrder->propertyware_id,
+        );
+
+        if ($propertyWareNoteId !== null) {
+            $note->forceFill(['propertyware_id' => $propertyWareNoteId])->saveQuietly();
+        }
+
+        Log::info('Work order note pushed to PropertyWare.', [
+            'work_order_no' => $workOrder->work_order_no,
+            'note_id' => $note->id,
+            'propertyware_note_id' => $propertyWareNoteId,
         ]);
 
-        return false;
+        return true;
+    }
 
+    /**
+     * The id of the note PropertyWare created, read tolerantly from the
+     * attachNoteToWorkOrder response (Axis may return the object inline or
+     * through a multiRef). The work order's own id is discarded; anything
+     * still ambiguous is treated as unknown rather than guessed.
+     */
+    private function extractReturnedNoteId(string $xml, string $workOrderPropertyWareId): ?string
+    {
+        preg_match_all('/<(?:\w+:)?ID\b[^>]*>(\d+)<\/(?:\w+:)?ID>/', $xml, $matches);
+
+        $candidates = array_values(array_unique(array_filter(
+            $matches[1],
+            fn (string $id) => $id !== $workOrderPropertyWareId,
+        )));
+
+        return count($candidates) === 1 ? $candidates[0] : null;
     }
 
     /**

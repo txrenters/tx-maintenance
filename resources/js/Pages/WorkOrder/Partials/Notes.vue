@@ -36,11 +36,18 @@ const handleFormSubmit = () => {
     notesForm.post(route("api.work_order_notes.store"), {
         preserveState: true,
         preserveScroll: true,
-        onSuccess: () => {
-            toast({
-                title: "Success",
-                description: "Notes has been created successfully!",
-            });
+        onSuccess: (page) => {
+            // The note is always saved here; the warning means PropertyWare
+            // refused the copy, so nobody is told "Success" for a half-save.
+            const warning = page?.props?.flash?.warning;
+            toast(
+                warning
+                    ? { title: "Saved here only", description: warning }
+                    : {
+                          title: "Success",
+                          description: "Notes has been created successfully!",
+                      }
+            );
             openNoteModal.value = false;
             notesForm.reset();
             handleFetchNotes();
@@ -68,11 +75,16 @@ const deleteNote = (note_id) => {
         {
             preserveState: true,
             preserveScroll: true,
-            onSuccess: () => {
-                toast({
-                    title: "Success",
-                    description: "Notes has been deleted successfully!",
-                });
+            onSuccess: (page) => {
+                const warning = page?.props?.flash?.warning;
+                toast(
+                    warning
+                        ? { title: "Not deleted", description: warning }
+                        : {
+                              title: "Success",
+                              description: "Notes has been deleted successfully!",
+                          }
+                );
                 deleteNoteForm.reset();
                 handleFetchNotes();
                 props.isLoading = false;
@@ -113,6 +125,16 @@ const formatDate = (date) => {
         ? parsedDate.toFormat("EEE, MMMM d, yyyy")
         : "Invalid Date";
 };
+
+// PropertyWare notes carry their own date; created_at is only when the row
+// landed here, which for a synced note is the import time, not the note's.
+const noteDate = (note) => {
+    const fromPropertyWare = note.date ? formatDate(note.date) : null;
+    return fromPropertyWare && fromPropertyWare !== "Invalid Date"
+        ? fromPropertyWare
+        : formatDate(note.created_at);
+};
+
 const handleFetchNotes = () => {
     emit("fetch-notes");
 };
@@ -154,10 +176,12 @@ const handleFetchNotes = () => {
                             <p class="font-bold">{{ note.subject }}</p>
                             <button
                                 v-if="
-                                    note.user_id === $page.props.auth.user.id ||
-                                    !$page.props.auth.user.roles.includes(
-                                        'vendor'
-                                    )
+                                    !note.propertyware_id &&
+                                    (note.user_id ===
+                                        $page.props.auth.user.id ||
+                                        !$page.props.auth.user.roles.includes(
+                                            'vendor'
+                                        ))
                                 "
                                 @click.stop="deleteNote(note.id)"
                                 class="bg-red-500 text-white rounded-full p-1 w-5 h-5"
@@ -168,7 +192,7 @@ const handleFetchNotes = () => {
 
                         <p>{{ note.body }}</p>
                         <p class="text-xs">
-                            Date: {{ formatDate(note.created_at) }}
+                            Date: {{ noteDate(note) }}
                         </p>
                     </div>
                 </div>

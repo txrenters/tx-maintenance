@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
+use App\Services\WorkOrderNoteSyncService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -248,29 +249,17 @@ class UpdateWorkOrderStatus extends Command
         return $vendor->id;
     }
 
+    /**
+     * Refresh PropertyWare's notes on the work order; dashboard notes are
+     * left alone (see WorkOrderNoteSyncService, which accepts the REST
+     * shape's lowercase id). Unused today — the REST payload carries no notes.
+     */
     private function processNotes(array $data, int $work_order): void
     {
-        $now = now();
-
-        $notesData = [];
-        if (! empty($data['notes']) && is_array($data['notes'])) {
-            foreach ($data['notes'] as $note) {
-                $notesData[] = [
-                    'propertyware_id' => $note['id'] ?? null,
-                    'client_data' => $note['clientData'] ?? null,
-                    'subject' => $note['subject'] ?? null,
-                    'body' => $note['body'] ?? null,
-                    'is_private' => $note['private'] ?? null,
-                    'date' => $note['date'] ?? '',
-                    'is_default' => $note['default'] ?? false,
-                    'work_order_id' => $work_order,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
-        DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
-        DB::table('work_order_notes')->insert($notesData);
+        app(WorkOrderNoteSyncService::class)->syncFromPropertyWare(
+            $work_order,
+            is_array($data['notes'] ?? null) ? $data['notes'] : [],
+        );
     }
 
     private function createOrUpdateUser(array $data, string $role): User

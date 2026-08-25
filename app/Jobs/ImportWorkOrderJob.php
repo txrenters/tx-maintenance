@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
 use App\Services\TaskService;
+use App\Services\WorkOrderNoteSyncService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -335,27 +336,16 @@ class ImportWorkOrderJob implements ShouldQueue
         $this->processOwners($data, $work_order, $now);
     }
 
+    /**
+     * Refresh PropertyWare's notes on the work order; dashboard notes are
+     * left alone (see WorkOrderNoteSyncService).
+     */
     private function processNotes(array $data, int $work_order, string $now): void
     {
-        $notesData = [];
-        if (! empty($data['notes']) && is_array($data['notes'])) {
-            foreach ($data['notes'] as $note) {
-                $notesData[] = [
-                    'propertyware_id' => $note['ID'] ?? null,
-                    'client_data' => $note['clientData'] ?? null,
-                    'subject' => $note['subject'] ?? null,
-                    'body' => $note['body'] ?? null,
-                    'is_private' => $note['private'] ?? null,
-                    'date' => $note['date'] ?? '',
-                    'is_default' => $note['default'] ?? false,
-                    'work_order_id' => $work_order,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
-        DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
-        DB::table('work_order_notes')->insert($notesData);
+        app(WorkOrderNoteSyncService::class)->syncFromPropertyWare(
+            $work_order,
+            is_array($data['notes'] ?? null) ? $data['notes'] : [],
+        );
     }
 
     private function processVendors(array $data, int $work_order, string $now): void

@@ -1,0 +1,280 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Owner;
+use App\Models\Tenants;
+use App\Models\User;
+use App\Models\Vendor;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderNotes;
+use App\Services\PropertyWareService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+class WorkOrderNotesTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        foreach (['admin', 'woc', 'vendor', 'owner', 'tenant'] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
+    }
+
+    /**
+     * @return array{0: User, 1: Vendor}
+     */
+    private function makeVendorUser(): array
+    {
+        $user = User::factory()->create();
+        $user->assignRole('vendor');
+
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-'.$user->id,
+            'name' => 'Texas Home Maintenance Pros',
+            'vendor_type' => 'General',
+            'is_active' => true,
+            'user_id' => $user->id,
+        ]);
+
+        return [$user, $vendor];
+    }
+
+    private function makeWoc(): User
+    {
+        $user = User::factory()->create();
+        $user->assignRole('woc');
+
+        return $user;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function note(WorkOrder $workOrder, array $attributes = []): WorkOrderNotes
+    {
+        return WorkOrderNotes::query()->create(array_merge([
+            'work_order_id' => $workOrder->id,
+            'subject' => 'Note',
+            'body' => 'Body',
+            'is_private' => false,
+        ], $attributes));
+    }
+
+    public function test_assigned_vendor_note_is_saved_privately_and_pushed_to_propertyware(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        $workOrder->vendors()->attach($vendor->id);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('addVendorNotes')->once()->andReturn(true);
+        });
+
+        $this->actingAs($vendorUser)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Diagnosis',
+                'body' => 'A/C & heat: compressor < 60 psi.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertRedirect()
+            ->assertSessionMissing('warning');
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendorUser->id,
+            'subject' => 'Diagnosis',
+            'body' => 'A/C & heat: compressor < 60 psi.',
+            'is_private' => 1,
+        ]);
+    }
+
+    public function test_note_is_kept_on_the_dashboard_when_propertyware_rejects_it(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        $workOrder->vendors()->attach($vendor->id);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('addVendorNotes')->once()->andReturn(false);
+        });
+
+        $this->actingAs($vendorUser)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Diagnosis',
+                'body' => 'Compressor failed.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('warning');
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendorUser->id,
+            'body' => 'Compressor failed.',
+        ]);
+    }
+
+    public function test_note_is_kept_on_the_dashboard_when_propertyware_throws(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        $workOrder->vendors()->attach($vendor->id);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('addVendorNotes')->once()->andThrow(new \RuntimeException('SOAP down'));
+        });
+
+        $this->actingAs($vendorUser)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Diagnosis',
+                'body' => 'Compressor failed.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('warning');
+
+        $this->assertDatabaseCount('work_order_notes', 1);
+    }
+
+    public function test_vendor_cannot_note_a_work_order_they_are_not_assigned_to(): void
+    {
+        [$vendorUser] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldNotReceive('addVendorNotes');
+        });
+
+        $this->actingAs($vendorUser)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Diagnosis',
+                'body' => 'Not my job.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('work_order_notes', 0);
+    }
+
+    public function test_coordinator_can_note_any_work_order(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('addVendorNotes')->once()->andReturn(true);
+        });
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Office',
+                'body' => 'Owner approved the estimate.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('work_order_notes', ['user_id' => $woc->id, 'subject' => 'Office']);
+    }
+
+    public function test_vendor_cannot_delete_another_users_note(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id);
+        $note = $this->note($workOrder, ['user_id' => $this->makeWoc()->id]);
+
+        $this->actingAs($vendorUser)
+            ->delete(route('api.work_order_notes.destroy', $note))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('work_order_notes', ['id' => $note->id]);
+    }
+
+    public function test_vendor_can_delete_their_own_unpushed_note(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id);
+        $note = $this->note($workOrder, ['user_id' => $vendorUser->id, 'propertyware_id' => null]);
+
+        $this->actingAs($vendorUser)
+            ->delete(route('api.work_order_notes.destroy', $note))
+            ->assertRedirect()
+            ->assertSessionMissing('warning');
+
+        $this->assertDatabaseMissing('work_order_notes', ['id' => $note->id]);
+    }
+
+    public function test_a_note_stored_in_propertyware_is_not_deleted_locally(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create();
+        $note = $this->note($workOrder, ['propertyware_id' => 555]);
+
+        $this->actingAs($woc)
+            ->delete(route('api.work_order_notes.destroy', $note))
+            ->assertRedirect()
+            ->assertSessionHas('warning');
+
+        $this->assertDatabaseHas('work_order_notes', ['id' => $note->id]);
+    }
+
+    public function test_staff_see_private_notes_but_tenant_and_owner_logins_do_not(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->note($workOrder, ['subject' => 'Public note', 'is_private' => false]);
+        $this->note($workOrder, ['subject' => 'Internal note', 'is_private' => true, 'user_id' => $this->makeWoc()->id]);
+
+        $this->actingAs($this->makeWoc())
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonCount(2, 'notes');
+
+        $tenantUser = User::factory()->create();
+        $tenantUser->assignRole('tenant');
+        $tenant = Tenants::factory()->create(['user_id' => $tenantUser->id]);
+        $workOrder->update(['tenant_id' => $tenant->id]);
+
+        $this->actingAs($tenantUser)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonCount(1, 'notes')
+            ->assertJsonPath('notes.0.subject', 'Public note');
+
+        $ownerUser = User::factory()->create();
+        $ownerUser->assignRole('owner');
+        $owner = Owner::query()->create([
+            'first_name' => 'Pat',
+            'last_name' => 'Owner',
+            'email' => 'pat.owner@example.com',
+            'user_id' => $ownerUser->id,
+        ]);
+        $workOrder->owners()->attach($owner->id);
+
+        $this->actingAs($ownerUser)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonCount(1, 'notes')
+            ->assertJsonPath('notes.0.subject', 'Public note');
+
+        // The full page ships the work order with its (filtered) notes relation.
+        $this->actingAs($tenantUser)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('workOrder.notes', 1)
+                ->where('workOrder.notes.0.subject', 'Public note'));
+
+        $this->actingAs($this->makeWoc())
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('workOrder.notes', 2));
+    }
+}

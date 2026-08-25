@@ -144,8 +144,9 @@ class StaleWorkOrderDigestService
             $lines[] = sprintf('- %s [%s, due %s]', Str::limit((string) ($task->name ?? $task->title ?? 'task'), 80), $task->status ?? 'unknown', $task->due_date ?? 'no date');
         }
 
+        // Staff-only digest: dashboard notes are all private (internal) and
+        // are exactly the ones that explain why a work order is stuck.
         $notes = $workOrder->notes()
-            ->where(fn ($query) => $query->where('is_private', false)->orWhereNull('is_private'))
             ->latest('id')
             ->limit(self::RECENT_NOTES)
             ->get(['subject', 'body', 'created_at']);

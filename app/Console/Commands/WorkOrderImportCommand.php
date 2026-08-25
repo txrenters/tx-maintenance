@@ -12,6 +12,7 @@ use App\Models\WorkOrder;
 use App\Services\DescriptionChangeAlertService;
 use App\Services\PropertyWareService;
 use App\Services\WorkOrderLeaseService;
+use App\Services\WorkOrderNoteSyncService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -455,27 +456,17 @@ class WorkOrderImportCommand extends Command
         return $user;
     }
 
+    /**
+     * Refresh PropertyWare's notes on the work order. Notes written on the
+     * dashboard are left alone — the old delete-and-reinsert here is what
+     * made technician notes vanish minutes after they were saved.
+     */
     private function processNotes(array $data, int $work_order, string $now): void
     {
-        $notesData = [];
-        if (! empty($data['notes']) && is_array($data['notes'])) {
-            foreach ($data['notes'] as $note) {
-                $notesData[] = [
-                    'propertyware_id' => $note['ID'] ?? null,
-                    'client_data' => $note['clientData'] ?? null,
-                    'subject' => $note['subject'] ?? null,
-                    'body' => $note['body'] ?? null,
-                    'is_private' => $note['private'] ?? null,
-                    'date' => $note['date'] ?? '',
-                    'is_default' => $note['default'] ?? false,
-                    'work_order_id' => $work_order,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
-        DB::table('work_order_notes')->where('work_order_id', $work_order)->delete();
-        DB::table('work_order_notes')->insert($notesData);
+        app(WorkOrderNoteSyncService::class)->syncFromPropertyWare(
+            $work_order,
+            is_array($data['notes'] ?? null) ? $data['notes'] : [],
+        );
     }
 
     private function processTenants(array $data, int $work_order, string $now): void

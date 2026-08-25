@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-08-25',
+            'area' => 'Work Orders',
+            'title' => 'Notes added on the dashboard no longer disappear, and are private',
+            'description' => 'Notes typed on a work order\'s Notes tab were being wiped by the PropertyWare sync a few minutes after they were saved, even though the screen had said "Success". The sync now only refreshes PropertyWare\'s own notes and leaves dashboard notes alone, so a technician\'s repair, diagnosis and visit notes stay put with their author and real date. Every note added here is now saved to PropertyWare as Private (internal only, hidden from the tenant and owner portals) and is hidden from tenant and owner logins on the dashboard too. If PropertyWare does not accept a note when it is added, the note is still kept on the dashboard and you get a "Saved here only" message instead of "Success". Notes that came from PropertyWare can no longer be deleted here (they would only come back at the next sync) — remove those in PropertyWare.',
+        ],
+        [
+            'date' => '2026-08-25',
             'area' => 'Jobber',
             'title' => 'Scheduler map preview (still developing)',
             'description' => 'A new Scheduler page under Jobs (Jobber) maps the whole portfolio: every property pinned by its real location, colored by zone, with filters for properties with open THMP work and for the Assigned - Waiting on Scheduling queue. A Calendar tab shows each month of Jobber visits colored by type (move in, move out, TBP, maintenance) — click a day to see its visits on the map, click a visit to draw its 5-mile radius and highlight the unscheduled TBPs inside it. Dots can be colored by type or by technician, each technician\'s stops for the day are joined into a route (a suggested drive order when the visits are booked as "anytime"), and picking a technician on the property view shows just the properties they are booked at this month. Admins and coordinators only. Property positions fill in after the nightly geocoding run — addresses the geocoder does not know yet pin from Jobber\'s own coordinates — and technician names appear as visits sync from Jobber. This page is a working preview — the scheduling automation it is built for comes later.',
