@@ -359,6 +359,41 @@ class LeaseArrivalIntakeTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_a_lease_arriving_on_a_turnover_never_reactivates_its_messages(): void
+    {
+        // The vacant-home rules still win over a lease showing up: a turnover
+        // is muted by its type, whatever PropertyWare attaches later.
+        $this->fakeScheduledImports(
+            $this->payload(['type' => 'Turnover']),
+            $this->withLease(['type' => 'Turnover']),
+        );
+
+        Queue::fake();
+        $this->runScheduledImport();
+
+        Queue::fake();
+        $this->runScheduledImport();
+
+        $this->assertNotNull($this->importedWorkOrder()->lease_id);
+        Queue::assertNothingPushed();
+    }
+
+    public function test_the_manual_vacant_toggle_still_blocks_the_intake_re_run(): void
+    {
+        $this->fakeScheduledImports($this->payload(), $this->withLease());
+
+        Queue::fake();
+        $this->runScheduledImport();
+
+        WorkOrder::query()->whereKey($this->importedWorkOrder()->id)->update(['skip_automated_tasks' => true]);
+
+        Queue::fake();
+        $this->runScheduledImport();
+
+        $this->assertNotNull($this->importedWorkOrder()->lease_id);
+        Queue::assertNothingPushed();
+    }
+
     public function test_the_import_button_also_reacts_to_the_lease_arriving(): void
     {
         $staff = User::role('woc')->firstOrFail();
