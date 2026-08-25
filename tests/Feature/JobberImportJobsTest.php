@@ -127,7 +127,7 @@ class JobberImportJobsTest extends TestCase
         Http::assertSent(function ($request) {
             $query = $request->data()['query'];
 
-            return str_contains($query, 'assignedUsers(first: 10)')
+            return str_contains($query, 'assignedUsers(first: 3)')
                 && str_contains($query, 'coordinates { latitude longitude }');
         });
 
@@ -151,7 +151,7 @@ class JobberImportJobsTest extends TestCase
         $this->assertCount(2, $queries);
         $this->assertStringContainsString('coordinates {', $queries[0]);
         $this->assertStringNotContainsString('coordinates', $queries[1], 'The retry leaves the rejected field out.');
-        $this->assertStringContainsString('assignedUsers(first: 10)', $queries[1], 'Other optional fields stay in.');
+        $this->assertStringContainsString('assignedUsers(first: 3)', $queries[1], 'Other optional fields stay in.');
 
         $this->assertSame(2, Jobber::query()->count(), 'The page still imports in full.');
         $this->assertNotNull(JobberVisit::query()->where('jobber_id', 'visit-job-1')->firstOrFail()->assigned_to);
@@ -307,6 +307,96 @@ class JobberImportJobsTest extends TestCase
         ])]);
 
         $this->artisan('jobber:import-jobs')->assertFailed();
+    }
+
+    public function test_the_jobs_page_stays_under_jobbers_query_cost_ceiling(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        // Jobber prices a connection at `first` times its child. The page
+        // that shipped with assignees nested at 50 jobs × 50 visits × 10
+        // users priced out near 27,000 points against a 10,000 ceiling and
+        // was refused on every attempt; this keeps the worst case near 2,000.
+        Http::assertSent(function ($request) {
+            $query = $request->data()['query'];
+            preg_match('/jobs\(first: (\d+)/', $query, $jobs);
+            preg_match('/visits\(first: (\d+)/', $query, $visits);
+            preg_match('/assignedUsers\(first: (\d+)/', $query, $users);
+
+            $estimatedCost = (int) $jobs[1] * (3 + (int) $visits[1] * (1 + (int) $users[1]));
+
+            return $estimatedCost < 5000;
+        });
+    }
+
+    public function test_a_job_with_more_visits_than_fit_inline_gets_the_rest_fetched_on_its_own(): void
+    {
+        $overflowing = $this->jobNode('job-1', 19484);
+        $overflowing['visits']['pageInfo'] = ['hasNextPage' => true, 'endCursor' => 'visits-page-2'];
+
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push([
+                'data' => [
+                    'jobs' => [
+                        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                        'edges' => [['node' => $overflowing]],
+                    ],
+                ],
+            ])
+            ->push([
+                'data' => [
+                    'job' => [
+                        'visits' => [
+                            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                            'edges' => [
+                                ['node' => [
+                                    'id' => 'visit-job-1-extra',
+                                    'title' => 'Visit 2',
+                                    'visitStatus' => 'UNSCHEDULED',
+                                    'duration' => 0,
+                                    'instructions' => null,
+                                    'startAt' => null,
+                                    'endAt' => null,
+                                    'completedAt' => null,
+                                    'assignedUsers' => ['nodes' => []],
+                                ]],
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->artisan('jobber:import-jobs')->assertSuccessful();
+
+        Http::assertSentCount(2);
+        $followUp = Http::recorded()->last()[0];
+        $this->assertStringContainsString('job(id: "job-1")', $followUp->data()['query']);
+        $this->assertSame('visits-page-2', $followUp->data()['variables']['cursor'], 'The follow-up continues from the inline page\'s cursor.');
+        $this->assertSame(2, JobberVisit::query()->count(), 'Both the inline visit and the overflow visit are imported.');
+    }
+
+    public function test_a_query_priced_over_the_ceiling_fails_fast_instead_of_retrying(): void
+    {
+        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
+            'errors' => [[
+                'message' => 'Throttled',
+                'extensions' => ['code' => 'THROTTLED'],
+            ]],
+            'extensions' => ['cost' => [
+                'requestedQueryCost' => 27650,
+                'actualQueryCost' => null,
+                'throttleStatus' => ['maximumAvailable' => 10000, 'currentlyAvailable' => 10000, 'restoreRate' => 500],
+            ]],
+        ])]);
+
+        $this->artisan('jobber:import-jobs')
+            ->expectsOutputToContain('costs 27650 points against a 10000 ceiling')
+            ->assertFailed();
+
+        // Waiting cannot help a query the bucket can never hold.
+        Http::assertSentCount(1);
     }
 
     public function test_a_throttled_response_is_retried_rather_than_treated_as_a_failure(): void

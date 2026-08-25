@@ -17,16 +17,27 @@ class ImportJobberJobs extends Command
     /**
      * Jobs per page. Each page is a single GraphQL call that also carries the
      * client, property and visits for every job on it, so this is the only
-     * request the import makes per page. Kept well under Jobber's 100 maximum
-     * because the nested fields multiply the query's cost score.
+     * request the import makes per page.
+     *
+     * Jobber prices a query by the objects it could return — a connection
+     * costs its `first` times the child — and rejects any single query over
+     * 10,000 points no matter how long you wait. With visits and their
+     * assignees nested inline, this page comes to roughly
+     * 50 × (3 + 10 × 4) ≈ 2,150 points; the original 50 × 50 visits with
+     * 10 assignees each priced out at ~27,000 and was refused every time.
      */
     private const PAGE_SIZE = 50;
 
     /**
-     * Visits fetched inline per job. A job with more than this many visits is
-     * logged rather than silently truncated.
+     * Visits fetched inline per job. Almost every job has one to three; the
+     * rare job with more gets the remainder fetched on its own afterwards.
      */
-    private const VISITS_PAGE_SIZE = 50;
+    private const VISITS_PAGE_SIZE = 10;
+
+    /**
+     * Visits per follow-up page when a job overflows the inline allowance.
+     */
+    private const VISITS_FOLLOW_UP_PAGE_SIZE = 50;
 
     private const THROTTLE_ATTEMPTS = 5;
 
@@ -131,10 +142,13 @@ class ImportJobberJobs extends Command
                     }
 
                     if ($jobData['visits']['pageInfo']['hasNextPage'] ?? false) {
-                        Log::warning('Job has more visits than one page', [
-                            'job_id' => $jobData['id'],
-                            'imported' => count($visitsData),
-                        ]);
+                        $this->importRemainingVisits(
+                            (string) $jobData['id'],
+                            $jobData['visits']['pageInfo']['endCursor'] ?? null,
+                            $client,
+                            $property,
+                            $job
+                        );
                     }
                 }
 
@@ -319,6 +333,7 @@ class ImportJobberJobs extends Command
                         visits(first: {$visitsPageSize}) {
                             pageInfo {
                                 hasNextPage
+                                endCursor
                             }
                             edges {
                                 node {
@@ -360,6 +375,73 @@ class ImportJobberJobs extends Command
     }
 
     /**
+     * The rare job with more visits than the jobs page carries inline: page
+     * through the rest for that one job so nothing is silently truncated.
+     */
+    private function importRemainingVisits(string $jobId, ?string $cursor, object $client, object $property, object $job): void
+    {
+        $pageSize = self::VISITS_FOLLOW_UP_PAGE_SIZE;
+
+        while ($cursor !== null) {
+            $assignedUsers = $this->optional->fragment(JobberOptionalSelections::ASSIGNED_USERS);
+            $query = <<<GRAPHQL
+            query (\$cursor: String) {
+                job(id: "{$jobId}") {
+                    visits(first: {$pageSize}, after: \$cursor) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                id
+                                title
+                                visitStatus
+                                duration
+                                instructions
+                                startAt
+                                endAt
+                                completedAt
+                                {$assignedUsers}
+                            }
+                        }
+                    }
+                }
+            }
+            GRAPHQL;
+
+            $response = $this->postWithThrottleRetry([
+                'query' => $query,
+                'variables' => ['cursor' => $cursor],
+            ]);
+
+            if ($this->optional->rejectedBy($response) !== null) {
+                continue;
+            }
+
+            $page = $response['data']['job']['visits'] ?? null;
+
+            if (! is_array($page)) {
+                Log::warning('Could not fetch the remaining visits of a job; the ones already imported stand', [
+                    'job_id' => $jobId,
+                ]);
+
+                return;
+            }
+
+            foreach ($page['edges'] ?? [] as $edge) {
+                if (is_array($edge['node'] ?? null)) {
+                    $this->createVisits($edge['node'], $client, $property, $job);
+                }
+            }
+
+            $cursor = ($page['pageInfo']['hasNextPage'] ?? false)
+                ? ($page['pageInfo']['endCursor'] ?? null)
+                : null;
+        }
+    }
+
+    /**
      * POST a GraphQL body, backing off and retrying while Jobber reports the
      * request as throttled. Nesting three sub-selections raises the query's
      * cost, so a large import can outrun the rate limiter and must wait rather
@@ -386,8 +468,25 @@ class ImportJobberJobs extends Command
                 return $json;
             }
 
+            $cost = $json['extensions']['cost'] ?? [];
+            $requested = $cost['requestedQueryCost'] ?? null;
+            $ceiling = $cost['throttleStatus']['maximumAvailable'] ?? null;
+
+            // A query priced above the bucket's ceiling can never succeed —
+            // waiting only burns the retries. Say so plainly and stop.
+            if (is_numeric($requested) && is_numeric($ceiling) && $requested > $ceiling) {
+                $this->error("Jobber refused the query: it costs {$requested} points against a {$ceiling} ceiling. Shrink the page sizes.");
+                Log::error('Jobber query costs more than the rate-limit ceiling; shrink the page sizes', ['cost' => $cost]);
+
+                return null;
+            }
+
             $this->warn("Jobber throttled the request, waiting (attempt {$attempt})");
-            Log::warning('Jobber throttled the jobs query', ['attempt' => $attempt]);
+            Log::warning('Jobber throttled the jobs query', [
+                'attempt' => $attempt,
+                'message' => $json['errors'][0]['message'] ?? null,
+                'cost' => $cost,
+            ]);
 
             sleep(self::THROTTLE_BACKOFF_SECONDS * $attempt);
         }
