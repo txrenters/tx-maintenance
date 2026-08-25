@@ -17,16 +17,16 @@ class JobberOptionalSelections
     public const COORDINATES = 'coordinates';
 
     /**
-     * Jobber prices a query by the objects it could return, and a connection
-     * costs its `first` times the child — nested three deep inside the jobs
-     * page, every extra assignee slot multiplies out across thousands of
-     * visits. THMP assigns one technician, occasionally two, so three is
-     * plenty and keeps the page far under Jobber's 10,000-point ceiling.
+     * Jobber prices a query by what it could return, and nested three deep
+     * inside the jobs page every assignee slot multiplies out across
+     * thousands of visits: measured on prod, three slots on ten visits per
+     * job put a 50-job page at 12,305 points against a 10,000 ceiling. THMP
+     * assigns one technician, occasionally two, so two slots it is.
      *
      * @var array<string, string>
      */
     private const FRAGMENTS = [
-        self::ASSIGNED_USERS => 'assignedUsers(first: 3) { nodes { id name { full } } }',
+        self::ASSIGNED_USERS => 'assignedUsers(first: 2) { nodes { id name { full } } }',
         self::COORDINATES => 'coordinates { latitude longitude }',
     ];
 

@@ -120,7 +120,7 @@ class JobberWebhookOptionalFieldsTest extends TestCase
         Http::assertSent(function ($request) {
             $query = $request->data()['query'];
 
-            return str_contains($query, 'assignedUsers(first: 3)')
+            return str_contains($query, 'assignedUsers(first: 2)')
                 && str_contains($query, 'coordinates { latitude longitude }');
         });
 

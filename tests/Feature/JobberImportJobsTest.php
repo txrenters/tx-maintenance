@@ -127,7 +127,7 @@ class JobberImportJobsTest extends TestCase
         Http::assertSent(function ($request) {
             $query = $request->data()['query'];
 
-            return str_contains($query, 'assignedUsers(first: 3)')
+            return str_contains($query, 'assignedUsers(first: 2)')
                 && str_contains($query, 'coordinates { latitude longitude }');
         });
 
@@ -151,7 +151,7 @@ class JobberImportJobsTest extends TestCase
         $this->assertCount(2, $queries);
         $this->assertStringContainsString('coordinates {', $queries[0]);
         $this->assertStringNotContainsString('coordinates', $queries[1], 'The retry leaves the rejected field out.');
-        $this->assertStringContainsString('assignedUsers(first: 3)', $queries[1], 'Other optional fields stay in.');
+        $this->assertStringContainsString('assignedUsers(first: 2)', $queries[1], 'Other optional fields stay in.');
 
         $this->assertSame(2, Jobber::query()->count(), 'The page still imports in full.');
         $this->assertNotNull(JobberVisit::query()->where('jobber_id', 'visit-job-1')->firstOrFail()->assigned_to);
@@ -309,26 +309,94 @@ class JobberImportJobsTest extends TestCase
         $this->artisan('jobber:import-jobs')->assertFailed();
     }
 
-    public function test_the_jobs_page_stays_under_jobbers_query_cost_ceiling(): void
+    public function test_the_jobs_page_keeps_the_nested_selections_small(): void
     {
         Http::fake(['api.getjobber.com/api/graphql' => Http::response($this->jobsPage())]);
 
         $this->artisan('jobber:import-jobs')->assertSuccessful();
 
-        // Jobber prices a connection at `first` times its child. The page
-        // that shipped with assignees nested at 50 jobs × 50 visits × 10
-        // users priced out near 27,000 points against a 10,000 ceiling and
-        // was refused on every attempt; this keeps the worst case near 2,000.
+        // Measured on prod: 50 jobs × 10 visits × 3 assignees priced at
+        // 12,305 points against Jobber's 10,000 ceiling and was refused on
+        // every attempt. The nested slots are what cost, so they stay small
+        // and the page size adapts (see the over-ceiling tests).
         Http::assertSent(function ($request) {
             $query = $request->data()['query'];
-            preg_match('/jobs\(first: (\d+)/', $query, $jobs);
-            preg_match('/visits\(first: (\d+)/', $query, $visits);
-            preg_match('/assignedUsers\(first: (\d+)/', $query, $users);
 
-            $estimatedCost = (int) $jobs[1] * (3 + (int) $visits[1] * (1 + (int) $users[1]));
-
-            return $estimatedCost < 5000;
+            return str_contains($query, 'jobs(first: 50')
+                && str_contains($query, 'visits(first: 5)')
+                && str_contains($query, 'assignedUsers(first: 2)');
         });
+    }
+
+    /**
+     * A THROTTLED reply carrying Jobber's cost accounting.
+     *
+     * @return array<string, mixed>
+     */
+    private function throttled(int $requested, int $available = 10000, int $ceiling = 10000): array
+    {
+        return [
+            'errors' => [[
+                'message' => 'Throttled',
+                'extensions' => ['code' => 'THROTTLED'],
+            ]],
+            'extensions' => ['cost' => [
+                'requestedQueryCost' => $requested,
+                'actualQueryCost' => null,
+                'throttleStatus' => ['maximumAvailable' => $ceiling, 'currentlyAvailable' => $available, 'restoreRate' => 500],
+            ]],
+        ];
+    }
+
+    public function test_a_page_priced_over_the_ceiling_is_halved_and_asked_for_again(): void
+    {
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push($this->throttled(12305))
+            ->push($this->jobsPage());
+
+        $this->artisan('jobber:import-jobs')
+            ->expectsOutputToContain('retrying with 25 jobs per page')
+            ->assertSuccessful();
+
+        $queries = Http::recorded()->map(fn (array $pair) => $pair[0]->data()['query']);
+        $this->assertCount(2, $queries, 'No wait-and-retry for a query the bucket can never hold.');
+        $this->assertStringContainsString('jobs(first: 50', $queries[0]);
+        $this->assertStringContainsString('jobs(first: 25', $queries[1]);
+        $this->assertSame(2, Jobber::query()->count());
+    }
+
+    public function test_the_page_stops_shrinking_at_the_minimum_and_then_fails(): void
+    {
+        // Every size still priced over the ceiling — a broken account limit,
+        // not something a smaller page can fix.
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push($this->throttled(12305))   // 50 jobs
+            ->push($this->throttled(11000))   // 25
+            ->push($this->throttled(10500))   // 12
+            ->push($this->throttled(10200))   // 6
+            ->push($this->throttled(10100));  // 5 = minimum, no further halving
+
+        $this->artisan('jobber:import-jobs')->assertFailed();
+
+        Http::assertSentCount(5);
+        $last = Http::recorded()->last()[0]->data()['query'];
+        $this->assertStringContainsString('jobs(first: 5,', $last);
+    }
+
+    public function test_a_throttle_with_cost_numbers_waits_just_long_enough(): void
+    {
+        // 4,000 points short at 500/s → 8 s + 1 s of slack, then it fits.
+        Http::fakeSequence('api.getjobber.com/api/graphql')
+            ->push($this->throttled(6000, available: 2000))
+            ->push($this->jobsPage());
+
+        $started = microtime(true);
+        $this->artisan('jobber:import-jobs')
+            ->expectsOutputToContain('waiting 9s (attempt 1)')
+            ->assertSuccessful();
+
+        $this->assertGreaterThanOrEqual(8.5, microtime(true) - $started);
+        $this->assertSame(2, Jobber::query()->count());
     }
 
     public function test_a_job_with_more_visits_than_fit_inline_gets_the_rest_fetched_on_its_own(): void
@@ -375,28 +443,6 @@ class JobberImportJobsTest extends TestCase
         $this->assertStringContainsString('job(id: "job-1")', $followUp->data()['query']);
         $this->assertSame('visits-page-2', $followUp->data()['variables']['cursor'], 'The follow-up continues from the inline page\'s cursor.');
         $this->assertSame(2, JobberVisit::query()->count(), 'Both the inline visit and the overflow visit are imported.');
-    }
-
-    public function test_a_query_priced_over_the_ceiling_fails_fast_instead_of_retrying(): void
-    {
-        Http::fake(['api.getjobber.com/api/graphql' => Http::response([
-            'errors' => [[
-                'message' => 'Throttled',
-                'extensions' => ['code' => 'THROTTLED'],
-            ]],
-            'extensions' => ['cost' => [
-                'requestedQueryCost' => 27650,
-                'actualQueryCost' => null,
-                'throttleStatus' => ['maximumAvailable' => 10000, 'currentlyAvailable' => 10000, 'restoreRate' => 500],
-            ]],
-        ])]);
-
-        $this->artisan('jobber:import-jobs')
-            ->expectsOutputToContain('costs 27650 points against a 10000 ceiling')
-            ->assertFailed();
-
-        // Waiting cannot help a query the bucket can never hold.
-        Http::assertSentCount(1);
     }
 
     public function test_a_throttled_response_is_retried_rather_than_treated_as_a_failure(): void
