@@ -547,7 +547,10 @@ class ImportJobberJobs extends Command
             return;
         }
 
-        $wait = $this->secondsUntilAffordable($cost, $cost['actualQueryCost'] ?? $cost['requestedQueryCost'] ?? null);
+        // Jobber admits a query on its requested (reserved) cost, not the
+        // smaller amount it ends up charging — measured on prod: 6,555
+        // requested, 3,094 charged — so the next page must fit the former.
+        $wait = $this->secondsUntilAffordable($cost, $cost['requestedQueryCost'] ?? $cost['actualQueryCost'] ?? null);
 
         if ($wait !== null && $wait > 0) {
             sleep($wait);
