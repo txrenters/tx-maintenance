@@ -64,6 +64,7 @@ class AutomatedMessageLogService
         'vendor_jobber_assignment_sms' => 'Vendor: Jobber job assigned (text)',
         'tenant_job_reminder_sms' => 'Tenant: Jobber visit reminder (text)',
         'tenant_job_reminder_email' => 'Tenant: Jobber visit reminder (email)',
+        'tenant_tbp_visit_notice_sms' => 'Tenant: TBP visit notice (Send notification button)',
     ];
 
     /**
