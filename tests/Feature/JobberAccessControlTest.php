@@ -122,6 +122,8 @@ class JobberAccessControlTest extends TestCase
                 ->where('job.vendors.0.name', 'Roofing Co')
                 ->has('job.attachments')
                 ->has('job.invoices')
+                ->has('job.notes')
+                ->where('canManageNotes', true)
             );
     }
 
@@ -139,9 +141,10 @@ class JobberAccessControlTest extends TestCase
             ->assertOk()
             ->assertJsonPath('can_assign_vendors', true)
             ->assertJsonPath('can_upload_invoices', true)
+            ->assertJsonPath('can_manage_notes', true)
             ->assertJsonPath('vendors.0.name', 'Roofing Co')
             ->assertJsonPath('vendor_ids.0', $vendor->id)
-            ->assertJsonStructure(['vendor_options', 'attachments', 'invoices']);
+            ->assertJsonStructure(['vendor_options', 'attachments', 'invoices', 'notes']);
     }
 
     /**

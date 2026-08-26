@@ -37,6 +37,7 @@ import {
     ExternalLink,
     Image as ImageIcon,
     Receipt,
+    Notebook,
     Copy,
     Trash2,
     Upload,
@@ -57,6 +58,7 @@ import Navigation from "./partials/Navigation.vue";
 import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import JobPhotosTab from "./partials/JobPhotosTab.vue";
 import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
+import JobNotesTab from "./partials/JobNotesTab.vue";
 import JobCloseAction from "./partials/JobCloseAction.vue";
 import MessageCard from "@/Components/MessageCard.vue";
 import debounce from "lodash.debounce";
@@ -156,6 +158,7 @@ const tabButtons = [
     { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
     { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
     { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
+    { name: "notes", tooltip: "Notes", icon: Notebook, requires: STAFF },
     {
         name: "messages",
         tooltip: "Messages",
@@ -170,6 +173,7 @@ const tabCount = (name) => {
     if (name === "vendors") return selectedJob.value?.vendors?.length;
     if (name === "photos") return selectedJob.value?.attachments?.length;
     if (name === "invoices") return selectedJob.value?.invoices?.length;
+    if (name === "notes") return selectedJob.value?.notes?.length;
     return 0;
 };
 
@@ -1485,6 +1489,19 @@ usePoll(15000, {
                     :invoices="selectedJob.invoices || []"
                     :vendors="selectedJob.vendors || []"
                     :can-manage="selectedJob.can_upload_invoices"
+                    @saved="refreshSelectedJob"
+                />
+            </div>
+
+            <!-- Notes View -->
+            <div
+                v-if="activeTab === 'notes' && selectedJob"
+                class="p-6 overflow-y-auto"
+            >
+                <JobNotesTab
+                    :job-id="selectedJob.id"
+                    :notes="selectedJob.notes || []"
+                    :can-manage="selectedJob.can_manage_notes"
                     @saved="refreshSelectedJob"
                 />
             </div>

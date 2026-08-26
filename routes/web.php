@@ -33,6 +33,7 @@ use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberAutomationSettingsController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
+use App\Http\Controllers\JobberJobNoteController;
 use App\Http\Controllers\JobberSchedulerController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
@@ -220,6 +221,8 @@ Route::middleware([
     Route::post('/inspections/{job}/invoices', [JobberInvoiceController::class, 'store'])->name('jobber.invoices.store');
     Route::patch('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'update'])->name('jobber.invoices.update');
     Route::delete('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'destroy'])->name('jobber.invoices.destroy');
+    Route::post('/inspections/{job}/notes', [JobberJobNoteController::class, 'store'])->name('jobber.notes.store');
+    Route::delete('/jobber-notes/{note}', [JobberJobNoteController::class, 'destroy'])->name('jobber.notes.destroy');
 
     // Moved out of routes/api.php, where they sat outside every auth middleware:
     // any guest could read and replace an outside client's contact list.

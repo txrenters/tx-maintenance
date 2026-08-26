@@ -7,6 +7,7 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberJobAttachment;
 use App\Models\JobberJobInvoice;
+use App\Models\JobberJobNote;
 use App\Models\JobberTextMessage;
 use App\Models\JobberToken;
 use App\Models\Owner;
@@ -125,6 +126,7 @@ class InspectionController extends Controller
                 'can_assign_vendors' => $isStaff,
                 'can_upload_invoices' => $isStaff,
                 'can_close' => $isStaff,
+                'can_manage_notes' => $isStaff,
             ]);
         }
 
@@ -134,6 +136,7 @@ class InspectionController extends Controller
             'canAssignVendors' => $isStaff,
             'canUploadInvoices' => $isStaff,
             'canClose' => $isStaff,
+            'canManageNotes' => $isStaff,
             'job' => array_merge([
                 'id' => $job->id,
                 'job_number' => $job->job_number,
@@ -149,7 +152,7 @@ class InspectionController extends Controller
 
     protected function buildJobDetailsPayload(Jobber $job): array
     {
-        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts', 'vendors', 'jobAttachments', 'jobInvoices.vendor', 'closedBy:id,name']);
+        $job->load(['visits', 'client', 'property', 'textMessages', 'clientContacts', 'vendors', 'jobAttachments', 'jobInvoices.vendor', 'jobNotes.user:id,name', 'closedBy:id,name']);
 
         return [
             'is_closed' => $job->isClosedLocally(),
@@ -183,6 +186,15 @@ class InspectionController extends Controller
                 'url' => asset('storage/'.$i->filename),
                 'created_at' => $i->created_at,
             ])->values(),
+            // Newest first by id rather than created_at: two notes written in
+            // the same second would otherwise come back oldest-first.
+            'notes' => $job->jobNotes->sortByDesc('id')->map(fn (JobberJobNote $n) => [
+                'id' => $n->id,
+                'body' => $n->body,
+                'author' => $n->user?->name ?? 'Unknown',
+                'created_at' => $n->created_at,
+            ])->values(),
+            'notes_count' => $job->jobNotes->count(),
             'jobber_web_uri' => $job->jobber_web_uri,
             'instructions' => $job->instructions,
             'end_at' => $job->end_at,
