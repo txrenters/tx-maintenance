@@ -33,12 +33,18 @@ const isSaving = ref(false);
 
 // A note leaves the list the moment its delete is sent. The modal only
 // refetches after the redirect lands, and a second click on the stale row in
-// that gap would hit a note that is already gone (a 404). The set clears when
-// fresh notes arrive.
+// that gap would hit a note that is already gone (a 404). An id is only
+// forgotten once the server stops listing it — a refetch that was already in
+// flight when the delete went out still carries the note.
 const deletedIds = ref(new Set());
 watch(
     () => props.notes,
-    () => (deletedIds.value = new Set())
+    (notes) =>
+        (deletedIds.value = new Set(
+            [...deletedIds.value].filter((id) =>
+                notes.some((note) => note.id === id)
+            )
+        ))
 );
 const visibleNotes = computed(() =>
     props.notes.filter((note) => !deletedIds.value.has(note.id))
