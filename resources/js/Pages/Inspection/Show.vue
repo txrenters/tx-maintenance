@@ -10,6 +10,7 @@ import TabSwitcher from "@/Pages/WorkOrder/Partials/TabSwitcher.vue";
 import JobPhotosTab from "./partials/JobPhotosTab.vue";
 import JobCloseAction from "./partials/JobCloseAction.vue";
 import JobInvoicesTab from "./partials/JobInvoicesTab.vue";
+import JobNotesTab from "./partials/JobNotesTab.vue";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
@@ -25,7 +26,7 @@ import { Checkbox } from "@/Components/ui/checkbox";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/Components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/Components/ui/dropdown-menu";
-import { ArrowLeft, Calendar, ClipboardList, Copy, EllipsisVertical, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
+import { ArrowLeft, Calendar, ClipboardList, Copy, EllipsisVertical, Eye, Image as ImageIcon, Loader2, MapPin, MessageCircle, Notebook, Paperclip, Plus, Receipt, Search, Send, Tag, Trash2, Upload, User, Wrench, X } from "lucide-vue-next";
 
 defineOptions({ layout: AppLayout });
 
@@ -36,6 +37,7 @@ const props = defineProps({
   canAssignVendors: { type: Boolean, default: false },
   canUploadInvoices: { type: Boolean, default: false },
   canClose: { type: Boolean, default: false },
+  canManageNotes: { type: Boolean, default: false },
 });
 const { toast } = useToast();
 const page = usePage();
@@ -53,6 +55,7 @@ const tabs = [
   { name: "visits", tooltip: "Visits", icon: Calendar, requires: STAFF },
   { name: "photos", tooltip: "Photos", icon: ImageIcon, requires: STAFF },
   { name: "invoices", tooltip: "Invoices", icon: Receipt, requires: STAFF },
+  { name: "notes", tooltip: "Notes", icon: Notebook, requires: STAFF },
   { name: "messages", tooltip: "Messages", icon: MessageCircle, requires: STAFF },
 ];
 
@@ -62,6 +65,7 @@ const tabCount = (name) => {
   if (name === "vendors") return job.value?.vendors?.length;
   if (name === "photos") return job.value?.attachments?.length;
   if (name === "invoices") return job.value?.invoices?.length;
+  if (name === "notes") return job.value?.notes?.length;
   return 0;
 };
 
@@ -526,6 +530,14 @@ onUnmounted(() => {
           :invoices="job.invoices || []"
           :vendors="job.vendors || []"
           :can-manage="canUploadInvoices"
+        />
+      </div>
+
+      <div v-if="activeTab === 'notes' && job">
+        <JobNotesTab
+          :job-id="job.id"
+          :notes="job.notes || []"
+          :can-manage="canManageNotes"
         />
       </div>
 

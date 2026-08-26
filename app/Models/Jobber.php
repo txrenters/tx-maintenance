@@ -83,6 +83,16 @@ class Jobber extends Model
     }
 
     /**
+     * Office notes on this job. Kept in their own table, never sent to or read
+     * from Jobber, so a sync cannot overwrite them the way it does
+     * `instructions`.
+     */
+    public function jobNotes(): HasMany
+    {
+        return $this->hasMany(JobberJobNote::class, 'jobber_job_id');
+    }
+
+    /**
      * Limit the query to jobs the given vendor is assigned to.
      *
      * Deliberately a local scope rather than a global one: a global scope would

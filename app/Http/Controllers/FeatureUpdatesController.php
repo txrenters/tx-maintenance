@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-27',
+            'area' => 'Jobber',
+            'title' => 'Notes tab on Jobber jobs',
+            'description' => 'The job pop-up on the Jobs (Jobber) board and the full job page have a new Notes tab for internal office notes. Type a note and press Add note (or Ctrl+Enter) and it appears at the top with who wrote it and when; the red X removes it. These notes stay in this system only: nothing is sent to Jobber and a Jobber sync never touches them (unlike Instructions, which Jobber owns), and they are separate from work order notes, which live in PropertyWare. Vendors, owners and tenants never see them, and a job that has been closed here still takes notes.',
+        ],
+        [
             'date' => '2026-08-26',
             'area' => 'Work Orders',
             'title' => 'Notes added on the dashboard no longer disappear, and are private',
