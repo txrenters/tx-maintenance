@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateBuildingCustomFieldsRequest extends FormRequest
@@ -17,7 +18,7 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -52,6 +53,15 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             // HVAC & Home Warranty Validation
             'formData.hvacMaintenancePlan' => 'required|string|in:Yes,No',
             'formData.installFloatSwitch' => 'required|string|in:Yes,No',
+
+            // Gate Access (stored in the "Gated Community? Gate Code?" custom field)
+            'formData.gatedCommunity' => 'required|string|in:Yes,No',
+            'formData.gateCode' => 'required_if:formData.gatedCommunity,Yes|nullable|string|max:255',
+
+            // Sprinkler / Irrigation System (Yes/No stored in the "Yard Features" picklist; details on the PDF only)
+            'formData.sprinklerSystem' => 'required|string|in:Yes,No',
+            'formData.sprinklerControllerLocation' => 'required_if:formData.sprinklerSystem,Yes|nullable|string|max:255',
+            'formData.sprinklerNotes' => 'nullable|string|max:500',
 
             // Critical Location Information
             'formData.gasShutoffValveLocation' => 'required|string|max:255',
@@ -100,6 +110,19 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.breakerBoxLocation.required' => 'Breaker Box Location is required.',
             'formData.hvacFilterLocation1.required' => 'HVAC Filter Location Information 1 is required.',
             'formData.hvacFilterSize1.required' => 'HVAC Filter Size 1 is required.',
+
+            // Gate Access Messages
+            'formData.gatedCommunity.required' => 'Please tell us whether the property is gated.',
+            'formData.gatedCommunity.in' => 'Please tell us whether the property is gated.',
+            'formData.gateCode.required_if' => 'Gate Code is required when the property is gated.',
+            'formData.gateCode.max' => 'Gate Code must be 255 characters or fewer.',
+
+            // Sprinkler / Irrigation System Messages
+            'formData.sprinklerSystem.required' => 'Please tell us whether the property has a sprinkler or irrigation system.',
+            'formData.sprinklerSystem.in' => 'Please tell us whether the property has a sprinkler or irrigation system.',
+            'formData.sprinklerControllerLocation.required_if' => 'Sprinkler Controller Location is required when there is a sprinkler system.',
+            'formData.sprinklerControllerLocation.max' => 'Sprinkler Controller Location must be 255 characters or fewer.',
+            'formData.sprinklerNotes.max' => 'Sprinkler Notes must be 500 characters or fewer.',
         ];
     }
 }

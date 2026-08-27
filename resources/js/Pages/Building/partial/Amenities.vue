@@ -46,6 +46,20 @@ const validateAmenities = () => {
         errors.push("Contact for Neighborhood Amenities is required");
     }
 
+    // Gate Access
+    if (
+        !form.value.gatedCommunity ||
+        form.value.gatedCommunity.trim() === ""
+    ) {
+        errors.push("Gated property selection is required");
+    }
+    if (
+        form.value.gatedCommunity === "Yes" &&
+        (!form.value.gateCode || form.value.gateCode.trim() === "")
+    ) {
+        errors.push("Gate Code is required when the property is gated");
+    }
+
     // Garage Access & Mailbox
     if (
         !form.value.garageDoorOpener ||
@@ -131,6 +145,23 @@ const validateAmenities = () => {
         form.value.trashPickupDays.trim() === ""
     ) {
         errors.push("Trash Pickup Days is required");
+    }
+
+    // Sprinkler / Irrigation System
+    if (
+        !form.value.sprinklerSystem ||
+        form.value.sprinklerSystem.trim() === ""
+    ) {
+        errors.push("Sprinkler / Irrigation System selection is required");
+    }
+    if (
+        form.value.sprinklerSystem === "Yes" &&
+        (!form.value.sprinklerControllerLocation ||
+            form.value.sprinklerControllerLocation.trim() === "")
+    ) {
+        errors.push(
+            "Sprinkler Controller Location is required when there is a sprinkler system",
+        );
     }
 
     validationErrors.value = errors;
@@ -475,8 +506,50 @@ const markSectionCompleted = (value) => {
                 </div>
 
                 <div>
-                    <h3 class="font-semibold mb-4">Garage Access & Mailbox</h3>
+                    <h3 class="font-semibold mb-4">
+                        Gate, Garage Access & Mailbox
+                    </h3>
                     <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium"
+                                >Is this property gated?
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
+                            </label>
+                            <Select v-model="form.gatedCommunity">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select option" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Yes"
+                                        >Yes - Gated community</SelectItem
+                                    >
+                                    <SelectItem value="No"
+                                        >No - Not gated</SelectItem
+                                    >
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div
+                            class="space-y-2"
+                            v-if="form.gatedCommunity === 'Yes'"
+                        >
+                            <label class="text-sm font-medium"
+                                >Gate Code
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
+                            </label>
+                            <Input
+                                v-model="form.gateCode"
+                                placeholder="e.g. #1234 - add any visitor instructions"
+                            />
+                        </div>
+
                         <div class="space-y-2">
                             <label class="text-sm font-medium"
                                 >Garage Door Opener?
@@ -794,6 +867,76 @@ const markSectionCompleted = (value) => {
                                 v-model="form.trashPickupDays"
                                 placeholder="e.g. Monday, Thursday"
                             />
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold">
+                            Sprinkler / Irrigation System
+                        </h4>
+                        <p class="text-sm text-gray-500">
+                            The utility companies and your tenant both need to
+                            know whether the home has one and how it is run.
+                        </p>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium"
+                                    >Sprinkler / Irrigation System?
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500"
+                                        >(Required)</span
+                                    >
+                                </label>
+                                <Select v-model="form.sprinklerSystem">
+                                    <SelectTrigger>
+                                        <SelectValue
+                                            placeholder="Select option"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Yes"
+                                            >Yes - Has a sprinkler
+                                            system</SelectItem
+                                        >
+                                        <SelectItem value="No"
+                                            >No sprinkler system</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div
+                                class="space-y-2"
+                                v-if="form.sprinklerSystem === 'Yes'"
+                            >
+                                <label class="text-sm font-medium"
+                                    >Sprinkler Controller Location
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500"
+                                        >(Required)</span
+                                    >
+                                </label>
+                                <Input
+                                    v-model="form.sprinklerControllerLocation"
+                                    placeholder="e.g. Garage wall, Utility closet"
+                                />
+                            </div>
+
+                            <div
+                                class="space-y-2 md:col-span-2"
+                                v-if="form.sprinklerSystem === 'Yes'"
+                            >
+                                <label class="text-sm font-medium"
+                                    >Sprinkler Notes
+                                    <span class="text-xs text-gray-500"
+                                        >(Optional)</span
+                                    >
+                                </label>
+                                <Input
+                                    v-model="form.sprinklerNotes"
+                                    placeholder="Watering schedule, separate irrigation meter, who maintains it"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

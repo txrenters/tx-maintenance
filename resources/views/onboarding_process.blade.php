@@ -726,7 +726,7 @@
             </tbody>
         </table>
 
-        <h4>Garage Access & Mailbox:</h4>
+        <h4>Gate, Garage Access & Mailbox:</h4>
         <table class="responsibilities-table">
             <thead>
                 <tr>
@@ -735,6 +735,16 @@
                 </tr>
             </thead>
             <tbody>
+                <tr>
+                    <td>Gated Community</td>
+                    <td>{{ $formData['gatedCommunity'] ?? 'Not specified' }}</td>
+                </tr>
+                @if (($formData['gatedCommunity'] ?? '') === 'Yes')
+                    <tr>
+                        <td>Gate Code</td>
+                        <td>{{ !empty($formData['gateCode']) ? $formData['gateCode'] : 'Not provided' }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <td>Garage Door Opener</td>
                     <td>{{ $formData['garageDoorOpener'] ?? 'Not specified' }}</td>
@@ -1006,6 +1016,34 @@
                         <td>Recycle Pickup Days</td>
                         <td>{{ $formData['recyclePickupDays'] }}</td>
                     </tr>
+                @endif
+            </tbody>
+        </table>
+
+        <h4>Sprinkler / Irrigation System:</h4>
+        <table class="responsibilities-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Sprinkler / Irrigation System</td>
+                    <td>{{ $formData['sprinklerSystem'] ?? 'Not specified' }}</td>
+                </tr>
+                @if (($formData['sprinklerSystem'] ?? '') === 'Yes')
+                    <tr>
+                        <td>Controller Location</td>
+                        <td>{{ !empty($formData['sprinklerControllerLocation']) ? $formData['sprinklerControllerLocation'] : 'Not provided' }}</td>
+                    </tr>
+                    @if (!empty($formData['sprinklerNotes']))
+                        <tr>
+                            <td>Notes</td>
+                            <td>{{ $formData['sprinklerNotes'] }}</td>
+                        </tr>
+                    @endif
                 @endif
             </tbody>
         </table>
