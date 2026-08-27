@@ -58,7 +58,7 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.gatedCommunity' => 'required|string|in:Yes,No',
             'formData.gateCode' => 'required_if:formData.gatedCommunity,Yes|nullable|string|max:255',
 
-            // Sprinkler / Irrigation System (stored in the "Sprinkler / Irrigation System" custom field)
+            // Sprinkler / Irrigation System (Yes/No stored in the "Yard Features" picklist; details on the PDF only)
             'formData.sprinklerSystem' => 'required|string|in:Yes,No',
             'formData.sprinklerControllerLocation' => 'required_if:formData.sprinklerSystem,Yes|nullable|string|max:255',
             'formData.sprinklerNotes' => 'nullable|string|max:500',

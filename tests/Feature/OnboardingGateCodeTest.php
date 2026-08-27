@@ -13,8 +13,10 @@ use Tests\TestCase;
 /**
  * The owner onboarding form must capture whether the property is gated (with
  * the gate code) and whether it has a sprinkler system (with its details), and
- * forward them to PropertyWare untouched - so a vendor is never sent to a gate
- * without a code, and the utility companies and tenant know about the sprinklers.
+ * forward the PropertyWare values untouched - the gate answer to the
+ * "Gated Community? Gate Code?" text field and the sprinkler Yes/No to the
+ * "Yard Features" picklist - so a vendor is never sent to a gate without a
+ * code, and the utility companies and tenant know about the sprinklers.
  */
 class OnboardingGateCodeTest extends TestCase
 {
@@ -24,7 +26,7 @@ class OnboardingGateCodeTest extends TestCase
 
     private const GATE_FIELD = 'Gated Community? Gate Code?';
 
-    private const SPRINKLER_FIELD = 'Sprinkler / Irrigation System';
+    private const SPRINKLER_FIELD = 'Yard Features';
 
     private const ENDPOINT = '/api/buildings/'.self::BUILDING_ID.'/update-custom-fields';
 
@@ -57,10 +59,7 @@ class OnboardingGateCodeTest extends TestCase
 
             // sanitizeCustomFieldValue() must leave the canonical values alone
             $this->assertSame('Yes - Gate code: #4321', $fields->firstWhere('name', self::GATE_FIELD)['value']);
-            $this->assertSame(
-                'Yes - Controller: Garage wall; Notes: Waters Mon/Thu 5am, separate irrigation meter',
-                $fields->firstWhere('name', self::SPRINKLER_FIELD)['value'],
-            );
+            $this->assertSame('Sprinkler System', $fields->firstWhere('name', self::SPRINKLER_FIELD)['value']);
 
             return true;
         });
@@ -141,12 +140,12 @@ class OnboardingGateCodeTest extends TestCase
     {
         $this->postJson(self::ENDPOINT, $this->validPayload(
             ['sprinklerSystem' => 'No', 'sprinklerControllerLocation' => '', 'sprinklerNotes' => ''],
-            [['name' => self::SPRINKLER_FIELD, 'value' => 'No sprinkler system']],
+            [['name' => self::SPRINKLER_FIELD, 'value' => 'No Sprinkler System']],
         ))->assertOk();
 
         Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
             && collect($request->data()['fieldSetDTOS'])->contains(
-                fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'No sprinkler system'
+                fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'No Sprinkler System'
             ));
     }
 
@@ -304,7 +303,7 @@ class OnboardingGateCodeTest extends TestCase
                 'entityId' => self::BUILDING_ID,
                 'fieldSetDTOS' => $fieldSetDTOS ?? [
                     ['name' => self::GATE_FIELD, 'value' => 'Yes - Gate code: #4321'],
-                    ['name' => self::SPRINKLER_FIELD, 'value' => 'Yes - Controller: Garage wall; Notes: Waters Mon/Thu 5am, separate irrigation meter'],
+                    ['name' => self::SPRINKLER_FIELD, 'value' => 'Sprinkler System'],
                 ],
             ],
             'formData' => $this->validFormData($formOverrides),

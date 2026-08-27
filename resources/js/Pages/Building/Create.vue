@@ -635,7 +635,7 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
 
     // Utilities
     // Sprinkler - handled by buildSprinklerSystemValue()/parseSprinklerSystemCustomField()
-    // because the single Propertyware field carries the answer and the details
+    // because "Yard Features" is a picklist with its own option values
     waterProvider: "Water Provider",
     gasProvider: "Gas Provider",
     trashProvider: "Trash Provider",
@@ -886,124 +886,65 @@ const parseGatedCommunityCustomField = () => {
     form.gateCode = parsed.gateCode;
 };
 
-// Every sprinkler answer is stored in the single Propertyware
-// "Sprinkler / Irrigation System" field (Property Information field set), as:
-// "Yes - Controller: Garage wall; Notes: Waters Mon/Thu 5am" or "No sprinkler system".
-// Propertyware only receives it once a Text custom field with that exact name
-// exists on buildings; until then the answers reach the onboarding PDF only.
-const SPRINKLER_CUSTOM_FIELD = "Sprinkler / Irrigation System";
-const SPRINKLER_YES_PREFIX = "Yes";
-const SPRINKLER_NO_VALUE = "No sprinkler system";
-const SPRINKLER_CONTROLLER_LABEL = "Controller";
-const SPRINKLER_NOTES_LABEL = "Notes";
-const SPRINKLER_LABEL_SEPARATOR = " - ";
-const SPRINKLER_ITEM_SEPARATOR = "; ";
-const SPRINKLER_NO_PATTERN = /^no\b/i;
+// The sprinkler answer goes to the Propertyware "Yard Features" picklist
+// (Property Information field set). A picklist only accepts its own options,
+// so the Yes/No maps to these exact option values; the controller location
+// and notes have no Propertyware home and reach the onboarding PDF only.
+const SPRINKLER_CUSTOM_FIELD = "Yard Features";
+const SPRINKLER_YES_OPTION = "Sprinkler System";
+const SPRINKLER_NO_OPTION = "No Sprinkler System";
 
 /**
- * Build the combined Propertyware value for the "Sprinkler / Irrigation System" field.
+ * Pick the "Yard Features" option for the sprinkler answer.
  *
- * @return {?string} Combined value, or null when the owner has not answered
+ * @return {?string} Option value, or null when the owner has not answered
  */
 const buildSprinklerSystemValue = () => {
+    if (form.sprinklerSystem === "Yes") {
+        return SPRINKLER_YES_OPTION;
+    }
+
     if (form.sprinklerSystem === "No") {
-        return SPRINKLER_NO_VALUE;
+        return SPRINKLER_NO_OPTION;
     }
 
-    if (form.sprinklerSystem !== "Yes") {
-        return null;
-    }
-
-    const controllerLocation = String(
-        form.sprinklerControllerLocation || "",
-    ).trim();
-    const notes = String(form.sprinklerNotes || "").trim();
-    const details = [];
-
-    if (controllerLocation !== "") {
-        details.push(`${SPRINKLER_CONTROLLER_LABEL}: ${controllerLocation}`);
-    }
-
-    if (notes !== "") {
-        details.push(`${SPRINKLER_NOTES_LABEL}: ${notes}`);
-    }
-
-    if (details.length === 0) {
-        return SPRINKLER_YES_PREFIX;
-    }
-
-    return `${SPRINKLER_YES_PREFIX}${SPRINKLER_LABEL_SEPARATOR}${details.join(SPRINKLER_ITEM_SEPARATOR)}`;
+    return null;
 };
 
 /**
- * Split a raw "Sprinkler / Irrigation System" value into the three form answers.
- * Unlabelled text is kept as notes so nothing typed in Propertyware is lost.
+ * Map a raw "Yard Features" option back to the sprinkler Yes/No.
+ * "Not Provided" (the picklist default) and unknown options pre-fill nothing.
  *
  * @param {?string} rawValue
- * @return {?{sprinklerSystem: string, sprinklerControllerLocation: string, sprinklerNotes: string}} null when there is nothing to pre-fill
+ * @return {?string} "Yes", "No", or null when there is nothing to pre-fill
  */
 const parseSprinklerSystemValue = (rawValue) => {
-    const value = String(rawValue ?? "").trim();
+    const value = String(rawValue ?? "").trim().toLowerCase();
 
-    if (value === "" || NOT_COMPLETED_PATTERN.test(value)) {
-        return null;
+    if (value === SPRINKLER_YES_OPTION.toLowerCase()) {
+        return "Yes";
     }
 
-    if (SPRINKLER_NO_PATTERN.test(value)) {
-        return {
-            sprinklerSystem: "No",
-            sprinklerControllerLocation: "",
-            sprinklerNotes: "",
-        };
+    if (value === SPRINKLER_NO_OPTION.toLowerCase()) {
+        return "No";
     }
 
-    let controllerLocation = "";
-    const notes = [];
-
-    value
-        .replace(GATED_YES_PREFIX_PATTERN, "")
-        .split(";")
-        .map((segment) => segment.trim())
-        .filter((segment) => segment !== "")
-        .forEach((segment) => {
-            const separatorIndex = segment.indexOf(":");
-            const label =
-                separatorIndex === -1
-                    ? ""
-                    : segment.slice(0, separatorIndex).trim().toLowerCase();
-            const text = segment.slice(separatorIndex + 1).trim();
-
-            if (label === SPRINKLER_CONTROLLER_LABEL.toLowerCase()) {
-                controllerLocation = text;
-            } else if (label === SPRINKLER_NOTES_LABEL.toLowerCase()) {
-                notes.push(text);
-            } else {
-                notes.push(segment);
-            }
-        });
-
-    return {
-        sprinklerSystem: "Yes",
-        sprinklerControllerLocation: controllerLocation,
-        sprinklerNotes: notes.join(SPRINKLER_ITEM_SEPARATOR),
-    };
+    return null;
 };
 
 /**
- * Populate the sprinkler form fields from the "Sprinkler / Irrigation System" value.
+ * Populate the sprinkler Yes/No from the "Yard Features" option.
  */
 const parseSprinklerSystemCustomField = () => {
     const parsed = parseSprinklerSystemValue(
         customFieldsMap.value[SPRINKLER_CUSTOM_FIELD]?.value,
     );
 
-    if (!parsed) {
+    if (parsed === null) {
         return;
     }
 
-    form.sprinklerSystem = parsed.sprinklerSystem;
-    form.sprinklerControllerLocation = parsed.sprinklerControllerLocation;
-    form.sprinklerNotes = parsed.sprinklerNotes;
+    form.sprinklerSystem = parsed;
 };
 
 // Store for custom field IDs (add this after your reactive declarations)
@@ -1179,7 +1120,7 @@ const populateFormFromCustomFields = () => {
     // Gated community + gate code share one Propertyware field
     parseGatedCommunityCustomField();
 
-    // Sprinkler system + its details share one Propertyware field
+    // Sprinkler Yes/No comes from the "Yard Features" picklist
     parseSprinklerSystemCustomField();
 
     // Appliances - extract from "Included Appliances" field
@@ -1795,8 +1736,7 @@ const prepareCustomFieldsForUpdate = () => {
         }
     }
 
-    // Sprinkler system + its details belong to the single
-    // "Sprinkler / Irrigation System" field (only once Propertyware has it)
+    // Sprinkler Yes/No belongs to the "Yard Features" picklist
     if (customFieldsMap.value[SPRINKLER_CUSTOM_FIELD]) {
         const sprinklerValue = buildSprinklerSystemValue();
 
