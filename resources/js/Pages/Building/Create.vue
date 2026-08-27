@@ -124,7 +124,9 @@ const form = useForm({
     playGround: "",
     tennisCourt: "",
     tenantToContactNeighborhoodAmenities: "",
-    //Garage Access & Mailbox
+    //Gate, Garage Access & Mailbox
+    gatedCommunity: "",
+    gateCode: "",
     garageDoorOpener: "",
     garageDoorRemote: "",
     lockboxCode: "",
@@ -147,6 +149,10 @@ const form = useForm({
     trashProvider: "",
     trashPickupDays: "",
     recyclePickupDays: "",
+    //Sprinkler / Irrigation System
+    sprinklerSystem: "",
+    sprinklerControllerLocation: "",
+    sprinklerNotes: "",
     //HVAC Issue Prevention
     hvacMaintenancePlan: "",
     installFloatSwitch: "",
@@ -388,6 +394,12 @@ const restoreFromLocalStorage = () => {
                     }
                 });
 
+                // Drafts saved by the old form may hold the gate field's text
+                // in the Garage Door Opener answer (it used to pre-fill from it)
+                if (!["Yes", "No"].includes(form.garageDoorOpener)) {
+                    form.garageDoorOpener = "";
+                }
+
                 console.log("📝 Restored", restoredFields, "form fields");
 
                 // Show notification that data was restored
@@ -615,11 +627,15 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
     // because the single Propertyware field carries the code and the alarm answers
     alarmSystemCode: "Alarm System Code",
 
-    // Garage Access & Mailbox
+    // Gate, Garage Access & Mailbox
+    // Gate - handled by buildGatedCommunityValue()/parseGatedCommunityCustomField()
+    // because the single Propertyware field carries the answer and the code
     lockboxCode: "Lockbox Code",
     mailboxKeyNo: "Mailbox Keys",
 
     // Utilities
+    // Sprinkler - handled by buildSprinklerSystemValue()/parseSprinklerSystemCustomField()
+    // because the single Propertyware field carries the answer and the details
     waterProvider: "Water Provider",
     gasProvider: "Gas Provider",
     trashProvider: "Trash Provider",
@@ -772,6 +788,222 @@ const parseAlarmSystemCustomField = () => {
         form.alarmSystem = "Yes";
         form.alarmSystemCode = String(rawValue).trim();
     }
+};
+
+// Both gate answers are stored in the single Propertyware
+// "Gated Community? Gate Code?" field (Property Information field set), as:
+// "Yes - Gate code: #1234" or "No gate"
+const GATED_COMMUNITY_CUSTOM_FIELD = "Gated Community? Gate Code?";
+const GATED_YES_PREFIX = "Yes";
+const GATED_NO_VALUE = "No gate";
+const GATE_CODE_LABEL = "Gate code";
+const GATE_LABEL_SEPARATOR = " - ";
+// Values staff typed by hand before this format: "No", "No gate",
+// "Not gated", "Not gated community", "N/A", "None"
+const GATED_NO_PATTERN = /^(no|not|n\/?a|none)\b/i;
+// Propertyware's own placeholder, sometimes with a note tacked on
+const NOT_COMPLETED_PATTERN = /^not completed\b/i;
+// A leading "Yes" and whatever punctuation followed it: "Yes, #2373#"
+const GATED_YES_PREFIX_PATTERN = /^yes\b[\s,:;.\-–]*/i;
+// A "Gate Code:" / "code:" / "Gate Code is" label written in front of the code itself
+const GATE_CODE_LABEL_PATTERN = /^(gate\s*)?code\b(\s+is\b)?[\s:=\-–]*/i;
+
+/**
+ * Strip a "Gate code:" style label from the front of a gate code.
+ *
+ * @param {?string} text
+ * @return {string}
+ */
+const stripGateCodeLabel = (text) =>
+    String(text || "")
+        .replace(GATE_CODE_LABEL_PATTERN, "")
+        .trim();
+
+/**
+ * Build the combined Propertyware value for the "Gated Community? Gate Code?" field.
+ *
+ * @return {?string} Combined value, or null when the owner has not answered
+ */
+const buildGatedCommunityValue = () => {
+    if (form.gatedCommunity === "No") {
+        return GATED_NO_VALUE;
+    }
+
+    if (form.gatedCommunity !== "Yes") {
+        return null;
+    }
+
+    const gateCode = stripGateCodeLabel(form.gateCode);
+
+    // A bare "Yes" is what the old form wrote (it was the garage door opener
+    // answer) and is useless to a vendor - never write it again
+    if (gateCode === "") {
+        return null;
+    }
+
+    return `${GATED_YES_PREFIX}${GATE_LABEL_SEPARATOR}${GATE_CODE_LABEL}: ${gateCode}`;
+};
+
+/**
+ * Split a raw "Gated Community? Gate Code?" value into the two form answers.
+ * Handles the canonical format and the values typed by hand before it.
+ *
+ * @param {?string} rawValue
+ * @return {?{gatedCommunity: string, gateCode: string}} null when there is nothing to pre-fill
+ */
+const parseGatedCommunityValue = (rawValue) => {
+    const value = String(rawValue ?? "").trim();
+
+    if (value === "" || NOT_COMPLETED_PATTERN.test(value)) {
+        return null;
+    }
+
+    if (GATED_NO_PATTERN.test(value)) {
+        return { gatedCommunity: "No", gateCode: "" };
+    }
+
+    // A bare "Yes" leaves the code empty so the owner has to type it
+    const gateCode = stripGateCodeLabel(
+        value.replace(GATED_YES_PREFIX_PATTERN, ""),
+    );
+
+    return { gatedCommunity: "Yes", gateCode };
+};
+
+/**
+ * Populate the gate form fields from the "Gated Community? Gate Code?" value.
+ */
+const parseGatedCommunityCustomField = () => {
+    const parsed = parseGatedCommunityValue(
+        customFieldsMap.value[GATED_COMMUNITY_CUSTOM_FIELD]?.value,
+    );
+
+    if (!parsed) {
+        return;
+    }
+
+    form.gatedCommunity = parsed.gatedCommunity;
+    form.gateCode = parsed.gateCode;
+};
+
+// Every sprinkler answer is stored in the single Propertyware
+// "Sprinkler / Irrigation System" field (Property Information field set), as:
+// "Yes - Controller: Garage wall; Notes: Waters Mon/Thu 5am" or "No sprinkler system".
+// Propertyware only receives it once a Text custom field with that exact name
+// exists on buildings; until then the answers reach the onboarding PDF only.
+const SPRINKLER_CUSTOM_FIELD = "Sprinkler / Irrigation System";
+const SPRINKLER_YES_PREFIX = "Yes";
+const SPRINKLER_NO_VALUE = "No sprinkler system";
+const SPRINKLER_CONTROLLER_LABEL = "Controller";
+const SPRINKLER_NOTES_LABEL = "Notes";
+const SPRINKLER_LABEL_SEPARATOR = " - ";
+const SPRINKLER_ITEM_SEPARATOR = "; ";
+const SPRINKLER_NO_PATTERN = /^no\b/i;
+
+/**
+ * Build the combined Propertyware value for the "Sprinkler / Irrigation System" field.
+ *
+ * @return {?string} Combined value, or null when the owner has not answered
+ */
+const buildSprinklerSystemValue = () => {
+    if (form.sprinklerSystem === "No") {
+        return SPRINKLER_NO_VALUE;
+    }
+
+    if (form.sprinklerSystem !== "Yes") {
+        return null;
+    }
+
+    const controllerLocation = String(
+        form.sprinklerControllerLocation || "",
+    ).trim();
+    const notes = String(form.sprinklerNotes || "").trim();
+    const details = [];
+
+    if (controllerLocation !== "") {
+        details.push(`${SPRINKLER_CONTROLLER_LABEL}: ${controllerLocation}`);
+    }
+
+    if (notes !== "") {
+        details.push(`${SPRINKLER_NOTES_LABEL}: ${notes}`);
+    }
+
+    if (details.length === 0) {
+        return SPRINKLER_YES_PREFIX;
+    }
+
+    return `${SPRINKLER_YES_PREFIX}${SPRINKLER_LABEL_SEPARATOR}${details.join(SPRINKLER_ITEM_SEPARATOR)}`;
+};
+
+/**
+ * Split a raw "Sprinkler / Irrigation System" value into the three form answers.
+ * Unlabelled text is kept as notes so nothing typed in Propertyware is lost.
+ *
+ * @param {?string} rawValue
+ * @return {?{sprinklerSystem: string, sprinklerControllerLocation: string, sprinklerNotes: string}} null when there is nothing to pre-fill
+ */
+const parseSprinklerSystemValue = (rawValue) => {
+    const value = String(rawValue ?? "").trim();
+
+    if (value === "" || NOT_COMPLETED_PATTERN.test(value)) {
+        return null;
+    }
+
+    if (SPRINKLER_NO_PATTERN.test(value)) {
+        return {
+            sprinklerSystem: "No",
+            sprinklerControllerLocation: "",
+            sprinklerNotes: "",
+        };
+    }
+
+    let controllerLocation = "";
+    const notes = [];
+
+    value
+        .replace(GATED_YES_PREFIX_PATTERN, "")
+        .split(";")
+        .map((segment) => segment.trim())
+        .filter((segment) => segment !== "")
+        .forEach((segment) => {
+            const separatorIndex = segment.indexOf(":");
+            const label =
+                separatorIndex === -1
+                    ? ""
+                    : segment.slice(0, separatorIndex).trim().toLowerCase();
+            const text = segment.slice(separatorIndex + 1).trim();
+
+            if (label === SPRINKLER_CONTROLLER_LABEL.toLowerCase()) {
+                controllerLocation = text;
+            } else if (label === SPRINKLER_NOTES_LABEL.toLowerCase()) {
+                notes.push(text);
+            } else {
+                notes.push(segment);
+            }
+        });
+
+    return {
+        sprinklerSystem: "Yes",
+        sprinklerControllerLocation: controllerLocation,
+        sprinklerNotes: notes.join(SPRINKLER_ITEM_SEPARATOR),
+    };
+};
+
+/**
+ * Populate the sprinkler form fields from the "Sprinkler / Irrigation System" value.
+ */
+const parseSprinklerSystemCustomField = () => {
+    const parsed = parseSprinklerSystemValue(
+        customFieldsMap.value[SPRINKLER_CUSTOM_FIELD]?.value,
+    );
+
+    if (!parsed) {
+        return;
+    }
+
+    form.sprinklerSystem = parsed.sprinklerSystem;
+    form.sprinklerControllerLocation = parsed.sprinklerControllerLocation;
+    form.sprinklerNotes = parsed.sprinklerNotes;
 };
 
 // Store for custom field IDs (add this after your reactive declarations)
@@ -944,14 +1176,11 @@ const populateFormFromCustomFields = () => {
         }
     }
 
-    // Gated Community Gate Code - populate Garage Door Opener field
-    if (customFieldsMap.value["Gated Community? Gate Code?"]?.value) {
-        const gateValue =
-            customFieldsMap.value["Gated Community? Gate Code?"].value;
-        if (gateValue !== "Not Completed" && gateValue !== "") {
-            form.garageDoorOpener = gateValue;
-        }
-    }
+    // Gated community + gate code share one Propertyware field
+    parseGatedCommunityCustomField();
+
+    // Sprinkler system + its details share one Propertyware field
+    parseSprinklerSystemCustomField();
 
     // Appliances - extract from "Included Appliances" field
     if (
@@ -1552,12 +1781,31 @@ const prepareCustomFieldsForUpdate = () => {
         }
     }
 
-    // Gated Community Gate Code - save garage door opener value
-    if (
-        form.garageDoorOpener &&
-        customFieldsMap.value["Gated Community? Gate Code?"]
-    ) {
-        fieldsToUpdate["Gated Community? Gate Code?"] = form.garageDoorOpener;
+    // Gated community + gate code belong to the single
+    // "Gated Community? Gate Code?" field
+    if (customFieldsMap.value[GATED_COMMUNITY_CUSTOM_FIELD]) {
+        const gatedValue = buildGatedCommunityValue();
+
+        if (
+            gatedValue !== null &&
+            gatedValue !==
+                customFieldsMap.value[GATED_COMMUNITY_CUSTOM_FIELD].value
+        ) {
+            fieldsToUpdate[GATED_COMMUNITY_CUSTOM_FIELD] = gatedValue;
+        }
+    }
+
+    // Sprinkler system + its details belong to the single
+    // "Sprinkler / Irrigation System" field (only once Propertyware has it)
+    if (customFieldsMap.value[SPRINKLER_CUSTOM_FIELD]) {
+        const sprinklerValue = buildSprinklerSystemValue();
+
+        if (
+            sprinklerValue !== null &&
+            sprinklerValue !== customFieldsMap.value[SPRINKLER_CUSTOM_FIELD].value
+        ) {
+            fieldsToUpdate[SPRINKLER_CUSTOM_FIELD] = sprinklerValue;
+        }
     }
 
     // Garage Remotes_Garage Code - save garage door remote value
