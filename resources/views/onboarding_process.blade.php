@@ -723,6 +723,10 @@
                     <td>HVAC Model Year</td>
                     <td>{{ $formData['hvacModelYear'] ?? 'Not specified' }}</td>
                 </tr>
+                <tr>
+                    <td>Fireplace</td>
+                    <td>{{ !empty($formData['fireplace']) ? $formData['fireplace'] : 'Not specified' }}</td>
+                </tr>
             </tbody>
         </table>
 

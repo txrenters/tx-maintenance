@@ -4,9 +4,28 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateBuildingCustomFieldsRequest extends FormRequest
 {
+    /**
+     * The fireplace choices, written as-is to the "Fireplace" custom field in
+     * PropertyWare (a plain text field). Mirrors FIREPLACE_OPTIONS in
+     * resources/js/Pages/Building/fireplaceOptions.js - keep the lists identical.
+     *
+     * @var list<string>
+     */
+    public const FIREPLACE_OPTIONS = [
+        'No Fireplace',
+        'Electric Fireplace',
+        'Freestanding',
+        'Gas Connections',
+        'Gaslog Fireplace',
+        'Mock Fireplace',
+        'Stove',
+        'Wood Burning Fireplace',
+    ];
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -62,6 +81,9 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.sprinklerSystem' => 'required|string|in:Yes,No',
             'formData.sprinklerControllerLocation' => 'required_if:formData.sprinklerSystem,Yes|nullable|string|max:255',
             'formData.sprinklerNotes' => 'nullable|string|max:500',
+
+            // Fireplace (the choice is stored as text in the "Fireplace" custom field)
+            'formData.fireplace' => ['required', 'string', Rule::in(self::FIREPLACE_OPTIONS)],
 
             // Critical Location Information
             'formData.gasShutoffValveLocation' => 'required|string|max:255',
@@ -123,6 +145,10 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.sprinklerControllerLocation.required_if' => 'Sprinkler Controller Location is required when there is a sprinkler system.',
             'formData.sprinklerControllerLocation.max' => 'Sprinkler Controller Location must be 255 characters or fewer.',
             'formData.sprinklerNotes.max' => 'Sprinkler Notes must be 500 characters or fewer.',
+
+            // Fireplace Messages
+            'formData.fireplace.required' => 'Please tell us what kind of fireplace the property has, or choose No Fireplace.',
+            'formData.fireplace.in' => 'Please tell us what kind of fireplace the property has, or choose No Fireplace.',
         ];
     }
 }

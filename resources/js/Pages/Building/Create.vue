@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from "@/Components/ui/select";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { FIREPLACE_OPTIONS } from "./fireplaceOptions";
 import {
     Home,
     PaintBucket,
@@ -153,6 +154,8 @@ const form = useForm({
     sprinklerSystem: "",
     sprinklerControllerLocation: "",
     sprinklerNotes: "",
+    //Fireplace
+    fireplace: "",
     //HVAC Issue Prevention
     hvacMaintenancePlan: "",
     installFloatSwitch: "",
@@ -947,6 +950,41 @@ const parseSprinklerSystemCustomField = () => {
     form.sprinklerSystem = parsed;
 };
 
+// The fireplace choice goes to the Propertyware "Fireplace" custom field, a
+// plain text field, so the option picked on the form is written as-is.
+// "Not Completed" (the field's default) or any other text pre-fills nothing.
+const FIREPLACE_CUSTOM_FIELD = "Fireplace";
+
+/**
+ * Map a raw "Fireplace" value back to one of the form's options.
+ *
+ * @param {?string} rawValue
+ * @return {?string} The canonical option, or null when there is nothing to pre-fill
+ */
+const parseFireplaceValue = (rawValue) => {
+    const value = String(rawValue ?? "").trim().toLowerCase();
+
+    return (
+        FIREPLACE_OPTIONS.find((option) => option.toLowerCase() === value) ??
+        null
+    );
+};
+
+/**
+ * Populate the fireplace choice from the "Fireplace" custom field.
+ */
+const parseFireplaceCustomField = () => {
+    const parsed = parseFireplaceValue(
+        customFieldsMap.value[FIREPLACE_CUSTOM_FIELD]?.value,
+    );
+
+    if (parsed === null) {
+        return;
+    }
+
+    form.fireplace = parsed;
+};
+
 // Store for custom field IDs (add this after your reactive declarations)
 const customFieldsMap = ref({});
 const customFieldsData = ref([]);
@@ -1122,6 +1160,9 @@ const populateFormFromCustomFields = () => {
 
     // Sprinkler Yes/No comes from the "Yard Features" picklist
     parseSprinklerSystemCustomField();
+
+    // Fireplace type comes from the "Fireplace" text field
+    parseFireplaceCustomField();
 
     // Appliances - extract from "Included Appliances" field
     if (
@@ -1746,6 +1787,15 @@ const prepareCustomFieldsForUpdate = () => {
         ) {
             fieldsToUpdate[SPRINKLER_CUSTOM_FIELD] = sprinklerValue;
         }
+    }
+
+    // Fireplace type is written as-is to the "Fireplace" text field
+    if (
+        form.fireplace &&
+        customFieldsMap.value[FIREPLACE_CUSTOM_FIELD] &&
+        form.fireplace !== customFieldsMap.value[FIREPLACE_CUSTOM_FIELD].value
+    ) {
+        fieldsToUpdate[FIREPLACE_CUSTOM_FIELD] = form.fireplace;
     }
 
     // Garage Remotes_Garage Code - save garage door remote value
