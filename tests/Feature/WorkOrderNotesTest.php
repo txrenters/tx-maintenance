@@ -9,6 +9,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\PropertyWareService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
@@ -276,5 +277,75 @@ class WorkOrderNotesTest extends TestCase
             ->get(route('work_orders.details', $workOrder))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('workOrder.notes', 2));
+    }
+
+    public function test_each_note_reports_when_it_was_added(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create();
+
+        // Written on the dashboard: the row's own timestamp is the truth.
+        $this->travelTo(Carbon::parse('2026-08-28 20:15:00', 'UTC'));
+        $this->note($workOrder, ['subject' => 'Dashboard', 'user_id' => $woc->id]);
+
+        // Copied in by a later sync: PropertyWare's note date beats the import time.
+        $this->travelTo(Carbon::parse('2026-08-29 03:00:00', 'UTC'));
+        $this->note($workOrder, ['subject' => 'From PropertyWare', 'propertyware_id' => 901, 'date' => '2026-08-20T10:00:00']);
+        $this->note($workOrder, ['subject' => 'Day only', 'propertyware_id' => 902, 'date' => '2026-08-21']);
+        $this->note($workOrder, ['subject' => 'Blank date', 'propertyware_id' => 903, 'date' => '']);
+        $this->note($workOrder, ['subject' => 'Bad date', 'propertyware_id' => 904, 'date' => 'not a date']);
+        $this->travelBack();
+
+        $response = $this->actingAs($woc)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonCount(5, 'notes');
+
+        $addedAt = collect($response->json('notes'))->pluck('added_at', 'subject')->all();
+
+        $this->assertSame([
+            'Dashboard' => '2026-08-28T20:15:00.000000Z',
+            'From PropertyWare' => '2026-08-20T10:00:00.000000Z',
+            'Day only' => '2026-08-21T00:00:00.000000Z',
+            'Blank date' => '2026-08-29T03:00:00.000000Z',
+            'Bad date' => '2026-08-29T03:00:00.000000Z',
+        ], $addedAt);
+
+        // The full work order page ships the same field with its notes.
+        $this->actingAs($woc)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('workOrder.notes', 5)
+                ->where('workOrder.notes.0.added_at', '2026-08-28T20:15:00.000000Z'));
+    }
+
+    public function test_a_note_added_on_the_dashboard_is_stamped_with_the_moment_it_was_saved(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('addVendorNotes')->once()->andReturn(true);
+        });
+
+        $this->travelTo(Carbon::parse('2026-08-28 14:55:00', 'UTC'));
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.store'), [
+                'subject' => 'Visit',
+                'body' => 'Replaced the capacitor.',
+                'work_order_id' => $workOrder->id,
+            ])
+            ->assertRedirect();
+
+        $this->travelBack();
+
+        // No PropertyWare date on a dashboard note, so the save time is what shows.
+        $this->actingAs($woc)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('notes.0.date', null)
+            ->assertJsonPath('notes.0.added_at', '2026-08-28T14:55:00.000000Z');
     }
 }

@@ -102,37 +102,25 @@ const deleteNote = (note_id) => {
     );
 };
 
-const formatDate = (date) => {
-    if (!date) return "------";
+const TIMEZONE = "America/Chicago";
 
-    let parsedDate;
+// added_at is when the note was written: PropertyWare's own note date for a
+// synced note, the save time for one typed here (see WorkOrderNotes::addedAt).
+const formatAddedAt = (note) => {
+    const raw = note.added_at ?? note.created_at;
+    if (!raw) return "------";
 
-    if (typeof date === "string") {
-        if (date.includes("T")) {
-            parsedDate = DateTime.fromISO(date, { zone: "utc" });
-        } else {
-            parsedDate = DateTime.fromFormat(date, "yyyy-MM-dd", {
-                zone: "utc",
-            });
-        }
-    } else if (date instanceof Date) {
-        parsedDate = DateTime.fromJSDate(date);
-    } else {
-        return "Invalid Date";
+    const parsed = DateTime.fromISO(raw, { zone: "utc" });
+    if (!parsed.isValid) return "Invalid Date";
+
+    // PropertyWare gives some of its own notes a bare day, which arrives as
+    // midnight UTC. Show those as the day: shifting midnight to Central time
+    // would print the evening before.
+    if (parsed.hour === 0 && parsed.minute === 0 && parsed.second === 0) {
+        return parsed.toFormat("EEE, MMMM d, yyyy");
     }
 
-    return parsedDate.isValid
-        ? parsedDate.toFormat("EEE, MMMM d, yyyy")
-        : "Invalid Date";
-};
-
-// PropertyWare notes carry their own date; created_at is only when the row
-// landed here, which for a synced note is the import time, not the note's.
-const noteDate = (note) => {
-    const fromPropertyWare = note.date ? formatDate(note.date) : null;
-    return fromPropertyWare && fromPropertyWare !== "Invalid Date"
-        ? fromPropertyWare
-        : formatDate(note.created_at);
+    return parsed.setZone(TIMEZONE).toFormat("EEE, MMMM d, yyyy h:mm a");
 };
 
 const handleFetchNotes = () => {
@@ -192,7 +180,7 @@ const handleFetchNotes = () => {
 
                         <p>{{ note.body }}</p>
                         <p class="text-xs">
-                            Date: {{ noteDate(note) }}
+                            Added: {{ formatAddedAt(note) }}
                         </p>
                     </div>
                 </div>

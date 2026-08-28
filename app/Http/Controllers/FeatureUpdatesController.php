@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-08-28',
+            'area' => 'Work Orders',
+            'title' => 'Notes now show the time they were added',
+            'description' => 'Each note on a work order\'s Notes tab now shows the date and time it was added (Central time), not just the day, so when several notes land on one work order in a day you can tell which came first and follow the order of updates. A note written on the dashboard shows the moment it was saved. A note that came from PropertyWare shows PropertyWare\'s own note time, and one that only carries a day still shows just the day.',
+        ],
+        [
             'date' => '2026-08-26',
             'area' => 'Work Orders',
             'title' => 'Notes added on the dashboard no longer disappear, and are private',
