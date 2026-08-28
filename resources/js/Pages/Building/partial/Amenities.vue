@@ -3,6 +3,7 @@ import { CheckCircle, Sparkles, AlertCircle } from "lucide-vue-next";
 import { ref } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/Components/ui/alert";
 import { useToast } from "@/Components/ui/toast/use-toast";
+import { FIREPLACE_OPTIONS } from "../fireplaceOptions";
 
 const form = defineModel("form");
 const emit = defineEmits(["sectionComplete"]);
@@ -162,6 +163,11 @@ const validateAmenities = () => {
         errors.push(
             "Sprinkler Controller Location is required when there is a sprinkler system",
         );
+    }
+
+    // Fireplace
+    if (!form.value.fireplace || form.value.fireplace.trim() === "") {
+        errors.push("Fireplace selection is required");
     }
 
     validationErrors.value = errors;
@@ -809,6 +815,31 @@ const markSectionCompleted = (value) => {
                                 v-model="form.hvacModelYear"
                                 placeholder="e.g. 2020"
                             />
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium"
+                                >Fireplace
+                                <span class="text-red-600">*</span>
+                                <span class="text-xs text-gray-500"
+                                    >(Required)</span
+                                >
+                            </label>
+                            <Select v-model="form.fireplace">
+                                <SelectTrigger>
+                                    <SelectValue
+                                        placeholder="Select fireplace type"
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem
+                                        v-for="option in FIREPLACE_OPTIONS"
+                                        :key="option"
+                                        :value="option"
+                                        >{{ option }}</SelectItem
+                                    >
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                 </div>

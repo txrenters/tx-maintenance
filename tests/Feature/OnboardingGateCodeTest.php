@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\UpdateBuildingCustomFieldsRequest;
 use App\Jobs\GenerateOnboardingPdfJob;
 use App\Jobs\GenerateW9PdfJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,11 +13,13 @@ use Tests\TestCase;
 
 /**
  * The owner onboarding form must capture whether the property is gated (with
- * the gate code) and whether it has a sprinkler system (with its details), and
- * forward the PropertyWare values untouched - the gate answer to the
- * "Gated Community? Gate Code?" text field and the sprinkler Yes/No to the
- * "Yard Features" picklist - so a vendor is never sent to a gate without a
- * code, and the utility companies and tenant know about the sprinklers.
+ * the gate code), whether it has a sprinkler system (with its details) and
+ * what kind of fireplace it has, and forward the PropertyWare values
+ * untouched - the gate answer to the "Gated Community? Gate Code?" text
+ * field, the sprinkler Yes/No to the "Yard Features" picklist and the
+ * fireplace choice to the "Fireplace" text field - so a vendor is never sent
+ * to a gate without a code, and the utility companies and tenant know about
+ * the sprinklers and the fireplace.
  */
 class OnboardingGateCodeTest extends TestCase
 {
@@ -27,6 +30,8 @@ class OnboardingGateCodeTest extends TestCase
     private const GATE_FIELD = 'Gated Community? Gate Code?';
 
     private const SPRINKLER_FIELD = 'Yard Features';
+
+    private const FIREPLACE_FIELD = 'Fireplace';
 
     private const ENDPOINT = '/api/buildings/'.self::BUILDING_ID.'/update-custom-fields';
 
@@ -48,7 +53,7 @@ class OnboardingGateCodeTest extends TestCase
         $this->postJson(self::ENDPOINT, $this->validPayload())
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('updated_fields', [self::GATE_FIELD, self::SPRINKLER_FIELD]);
+            ->assertJsonPath('updated_fields', [self::GATE_FIELD, self::SPRINKLER_FIELD, self::FIREPLACE_FIELD]);
 
         Http::assertSent(function (Request $request) {
             if (! $this->isCustomFieldsPut($request)) {
@@ -149,6 +154,77 @@ class OnboardingGateCodeTest extends TestCase
             ));
     }
 
+    public function test_fireplace_answer_reaches_propertyware_unchanged(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['fireplace' => 'Wood Burning Fireplace'],
+            [['name' => self::FIREPLACE_FIELD, 'value' => 'Wood Burning Fireplace']],
+        ))
+            ->assertOk()
+            ->assertJsonPath('updated_fields', [self::FIREPLACE_FIELD]);
+
+        Http::assertSent(function (Request $request) {
+            if (! $this->isCustomFieldsPut($request)) {
+                return false;
+            }
+
+            $fields = collect($request->data()['fieldSetDTOS']);
+
+            $this->assertSame('Wood Burning Fireplace', $fields->firstWhere('name', self::FIREPLACE_FIELD)['value']);
+
+            return true;
+        });
+
+        Bus::assertDispatched(GenerateOnboardingPdfJob::class, function (GenerateOnboardingPdfJob $job) {
+            return ($job->formData['fireplace'] ?? null) === 'Wood Burning Fireplace';
+        });
+    }
+
+    public function test_no_fireplace_is_written_to_propertyware_as_text(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['fireplace' => 'No Fireplace'],
+            [['name' => self::FIREPLACE_FIELD, 'value' => 'No Fireplace']],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::FIREPLACE_FIELD && $field['value'] === 'No Fireplace'
+            ));
+    }
+
+    public function test_every_fireplace_choice_is_accepted(): void
+    {
+        foreach (UpdateBuildingCustomFieldsRequest::FIREPLACE_OPTIONS as $option) {
+            $this->postJson(self::ENDPOINT, $this->validPayload(
+                ['fireplace' => $option],
+                [['name' => self::FIREPLACE_FIELD, 'value' => $option]],
+            ))->assertOk();
+        }
+    }
+
+    public function test_missing_fireplace_answer_is_rejected_with_a_friendly_message(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(['fireplace' => '']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'formData.fireplace' => 'Please tell us what kind of fireplace the property has, or choose No Fireplace.',
+            ]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_unknown_fireplace_type_is_rejected(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(['fireplace' => 'Pizza Oven']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'formData.fireplace' => 'Please tell us what kind of fireplace the property has, or choose No Fireplace.',
+            ]);
+
+        Http::assertNothingSent();
+    }
+
     public function test_onboarding_pdf_prints_the_gate_code_and_sprinkler_details(): void
     {
         $html = $this->renderOnboardingPdf([
@@ -157,6 +233,7 @@ class OnboardingGateCodeTest extends TestCase
             'sprinklerSystem' => 'Yes',
             'sprinklerControllerLocation' => 'Garage wall',
             'sprinklerNotes' => 'Waters Mon/Thu 5am',
+            'fireplace' => 'Wood Burning Fireplace',
         ]);
 
         $this->assertMatchesRegularExpression('#<td>Gated Community</td>\s*<td>Yes</td>#', $html);
@@ -164,6 +241,7 @@ class OnboardingGateCodeTest extends TestCase
         $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Yes</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Controller Location</td>\s*<td>Garage wall</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Notes</td>\s*<td>Waters Mon/Thu 5am</td>#', $html);
+        $this->assertMatchesRegularExpression('#<td>Fireplace</td>\s*<td>Wood Burning Fireplace</td>#', $html);
     }
 
     public function test_onboarding_pdf_omits_the_gate_code_and_sprinkler_details_when_there_are_none(): void
@@ -174,12 +252,14 @@ class OnboardingGateCodeTest extends TestCase
             'sprinklerSystem' => 'No',
             'sprinklerControllerLocation' => '',
             'sprinklerNotes' => '',
+            'fireplace' => 'No Fireplace',
         ]);
 
         $this->assertMatchesRegularExpression('#<td>Gated Community</td>\s*<td>No</td>#', $html);
         $this->assertStringNotContainsString('<td>Gate Code</td>', $html);
         $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>No</td>#', $html);
         $this->assertStringNotContainsString('<td>Controller Location</td>', $html);
+        $this->assertMatchesRegularExpression('#<td>Fireplace</td>\s*<td>No Fireplace</td>#', $html);
     }
 
     private function isCustomFieldsPut(Request $request): bool
@@ -251,6 +331,8 @@ class OnboardingGateCodeTest extends TestCase
             'sprinklerSystem' => 'Yes',
             'sprinklerControllerLocation' => 'Garage wall',
             'sprinklerNotes' => 'Waters Mon/Thu 5am, separate irrigation meter',
+            // Fireplace
+            'fireplace' => 'Gas Connections',
             // Pets (read by updatePetFields)
             'dogsAllowed' => 'No',
             'catsAllowed' => 'No',
@@ -304,6 +386,7 @@ class OnboardingGateCodeTest extends TestCase
                 'fieldSetDTOS' => $fieldSetDTOS ?? [
                     ['name' => self::GATE_FIELD, 'value' => 'Yes - Gate code: #4321'],
                     ['name' => self::SPRINKLER_FIELD, 'value' => 'Sprinkler System'],
+                    ['name' => self::FIREPLACE_FIELD, 'value' => 'Gas Connections'],
                 ],
             ],
             'formData' => $this->validFormData($formOverrides),
