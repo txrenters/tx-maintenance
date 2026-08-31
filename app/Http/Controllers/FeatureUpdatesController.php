@@ -21,25 +21,25 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
-            'date' => '2026-08-28',
+            'date' => '2026-09-01',
             'area' => 'Work Orders',
             'title' => 'Notes now show the time they were added',
             'description' => 'Each note on a work order\'s Notes tab now shows the date and time it was added (Central time), not just the day, so when several notes land on one work order in a day you can tell which came first and follow the order of updates. A note written on the dashboard shows the moment it was saved. A note that came from PropertyWare shows PropertyWare\'s own note time, and one that only carries a day still shows just the day.',
         ],
         [
-            'date' => '2026-08-27',
+            'date' => '2026-09-01',
             'area' => 'Owners',
             'title' => 'New owners now tell us if the property is gated, and about the sprinkler system',
             'description' => 'The management onboarding form for new owners asks two more things in Amenities & Features. First, "Is this property gated?" at the top of the gate, garage and mailbox part, with a required Gate Code box when it is - the form cannot be submitted without it. The answer is saved to the property\'s "Gated Community? Gate Code?" field in PropertyWare as "Yes - Gate code: #1234" or "No gate", so it shows in the maintenance details on the Building page and on the work order Details tab before anyone is sent out, and it is printed on the onboarding PDF. The old form was saving the Garage Door Opener answer into that field by mistake, which is why some properties read just "Yes" with no code; when one of those owners opens the form again the gate question is pre-set to Yes with an empty code box, so they have to type it in. Second, a Sprinkler / Irrigation System part under Utilities & Services - whether the home has one, where the controller is, and any notes (watering schedule, separate irrigation meter, who maintains it) - for the utility companies and the tenant. The yes/no is saved to the property\'s "Yard Features" field in PropertyWare ("Sprinkler System" or "No Sprinkler System"), and the whole answer is printed on the onboarding PDF. The Appliances part now also asks what kind of fireplace the home has - electric, freestanding, gas connections, gaslog, mock, stove, wood burning, or No Fireplace - and the answer is saved to the property\'s "Fireplace" field in PropertyWare and printed on the onboarding PDF.',
         ],
         [
-            'date' => '2026-08-27',
+            'date' => '2026-09-01',
             'area' => 'Jobber',
             'title' => 'Notes tab on Jobber jobs',
             'description' => 'The job pop-up on the Jobs (Jobber) board and the full job page have a new Notes tab for internal office notes. Type a note and press Add note (or Ctrl+Enter) and it appears at the top with who wrote it and when; the red X removes it. These notes stay in this system only: nothing is sent to Jobber and a Jobber sync never touches them (unlike Instructions, which Jobber owns), and they are separate from work order notes, which live in PropertyWare. Vendors, owners and tenants never see them, and a job that has been closed here still takes notes.',
         ],
         [
-            'date' => '2026-08-26',
+            'date' => '2026-09-01',
             'area' => 'Jobber',
             'title' => 'Send a TBP visit notice yourself when the automation could not',
             'description' => 'The 14/7/3-day and day-before Tenant Benefit Package reminders only go out when the property name in PropertyWare matches the Jobber client name exactly, so a tenant at "17710 Winnower" (PropertyWare) / "17710 Winnower Ln" (Jobber) never got them and staff were copy-pasting the notice by hand. Open any TBP visit on the Scheduled Visits calendar and there is now a Send notification button: it shows the visit notice with that visit\'s date already filled in, suggests the tenant from PropertyWare even when the street suffix differs, and lists the Jobber client\'s phone and any saved contacts. Tick who should get it (or type a number) and press Send - the text goes out from your number and appears on the visit\'s Messages tab like any other text. The dialog also shows which automated reminders this visit already received. The wording is the "Send notification button" template under IT Tools > Automated Messages > Message Templates.',
