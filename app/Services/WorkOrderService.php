@@ -243,7 +243,7 @@ class WorkOrderService
                 'client_data' => $data['clientData'] ?? null,
                 'propertyware_id' => $work_order_propertyware_id,
                 'work_order_no' => $data['number'] ?? null,
-                'approval_comments' => $data['approvalComment'] ?? null,
+                'approval_comments' => $data['approvalComment'] ?? $data['approvalComments'] ?? null,
                 'is_approved' => ! empty($data['approved']) ? $data['approved'] : false,
                 'approved_by' => ! empty($data['approved']) && $data['approved'] ? $data['approvedBy']['ID'] ?? '' : null,
                 'approved_date' => ! empty($data['approvedDate']) ? Carbon::parse($data['approvedDate'])->toDateString() : null,
@@ -290,6 +290,18 @@ class WorkOrderService
             // kills the work order's whole tenant workflow (WO#43864, 2026-08-19).
             if (empty($tenant)) {
                 unset($work_order_data['tenant_id']);
+            }
+
+            // A payload with blank approval fields must not erase the owner's
+            // approval note (or its date/author) a previous import stamped:
+            // they are entered only in PropertyWare, a PropertyWare-side blank
+            // is usually the transient one our own SOAP updateWorkOrder push
+            // just caused, and a local wipe is unrecoverable (WO#44014,
+            // 2026-08-31 — same class as the tenant_id guard above).
+            foreach (['approval_comments', 'approved_by', 'approved_date'] as $approvalField) {
+                if (blank($work_order_data[$approvalField] ?? null)) {
+                    unset($work_order_data[$approvalField]);
+                }
             }
 
             $customFieldData = [];

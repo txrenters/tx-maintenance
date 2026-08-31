@@ -48,7 +48,7 @@ class SyncWorkOrderDetails implements ShouldQueue
 
         // Prepare the work order data
         $workOrderData = [
-            'approval_comments' => $this->data['approvalComments'] ?? null,
+            'approval_comments' => $this->data['approvalComment'] ?? $this->data['approvalComments'] ?? null,
             'is_approved' => $this->data['approved'] ?? false,
             'approved_by' => $this->data['approvedBy'] ?? null,
             'approved_date' => $this->parseDate($this->data['approvedDate'] ?? null),
@@ -88,6 +88,18 @@ class SyncWorkOrderDetails implements ShouldQueue
             'type' => $this->data['type'] ?? null,
             'updated_at' => $now,
         ];
+
+        // A payload with blank approval fields must not erase the owner's
+        // approval note (or its date/author) a previous import stamped —
+        // they are entered only in PropertyWare and a local wipe is
+        // unrecoverable (WO#44014, 2026-08-31; same class as the
+        // completed_date resolution above). This job is currently dispatched
+        // nowhere; the guard keeps it safe if it is ever revived.
+        foreach (['approval_comments', 'approved_by', 'approved_date'] as $approvalField) {
+            if (blank($workOrderData[$approvalField] ?? null)) {
+                unset($workOrderData[$approvalField]);
+            }
+        }
 
         Log::info('Updating Work Order', [
             'work_order_id' => $this->work_order_id,

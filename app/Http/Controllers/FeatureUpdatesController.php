@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-01',
             'area' => 'Work Orders',
+            'title' => 'Approval comments no longer disappear after assigning a vendor',
+            'description' => 'When a vendor was assigned, the sync that sends the assignment to PropertyWare was quietly erasing the work order\'s Approval Comments there, and a few minutes later the import copied the now-empty value back over the dashboard too - so the owner\'s note was gone everywhere unless someone happened to have a copy (WO#44014). Assigning a vendor, and vendor edits that sync to PropertyWare, now read the current approval comment first and send it along, so it stays put on both sides. The imports were also taught to never overwrite a saved approval comment, date, or approver with an empty one.',
+        ],
+        [
+            'date' => '2026-09-01',
+            'area' => 'Work Orders',
             'title' => 'Notes now show the time they were added',
             'description' => 'Each note on a work order\'s Notes tab now shows the date and time it was added (Central time), not just the day, so when several notes land on one work order in a day you can tell which came first and follow the order of updates. A note written on the dashboard shows the moment it was saved. A note that came from PropertyWare shows PropertyWare\'s own note time, and one that only carries a day still shows just the day.',
         ],

@@ -1000,6 +1000,11 @@ class PropertyWareService
         $portfolioId = (int) $workOrder->portfolio_id;
         $buildigId = $workOrder->building_id;
 
+        // The full-replace envelope below must echo PropertyWare's approval
+        // fields back or it blanks them there — and the local copy may be
+        // stale, so pull the current values first (WO#44014).
+        $this->refreshApprovalFromPropertyWare($workOrder);
+
         // Build SOAP payload without location field to avoid validation errors
         // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
 
@@ -1026,6 +1031,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
                         <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
                         <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
+                        <approvalComment xsi:type="xsd:string">'.htmlspecialchars($workOrder->approval_comments ?? '', ENT_XML1, 'UTF-8').'</approvalComment>
                         '.$this->sourceElement($workOrder).'
                         '.$vendorIDsXml.'
                     </workOrder>
@@ -1052,9 +1058,9 @@ class PropertyWareService
             throw new Exception('PropertyWare API Error: '.$res['message']);
         }
 
-        if ($workOrder->is_approved) {
-            $this->approvedWorkOrder($workOrder);
-        }
+        // Unconditional: approvedWorkOrder gates on is_approved itself, and
+        // may learn approval from its own PropertyWare refresh.
+        $this->approvedWorkOrder($workOrder);
 
         // PropertyWare attaches a website request's lease on the work order's
         // next save - the save this call just made. Pull it now so the
@@ -1560,6 +1566,11 @@ class PropertyWareService
 
             // Fetch current location from PropertyWare to ensure accuracy
             $pwWorkOrder = $this->getWorkOrder($workorderId);
+
+            // Same fetch also carries the approval fields the full-replace
+            // envelope below must echo back or blank in PropertyWare (WO#44014).
+            $this->refreshApprovalFromPropertyWare($workOrder, is_array($pwWorkOrder) ? $pwWorkOrder : null);
+
             if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
                 $location = $pwWorkOrder['location'];
 
@@ -1623,6 +1634,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.$category.'</category>
                         <description xsi:type="xsd:string">'.$description.'</description>
                         <type xsi:type="xsd:string">'.$type.'</type>
+                        <approvalComment xsi:type="xsd:string">'.htmlspecialchars($workOrder->approval_comments ?? '', ENT_XML1, 'UTF-8').'</approvalComment>
                         '.$this->sourceElement($workOrder).'
                     </workOrder>
                 </ser:updateWorkOrder>
@@ -1772,8 +1784,64 @@ class PropertyWareService
         }
     }
 
+    /**
+     * Approval fields are entered only in PropertyWare, and its SOAP
+     * updateWorkOrder replaces the whole work-order object — so every push
+     * must carry the freshest approval values or it erases the owner's note
+     * there, which the next import then erases locally too (WO#44014,
+     * 2026-08-31). A failed fetch just leaves the local values in place.
+     *
+     * @param  array<string, mixed>|null  $pwWorkOrder  a payload the caller already fetched
+     */
+    private function refreshApprovalFromPropertyWare($workOrder, ?array $pwWorkOrder = null): void
+    {
+        try {
+            $pw = $pwWorkOrder ?? $this->getWorkOrder($workOrder->propertyware_id);
+
+            if (! is_array($pw)) {
+                return;
+            }
+
+            $dirty = [];
+
+            $comment = $pw['approvalComment'] ?? $pw['approvalComments'] ?? null;
+            if (filled($comment)) {
+                $dirty['approval_comments'] = $comment;
+            }
+
+            if (filled($pw['approvedDate'] ?? null)) {
+                try {
+                    $dirty['approved_date'] = Carbon::parse($pw['approvedDate'])->toDateString();
+                } catch (Throwable) {
+                    // An unparseable date must not cost us the comment refresh.
+                }
+            }
+
+            if (array_key_exists('approved', $pw)) {
+                $dirty['is_approved'] = (bool) $pw['approved'];
+            }
+
+            if ($dirty !== []) {
+                $workOrder->forceFill($dirty)->save();
+            }
+        } catch (Throwable $e) {
+            Log::warning('Could not refresh approval fields from PropertyWare; using local values.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function approvedWorkOrder($workOrder): void
     {
+        // Blank local values here usually mean the import hasn't caught up
+        // with PropertyWare, not that PropertyWare is blank — pushing them
+        // would wipe the owner's note there. Refresh first; after it, an
+        // empty push can only happen when PropertyWare's own copy is empty.
+        if (blank($workOrder->approval_comments) || blank($workOrder->approved_date)) {
+            $this->refreshApprovalFromPropertyWare($workOrder);
+        }
+
         if (! $workOrder->is_approved) {
             return;
         }
