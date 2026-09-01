@@ -34,7 +34,6 @@ use App\Http\Controllers\JobberAutomationSettingsController;
 use App\Http\Controllers\JobberDiagnosticController;
 use App\Http\Controllers\JobberJobCloseController;
 use App\Http\Controllers\JobberJobNoteController;
-use App\Http\Controllers\JobberSchedulerController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberVendorController;
 use App\Http\Controllers\JobberVendorPortalController;
@@ -198,12 +197,6 @@ Route::middleware([
     // jobber-text-messages.store below.
     Route::get('/visits/{visit}/tbp-notice', [TbpVisitNoticeController::class, 'show'])->name('visits.tbp_notice');
 
-    // Coverage map + property panel. Admin + WOC, enforced in the controller.
-    Route::get('/scheduler', [JobberSchedulerController::class, 'index'])->name('scheduler.index');
-    Route::get('/scheduler/properties/{propertywareId}', [JobberSchedulerController::class, 'property'])
-        ->whereNumber('propertywareId')
-        ->name('scheduler.property');
-    Route::get('/scheduler/visits', [JobberSchedulerController::class, 'visits'])->name('scheduler.visits');
     Route::get('/search-client', [InspectionController::class, 'searchClient'])->name('jobber.searchClient');
     Route::post('/save-client', [InspectionController::class, 'saveClient'])->name('jobber.saveClient');
     Route::get('/inspections/{job}/details', [InspectionController::class, 'jobDetails'])->name('jobber.jobDetails');

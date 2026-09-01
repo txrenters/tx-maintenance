@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-01',
+            'area' => 'Jobber',
+            'title' => 'The Scheduler preview has been retired',
+            'description' => 'The "Scheduler (Still developing)" page under Jobs (Jobber) has been removed. Scheduling will be handled in the separate scheduling app instead of here, so the map preview and its nightly address-geocoding run are gone. Nothing else changes: jobs, visits, and all the tenant and vendor notifications in this system keep working exactly as before.',
+        ],
+        [
+            'date' => '2026-09-01',
             'area' => 'Work Orders',
             'title' => 'Approval comments no longer disappear after assigning a vendor',
             'description' => 'When a vendor was assigned, the sync that sends the assignment to PropertyWare was quietly erasing the work order\'s Approval Comments there, and a few minutes later the import copied the now-empty value back over the dashboard too - so the owner\'s note was gone everywhere unless someone happened to have a copy (WO#44014). Assigning a vendor, and vendor edits that sync to PropertyWare, now read the current approval comment first and send it along, so it stays put on both sides. The imports were also taught to never overwrite a saved approval comment, date, or approver with an empty one.',
