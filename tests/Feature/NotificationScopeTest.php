@@ -7,8 +7,10 @@ use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Notifications\StaffActivityNotification;
 use App\Services\AutomatedMessageLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -154,5 +156,63 @@ class NotificationScopeTest extends TestCase
                 ->whereIn('id', $rows->pluck('id'))
                 ->count(),
         );
+    }
+
+    public function test_named_audit_logs_stay_out_of_the_bell(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $user = User::factory()->create()->assignRole('admin');
+
+        // The technician roster and the template editor keep audit trails
+        // under their own log_name — bare "created"/"updated" rows that once
+        // rendered as meaningless cards in every staff bell.
+        $technicianAudit = Activity::create([
+            'log_name' => 'technician', 'description' => 'updated',
+            'properties' => ['name' => 'Amy Wilson', 'changes' => []],
+        ]);
+        $templateAudit = Activity::create([
+            'log_name' => 'message_template', 'description' => 'updated',
+            'properties' => ['template' => 'tenant_visit_reminder'],
+        ]);
+
+        $staffAlert = Activity::create([
+            'log_name' => 'default', 'description' => 'Message Undelivered',
+            'properties' => ['message' => 'Alert', 'read' => false],
+        ]);
+        $legacyRow = Activity::create([
+            'description' => 'legacy', 'properties' => ['message' => 'written before log names'],
+        ]);
+
+        $ids = collect($this->actingAs($user)->getJson('/notifications')->assertOk()->json())
+            ->pluck('id')->all();
+
+        $this->assertContains($staffAlert->id, $ids);
+        $this->assertContains($legacyRow->id, $ids);
+        $this->assertNotContains($technicianAudit->id, $ids);
+        $this->assertNotContains($templateAudit->id, $ids);
+    }
+
+    public function test_named_audit_logs_never_reach_the_desktop(): void
+    {
+        Role::findOrCreate('woc', 'web');
+        $woc = User::factory()->create();
+        $woc->assignRole('woc');
+
+        Notification::fake();
+
+        // Creating the row is the trigger: AppServiceProvider runs the
+        // notifier on Activity::created. Same configured event on both rows;
+        // only the log name differs.
+        Activity::create([
+            'log_name' => 'technician', 'event' => 'message_undelivered',
+            'description' => 'updated', 'properties' => [],
+        ]);
+        Notification::assertNothingSent();
+
+        Activity::create([
+            'log_name' => 'default', 'event' => 'message_undelivered',
+            'description' => 'Message Undelivered', 'properties' => ['message' => 'delivery failed'],
+        ]);
+        Notification::assertSentTo($woc, StaffActivityNotification::class);
     }
 }

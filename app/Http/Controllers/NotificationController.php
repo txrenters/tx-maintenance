@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
-use App\Services\AutomatedMessageLogService;
 use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
@@ -13,12 +12,15 @@ class NotificationController extends Controller
     {
         $user = auth()->user();
 
-        // The automated-messages ledger (IT Tools page) shares this table but
-        // is a log, not a staff notification — keep it out of the bell.
+        // Named logs share this table but are records, not notifications: the
+        // automated-messages ledger (IT Tools page) and the audit trails the
+        // technician roster and template editor write — bare "created"/
+        // "updated" rows that were flooding every staff bell. Only the
+        // default (unnamed) log is written to be seen here.
         $query = Activity::with('subject')
             ->where(function ($q) {
                 $q->whereNull('log_name')
-                    ->orWhere('log_name', '!=', AutomatedMessageLogService::LOG_NAME);
+                    ->orWhere('log_name', config('activitylog.default_log_name'));
             })
             ->latest();
 

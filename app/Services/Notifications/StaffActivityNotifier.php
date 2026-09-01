@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Notifications\StaffActivityNotification;
-use App\Services\AutomatedMessageLogService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -54,9 +53,13 @@ class StaffActivityNotifier
             return;
         }
 
-        // The automated-messages ledger shares this table but is a log, not a
-        // staff notification — the bell excludes it for the same reason.
-        if ($activity->log_name === AutomatedMessageLogService::LOG_NAME) {
+        // Named logs are records, not staff notifications — the automated-
+        // messages ledger and the technician/template audit trails. The bell
+        // hides them (NotificationController::fetchNotification), and the
+        // promise of this class is that the desktop never shows something
+        // the bell does not.
+        if ($activity->log_name !== null
+            && $activity->log_name !== config('activitylog.default_log_name')) {
             return;
         }
 
