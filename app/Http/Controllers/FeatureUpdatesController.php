@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-02',
+            'area' => 'Work Orders',
+            'title' => 'Field notes show the technician\'s name',
+            'description' => 'Notes written by our in-house crew used to be signed "Texas Home Maintenance Pros", because the whole team shares one vendor login. The Notes tab now looks up who was actually assigned to that job\'s visit in Jobber and shows the technician\'s name instead - so "Job was completed" reads as, say, Emanuel Hall rather than the company. When the note doesn\'t line up with a Jobber visit (no Jobber job on the work order, or no one assigned yet), it falls back to the vendor name exactly as before. Notes from other vendors and from office staff are unchanged.',
+        ],
+        [
+            'date' => '2026-09-02',
             'area' => 'People',
             'title' => 'A Technicians page, and tenant appointment texts that carry the technician\'s photo',
             'description' => 'The People menu has a new Technicians page: the in-house roster as profile cards - photo, name, specialty, role - where clicking a card opens the full profile (photo upload, phone, email, bio, active). And on a work order, the Create/Edit Service Schedule window has an optional Technician dropdown: pick who is going and the tenant\'s automatic appointment text becomes the THMP Technician Visit Reminder - the date, the work order, "Assigned Technician: <name>" - with that technician\'s photo attached as a picture message, so the tenant recognizes who is at their door. The wording is editable under IT Tools, Automated Messages ("THMP technician visit"). Photos are JPG or PNG up to 2 MB - the sizes and types phone carriers reliably deliver. Picking nobody sends the standard appointment message exactly as before, and all the existing rules still apply: the per-work-order automation mute, and no automated texts on turnover, re-key, refresh-cleaning or vacant homes.',
