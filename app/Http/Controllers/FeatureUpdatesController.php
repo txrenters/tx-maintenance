@@ -21,19 +21,19 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
-            'date' => '2026-09-01',
-            'area' => 'Settings',
+            'date' => '2026-09-02',
+            'area' => 'People',
             'title' => 'A Technicians page, and tenant appointment texts that carry the technician\'s photo',
-            'description' => 'Settings has a new Technicians page: the in-house roster as profile cards - photo, name, specialty, role - where clicking a card opens the full profile (photo upload, phone, email, bio, active). And on a work order, the Create/Edit Service Schedule window has an optional Technician dropdown: pick who is going and the tenant\'s automatic appointment text becomes the THMP Technician Visit Reminder - the date, the work order, "Assigned Technician: <name>" - with that technician\'s photo attached as a picture message, so the tenant recognizes who is at their door. The wording is editable under IT Tools, Automated Messages ("THMP technician visit"). Photos are JPG or PNG up to 2 MB - the sizes and types phone carriers reliably deliver. Picking nobody sends the standard appointment message exactly as before, and all the existing rules still apply: the per-work-order automation mute, and no automated texts on turnover, re-key, refresh-cleaning or vacant homes.',
+            'description' => 'The People menu has a new Technicians page: the in-house roster as profile cards - photo, name, specialty, role - where clicking a card opens the full profile (photo upload, phone, email, bio, active). And on a work order, the Create/Edit Service Schedule window has an optional Technician dropdown: pick who is going and the tenant\'s automatic appointment text becomes the THMP Technician Visit Reminder - the date, the work order, "Assigned Technician: <name>" - with that technician\'s photo attached as a picture message, so the tenant recognizes who is at their door. The wording is editable under IT Tools, Automated Messages ("THMP technician visit"). Photos are JPG or PNG up to 2 MB - the sizes and types phone carriers reliably deliver. Picking nobody sends the standard appointment message exactly as before, and all the existing rules still apply: the per-work-order automation mute, and no automated texts on turnover, re-key, refresh-cleaning or vacant homes.',
         ],
         [
-            'date' => '2026-09-01',
+            'date' => '2026-09-02',
             'area' => 'Jobber',
             'title' => 'The Scheduler preview has been retired',
             'description' => 'The "Scheduler (Still developing)" page under Jobs (Jobber) has been removed. Scheduling will be handled in the separate scheduling app instead of here, so the map preview and its nightly address-geocoding run are gone. Nothing else changes: jobs, visits, and all the tenant and vendor notifications in this system keep working exactly as before.',
         ],
         [
-            'date' => '2026-09-01',
+            'date' => '2026-09-02',
             'area' => 'Work Orders',
             'title' => 'Notes now show who wrote them',
             'description' => 'Each note on a work order\'s Notes tab now shows the writer\'s name next to the time it was added, so you can tell at a glance whether an update came from a coordinator, a technician, or over from PropertyWare. A note written on the dashboard shows the name of the person who typed it; a note that came across from PropertyWare says "PropertyWare", since PropertyWare does not tell us who wrote it there.',
