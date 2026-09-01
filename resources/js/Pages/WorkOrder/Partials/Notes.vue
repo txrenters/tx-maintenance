@@ -123,6 +123,10 @@ const formatAddedAt = (note) => {
     return parsed.setZone(TIMEZONE).toFormat("EEE, MMMM d, yyyy h:mm a");
 };
 
+// Who wrote the note. A note typed on the dashboard carries its user; anything
+// else came over from PropertyWare, which never reports an author name.
+const noteAuthor = (note) => note.user?.name || "PropertyWare";
+
 const handleFetchNotes = () => {
     emit("fetch-notes");
 };
@@ -180,7 +184,8 @@ const handleFetchNotes = () => {
 
                         <p>{{ note.body }}</p>
                         <p class="text-xs">
-                            Added: {{ formatAddedAt(note) }}
+                            Added: {{ formatAddedAt(note) }} &middot;
+                            {{ noteAuthor(note) }}
                         </p>
                     </div>
                 </div>

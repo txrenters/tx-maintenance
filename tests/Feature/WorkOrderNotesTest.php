@@ -320,6 +320,32 @@ class WorkOrderNotesTest extends TestCase
                 ->where('workOrder.notes.0.added_at', '2026-08-28T20:15:00.000000Z'));
     }
 
+    public function test_each_note_reports_who_wrote_it(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create();
+
+        $this->note($workOrder, ['subject' => 'Dashboard', 'user_id' => $woc->id]);
+        $this->note($workOrder, ['subject' => 'From PropertyWare', 'propertyware_id' => 901]);
+
+        // The Notes tab prints the writer's name next to the timestamp, so the
+        // payload must carry the user for a dashboard note — and none for a
+        // PropertyWare note, which the tab labels "PropertyWare" instead.
+        $this->actingAs($woc)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('notes.0.user.name', $woc->name)
+            ->assertJsonPath('notes.1.user', null);
+
+        // The full work order page seeds the tab from its own props.
+        $this->actingAs($woc)
+            ->get(route('work_orders.details', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workOrder.notes.0.user.name', $woc->name)
+                ->where('workOrder.notes.1.user', null));
+    }
+
     public function test_a_note_added_on_the_dashboard_is_stamped_with_the_moment_it_was_saved(): void
     {
         $woc = $this->makeWoc();
