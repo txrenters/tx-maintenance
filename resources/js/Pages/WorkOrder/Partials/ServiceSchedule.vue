@@ -26,8 +26,18 @@ const serviceScheduleForm = useForm({
     end_date: "",
     vendor_id: "",
     tenant_id: "",
+    technician_id: "",
     work_order_id: props.workOrder.id,
 });
+
+// "none" is the explicit "No technician" pick; either way null goes out.
+serviceScheduleForm.transform((data) => ({
+    ...data,
+    technician_id:
+        data.technician_id && data.technician_id !== "none"
+            ? Number(data.technician_id)
+            : null,
+}));
 const emit = defineEmits(["fetch-schedule"]);
 
 // Parse dates coming from the API, which may be ISO ("2026-06-22T14:30:00"),
@@ -75,6 +85,22 @@ watch(openService, (newValue) => {
         acceptingSuggestionId.value = null;
     }
 });
+
+// ---- Technician picker ----
+// Naming who is going lets the tenant's appointment text carry that
+// technician's photo. Staff-only endpoint — a 403 just hides the picker.
+const technicianOptions = ref([]);
+
+const fetchTechnicianOptions = async () => {
+    try {
+        const { data } = await axios.get(route("technicians.options"));
+        technicianOptions.value = data.technicians ?? [];
+    } catch {
+        technicianOptions.value = [];
+    }
+};
+
+onMounted(fetchTechnicianOptions);
 
 // ---- AI schedule suggestions (extracted from tenant/vendor texts) ----
 // Read-only proposals: "Use" only pre-fills the create form below; nothing
@@ -189,6 +215,7 @@ const openEditMode = (schedule) => {
     serviceScheduleForm.end_date = formatDateForInput(schedule.scheduled_end_date);
     serviceScheduleForm.vendor_id = String(schedule.vendor_id);
     serviceScheduleForm.tenant_id = schedule.tenant_id ? String(schedule.tenant_id) : "";
+    serviceScheduleForm.technician_id = schedule.technician_id ? String(schedule.technician_id) : "";
 
     openService.value = true;
 };
@@ -483,6 +510,15 @@ const handleMeetingSubmit = () => {
                                 {{ schedule.vendor.name }}
                             </p>
                         </div>
+                        <div
+                            v-if="schedule.technician"
+                            class="flex flex-col text-xs gap-1"
+                        >
+                            <p>Technician</p>
+                            <p class="flex gap-1 items-center">
+                                {{ schedule.technician.name }}
+                            </p>
+                        </div>
                     </div>
                     <div>
                         <Badge
@@ -538,6 +574,34 @@ const handleMeetingSubmit = () => {
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    <!-- Technician (optional) — the tenant's appointment text
+                         attaches this technician's photo -->
+                    <div v-if="technicianOptions.length" class="space-y-2">
+                        <Label class="text-sm font-medium">Technician</Label>
+                        <Select v-model="serviceScheduleForm.technician_id">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select a technician (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="none">No technician</SelectItem>
+                                    <template
+                                        v-for="technician in technicianOptions"
+                                        :key="technician.id"
+                                    >
+                                        <SelectItem :value="String(technician.id)">
+                                            {{ technician.name }}{{ technician.has_photo ? "" : " (no photo on file)" }}
+                                        </SelectItem>
+                                    </template>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <p class="text-xs text-muted-foreground">
+                            The tenant's appointment text includes their name and
+                            photo, so the tenant knows who to expect.
+                        </p>
                     </div>
 
                     <!-- Title -->
