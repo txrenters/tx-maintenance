@@ -78,6 +78,13 @@ class ConversationController extends Controller
 
         $workOrder->load(['vendor_conversation.media', 'vendors.user']);
 
+        // Staff keep access to the threads of vendors who were later removed
+        // from the work order; vendors themselves only ever see current
+        // assignees.
+        if (auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting'])) {
+            $workOrder->setAttribute('former_vendors', $workOrder->formerConversationVendors());
+        }
+
         return response()->json($workOrder, 200);
     }
 

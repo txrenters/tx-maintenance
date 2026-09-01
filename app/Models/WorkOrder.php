@@ -417,6 +417,67 @@ class WorkOrder extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Vendors no longer assigned to this work order that still have messages in
+     * one of its vendor threads. Removing a vendor only detaches the pivot row
+     * — work_order_conversations rows are never deleted — but the conversation
+     * UI's vendor picker lists current assignees only, which made a removed
+     * vendor's history unreachable. Messages are attributed by their vendor_id
+     * tag; untagged rows (inbound replies, pre-tagging history) by phone
+     * number, mirroring Conversation::scopeForVendorThread.
+     *
+     * Caller is responsible for gating: this intentionally reads the whole
+     * thread set without the per-role ConversationScope, so only expose the
+     * result to staff.
+     *
+     * @return Collection<int, Vendor>
+     */
+    public function formerConversationVendors(): Collection
+    {
+        $assignedIds = $this->vendors()->pluck('vendors.id');
+
+        $messages = Conversation::query()
+            ->withoutGlobalScopes()
+            ->where('work_order_id', $this->id)
+            ->whereIn('conversation_type', ['vendor', 'vendor_tenant', 'vendor_owner'])
+            ->get(['vendor_id', 'sender_number', 'receiver_number']);
+
+        $taggedIds = $messages->pluck('vendor_id')
+            ->filter()
+            ->unique()
+            ->reject(fn ($id) => $assignedIds->contains($id))
+            ->values();
+
+        $numbers = $messages->whereNull('vendor_id')
+            ->flatMap(fn (Conversation $message) => [
+                Conversation::lastTenDigits($message->sender_number),
+                Conversation::lastTenDigits($message->receiver_number),
+            ])
+            ->filter()
+            ->unique()
+            ->take(30)
+            ->values();
+
+        if ($taggedIds->isEmpty() && $numbers->isEmpty()) {
+            return new Collection;
+        }
+
+        return Vendor::with('user')
+            ->where(function ($query) use ($taggedIds, $numbers) {
+                $query->whereIn('id', $taggedIds);
+
+                foreach ($numbers as $digits) {
+                    $query->orWhere('twilio_number', 'LIKE', '%'.$digits)
+                        ->orWhereHas('user', fn ($user) => $user->where('phone', 'LIKE', '%'.$digits));
+                }
+            })
+            ->whereNotIn('id', $assignedIds)
+            ->orderBy('name')
+            ->get()
+            ->each(fn (Vendor $vendor) => $vendor->setAttribute('removed_from_work_order', true))
+            ->toBase();
+    }
+
     public function vendor_notes(): HasMany
     {
         return $this->hasMany(WorkOrderNotes::class, 'work_order_id');

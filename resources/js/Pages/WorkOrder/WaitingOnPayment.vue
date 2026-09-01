@@ -328,6 +328,8 @@ const ownerConversation = ref([]);
 const workOrderOwners = ref([]);
 const workOrderTenants = ref([]);
 const workOrderVendors = ref([]);
+// Vendors removed from the work order whose thread history remains (staff only).
+const formerVendors = ref([]);
 
 const fetchOwnerConversation = async (workOrderId) => {
     try {
@@ -393,6 +395,7 @@ const fetchVendorConversation = async (workOrderId) => {
 
         vendorConversation.value = response.data.vendor_conversation;
         workOrderVendors.value = response.data.vendors;
+        formerVendors.value = response.data.former_vendors ?? [];
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -1120,6 +1123,7 @@ const page = usePage();
             <VendorConversation
                 :vendorConversation="vendorConversation"
                 :workOrderVendors="workOrderVendors"
+                :formerVendors="formerVendors"
                 @update-vendor-convo="fetchVendorConversation(workOrderForm.id)"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
