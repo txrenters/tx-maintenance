@@ -40,6 +40,21 @@ class SendJobRemindersTest extends TestCase
         $this->assertFalse($command->matches('456 Sunset Lane', '789 Sunset Lane'));
     }
 
+    public function test_it_does_not_double_the_country_code_on_reminder_numbers(): void
+    {
+        $command = new class extends SendJobReminders
+        {
+            public function format(string $number): string
+            {
+                return $this->formatNumber($number);
+            }
+        };
+
+        $this->assertSame('+18322432975', $command->format('(832) 243-2975'));
+        $this->assertSame('+18322432975', $command->format('+1 832-243-2975'));
+        $this->assertSame('+18322432975', $command->format('18322432975'));
+    }
+
     public function test_it_sends_default_reminders_for_three_seven_and_fourteen_days(): void
     {
         Carbon::setTestNow('2026-03-31 10:00:00');

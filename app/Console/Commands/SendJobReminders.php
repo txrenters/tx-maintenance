@@ -11,6 +11,7 @@ use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
 use App\Services\JobberAutomationSettings;
 use App\Services\MicrosoftGraphMailService;
+use App\Services\PhoneFormatter;
 use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
 use Carbon\Carbon;
@@ -864,7 +865,11 @@ class SendJobReminders extends Command
             Log::error('The provided phone number is invalid', ['phone' => $number]);
         }
 
-        return '+1'.$cleanedNumber;
+        // e164 keeps a number that already carries the country code from
+        // gaining a second "1" ("+11832..."); numbers too short to send fall
+        // back to the old prefix so the failure still surfaces at Twilio with
+        // the log line above.
+        return PhoneFormatter::e164($number) ?? '+1'.$cleanedNumber;
     }
 
     protected function buildingReferenceMatches(string $jobberClientName, string $propertywareClientReference): bool
