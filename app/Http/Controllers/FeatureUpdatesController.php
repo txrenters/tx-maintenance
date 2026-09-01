@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-02',
             'area' => 'Work Orders',
+            'title' => 'Deleting a note asks first',
+            'description' => 'The red X on a work order note now opens a confirmation - "Delete this note?" - instead of deleting on the spot. The X only ever appears on notes that have not reached PropertyWare yet, which are exactly the ones nothing can bring back, so one stray click no longer costs a note.',
+        ],
+        [
+            'date' => '2026-09-02',
+            'area' => 'Work Orders',
             'title' => 'Removing a vendor no longer hides their conversation',
             'description' => 'When a vendor was removed from a work order, their back-and-forth with the coordinator disappeared from the Vendor - Coordinator tab: the messages were still saved, but the vendor picker only listed vendors currently on the work order, so there was no way to open the old thread. The picker now has a "No longer assigned" section listing every removed vendor who has messages on that work order, marked "(removed)". Pick one to read the full history, or text them again if you need to; if the work order\'s only vendor was removed, their thread opens by itself instead of an empty tab. This is for staff only - vendors, owners and tenants never see removed vendors - and the Send assignment info button hides for a removed vendor so nobody accidentally re-sends work order paperwork to someone who is off the job.',
         ],
