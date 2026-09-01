@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
+use App\Services\JobberTechnicianResolver;
 use App\Services\PropertyWareService;
 use App\Services\VendorPortalLinkService;
 use Illuminate\Http\RedirectResponse;
@@ -15,15 +16,31 @@ class WorkOrderNotesController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function getNotes(WorkOrder $workOrder)
+    public function getNotes(WorkOrder $workOrder, JobberTechnicianResolver $technicians)
     {
         // Private notes are internal: owners and tenants who log in here get
         // the same view PropertyWare's own portals give them.
         $workOrder->load([
             'notes' => fn ($query) => $query->visibleTo(auth()->user()),
-            'notes.user',
+            'notes.user.vendor',
             'vendors',
         ]);
+
+        // A THMP field note arrives through the shared vendor login; Jobber's
+        // visit assignment names the actual technician, so the dashboard can
+        // show a person instead of the company. Falls back to nothing (and the
+        // UI to the vendor name) whenever the Jobber link or assignment is
+        // missing. The vendor relation was only loaded for this check — it is
+        // dropped again so the payload stays what the page always received.
+        // getRelation: work_orders also has a "notes" text column, which the
+        // plain property accessor would return instead of the loaded rows.
+        $workOrder->getRelation('notes')->each(function (WorkOrderNotes $note) use ($workOrder, $technicians) {
+            if ($note->user?->vendor?->isThmp()) {
+                $note->setAttribute('jobber_technician', $technicians->technicianForNote($workOrder, $note->created_at));
+            }
+
+            $note->user?->unsetRelation('vendor');
+        });
 
         // Copyable magic links for the Vendors tab, so a coordinator can hand a
         // vendor their link from the work order modal and the boards, not just

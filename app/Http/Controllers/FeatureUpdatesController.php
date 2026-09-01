@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-02',
             'area' => 'Work Orders',
+            'title' => 'Field notes show the technician\'s name',
+            'description' => 'Notes written by our in-house crew used to be signed "Texas Home Maintenance Pros", because the whole team shares one vendor login. The Notes tab now looks up who was actually assigned to that job\'s visit in Jobber and shows the technician\'s name instead - so "Job was completed" reads as, say, Emanuel Hall rather than the company. When the note doesn\'t line up with a Jobber visit (no Jobber job on the work order, or no one assigned yet), it falls back to the vendor name exactly as before. Notes from other vendors and from office staff are unchanged.',
+        ],
+        [
+            'date' => '2026-09-02',
+            'area' => 'Work Orders',
             'title' => 'Removing a vendor no longer hides their conversation',
             'description' => 'When a vendor was removed from a work order, their back-and-forth with the coordinator disappeared from the Vendor - Coordinator tab: the messages were still saved, but the vendor picker only listed vendors currently on the work order, so there was no way to open the old thread. The picker now has a "No longer assigned" section listing every removed vendor who has messages on that work order, marked "(removed)". Pick one to read the full history, or text them again if you need to; if the work order\'s only vendor was removed, their thread opens by itself instead of an empty tab. This is for staff only - vendors, owners and tenants never see removed vendors - and the Send assignment info button hides for a removed vendor so nobody accidentally re-sends work order paperwork to someone who is off the job.',
         ],

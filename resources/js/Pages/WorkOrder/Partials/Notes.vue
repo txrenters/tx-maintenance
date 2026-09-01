@@ -123,9 +123,12 @@ const formatAddedAt = (note) => {
     return parsed.setZone(TIMEZONE).toFormat("EEE, MMMM d, yyyy h:mm a");
 };
 
-// Who wrote the note. A note typed on the dashboard carries its user; anything
-// else came over from PropertyWare, which never reports an author name.
-const noteAuthor = (note) => note.user?.name || "PropertyWare";
+// Who wrote the note. A THMP field note comes through the shared vendor
+// login, so the server swaps in the Jobber-assigned technician's name when it
+// can (jobber_technician). Otherwise: the dashboard user who typed it, or
+// "PropertyWare" for synced notes — PropertyWare never reports an author.
+const noteAuthor = (note) =>
+    note.jobber_technician || note.user?.name || "PropertyWare";
 
 const handleFetchNotes = () => {
     emit("fetch-notes");
