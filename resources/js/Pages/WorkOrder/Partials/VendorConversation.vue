@@ -11,6 +11,7 @@ import {
     SelectContent,
     SelectGroup,
     SelectItem,
+    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
@@ -28,6 +29,9 @@ const props = defineProps({
     vendorConversation: Array,
     workOrderTenants: Array,
     workOrderVendors: Array,
+    // Vendors removed from the work order whose thread history remains
+    // (staff only; the endpoint omits them for other roles).
+    formerVendors: Array,
     isLoading: Boolean,
     workOrder: Object,
 });
@@ -60,9 +64,23 @@ const lastTenDigits = (value) => phoneKey(value) || null;
 
 const hasSingleVendor = computed(() => props.workOrderVendors?.length === 1);
 
+const removedVendors = computed(() => props.formerVendors ?? []);
+
+// Assigned vendors first, then removed ones, so lookups by id cover both.
+const selectableVendors = computed(() => [
+    ...(props.workOrderVendors ?? []),
+    ...removedVendors.value,
+]);
+
+const selectedVendorIsRemoved = computed(() =>
+    removedVendors.value.some(
+        (vendor) => String(vendor.id) === String(selectedVendor.value)
+    )
+);
+
 const participants = computed(() =>
     buildParticipants([
-        ...(props.workOrderVendors ?? []).flatMap((vendor) =>
+        ...selectableVendors.value.flatMap((vendor) =>
             [vendor.twilio_number, vendor.user?.phone].map((phone) => ({
                 phone,
                 name: vendor.name,
@@ -80,8 +98,13 @@ const participants = computed(() =>
 
 // Messages belonging to one vendor: tagged by vendor_id, plus legacy untagged
 // messages matched by that vendor's number or on a single-vendor work order.
+// The single-vendor fallback only applies to the assigned vendor — a removed
+// vendor's thread must never absorb untagged messages it can't prove are its.
 const messagesForVendor = (vendorId) => {
-    const vendor = props.workOrderVendors?.find(
+    const vendor = selectableVendors.value.find(
+        (v) => String(v.id) === String(vendorId)
+    );
+    const isAssigned = (props.workOrderVendors ?? []).some(
         (v) => String(v.id) === String(vendorId)
     );
     const numbers = vendor
@@ -99,7 +122,7 @@ const messagesForVendor = (vendorId) => {
             ) {
                 return true;
             }
-            if (hasSingleVendor.value) return true;
+            if (hasSingleVendor.value && isAssigned) return true;
         }
         return false;
     });
@@ -177,7 +200,7 @@ watch(
 );
 watch(selectedVendor, (newVendor) => {
     if (newVendor) {
-        const foundVendor = props.workOrderVendors.find(
+        const foundVendor = selectableVendors.value.find(
             (vendor) => vendor.id == newVendor
         );
         vendor_phone_number.value = foundVendor ? foundVendor.user?.phone : "";
@@ -186,12 +209,21 @@ watch(selectedVendor, (newVendor) => {
 });
 
 // Preselect the only vendor so their thread shows by default; leave the tab
-// empty when there are multiple vendors so threads never blur together.
+// empty when there are multiple vendors so threads never blur together. When
+// every vendor has been removed but exactly one left history behind, show
+// that history rather than an empty tab.
 watch(
-    () => props.workOrderVendors,
-    (vendors) => {
-        if (!selectedVendor.value && vendors?.length === 1) {
-            selectedVendor.value = String(vendors[0].id);
+    () => [props.workOrderVendors, props.formerVendors],
+    () => {
+        if (selectedVendor.value) return;
+
+        if (props.workOrderVendors?.length === 1) {
+            selectedVendor.value = String(props.workOrderVendors[0].id);
+        } else if (
+            !props.workOrderVendors?.length &&
+            removedVendors.value.length === 1
+        ) {
+            selectedVendor.value = String(removedVendors.value[0].id);
         }
     },
     { immediate: true }
@@ -251,7 +283,7 @@ const notifyAssignment = async () => {
                 </p>
                 <div class="flex items-center gap-2">
                     <Button
-                        v-if="selectedVendor"
+                        v-if="selectedVendor && !selectedVendorIsRemoved"
                         type="button"
                         size="sm"
                         variant="outline"
@@ -297,6 +329,19 @@ const notifyAssignment = async () => {
                                 </SelectItem>
                             </template>
                         </SelectGroup>
+                        <SelectGroup v-if="removedVendors.length">
+                            <SelectLabel class="text-xs font-normal">
+                                No longer assigned
+                            </SelectLabel>
+                            <template
+                                v-for="vendor in removedVendors"
+                                :key="`removed-${vendor.id}`"
+                            >
+                                <SelectItem :value="String(vendor.id)">
+                                    {{ vendor.name }} (removed)
+                                </SelectItem>
+                            </template>
+                        </SelectGroup>
                     </SelectContent>
                 </Select>
                 <Input
@@ -321,8 +366,16 @@ const notifyAssignment = async () => {
                 </span>
             </div>
 
+            <p
+                v-if="selectedVendorIsRemoved"
+                class="text-muted-foreground -mt-1 text-xs"
+            >
+                This vendor was removed from the work order. Their conversation
+                history is kept; new texts still go to their number.
+            </p>
+
             <AwaitingReplyBanner
-                v-if="selectedVendor"
+                v-if="selectedVendor && !selectedVendorIsRemoved"
                 :messages="displayedMessages"
                 :our-number="woc_phone_number"
                 party="vendor"

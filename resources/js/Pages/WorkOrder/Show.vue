@@ -325,6 +325,8 @@ const ownerEmailSender = ref("");
 const workOrderOwners = ref(order.owners ?? []);
 const workOrderTenants = ref([]);
 const workOrderVendors = ref(order.vendors ?? []);
+// Vendors removed from the work order whose thread history remains (staff only).
+const formerVendors = ref([]);
 
 watch(
     () => props.workOrder?.vendors,
@@ -430,6 +432,7 @@ const fetchVendorConversation = async () => {
         );
         vendorConversation.value = res.data.vendor_conversation;
         workOrderVendors.value = res.data.vendors;
+        formerVendors.value = res.data.former_vendors ?? [];
     } catch (e) {
         console.error(e);
     } finally {
@@ -831,6 +834,7 @@ const handleCloseOrderSubmit = () => {
                 v-if="activeTab === 'vendor_conversation'"
                 :vendorConversation="vendorConversation"
                 :workOrderVendors="workOrderVendors"
+                :formerVendors="formerVendors"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @update-vendor-convo="fetchVendorConversation"
