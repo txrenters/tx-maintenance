@@ -28,4 +28,14 @@ class ServiceSchedule extends Model
     {
         return $this->belongsTo(Vendor::class);
     }
+
+    /**
+     * The in-house technician chosen when the schedule was set, so the
+     * tenant's appointment text can attach the right face. Nullable and
+     * unconstrained: a deleted technician simply means no photo goes out.
+     */
+    public function technician(): BelongsTo
+    {
+        return $this->belongsTo(Technician::class);
+    }
 }

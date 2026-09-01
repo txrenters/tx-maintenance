@@ -16,7 +16,7 @@ class ServiceScheduleController extends Controller
 {
     public function get_schedules(WorkOrder $workOrder)
     {
-        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'tenants', 'vendors.user']);
+        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'service_schedules.technician', 'tenants', 'vendors.user']);
 
         return response()->json($workOrder, 200);
     }
@@ -33,6 +33,7 @@ class ServiceScheduleController extends Controller
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
             'tenant_id' => 'nullable|exists:tenants,id',
+            'technician_id' => 'nullable|exists:technicians,id',
             'work_order_id' => 'required|exists:work_orders,id',
         ]);
 
@@ -45,6 +46,7 @@ class ServiceScheduleController extends Controller
                 'work_order_id' => $validatedData['work_order_id'],
                 'vendor_id' => $validatedData['vendor_id'],
                 'tenant_id' => $validatedData['tenant_id'] ?? null,
+                'technician_id' => $validatedData['technician_id'] ?? null,
             ]);
 
             // Sync to PropertyWare
@@ -84,19 +86,28 @@ class ServiceScheduleController extends Controller
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
             'tenant_id' => 'nullable|exists:tenants,id',
+            'technician_id' => 'nullable|exists:technicians,id',
         ]);
 
         try {
             $originalDate = $serviceSchedule->scheduled_date;
 
-            $serviceSchedule->update([
+            $attributes = [
                 'title' => $validatedData['title'],
                 'scheduled_date' => $validatedData['date'],
                 'scheduled_end_date' => $validatedData['end_date'] ?? null,
                 'description' => $validatedData['description'] ?? null,
                 'vendor_id' => $validatedData['vendor_id'],
                 'tenant_id' => $validatedData['tenant_id'] ?? null,
-            ]);
+            ];
+
+            // Only a form that carries the field (the staff dialog) may change
+            // the technician; a vendor-portal edit must not wipe the choice.
+            if (array_key_exists('technician_id', $validatedData)) {
+                $attributes['technician_id'] = $validatedData['technician_id'];
+            }
+
+            $serviceSchedule->update($attributes);
 
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);

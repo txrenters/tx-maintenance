@@ -4,11 +4,14 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\ServiceSchedule;
+use App\Models\Technician;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class TenantAppointmentNotificationService
 {
@@ -76,6 +79,7 @@ class TenantAppointmentNotificationService
     {
         $serviceSchedule->loadMissing([
             'vendor.user',
+            'technician',
             'work_order.requested_by',
             'work_order.building',
             'work_order.woc.wocNumber.twilioPhoneNumber',
@@ -91,8 +95,10 @@ class TenantAppointmentNotificationService
         $tenantNumber = $this->toE164($tenant?->mobile_phone ?: $tenant?->home_phone);
         $fromNumber = $this->fromNumber($workOrder);
 
+        $technicianPhoto = $this->technicianPhoto($serviceSchedule);
+
         $message = TenantMessageFormatter::compose(
-            $this->message($serviceSchedule, $workOrder),
+            $this->message($serviceSchedule, $workOrder, $technicianPhoto !== null),
             $workOrder->work_order_no ?? $workOrder->id,
             $this->portalLinks->link($workOrder),
         );
@@ -106,14 +112,29 @@ class TenantAppointmentNotificationService
             'work_order_id' => $workOrder->id,
             'conversation_type' => 'tenant',
             'is_read' => true,
-            'is_mms' => false,
+            'is_mms' => $technicianPhoto !== null,
         ]);
+
+        // Attach the chosen technician's photo so the tenant recognizes who
+        // is coming. The media row reuses the roster file (no copy) and its
+        // signed URL is what Twilio fetches; the thread displays it too.
+        $mediaUrl = null;
+
+        if ($technicianPhoto !== null) {
+            $mediaUrl = ConversationMedia::create([
+                'message_id' => $conversation->id,
+                'original_url' => '',
+                'local_path' => $technicianPhoto['path'],
+                'content_type' => $technicianPhoto['content_type'],
+                'file_name' => $technicianPhoto['file_name'],
+            ])->public_url;
+        }
 
         if (blank($tenantNumber) || blank($fromNumber)) {
             return;
         }
 
-        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
+        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, $mediaUrl, $conversation->id);
 
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
@@ -127,19 +148,38 @@ class TenantAppointmentNotificationService
     }
 
     /**
-     * The tenant-facing appointment message: when the vendor is coming, who
-     * they are, and a reminder to have the property accessible.
+     * The tenant-facing appointment message. A schedule with a chosen
+     * technician sends the THMP Technician Visit Reminder (their photo rides
+     * along when one is on file); otherwise the standard vendor appointment
+     * message goes out exactly as it always has.
      */
-    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder): string
+    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, bool $photoAttached): string
     {
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $address = $workOrder->propertyAddress();
+        $technicianName = trim((string) ($serviceSchedule->technician?->name ?? ''));
+
+        if ($technicianName !== '') {
+            $when = $this->formatAppointmentShort($serviceSchedule);
+            $workOrderLabel = trim((string) ($workOrder->type ?: str($workOrder->description ?? '')->limit(60)));
+
+            return AutomatedMessageTemplates::text('tenant_technician_visit_sms', [
+                'greeting' => $name !== '' ? "Hi {$name}!" : 'Hi!',
+                'property' => $address !== null ? ' at '.$address : '',
+                'date_line' => $when !== '' ? "Date: {$when}" : '',
+                'work_order_line' => $workOrderLabel !== '' ? "Work Order: {$workOrderLabel}" : '',
+                'technician_name' => $technicianName,
+                'photo_line' => $photoAttached
+                    ? 'A photo of the technician assigned to your work order is attached for your reference.'
+                    : '',
+            ]);
+        }
 
         $vendorName = trim((string) ($serviceSchedule->vendor?->name
             ?: $serviceSchedule->vendor?->user?->name
             ?: 'the assigned vendor'));
 
         $when = $this->formatAppointment($serviceSchedule);
-        $address = $workOrder->propertyAddress();
 
         return AutomatedMessageTemplates::text('tenant_appointment_sms', [
             'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
@@ -147,6 +187,65 @@ class TenantAppointmentNotificationService
             'vendor_name' => $vendorName,
             'scheduled_line' => $when !== '' ? "Scheduled: {$when}" : '',
         ]);
+    }
+
+    /**
+     * MMS media types US carriers reliably deliver; anything else is safer
+     * sent as a plain text than risked as an undeliverable attachment.
+     *
+     * @var list<string>
+     */
+    private const MMS_SAFE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+
+    /**
+     * The chosen technician's photo, when there is one on disk to attach.
+     * A missing file or a carrier-unfriendly type quietly downgrades the
+     * message to plain text instead of producing a Twilio media error.
+     *
+     * @return array{path: string, content_type: string, file_name: string}|null
+     */
+    private function technicianPhoto(ServiceSchedule $serviceSchedule): ?array
+    {
+        $technician = $serviceSchedule->technician;
+
+        if (! $technician instanceof Technician || ! $technician->hasPhoto()) {
+            return null;
+        }
+
+        if (! Storage::exists($technician->photo_path)) {
+            return null;
+        }
+
+        $contentType = $technician->photo_content_type ?: 'image/jpeg';
+
+        if (! in_array($contentType, self::MMS_SAFE_TYPES, true)) {
+            return null;
+        }
+
+        return [
+            'path' => $technician->photo_path,
+            'content_type' => $contentType,
+            'file_name' => basename($technician->photo_path),
+        ];
+    }
+
+    /**
+     * The THMP reminder's compact date ("08/27/2026"), with the time only
+     * when one was set.
+     */
+    private function formatAppointmentShort(ServiceSchedule $serviceSchedule): string
+    {
+        if (blank($serviceSchedule->scheduled_date)) {
+            return '';
+        }
+
+        $when = Carbon::parse($serviceSchedule->scheduled_date);
+
+        if ($when->format('H:i') === '00:00') {
+            return $when->format('m/d/Y');
+        }
+
+        return $when->format('m/d/Y').' at '.$when->format('g:i A');
     }
 
     /**

@@ -50,6 +50,7 @@ use App\Http\Controllers\Settings\DesktopNotificationController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
 use App\Http\Controllers\TaskTemplateController;
 use App\Http\Controllers\TbpVisitNoticeController;
+use App\Http\Controllers\TechnicianController;
 use App\Http\Controllers\TenantEmailController;
 use App\Http\Controllers\TenantPortalController;
 use App\Http\Controllers\TenantsController;
@@ -260,6 +261,16 @@ Route::middleware([
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');
 
     Route::resource('/task_templates', TaskTemplateController::class);
+
+    // Technician roster (profiles + the photo the tenant appointment text
+    // attaches). Admin + WOC via TechnicianPolicy. Options and photo routes
+    // are declared first so the resource's technicians/{technician} cannot
+    // swallow them.
+    Route::get('/technicians/options', [TechnicianController::class, 'options'])->name('technicians.options');
+    Route::get('/technicians/{technician}/photo', [TechnicianController::class, 'showPhoto'])->name('technicians.photo.show');
+    Route::post('/technicians/{technician}/photo', [TechnicianController::class, 'updatePhoto'])->name('technicians.photo.update');
+    Route::delete('/technicians/{technician}/photo', [TechnicianController::class, 'destroyPhoto'])->name('technicians.photo.destroy');
+    Route::resource('/technicians', TechnicianController::class)->only(['index', 'store', 'update', 'destroy']);
 
     Route::get('/scheduled_service', [CalendarController::class, 'index'])->name('scheduled_service');
 

@@ -241,6 +241,44 @@ class AutomatedMessageTemplates
                 ."Please make sure someone 18 or older is home to let the technician in.\n\n"
                 .'Thank you!',
         ],
+        'tenant_technician_visit_sms' => [
+            // Same automation as the standard appointment message: one
+            // sender, one gate/ledger key — this is just its THMP shape when
+            // a technician is chosen.
+            'automation' => 'tenant_appointment_sms',
+            'label' => 'THMP technician visit (photo attached)',
+            'group' => null,
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted to the tenant INSTEAD of the standard appointment message when a technician is chosen on the service schedule. Their photo is attached when one is on file. The portal link and sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => '"Hi <first name>!" or "Hi!" when no name is on file',
+                'property' => '" at <street address>" or empty when no address is on file',
+                'date_line' => '"Date: <mm/dd/yyyy, and time if one was set>" or empty when no date is set',
+                'work_order_line' => '"Work Order: <type or description>" or empty when neither is on file',
+                'technician_name' => "The assigned technician's name",
+                'photo_line' => '"A photo of the technician assigned to your work order is attached for your reference." or empty when no photo is on file',
+            ],
+            'required' => ['technician_name'],
+            'sample' => [
+                'greeting' => 'Hi Jane!',
+                'property' => ' at 123 Main St',
+                'date_line' => 'Date: 08/27/2026',
+                'work_order_line' => 'Work Order: Tenant Benefit Package',
+                'technician_name' => 'Emanuel Hall',
+                'photo_line' => 'A photo of the technician assigned to your work order is attached for your reference.',
+            ],
+            'collapse' => true,
+            'default' => "THMP Technician Visit Reminder\n\n"
+                ."{greeting}\n\n"
+                ."This is a reminder from THMP regarding the scheduled technician visit at your property{property}.\n\n"
+                ."{date_line}\n"
+                ."{work_order_line}\n"
+                ."Assigned Technician: {technician_name}\n\n"
+                ."{photo_line}\n\n"
+                ."Please make sure our technician can access the property at the scheduled time to avoid unnecessary rescheduling and penalties.\n\n"
+                .'Thank you for your cooperation!',
+        ],
         'owner_appointment_sms' => [
             'automation' => 'owner_appointment_sms',
             'label' => 'Appointment scheduled',
@@ -537,37 +575,6 @@ class AutomatedMessageTemplates
                 ."            Thank you for your cooperation. Should you have any questions, feel free to reach out to us.\n\n"
                 ."            Warm regards,\n"
                 .'            TexasRenters.com, LLC',
-        ],
-        'tenant_tbp_visit_notice' => [
-            'automation' => 'tenant_tbp_visit_notice_sms',
-            'label' => 'Send notification button',
-            'group' => null,
-            'channel' => 'sms',
-            'audience' => 'tenant',
-            'sends_when' => 'Texted only when staff press Send notification on a Tenant Benefit Package visit in the Scheduled Visits calendar - the notice for a visit the automated reminders did not reach. Never sent on a schedule; the person sending picks the recipients.',
-            'tokens' => [
-                'SCHEDULED_DATE' => 'The scheduled visit date',
-            ],
-            'required' => ['SCHEDULED_DATE'],
-            'sample' => [
-                'SCHEDULED_DATE' => 'Wednesday, August 26, 2026',
-            ],
-            'collapse' => false,
-            'default' => "Good day,\n\n"
-                ."As part of your Tenant Benefit Package (TBP), we have scheduled the following services {SCHEDULED_DATE}:\n"
-                ."* Pest control treatment\n"
-                ."* Air filter replacement\n"
-                ."* Occupied inspection\n"
-                ."Please note the following important details:\n"
-                ."* Access & Preparation: You do not need to be present during the visit. We will provide access to our technician. Please secure all valuables and crate any pets. If any areas are inaccessible, a trip charge may be applied in accordance with your lease agreement.\n"
-                ."* Timing: We cannot provide an exact arrival time, as our technicians have multiple appointments, and job durations may vary. However, the technician will call or notify you prior to arrival.\n"
-                ."* Body Cameras: For security and documentation purposes, our technicians wear body cameras during all visits.\n"
-                ."* Filter Access: Filters will only be replaced if they are unobstructed. Please ensure furniture or other items are moved beforehand to allow access.\n"
-                ."* Rescheduling: If the technician is unable to attend for any reason, we will promptly reschedule and notify you.\n"
-                ."* Please note that if the technicians are unable to access the property upon arrival, a trip charge will apply.\n\n"
-                ."Please confirm receipt of this notice. If we do not receive a response, we will assume the property will be available and accessible on the scheduled date. We appreciate your cooperation and understanding. Please feel free to reach out with any questions.\n\n"
-                ."Warm regards,\n"
-                .'TexasRenters, LLC',
         ],
         'vendor_jobber_assignment_sms' => [
             'automation' => 'vendor_jobber_assignment_sms',

@@ -569,6 +569,12 @@ const navs = computed(() => {
                 isActive: page.url.startsWith("/task_templates"),
                 icon: LayoutTemplate,
             },
+            {
+                name: "Technicians",
+                url: route("technicians.index"),
+                isActive: page.url.startsWith("/technicians"),
+                icon: Users2,
+            },
 
             {
                 name: "Service Status",
@@ -1398,6 +1404,16 @@ onUnmounted(() => {
                                 <Link href="/it-tools/automated-messages" prefetch>
                                     <BotMessageSquare />
                                     <span>Automated Messages</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem
+                            v-if="!page.props.auth.user.roles.includes('admin')"
+                        >
+                            <SidebarMenuButton as-child>
+                                <Link :href="route('technicians.index')" prefetch>
+                                    <Users2 />
+                                    <span>Technicians</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
