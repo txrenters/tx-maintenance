@@ -1116,7 +1116,18 @@ onMounted(() => {
                 v-if="activeTab === 'messages' && selectedEvent"
                 class="grid gap-1 overflow-y-auto px-6"
             >
-                <p class="font-semibold uppercase text-xs">Job Messages</p>
+                <div class="flex items-center justify-between">
+                    <p class="font-semibold uppercase text-xs">Job Messages</p>
+                    <Button
+                        v-if="isTbpVisit(selectedEvent)"
+                        variant="secondary"
+                        size="sm"
+                        title="Text the TBP visit notice for this date to the tenant"
+                        @click="openNoticeDialog"
+                    >
+                        <Send class="h-4 w-4" /> Send notification
+                    </Button>
+                </div>
 
                 <!-- Contact Selection & Recipients - All Inline -->
                 <div
@@ -1362,14 +1373,6 @@ onMounted(() => {
             >
                 <Button variant="outline" @click="closeEventModal">
                     Close
-                </Button>
-                <Button
-                    v-if="isTbpVisit(selectedEvent)"
-                    variant="secondary"
-                    title="Text the TBP visit notice for this date to the tenant"
-                    @click="openNoticeDialog"
-                >
-                    <Send class="h-4 w-4" /> Send notification
                 </Button>
                 <Button
                     v-if="
