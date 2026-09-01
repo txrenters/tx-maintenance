@@ -99,4 +99,66 @@ class JobberTextMessageSendTest extends TestCase
         ]);
         Queue::assertPushed(SendJobberTextMessageJob::class, 1);
     }
+
+    public function test_ten_digit_propertyware_number_gets_the_us_country_code(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+        $job = $this->makeJob();
+
+        $response = $this->actingAs($user)->post(route('jobber-text-messages.store'), [
+            'messages' => 'On our way',
+            'sender_number' => '+15125550100',
+            'receiver_numbers' => ['(346) 412-2380'],
+            'jobber_id' => $job->id,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('jobber_text_messages', [
+            'jobber_id' => $job->id,
+            'receiver_number' => '+13464122380',
+        ]);
+        Queue::assertPushed(SendJobberTextMessageJob::class, 1);
+    }
+
+    public function test_bare_ten_digit_number_gets_the_us_country_code(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+        $job = $this->makeJob();
+
+        $this->actingAs($user)->post(route('jobber-text-messages.store'), [
+            'messages' => 'On our way',
+            'sender_number' => '+15125550100',
+            'receiver_numbers' => ['3464122380'],
+            'jobber_id' => $job->id,
+        ])->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('jobber_text_messages', [
+            'jobber_id' => $job->id,
+            'receiver_number' => '+13464122380',
+        ]);
+    }
+
+    public function test_truncated_number_is_rejected_with_a_clear_error(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+        $job = $this->makeJob();
+
+        $this->actingAs($user)->post(route('jobber-text-messages.store'), [
+            'messages' => 'On our way',
+            'sender_number' => '+15125550100',
+            'receiver_numbers' => ['555-0111'],
+            'jobber_id' => $job->id,
+        ])->assertSessionHasErrors('error');
+
+        $this->assertDatabaseCount('jobber_text_messages', 0);
+        Queue::assertNothingPushed();
+    }
 }

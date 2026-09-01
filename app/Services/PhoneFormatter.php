@@ -30,4 +30,26 @@ class PhoneFormatter
 
         return filled($value) ? $value : null;
     }
+
+    /**
+     * Format a number the way Twilio wants it ("+13464122380"). PropertyWare
+     * hands out bare 10-digit US numbers like "(346) 412-2380"; prefixing "+"
+     * without the country code makes Twilio read "+34..." as Spain, so the
+     * "1" is assumed here. Anything under 10 digits is not a sendable number
+     * and comes back null.
+     */
+    public static function e164(?string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $value);
+
+        if (strlen($digits) === 10) {
+            return '+1'.$digits;
+        }
+
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
+            return '+'.$digits;
+        }
+
+        return strlen($digits) >= 10 ? '+'.$digits : null;
+    }
 }
