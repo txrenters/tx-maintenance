@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-02',
             'area' => 'Work Orders',
+            'title' => 'Deleting a note asks first',
+            'description' => 'The red X on a work order note now opens a confirmation - "Delete this note?" - instead of deleting on the spot. The X only ever appears on notes that have not reached PropertyWare yet, which are exactly the ones nothing can bring back, so one stray click no longer costs a note.',
+        ],
+        [
+            'date' => '2026-09-02',
+            'area' => 'Work Orders',
             'title' => 'Field notes show the technician\'s name',
             'description' => 'Notes written by our in-house crew used to be signed "Texas Home Maintenance Pros", because the whole team shares one vendor login. The Notes tab now looks up who was actually assigned to that job\'s visit in Jobber and shows the technician\'s name instead - so "Job was completed" reads as, say, Emanuel Hall rather than the company. When the note doesn\'t line up with a Jobber visit (no Jobber job on the work order, or no one assigned yet), it falls back to the vendor name exactly as before. Notes from other vendors and from office staff are unchanged.',
         ],

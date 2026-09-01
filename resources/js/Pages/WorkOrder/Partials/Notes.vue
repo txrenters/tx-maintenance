@@ -67,9 +67,18 @@ const deleteNoteForm = useForm({
     id: "",
 });
 
-const deleteNote = (note_id) => {
-    props.isLoading = true;
+const isDeleteDialogOpen = ref(false);
+
+// Deleting is unrecoverable — the X only ever shows on notes PropertyWare has
+// no copy of — so a stray click must not be enough on its own.
+const askDeleteNote = (note_id) => {
     deleteNoteForm.id = note_id;
+    isDeleteDialogOpen.value = true;
+};
+
+const confirmDeleteNote = () => {
+    isDeleteDialogOpen.value = false;
+    props.isLoading = true;
     deleteNoteForm.delete(
         route("api.work_order_notes.destroy", deleteNoteForm.id),
         {
@@ -178,7 +187,7 @@ const handleFetchNotes = () => {
                                             'vendor'
                                         ))
                                 "
-                                @click.stop="deleteNote(note.id)"
+                                @click.stop="askDeleteNote(note.id)"
                                 class="bg-red-500 text-white rounded-full p-1 w-5 h-5"
                             >
                                 <X class="w-3 h-3" />
@@ -196,6 +205,26 @@ const handleFetchNotes = () => {
                 <div v-else>No notes found!</div>
             </div>
         </div>
+        <AlertDialog v-model:open="isDeleteDialogOpen">
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This can't be undone — the note hasn't been sent to
+                        PropertyWare yet, so nothing will bring it back.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        class="destructive"
+                        @click.prevent="confirmDeleteNote"
+                    >
+                        Delete note
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <Dialog v-model:open="openNoteModal">
             <DialogContent
                 class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
