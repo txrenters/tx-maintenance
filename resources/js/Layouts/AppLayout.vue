@@ -386,12 +386,18 @@ const navs = computed(() => {
                     page.url.startsWith("/vendors") ||
                     page.url.startsWith("/owners") ||
                     page.url.startsWith("/tenants") ||
+                    page.url.startsWith("/technicians") ||
                     page.url.startsWith("/fallback_vendors"),
                 items: [
                     {
                         title: "Coordinators",
                         url: route("work_orders.coordinators"),
                         isActive: page.url.startsWith("/WorkOrder/Coordinators"),
+                    },
+                    {
+                        title: "Technicians",
+                        url: route("technicians.index"),
+                        isActive: page.url.startsWith("/technicians"),
                     },
                     {
                         title: "Vendors",
@@ -568,12 +574,6 @@ const navs = computed(() => {
                 url: route("task_templates.index"),
                 isActive: page.url.startsWith("/task_templates"),
                 icon: LayoutTemplate,
-            },
-            {
-                name: "Technicians",
-                url: route("technicians.index"),
-                isActive: page.url.startsWith("/technicians"),
-                icon: Users2,
             },
 
             {
@@ -1404,16 +1404,6 @@ onUnmounted(() => {
                                 <Link href="/it-tools/automated-messages" prefetch>
                                     <BotMessageSquare />
                                     <span>Automated Messages</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem
-                            v-if="!page.props.auth.user.roles.includes('admin')"
-                        >
-                            <SidebarMenuButton as-child>
-                                <Link :href="route('technicians.index')" prefetch>
-                                    <Users2 />
-                                    <span>Technicians</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
