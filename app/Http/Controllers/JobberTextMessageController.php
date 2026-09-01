@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendJobberTextMessageJob;
 use App\Models\JobberTextMessage;
+use App\Services\PhoneFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -44,25 +45,28 @@ class JobberTextMessageController extends Controller
             return response()->json(['error' => 'Please provide either a message or an image.'], 422);
         }
 
-        // Format phone numbers ensuring proper + prefix. A recipient with no
-        // digits at all (e.g. a bare contact name like "Dean", sent when that
-        // person has no phone on file in Jobber) is rejected with a clear
-        // message — formatNumber used to throw here, before the try block,
-        // which surfaced as a 500 on every send that included them.
+        // Normalize recipients to E.164. PropertyWare numbers arrive as bare
+        // 10 digits ("(346) 412-2380") and a plain "+" prefix turned them into
+        // "+3464122380" — Spain, as far as Twilio is concerned — so the US
+        // country code is assumed for them. A recipient with no usable number
+        // at all (e.g. a bare contact name like "Dean", sent when that person
+        // has no phone on file in Jobber, or a truncated number) is rejected
+        // with a clear message — formatNumber used to throw here, before the
+        // try block, which surfaced as a 500 on every send that included them.
         $senderNumber = $validatedData['sender_number'];
         $receiverNumbers = [];
         $invalidRecipients = [];
 
         foreach ($validatedData['receiver_numbers'] as $rawNumber) {
-            $cleanedNumber = preg_replace('/[^0-9]/', '', $rawNumber);
+            $formattedNumber = PhoneFormatter::e164($rawNumber);
 
-            if ($cleanedNumber === '') {
+            if ($formattedNumber === null) {
                 $invalidRecipients[] = trim($rawNumber) !== '' ? trim($rawNumber) : '(empty)';
 
                 continue;
             }
 
-            $receiverNumbers[] = '+'.$cleanedNumber;
+            $receiverNumbers[] = $formattedNumber;
         }
 
         if (! empty($invalidRecipients)) {
