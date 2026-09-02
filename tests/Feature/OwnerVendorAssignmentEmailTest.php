@@ -138,10 +138,32 @@ class OwnerVendorAssignmentEmailTest extends TestCase
         (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
     }
 
+    public function test_no_lease_on_file_drops_the_tenant_line_but_still_emails_the_owner(): void
+    {
+        [$workOrder, $vendor, $owner] = $this->records();
+        $workOrder->owners()->attach($owner->id);
+
+        // WO#44032: a PropertyWare work order on a vacant home arrives with no
+        // lease and no tenant roster, and nobody flips the Vacant toggle or
+        // types it as a turnover. The owner still gets the email, minus the
+        // "contact the tenant" line.
+        $workOrder->update(['propertyware_id' => 4403200001, 'lease_id' => null, 'skip_automated_tasks' => false]);
+
+        $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
+        $sender->shouldReceive('sendVendorAssignment')->once()
+            ->withArgs(fn ($wo, $target, $assignedVendor, $subject, $html) => ! str_contains($html, 'contact the tenant directly'));
+
+        (new SendOwnerVendorAssignmentEmail($workOrder->id, $vendor->id))->handle($sender);
+    }
+
     public function test_occupied_work_order_keeps_the_tenant_line_in_the_email(): void
     {
         [$workOrder, $vendor, $owner] = $this->records();
         $workOrder->owners()->attach($owner->id);
+
+        // An occupied home as PropertyWare imports it: the current lease rides
+        // along on the work order.
+        $workOrder->update(['propertyware_id' => 4377411585, 'lease_id' => 555001]);
 
         $sender = Mockery::mock(OwnerWorkOrderEmailSender::class);
         $sender->shouldReceive('sendVendorAssignment')->once()
