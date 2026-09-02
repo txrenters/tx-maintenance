@@ -29,7 +29,9 @@ use Illuminate\Support\Str;
  * Automations are tiered by how fresh the work order is (see decideTier), so
  * a historical backlog never texts anybody, and a work order that still
  * cannot be imported is raised in the bell with the reason instead of being
- * skipped in silence.
+ * skipped in silence. Closed work orders count only inside the window the
+ * Closed and Paid columns show (Earl, 2026-09-03): older closed history would
+ * never be seen on a board and is left alone.
  */
 class ImportMissingWorkOrders extends Command
 {
@@ -95,6 +97,7 @@ class ImportMissingWorkOrders extends Command
         $cutoff = $now->copy()->subDays($days);
         $graceEdge = $now->copy()->subMinutes($graceMinutes);
         $freshEdge = $now->copy()->subHours($freshHours);
+        $windowEdge = $now->copy()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS);
 
         $summary = [
             'mode' => $dryRun ? 'dry-run' : 'import',
@@ -103,6 +106,7 @@ class ImportMissingWorkOrders extends Command
             'pages_failed' => 0,
             'scanned' => 0,
             'missing' => 0,
+            'closed_outside_window' => 0,
             'too_fresh' => 0,
             'undated' => 0,
             'imported' => [self::TIER_FULL => [], self::TIER_QUIET => [], self::TIER_SILENT => []],
@@ -197,6 +201,19 @@ class ImportMissingWorkOrders extends Command
 
                 if ($present->has($pwId)) {
                     continue;
+                }
+
+                // Closed work orders matter only inside the window the Closed
+                // and Paid columns show — judged on the completed date with
+                // the creation date as fallback, as the board itself does.
+                if ($this->isClosed($record)) {
+                    $closedAt = PropertyWareService::parseDate($record['completedDate'] ?? null) ?? $created;
+
+                    if ($closedAt === null || $closedAt->lt($windowEdge)) {
+                        $summary['closed_outside_window']++;
+
+                        continue;
+                    }
                 }
 
                 if ($touched === null) {
@@ -303,9 +320,10 @@ class ImportMissingWorkOrders extends Command
      *   touched, not created: PropertyWare's creation stamp is unreliable,
      *   see handle(); a request nobody has assigned or edited in two days is
      *   not a fresh one either way.)
-     * - silent: closed or completed — the row only, no jobs at all (the AI
-     *   classification is a paid call that regenerates tasks and can raise an
-     *   emergency alert; wrong for history).
+     * - silent: closed (inside the board window, see handle()) or completed —
+     *   the row only, no jobs at all (the AI classification is a paid call
+     *   that regenerates tasks and can raise an emergency alert; wrong for
+     *   history).
      * - quiet: everything else (older, undated, already has a vendor, or an
      *   unknown status) — the AI recommendation only, no messages.
      *
@@ -315,9 +333,8 @@ class ImportMissingWorkOrders extends Command
     {
         $status = trim((string) ($record['status'] ?? ''));
         $completed = ! blank($record['completedDate'] ?? null);
-        $closed = in_array(Str::lower($status), array_map(Str::lower(...), WorkOrder::CLOSED_STATUSES), true);
 
-        if ($completed || $closed) {
+        if ($completed || $this->isClosed($record)) {
             return self::TIER_SILENT;
         }
 
@@ -328,6 +345,18 @@ class ImportMissingWorkOrders extends Command
         }
 
         return self::TIER_QUIET;
+    }
+
+    /**
+     * The statuses the Closed column holds, as PropertyWare spells them.
+     *
+     * @param  array<string, mixed>  $record
+     */
+    private function isClosed(array $record): bool
+    {
+        $status = Str::lower(trim((string) ($record['status'] ?? '')));
+
+        return in_array($status, array_map(Str::lower(...), WorkOrder::CLOSED_STATUSES), true);
     }
 
     /**
@@ -524,6 +553,7 @@ class ImportMissingWorkOrders extends Command
         $this->info($prefix."Pages failed: {$summary['pages_failed']}");
         $this->info($prefix."Scanned: {$summary['scanned']}");
         $this->info($prefix."Missing: {$summary['missing']}");
+        $this->info($prefix.'Closed outside the '.WorkOrder::COMPLETED_WINDOW_DAYS."-day window: {$summary['closed_outside_window']}");
         $this->info($prefix."Too fresh: {$summary['too_fresh']}");
         $this->info($prefix."Undated: {$summary['undated']}");
         $this->info($prefix."Imported: {$summary['imported_count']}");

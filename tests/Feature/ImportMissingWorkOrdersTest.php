@@ -230,17 +230,17 @@ class ImportMissingWorkOrdersTest extends TestCase
         Queue::assertNotPushed(SendTenantServiceRequestNotificationJob::class);
     }
 
-    public function test_a_missing_closed_work_order_is_imported_silently(): void
+    public function test_a_missing_recently_closed_work_order_is_imported_silently(): void
     {
         $this->fakePages([0 => [$this->restRecord(800003, 44103, [
             'status' => 'Closed',
-            'completedDate' => $this->pwStamp(now()->subDays(40)),
-            ...$this->stampedAt(now()->subDays(45)),
+            'completedDate' => $this->pwStamp(now()->subDays(10)),
+            ...$this->stampedAt(now()->subDays(12)),
         ])]]);
         $this->soapReturns(44103, [$this->soapPayload(800003, 44103, [
             'status' => 'Closed',
-            'completedDate' => now()->subDays(40)->toDateString(),
-            'createdDate' => now()->subDays(45)->toDateTimeString(),
+            'completedDate' => now()->subDays(10)->toDateString(),
+            'createdDate' => now()->subDays(12)->toDateTimeString(),
         ])]);
 
         $this->sweep()
@@ -249,6 +249,66 @@ class ImportMissingWorkOrdersTest extends TestCase
 
         $this->assertDatabaseHas('work_orders', ['propertyware_id' => 800003, 'status' => 'Closed']);
         Queue::assertNothingPushed();
+    }
+
+    public function test_a_closed_work_order_outside_the_board_window_is_left_alone(): void
+    {
+        // Same 30-day rule as the Closed and Paid columns: it would never be
+        // seen on a board, so it is neither imported nor reported as missing.
+        $this->fakePages([0 => [
+            $this->restRecord(800003, 44103, [
+                'status' => 'Closed',
+                'completedDate' => $this->pwStamp(now()->subDays(40)),
+                ...$this->stampedAt(now()->subDays(45)),
+            ]),
+            $this->restRecord(800004, 44104, [
+                'status' => 'Canceled By Tenant',
+                'completedDate' => null,
+                ...$this->stampedAt(now()->subDays(400)),
+            ]),
+        ], 2 => []]);
+        $this->soapNeverCalled();
+
+        $this->sweep(['--all' => true])
+            ->expectsOutputToContain('Closed outside the 30-day window: 2')
+            ->expectsOutputToContain('Missing: 0')
+            ->assertSuccessful();
+
+        $this->assertDatabaseCount('work_orders', 0);
+        $this->assertDatabaseCount('activity_log', 0);
+    }
+
+    public function test_a_closed_work_order_without_a_completed_date_falls_back_to_its_creation_date(): void
+    {
+        // PropertyWare closes many work orders without a Completed Date; the
+        // board falls back to the creation date, and so does the backstop.
+        $this->fakePages([
+            0 => [
+                $this->restRecord(800003, 44103, [
+                    'status' => 'Closed',
+                    'completedDate' => null,
+                    ...$this->stampedAt(now()->subDays(10)),
+                ]),
+                $this->restRecord(800004, 44104, [
+                    'status' => 'Closed',
+                    'completedDate' => null,
+                    'createdDateTime' => null,
+                    'lastModifiedDateTime' => $this->pwStamp(now()->subDays(10)),
+                ]),
+            ],
+        ]);
+        // The page's oldest creation stamp is past the 7-day window, so the
+        // walk ends here without asking for a second page.
+        $this->neverFetches(2);
+        $this->soapReturns(44103, [$this->soapPayload(800003, 44103, ['status' => 'Closed'])]);
+
+        $this->sweep()
+            ->expectsOutputToContain('imported (silent)')
+            ->expectsOutputToContain('Closed outside the 30-day window: 1')
+            ->assertSuccessful();
+
+        $this->assertDatabaseHas('work_orders', ['propertyware_id' => 800003]);
+        $this->assertDatabaseMissing('work_orders', ['propertyware_id' => 800004]);
     }
 
     public function test_an_open_work_order_already_assigned_in_propertyware_skips_the_intake_automations(): void
