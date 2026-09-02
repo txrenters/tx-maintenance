@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-03',
             'area' => 'Work Orders',
+            'title' => 'Assigning a vendor no longer un-approves the work order in PropertyWare',
+            'description' => 'Assigning or changing a vendor sent PropertyWare a copy of the work order without its Approval section, so PropertyWare dropped the approval: Approved went back to No and the approver, date and comment went blank (since 09-01 the comment survived, the rest still went). The re-approval the system attempted afterwards never took effect. Owners and coordinators were therefore asked to approve the same work order again, and again (WO #43819, three times). Now every vendor change reads the Approval section fresh from PropertyWare and sends it back exactly as it stands - approved, by whom, when, and the comment, curly quotes and accents included - and if PropertyWare cannot be read at that moment the vendor change is refused with a message rather than risk the approval. A comment that already shows "?" in PropertyWare was garbled on PropertyWare\'s side and has to be retyped there.',
+        ],
+        [
+            'date' => '2026-09-03',
+            'area' => 'Work Orders',
             'title' => 'Work orders PropertyWare has but the app does not are found and imported on their own',
             'description' => 'Every half hour the system compares PropertyWare\'s work order list with its own and imports anything PropertyWare has that the app is missing, with a full check of the whole history every night - so a work order the regular sync could not bring in no longer stays invisible until someone notices and uses Import Work Order. A brand-new open work order comes in exactly as a normal intake does (tenant and owner messages, AI recommendation); an older open one gets the recommendation only, with no messages; a recently closed one (inside the same 30-day window the Closed and Paid columns show) is simply added to the records; and closed history older than that is left alone. A bell notice lists what was backfilled, and a work order that still cannot be imported shows up in the bell with the reason instead of being silently skipped.',
         ],
