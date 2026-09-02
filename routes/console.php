@@ -34,6 +34,30 @@ Schedule::command('import:work-order-documents')
     ->withoutOverlapping(30)
     ->runInBackground();
 
+// Schedule 4 — backstop: the fast lane only ever sees the newest SOAP pages,
+// and a payload it cannot process is retried until it ages out of them —
+// after which nothing picks the work order up (there is no PropertyWare
+// webhook). This walks the REST listing, diffs it against our rows and
+// imports what is missing through the SOAP-by-number path. Every half hour
+// it checks the newest 500 (one REST call, on minutes no other PropertyWare
+// schedule uses); the nightly --all sweep walks the whole history (~72 REST
+// calls) so an old miss cannot hide forever. The shared mutex name is
+// deliberate: the scheduler's default overlap lock is per entry, so without
+// it the 02:30 sweep and the 02:35 run could both import the same work
+// order — and there is no unique index on propertyware_id to stop them.
+Schedule::command('import:missing-work-orders')
+    ->cron('5,35 * * * *')
+    ->createMutexNameUsing('import-missing-work-orders')
+    ->withoutOverlapping(25)
+    ->runInBackground();
+
+Schedule::command('import:missing-work-orders --all --limit=200')
+    ->timezone('America/Chicago')
+    ->dailyAt('02:30')
+    ->createMutexNameUsing('import-missing-work-orders')
+    ->withoutOverlapping(60)
+    ->runInBackground();
+
 Schedule::command('import:buildings-from-work-orders')
     ->daily();
 
