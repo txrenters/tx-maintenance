@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-02',
+            'area' => 'Owners',
+            'title' => 'Vendor-assigned texts to owners skip the tenant line on vacant homes',
+            'description' => 'When a vendor is assigned on a work order for a vacant home, the owner\'s "we have assigned <vendor>" text and email no longer say "The vendor will contact the tenant directly to coordinate and schedule the appointment." The line was already dropped when the Vacant switch was on or the work order was a turnover or re-key; it is now also dropped when PropertyWare shows no lease on the property (new to market or between tenants), which is how most vacant work orders arrive (WO #44032). The owner is still told which vendor was assigned.',
+        ],
+        [
+            'date' => '2026-09-02',
             'area' => 'Work Orders',
             'title' => 'Deleting a note asks first',
             'description' => 'The red X on a work order note now opens a confirmation - "Delete this note?" - instead of deleting on the spot. The X only ever appears on notes that have not reached PropertyWare yet, which are exactly the ones nothing can bring back, so one stray click no longer costs a note.',

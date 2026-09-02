@@ -54,10 +54,11 @@ class SendOwnerVendorAssignmentEmail implements ShouldQueue
             // What the tenant actually reported, so the owner sees the scope of
             // work without opening the portal. Omitted when nothing is on file.
             'description' => trim((string) $workOrder->description),
-            // Vacant units (WOC "Vacant" toggle or turnover) have no tenant for
-            // the vendor to contact, so drop that line while still notifying the
-            // owner that a vendor was assigned.
-            'includeTenantLine' => ! $workOrder->isVacant(),
+            // Vacant units (WOC "Vacant" toggle, turnover, re-key) and homes
+            // PropertyWare shows no lease for have no tenant for the vendor to
+            // contact, so drop that line while still notifying the owner that
+            // a vendor was assigned.
+            'includeTenantLine' => ! $workOrder->hasNoTenant(),
             // This owner's no-login portal: message the coordinator and see photos.
             'portalLink' => app(OwnerPortalLinkService::class)->link($workOrder, $owner),
         ])->render();

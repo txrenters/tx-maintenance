@@ -278,6 +278,20 @@ class WorkOrder extends Model
     }
 
     /**
+     * Whether nobody lives at the property for a vendor to contact: the unit
+     * is vacant (isVacant()) or PropertyWare attached no lease to the work
+     * order (hasNoLeaseOnFile() — a new-to-market or between-tenant home that
+     * carries neither the Vacant toggle nor a turnover/re-key type, WO#44032).
+     * The owner vendor-assignment text and email drop their "vendor will
+     * contact the tenant" line on these while still telling the owner who
+     * was assigned. Vendor-facing output keeps using isVacant().
+     */
+    public function hasNoTenant(): bool
+    {
+        return $this->isVacant() || $this->hasNoLeaseOnFile();
+    }
+
+    /**
      * Whether the in-house vendor "Texas Home Maintenance Pros" (THMP) is among
      * the assigned vendors. THMP jobs are excluded from tenant-facing
      * automations because THMP messages the tenant manually.

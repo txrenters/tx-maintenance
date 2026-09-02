@@ -254,7 +254,13 @@ class VendorWorkOrderInformationTest extends TestCase
         $vendor = $this->makeVendor(['name' => 'Southwinds Electric LLC'], '3255550101');
         $owner = $this->makeOwner(['name' => 'Russell Keith Howard Jr', 'phone' => '7135030427']);
 
-        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 43339]);
+        // An occupied home as PropertyWare imports it: the current lease rides
+        // along on the work order.
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 4377411585,
+            'work_order_no' => 43339,
+            'lease_id' => 555001,
+        ]);
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-abc']);
         $workOrder->owners()->attach($owner->id);
 
@@ -316,6 +322,57 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
         $this->assertStringContainsString('Southwinds Electric LLC', $ownerMessage);
         $this->assertStringContainsString('Thank you!', $ownerMessage);
+
+        Bus::assertDispatched(SendConversationMessageJob::class);
+    }
+
+    public function test_no_lease_on_file_owner_text_drops_the_tenant_line_but_still_sends(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-nl'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-nl'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+        config(['services.twilio.owner_assignment_sms' => true]);
+
+        $vendor = $this->makeVendor(['name' => 'Oops Steam Cleaning LLC'], '2818220561');
+        $owner = $this->makeOwner(['name' => 'Rubislaw Properties LLC', 'phone' => '7138585158']);
+
+        // WO#44032: a PropertyWare work order on a vacant home arrives with no
+        // lease and no tenant roster, and nobody flips the Vacant toggle or
+        // types it as a turnover. The owner must still hear who was assigned,
+        // just without "the vendor will contact the tenant".
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 4403200001,
+            'work_order_no' => 44032,
+            'lease_id' => null,
+            'skip_automated_tasks' => false,
+            'type' => 'Service Request',
+            'category' => 'carpet Steam clean',
+        ]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-nl']);
+        $workOrder->owners()->attach($owner->id);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $ownerMessage = Conversation::where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'owner')
+            ->value('message');
+
+        $this->assertNotNull($ownerMessage);
+        $this->assertStringNotContainsString('contact the tenant directly', $ownerMessage);
+        $this->assertStringContainsString('Oops Steam Cleaning LLC', $ownerMessage);
+        $this->assertStringContainsString('#44032', $ownerMessage);
+        $this->assertStringContainsString('Thank you!', $ownerMessage);
+
+        // No tenant text either: nobody lives there.
+        $this->assertDatabaseMissing('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'tenant',
+        ]);
 
         Bus::assertDispatched(SendConversationMessageJob::class);
     }
