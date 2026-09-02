@@ -54,8 +54,10 @@ class ImportMissingWorkOrdersTest extends TestCase
     }
 
     /**
-     * A work order the way GET /workorders lists it: lowercase id, and the
-     * "2026-02-22T01:00 AM" date shape PropertyWare's REST API emits.
+     * A work order the way GET /workorders lists it: lowercase id and the
+     * "2026-09-02T20:52:47.000Z" stamps (pinned against live PropertyWare on
+     * 2026-09-03, when createdDateTime read five hours ahead of the genuine
+     * lastModifiedDateTime).
      *
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
@@ -65,7 +67,8 @@ class ImportMissingWorkOrdersTest extends TestCase
         return array_merge([
             'id' => $id,
             'number' => $number,
-            'createdDateTime' => $this->pwDate(now()->subHours(2)),
+            'createdDateTime' => $this->pwStamp(now()->subHours(2)->addHours(5)),
+            'lastModifiedDateTime' => $this->pwStamp(now()->subHours(2)),
             'status' => 'Open',
             'completedDate' => null,
             'assignedVendors' => [],
@@ -73,9 +76,20 @@ class ImportMissingWorkOrdersTest extends TestCase
         ], $overrides);
     }
 
-    private function pwDate(Carbon $at): string
+    private function pwStamp(Carbon $at): string
     {
-        return $at->format('Y-m-d\Th:i A');
+        return $at->format('Y-m-d\TH:i:s.000\Z');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function stampedAt(Carbon $at): array
+    {
+        return [
+            'createdDateTime' => $this->pwStamp($at->copy()->addHours(5)),
+            'lastModifiedDateTime' => $this->pwStamp($at),
+        ];
     }
 
     /**
@@ -195,9 +209,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
     public function test_a_missing_old_open_work_order_is_imported_quietly(): void
     {
-        $this->fakePages([0 => [$this->restRecord(800002, 44102, [
-            'createdDateTime' => $this->pwDate(now()->subDays(10)),
-        ])]]);
+        $this->fakePages([0 => [$this->restRecord(800002, 44102, $this->stampedAt(now()->subDays(10)))]]);
         $this->soapReturns(44102, [$this->soapPayload(800002, 44102, [
             'createdDate' => now()->subDays(10)->toDateTimeString(),
         ])]);
@@ -222,8 +234,8 @@ class ImportMissingWorkOrdersTest extends TestCase
     {
         $this->fakePages([0 => [$this->restRecord(800003, 44103, [
             'status' => 'Closed',
-            'completedDate' => $this->pwDate(now()->subDays(40)),
-            'createdDateTime' => $this->pwDate(now()->subDays(45)),
+            'completedDate' => $this->pwStamp(now()->subDays(40)),
+            ...$this->stampedAt(now()->subDays(45)),
         ])]]);
         $this->soapReturns(44103, [$this->soapPayload(800003, 44103, [
             'status' => 'Closed',
@@ -271,8 +283,8 @@ class ImportMissingWorkOrdersTest extends TestCase
         // match, so the table row is pinned whole.
         $this->sweep(['--dry-run' => true])
             ->expectsTable(
-                ['PW id', 'WO#', 'Created', 'Status', 'Tier', 'Result'],
-                [[800002, 44102, '2026-09-03 08:00:00', 'Open', 'full', 'would import']],
+                ['PW id', 'WO#', 'Created', 'Modified', 'Status', 'Tier', 'Result'],
+                [[800002, 44102, '2026-09-03 13:00:00', '2026-09-03 08:00:00', 'Open', 'full', 'would import']],
             )
             ->expectsOutputToContain('[dry-run] Missing: 1')
             ->assertSuccessful();
@@ -364,7 +376,7 @@ class ImportMissingWorkOrdersTest extends TestCase
     {
         $this->fakePages([0 => [
             $this->restRecord(800001, 44101),
-            $this->restRecord(800002, 44102, ['createdDateTime' => $this->pwDate(now()->subDays(10))]),
+            $this->restRecord(800002, 44102, $this->stampedAt(now()->subDays(10))),
         ]]);
         $this->neverFetches(2);
         $this->soapNeverCalled();
@@ -377,7 +389,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
     public function test_all_ignores_the_day_window_and_walks_to_the_last_page(): void
     {
-        $old = ['createdDateTime' => $this->pwDate(now()->subDays(400))];
+        $old = $this->stampedAt(now()->subDays(400));
         $this->fakePages([
             0 => [$this->restRecord(800001, 44101, $old), $this->restRecord(800002, 44102, $old)],
             2 => [$this->restRecord(800003, 44103, $old)],
@@ -419,9 +431,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
     public function test_work_orders_newer_than_the_grace_period_are_left_to_the_fast_lane(): void
     {
-        $this->fakePages([0 => [$this->restRecord(800002, 44102, [
-            'createdDateTime' => $this->pwDate(now()->subMinutes(5)),
-        ])]]);
+        $this->fakePages([0 => [$this->restRecord(800002, 44102, $this->stampedAt(now()->subMinutes(5)))]]);
         $this->soapNeverCalled();
 
         $this->sweep()
@@ -430,6 +440,25 @@ class ImportMissingWorkOrdersTest extends TestCase
             ->assertSuccessful();
 
         $this->assertDatabaseCount('work_orders', 0);
+    }
+
+    public function test_age_is_judged_from_the_last_modified_stamp_not_the_skewed_creation_stamp(): void
+    {
+        // Live PropertyWare, 2026-09-03: createdDateTime ran five hours ahead
+        // of real time (in the future, read literally) and was rewritten on
+        // updates, so a record like this one is three days old, not fresh.
+        $this->fakePages([0 => [$this->restRecord(800002, 44102, [
+            'createdDateTime' => $this->pwStamp(now()->addHours(5)),
+            'lastModifiedDateTime' => $this->pwStamp(now()->subDays(3)),
+        ])]]);
+        $this->soapReturns(44102, [$this->soapPayload(800002, 44102)]);
+
+        $this->sweep()
+            ->expectsOutputToContain('Too fresh: 0')
+            ->expectsOutputToContain('imported (quiet)')
+            ->assertSuccessful();
+
+        Queue::assertNotPushed(SendTenantServiceRequestNotificationJob::class);
     }
 
     public function test_a_number_soap_cannot_find_is_reported(): void
@@ -449,7 +478,10 @@ class ImportMissingWorkOrdersTest extends TestCase
 
     public function test_an_unparseable_created_date_still_imports_quietly(): void
     {
-        $this->fakePages([0 => [$this->restRecord(800002, 44102, ['createdDateTime' => 'n/a'])]]);
+        $this->fakePages([0 => [$this->restRecord(800002, 44102, [
+            'createdDateTime' => 'n/a',
+            'lastModifiedDateTime' => 'n/a',
+        ])]]);
         $this->soapReturns(44102, [$this->soapPayload(800002, 44102)]);
 
         $this->sweep()

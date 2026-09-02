@@ -63,8 +63,8 @@ class ImportMissingWorkOrders extends Command
         {--all : Walk every PropertyWare work order}
         {--dry-run : Report what is missing and how each would import; change nothing}
         {--limit=50 : Maximum SOAP import attempts per run, 0 for no cap; the rest is reported as pending}
-        {--fresh-hours=48 : Only an open, unassigned work order newer than this gets the full intake automations}
-        {--grace-minutes=15 : Leave work orders newer than this to import:work-orders}
+        {--fresh-hours=48 : Only an open, unassigned work order last modified within this many hours gets the full intake automations}
+        {--grace-minutes=15 : Leave work orders modified within this many minutes to import:work-orders}
         {--page-size=500 : REST page size (the PropertyWare maximum; smaller only for tests)}
         {--max-pages=100 : Safety cap on REST pages per run}';
 
@@ -171,7 +171,14 @@ class ImportMissingWorkOrders extends Command
             $oldestOnPage = null;
 
             foreach ($records as $pwId => $record) {
+                // createdDateTime is only the walk's sort key. Verified against
+                // live PropertyWare on 2026-09-03: it runs five hours ahead of
+                // real UTC (labelled Z all the same) and is rewritten on some
+                // updates, so an old work order edited today reads as created
+                // today. lastModifiedDateTime is genuine UTC, so age judgements
+                // — the grace period and the intake tier — read that instead.
                 $created = PropertyWareService::parseDate($record['createdDateTime'] ?? null);
+                $touched = PropertyWareService::parseDate($record['lastModifiedDateTime'] ?? null) ?? $created;
 
                 if ($created !== null && ($oldestOnPage === null || $created->lt($oldestOnPage))) {
                     $oldestOnPage = $created;
@@ -181,9 +188,9 @@ class ImportMissingWorkOrders extends Command
                     continue;
                 }
 
-                if ($created === null) {
+                if ($touched === null) {
                     $summary['undated']++;
-                } elseif ($created->gt($graceEdge)) {
+                } elseif ($touched->gt($graceEdge)) {
                     // Younger than a fast-lane cycle: import:work-orders is
                     // probably about to bring it in with its own intake.
                     $summary['too_fresh']++;
@@ -192,12 +199,13 @@ class ImportMissingWorkOrders extends Command
                 }
 
                 $number = (int) ($record['number'] ?? 0);
-                $tier = $this->decideTier($record, $created, $freshEdge);
+                $tier = $this->decideTier($record, $touched, $freshEdge);
 
                 $candidate = [
                     'propertyware_id' => $pwId,
                     'number' => $number > 0 ? $number : null,
-                    'created' => $created?->toDateTimeString() ?? '(unreadable)',
+                    'created' => $created?->toDateTimeString() ?? '-',
+                    'modified' => $touched?->toDateTimeString() ?? '-',
                     'status' => trim((string) ($record['status'] ?? '')),
                     'tier' => $tier,
                     'result' => $dryRun ? 'would import' : 'pending',
@@ -266,8 +274,11 @@ class ImportMissingWorkOrders extends Command
      * Which automations a missing work order earns, judged from the REST
      * listing alone (no extra calls):
      *
-     * - full: still Open, nobody assigned in PropertyWare, created within
-     *   --fresh-hours — the intake the fast lane would have run.
+     * - full: still Open, nobody assigned in PropertyWare, last touched within
+     *   --fresh-hours — the intake the fast lane would have run. (Last
+     *   touched, not created: PropertyWare's creation stamp is unreliable,
+     *   see handle(); a request nobody has assigned or edited in two days is
+     *   not a fresh one either way.)
      * - silent: closed or completed — the row only, no jobs at all (the AI
      *   classification is a paid call that regenerates tasks and can raise an
      *   emergency alert; wrong for history).
@@ -276,7 +287,7 @@ class ImportMissingWorkOrders extends Command
      *
      * @param  array<string, mixed>  $record
      */
-    private function decideTier(array $record, ?Carbon $created, Carbon $freshEdge): string
+    private function decideTier(array $record, ?Carbon $touched, Carbon $freshEdge): string
     {
         $status = trim((string) ($record['status'] ?? ''));
         $completed = ! blank($record['completedDate'] ?? null);
@@ -288,7 +299,7 @@ class ImportMissingWorkOrders extends Command
 
         $assigned = ! empty($record['assignedVendors']);
 
-        if (Str::lower($status) === 'open' && ! $assigned && $created !== null && $created->gte($freshEdge)) {
+        if (Str::lower($status) === 'open' && ! $assigned && $touched !== null && $touched->gte($freshEdge)) {
             return self::TIER_FULL;
         }
 
@@ -466,11 +477,12 @@ class ImportMissingWorkOrders extends Command
     {
         if ($candidates !== []) {
             $this->table(
-                ['PW id', 'WO#', 'Created', 'Status', 'Tier', 'Result'],
+                ['PW id', 'WO#', 'Created', 'Modified', 'Status', 'Tier', 'Result'],
                 array_map(fn (array $candidate) => [
                     $candidate['propertyware_id'],
                     $candidate['number'] ?? '-',
                     $candidate['created'],
+                    $candidate['modified'],
                     $candidate['status'],
                     $candidate['tier'],
                     $candidate['result'],
