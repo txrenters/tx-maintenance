@@ -39,10 +39,15 @@ class WorkOrderService
      * auto-assign). HOA intake leaves it false — that flow sends its own
      * notices and must not re-adopt the violation it just created.
      *
+     * When $dispatchRecommendation is also false, a brand-new work order gets
+     * no job at all — not even the AI classification, which is a paid call
+     * that regenerates the task checklist and can raise an emergency alert.
+     * The missing-work-order backstop uses this for closed history.
+     *
      * @param  array<int|string, mixed>  $workOrder
      * @return list<int>
      */
-    public function handle(array $workOrder, bool $dispatchNewWorkOrderAutomations = false): array
+    public function handle(array $workOrder, bool $dispatchNewWorkOrderAutomations = false, bool $dispatchRecommendation = true): array
     {
         $work_orders = collect($workOrder)->toArray();
         $now = now()->format('Y-m-d H:i:s');
@@ -66,7 +71,7 @@ class WorkOrderService
                     $owner = $this->processOwnerAndUser($data);
 
                     // Process work order and related data
-                    $importedWorkOrderIds[] = $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $dispatchNewWorkOrderAutomations);
+                    $importedWorkOrderIds[] = $this->processWorkOrderAndRelatedData($data, $tenant, $owner, $now, $dispatchNewWorkOrderAutomations, $dispatchRecommendation);
                 }
 
             }
@@ -225,7 +230,7 @@ class WorkOrderService
         return $user;
     }
 
-    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now, bool $dispatchNewWorkOrderAutomations): int
+    private function processWorkOrderAndRelatedData(array $data, ?int $tenant, ?int $owner, string $now, bool $dispatchNewWorkOrderAutomations, bool $dispatchRecommendation = true): int
     {
         DB::beginTransaction();
         try {
@@ -388,7 +393,7 @@ class WorkOrderService
                     app(WorkOrderLeaseService::class)->alertMissingOnIntake(
                         WorkOrder::withoutGlobalScope(WorkOrderScope::class)->findOrFail($work_order),
                     );
-                } else {
+                } elseif ($dispatchRecommendation) {
                     GenerateWorkOrderRecommendationJob::dispatch($work_order);
                 }
             } elseif ($dispatchNewWorkOrderAutomations && $existingWorkOrder?->lease_id === null && $savedWorkOrder->lease_id !== null) {

@@ -82,19 +82,93 @@ class PropertyWareService
     }
 
     /**
-     * Build a PropertyWare document request that retries transient failures —
+     * Build a PropertyWare REST request that retries transient failures —
      * connection errors and 5xx responses (e.g. the 503 PropertyWare returns
      * during maintenance/capacity windows) — before giving up. With throw:false
      * the final failed response is returned so callers keep degrading gracefully.
      */
-    private function documentRequest(): PendingRequest
+    private function retryingRequest(int $sleepMilliseconds = 300): PendingRequest
     {
         return Http::withHeaders($this->headers)
-            ->retry(3, 300, function (Throwable $exception): bool {
+            ->retry(3, $sleepMilliseconds, function (Throwable $exception): bool {
                 return $exception instanceof ConnectionException
                     || ($exception instanceof RequestException
                         && in_array($exception->response->status(), [500, 502, 503, 504], true));
             }, throw: false);
+    }
+
+    /**
+     * The retrying request the document endpoints use.
+     */
+    private function documentRequest(): PendingRequest
+    {
+        return $this->retryingRequest();
+    }
+
+    /**
+     * One page of PropertyWare's work order listing via REST, newest first —
+     * the same query import:all-work-orders and the closing-comment sync walk
+     * with. Returns null (never a string or false) when the page is
+     * unavailable after the retries, so a walker can skip it and carry on.
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    public function fetchWorkOrdersPage(int $limit = 500, int $offset = 0): ?array
+    {
+        try {
+            $response = $this->retryingRequest(2000)
+                ->timeout(60)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/workorders', [
+                    'includeCustomFields' => 'true',
+                    'orderby' => 'createddate DESC',
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+
+            if ($response->successful()) {
+                $page = $response->json();
+
+                return is_array($page) ? array_values($page) : [];
+            }
+
+            Log::error('Error retrieving a work order page from PropertyWare', [
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+                'limit' => $limit,
+                'offset' => $offset,
+            ]);
+
+            return null;
+        } catch (Throwable $e) {
+            Log::error('PropertyWare fetchWorkOrdersPage failed: '.$e->getMessage(), [
+                'limit' => $limit,
+                'offset' => $offset,
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * A PropertyWare date value as Carbon, or null when there is none. REST
+     * dates arrive either as ISO strings or in PropertyWare's own
+     * "2026-02-22T01:00 AM" shape, which Carbon::parse rejects.
+     */
+    public static function parseDate(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (Throwable) {
+            try {
+                return Carbon::createFromFormat('Y-m-d\TH:i A', trim($value)) ?: null;
+            } catch (Throwable) {
+                return null;
+            }
+        }
     }
 
     /**
