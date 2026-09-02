@@ -749,7 +749,11 @@ class PropertyWareService
             ],
         ]);
 
-        $this->approvedWorkOrder($workOrder);
+        // The approval section is PropertyWare's own. A merge patch of
+        // category/type/description leaves it untouched, so there is
+        // nothing to re-send; a working re-approve here would stamp the
+        // app's login as the approver and fire PropertyWare's alert on
+        // every save.
 
         $ok = $response->successful() && $res->successful();
 
@@ -1075,14 +1079,15 @@ class PropertyWareService
         $buildigId = $workOrder->building_id;
 
         // The full-replace envelope below must echo PropertyWare's approval
-        // fields back or it blanks them there — and the local copy may be
-        // stale, so pull the current values first (WO#44014).
-        $this->refreshApprovalFromPropertyWare($workOrder);
+        // section back exactly, or PropertyWare un-approves the work order
+        // and blanks the approver, date and comment (WO#44014, WO#43819) —
+        // and the local copy may be stale, so read the current values first.
+        $approval = $this->approvalSnapshot($workOrder);
 
         // Build SOAP payload without location field to avoid validation errors
         // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
 
-        $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
+        $location = $this->xmlText($workOrder->location);
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -1102,10 +1107,10 @@ class PropertyWareService
                         <ID xsi:type="xsd:long">'.$portfolioId.'</ID>
                         </portfolio>
                         <location xsi:type="xsd:string">'.$location.'</location>
-                        <category xsi:type="xsd:string">'.htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8').'</category>
-                        <description xsi:type="xsd:string">'.htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8').'</description>
-                        <type xsi:type="xsd:string">'.htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8').'</type>
-                        <approvalComment xsi:type="xsd:string">'.htmlspecialchars($workOrder->approval_comments ?? '', ENT_XML1, 'UTF-8').'</approvalComment>
+                        <category xsi:type="xsd:string">'.$this->xmlText($workOrder->category).'</category>
+                        <description xsi:type="xsd:string">'.$this->xmlText($workOrder->description).'</description>
+                        <type xsi:type="xsd:string">'.$this->xmlText($workOrder->type).'</type>
+                        '.$this->approvalElements($approval).'
                         '.$this->sourceElement($workOrder).'
                         '.$vendorIDsXml.'
                     </workOrder>
@@ -1132,9 +1137,9 @@ class PropertyWareService
             throw new Exception('PropertyWare API Error: '.$res['message']);
         }
 
-        // Unconditional: approvedWorkOrder gates on is_approved itself, and
-        // may learn approval from its own PropertyWare refresh.
-        $this->approvedWorkOrder($workOrder);
+        // The envelope carried PropertyWare's own approval, so there is
+        // nothing to re-approve; only put it back if PropertyWare dropped it.
+        $this->restoreApprovalIfDropped($workOrder, $approval);
 
         // PropertyWare attaches a website request's lease on the work order's
         // next save - the save this call just made. Pull it now so the
@@ -1172,7 +1177,7 @@ class PropertyWareService
             return '';
         }
 
-        return '<source xsi:type="xsd:string">'.htmlspecialchars($source, ENT_XML1, 'UTF-8').'</source>';
+        return '<source xsi:type="xsd:string">'.$this->xmlText($source).'</source>';
     }
 
     /**
@@ -1215,6 +1220,26 @@ class PropertyWareService
      */
     public function fetchLeaseId(int|string $workOrderNo): ?int
     {
+        $row = $this->soapWorkOrderRow($workOrderNo);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $leaseId = $row['lease']['ID'] ?? null;
+
+        return filled($leaseId) ? (int) $leaseId : null;
+    }
+
+    /**
+     * PropertyWare's SOAP copy of a work order, by number — the copy that
+     * carries the nested objects (lease, approver) the REST work order
+     * leaves out. Null when the lookup fails or finds another number.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function soapWorkOrderRow(int|string $workOrderNo): ?array
+    {
         $result = $this->getWorkOrderByNumber($workOrderNo);
 
         if (! is_array($result)) {
@@ -1226,13 +1251,9 @@ class PropertyWareService
         foreach ($rows as $row) {
             $row = (array) $row;
 
-            if ((string) ($row['number'] ?? '') !== (string) $workOrderNo) {
-                continue;
+            if ((string) ($row['number'] ?? '') === (string) $workOrderNo) {
+                return $row;
             }
-
-            $leaseId = $row['lease']['ID'] ?? null;
-
-            return filled($leaseId) ? (int) $leaseId : null;
         }
 
         return null;
@@ -1262,8 +1283,8 @@ class PropertyWareService
             return false;
         }
 
-        $subject = htmlspecialchars($note->subject ?? '', ENT_XML1, 'UTF-8');
-        $body = htmlspecialchars($note->body ?? '', ENT_XML1, 'UTF-8');
+        $subject = $this->xmlText($note->subject);
+        $body = $this->xmlText($note->body);
         $date = now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $xmlPayload = '
@@ -1641,9 +1662,9 @@ class PropertyWareService
             // Fetch current location from PropertyWare to ensure accuracy
             $pwWorkOrder = $this->getWorkOrder($workorderId);
 
-            // Same fetch also carries the approval fields the full-replace
-            // envelope below must echo back or blank in PropertyWare (WO#44014).
-            $this->refreshApprovalFromPropertyWare($workOrder, is_array($pwWorkOrder) ? $pwWorkOrder : null);
+            // The full-replace envelope below must echo PropertyWare's
+            // approval section back exactly (WO#44014, WO#43819).
+            $approval = $this->approvalSnapshot($workOrder);
 
             if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
                 $location = $pwWorkOrder['location'];
@@ -1680,10 +1701,10 @@ class PropertyWareService
                 }
             }
 
-            $location = htmlspecialchars($workOrder->location ?? '', ENT_XML1, 'UTF-8');
-            $category = htmlspecialchars($workOrder->category ?? '', ENT_XML1, 'UTF-8');
-            $description = htmlspecialchars($workOrder->description ?? '', ENT_XML1, 'UTF-8');
-            $type = htmlspecialchars($workOrder->type ?? '', ENT_XML1, 'UTF-8');
+            $location = $this->xmlText($workOrder->location);
+            $category = $this->xmlText($workOrder->category);
+            $description = $this->xmlText($workOrder->description);
+            $type = $this->xmlText($workOrder->type);
 
             $xmlPayload = '<soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xmlns:xsd="http://www.w3.org/2001/XMLSchema"
@@ -1708,7 +1729,7 @@ class PropertyWareService
                         <category xsi:type="xsd:string">'.$category.'</category>
                         <description xsi:type="xsd:string">'.$description.'</description>
                         <type xsi:type="xsd:string">'.$type.'</type>
-                        <approvalComment xsi:type="xsd:string">'.htmlspecialchars($workOrder->approval_comments ?? '', ENT_XML1, 'UTF-8').'</approvalComment>
+                        '.$this->approvalElements($approval).'
                         '.$this->sourceElement($workOrder).'
                     </workOrder>
                 </ser:updateWorkOrder>
@@ -1718,10 +1739,10 @@ class PropertyWareService
             // Execute SOAP request
             $res = $this->execute($xmlPayload);
 
-            $this->approvedWorkOrder($workOrder);
-
             // Log and return response status
             if ($res && isset($res['success']) && $res['success']) {
+                $this->restoreApprovalIfDropped($workOrder, $approval);
+
                 Log::info('Vendor updating work order details has been successfully!', [
                     'work_order_no' => $workOrder->work_order_no,
                 ]);
@@ -1859,83 +1880,231 @@ class PropertyWareService
     }
 
     /**
-     * Approval fields are entered only in PropertyWare, and its SOAP
-     * updateWorkOrder replaces the whole work-order object — so every push
-     * must carry the freshest approval values or it erases the owner's note
-     * there, which the next import then erases locally too (WO#44014,
-     * 2026-08-31). A failed fetch just leaves the local values in place.
+     * PropertyWare's current approval on a work order — flag, approver, date
+     * and comment — read through SOAP by number, because the REST work order
+     * carries only the flag and the date. The section is entered only in
+     * PropertyWare and the local copy can lag the import by minutes (an
+     * owner approves, PropertyWare emails the coordinator, the vendor is
+     * assigned right away), so every full-replace push reads it fresh.
      *
-     * @param  array<string, mixed>|null  $pwWorkOrder  a payload the caller already fetched
+     * When the lookup fails the push is abandoned (the caller's save fails
+     * loudly and can be retried) rather than fed the local copy: a stale
+     * local copy is exactly what used to un-approve work orders, and a lost
+     * approval cannot be got back, whereas a failed vendor change can.
+     * Whatever was learned is stored so the dashboard is not left behind.
+     *
+     * @return array{approved: bool, approved_by: ?string, approved_date: ?string, comment: ?string}
+     *
+     * @throws Exception when PropertyWare cannot be read
      */
-    private function refreshApprovalFromPropertyWare($workOrder, ?array $pwWorkOrder = null): void
+    private function approvalSnapshot($workOrder): array
     {
-        try {
-            $pw = $pwWorkOrder ?? $this->getWorkOrder($workOrder->propertyware_id);
+        $row = $this->soapWorkOrderRow($workOrder->work_order_no);
 
-            if (! is_array($pw)) {
+        if ($row === null) {
+            Log::error('PropertyWare approval lookup failed; the update was not sent so the approval cannot be lost.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'propertyware_id' => $workOrder->propertyware_id ?? null,
+            ]);
+
+            throw new Exception('PropertyWare could not be read before the update (work order '.($workOrder->work_order_no ?? '?').'); nothing was changed there. Please try again.');
+        }
+
+        $approvedBy = $row['approvedBy']['ID'] ?? null;
+        $comment = $row['approvalComment'] ?? $row['approvalComments'] ?? null;
+
+        $snapshot = [
+            'approved' => (bool) ($row['approved'] ?? false),
+            'approved_by' => filled($approvedBy) ? (string) $approvedBy : null,
+            'approved_date' => $this->soapDateTime($row['approvedDate'] ?? null),
+            'comment' => filled($comment) ? (string) $comment : null,
+        ];
+
+        try {
+            $dirty = ['is_approved' => $snapshot['approved']];
+
+            if ($snapshot['approved_by'] !== null) {
+                $dirty['approved_by'] = $snapshot['approved_by'];
+            }
+
+            if ($snapshot['comment'] !== null) {
+                $dirty['approval_comments'] = $snapshot['comment'];
+            }
+
+            if ($snapshot['approved_date'] !== null) {
+                $dirty['approved_date'] = Carbon::parse($snapshot['approved_date'])->toDateString();
+            }
+
+            $workOrder->forceFill($dirty)->save();
+        } catch (Throwable $e) {
+            Log::warning('Could not store the approval read from PropertyWare; the push still echoes it.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // PropertyWare refuses an approved work order without a date
+        // ("Approved Date is required"), yet its own approve operation can
+        // leave the date empty — the push would fail outright, so date such
+        // an approval rather than lose the vendor change.
+        if ($snapshot['approved'] && $snapshot['approved_date'] === null) {
+            $snapshot['approved_date'] = $this->soapDateTime($workOrder->approved_date) ?? now()->format('Y-m-d\TH:i:s');
+
+            Log::warning('PropertyWare holds an approval with no date; sending one so the update is accepted.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'approved_date' => $snapshot['approved_date'],
+            ]);
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * The approval section of a full-replace updateWorkOrder envelope. The
+     * WorkOrder type's `approved` is a plain boolean, so an envelope without
+     * it un-approves the work order in PropertyWare and blanks the approver,
+     * date and comment with it (checked live on the demo work order); the
+     * re-approve that was meant to put it back never worked, so the owner
+     * or the coordinator approved by hand again — WO#43819, three times
+     * over. Echoing PropertyWare's own values leaves the section exactly as
+     * the approver left it. Only what PropertyWare holds is sent, so a blank
+     * never overwrites a value.
+     *
+     * @param  array{approved: bool, approved_by: ?string, approved_date: ?string, comment: ?string}  $approval
+     */
+    private function approvalElements(array $approval): string
+    {
+        $xml = '<approved xsi:type="xsd:boolean">'.($approval['approved'] ? 'true' : 'false').'</approved>';
+
+        if ($approval['approved_by'] !== null && ctype_digit($approval['approved_by'])) {
+            $xml .= '<approvedBy xsi:type="urn:User"><ID xsi:type="xsd:long">'.$approval['approved_by'].'</ID></approvedBy>';
+        }
+
+        if ($approval['approved_date'] !== null) {
+            $xml .= '<approvedDate xsi:type="xsd:dateTime">'.$this->xmlText($approval['approved_date']).'</approvedDate>';
+        }
+
+        if ($approval['comment'] !== null) {
+            $xml .= '<approvalComment xsi:type="xsd:string">'.$this->xmlText($approval['comment']).'</approvalComment>';
+        }
+
+        return $xml;
+    }
+
+    /**
+     * Safety net behind the echoed approval: re-read the flag after a
+     * full-replace push and, only if PropertyWare dropped an approval the
+     * envelope carried, put it back through approveWorkOrder. That call is
+     * made by the app's own login, which then shows as the approver, so it
+     * is a last resort and logged as an error. Log-never-throw: the push
+     * itself has already succeeded.
+     *
+     * @param  array{approved: bool, approved_by: ?string, approved_date: ?string, comment: ?string}  $approval
+     */
+    private function restoreApprovalIfDropped($workOrder, array $approval): void
+    {
+        if (! $approval['approved']) {
+            return;
+        }
+
+        try {
+            $after = $this->getWorkOrder($workOrder->propertyware_id);
+
+            if (! is_array($after) || ! array_key_exists('approved', $after) || (bool) $after['approved']) {
                 return;
             }
 
-            $dirty = [];
+            Log::error('PropertyWare dropped the approval the envelope carried; restoring it through the API login.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'propertyware_id' => $workOrder->propertyware_id ?? null,
+            ]);
 
-            $comment = $pw['approvalComment'] ?? $pw['approvalComments'] ?? null;
-            if (filled($comment)) {
-                $dirty['approval_comments'] = $comment;
-            }
-
-            if (filled($pw['approvedDate'] ?? null)) {
-                try {
-                    $dirty['approved_date'] = Carbon::parse($pw['approvedDate'])->toDateString();
-                } catch (Throwable) {
-                    // An unparseable date must not cost us the comment refresh.
-                }
-            }
-
-            if (array_key_exists('approved', $pw)) {
-                $dirty['is_approved'] = (bool) $pw['approved'];
-            }
-
-            if ($dirty !== []) {
-                $workOrder->forceFill($dirty)->save();
-            }
+            $this->approvedWorkOrder($workOrder);
         } catch (Throwable $e) {
-            Log::warning('Could not refresh approval fields from PropertyWare; using local values.', [
+            Log::warning('Could not verify the approval after the PropertyWare push.', [
                 'work_order_no' => $workOrder->work_order_no ?? null,
                 'error' => $e->getMessage(),
             ]);
         }
     }
 
-    public function approvedWorkOrder($workOrder): void
+    /**
+     * A value for an xsd:dateTime element: PropertyWare's own dateTime
+     * strings go back verbatim, a local date goes as its midnight, anything
+     * unreadable as null.
+     */
+    private function soapDateTime(mixed $value): ?string
     {
-        // Blank local values here usually mean the import hasn't caught up
-        // with PropertyWare, not that PropertyWare is blank — pushing them
-        // would wipe the owner's note there. Refresh first; after it, an
-        // empty push can only happen when PropertyWare's own copy is empty.
-        if (blank($workOrder->approval_comments) || blank($workOrder->approved_date)) {
-            $this->refreshApprovalFromPropertyWare($workOrder);
+        $value = trim((string) ($value ?? ''));
+
+        if ($value === '') {
+            return null;
         }
 
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T/', $value) === 1) {
+            return $value;
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d\TH:i:s');
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Text for the hand-built SOAP envelopes: XML-escaped UTF-8, which
+     * execute() sends under an explicit UTF-8 declaration and charset rather
+     * than the receiver's default (checked live on the demo work order: an
+     * approval comment with ’ – ç “ ” — came back intact; descriptions lose
+     * such characters on PropertyWare's side whatever the wire format).
+     * Invalid byte sequences become U+FFFD instead of emptying the value.
+     */
+    private function xmlText(mixed $value): string
+    {
+        return htmlspecialchars((string) ($value ?? ''), ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Approve a work order in PropertyWare through the app's own login.
+     * PropertyWare then records that login as the approver and sends its
+     * "Work Order Approved" alert, so nothing calls this on a normal save any
+     * more: it remains the last-resort restore behind the echoed approval
+     * (restoreApprovalIfDropped) and the opt-in $syncApproval paths. Gated
+     * on the local flag, which approvalSnapshot keeps current.
+     */
+    public function approvedWorkOrder($workOrder): void
+    {
         if (! $workOrder->is_approved) {
             return;
         }
 
         $client = $this->initiate();
 
-        $work_order_no = $workOrder->work_order_no;
+        // The operation's workOrderID is PropertyWare's entity id, as in
+        // every other envelope here; sent the work order number, the call
+        // returns quietly and approves nothing (checked live, 2026-09-03).
         $approved = $workOrder->is_approved;
         $approvedDate = $workOrder->approved_date ?? '';
         $approvalComment = $workOrder->approval_comments ?? '';
 
-        $client->approveWorkOrder($work_order_no, $approved, $approvedDate, $approvalComment);
+        $client->approveWorkOrder((int) $workOrder->propertyware_id, $approved, $approvedDate, $approvalComment);
 
         Log::info('Work order approval has been added!', [
-            'Work order no' => $work_order_no,
+            'Work order no' => $workOrder->work_order_no,
+            'propertyware_id' => $workOrder->propertyware_id,
         ]);
     }
 
     public function execute($xmlPayload)
     {
+        // Declare the encoding on the wire: text/xml with no charset is read
+        // as US-ASCII / Latin-1 by the receiver.
+        $xmlPayload = ltrim((string) $xmlPayload);
+
+        if (! str_starts_with($xmlPayload, '<?xml')) {
+            $xmlPayload = '<?xml version="1.0" encoding="UTF-8"?>'."\n".$xmlPayload;
+        }
 
         $curl = curl_init();
 
@@ -1945,7 +2114,7 @@ class PropertyWareService
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $xmlPayload,
             CURLOPT_HTTPHEADER => [
-                'Content-Type: text/xml',
+                'Content-Type: text/xml; charset=utf-8',
                 'SOAPAction: ""',
             ],
             CURLOPT_USERPWD => $this->username.':'.$this->password,

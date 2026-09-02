@@ -168,12 +168,17 @@ class LeaseArrivalIntakeTest extends TestCase
 
     /**
      * A PropertyWare service whose SOAP calls are stubbed: the save succeeds
-     * and the by-number lookup returns the given rows.
+     * and the by-number lookup returns the given rows. The lookup is also
+     * made before the save, for the approval section the envelope echoes
+     * (a save without it is refused), so it always happens at least once;
+     * null plays a bare row with no lease and no approval.
      *
-     * @param  array<int, array<string, mixed>>|null  $lookupRows  null = the lookup must not happen
+     * @param  array<int, array<string, mixed>>|null  $lookupRows
      */
     private function propertyWareWithSave(?array $lookupRows, ?string &$capturedXml = null): PropertyWareService
     {
+        $lookupRows ??= [['number' => 43937]];
+
         return $this->partialMock(PropertyWareService::class, function ($mock) use ($lookupRows, &$capturedXml) {
             $mock->shouldReceive('execute')
                 ->once()
@@ -184,11 +189,7 @@ class LeaseArrivalIntakeTest extends TestCase
                 })
                 ->andReturn(['success' => true, 'response' => '<ok/>']);
 
-            if ($lookupRows === null) {
-                $mock->shouldReceive('getWorkOrderByNumber')->never();
-            } else {
-                $mock->shouldReceive('getWorkOrderByNumber')->once()->with(43937)->andReturn($lookupRows);
-            }
+            $mock->shouldReceive('getWorkOrderByNumber')->with(43937)->andReturn($lookupRows);
         });
     }
 
