@@ -11,6 +11,7 @@ use App\Models\WorkOrder;
 use App\Services\HoaNoticeExtractor;
 use App\Services\HoaPropertyMatcher;
 use App\Services\HoaViolationIntakeService;
+use App\Services\TenantPortalLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -169,7 +170,7 @@ class HoaViolationController extends Controller
      * confirm or correct the property before anything is created. Read-only:
      * this creates no work orders.
      */
-    public function detect(Request $request, HoaNoticeExtractor $extractor, HoaPropertyMatcher $matcher)
+    public function detect(Request $request, HoaNoticeExtractor $extractor, HoaPropertyMatcher $matcher, HoaViolationIntakeService $intake)
     {
         $request->validate([
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:51200',
@@ -187,7 +188,7 @@ class HoaViolationController extends Controller
         }
 
         return response()->json([
-            'notices' => collect($notices)->map(function (array $notice) use ($matcher) {
+            'notices' => collect($notices)->map(function (array $notice) use ($matcher, $intake) {
                 $match = $matcher->match($notice['property_address']);
 
                 return [
@@ -203,6 +204,7 @@ class HoaViolationController extends Controller
                     'matched' => $match['best'],
                     'candidates' => $match['candidates'],
                     'contacts' => $this->propertyContacts($match['best']['id'] ?? null),
+                    'existing_work_order' => $this->existingViolationFor($match['best']['id'] ?? null, $intake),
                 ];
             })->values(),
         ]);
@@ -213,14 +215,64 @@ class HoaViolationController extends Controller
      * confirm the match is right before the work order (and its automated
      * tenant/owner messages) are created. Read from the property's most recent
      * work order — that carries the live lease/owner linkage from PropertyWare.
+     * Also says whether an HOA violation is already open there, so the review
+     * row can ask "new work order, or a follow-up to that one?" whenever staff
+     * change the property.
      */
-    public function contacts(Request $request)
+    public function contacts(Request $request, HoaViolationIntakeService $intake)
     {
         $validated = $request->validate([
             'building_id' => 'required|exists:buildings,propertyware_id',
         ]);
 
-        return response()->json($this->propertyContacts((int) $validated['building_id']));
+        $buildingId = (int) $validated['building_id'];
+
+        return response()->json([
+            ...$this->propertyContacts($buildingId),
+            'existing_work_order' => $this->existingViolationFor($buildingId, $intake),
+        ]);
+    }
+
+    /**
+     * The HOA violation already open on a property, in the shape the review
+     * row needs to ask "new work order, or a follow-up to this one?": the
+     * number, when its notice was dated, what it is about, and where the
+     * tenant stands with it.
+     *
+     * @return ?array{id: int, work_order_no: ?int, notice_date: ?string, deadline: ?string, state: string, summary: ?string}
+     */
+    private function existingViolationFor(?int $buildingId, HoaViolationIntakeService $intake): ?array
+    {
+        if ($buildingId === null) {
+            return null;
+        }
+
+        $building = Building::query()->where('propertyware_id', $buildingId)->first();
+        $workOrder = $building ? $intake->openViolationFor($building) : null;
+
+        if ($workOrder === null) {
+            return null;
+        }
+
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->latest('id')
+            ->first();
+
+        $overdue = $token !== null
+            && $token->completed_at === null
+            && $token->hoa_deadline_at !== null
+            && $token->hoa_deadline_at->isPast();
+
+        return [
+            'id' => $workOrder->id,
+            'work_order_no' => $workOrder->work_order_no,
+            'notice_date' => $token?->hoa_notice_date?->toDateString(),
+            'deadline' => $token?->hoa_deadline_at?->toDateString(),
+            'state' => $this->hoaStateLabel($token, $overdue),
+            'summary' => TenantPortalLinkService::violationSummaryFromDescription($workOrder->description),
+        ];
     }
 
     /**
@@ -259,7 +311,9 @@ class HoaViolationController extends Controller
      * Step 2 — create one work order per confirmed notice. The frontend resends
      * the same PDF plus the reviewed notices (each with the chosen building),
      * so no AI is re-run and the property each WO lands on is exactly what staff
-     * confirmed on screen.
+     * confirmed on screen. A notice staff marked as a follow-up carries the id
+     * of the violation already open on the property and is filed under it
+     * instead of getting a work order of its own.
      */
     public function store(Request $request, HoaViolationIntakeService $intake)
     {
@@ -267,6 +321,7 @@ class HoaViolationController extends Controller
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:51200',
             'notices' => 'required|array|min:1',
             'notices.*.building_id' => 'required|exists:buildings,propertyware_id',
+            'notices.*.attach_to_work_order_id' => 'nullable|integer',
             'notices.*.pages' => 'required|array|min:1',
             'notices.*.pages.*' => 'integer|min:1',
             'notices.*.description' => 'nullable|string',
@@ -283,7 +338,10 @@ class HoaViolationController extends Controller
         $mime = $request->file('file')->getMimeType() ?: 'application/pdf';
 
         $created = 0;
+        $attached = 0;
+        $attachedTo = [];
         $failed = 0;
+        $failureReason = null;
         $localOnly = 0;
 
         foreach ($validated['notices'] as $notice) {
@@ -311,8 +369,22 @@ class HoaViolationController extends Controller
                         'deadline_days' => $notice['deadline_days'] ?? null,
                         'file_name' => $originalName,
                         'mime' => $mime,
+                        'attach_to_work_order_id' => filled($notice['attach_to_work_order_id'] ?? null)
+                            ? (int) $notice['attach_to_work_order_id']
+                            : null,
                     ],
                 );
+
+                if (! $result['created']) {
+                    // Filed under the violation already open — say which, so
+                    // staff never read "created" for a notice that made no
+                    // work order (that is how 5231 Shadow Breeze's second
+                    // notice vanished into WO #43749 on 2026-09-02).
+                    $attached++;
+                    $attachedTo[] = '#'.($result['work_order']->work_order_no ?? $result['work_order']->id);
+
+                    continue;
+                }
 
                 $created++;
 
@@ -320,11 +392,12 @@ class HoaViolationController extends Controller
                 // has no work order number, never syncs, and its notice never
                 // reaches PropertyWare's DOCS. Silently reporting success for
                 // one is how every HOA create failed unnoticed until 2026-08-04.
-                if ($result['created'] && ! $result['pw_created']) {
+                if (! $result['pw_created']) {
                     $localOnly++;
                 }
             } catch (\Throwable $exception) {
                 $failed++;
+                $failureReason = $exception->getMessage();
                 Log::error('HOA violation intake failed for a notice.', [
                     'building_propertyware_id' => $notice['building_id'],
                     'error' => $exception->getMessage(),
@@ -332,13 +405,26 @@ class HoaViolationController extends Controller
             }
         }
 
-        if ($created === 0) {
-            return back()->withErrors(['error' => 'Could not create any HOA work orders. Please try again.']);
+        if ($created === 0 && $attached === 0) {
+            return back()->withErrors([
+                'error' => 'Could not create any HOA work orders. '.($failureReason ?? 'Please try again.'),
+            ]);
         }
 
-        $message = $created === 1
-            ? '1 HOA violation work order created.'
-            : "{$created} HOA violation work orders created.";
+        $parts = [];
+
+        if ($created > 0) {
+            $parts[] = $created === 1
+                ? '1 HOA violation work order created.'
+                : "{$created} HOA violation work orders created.";
+        }
+
+        if ($attached > 0) {
+            $parts[] = ($attached === 1 ? '1 notice attached' : "{$attached} notices attached")
+                .' to existing work order'.($attached === 1 ? '' : 's').' '.implode(', ', $attachedTo).'.';
+        }
+
+        $message = implode(' ', $parts);
 
         if ($failed > 0) {
             $message .= " {$failed} could not be created — please retry those.";

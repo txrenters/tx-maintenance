@@ -46,6 +46,23 @@ const unmatchedCount = computed(
     () => notices.value.filter((n) => n.building_id == null).length,
 );
 
+// Notices staff marked as a follow-up to the violation already open on the
+// property: those file under that work order instead of creating one.
+const attachCount = computed(
+    () =>
+        notices.value.filter((n) => n.attach_to_work_order_id != null).length,
+);
+
+const submitLabel = computed(() => {
+    const total = notices.value.length;
+    const creating = total - attachCount.value;
+    const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+    if (attachCount.value === 0) return `Create ${plural(total, "work order")}`;
+    if (creating === 0) return `Attach ${plural(total, "notice")}`;
+    return `Create ${creating}, attach ${attachCount.value}`;
+});
+
 // Collapse notices that resolve to the same property into a single row: one
 // property = one work order, so its pages and violation items merge. Matched
 // notices group by building; unmatched ones group by their read address (and
@@ -170,6 +187,7 @@ const create = () => {
         notice_date: n.notice_date,
         deadline_date: n.deadline_date,
         deadline_days: n.deadline_days,
+        attach_to_work_order_id: n.attach_to_work_order_id ?? null,
     }));
 
     createForm.post(route("work_orders.hoa.store"), {
@@ -200,11 +218,14 @@ const create = () => {
             open.value = false;
             resetAll();
         },
-        onError: () => {
+        onError: (errors) => {
+            // The server says why when it can (e.g. the work order a notice
+            // was to be attached to has since closed — scan again).
             toast({
                 variant: "destructive",
                 title: "Uh oh! Something went wrong.",
                 description:
+                    errors?.error ??
                     "The HOA notices could not be processed. Please try again!",
             });
         },
@@ -326,9 +347,15 @@ watch(open, (isOpen) => {
                     <div
                         class="order-1 max-h-[60vh] space-y-2 overflow-y-auto pr-1 md:order-2"
                     >
+                        <!--
+                            Keyed by the notice's first page (unique per grouped
+                            notice) rather than its position, so removing a
+                            notice never leaves a row showing another notice's
+                            open-violation choice.
+                        -->
                         <div
                             v-for="(notice, i) in notices"
-                            :key="i"
+                            :key="notice.page"
                             @click="activePage = notice.page"
                         >
                             <HoaNoticeRow
@@ -336,6 +363,9 @@ watch(open, (isOpen) => {
                                 :index="i"
                                 :buildings="buildings"
                                 v-model:building-id="notice.building_id"
+                                v-model:attach-to-work-order-id="
+                                    notice.attach_to_work_order_id
+                                "
                                 @remove="removeNotice(i)"
                             />
                         </div>
@@ -386,13 +416,7 @@ watch(open, (isOpen) => {
                     />
                     <FileUp v-else class="w-4 h-4 mr-2" />
                     <span>
-                        {{
-                            createForm.processing
-                                ? "Creating…"
-                                : `Create ${notices.length} work order${
-                                      notices.length === 1 ? "" : "s"
-                                  }`
-                        }}
+                        {{ createForm.processing ? "Saving…" : submitLabel }}
                     </span>
                 </Button>
             </DialogFooter>
