@@ -43,20 +43,41 @@ class HoaViolationIntakeService
      *     deadline_date?: ?Carbon,
      *     deadline_days?: ?int,
      *     file_name?: ?string,
-     *     mime?: ?string
+     *     mime?: ?string,
+     *     attach_to_work_order_id?: ?int
      * }  $notice
      * @return array{work_order: WorkOrder, created: bool, pw_created: bool, description: string}
+     *
+     * @throws \RuntimeException when the work order staff chose to attach to is
+     *                           no longer the property's open violation
      */
     public function createFromNotice(Building $building, string $pagePdfContents, array $notice): array
     {
         $description = $this->buildDescription($notice);
         $noticeDate = ($notice['notice_date'] ?? null) instanceof Carbon ? $notice['notice_date'] : now();
 
-        // An open HOA work order for the same property means this notice is a
-        // follow-up — attach to it instead of creating a duplicate.
-        $workOrder = $this->findExistingOpenHoaWorkOrder($building);
+        // Every notice gets its own work order unless staff said on screen that
+        // it belongs to the violation already open on the property (the HOA's
+        // second notice for the same problem, or the same letter uploaded
+        // again). This used to be decided here on its own — any open HOA work
+        // order on the property absorbed the upload — which swallowed a brand
+        // new violation on 5231 Shadow Breeze (2026-09-02): the notice landed
+        // in the old work order's documents, PropertyWare never saw a new
+        // work order, and the tenant was never told about the new problem.
+        $attachToId = $notice['attach_to_work_order_id'] ?? null;
+        $workOrder = null;
         $created = false;
         $pwCreated = false;
+
+        if ($attachToId !== null) {
+            $workOrder = $this->openViolationFor($building);
+
+            if ($workOrder === null || (int) $workOrder->id !== (int) $attachToId) {
+                throw new \RuntimeException(
+                    "Work order {$attachToId} is no longer the open HOA violation for this property; scan the notice again."
+                );
+            }
+        }
 
         if ($workOrder === null) {
             [$workOrder, $pwCreated] = $this->createWorkOrder($building, $description);
@@ -205,13 +226,17 @@ class HoaViolationIntakeService
     }
 
     /**
+     * The violation currently open on a property — the only work order a new
+     * notice may be attached to instead of getting its own. Shown to staff
+     * during review so they can say whether the notice is a follow-up to it.
+     *
      * Deliberately narrower than the hoaViolations() scope: only a work order
-     * this feature itself opened (it carries the HOA token) counts as the
-     * follow-up target. A work order merely categorized "HOA Violation" by hand
-     * shows on the HOA board, but adopting one here could attach a fresh notice
-     * to a stale or unrelated work order, so those still get their own.
+     * this feature itself opened (it carries the HOA token) counts. A work order
+     * merely categorized "HOA Violation" by hand shows on the HOA board, but
+     * offering it here could attach a fresh notice to a stale or unrelated work
+     * order, so those still get their own.
      */
-    private function findExistingOpenHoaWorkOrder(Building $building): ?WorkOrder
+    public function openViolationFor(Building $building): ?WorkOrder
     {
         return WorkOrder::query()
             ->where('building_id', $building->propertyware_id)

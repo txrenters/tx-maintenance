@@ -569,7 +569,32 @@ class HoaViolationIntakeTest extends TestCase
         ]));
     }
 
-    public function test_an_existing_open_hoa_work_order_is_reused_not_duplicated(): void
+    /**
+     * An HOA violation this feature is already chasing on the property: an
+     * open work order carrying the HOA token (HOA identity is the token, not
+     * the category), with the notice it came from.
+     */
+    private function openViolation(Building $building, string $noticeDate, int $number = 43749): WorkOrder
+    {
+        $workOrder = WorkOrder::factory()->create([
+            'building_id' => $building->propertyware_id,
+            'work_order_no' => $number,
+            'status' => 'Open',
+            'description' => "Bring the decorative planters into compliance.\n\nItems to correct:\n- Limit planters to 4 total\n\nNotice issued by: Cinco Ranch",
+        ]);
+
+        TenantUploadToken::create([
+            'token' => TenantUploadToken::generateUniqueToken(),
+            'work_order_id' => $workOrder->id,
+            'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
+            'hoa_notice_date' => $noticeDate,
+            'hoa_deadline_at' => Carbon::parse($noticeDate)->addWeekdays(5)->endOfDay(),
+        ]);
+
+        return $workOrder;
+    }
+
+    public function test_a_new_notice_on_a_property_with_an_open_violation_gets_its_own_work_order(): void
     {
         config(['services.hoa.pw_create_enabled' => false]);
         Storage::fake('public');
@@ -577,29 +602,149 @@ class HoaViolationIntakeTest extends TestCase
         $this->mockPropertyWare(null);
 
         $building = $this->building();
+        $existing = $this->openViolation($building, '2026-07-30');
 
-        $existing = WorkOrder::factory()->create([
-            'building_id' => $building->propertyware_id,
-            'status' => 'Open',
-        ]);
-        // HOA identity is the token, so the existing open HOA work order must
-        // carry one for the dedup to recognise it.
-        TenantUploadToken::create([
-            'token' => TenantUploadToken::generateUniqueToken(),
-            'work_order_id' => $existing->id,
-            'purpose' => TenantUploadToken::PURPOSE_HOA_VIOLATION,
-        ]);
+        $user = User::factory()->create();
+
+        // No attach_to_work_order_id: staff left the default, "new work order".
+        // A later letter about something else must not disappear into the
+        // violation already being chased — the 5231 Shadow Breeze courtesy
+        // notice of 2026-08-31 did exactly that (WO #43749, 2026-09-02): no
+        // PropertyWare work order, and the tenant never told.
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id, ['notice_date' => '2026-08-31'])],
+            ])->assertRedirect();
+
+        $this->assertSame(2, WorkOrder::query()->hoaViolations()->count());
+
+        $new = WorkOrder::query()->hoaViolations()->whereKeyNot($existing->id)->firstOrFail();
+        $this->assertStringContainsString('Trim the front lawn', $new->description);
+        $this->assertDatabaseHas('attachments', ['work_order_id' => $new->id, 'title' => 'HOA violation notice']);
+        $this->assertDatabaseMissing('attachments', ['work_order_id' => $existing->id]);
+
+        // The new violation runs its own tenant workflow.
+        $token = TenantUploadToken::query()->where('work_order_id', $new->id)->firstOrFail();
+        $this->assertSame('2026-08-31', $token->hoa_notice_date->toDateString());
+
+        // And the old one is untouched.
+        $this->assertSame(1, TenantUploadToken::query()->where('work_order_id', $existing->id)->count());
+        $this->assertStringContainsString('planters', $existing->fresh()->description);
+
+        // (PropertyWare creation is off in this test, so the message goes on
+        // to warn about the local-only work order — that part is covered by
+        // its own test above.)
+        $this->assertStringStartsWith('1 HOA violation work order created.', (string) session('success'));
+    }
+
+    public function test_a_notice_staff_marked_as_a_follow_up_attaches_to_the_open_violation(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $building = $this->building();
+        $existing = $this->openViolation($building, '2026-07-30');
 
         $user = User::factory()->create();
 
         $this->actingAs($user)
             ->post(route('work_orders.hoa.store'), [
                 'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
-                'notices' => [$this->notice($building->propertyware_id)],
+                'notices' => [$this->notice($building->propertyware_id, [
+                    'attach_to_work_order_id' => $existing->id,
+                ])],
             ])->assertRedirect();
 
         $this->assertSame(1, WorkOrder::query()->hoaViolations()->count());
-        $this->assertDatabaseHas('attachments', ['work_order_id' => $existing->id]);
+        $this->assertDatabaseHas('attachments', ['work_order_id' => $existing->id, 'title' => 'HOA violation notice']);
+
+        // One reminder cadence per violation: the open token is kept, and the
+        // description stays the violation's own.
+        $this->assertSame(1, TenantUploadToken::query()->where('work_order_id', $existing->id)->count());
+        $this->assertStringContainsString('planters', $existing->fresh()->description);
+
+        // Staff must never read "created" for a notice that made no work order.
+        $this->assertSame('1 notice attached to existing work order #43749.', session('success'));
+    }
+
+    public function test_attaching_to_a_work_order_that_is_no_longer_the_open_violation_fails_that_notice(): void
+    {
+        config(['services.hoa.pw_create_enabled' => false]);
+        Storage::fake('public');
+        Queue::fake();
+        $this->mockPropertyWare(null);
+
+        $building = $this->building();
+        $existing = $this->openViolation($building, '2026-07-30');
+
+        // Closed between the scan and the submit (or the id belongs to some
+        // other work order): nothing is created and nothing is attached, and
+        // the reason reaches the screen instead of a silent redirect.
+        $existing->update(['status' => 'Closed']);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('work_orders.hoa.store'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+                'notices' => [$this->notice($building->propertyware_id, [
+                    'attach_to_work_order_id' => $existing->id,
+                ])],
+            ])->assertSessionHasErrors('error');
+
+        $this->assertStringContainsString('no longer the open HOA violation', session('errors')->first('error'));
+        $this->assertSame(1, WorkOrder::withoutGlobalScopes()->hoaViolations()->count());
+        $this->assertDatabaseMissing('attachments', ['work_order_id' => $existing->id]);
+    }
+
+    public function test_detect_reports_the_violation_already_open_on_the_matched_property(): void
+    {
+        Storage::fake('public');
+        $building = $this->building(7001, '10107 Mariposa Green Ct');
+        $existing = $this->openViolation($building, '2026-07-30');
+
+        $this->stubExtractor([
+            [
+                'page' => 1,
+                'property_address' => '10107 Mariposa Green Ct',
+                'description' => 'Remove dead branches from the landscaping.',
+                'violation_items' => ['Dead branches in the front beds'],
+                'hoa_name' => 'Cinco Ranch',
+                'notice_date' => Carbon::parse('2026-08-31'),
+                'deadline_date' => null,
+                'deadline_days' => 30,
+                'source' => 'stub',
+            ],
+        ]);
+
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->postJson(route('work_orders.hoa.detect'), [
+                'file' => UploadedFile::fake()->create('notice.pdf', 200, 'application/pdf'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('notices.0.existing_work_order.id', $existing->id)
+            ->assertJsonPath('notices.0.existing_work_order.work_order_no', 43749)
+            ->assertJsonPath('notices.0.existing_work_order.notice_date', '2026-07-30')
+            ->assertJsonPath('notices.0.existing_work_order.summary', 'Limit planters to 4 total');
+
+        // The lookup staff hit when they change the property says the same…
+        $this->actingAs($user)
+            ->getJson(route('work_orders.hoa.contacts', ['building_id' => $building->propertyware_id]))
+            ->assertOk()
+            ->assertJsonPath('existing_work_order.id', $existing->id);
+
+        // …and a property with nothing open offers nothing to attach to.
+        $this->building(7002, '200 Elm St');
+
+        $this->actingAs($user)
+            ->getJson(route('work_orders.hoa.contacts', ['building_id' => 7002]))
+            ->assertOk()
+            ->assertJsonPath('existing_work_order', null);
     }
 
     public function test_detect_reads_notices_and_matches_the_property(): void

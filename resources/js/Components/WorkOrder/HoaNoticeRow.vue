@@ -70,9 +70,41 @@ const isMatched = computed(() => buildingId.value != null);
 // the initial match and is refetched whenever Carlo changes the property.
 const contacts = ref(props.notice.contacts ?? { tenant: null, owner: null });
 
+// The HOA violation already open on the selected property, if any (see
+// HoaViolationController::existingViolationFor). Staff decide whether this
+// notice is a follow-up to it or a new violation of its own.
+const existing = ref(props.notice.existing_work_order ?? null);
+
+// v-model:attachToWorkOrderId — null means "new work order"; the open
+// violation's id means "attach this notice to it".
+const attachToWorkOrderId = defineModel("attachToWorkOrderId", {
+    default: null,
+});
+
+// A notice dated the same day as the open violation's notice is that same
+// letter being uploaded again, so it files under the existing work order.
+// Anything else is a new violation until staff say otherwise — deciding
+// "follow-up" on our own is how a new notice on 5231 Shadow Breeze vanished
+// into the old work order (2026-09-02).
+const defaultAttachment = (open) =>
+    open && open.notice_date && open.notice_date === props.notice.notice_date
+        ? open.id
+        : null;
+
+attachToWorkOrderId.value = defaultAttachment(existing.value);
+
+const formatDate = (dateString) =>
+    new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+
 watch(buildingId, async (id, previous) => {
     if (id == null) {
         contacts.value = { tenant: null, owner: null };
+        existing.value = null;
+        attachToWorkOrderId.value = null;
         return;
     }
     // Skip the redundant fetch for the property the scan already resolved.
@@ -82,10 +114,17 @@ watch(buildingId, async (id, previous) => {
         const { data } = await axios.get(route("work_orders.hoa.contacts"), {
             params: { building_id: id },
         });
-        contacts.value = data;
+        contacts.value = {
+            tenant: data.tenant ?? null,
+            owner: data.owner ?? null,
+        };
+        existing.value = data.existing_work_order ?? null;
     } catch {
         contacts.value = { tenant: null, owner: null };
+        existing.value = null;
     }
+
+    attachToWorkOrderId.value = defaultAttachment(existing.value);
 });
 </script>
 
@@ -180,6 +219,55 @@ watch(buildingId, async (id, previous) => {
                     <Building2 class="h-3 w-3" /> Owner:
                     {{ contacts.owner ?? "—" }}
                 </span>
+            </div>
+
+            <!-- A violation is already open here: new work order, or a follow-up? -->
+            <div
+                v-if="isMatched && existing"
+                class="mt-2 rounded-md border border-amber-400/50 bg-amber-50 p-2 text-xs dark:bg-amber-950/30"
+                @click.stop
+            >
+                <p
+                    class="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"
+                >
+                    <TriangleAlert class="h-3 w-3" />
+                    This property already has an open HOA violation
+                </p>
+                <p class="mt-0.5 text-muted-foreground">
+                    WO #{{ existing.work_order_no ?? existing.id }}
+                    <span v-if="existing.notice_date">
+                        · notice dated {{ formatDate(existing.notice_date) }}
+                    </span>
+                    <span v-if="existing.state"> · {{ existing.state }}</span>
+                </p>
+                <p
+                    v-if="existing.summary"
+                    class="mt-0.5 line-clamp-2 text-muted-foreground"
+                    :title="existing.summary"
+                >
+                    {{ existing.summary }}
+                </p>
+                <div class="mt-1.5 flex flex-col gap-1 text-foreground">
+                    <label class="flex cursor-pointer items-center gap-1.5">
+                        <input
+                            v-model="attachToWorkOrderId"
+                            type="radio"
+                            :name="`hoa-attach-${index}`"
+                            :value="null"
+                        />
+                        New work order — this is a different violation
+                    </label>
+                    <label class="flex cursor-pointer items-center gap-1.5">
+                        <input
+                            v-model="attachToWorkOrderId"
+                            type="radio"
+                            :name="`hoa-attach-${index}`"
+                            :value="existing.id"
+                        />
+                        Attach to WO #{{ existing.work_order_no ?? existing.id }}
+                        — same violation, follow-up notice
+                    </label>
+                </div>
             </div>
         </div>
 

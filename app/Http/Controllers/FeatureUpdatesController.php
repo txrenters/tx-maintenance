@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-02',
             'area' => 'Work Orders',
+            'title' => 'A second HOA notice on a property gets its own work order',
+            'description' => 'Uploading an HOA notice for a property that already had an open HOA violation used to file the new notice under that old work order on its own - no new work order in PropertyWare, and the tenant never heard about the new problem. Now, when the property you confirm on the review screen already has an open HOA violation, the row says so - the work order number, the date of its notice, what it was about, and where the tenant stands with it - and asks which this is: "New work order - this is a different violation" (the default) or "Attach to WO #NNN - same violation, follow-up notice". A notice dated the same day as the open violation\'s is taken to be that same letter uploaded again and defaults to attaching. The confirmation message now says which happened: "1 HOA violation work order created" or "1 notice attached to existing work order #NNN".',
+        ],
+        [
+            'date' => '2026-09-02',
+            'area' => 'Work Orders',
             'title' => 'Deleting a note asks first',
             'description' => 'The red X on a work order note now opens a confirmation - "Delete this note?" - instead of deleting on the spot. The X only ever appears on notes that have not reached PropertyWare yet, which are exactly the ones nothing can bring back, so one stray click no longer costs a note.',
         ],
