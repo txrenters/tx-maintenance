@@ -118,10 +118,12 @@ class WorkOrderImportCommand extends Command
             $work_order_propertyware_id = $data['ID'] ?? null;
             $woc = $this->wocUser;
 
-            DB::table('work_order_categories')->updateOrInsert(
-                ['name' => $data['category']],
-                ['updated_at' => now()]
-            );
+            if (! empty($data['category'])) {
+                DB::table('work_order_categories')->updateOrInsert(
+                    ['name' => $data['category']],
+                    ['updated_at' => now()]
+                );
+            }
 
             $work_order_data = [
                 'client_data' => $data['clientData'] ?? null,
@@ -140,7 +142,7 @@ class WorkOrderImportCommand extends Command
                 'date_to_enter' => ! empty($data['dateToEnter']) ? Carbon::parse($data['dateToEnter'])->toDateString() : null,
                 'description' => $data['description'] ?? null,
                 'hour_estimate' => $data['hourEstimate'] ?? null,
-                'location' => $data['building']['portfolio'].' | '.$data['building']['abbreviation'],
+                'location' => ($data['building']['portfolio'] ?? '').' | '.($data['building']['abbreviation'] ?? ''),
                 'priority' => ! empty($data['priority']) ? $data['priority'] : false,
                 'priority_as_int' => $data['priorityAsInt'] ?? null,
                 'required_materials' => $data['requiredMaterials'] ?? null,
@@ -227,6 +229,15 @@ class WorkOrderImportCommand extends Command
                 ->first(['id', 'description', 'lease_id']);
             $previousDescription = $previousState?->description;
             $previousLeaseId = $previousState?->lease_id;
+
+            // service_status_id is NOT NULL: a payload without the "Service
+            // Status" custom field would otherwise fail the insert outright —
+            // and, since this lane only ever sees the newest pages, be retried
+            // every run until it aged out of them and was never imported at
+            // all. Same guard as WorkOrderService (the Import button path).
+            if ($previousState === null && ! isset($work_order_data['service_status_id'])) {
+                $work_order_data['service_status_id'] = DB::table('service_status')->where('name', 'New')->value('id') ?? 1;
+            }
 
             $savedWorkOrder = WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
