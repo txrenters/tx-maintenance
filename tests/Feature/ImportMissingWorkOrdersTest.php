@@ -508,6 +508,24 @@ class ImportMissingWorkOrdersTest extends TestCase
         $this->assertSame(0, $this->activities('missing_work_orders_imported'));
     }
 
+    public function test_a_number_already_held_under_another_propertyware_id_is_never_imported_again(): void
+    {
+        // Production already carries a few numbers twice; the backstop must
+        // not add to them when PropertyWare re-creates a work order under a
+        // new id.
+        WorkOrder::factory()->create(['propertyware_id' => 700001, 'work_order_no' => 44102]);
+        $this->fakePages([0 => [$this->restRecord(800002, 44102)]]);
+        $this->soapNeverCalled();
+
+        $this->sweep()
+            ->expectsOutputToContain('Number already local: 1')
+            ->expectsOutputToContain('Missing: 0')
+            ->assertSuccessful();
+
+        $this->assertDatabaseCount('work_orders', 1);
+        $this->assertDatabaseCount('activity_log', 0);
+    }
+
     public function test_the_service_parses_propertyware_date_shapes(): void
     {
         $this->assertSame('2026-02-22 01:00:00', PropertyWareService::parseDate('2026-02-22T01:00 AM')?->toDateTimeString());

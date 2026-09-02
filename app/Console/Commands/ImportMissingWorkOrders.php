@@ -111,6 +111,7 @@ class ImportMissingWorkOrders extends Command
             'not_in_soap' => [],
             'no_number' => [],
             'id_mismatch' => [],
+            'number_taken' => [],
             'pending' => 0,
             'soap_unreachable' => false,
             'duration_ms' => 0,
@@ -168,6 +169,16 @@ class ImportMissingWorkOrders extends Command
                 ->map(fn ($id) => (int) $id)
                 ->flip();
 
+            // A number we already hold under another PropertyWare id (the
+            // work order was deleted and re-created there, or an id drifted)
+            // must not be imported again: that would be a second row with
+            // the same number. Production already carries a few of those.
+            $localNumbers = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
+                ->whereIn('work_order_no', array_filter(array_map(fn (array $record) => (int) ($record['number'] ?? 0), $records)))
+                ->pluck('work_order_no')
+                ->map(fn ($number) => (int) $number)
+                ->flip();
+
             $oldestOnPage = null;
 
             foreach ($records as $pwId => $record) {
@@ -199,6 +210,13 @@ class ImportMissingWorkOrders extends Command
                 }
 
                 $number = (int) ($record['number'] ?? 0);
+
+                if ($number > 0 && $localNumbers->has($number)) {
+                    $summary['number_taken'][] = $number;
+
+                    continue;
+                }
+
                 $tier = $this->decideTier($record, $touched, $freshEdge);
 
                 $candidate = [
@@ -252,6 +270,12 @@ class ImportMissingWorkOrders extends Command
         }
 
         Log::info('import:missing-work-orders finished', $summary);
+
+        if ($summary['number_taken'] !== []) {
+            Log::warning('import:missing-work-orders skipped numbers already held under another PropertyWare id', [
+                'work_order_numbers' => $summary['number_taken'],
+            ]);
+        }
 
         $this->report($summary, $candidates, $dryRun);
 
@@ -507,6 +531,7 @@ class ImportMissingWorkOrders extends Command
         $this->info($prefix.'Not in SOAP: '.count($summary['not_in_soap']));
         $this->info($prefix.'No number: '.count($summary['no_number']));
         $this->info($prefix.'Mismatch: '.count($summary['id_mismatch']));
+        $this->info($prefix.'Number already local: '.count($summary['number_taken']));
         $this->info($prefix."Pending: {$summary['pending']}");
     }
 }
