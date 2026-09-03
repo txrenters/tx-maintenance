@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Scopes\WorkOrderScope;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderNotes;
 use App\Services\JobberTechnicianResolver;
 use App\Services\PropertyWareService;
 use App\Services\VendorPortalLinkService;
+use App\Services\WorkOrderNotePushService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -101,7 +103,50 @@ class WorkOrderNotesController extends Controller
         }
 
         if (! $pushed) {
-            return back()->with('warning', 'Note saved on the dashboard, but PropertyWare did not accept it. It stays here; IT can see the sync error in the log.');
+            return back()->with('warning', 'Note saved on the dashboard, but PropertyWare did not accept it. The app keeps retrying on its own; you can also use Send to PropertyWare now on the note. IT can see the reason in the log.');
+        }
+
+        return back();
+    }
+
+    /**
+     * Send a dashboard note to PropertyWare again, by hand.
+     *
+     * The scheduled re-push (notes:push-pending) covers this on its own; the
+     * link on the note is for the coordinator looking at it right now.
+     * PropertyWare is read first so a note that did arrive is linked rather
+     * than doubled, and nothing is sent while PropertyWare cannot be read.
+     */
+    public function push(WorkOrderNotes $note, WorkOrderNotePushService $pusher): RedirectResponse
+    {
+        if (! auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting'])) {
+            abort(403);
+        }
+
+        if ($note->user_id === null) {
+            return back()->with('warning', 'This note came from PropertyWare; there is nothing to send.');
+        }
+
+        if (! blank($note->propertyware_id)) {
+            return back()->with('warning', 'This note is already in PropertyWare.');
+        }
+
+        $workOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)->find($note->work_order_id);
+
+        if ($workOrder === null || blank($workOrder->propertyware_id)) {
+            return back()->with('warning', 'This work order is not in PropertyWare yet, so the note cannot be sent.');
+        }
+
+        if (! $pusher->reconcile($workOrder)) {
+            return back()->with('warning', 'PropertyWare could not be read just now, so the note was not sent. Try again in a few minutes; the app also retries on its own.');
+        }
+
+        if (! blank($note->fresh()->propertyware_id)) {
+            return back()->with('warning', 'PropertyWare already had this note. It is linked now.');
+        }
+
+        if (! $pusher->push($note)) {
+            return back()->with('warning', 'PropertyWare did not accept the note. It stays here and the app keeps retrying; IT can see the reason in the log.');
         }
 
         return back();

@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-03',
             'area' => 'Work Orders',
+            'title' => 'A note PropertyWare did not take is sent again on its own, and the note says so',
+            'description' => 'A note typed on the Notes tab is copied into PropertyWare\'s Notes & Docs (as Private) the moment it is saved - but only once. When PropertyWare could not be reached at that moment, or answered with an error page, the copy never happened and nothing tried again; the coordinator learned of it from the "Saved here only" message (or not at all - an error page from PropertyWare used to read as success) and retyped the note in PropertyWare by hand (WO #43649). Now such a note shows "Not in PropertyWare yet, the app keeps retrying" until it is there: the system re-sends it every ten minutes at first and less often as it ages, reading PropertyWare first so a note that did arrive is never doubled. The "Send to PropertyWare now" link on the note does the same on the spot. This covers the coordinators\' own entries such as Closing Comment as well as technician visit notes.',
+        ],
+        [
+            'date' => '2026-09-03',
+            'area' => 'Work Orders',
             'title' => 'Assigning a vendor no longer un-approves the work order in PropertyWare',
             'description' => 'Assigning or changing a vendor sent PropertyWare a copy of the work order without its Approval section, so PropertyWare dropped the approval: Approved went back to No and the approver, date and comment went blank (since 09-01 the comment survived, the rest still went). The re-approval the system attempted afterwards never took effect. Owners and coordinators were therefore asked to approve the same work order again, and again (WO #43819, three times). Now every vendor change reads the Approval section fresh from PropertyWare and sends it back exactly as it stands - approved, by whom, when, and the comment, curly quotes and accents included - and if PropertyWare cannot be read at that moment the vendor change is refused with a message rather than risk the approval. A comment that already shows "?" in PropertyWare was garbled on PropertyWare\'s side and has to be retyped there.',
         ],
