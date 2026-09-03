@@ -1260,6 +1260,31 @@ class PropertyWareService
     }
 
     /**
+     * The notes PropertyWare holds on a work order, by number.
+     *
+     * Null when PropertyWare cannot be read or does not know the number:
+     * callers must take that as "unknown", never as "no notes". An empty list
+     * when the work order is found but carries none — the reading the
+     * scheduled import gives a payload without a notes key. A lone note can
+     * arrive as one associative record; it is passed through untouched, as
+     * WorkOrderNoteSyncService knows that shape.
+     *
+     * @return array<int|string, mixed>|null
+     */
+    public function workOrderNotesFromPropertyWare(int|string $workOrderNo): ?array
+    {
+        $row = $this->soapWorkOrderRow($workOrderNo);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $notes = $row['notes'] ?? null;
+
+        return is_array($notes) ? $notes : [];
+    }
+
+    /**
      * Mirror a dashboard note to PropertyWare as a Private work order note.
      *
      * Private so tenants and owners never see internal notes on PropertyWare's
@@ -1324,6 +1349,7 @@ class PropertyWareService
                 'work_order_no' => $workOrder->work_order_no,
                 'note_id' => $note->id,
                 'error' => is_array($response) ? ($response['error'] ?? null) : null,
+                'http_code' => is_array($response) ? ($response['http_code'] ?? null) : null,
                 'message' => is_array($response) && is_string($response['message'] ?? null)
                     ? mb_substr($response['message'], 0, 500)
                     : null,
@@ -2130,23 +2156,39 @@ class PropertyWareService
         ]);
 
         $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlErrno = curl_errno($curl);
+        $curlError = curl_error($curl);
 
         // Log the request and response
         // Log::debug('SOAP Request:', ['payload' => $xmlPayload]);
         Log::debug('SOAP Response:', [
             'http_code' => $httpCode,
-            'curl_error' => curl_error($curl),
-            'curl_errno' => curl_errno($curl),
+            'curl_error' => $curlError,
+            'curl_errno' => $curlErrno,
         ]);
 
-        if (curl_errno($curl)) {
-            $errorNo = curl_errno($curl);
-            $errorMsg = curl_error($curl);
+        return $this->classifySoapResponse($response, $httpCode, $curlErrno, $curlError);
+    }
 
+    /**
+     * What PropertyWare's answer to a hand-built envelope means.
+     *
+     * A transport error, a SOAP fault (whatever its namespace prefix) or a
+     * status outside 2xx is a failure. The status check is what used to be
+     * missing: PropertyWare's edge answering 401/403/5xx or a maintenance
+     * page has no fault element, so it came back as success — for a work
+     * order note the dashboard then said "Success" while nothing had reached
+     * PropertyWare (WO #43649).
+     *
+     * @return array{success: bool, http_code: int, error?: string, message?: string, response?: string}
+     */
+    protected function classifySoapResponse(string|false $response, int $httpCode, int $curlErrno, string $curlError): array
+    {
+        if ($curlErrno !== 0) {
             Log::error('cURL Error Details:', [
-                'errno' => $errorNo,
-                'error' => $errorMsg,
+                'errno' => $curlErrno,
+                'error' => $curlError,
                 'http_code' => $httpCode,
                 'full_url' => $this->url,
             ]);
@@ -2154,25 +2196,43 @@ class PropertyWareService
             return [
                 'success' => false,
                 'error' => 'CURL_ERROR',
-                'message' => $errorMsg,
+                'http_code' => $httpCode,
+                'message' => $curlError,
             ];
         }
 
-        // Check for SOAP faults in the response
-        if (strpos($response, '<soapenv:Fault>') != false) {
-            $faultString = $this->extractFaultString($response);
+        $body = (string) $response;
+
+        if (preg_match('/<(?:[\w.-]+:)?Fault[\s>]/', $body) === 1) {
+            $faultString = $this->extractFaultString($body);
             Log::error('SOAP Fault: '.$faultString);
 
             return [
                 'success' => false,
                 'error' => 'SOAP_FAULT',
+                'http_code' => $httpCode,
                 'message' => $faultString,
+            ];
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            Log::error('PropertyWare answered the SOAP call with an HTTP error.', [
+                'http_code' => $httpCode,
+                'body' => mb_substr($body, 0, 500),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'HTTP_ERROR',
+                'http_code' => $httpCode,
+                'message' => 'HTTP '.$httpCode.': '.mb_substr($body, 0, 500),
             ];
         }
 
         return [
             'success' => true,
-            'response' => $response,
+            'http_code' => $httpCode,
+            'response' => $body,
         ];
     }
 

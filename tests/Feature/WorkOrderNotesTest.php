@@ -374,4 +374,136 @@ class WorkOrderNotesTest extends TestCase
             ->assertJsonPath('notes.0.date', null)
             ->assertJsonPath('notes.0.added_at', '2026-08-28T14:55:00.000000Z');
     }
+
+    public function test_coordinator_can_send_an_unpushed_note_to_propertyware_by_hand(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505, 'work_order_no' => 43649]);
+        $note = $this->note($workOrder, ['user_id' => $woc->id, 'subject' => 'Closing Comment', 'body' => 'Invoice uploaded.']);
+
+        $this->mock(PropertyWareService::class, function ($mock) use ($note) {
+            // PropertyWare is read first; it has nothing, so the note is sent.
+            $mock->shouldReceive('workOrderNotesFromPropertyWare')->once()
+                ->withArgs(fn ($number) => (string) $number === '43649')
+                ->andReturn([]);
+            $mock->shouldReceive('addVendorNotes')->once()
+                ->withArgs(fn (WorkOrderNotes $pushed) => $pushed->id === $note->id)
+                ->andReturnUsing(function (WorkOrderNotes $pushed): bool {
+                    $pushed->forceFill(['propertyware_id' => 8001])->saveQuietly();
+
+                    return true;
+                });
+        });
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertRedirect()
+            ->assertSessionMissing('warning');
+
+        $this->assertSame('8001', (string) $note->fresh()->propertyware_id);
+    }
+
+    public function test_a_note_propertyware_already_has_is_linked_instead_of_sent_twice(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505, 'work_order_no' => 43649]);
+        $note = $this->note($workOrder, ['user_id' => $woc->id, 'subject' => 'Closing Comment', 'body' => "Invoice uploaded.\nThanks."]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            // The first push did land (its id was unreadable): same text, PropertyWare's id.
+            $mock->shouldReceive('workOrderNotesFromPropertyWare')->once()->andReturn([
+                ['ID' => 8002, 'subject' => 'Closing Comment', 'body' => "Invoice uploaded.\r\nThanks.", 'private' => true, 'date' => '2026-09-02T21:46:00'],
+            ]);
+            $mock->shouldNotReceive('addVendorNotes');
+        });
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertRedirect()
+            ->assertSessionHas('warning', fn (string $warning) => str_contains($warning, 'already had this note'));
+
+        $this->assertSame('8002', (string) $note->fresh()->propertyware_id);
+        $this->assertDatabaseCount('work_order_notes', 1);
+    }
+
+    public function test_nothing_is_sent_while_propertyware_cannot_be_read(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505, 'work_order_no' => 43649]);
+        $note = $this->note($workOrder, ['user_id' => $woc->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('workOrderNotesFromPropertyWare')->once()->andReturn(null);
+            $mock->shouldNotReceive('addVendorNotes');
+        });
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertRedirect()
+            ->assertSessionHas('warning', fn (string $warning) => str_contains($warning, 'could not be read'));
+
+        $this->assertNull($note->fresh()->propertyware_id);
+    }
+
+    public function test_a_refused_resend_keeps_the_note_and_says_so(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505, 'work_order_no' => 43649]);
+        $note = $this->note($workOrder, ['user_id' => $woc->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('workOrderNotesFromPropertyWare')->once()->andReturn([]);
+            $mock->shouldReceive('addVendorNotes')->once()->andReturn(false);
+        });
+
+        $this->actingAs($woc)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertRedirect()
+            ->assertSessionHas('warning', fn (string $warning) => str_contains($warning, 'did not accept'));
+
+        $this->assertDatabaseHas('work_order_notes', ['id' => $note->id, 'propertyware_id' => null]);
+    }
+
+    public function test_notes_that_need_no_sending_are_refused_without_calling_propertyware(): void
+    {
+        $woc = $this->makeWoc();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $fromPropertyWare = $this->note($workOrder, ['propertyware_id' => 901]);
+        $alreadyLinked = $this->note($workOrder, ['user_id' => $woc->id, 'propertyware_id' => 902]);
+        $noPropertyWareWorkOrder = $this->note(WorkOrder::factory()->create(['propertyware_id' => null]), ['user_id' => $woc->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldNotReceive('workOrderNotesFromPropertyWare', 'addVendorNotes');
+        });
+
+        foreach ([$fromPropertyWare, $alreadyLinked, $noPropertyWareWorkOrder] as $note) {
+            $this->actingAs($woc)
+                ->post(route('api.work_order_notes.push', $note))
+                ->assertRedirect()
+                ->assertSessionHas('warning');
+        }
+    }
+
+    public function test_only_staff_can_resend_a_note(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $workOrder->vendors()->attach($vendor->id);
+        $note = $this->note($workOrder, ['user_id' => $vendorUser->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldNotReceive('workOrderNotesFromPropertyWare', 'addVendorNotes');
+        });
+
+        $this->actingAs($vendorUser)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertForbidden();
+
+        $tenantUser = User::factory()->create();
+        $tenantUser->assignRole('tenant');
+
+        $this->actingAs($tenantUser)
+            ->post(route('api.work_order_notes.push', $note))
+            ->assertForbidden();
+    }
 }

@@ -122,4 +122,107 @@ class PropertyWareAddVendorNoteTest extends TestCase
         $this->assertTrue($service->addVendorNotes($note));
         $this->assertNull($note->fresh()->propertyware_id);
     }
+
+    public function test_an_http_error_page_is_reported_as_failure_and_no_id_is_stamped(): void
+    {
+        $note = $this->note();
+
+        $service = $this->serviceWithExecuteReturning([
+            'success' => false,
+            'error' => 'HTTP_ERROR',
+            'http_code' => 503,
+            'message' => 'HTTP 503: <html><body>Service Unavailable</body></html>',
+        ]);
+
+        $this->assertFalse($service->addVendorNotes($note));
+        $this->assertNull($note->fresh()->propertyware_id);
+    }
+
+    /**
+     * The transport's verdict on an answer, without curl.
+     */
+    private function classifier(): PropertyWareService
+    {
+        return new class extends PropertyWareService
+        {
+            /**
+             * @return array{success: bool, http_code: int, error?: string, message?: string, response?: string}
+             */
+            public function classify(string|false $body, int $httpCode, int $curlErrno = 0, string $curlError = ''): array
+            {
+                return $this->classifySoapResponse($body, $httpCode, $curlErrno, $curlError);
+            }
+        };
+    }
+
+    public function test_an_error_page_without_a_fault_element_is_not_a_success(): void
+    {
+        $result = $this->classifier()->classify('<html><body><h1>503 Service Unavailable</h1></body></html>', 503);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('HTTP_ERROR', $result['error']);
+        $this->assertSame(503, $result['http_code']);
+        $this->assertStringContainsString('503 Service Unavailable', $result['message']);
+        $this->assertArrayNotHasKey('response', $result);
+    }
+
+    public function test_a_fault_is_recognised_whatever_its_namespace_prefix(): void
+    {
+        foreach (['soapenv:Fault', 'soap:Fault', 'SOAP-ENV:Fault', 'Fault'] as $tag) {
+            $result = $this->classifier()->classify("<soapenv:Body><{$tag}><faultstring>Bad note</faultstring></{$tag}></soapenv:Body>", 500);
+
+            $this->assertFalse($result['success'], $tag);
+            $this->assertSame('SOAP_FAULT', $result['error'], $tag);
+            $this->assertSame(500, $result['http_code'], $tag);
+            $this->assertStringContainsString('Bad note', $result['message'], $tag);
+        }
+    }
+
+    public function test_a_transport_error_is_reported_before_anything_else(): void
+    {
+        $result = $this->classifier()->classify(false, 0, 6, 'Could not resolve host: app.propertyware.com');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('CURL_ERROR', $result['error']);
+        $this->assertSame(0, $result['http_code']);
+        $this->assertSame('Could not resolve host: app.propertyware.com', $result['message']);
+    }
+
+    public function test_a_normal_answer_is_a_success_that_carries_its_status(): void
+    {
+        $result = $this->classifier()->classify('<soapenv:Envelope><soapenv:Body><ns1:attachNoteToWorkOrderResponse/></soapenv:Body></soapenv:Envelope>', 200);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(200, $result['http_code']);
+        $this->assertStringContainsString('attachNoteToWorkOrderResponse', $result['response']);
+    }
+
+    public function test_notes_reader_answers_unknown_when_propertyware_cannot_be_read_or_finds_another_number(): void
+    {
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn('Error: SOAP-ERROR: Parsing WSDL');
+        $this->assertNull($service->workOrderNotesFromPropertyWare(43649));
+
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn([['number' => 43650, 'notes' => [['ID' => 1]]]]);
+        $this->assertNull($service->workOrderNotesFromPropertyWare(43649));
+
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn([]);
+        $this->assertNull($service->workOrderNotesFromPropertyWare(43649));
+    }
+
+    public function test_notes_reader_returns_the_work_orders_notes_or_an_empty_list(): void
+    {
+        // A lone row decodes as one associative record, and one with no notes
+        // key means no notes.
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn(['number' => '43649', 'description' => 'Tree branch']);
+        $this->assertSame([], $service->workOrderNotesFromPropertyWare(43649));
+
+        $notes = [['ID' => 8001, 'subject' => 'Closing Comment', 'body' => 'Invoice uploaded.', 'private' => true]];
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn([['number' => 43649, 'notes' => $notes]]);
+        $this->assertSame($notes, $service->workOrderNotesFromPropertyWare('43649'));
+    }
 }

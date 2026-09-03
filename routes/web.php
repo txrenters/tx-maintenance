@@ -309,6 +309,7 @@ Route::middleware([
     Route::get('/notes/{workOrder}/show', [WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
     Route::post('/notes', [WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');
     Route::delete('/notes/{note}/', [WorkOrderNotesController::class, 'destroy'])->name('api.work_order_notes.destroy');
+    Route::post('/notes/{note}/push', [WorkOrderNotesController::class, 'push'])->name('api.work_order_notes.push');
 
     Route::post('/vendor_work_order_details', [VendorNotesController::class, 'update'])->name('api.vendor_work_order_details.update');
 

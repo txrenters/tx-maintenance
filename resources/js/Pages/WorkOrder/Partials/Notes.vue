@@ -1,11 +1,12 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import { Loader2, Camera, File, FileText, Plus, X } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 
 const { toast } = useToast();
+const page = usePage();
 
 const props = defineProps({
     workOrderNotes: Object,
@@ -111,6 +112,60 @@ const confirmDeleteNote = () => {
     );
 };
 
+// Staff see where a dashboard note stands with PropertyWare and can re-send
+// it; vendors keep the plain view.
+const isStaff = computed(() =>
+    ["admin", "woc", "accounting"].some((role) =>
+        page.props.auth.user.roles.includes(role)
+    )
+);
+
+// A dashboard note with no PropertyWare id is one PropertyWare has not taken
+// yet (the save's push failed, or its answer could not be read). The app
+// re-sends it on a schedule; this is the same send, on the spot.
+const isPendingInPropertyWare = (note) =>
+    isStaff.value && !!note.user_id && !note.propertyware_id;
+
+const pushingNoteId = ref(null);
+
+const pushNote = (noteId) => {
+    pushingNoteId.value = noteId;
+    router.post(
+        route("api.work_order_notes.push", noteId),
+        {},
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: (page) => {
+                // The server reads PropertyWare first, so "not sent" can also
+                // mean the note was already there and is now linked.
+                const warning = page?.props?.flash?.warning;
+                toast(
+                    warning
+                        ? { title: "Not sent", description: warning }
+                        : {
+                              title: "Sent to PropertyWare",
+                              description:
+                                  "The note is now in PropertyWare's Notes & Docs.",
+                          }
+                );
+                handleFetchNotes();
+            },
+            onError: () => {
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description:
+                        "There was a problem with your request. Please try again!",
+                });
+            },
+            onFinish: () => {
+                pushingNoteId.value = null;
+            },
+        }
+    );
+};
+
 const TIMEZONE = "America/Chicago";
 
 // added_at is when the note was written: PropertyWare's own note date for a
@@ -198,6 +253,24 @@ const handleFetchNotes = () => {
                         <p class="text-xs">
                             Added: {{ formatAddedAt(note) }} &middot;
                             {{ noteAuthor(note) }}
+                        </p>
+                        <p
+                            v-if="isPendingInPropertyWare(note)"
+                            class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-amber-700 dark:text-amber-400"
+                        >
+                            <span>Not in PropertyWare yet, the app keeps retrying.</span>
+                            <button
+                                type="button"
+                                class="font-medium underline disabled:opacity-50"
+                                :disabled="pushingNoteId === note.id"
+                                @click.stop="pushNote(note.id)"
+                            >
+                                {{
+                                    pushingNoteId === note.id
+                                        ? "Sending..."
+                                        : "Send to PropertyWare now"
+                                }}
+                            </button>
                         </p>
                     </div>
                 </div>

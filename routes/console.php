@@ -20,6 +20,15 @@ Schedule::command('import:work-orders')
     ->withoutOverlapping(15)
     ->runInBackground();
 
+// Schedule 1b — dashboard notes PropertyWare did not take on the first try.
+// Four minutes after each fast-lane run, so a note that did arrive has been
+// linked by the import before it could be sent twice. One SOAP read per
+// work order with pending notes, then one push per note; quiet otherwise.
+Schedule::command('notes:push-pending')
+    ->cron('4-59/10 * * * *')
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
 // Schedule 2 — bulk sync: status/category/vendors for the wider (~5000) set
 // via REST. Independent of the fast lane.
 Schedule::command('update:work-orders-status')
