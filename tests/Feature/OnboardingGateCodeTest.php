@@ -13,13 +13,15 @@ use Tests\TestCase;
 
 /**
  * The owner onboarding form must capture whether the property is gated (with
- * the gate code), whether it has a sprinkler system (with its details) and
- * what kind of fireplace it has, and forward the PropertyWare values
- * untouched - the gate answer to the "Gated Community? Gate Code?" text
- * field, the sprinkler Yes/No to the "Yard Features" picklist and the
- * fireplace choice to the "Fireplace" text field - so a vendor is never sent
- * to a gate without a code, and the utility companies and tenant know about
- * the sprinklers and the fireplace.
+ * the gate code), whether it has a sprinkler system (with its details), what
+ * kind of fireplace it has and which utilities the HOA handles, and forward
+ * the PropertyWare values untouched - the gate answer to the "Gated
+ * Community? Gate Code?" text field, the sprinkler Yes/No to the "Yard
+ * Features" picklist, the fireplace choice to the "Fireplace" text field and
+ * the HOA utilities list (or "None") to the "Utilities Handled by HOA" text
+ * field - so a vendor is never sent to a gate without a code, and the utility
+ * companies, the listing and the tenant know about the sprinklers, the
+ * fireplace and the HOA utilities.
  */
 class OnboardingGateCodeTest extends TestCase
 {
@@ -32,6 +34,8 @@ class OnboardingGateCodeTest extends TestCase
     private const SPRINKLER_FIELD = 'Yard Features';
 
     private const FIREPLACE_FIELD = 'Fireplace';
+
+    private const HOA_UTILITIES_FIELD = 'Utilities Handled by HOA';
 
     private const ENDPOINT = '/api/buildings/'.self::BUILDING_ID.'/update-custom-fields';
 
@@ -53,7 +57,7 @@ class OnboardingGateCodeTest extends TestCase
         $this->postJson(self::ENDPOINT, $this->validPayload())
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('updated_fields', [self::GATE_FIELD, self::SPRINKLER_FIELD, self::FIREPLACE_FIELD]);
+            ->assertJsonPath('updated_fields', [self::GATE_FIELD, self::SPRINKLER_FIELD, self::FIREPLACE_FIELD, self::HOA_UTILITIES_FIELD]);
 
         Http::assertSent(function (Request $request) {
             if (! $this->isCustomFieldsPut($request)) {
@@ -225,6 +229,137 @@ class OnboardingGateCodeTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_hoa_utilities_list_reaches_propertyware_unchanged(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['utilitiesHandledByHoa' => true, 'hoaUtilities' => 'Water, Trash'],
+            [['name' => self::HOA_UTILITIES_FIELD, 'value' => 'Water, Trash']],
+        ))
+            ->assertOk()
+            ->assertJsonPath('updated_fields', [self::HOA_UTILITIES_FIELD]);
+
+        Http::assertSent(function (Request $request) {
+            if (! $this->isCustomFieldsPut($request)) {
+                return false;
+            }
+
+            $fields = collect($request->data()['fieldSetDTOS']);
+
+            $this->assertSame('Water, Trash', $fields->firstWhere('name', self::HOA_UTILITIES_FIELD)['value']);
+
+            return true;
+        });
+
+        Bus::assertDispatched(GenerateOnboardingPdfJob::class, function (GenerateOnboardingPdfJob $job) {
+            return ($job->formData['utilitiesHandledByHoa'] ?? null) === true
+                && ($job->formData['hoaUtilities'] ?? null) === 'Water, Trash';
+        });
+    }
+
+    public function test_no_hoa_utilities_is_written_to_propertyware_as_none(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['utilitiesHandledByHoa' => false, 'hoaUtilities' => ''],
+            [['name' => self::HOA_UTILITIES_FIELD, 'value' => 'None']],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::HOA_UTILITIES_FIELD && $field['value'] === 'None'
+            ));
+    }
+
+    public function test_hoa_utilities_ticked_without_a_list_is_rejected(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(['utilitiesHandledByHoa' => true, 'hoaUtilities' => '']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'formData.hoaUtilities' => 'Please list the utilities the HOA handles.',
+            ]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_missing_hoa_utilities_answer_is_rejected_with_a_friendly_message(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(['utilitiesHandledByHoa' => null, 'hoaUtilities' => '']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'formData.utilitiesHandledByHoa' => 'Please tell us whether the HOA handles any utilities.',
+            ]);
+
+        $this->postJson(self::ENDPOINT, $this->validPayload(['utilitiesHandledByHoa' => 'Yes', 'hoaUtilities' => 'Water']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'formData.utilitiesHandledByHoa' => 'Please tell us whether the HOA handles any utilities.',
+            ]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_pasted_punctuation_in_the_hoa_utilities_list_is_flattened_for_propertyware(): void
+    {
+        $pasted = "Water \u{2013} Trash \u{201C}sewer\u{201D}";
+
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['utilitiesHandledByHoa' => true, 'hoaUtilities' => $pasted],
+            [['name' => self::HOA_UTILITIES_FIELD, 'value' => $pasted]],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::HOA_UTILITIES_FIELD && $field['value'] === 'Water - Trash "sewer"'
+            ));
+    }
+
+    public function test_hoa_utilities_listed_one_per_line_keep_their_line_breaks_for_propertyware(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['utilitiesHandledByHoa' => true, 'hoaUtilities' => "Water\nTrash\nSewer"],
+            [['name' => self::HOA_UTILITIES_FIELD, 'value' => "Water\nTrash\nSewer"]],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::HOA_UTILITIES_FIELD && $field['value'] === "Water\nTrash\nSewer"
+            ));
+    }
+
+    public function test_onboarding_pdf_prints_the_hoa_utilities(): void
+    {
+        $html = $this->renderOnboardingPdf([
+            'utilitiesHandledByHoa' => true,
+            'hoaUtilities' => 'Water, Trash',
+        ]);
+
+        $this->assertMatchesRegularExpression('#<td>Utilities Handled by HOA</td>\s*<td>Yes</td>#', $html);
+        $this->assertMatchesRegularExpression('#<td>HOA-Covered Utilities</td>\s*<td>Water, Trash</td>#', $html);
+    }
+
+    public function test_onboarding_pdf_prints_hoa_utilities_listed_one_per_line_on_separate_lines(): void
+    {
+        $html = $this->renderOnboardingPdf([
+            'utilitiesHandledByHoa' => true,
+            'hoaUtilities' => "Water\nTrash & recycling\n<b>Sewer</b>",
+        ]);
+
+        $this->assertMatchesRegularExpression(
+            '#<td>HOA-Covered Utilities</td>\s*<td>Water<br />\s*Trash &amp; recycling<br />\s*&lt;b&gt;Sewer&lt;/b&gt;</td>#',
+            $html,
+        );
+    }
+
+    public function test_onboarding_pdf_omits_the_hoa_utilities_list_when_there_are_none(): void
+    {
+        $html = $this->renderOnboardingPdf([
+            'utilitiesHandledByHoa' => false,
+            'hoaUtilities' => '',
+        ]);
+
+        $this->assertMatchesRegularExpression('#<td>Utilities Handled by HOA</td>\s*<td>No</td>#', $html);
+        $this->assertStringNotContainsString('<td>HOA-Covered Utilities</td>', $html);
+    }
+
     public function test_onboarding_pdf_prints_the_gate_code_and_sprinkler_details(): void
     {
         $html = $this->renderOnboardingPdf([
@@ -331,6 +466,9 @@ class OnboardingGateCodeTest extends TestCase
             'sprinklerSystem' => 'Yes',
             'sprinklerControllerLocation' => 'Garage wall',
             'sprinklerNotes' => 'Waters Mon/Thu 5am, separate irrigation meter',
+            // Utilities handled by the HOA
+            'utilitiesHandledByHoa' => true,
+            'hoaUtilities' => 'Water, Trash',
             // Fireplace
             'fireplace' => 'Gas Connections',
             // Pets (read by updatePetFields)
@@ -387,6 +525,7 @@ class OnboardingGateCodeTest extends TestCase
                     ['name' => self::GATE_FIELD, 'value' => 'Yes - Gate code: #4321'],
                     ['name' => self::SPRINKLER_FIELD, 'value' => 'Sprinkler System'],
                     ['name' => self::FIREPLACE_FIELD, 'value' => 'Gas Connections'],
+                    ['name' => self::HOA_UTILITIES_FIELD, 'value' => 'Water, Trash'],
                 ],
             ],
             'formData' => $this->validFormData($formOverrides),

@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-03',
+            'area' => 'Owners',
+            'title' => 'New owners can tell us which utilities the HOA handles',
+            'description' => 'The management onboarding form for new owners has a new part under Utilities & Services in Amenities & Features: a "Some utilities are handled by the HOA" box, and when it is ticked a required box to list them (water, trash, sewer and so on, one per line if they like). The listing agents asked for this so the listing and the tenant show the right utilities. The list is saved to the property\'s "Utilities Handled by HOA" field in PropertyWare exactly as typed, or "None" when the box is left unticked, so it shows in the maintenance details on the Building page and on the work order Details tab, and it is printed in the Utilities & Services table of the onboarding PDF. When an owner who already answered opens the form again, the box and the list are pre-filled from PropertyWare.',
+        ],
+        [
+            'date' => '2026-09-03',
             'area' => 'Work Orders',
             'title' => 'A note PropertyWare did not take is sent again on its own, and the note says so',
             'description' => 'A note typed on the Notes tab is copied into PropertyWare\'s Notes & Docs (as Private) the moment it is saved - but only once. When PropertyWare could not be reached at that moment, or answered with an error page, the copy never happened and nothing tried again; the coordinator learned of it from the "Saved here only" message (or not at all - an error page from PropertyWare used to read as success) and retyped the note in PropertyWare by hand (WO #43649). Now such a note shows "Not in PropertyWare yet, the app keeps retrying" until it is there: the system re-sends it every ten minutes at first and less often as it ages, reading PropertyWare first so a note that did arrive is never doubled. The "Send to PropertyWare now" link on the note does the same on the spot. This covers the coordinators\' own entries such as Closing Comment as well as technician visit notes.',
