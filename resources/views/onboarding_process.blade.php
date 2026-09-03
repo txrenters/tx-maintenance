@@ -1021,6 +1021,16 @@
                         <td>{{ $formData['recyclePickupDays'] }}</td>
                     </tr>
                 @endif
+                <tr>
+                    <td>Utilities Handled by HOA</td>
+                    <td>{{ !empty($formData['utilitiesHandledByHoa']) ? 'Yes' : 'No' }}</td>
+                </tr>
+                @if (!empty($formData['utilitiesHandledByHoa']))
+                    <tr>
+                        <td>HOA-Covered Utilities</td>
+                        <td>{{ !empty($formData['hoaUtilities']) ? $formData['hoaUtilities'] : 'Not provided' }}</td>
+                    </tr>
+                @endif
             </tbody>
         </table>
 

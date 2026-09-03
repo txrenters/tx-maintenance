@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-03',
+            'area' => 'Owners',
+            'title' => 'New owners can tell us which utilities the HOA handles',
+            'description' => 'The management onboarding form for new owners has a new part under Utilities & Services in Amenities & Features: a "Some utilities are handled by the HOA" box, and when it is ticked a required box to list them (water, trash, sewer and so on). The listing agents asked for this so the listing and the tenant show the right utilities. The list is saved to the property\'s "Utilities Handled by HOA" field in PropertyWare exactly as typed, or "None" when the box is left unticked, so it shows in the maintenance details on the Building page and on the work order Details tab, and it is printed in the Utilities & Services table of the onboarding PDF. When an owner who already answered opens the form again, the box and the list are pre-filled from PropertyWare.',
+        ],
+        [
+            'date' => '2026-09-03',
             'area' => 'Work Orders',
             'title' => 'Assigning a vendor no longer un-approves the work order in PropertyWare',
             'description' => 'Assigning or changing a vendor sent PropertyWare a copy of the work order without its Approval section, so PropertyWare dropped the approval: Approved went back to No and the approver, date and comment went blank (since 09-01 the comment survived, the rest still went). The re-approval the system attempted afterwards never took effect. Owners and coordinators were therefore asked to approve the same work order again, and again (WO #43819, three times). Now every vendor change reads the Approval section fresh from PropertyWare and sends it back exactly as it stands - approved, by whom, when, and the comment, curly quotes and accents included - and if PropertyWare cannot be read at that moment the vendor change is refused with a message rather than risk the approval. A comment that already shows "?" in PropertyWare was garbled on PropertyWare\'s side and has to be retyped there.',

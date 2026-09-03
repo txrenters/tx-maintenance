@@ -165,6 +165,14 @@ const validateAmenities = () => {
         );
     }
 
+    // Utilities handled by the HOA
+    if (
+        form.value.utilitiesHandledByHoa === true &&
+        (!form.value.hoaUtilities || form.value.hoaUtilities.trim() === "")
+    ) {
+        errors.push("Please list the utilities the HOA handles");
+    }
+
     // Fireplace
     if (!form.value.fireplace || form.value.fireplace.trim() === "") {
         errors.push("Fireplace selection is required");
@@ -898,6 +906,54 @@ const markSectionCompleted = (value) => {
                                 v-model="form.trashPickupDays"
                                 placeholder="e.g. Monday, Thursday"
                             />
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-sm font-semibold">
+                            Utilities Handled by HOA
+                        </h4>
+                        <p class="text-sm text-gray-500">
+                            Some HOAs include water, trash or other utilities
+                            in their dues. Tick the box if yours does and list
+                            them, so the listing and your tenant show the
+                            right utilities.
+                        </p>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="flex items-center gap-2 md:col-span-2">
+                                <Checkbox
+                                    id="utilitiesHandledByHoa"
+                                    :checked="form.utilitiesHandledByHoa"
+                                    @update:checked="
+                                        (checked) =>
+                                            (form.utilitiesHandledByHoa =
+                                                checked === true)
+                                    "
+                                />
+                                <label
+                                    for="utilitiesHandledByHoa"
+                                    class="text-sm font-medium"
+                                    >Some utilities are handled by the
+                                    HOA</label
+                                >
+                            </div>
+
+                            <div
+                                class="space-y-2 md:col-span-2"
+                                v-if="form.utilitiesHandledByHoa"
+                            >
+                                <label class="text-sm font-medium"
+                                    >Which utilities does the HOA handle?
+                                    <span class="text-red-600">*</span>
+                                    <span class="text-xs text-gray-500"
+                                        >(Required)</span
+                                    >
+                                </label>
+                                <Input
+                                    v-model="form.hoaUtilities"
+                                    placeholder="e.g. Water, Trash, Sewer"
+                                />
+                            </div>
                         </div>
                     </div>
 

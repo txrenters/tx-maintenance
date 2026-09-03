@@ -150,6 +150,9 @@ const form = useForm({
     trashProvider: "",
     trashPickupDays: "",
     recyclePickupDays: "",
+    //Utilities handled by the HOA
+    utilitiesHandledByHoa: false,
+    hoaUtilities: "",
     //Sprinkler / Irrigation System
     sprinklerSystem: "",
     sprinklerControllerLocation: "",
@@ -639,6 +642,8 @@ const FORM_FIELD_TO_CUSTOM_FIELD_MAPPING = {
     // Utilities
     // Sprinkler - handled by buildSprinklerSystemValue()/parseSprinklerSystemCustomField()
     // because "Yard Features" is a picklist with its own option values
+    // HOA utilities - handled by buildHoaUtilitiesValue()/parseHoaUtilitiesCustomField()
+    // because the checkbox and the list share the "Utilities Handled by HOA" field
     waterProvider: "Water Provider",
     gasProvider: "Gas Provider",
     trashProvider: "Trash Provider",
@@ -985,6 +990,72 @@ const parseFireplaceCustomField = () => {
     form.fireplace = parsed;
 };
 
+// The HOA utilities answer goes to the Propertyware "Utilities Handled by HOA"
+// custom field, a plain text field: the list the owner typed is written as-is
+// when the box is ticked, "None" when it is not. An empty value (the field's
+// default), "Not Completed" or "Not Provided" pre-fills nothing.
+const HOA_UTILITIES_CUSTOM_FIELD = "Utilities Handled by HOA";
+const HOA_UTILITIES_NONE_VALUE = "None";
+// "None", "No", "N/A" - however staff or an earlier owner said "nothing"
+const HOA_UTILITIES_NONE_PATTERN = /^(none|no|n\/?a)\b/i;
+// Propertyware's other placeholder for a field nobody has filled in
+const NOT_PROVIDED_PATTERN = /^not provided\b/i;
+
+/**
+ * Build the "Utilities Handled by HOA" value.
+ *
+ * @return {?string} The list, "None", or null when the box is ticked but the list is empty
+ */
+const buildHoaUtilitiesValue = () => {
+    if (form.utilitiesHandledByHoa !== true) {
+        return HOA_UTILITIES_NONE_VALUE;
+    }
+
+    const utilities = String(form.hoaUtilities ?? "").trim();
+
+    return utilities === "" ? null : utilities;
+};
+
+/**
+ * Split a raw "Utilities Handled by HOA" value into the checkbox and the list.
+ *
+ * @param {?string} rawValue
+ * @return {?{utilitiesHandledByHoa: boolean, hoaUtilities: string}} null when there is nothing to pre-fill
+ */
+const parseHoaUtilitiesValue = (rawValue) => {
+    const value = String(rawValue ?? "").trim();
+
+    if (
+        value === "" ||
+        NOT_COMPLETED_PATTERN.test(value) ||
+        NOT_PROVIDED_PATTERN.test(value)
+    ) {
+        return null;
+    }
+
+    if (HOA_UTILITIES_NONE_PATTERN.test(value)) {
+        return { utilitiesHandledByHoa: false, hoaUtilities: "" };
+    }
+
+    return { utilitiesHandledByHoa: true, hoaUtilities: value };
+};
+
+/**
+ * Populate the HOA utilities checkbox and list from the custom field.
+ */
+const parseHoaUtilitiesCustomField = () => {
+    const parsed = parseHoaUtilitiesValue(
+        customFieldsMap.value[HOA_UTILITIES_CUSTOM_FIELD]?.value,
+    );
+
+    if (!parsed) {
+        return;
+    }
+
+    form.utilitiesHandledByHoa = parsed.utilitiesHandledByHoa;
+    form.hoaUtilities = parsed.hoaUtilities;
+};
+
 // Store for custom field IDs (add this after your reactive declarations)
 const customFieldsMap = ref({});
 const customFieldsData = ref([]);
@@ -1163,6 +1234,9 @@ const populateFormFromCustomFields = () => {
 
     // Fireplace type comes from the "Fireplace" text field
     parseFireplaceCustomField();
+
+    // HOA utilities checkbox + list come from the "Utilities Handled by HOA" text field
+    parseHoaUtilitiesCustomField();
 
     // Appliances - extract from "Included Appliances" field
     if (
@@ -1796,6 +1870,20 @@ const prepareCustomFieldsForUpdate = () => {
         form.fireplace !== customFieldsMap.value[FIREPLACE_CUSTOM_FIELD].value
     ) {
         fieldsToUpdate[FIREPLACE_CUSTOM_FIELD] = form.fireplace;
+    }
+
+    // HOA utilities: the list (or "None") is written as-is to the
+    // "Utilities Handled by HOA" text field
+    if (customFieldsMap.value[HOA_UTILITIES_CUSTOM_FIELD]) {
+        const hoaUtilitiesValue = buildHoaUtilitiesValue();
+
+        if (
+            hoaUtilitiesValue !== null &&
+            hoaUtilitiesValue !==
+                customFieldsMap.value[HOA_UTILITIES_CUSTOM_FIELD].value
+        ) {
+            fieldsToUpdate[HOA_UTILITIES_CUSTOM_FIELD] = hoaUtilitiesValue;
+        }
     }
 
     // Garage Remotes_Garage Code - save garage door remote value

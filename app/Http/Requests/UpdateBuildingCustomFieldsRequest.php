@@ -82,6 +82,10 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.sprinklerControllerLocation' => 'required_if:formData.sprinklerSystem,Yes|nullable|string|max:255',
             'formData.sprinklerNotes' => 'nullable|string|max:500',
 
+            // Utilities handled by the HOA (the list is stored as text in the "Utilities Handled by HOA" custom field)
+            'formData.utilitiesHandledByHoa' => 'required|boolean',
+            'formData.hoaUtilities' => 'required_if_accepted:formData.utilitiesHandledByHoa|nullable|string|max:500',
+
             // Fireplace (the choice is stored as text in the "Fireplace" custom field)
             'formData.fireplace' => ['required', 'string', Rule::in(self::FIREPLACE_OPTIONS)],
 
@@ -145,6 +149,12 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.sprinklerControllerLocation.required_if' => 'Sprinkler Controller Location is required when there is a sprinkler system.',
             'formData.sprinklerControllerLocation.max' => 'Sprinkler Controller Location must be 255 characters or fewer.',
             'formData.sprinklerNotes.max' => 'Sprinkler Notes must be 500 characters or fewer.',
+
+            // HOA Utilities Messages
+            'formData.utilitiesHandledByHoa.required' => 'Please tell us whether the HOA handles any utilities.',
+            'formData.utilitiesHandledByHoa.boolean' => 'Please tell us whether the HOA handles any utilities.',
+            'formData.hoaUtilities.required_if_accepted' => 'Please list the utilities the HOA handles.',
+            'formData.hoaUtilities.max' => 'The HOA utilities list must be 500 characters or fewer.',
 
             // Fireplace Messages
             'formData.fireplace.required' => 'Please tell us what kind of fireplace the property has, or choose No Fireplace.',
