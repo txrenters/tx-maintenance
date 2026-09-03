@@ -1002,7 +1002,8 @@ const HOA_UTILITIES_NONE_PATTERN = /^(none|no|n\/?a)\b/i;
 const NOT_PROVIDED_PATTERN = /^not provided\b/i;
 
 /**
- * Build the "Utilities Handled by HOA" value.
+ * Build the "Utilities Handled by HOA" value. The owner may list one utility
+ * per line; blank lines and stray spaces are dropped, the line breaks kept.
  *
  * @return {?string} The list, "None", or null when the box is ticked but the list is empty
  */
@@ -1011,7 +1012,11 @@ const buildHoaUtilitiesValue = () => {
         return HOA_UTILITIES_NONE_VALUE;
     }
 
-    const utilities = String(form.hoaUtilities ?? "").trim();
+    const utilities = String(form.hoaUtilities ?? "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== "")
+        .join("\n");
 
     return utilities === "" ? null : utilities;
 };

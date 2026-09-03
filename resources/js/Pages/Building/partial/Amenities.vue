@@ -949,9 +949,10 @@ const markSectionCompleted = (value) => {
                                         >(Required)</span
                                     >
                                 </label>
-                                <Input
+                                <Textarea
                                     v-model="form.hoaUtilities"
-                                    placeholder="e.g. Water, Trash, Sewer"
+                                    placeholder="e.g. Water, Trash, Sewer - one per line is fine"
+                                    class="min-h-[80px]"
                                 />
                             </div>
                         </div>

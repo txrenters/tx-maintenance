@@ -312,6 +312,19 @@ class OnboardingGateCodeTest extends TestCase
             ));
     }
 
+    public function test_hoa_utilities_listed_one_per_line_keep_their_line_breaks_for_propertyware(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['utilitiesHandledByHoa' => true, 'hoaUtilities' => "Water\nTrash\nSewer"],
+            [['name' => self::HOA_UTILITIES_FIELD, 'value' => "Water\nTrash\nSewer"]],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::HOA_UTILITIES_FIELD && $field['value'] === "Water\nTrash\nSewer"
+            ));
+    }
+
     public function test_onboarding_pdf_prints_the_hoa_utilities(): void
     {
         $html = $this->renderOnboardingPdf([
@@ -321,6 +334,19 @@ class OnboardingGateCodeTest extends TestCase
 
         $this->assertMatchesRegularExpression('#<td>Utilities Handled by HOA</td>\s*<td>Yes</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>HOA-Covered Utilities</td>\s*<td>Water, Trash</td>#', $html);
+    }
+
+    public function test_onboarding_pdf_prints_hoa_utilities_listed_one_per_line_on_separate_lines(): void
+    {
+        $html = $this->renderOnboardingPdf([
+            'utilitiesHandledByHoa' => true,
+            'hoaUtilities' => "Water\nTrash & recycling\n<b>Sewer</b>",
+        ]);
+
+        $this->assertMatchesRegularExpression(
+            '#<td>HOA-Covered Utilities</td>\s*<td>Water<br />\s*Trash &amp; recycling<br />\s*&lt;b&gt;Sewer&lt;/b&gt;</td>#',
+            $html,
+        );
     }
 
     public function test_onboarding_pdf_omits_the_hoa_utilities_list_when_there_are_none(): void

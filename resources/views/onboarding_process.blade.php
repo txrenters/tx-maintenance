@@ -1028,7 +1028,7 @@
                 @if (!empty($formData['utilitiesHandledByHoa']))
                     <tr>
                         <td>HOA-Covered Utilities</td>
-                        <td>{{ !empty($formData['hoaUtilities']) ? $formData['hoaUtilities'] : 'Not provided' }}</td>
+                        <td>{!! !empty($formData['hoaUtilities']) ? nl2br(e($formData['hoaUtilities'])) : 'Not provided' !!}</td>
                     </tr>
                 @endif
             </tbody>
