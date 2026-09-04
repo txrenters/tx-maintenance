@@ -296,6 +296,70 @@ class InvoiceIndexTest extends TestCase
         );
     }
 
+    public function test_a_propertyware_row_with_no_lease_counts_as_vacant(): void
+    {
+        // WO#44032's shape: a between-tenant home carrying neither the Vacant
+        // toggle nor a turnover/re-key type. hasNoTenant() already treats these
+        // as having nobody to contact, so the filter has to agree.
+        [, $noLeaseWo, $noLease] = $this->makeVendorInvoice('Oops Steam Cleaning LLC', 54001, 'No lease invoice');
+        $noLeaseWo->forceFill([
+            'propertyware_id' => 990001,
+            'lease_id' => null,
+            'type' => 'Repair',
+            'category' => 'Cleaning',
+            'skip_automated_tasks' => false,
+        ])->save();
+
+        [, $leasedWo, $leased] = $this->makeVendorInvoice('Alpha Services LLC', 54002, 'Leased invoice');
+        $leasedWo->forceFill([
+            'propertyware_id' => 990002,
+            'lease_id' => 5551,
+            'type' => 'Repair',
+        ])->save();
+
+        $this->assertTrue($noLeaseWo->fresh()->hasNoTenant(), 'Nobody lives there in PHP.');
+        $this->assertFalse($leasedWo->fresh()->hasNoTenant());
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($noLease->id), 'And vacant in SQL.');
+        $this->assertFalse($vacantIds->contains($leased->id));
+
+        $occupied = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'occupied']));
+        $occupied->assertOk();
+        $occupiedIds = collect($occupied->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($occupiedIds->contains($leased->id));
+        $this->assertFalse($occupiedIds->contains($noLease->id));
+    }
+
+    public function test_app_created_rows_without_a_lease_stay_occupied(): void
+    {
+        // Rows the app makes itself never carry a lease, so a missing one says
+        // nothing about who lives there.
+        [, $localWo, $local] = $this->makeVendorInvoice('Alpha Services LLC', 54101, 'Local invoice');
+        $localWo->forceFill(['propertyware_id' => null, 'lease_id' => null, 'type' => 'Repair'])->save();
+
+        [, $portalWo, $portal] = $this->makeVendorInvoice('Beta Services LLC', 54102, 'Portal invoice');
+        $portalWo->forceFill([
+            'propertyware_id' => 990102,
+            'lease_id' => null,
+            'source' => 'Tenant Portal',
+            'type' => 'Repair',
+        ])->save();
+
+        $occupied = $this->actingAs($this->actingAsAdmin())
+            ->get(route('invoices.index', ['occupancy' => 'occupied']));
+
+        $occupied->assertOk();
+        $ids = collect($occupied->viewData('page')['props']['invoices']['data'])->pluck('id');
+
+        $this->assertTrue($ids->contains($local->id), 'A local row is not evidence of vacancy.');
+        $this->assertTrue($ids->contains($portal->id), 'A tenant wrote the portal request, so someone lives there.');
+    }
+
     public function test_the_index_shows_the_property_address(): void
     {
         $building = Building::query()->create([

@@ -278,16 +278,19 @@ class WorkOrder extends Model
     }
 
     /**
-     * The SQL form of isVacant(), for filtering and counting lists without
-     * loading every row. isVacant() compares on letters and digits alone; SQL
-     * cannot strip characters the same way, so the spellings PropertyWare
-     * actually emits ("Re-key", "Re Key", "ReKey") are matched explicitly.
-     * Keep the two in step when either changes.
+     * The SQL form of hasNoTenant(), for filtering and counting lists without
+     * loading every row: the WOC's Vacant toggle, a turnover, a re-key, or no
+     * lease on file. Kept in step with hasNoTenant() rather than the narrower
+     * isVacant(), because a between-tenant home that carries none of the first
+     * three still has nobody living in it (WO#44032).
      *
-     * Every comparison is on TRIM(), because PropertyWare's picklists carry
-     * trailing spaces ("HVAC ") and isTurnover() trims before comparing. It
-     * also keeps the result off the collation: whether ''=' ' is true varies
-     * between MySQL 8 and older servers.
+     * isVacant() compares on letters and digits alone; SQL cannot strip
+     * characters the same way, so the spellings PropertyWare actually emits
+     * ("Re-key", "Re Key", "ReKey") are matched explicitly. Every comparison is
+     * on TRIM(), because PropertyWare's picklists carry trailing spaces
+     * ("HVAC ") and isTurnover() trims before comparing. That also keeps the
+     * result off the collation: whether ''=' ' is true varies between MySQL 8
+     * and older servers.
      */
     public function scopeVacant($query)
     {
@@ -296,7 +299,8 @@ class WorkOrder extends Model
                 ->orWhereRaw('TRIM(type) = ?', ['Turnover'])
                 ->orWhereRaw('TRIM(category) = ?', ['Turnover'])
                 ->orWhereRaw('TRIM(type) LIKE ?', ['Re%Key'])
-                ->orWhereRaw('TRIM(category) LIKE ?', ['Re%Key']);
+                ->orWhereRaw('TRIM(category) LIKE ?', ['Re%Key'])
+                ->orWhere(fn ($query) => $query->withoutLease());
         });
     }
 
@@ -314,8 +318,26 @@ class WorkOrder extends Model
                 ->whereRaw('(TRIM(type) <> ? OR type IS NULL)', ['Turnover'])
                 ->whereRaw('(TRIM(category) <> ? OR category IS NULL)', ['Turnover'])
                 ->whereRaw('(TRIM(type) NOT LIKE ? OR type IS NULL)', ['Re%Key'])
-                ->whereRaw('(TRIM(category) NOT LIKE ? OR category IS NULL)', ['Re%Key']);
+                ->whereRaw('(TRIM(category) NOT LIKE ? OR category IS NULL)', ['Re%Key'])
+                ->whereNot(fn ($query) => $query->withoutLease());
         });
+    }
+
+    /**
+     * The SQL form of hasNoLeaseOnFile(). PropertyWare attaches the property's
+     * lease and tenant roster to every work order for an occupied home, so a
+     * row it sent with neither belongs to a vacant or new-to-market property.
+     * Rows the app creates itself never carry a lease, so they are exempt the
+     * same way hasNoLeaseOnFile() exempts them.
+     */
+    public function scopeWithoutLease($query)
+    {
+        return $query->whereNotNull('propertyware_id')
+            ->whereNull('lease_id')
+            ->where(fn ($query) => $query->whereNull('source')->orWhere('source', '<>', 'Tenant Portal'))
+            ->whereRaw('(TRIM(category) <> ? OR category IS NULL)', [self::HOA_VIOLATION_CATEGORY])
+            ->whereDoesntHave('tenantUploadTokens', fn ($tokens) => $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION))
+            ->whereDoesntHave('tenants');
     }
 
     /**
