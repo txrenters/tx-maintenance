@@ -259,6 +259,114 @@ class InvoiceIndexTest extends TestCase
         $this->assertSame('1532A Creekside Ln', $row['address']);
     }
 
+    public function test_staff_can_mark_an_invoice_posted_and_unpost_it(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52001, 'Alpha invoice');
+
+        $staff = $this->actingAsAdmin();
+
+        $this->actingAs($staff)
+            ->post(route('invoices.posted.store', $invoice->id))
+            ->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertNotNull($invoice->posted_at);
+        $this->assertSame($staff->id, $invoice->posted_by_user_id);
+
+        $this->actingAs($staff)
+            ->delete(route('invoices.posted.destroy', $invoice->id))
+            ->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertNull($invoice->posted_at);
+        $this->assertNull($invoice->posted_by_user_id);
+    }
+
+    public function test_accounting_can_mark_an_invoice_posted(): void
+    {
+        Role::findOrCreate('accounting', 'web');
+
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52101, 'Alpha invoice');
+
+        $accounting = User::factory()->create();
+        $accounting->assignRole('accounting');
+
+        $this->actingAs($accounting)
+            ->post(route('invoices.posted.store', $invoice->id))
+            ->assertRedirect();
+
+        $this->assertNotNull($invoice->refresh()->posted_at);
+    }
+
+    public function test_re_posting_keeps_the_original_record(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52201, 'Alpha invoice');
+
+        $first = $this->actingAsAdmin();
+        $this->actingAs($first)->post(route('invoices.posted.store', $invoice->id));
+
+        $originalPostedAt = $invoice->refresh()->posted_at;
+
+        $second = $this->actingAsAdmin();
+        $this->actingAs($second)->post(route('invoices.posted.store', $invoice->id));
+
+        $invoice->refresh();
+        $this->assertSame($first->id, $invoice->posted_by_user_id, 'The first poster is kept.');
+        $this->assertEquals($originalPostedAt, $invoice->posted_at);
+    }
+
+    public function test_a_vendor_cannot_mark_their_own_invoice_posted(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        [$vendor, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52301, 'Alpha invoice');
+
+        $vendorUser = User::factory()->create();
+        $vendorUser->assignRole('vendor');
+        $vendor->update(['user_id' => $vendorUser->id]);
+
+        // InvoiceScope lets them read this invoice, so the write needs its own gate.
+        $this->actingAs($vendorUser)
+            ->post(route('invoices.posted.store', $invoice->id))
+            ->assertForbidden();
+
+        $this->assertNull($invoice->refresh()->posted_at);
+    }
+
+    public function test_the_index_reports_the_posted_state_and_who_posted_it(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52401, 'Alpha invoice');
+
+        $staff = $this->actingAsAdmin();
+        $this->actingAs($staff)->post(route('invoices.posted.store', $invoice->id));
+
+        $response = $this->actingAs($staff)->get(route('invoices.index'));
+
+        $response->assertOk();
+        $props = $response->viewData('page')['props'];
+        $row = collect($props['invoices']['data'])->firstWhere('id', $invoice->id);
+
+        $this->assertNotNull($row['posted_at']);
+        $this->assertSame($staff->name, $row['posted_by']);
+        $this->assertTrue($props['canPost']);
+    }
+
+    public function test_a_vendor_is_not_offered_the_posted_checkbox(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        [$vendor] = $this->makeVendorInvoice('Alpha Services LLC', 52501, 'Alpha invoice');
+
+        $vendorUser = User::factory()->create();
+        $vendorUser->assignRole('vendor');
+        $vendor->update(['user_id' => $vendorUser->id]);
+
+        $response = $this->actingAs($vendorUser)->get(route('invoices.index'));
+
+        $response->assertOk();
+        $this->assertFalse($response->viewData('page')['props']['canPost']);
+    }
+
     public function test_an_invoice_without_a_vendor_still_renders(): void
     {
         $workOrder = WorkOrder::factory()->create(['work_order_no' => 46001, 'status' => 'Open']);

@@ -18,9 +18,30 @@ class Invoice extends Model
         'invoice_url',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'posted_at' => 'datetime',
+        ];
+    }
+
     public function work_order(): BelongsTo
     {
         return $this->belongsTo(WorkOrder::class);
+    }
+
+    public function postedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by_user_id');
+    }
+
+    /**
+     * True once the office has posted this invoice to the accounting system.
+     * Independent of `status`, which is the vendor-facing approve/decline.
+     */
+    public function isPosted(): bool
+    {
+        return $this->posted_at !== null;
     }
 
     public function vendor(): BelongsTo

@@ -1,15 +1,51 @@
 <script setup>
-import { computed } from "vue";
-import { usePage } from "@inertiajs/vue3";
+import { computed, ref } from "vue";
+import { router, usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
+import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import SortableHead from "./SortableHead.vue";
 
-defineProps({
+const props = defineProps({
     data: Object,
     sort: String,
     direction: String,
+    canPost: Boolean,
 });
+
+const { toast } = useToast();
+
+// Ids being written, so a row's checkbox stays disabled until its request lands
+// and a double click cannot fire twice.
+const savingIds = ref([]);
+
+const togglePosted = (invoice, checked) => {
+    if (!props.canPost || savingIds.value.includes(invoice.id)) return;
+
+    savingIds.value.push(invoice.id);
+
+    const done = () => {
+        savingIds.value = savingIds.value.filter((id) => id !== invoice.id);
+    };
+
+    const options = {
+        preserveState: true,
+        preserveScroll: true,
+        onError: () =>
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: "Could not save that. Please try again!",
+            }),
+        onFinish: done,
+    };
+
+    if (checked) {
+        router.post(route("invoices.posted.store", invoice.id), {}, options);
+    } else {
+        router.delete(route("invoices.posted.destroy", invoice.id), options);
+    }
+};
 
 const emit = defineEmits(["sort"]);
 
@@ -24,7 +60,7 @@ const isVendor = computed(() =>
     (page.props.auth.user?.roles || []).includes("vendor")
 );
 
-const columnCount = computed(() => (isVendor.value ? 6 : 7));
+const columnCount = computed(() => (isVendor.value ? 7 : 8));
 
 // Timestamps are stored in UTC, so convert before showing the upload time —
 // accounting reads these against a Central-time payment cutoff.
@@ -39,6 +75,15 @@ const formatUploadedAt = (date) => {
     return parsed.isValid
         ? parsed.setZone("America/Chicago").toFormat("MM/dd/yyyy h:mm a")
         : "—";
+};
+
+// Who put it through and when, so a coordinator does not have to ask.
+const postedTitle = (invoice) => {
+    if (!invoice.posted_at) return "Not posted yet";
+    const when = formatUploadedAt(invoice.posted_at);
+    return invoice.posted_by
+        ? `Posted by ${invoice.posted_by} on ${when}`
+        : `Posted on ${when}`;
 };
 </script>
 <template>
@@ -102,6 +147,16 @@ const formatUploadedAt = (date) => {
                     Uploaded
                 </SortableHead>
                 <TableHead class="hidden md:table-cell"> Status </TableHead>
+                <SortableHead
+                    column="posted"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="not posted first"
+                    desc-label="posted first"
+                    @sort="emit('sort', $event)"
+                >
+                    Posted
+                </SortableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
@@ -164,6 +219,31 @@ const formatUploadedAt = (date) => {
                     >
                         {{ invoice.status }}</Badge
                     >
+                </TableCell>
+                <TableCell>
+                    <div class="flex items-center gap-2">
+                        <Checkbox
+                            :checked="!!invoice.posted_at"
+                            :disabled="
+                                !canPost || savingIds.includes(invoice.id)
+                            "
+                            :aria-label="
+                                invoice.posted_at
+                                    ? 'Posted. Uncheck if this was not posted.'
+                                    : 'Mark this invoice as posted'
+                            "
+                            :title="postedTitle(invoice)"
+                            @update:checked="
+                                (checked) => togglePosted(invoice, checked)
+                            "
+                        />
+                        <span
+                            v-if="invoice.posted_at"
+                            class="hidden text-xs text-muted-foreground lg:inline"
+                        >
+                            {{ formatUploadedAt(invoice.posted_at) }}
+                        </span>
+                    </div>
                 </TableCell>
             </TableRow>
             <TableRow v-if="data.length === 0">

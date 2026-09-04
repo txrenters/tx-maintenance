@@ -41,6 +41,8 @@ class InvoiceController extends Controller
             ),
             'amount' => fn ($query, string $direction) => $query->orderBy('amount', $direction),
             'uploaded' => fn ($query, string $direction) => $query->orderBy('created_at', $direction),
+            // Ascending groups the nulls first, which is the unposted work.
+            'posted' => fn ($query, string $direction) => $query->orderBy('posted_at', $direction),
         ];
     }
 
@@ -59,8 +61,11 @@ class InvoiceController extends Controller
             ? $request->input('occupancy')
             : null;
 
+        // Posting is our own bookkeeping, so only the office may record it.
+        $canPost = (bool) $request->user()?->isStaff();
+
         $invoices = Invoice::query()
-            ->with(['work_order.building', 'vendor'])
+            ->with(['work_order.building', 'vendor', 'postedBy'])
             ->filter(request(['search']))
             ->when($occupancy, fn ($query) => $query->whereHas(
                 'work_order',
@@ -68,10 +73,13 @@ class InvoiceController extends Controller
             ))
             ->when(
                 $sort,
-                fn ($query) => $sortable[$sort]($query, $direction),
+                // The id breaks ties, so paging through a sorted list cannot
+                // show the same invoice twice or skip one.
+                fn ($query) => $sortable[$sort]($query, $direction)->orderBy('invoices.id', 'desc'),
                 // Newest upload first: accounting reads this list against a
-                // payment cutoff.
-                fn ($query) => $query->latest()
+                // payment cutoff. The id breaks ties so invoices uploaded in
+                // the same second keep a stable order across pages.
+                fn ($query) => $query->latest()->latest('id')
             )
             ->paginate($perPage)
             ->withQueryString()
@@ -89,6 +97,8 @@ class InvoiceController extends Controller
                     'address' => $invoice->work_order?->propertyAddress(),
                     'vendor' => $invoice->vendor?->name,
                     'created_at' => $invoice->created_at?->toIso8601String(),
+                    'posted_at' => $invoice->posted_at?->toIso8601String(),
+                    'posted_by' => $invoice->postedBy?->name,
                 ];
             });
 
@@ -98,6 +108,7 @@ class InvoiceController extends Controller
             'filter' => $request->only(['search', 'per_page', 'occupancy']),
             'sort' => $sort,
             'direction' => $direction,
+            'canPost' => $canPost,
         ]);
     }
 }

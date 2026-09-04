@@ -12,6 +12,7 @@ const props = defineProps({
     filter: Object,
     sort: String,
     direction: String,
+    canPost: Boolean,
 });
 
 const url = ref(route("invoices.index"));
@@ -41,7 +42,7 @@ const visitWith = (params) => {
 
 // Alphabetical and oldest-first on the first click, except for the upload time,
 // where accounting wants the most recent invoices.
-const ascendingFirst = ["name", "vendor", "address"];
+const ascendingFirst = ["name", "vendor", "address", "posted"];
 
 const applySort = (column) => {
     let direction = ascendingFirst.includes(column) ? "asc" : "desc";
@@ -88,6 +89,7 @@ const applyOccupancy = (value) => {
                 :data="invoices.data"
                 :sort="sort"
                 :direction="direction"
+                :can-post="canPost"
                 @sort="applySort"
             />
         </CardContent>

@@ -28,6 +28,7 @@ use App\Http\Controllers\InboxSummaryController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
+use App\Http\Controllers\InvoicePostedController;
 use App\Http\Controllers\ItToolsController;
 use App\Http\Controllers\JobberAuthController;
 use App\Http\Controllers\JobberAutomationSettingsController;
@@ -295,6 +296,8 @@ Route::middleware([
     Route::get('/work-order-documents/{workOrderDocument}/download', [AttachmentsController::class, 'downloadDocument'])->name('api.work_order_documents.download');
 
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
+    Route::post('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'store'])->name('invoices.posted.store');
+    Route::delete('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'destroy'])->name('invoices.posted.destroy');
 
     Route::get('/buildings', [BuildingController::class, 'index'])->name('buildings.index');
     Route::get('/buildings/{building}', [BuildingController::class, 'show'])->name('buildings.show');
