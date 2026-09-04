@@ -42,7 +42,7 @@ const visitWith = (params) => {
 
 // Alphabetical and oldest-first on the first click, except for the upload time,
 // where accounting wants the most recent invoices.
-const ascendingFirst = ["name", "vendor", "address", "posted"];
+const ascendingFirst = ["vendor", "address", "posted"];
 
 const applySort = (column) => {
     let direction = ascendingFirst.includes(column) ? "asc" : "desc";

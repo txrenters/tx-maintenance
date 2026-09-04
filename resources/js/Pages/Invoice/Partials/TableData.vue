@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
+import { FileDownIcon } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import SortableHead from "./SortableHead.vue";
@@ -90,16 +91,7 @@ const postedTitle = (invoice) => {
     <Table>
         <TableHeader>
             <TableRow>
-                <SortableHead
-                    column="name"
-                    :sort="sort"
-                    :direction="direction"
-                    asc-label="A to Z"
-                    desc-label="Z to A"
-                    @sort="emit('sort', $event)"
-                >
-                    Name
-                </SortableHead>
+                <TableHead>File</TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
                 <SortableHead
                     v-if="!isVendor"
@@ -165,9 +157,11 @@ const postedTitle = (invoice) => {
                     <a
                         :href="invoice.file"
                         download
-                        class="text-primary hover:text-primary/80"
+                        class="text-destructive hover:text-destructive/80"
+                        :title="invoice.title"
+                        :aria-label="`Download ${invoice.title}`"
                     >
-                        {{ invoice.title }}
+                        <FileDownIcon class="h-5 w-5" />
                     </a>
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ invoice.address }}

@@ -151,27 +151,19 @@ class InvoiceIndexTest extends TestCase
         );
     }
 
-    public function test_sorting_by_name_orders_alphabetically(): void
+    public function test_the_invoice_title_is_still_sent_for_the_download_label(): void
     {
-        $this->makeVendorInvoice('Alpha Services LLC', 46101, 'Zebra invoice');
-        $this->makeVendorInvoice('Beta Services LLC', 46102, 'Apple invoice');
-        $this->makeVendorInvoice('Gamma Services LLC', 46103, 'Mango invoice');
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 46101, 'THMP_Invoice INV-5087');
 
-        $admin = $this->actingAsAdmin();
+        $response = $this->actingAs($this->actingAsAdmin())->get(route('invoices.index'));
 
-        $asc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'name', 'direction' => 'asc']));
-        $asc->assertOk();
-        $this->assertSame(
-            ['Apple invoice', 'Mango invoice', 'Zebra invoice'],
-            collect($asc->viewData('page')['props']['invoices']['data'])->pluck('title')->all()
-        );
+        $response->assertOk();
+        $row = collect($response->viewData('page')['props']['invoices']['data'])
+            ->firstWhere('id', $invoice->id);
 
-        $desc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'name', 'direction' => 'desc']));
-        $desc->assertOk();
-        $this->assertSame(
-            ['Zebra invoice', 'Mango invoice', 'Apple invoice'],
-            collect($desc->viewData('page')['props']['invoices']['data'])->pluck('title')->all()
-        );
+        // The File column shows an icon, and names the invoice on hover.
+        $this->assertSame('THMP_Invoice INV-5087', $row['title']);
+        $this->assertNotEmpty($row['file']);
     }
 
     public function test_sorting_by_upload_time_orders_recent_or_oldest_first(): void
