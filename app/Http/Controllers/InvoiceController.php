@@ -29,9 +29,10 @@ class InvoiceController extends Controller
                     'filetype' => $invoice->filetype,
                     'amount' => Number::currency($invoice->amount),
                     'status' => $invoice->status,
-                    'work_order_no' => $invoice->work_order->work_order_no,
-                    'vendor' => $invoice->vendor->name,
-                    'created_at' => $invoice->created_at->format('F d, Y'),
+                    'work_order_id' => $invoice->work_order_id,
+                    'work_order_no' => $invoice->work_order?->work_order_no,
+                    'vendor' => $invoice->vendor?->name,
+                    'created_at' => $invoice->created_at?->toIso8601String(),
                 ];
             });
 

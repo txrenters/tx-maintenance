@@ -38,12 +38,23 @@ class Invoice extends Model
         if (! empty($filter['search'])) {
             $search = $filter['search'];
 
-            $query
-                ->whereAny([
-                    'filename',
-                    'status',
-                    'amount',
-                ], 'LIKE', "%{$search}%");
+            // Grouped so the OR clauses can't escape the role restrictions that
+            // InvoiceScope applies (a vendor must never match another's invoice).
+            $query->where(function ($query) use ($search) {
+                $query
+                    ->whereAny([
+                        'title',
+                        'filename',
+                        'status',
+                        'amount',
+                    ], 'LIKE', "%{$search}%")
+                    ->orWhereHas('vendor', function ($query) use ($search) {
+                        $query->where('name', 'LIKE', "%{$search}%");
+                    })
+                    ->orWhereHas('work_order', function ($query) use ($search) {
+                        $query->where('work_order_no', 'LIKE', "%{$search}%");
+                    });
+            });
         }
     }
 }

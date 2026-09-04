@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
-import { usePage } from "@inertiajs/vue3";
+import { Link, usePage } from "@inertiajs/vue3";
+import { DateTime } from "luxon";
 import { FileDownIcon } from "lucide-vue-next";
 
 const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
@@ -23,6 +24,21 @@ const openEditDialog = (user) => {
 const openDeleteDialog = (user) => {
     emit("openDeleteDialog", true, user);
 };
+
+// Timestamps are stored in UTC, so convert before showing the upload time —
+// accounting reads these against a Central-time payment cutoff.
+const formatUploadedAt = (date) => {
+    if (!date) return "—";
+    const parsed =
+        typeof date === "string" && date.includes("T")
+            ? DateTime.fromISO(date, { zone: "utc" })
+            : DateTime.fromFormat(String(date), "yyyy-MM-dd HH:mm:ss", {
+                  zone: "utc",
+              });
+    return parsed.isValid
+        ? parsed.setZone("America/Chicago").toFormat("MM/dd/yyyy h:mm a")
+        : "—";
+};
 </script>
 <template>
     <Table>
@@ -36,6 +52,7 @@ const openDeleteDialog = (user) => {
                 <TableHead v-if="!isVendor" class="md:table-cell">
                     Vendor
                 </TableHead>
+                <TableHead class="hidden md:table-cell"> Uploaded </TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
@@ -59,6 +76,9 @@ const openDeleteDialog = (user) => {
                     >
                         {{ invoice.status }}</Badge
                     >
+                    <p class="text-xs font-normal mt-1 md:hidden">
+                        {{ formatUploadedAt(invoice.created_at) }}
+                    </p>
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     <a
@@ -82,10 +102,22 @@ const openDeleteDialog = (user) => {
                     >
                 </TableCell>
                 <TableCell class="md:table-cell">
-                    {{ invoice.work_order_no }}
+                    <Link
+                        v-if="invoice.work_order_id"
+                        :href="
+                            route('work_orders.details', invoice.work_order_id)
+                        "
+                        class="font-medium text-primary hover:underline"
+                    >
+                        {{ invoice.work_order_no }}
+                    </Link>
+                    <template v-else>{{ invoice.work_order_no }}</template>
                 </TableCell>
                 <TableCell v-if="!isVendor" class="md:table-cell">
                     {{ invoice.vendor }}
+                </TableCell>
+                <TableCell class="hidden md:table-cell whitespace-nowrap">
+                    {{ formatUploadedAt(invoice.created_at) }}
                 </TableCell>
                 <!-- <TableCell>
           <DropdownMenu>
@@ -105,7 +137,7 @@ const openDeleteDialog = (user) => {
         </TableCell> -->
             </TableRow>
             <TableRow v-if="data.length === 0">
-                <TableCell :colspan="isVendor ? 5 : 6"
+                <TableCell :colspan="isVendor ? 6 : 7"
                     >No invoices found!</TableCell
                 >
             </TableRow>
