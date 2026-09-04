@@ -92,14 +92,6 @@ const hasDateRange = computed(
     () => !!(dateRange.value.start || dateRange.value.end)
 );
 
-const rangeLabel = computed(() => {
-    const { start, end } = dateRange.value;
-    if (!start) return "Any date";
-    const from = df.format(start.toDate(getLocalTimeZone()));
-    if (!end) return from;
-    return `${from} - ${df.format(end.toDate(getLocalTimeZone()))}`;
-});
-
 const applyDateRange = () => {
     const { start, end } = dateRange.value;
     visitWith({
@@ -148,6 +140,15 @@ const monthPresets = computed(() => {
     return presets;
 });
 
+// Marks the month currently in effect, so an open picker says what it filtered.
+const isActivePreset = (preset) => {
+    const { start, end } = dateRange.value;
+    if (!start || !end) return false;
+    return (
+        start.compare(preset.start) === 0 && end.compare(preset.end) === 0
+    );
+};
+
 const applyMonthPreset = (preset) => {
     dateRange.value = { start: preset.start, end: preset.end };
     visitWith({
@@ -155,6 +156,23 @@ const applyMonthPreset = (preset) => {
         end_date: preset.end.toString(),
     });
 };
+
+const rangeLabel = computed(() => {
+    const { start, end } = dateRange.value;
+    if (!start) return "All dates";
+
+    // A whole month reads as its own name rather than as two dates.
+    const preset = monthPresets.value.find(isActivePreset);
+    if (preset) {
+        return df
+            .format(preset.start.toDate(getLocalTimeZone()))
+            .replace(/\s\d+,/, "");
+    }
+
+    const from = df.format(start.toDate(getLocalTimeZone()));
+    if (!end) return from;
+    return `${from} - ${df.format(end.toDate(getLocalTimeZone()))}`;
+});
 </script>
 <template>
     <Head :title="title" />
@@ -164,55 +182,88 @@ const applyMonthPreset = (preset) => {
                 <div class="flex-1">
                     <SearchBar :url="url" v-model="search" />
                 </div>
-                <Popover>
-                    <PopoverTrigger as-child>
-                        <Button
-                            variant="outline"
-                            :class="[
-                                'w-full justify-start text-left text-xs font-normal sm:w-[240px]',
-                                !hasDateRange ? 'text-muted-foreground' : '',
-                            ]"
-                        >
-                            <CalendarIcon class="mr-2 h-4 w-4 shrink-0" />
-                            {{ rangeLabel }}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent class="w-auto p-0" align="end">
-                        <div
-                            class="flex flex-col gap-1 border-b p-3 sm:flex-row sm:flex-wrap"
-                        >
-                            <Button
-                                v-for="preset in monthPresets"
-                                :key="preset.key"
-                                variant="ghost"
-                                size="sm"
-                                class="justify-start text-xs"
-                                @click="applyMonthPreset(preset)"
-                            >
-                                {{ preset.label }}
-                            </Button>
-                        </div>
-                        <RangeCalendar
-                            v-model="dateRange"
-                            initial-focus
-                            :number-of-months="2"
-                            @update:start-value="
-                                (startDate) => (dateRange.start = startDate)
-                            "
-                            @update:model-value="applyDateRange"
-                        />
-                    </PopoverContent>
-                </Popover>
-                <Button
-                    v-if="hasDateRange"
-                    variant="ghost"
-                    size="icon"
-                    title="Clear the date range"
-                    aria-label="Clear the date range"
-                    @click="clearDateRange"
+                <!-- The trigger reads as a filled field once a range is set,
+                     so an active filter is visible without reading it. -->
+                <div
+                    :class="[
+                        'flex items-center rounded-md border transition-colors',
+                        hasDateRange
+                            ? 'border-primary/40 bg-primary/10'
+                            : 'border-input',
+                    ]"
                 >
-                    <XIcon class="h-4 w-4" />
-                </Button>
+                    <Popover>
+                        <PopoverTrigger as-child>
+                            <button
+                                type="button"
+                                :class="[
+                                    'flex h-10 items-center gap-2 rounded-md px-3 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                                    hasDateRange
+                                        ? 'font-medium text-foreground'
+                                        : 'font-normal text-muted-foreground',
+                                ]"
+                            >
+                                <CalendarIcon
+                                    :class="[
+                                        'h-4 w-4 shrink-0',
+                                        hasDateRange ? 'text-primary' : '',
+                                    ]"
+                                />
+                                <span class="whitespace-nowrap">
+                                    {{ rangeLabel }}
+                                </span>
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                            class="w-auto overflow-hidden p-0"
+                            align="end"
+                        >
+                            <div class="flex flex-col sm:flex-row">
+                                <!-- Whole months are the common case, so they
+                                     lead rather than sit above the calendar. -->
+                                <div
+                                    class="flex gap-1 overflow-x-auto border-b bg-muted/40 p-2 sm:w-36 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r"
+                                >
+                                    <button
+                                        v-for="preset in monthPresets"
+                                        :key="preset.key"
+                                        type="button"
+                                        :class="[
+                                            'whitespace-nowrap rounded px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                                            isActivePreset(preset)
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'hover:bg-accent hover:text-accent-foreground',
+                                        ]"
+                                        @click="applyMonthPreset(preset)"
+                                    >
+                                        {{ preset.label }}
+                                    </button>
+                                </div>
+                                <div class="p-3">
+                                    <RangeCalendar
+                                        v-model="dateRange"
+                                        initial-focus
+                                        @update:start-value="
+                                            (startDate) =>
+                                                (dateRange.start = startDate)
+                                        "
+                                        @update:model-value="applyDateRange"
+                                    />
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                    <button
+                        v-if="hasDateRange"
+                        type="button"
+                        class="mr-1 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        title="Clear the date range"
+                        aria-label="Clear the date range"
+                        @click="clearDateRange"
+                    >
+                        <XIcon class="h-4 w-4" />
+                    </button>
+                </div>
                 <Select
                     :modelValue="occupancy"
                     @update:modelValue="applyOccupancy"
