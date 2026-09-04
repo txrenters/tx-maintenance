@@ -47,6 +47,11 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
+        $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
         $perPage = $request->per_page
         ? ($request->per_page == 'All' ? Invoice::count() : $request->per_page)
         : 10;
@@ -65,7 +70,7 @@ class InvoiceController extends Controller
 
         $invoices = Invoice::query()
             ->with(['work_order.building', 'vendor', 'postedBy'])
-            ->filter(request(['search']))
+            ->filter($request->only(['search', 'start_date', 'end_date']))
             ->when($occupancy, fn ($query) => $query->whereHas(
                 'work_order',
                 fn ($workOrder) => $occupancy === 'vacant' ? $workOrder->vacant() : $workOrder->occupied()
@@ -104,7 +109,7 @@ class InvoiceController extends Controller
         return inertia('Invoice/Index', [
             'title' => 'Invoices',
             'invoices' => $invoices,
-            'filter' => $request->only(['search', 'per_page', 'occupancy']),
+            'filter' => $request->only(['search', 'per_page', 'occupancy', 'start_date', 'end_date']),
             'sort' => $sort,
             'direction' => $direction,
             'canPost' => $canPost,

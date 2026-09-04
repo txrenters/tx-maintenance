@@ -91,8 +91,6 @@ const postedTitle = (invoice) => {
     <Table>
         <TableHeader>
             <TableRow>
-                <TableHead>File</TableHead>
-                <TableHead class="md:table-cell"> Work Order </TableHead>
                 <SortableHead
                     v-if="!isVendor"
                     column="vendor"
@@ -116,6 +114,7 @@ const postedTitle = (invoice) => {
                 >
                     Address
                 </SortableHead>
+                <TableHead class="md:table-cell"> Work Order </TableHead>
                 <SortableHead
                     column="amount"
                     class="hidden md:table-cell"
@@ -127,6 +126,7 @@ const postedTitle = (invoice) => {
                 >
                     Amount
                 </SortableHead>
+                <TableHead>File</TableHead>
                 <SortableHead
                     column="uploaded"
                     class="hidden md:table-cell"
@@ -153,16 +153,9 @@ const postedTitle = (invoice) => {
         </TableHeader>
         <TableBody>
             <TableRow v-for="invoice in data" :key="invoice.id">
-                <TableCell class="font-medium">
-                    <a
-                        :href="invoice.file"
-                        download
-                        class="text-destructive hover:text-destructive/80"
-                        :title="invoice.title"
-                        :aria-label="`Download ${invoice.title}`"
-                    >
-                        <FileDownIcon class="h-5 w-5" />
-                    </a>
+                <TableCell v-if="!isVendor" class="font-medium md:table-cell">
+                    {{ invoice.vendor }}
+                    <!-- The columns that drop away on a narrow screen. -->
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ invoice.address }}
                     </p>
@@ -181,6 +174,9 @@ const postedTitle = (invoice) => {
                         {{ formatUploadedAt(invoice.created_at) }}
                     </p>
                 </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    {{ invoice.address || "—" }}
+                </TableCell>
                 <TableCell class="md:table-cell">
                     <button
                         v-if="invoice.work_order_id"
@@ -192,15 +188,43 @@ const postedTitle = (invoice) => {
                         {{ invoice.work_order_no }}
                     </button>
                     <template v-else>{{ invoice.work_order_no }}</template>
-                </TableCell>
-                <TableCell v-if="!isVendor" class="md:table-cell">
-                    {{ invoice.vendor }}
-                </TableCell>
-                <TableCell class="hidden md:table-cell">
-                    {{ invoice.address || "—" }}
+                    <!-- A vendor has no Vendor column to carry the narrow-screen
+                         detail, so it hangs off the work order instead. -->
+                    <template v-if="isVendor">
+                        <p class="text-xs font-normal mt-1 md:hidden">
+                            {{ invoice.address }}
+                        </p>
+                        <p class="text-xs font-normal mt-1 md:hidden">
+                            {{ invoice.amount }}
+                        </p>
+                        <Badge
+                            class="mt-1 md:hidden"
+                            :variant="
+                                invoice.status === 'decline'
+                                    ? 'destructive'
+                                    : ''
+                            "
+                        >
+                            {{ invoice.status }}</Badge
+                        >
+                        <p class="text-xs font-normal mt-1 md:hidden">
+                            {{ formatUploadedAt(invoice.created_at) }}
+                        </p>
+                    </template>
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     {{ invoice.amount }}
+                </TableCell>
+                <TableCell>
+                    <a
+                        :href="invoice.file"
+                        download
+                        class="text-destructive hover:text-destructive/80"
+                        :title="invoice.title"
+                        :aria-label="`Download ${invoice.title}`"
+                    >
+                        <FileDownIcon class="h-5 w-5" />
+                    </a>
                 </TableCell>
                 <TableCell class="hidden md:table-cell whitespace-nowrap">
                     {{ formatUploadedAt(invoice.created_at) }}

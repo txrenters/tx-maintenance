@@ -251,6 +251,82 @@ class InvoiceIndexTest extends TestCase
         $this->assertSame('1532A Creekside Ln', $row['address']);
     }
 
+    public function test_the_date_range_filters_to_whole_central_days(): void
+    {
+        [, , $june] = $this->makeVendorInvoice('Alpha Services LLC', 53001, 'June invoice');
+        [, , $julyFirst] = $this->makeVendorInvoice('Beta Services LLC', 53002, 'July 1 invoice');
+        [, , $julyFifth] = $this->makeVendorInvoice('Gamma Services LLC', 53003, 'July 5 invoice');
+        [, , $julyLast] = $this->makeVendorInvoice('Delta Services LLC', 53004, 'July 31 invoice');
+        [, , $august] = $this->makeVendorInvoice('Echo Services LLC', 53005, 'August invoice');
+
+        // Stored in UTC. The July 1st row is 12:30 AM Central on the 1st, and
+        // the 31st row is 11:30 PM Central: both must fall inside July.
+        $june->forceFill(['created_at' => '2026-06-30 12:00:00'])->save();
+        $julyFirst->forceFill(['created_at' => '2026-07-01 05:30:00'])->save();
+        $julyFifth->forceFill(['created_at' => '2026-07-05 18:00:00'])->save();
+        $julyLast->forceFill(['created_at' => '2026-08-01 04:30:00'])->save();
+        $august->forceFill(['created_at' => '2026-08-02 12:00:00'])->save();
+
+        $admin = $this->actingAsAdmin();
+
+        $july = $this->actingAs($admin)->get(route('invoices.index', [
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-31',
+        ]));
+        $july->assertOk();
+        $julyIds = collect($july->viewData('page')['props']['invoices']['data'])->pluck('id');
+
+        $this->assertTrue($julyIds->contains($julyFirst->id), 'Just after midnight Central on the 1st is in July.');
+        $this->assertTrue($julyIds->contains($julyFifth->id));
+        $this->assertTrue($julyIds->contains($julyLast->id), 'Late on the 31st Central is still July.');
+        $this->assertFalse($julyIds->contains($june->id));
+        $this->assertFalse($julyIds->contains($august->id));
+
+        // A few days inside the month.
+        $firstWeek = $this->actingAs($admin)->get(route('invoices.index', [
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-05',
+        ]));
+        $firstWeek->assertOk();
+        $weekIds = collect($firstWeek->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($weekIds->contains($julyFirst->id));
+        $this->assertTrue($weekIds->contains($julyFifth->id));
+        $this->assertFalse($weekIds->contains($julyLast->id));
+    }
+
+    public function test_the_date_range_survives_alongside_the_other_filters(): void
+    {
+        [, , $matching] = $this->makeVendorInvoice('Oops Steam Cleaning LLC', 53101, 'Match');
+        [, , $wrongDate] = $this->makeVendorInvoice('Oops Steam Cleaning LLC', 53102, 'Wrong date');
+        [, , $wrongVendor] = $this->makeVendorInvoice('Alpha Services LLC', 53103, 'Wrong vendor');
+
+        $matching->forceFill(['created_at' => '2026-07-10 12:00:00'])->save();
+        $wrongDate->forceFill(['created_at' => '2026-06-10 12:00:00'])->save();
+        $wrongVendor->forceFill(['created_at' => '2026-07-11 12:00:00'])->save();
+
+        $response = $this->actingAs($this->actingAsAdmin())->get(route('invoices.index', [
+            'search' => 'oops',
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-31',
+        ]));
+
+        $response->assertOk();
+        $ids = collect($response->viewData('page')['props']['invoices']['data'])->pluck('id');
+
+        $this->assertSame([$matching->id], $ids->all(), 'The search and the date range both apply.');
+        $this->assertSame('2026-07-01', $response->viewData('page')['props']['filter']['start_date']);
+    }
+
+    public function test_an_end_date_before_the_start_date_is_rejected(): void
+    {
+        $this->actingAs($this->actingAsAdmin())
+            ->get(route('invoices.index', [
+                'start_date' => '2026-07-31',
+                'end_date' => '2026-07-01',
+            ]))
+            ->assertSessionHasErrors('end_date');
+    }
+
     public function test_staff_can_mark_an_invoice_posted_and_unpost_it(): void
     {
         [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52001, 'Alpha invoice');
