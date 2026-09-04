@@ -20,6 +20,7 @@ class InvoiceController extends Controller
     private function sortableColumns(): array
     {
         return [
+            'name' => fn ($query, string $direction) => $query->orderBy('title', $direction),
             'vendor' => fn ($query, string $direction) => $query->orderBy(
                 DB::table('vendors')->select('name')->whereColumn('vendors.id', 'invoices.vendor_id')->limit(1),
                 $direction

@@ -2,10 +2,10 @@
 import { computed } from "vue";
 import { usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-vue-next";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
+import SortableHead from "./SortableHead.vue";
 
-const props = defineProps({
+defineProps({
     data: Object,
     sort: String,
     direction: String,
@@ -26,22 +26,6 @@ const isVendor = computed(() =>
 
 const columnCount = computed(() => (isVendor.value ? 6 : 7));
 
-const sortIcon = (column) => {
-    if (props.sort !== column) return ArrowUpDown;
-    return props.direction === "asc" ? ArrowUp : ArrowDown;
-};
-
-// Text naming what the click does next, so the control is not icon-only.
-const sortLabel = (column, ascLabel, descLabel) => {
-    if (props.sort !== column) return `Sort by ${ascLabel}`;
-    return props.direction === "asc" ? `Sort by ${descLabel}` : `Sort by ${ascLabel}`;
-};
-
-const ariaSort = (column) => {
-    if (props.sort !== column) return "none";
-    return props.direction === "asc" ? "ascending" : "descending";
-};
-
 // Timestamps are stored in UTC, so convert before showing the upload time —
 // accounting reads these against a Central-time payment cutoff.
 const formatUploadedAt = (date) => {
@@ -61,65 +45,62 @@ const formatUploadedAt = (date) => {
     <Table>
         <TableHeader>
             <TableRow>
-                <TableHead>Name</TableHead>
+                <SortableHead
+                    column="name"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="A to Z"
+                    desc-label="Z to A"
+                    @sort="emit('sort', $event)"
+                >
+                    Name
+                </SortableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
-                <TableHead
+                <SortableHead
                     v-if="!isVendor"
+                    column="vendor"
                     class="md:table-cell"
-                    :aria-sort="ariaSort('vendor')"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="A to Z"
+                    desc-label="Z to A"
+                    @sort="emit('sort', $event)"
                 >
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        :title="sortLabel('vendor', 'A to Z', 'Z to A')"
-                        @click="emit('sort', 'vendor')"
-                    >
-                        Vendor
-                        <component :is="sortIcon('vendor')" class="h-3.5 w-3.5" />
-                    </button>
-                </TableHead>
-                <TableHead
+                    Vendor
+                </SortableHead>
+                <SortableHead
+                    column="address"
                     class="hidden md:table-cell"
-                    :aria-sort="ariaSort('address')"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="A to Z"
+                    desc-label="Z to A"
+                    @sort="emit('sort', $event)"
                 >
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        :title="sortLabel('address', 'A to Z', 'Z to A')"
-                        @click="emit('sort', 'address')"
-                    >
-                        Address
-                        <component :is="sortIcon('address')" class="h-3.5 w-3.5" />
-                    </button>
-                </TableHead>
-                <TableHead
+                    Address
+                </SortableHead>
+                <SortableHead
+                    column="amount"
                     class="hidden md:table-cell"
-                    :aria-sort="ariaSort('amount')"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="lowest first"
+                    desc-label="highest first"
+                    @sort="emit('sort', $event)"
                 >
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        :title="sortLabel('amount', 'lowest first', 'highest first')"
-                        @click="emit('sort', 'amount')"
-                    >
-                        Amount
-                        <component :is="sortIcon('amount')" class="h-3.5 w-3.5" />
-                    </button>
-                </TableHead>
-                <TableHead
+                    Amount
+                </SortableHead>
+                <SortableHead
+                    column="uploaded"
                     class="hidden md:table-cell"
-                    :aria-sort="ariaSort('uploaded')"
+                    :sort="sort"
+                    :direction="direction"
+                    asc-label="oldest first"
+                    desc-label="most recent first"
+                    @sort="emit('sort', $event)"
                 >
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        :title="sortLabel('uploaded', 'oldest first', 'most recent first')"
-                        @click="emit('sort', 'uploaded')"
-                    >
-                        Uploaded
-                        <component :is="sortIcon('uploaded')" class="h-3.5 w-3.5" />
-                    </button>
-                </TableHead>
+                    Uploaded
+                </SortableHead>
                 <TableHead class="hidden md:table-cell"> Status </TableHead>
             </TableRow>
         </TableHeader>

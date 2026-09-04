@@ -151,6 +151,29 @@ class InvoiceIndexTest extends TestCase
         );
     }
 
+    public function test_sorting_by_name_orders_alphabetically(): void
+    {
+        $this->makeVendorInvoice('Alpha Services LLC', 46101, 'Zebra invoice');
+        $this->makeVendorInvoice('Beta Services LLC', 46102, 'Apple invoice');
+        $this->makeVendorInvoice('Gamma Services LLC', 46103, 'Mango invoice');
+
+        $admin = $this->actingAsAdmin();
+
+        $asc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'name', 'direction' => 'asc']));
+        $asc->assertOk();
+        $this->assertSame(
+            ['Apple invoice', 'Mango invoice', 'Zebra invoice'],
+            collect($asc->viewData('page')['props']['invoices']['data'])->pluck('title')->all()
+        );
+
+        $desc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'name', 'direction' => 'desc']));
+        $desc->assertOk();
+        $this->assertSame(
+            ['Zebra invoice', 'Mango invoice', 'Apple invoice'],
+            collect($desc->viewData('page')['props']['invoices']['data'])->pluck('title')->all()
+        );
+    }
+
     public function test_sorting_by_upload_time_orders_recent_or_oldest_first(): void
     {
         [, , $oldest] = $this->makeVendorInvoice('Alpha Services LLC', 48001, 'Oldest');
