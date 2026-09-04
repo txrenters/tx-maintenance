@@ -278,6 +278,49 @@ class WorkOrder extends Model
     }
 
     /**
+     * The SQL form of isVacant(), for filtering and counting lists without
+     * loading every row. isVacant() compares the re-key type on letters and
+     * digits alone; SQL cannot strip characters the same way, so the spellings
+     * PropertyWare actually emits ("Re-key", "Re Key", "ReKey") are matched
+     * explicitly. Keep the two in step when either changes.
+     */
+    public function scopeVacant($query)
+    {
+        return $query->where(function ($query) {
+            $query->where('skip_automated_tasks', true)
+                ->orWhere('type', 'Turnover')
+                ->orWhere('category', 'Turnover')
+                ->orWhere('type', 'LIKE', 'Re%Key')
+                ->orWhere('category', 'LIKE', 'Re%Key');
+        });
+    }
+
+    /**
+     * The complement of scopeVacant(): somebody lives there.
+     */
+    public function scopeOccupied($query)
+    {
+        return $query->where(function ($query) {
+            $query->where(function ($query) {
+                $query->where('skip_automated_tasks', false)
+                    ->orWhereNull('skip_automated_tasks');
+            })
+                ->where(function ($query) {
+                    $query->whereNot('type', 'Turnover')->orWhereNull('type');
+                })
+                ->where(function ($query) {
+                    $query->whereNot('category', 'Turnover')->orWhereNull('category');
+                })
+                ->where(function ($query) {
+                    $query->whereNot('type', 'LIKE', 'Re%Key')->orWhereNull('type');
+                })
+                ->where(function ($query) {
+                    $query->whereNot('category', 'LIKE', 'Re%Key')->orWhereNull('category');
+                });
+        });
+    }
+
+    /**
      * Whether nobody lives at the property for a vendor to contact: the unit
      * is vacant (isVacant()) or PropertyWare attached no lease to the work
      * order (hasNoLeaseOnFile() — a new-to-market or between-tenant home that

@@ -2,14 +2,16 @@
 import { computed } from "vue";
 import { usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
-import { FileDownIcon } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-vue-next";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
-const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
-
-defineProps({
+const props = defineProps({
     data: Object,
+    sort: String,
+    direction: String,
 });
+
+const emit = defineEmits(["sort"]);
 
 const page = usePage();
 
@@ -22,12 +24,22 @@ const isVendor = computed(() =>
     (page.props.auth.user?.roles || []).includes("vendor")
 );
 
-const openEditDialog = (user) => {
-    emit("openEditDialog", true, user);
+const columnCount = computed(() => (isVendor.value ? 6 : 7));
+
+const sortIcon = (column) => {
+    if (props.sort !== column) return ArrowUpDown;
+    return props.direction === "asc" ? ArrowUp : ArrowDown;
 };
 
-const openDeleteDialog = (user) => {
-    emit("openDeleteDialog", true, user);
+// Text naming what the click does next, so the control is not icon-only.
+const sortLabel = (column, ascLabel, descLabel) => {
+    if (props.sort !== column) return `Sort by ${ascLabel}`;
+    return props.direction === "asc" ? `Sort by ${descLabel}` : `Sort by ${ascLabel}`;
+};
+
+const ariaSort = (column) => {
+    if (props.sort !== column) return "none";
+    return props.direction === "asc" ? "ascending" : "descending";
 };
 
 // Timestamps are stored in UTC, so convert before showing the upload time —
@@ -50,14 +62,65 @@ const formatUploadedAt = (date) => {
         <TableHeader>
             <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead class="hidden md:table-cell"> File </TableHead>
-                <TableHead class="hidden md:table-cell"> Amount </TableHead>
-                <TableHead class="hidden md:table-cell"> Status </TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
-                <TableHead v-if="!isVendor" class="md:table-cell">
-                    Vendor
+                <TableHead
+                    v-if="!isVendor"
+                    class="md:table-cell"
+                    :aria-sort="ariaSort('vendor')"
+                >
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        :title="sortLabel('vendor', 'A to Z', 'Z to A')"
+                        @click="emit('sort', 'vendor')"
+                    >
+                        Vendor
+                        <component :is="sortIcon('vendor')" class="h-3.5 w-3.5" />
+                    </button>
                 </TableHead>
-                <TableHead class="hidden md:table-cell"> Uploaded </TableHead>
+                <TableHead
+                    class="hidden md:table-cell"
+                    :aria-sort="ariaSort('address')"
+                >
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        :title="sortLabel('address', 'A to Z', 'Z to A')"
+                        @click="emit('sort', 'address')"
+                    >
+                        Address
+                        <component :is="sortIcon('address')" class="h-3.5 w-3.5" />
+                    </button>
+                </TableHead>
+                <TableHead
+                    class="hidden md:table-cell"
+                    :aria-sort="ariaSort('amount')"
+                >
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        :title="sortLabel('amount', 'lowest first', 'highest first')"
+                        @click="emit('sort', 'amount')"
+                    >
+                        Amount
+                        <component :is="sortIcon('amount')" class="h-3.5 w-3.5" />
+                    </button>
+                </TableHead>
+                <TableHead
+                    class="hidden md:table-cell"
+                    :aria-sort="ariaSort('uploaded')"
+                >
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        :title="sortLabel('uploaded', 'oldest first', 'most recent first')"
+                        @click="emit('sort', 'uploaded')"
+                    >
+                        Uploaded
+                        <component :is="sortIcon('uploaded')" class="h-3.5 w-3.5" />
+                    </button>
+                </TableHead>
+                <TableHead class="hidden md:table-cell"> Status </TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
@@ -70,6 +133,9 @@ const formatUploadedAt = (date) => {
                     >
                         {{ invoice.title }}
                     </a>
+                    <p class="text-xs font-normal mt-1 md:hidden">
+                        {{ invoice.address }}
+                    </p>
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ invoice.amount }}
                     </p>
@@ -84,27 +150,6 @@ const formatUploadedAt = (date) => {
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ formatUploadedAt(invoice.created_at) }}
                     </p>
-                </TableCell>
-                <TableCell class="hidden md:table-cell">
-                    <a
-                        :href="invoice.file"
-                        download
-                        class="text-destructive hover:text-destructive/80"
-                    >
-                        <FileDownIcon class="h-5 w-5" />
-                    </a>
-                </TableCell>
-                <TableCell class="hidden md:table-cell">
-                    {{ invoice.amount }}
-                </TableCell>
-                <TableCell class="hidden md:table-cell">
-                    <Badge
-                        :variant="
-                            invoice.status === 'decline' ? 'destructive' : ''
-                        "
-                    >
-                        {{ invoice.status }}</Badge
-                    >
                 </TableCell>
                 <TableCell class="md:table-cell">
                     <button
@@ -121,30 +166,27 @@ const formatUploadedAt = (date) => {
                 <TableCell v-if="!isVendor" class="md:table-cell">
                     {{ invoice.vendor }}
                 </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    {{ invoice.address || "—" }}
+                </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    {{ invoice.amount }}
+                </TableCell>
                 <TableCell class="hidden md:table-cell whitespace-nowrap">
                     {{ formatUploadedAt(invoice.created_at) }}
                 </TableCell>
-                <!-- <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button aria-haspopup="true" size="icon" variant="ghost">
-                <MoreHorizontal class="h-4 w-4" />
-                <span class="sr-only">Toggle menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem @click="openEditDialog(vendor)"
-                >Assign a Twilio Number</DropdownMenuItem
-              >
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </TableCell> -->
+                <TableCell class="hidden md:table-cell">
+                    <Badge
+                        :variant="
+                            invoice.status === 'decline' ? 'destructive' : ''
+                        "
+                    >
+                        {{ invoice.status }}</Badge
+                    >
+                </TableCell>
             </TableRow>
             <TableRow v-if="data.length === 0">
-                <TableCell :colspan="isVendor ? 6 : 7"
-                    >No invoices found!</TableCell
-                >
+                <TableCell :colspan="columnCount">No invoices found!</TableCell>
             </TableRow>
         </TableBody>
     </Table>

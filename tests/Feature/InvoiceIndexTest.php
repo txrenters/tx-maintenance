@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Building;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Vendor;
@@ -125,6 +126,114 @@ class InvoiceIndexTest extends TestCase
 
         $this->assertFalse($ids->contains($foreignInvoice->id), 'A vendor must never see another vendor invoice.');
         $this->assertFalse($ids->contains($ownInvoice->id), 'Their own invoice does not match this search either.');
+    }
+
+    public function test_sorting_by_vendor_orders_alphabetically(): void
+    {
+        $this->makeVendorInvoice('Zulu Services LLC', 47001, 'Zulu invoice');
+        $this->makeVendorInvoice('Alpha Services LLC', 47002, 'Alpha invoice');
+        $this->makeVendorInvoice('Mike Services LLC', 47003, 'Mike invoice');
+
+        $admin = $this->actingAsAdmin();
+
+        $asc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'vendor', 'direction' => 'asc']));
+        $asc->assertOk();
+        $this->assertSame(
+            ['Alpha Services LLC', 'Mike Services LLC', 'Zulu Services LLC'],
+            collect($asc->viewData('page')['props']['invoices']['data'])->pluck('vendor')->all()
+        );
+
+        $desc = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'vendor', 'direction' => 'desc']));
+        $desc->assertOk();
+        $this->assertSame(
+            ['Zulu Services LLC', 'Mike Services LLC', 'Alpha Services LLC'],
+            collect($desc->viewData('page')['props']['invoices']['data'])->pluck('vendor')->all()
+        );
+    }
+
+    public function test_sorting_by_upload_time_orders_recent_or_oldest_first(): void
+    {
+        [, , $oldest] = $this->makeVendorInvoice('Alpha Services LLC', 48001, 'Oldest');
+        [, , $newest] = $this->makeVendorInvoice('Beta Services LLC', 48002, 'Newest');
+
+        $oldest->forceFill(['created_at' => '2026-09-01 12:00:00'])->save();
+        $newest->forceFill(['created_at' => '2026-09-04 12:00:00'])->save();
+
+        $admin = $this->actingAsAdmin();
+
+        $recent = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'uploaded', 'direction' => 'desc']));
+        $recent->assertOk();
+        $this->assertSame(
+            [$newest->id, $oldest->id],
+            collect($recent->viewData('page')['props']['invoices']['data'])->pluck('id')->all()
+        );
+
+        $old = $this->actingAs($admin)->get(route('invoices.index', ['sort' => 'uploaded', 'direction' => 'asc']));
+        $old->assertOk();
+        $this->assertSame(
+            [$oldest->id, $newest->id],
+            collect($old->viewData('page')['props']['invoices']['data'])->pluck('id')->all()
+        );
+    }
+
+    public function test_an_unknown_sort_column_is_ignored(): void
+    {
+        $this->makeVendorInvoice('Alpha Services LLC', 49001, 'Alpha invoice');
+
+        $response = $this->actingAs($this->actingAsAdmin())
+            ->get(route('invoices.index', ['sort' => 'filename); drop table invoices;--']));
+
+        $response->assertOk();
+        $this->assertNull($response->viewData('page')['props']['sort']);
+    }
+
+    public function test_the_occupancy_filter_separates_vacant_from_occupied(): void
+    {
+        [, $turnoverWo, $turnover] = $this->makeVendorInvoice('Alpha Services LLC', 50001, 'Turnover invoice');
+        $turnoverWo->forceFill(['type' => 'Turnover'])->save();
+
+        [, $rekeyWo, $rekey] = $this->makeVendorInvoice('Beta Services LLC', 50002, 'Rekey invoice');
+        $rekeyWo->forceFill(['category' => 'Re-Key'])->save();
+
+        [, $toggledWo, $toggled] = $this->makeVendorInvoice('Gamma Services LLC', 50003, 'Toggled invoice');
+        $toggledWo->forceFill(['skip_automated_tasks' => true])->save();
+
+        [, , $occupied] = $this->makeVendorInvoice('Delta Services LLC', 50004, 'Occupied invoice');
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($turnover->id), 'A turnover job is vacant.');
+        $this->assertTrue($vacantIds->contains($rekey->id), 'A re-key job is vacant.');
+        $this->assertTrue($vacantIds->contains($toggled->id), 'The Vacant toggle marks it vacant.');
+        $this->assertFalse($vacantIds->contains($occupied->id));
+
+        $occupiedResponse = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'occupied']));
+        $occupiedResponse->assertOk();
+        $occupiedIds = collect($occupiedResponse->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertSame([$occupied->id], $occupiedIds->all(), 'Only the occupied invoice remains.');
+    }
+
+    public function test_the_index_shows_the_property_address(): void
+    {
+        $building = Building::query()->create([
+            'propertyware_id' => 9911,
+            'name' => '1532A',
+            'address' => '1532A Creekside Ln',
+        ]);
+
+        [, $workOrder, $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 51001, 'Alpha invoice');
+        $workOrder->forceFill(['building_id' => $building->propertyware_id])->save();
+
+        $response = $this->actingAs($this->actingAsAdmin())->get(route('invoices.index'));
+
+        $response->assertOk();
+        $row = collect($response->viewData('page')['props']['invoices']['data'])
+            ->firstWhere('id', $invoice->id);
+
+        $this->assertSame('1532A Creekside Ln', $row['address']);
     }
 
     public function test_an_invoice_without_a_vendor_still_renders(): void
