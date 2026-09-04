@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from "vue";
-import { Link, usePage } from "@inertiajs/vue3";
+import { usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
 import { FileDownIcon } from "lucide-vue-next";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 
 const emit = defineEmits(["openEditDialog", "openDeleteDialog"]);
 
@@ -11,6 +12,10 @@ defineProps({
 });
 
 const page = usePage();
+
+// AppLayout already mounts the shared WorkOrderModal, so opening one here only
+// needs its id.
+const { open: openWorkOrder } = useWorkOrderModal();
 
 // A vendor only ever sees their own invoices, so the Vendor column is redundant.
 const isVendor = computed(() =>
@@ -102,15 +107,15 @@ const formatUploadedAt = (date) => {
                     >
                 </TableCell>
                 <TableCell class="md:table-cell">
-                    <Link
+                    <button
                         v-if="invoice.work_order_id"
-                        :href="
-                            route('work_orders.details', invoice.work_order_id)
-                        "
-                        class="font-medium text-primary hover:underline"
+                        type="button"
+                        class="font-medium text-primary hover:underline focus-visible:ring-ring rounded focus-visible:outline-none focus-visible:ring-1"
+                        title="Open this work order"
+                        @click="openWorkOrder(invoice.work_order_id)"
                     >
                         {{ invoice.work_order_no }}
-                    </Link>
+                    </button>
                     <template v-else>{{ invoice.work_order_no }}</template>
                 </TableCell>
                 <TableCell v-if="!isVendor" class="md:table-cell">
