@@ -231,6 +231,71 @@ class InvoiceIndexTest extends TestCase
         $this->assertSame([$occupied->id], $occupiedIds->all(), 'Only the occupied invoice remains.');
     }
 
+    public function test_the_occupancy_filter_matches_propertyware_trailing_spaces(): void
+    {
+        // PropertyWare's picklists carry trailing spaces ("HVAC "), and
+        // isVacant() trims before comparing. The SQL filter has to agree.
+        [, $turnoverWo, $turnover] = $this->makeVendorInvoice('Alpha Services LLC', 50101, 'Padded turnover');
+        $turnoverWo->forceFill(['type' => 'Turnover '])->save();
+
+        [, $rekeyWo, $rekey] = $this->makeVendorInvoice('Beta Services LLC', 50102, 'Padded rekey');
+        $rekeyWo->forceFill(['category' => 'Re-key '])->save();
+
+        [, , $occupied] = $this->makeVendorInvoice('Gamma Services LLC', 50103, 'Occupied invoice');
+
+        $admin = $this->actingAsAdmin();
+
+        $this->assertTrue($turnoverWo->fresh()->isVacant(), 'A padded turnover is vacant in PHP.');
+        $this->assertTrue($rekeyWo->fresh()->isVacant(), 'A padded re-key is vacant in PHP.');
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($turnover->id), 'And vacant in SQL.');
+        $this->assertTrue($vacantIds->contains($rekey->id));
+        $this->assertFalse($vacantIds->contains($occupied->id));
+
+        $occupiedResponse = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'occupied']));
+        $occupiedResponse->assertOk();
+        $occupiedIds = collect($occupiedResponse->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertSame([$occupied->id], $occupiedIds->all(), 'The padded rows are not counted as occupied.');
+    }
+
+    public function test_sorting_by_address_falls_back_to_the_building_name(): void
+    {
+        // propertyAddress() falls back to the name when the address is blank;
+        // the sort key has to make the same choice or the order looks wrong.
+        $blank = Building::query()->create([
+            'propertyware_id' => 9971,
+            'name' => 'AAA Building',
+            'address' => '   ',
+        ]);
+        $real = Building::query()->create([
+            'propertyware_id' => 9972,
+            'name' => 'ZZZ Building',
+            'address' => 'MMM Street',
+        ]);
+
+        [, $blankWo, $blankInvoice] = $this->makeVendorInvoice('Alpha Services LLC', 51101, 'Blank address');
+        $blankWo->forceFill(['building_id' => $blank->propertyware_id])->save();
+
+        [, $realWo, $realInvoice] = $this->makeVendorInvoice('Beta Services LLC', 51102, 'Real address');
+        $realWo->forceFill(['building_id' => $real->propertyware_id])->save();
+
+        $response = $this->actingAs($this->actingAsAdmin())
+            ->get(route('invoices.index', ['sort' => 'address', 'direction' => 'asc']));
+
+        $response->assertOk();
+        $rows = collect($response->viewData('page')['props']['invoices']['data']);
+
+        $this->assertSame('AAA Building', $rows->firstWhere('id', $blankInvoice->id)['address']);
+        $this->assertSame(
+            [$blankInvoice->id, $realInvoice->id],
+            $rows->pluck('id')->all(),
+            'AAA Building sorts before MMM Street, so the sort used the fallback too.'
+        );
+    }
+
     public function test_the_index_shows_the_property_address(): void
     {
         $building = Building::query()->create([

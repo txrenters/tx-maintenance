@@ -279,24 +279,30 @@ class WorkOrder extends Model
 
     /**
      * The SQL form of isVacant(), for filtering and counting lists without
-     * loading every row. isVacant() compares the re-key type on letters and
-     * digits alone; SQL cannot strip characters the same way, so the spellings
-     * PropertyWare actually emits ("Re-key", "Re Key", "ReKey") are matched
-     * explicitly. Keep the two in step when either changes.
+     * loading every row. isVacant() compares on letters and digits alone; SQL
+     * cannot strip characters the same way, so the spellings PropertyWare
+     * actually emits ("Re-key", "Re Key", "ReKey") are matched explicitly.
+     * Keep the two in step when either changes.
+     *
+     * Every comparison is on TRIM(), because PropertyWare's picklists carry
+     * trailing spaces ("HVAC ") and isTurnover() trims before comparing. It
+     * also keeps the result off the collation: whether ''=' ' is true varies
+     * between MySQL 8 and older servers.
      */
     public function scopeVacant($query)
     {
         return $query->where(function ($query) {
             $query->where('skip_automated_tasks', true)
-                ->orWhere('type', 'Turnover')
-                ->orWhere('category', 'Turnover')
-                ->orWhere('type', 'LIKE', 'Re%Key')
-                ->orWhere('category', 'LIKE', 'Re%Key');
+                ->orWhereRaw('TRIM(type) = ?', ['Turnover'])
+                ->orWhereRaw('TRIM(category) = ?', ['Turnover'])
+                ->orWhereRaw('TRIM(type) LIKE ?', ['Re%Key'])
+                ->orWhereRaw('TRIM(category) LIKE ?', ['Re%Key']);
         });
     }
 
     /**
-     * The complement of scopeVacant(): somebody lives there.
+     * The complement of scopeVacant(): somebody lives there. A null type or
+     * category cannot mark a unit vacant, so those rows stay occupied.
      */
     public function scopeOccupied($query)
     {
@@ -305,18 +311,10 @@ class WorkOrder extends Model
                 $query->where('skip_automated_tasks', false)
                     ->orWhereNull('skip_automated_tasks');
             })
-                ->where(function ($query) {
-                    $query->whereNot('type', 'Turnover')->orWhereNull('type');
-                })
-                ->where(function ($query) {
-                    $query->whereNot('category', 'Turnover')->orWhereNull('category');
-                })
-                ->where(function ($query) {
-                    $query->whereNot('type', 'LIKE', 'Re%Key')->orWhereNull('type');
-                })
-                ->where(function ($query) {
-                    $query->whereNot('category', 'LIKE', 'Re%Key')->orWhereNull('category');
-                });
+                ->whereRaw('(TRIM(type) <> ? OR type IS NULL)', ['Turnover'])
+                ->whereRaw('(TRIM(category) <> ? OR category IS NULL)', ['Turnover'])
+                ->whereRaw('(TRIM(type) NOT LIKE ? OR type IS NULL)', ['Re%Key'])
+                ->whereRaw('(TRIM(category) NOT LIKE ? OR category IS NULL)', ['Re%Key']);
         });
     }
 

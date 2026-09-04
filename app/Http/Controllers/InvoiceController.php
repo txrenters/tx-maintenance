@@ -32,7 +32,9 @@ class InvoiceController extends Controller
                 // model cannot narrow what this orders by; which invoices are
                 // visible is already settled by InvoiceScope.
                 DB::table('work_orders')
-                    ->selectRaw("COALESCE(NULLIF(buildings.address, ''), buildings.name)")
+                    // TRIM so a whitespace-only address falls back to the name
+                    // the way propertyAddress() does, whatever the collation.
+                    ->selectRaw("COALESCE(NULLIF(TRIM(buildings.address), ''), buildings.name)")
                     ->leftJoin('buildings', 'buildings.propertyware_id', '=', 'work_orders.building_id')
                     ->whereColumn('work_orders.id', 'invoices.work_order_id')
                     ->limit(1),
