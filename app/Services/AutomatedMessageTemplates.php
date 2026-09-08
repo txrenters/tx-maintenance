@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * The editable canned-message registry behind the Message Templates tab on the
@@ -213,6 +214,64 @@ class AutomatedMessageTemplates
             'collapse' => false,
             'default' => "Here are the details of the request:\n\n"
                 .'{description}',
+        ],
+        'tenant_work_order_created_sms' => [
+            // Same automation, gate and ledger key as the "Request received"
+            // text above: this is its shape when our team entered the work
+            // order in PropertyWare (Source anything but Tenant Portal or
+            // Website), where "we have received your request" would be wrong.
+            'automation' => 'tenant_service_request_sms',
+            'label' => 'Created by our team',
+            'group' => null,
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted to the tenant once, instead of "Request received", when the work order was entered in PropertyWare by our team (its Source is anything other than Tenant Portal or Website). Their portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => 'Opening words — "Hi <first name>," or "Hi," when no name is on file',
+                'work_order_no' => 'The work order number',
+                'property' => 'The street address, or "your home" when none is on file',
+                'description_line' => '"Work Order Description: <description>" or empty when the work order has no description',
+            ],
+            'required' => ['work_order_no'],
+            'sample' => [
+                'greeting' => 'Hi Jane,',
+                'work_order_no' => '43361',
+                'property' => '123 Main St',
+                'description_line' => 'Work Order Description: Kitchen sink is leaking under the cabinet.',
+            ],
+            'collapse' => true,
+            'default' => "{greeting} a work order #{work_order_no} has been created for {property} by our team.\n\n"
+                ."{description_line}\n\n"
+                ."Our team will review the request and coordinate the necessary next steps. We'll contact you regarding scheduling or access if needed. Thank you!",
+        ],
+        'owner_work_order_created_sms' => [
+            // Same automation, gate and ledger key as the two owner intake
+            // texts above: one text instead of the pair when our team entered
+            // the work order in PropertyWare (Source anything but Tenant
+            // Portal or Website).
+            'automation' => 'owner_service_request_sms',
+            'label' => 'Created by our team',
+            'group' => 'owner_service_request',
+            'channel' => 'sms',
+            'audience' => 'owner',
+            'sends_when' => 'Texted to each owner once, instead of the "Request received" and "Request details" pair, when the work order was entered in PropertyWare by our team (its Source is anything other than Tenant Portal or Website). Their portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => 'Opening words — "Hi <owner name>," or "Hi," when no name is on file',
+                'work_order_no' => 'The work order number',
+                'property' => 'The street address, or "your property" when none is on file',
+                'description_line' => '"Work Order Description: <description>" or empty when the work order has no description',
+            ],
+            'required' => ['work_order_no'],
+            'sample' => [
+                'greeting' => 'Hi Olivia Owner,',
+                'work_order_no' => '43361',
+                'property' => '123 Main St',
+                'description_line' => 'Work Order Description: Kitchen sink is leaking under the cabinet.',
+            ],
+            'collapse' => true,
+            'default' => "{greeting} a new work order #{work_order_no} has been created for {property} by our team.\n\n"
+                ."{description_line}\n\n"
+                ."Our team will review the request and coordinate the necessary next steps. We'll keep you updated as the work progresses. Thank you!",
         ],
         'tenant_appointment_sms' => [
             'automation' => 'tenant_appointment_sms',
@@ -822,6 +881,61 @@ class AutomatedMessageTemplates
             self::TEMPLATES[$key]['required'],
             fn (string $token): bool => ! str_contains($text, '{'.$token.'}'),
         ));
+    }
+
+    /**
+     * How much of a work order description rides along inside an SMS.
+     * PropertyWare descriptions run 260 characters on average but reach
+     * thousands; the cap keeps a text with a description inline (body, portal
+     * link, sign-off) around six GSM-7 segments and well under Twilio's
+     * 1,600-character body limit. The portal link carries the full text.
+     */
+    public const SMS_DESCRIPTION_LIMIT = 300;
+
+    /**
+     * The "Work Order Description: ..." token value for the texts that carry
+     * the description inline, or empty when the work order has none — those
+     * templates collapse the gap. Smart punctuation is flattened and the text
+     * capped on a word boundary.
+     */
+    public static function descriptionLine(?string $description): string
+    {
+        $description = trim((string) $description);
+
+        if ($description === '') {
+            return '';
+        }
+
+        return 'Work Order Description: '.Str::limit(
+            self::plainPunctuation($description),
+            self::SMS_DESCRIPTION_LIMIT,
+            '...',
+            preserveWords: true,
+        );
+    }
+
+    /**
+     * Free text (a PropertyWare description, a note) with "smart" punctuation
+     * flattened to its ASCII form: curly quotes, en/em dashes, ellipses,
+     * bullets, and non-breaking or zero-width spaces. One such character in a
+     * text body flips the whole SMS from GSM-7 to UCS-2, halving the
+     * characters per segment and, on long texts, tripping Twilio's carrier
+     * limit (error 30019). Template bodies are already held to GSM-7 by the
+     * editor; this is for the values substituted into them. Accented letters
+     * are left alone — the GSM set carries the common ones.
+     */
+    public static function plainPunctuation(string $text): string
+    {
+        return strtr($text, [
+            "\u{2018}" => "'", "\u{2019}" => "'", "\u{201A}" => "'", "\u{201B}" => "'",
+            "\u{201C}" => '"', "\u{201D}" => '"', "\u{201E}" => '"', "\u{201F}" => '"',
+            "\u{2010}" => '-', "\u{2011}" => '-', "\u{2012}" => '-', "\u{2013}" => '-',
+            "\u{2014}" => '-', "\u{2015}" => '-',
+            "\u{2026}" => '...',
+            "\u{2022}" => '-', "\u{00B7}" => '-', "\u{2043}" => '-',
+            "\u{00A0}" => ' ', "\u{2007}" => ' ', "\u{2009}" => ' ', "\u{200A}" => ' ', "\u{202F}" => ' ',
+            "\u{200B}" => '', "\u{200C}" => '', "\u{200D}" => '', "\u{FEFF}" => '',
+        ]);
     }
 
     /**

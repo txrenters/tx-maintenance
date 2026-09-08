@@ -509,4 +509,30 @@ class LeaseArrivalIntakeTest extends TestCase
         $this->assertFalse($sender->sendIntakeConfirmation($workOrder));
         $this->assertSame(1, TenantEmailNotification::query()->count());
     }
+
+    public function test_the_scheduled_import_keeps_the_tenant_portal_source_the_app_stamped(): void
+    {
+        Queue::fake();
+
+        // PropertyWare reports the app's own API-created work orders with
+        // Source "None"; the tenant portal intake stamps its rows itself, and
+        // that stamp is what exempts them from the no-lease skip above.
+        $this->fakeScheduledImports(
+            $this->withLease(['source' => 'None']),
+            $this->withLease(['source' => 'None']),
+            $this->withLease(['source' => 'Telephone']),
+        );
+
+        $this->runScheduledImport();
+        $this->assertSame('None', $this->importedWorkOrder()->source);
+
+        WorkOrder::query()->whereKey($this->importedWorkOrder()->id)->update(['source' => 'Tenant Portal']);
+
+        $this->runScheduledImport();
+        $this->assertSame('Tenant Portal', $this->importedWorkOrder()->source);
+
+        // A real Source PropertyWare later shows still wins.
+        $this->runScheduledImport();
+        $this->assertSame('Telephone', $this->importedWorkOrder()->source);
+    }
 }

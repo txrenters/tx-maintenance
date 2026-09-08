@@ -11,9 +11,13 @@ use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
+use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerServiceRequestNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class OwnerServiceRequestNotificationTest extends TestCase
@@ -453,5 +457,167 @@ class OwnerServiceRequestNotificationTest extends TestCase
             ->handle(app(OwnerServiceRequestNotificationService::class));
 
         $this->assertSame(2, $workOrder->owner_conversation()->count());
+    }
+
+    /**
+     * A work order with an address on file, entered in PropertyWare by our
+     * team (Source anything but Tenant Portal or Website).
+     */
+    private function makeStaffCreatedWorkOrder(Owner $owner, string $source = 'None', ?string $description = 'There is water dripping from the roof down into the backyard'): WorkOrder
+    {
+        $building = Building::query()->firstOrCreate(
+            ['propertyware_id' => 'B-6341DM'],
+            ['name' => 'Del Monte', 'address' => '6341 Del Monte Dr', 'city' => 'Houston', 'state_region' => 'TX'],
+        );
+        $workOrder = $this->makeWorkOrder($this->makeTenant(), description: $description);
+        $workOrder->update(['building_id' => $building->propertyware_id, 'source' => $source]);
+        $workOrder->owners()->attach($owner->id);
+
+        return $workOrder->fresh();
+    }
+
+    public function test_a_work_order_our_team_entered_gets_one_created_by_our_team_text(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $workOrder = $this->makeStaffCreatedWorkOrder($owner);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $messages = $workOrder->owner_conversation()->get();
+        $this->assertCount(1, $messages);
+
+        $text = $messages[0]->message;
+        $this->assertStringContainsString('Hi Olivia Owner, a new work order #43361 has been created for 6341 Del Monte Dr by our team.', $text);
+        $this->assertStringContainsString('Work Order Description: There is water dripping from the roof down into the backyard', $text);
+        $this->assertStringContainsString("We'll keep you updated as the work progresses. Thank you!", $text);
+        $this->assertStringContainsString(OwnerMessageFormatter::LINK_LEAD, $text);
+        $this->assertStringContainsString('(Ref: WO#43361)', $text);
+        $this->assertStringNotContainsString('received a new service request', $text);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
+
+        // Same ledger key as the request-received pair, marked as this shape.
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'owner_service_request_sms')
+            ->firstOrFail();
+        $this->assertSame('staff_created', $ledger->properties['variant']);
+    }
+
+    public function test_a_tenant_portal_or_website_request_keeps_the_request_received_pair(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        foreach (['Tenant Portal', 'Website'] as $source) {
+            $owner = $this->makeOwner('3466260693', 100);
+            $workOrder = $this->makeStaffCreatedWorkOrder($owner, $source);
+
+            app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+            $messages = $workOrder->owner_conversation()->orderBy('id')->get();
+            $this->assertCount(2, $messages, "Source [{$source}] should keep the two-text confirmation.");
+            $this->assertStringContainsString('received a new service request', $messages[0]->message);
+            $this->assertStringNotContainsString('by our team', $messages[0]->message);
+        }
+    }
+
+    public function test_the_created_text_omits_the_description_line_when_there_is_none(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $workOrder = $this->makeStaffCreatedWorkOrder($owner, description: null);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $text = $workOrder->owner_conversation()->firstOrFail()->message;
+        $this->assertStringNotContainsString('Work Order Description', $text);
+        $this->assertStringContainsString("by our team.\n\nOur team will review", $text);
+        $this->assertStringNotContainsString("\n\n\n", $text);
+    }
+
+    public function test_the_created_text_caps_a_long_description_and_straightens_smart_punctuation(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        // Pasted from Word: curly apostrophe and an em dash, then far more
+        // text than a single SMS should carry.
+        $description = "The tenant\u{2019}s upstairs bathroom \u{2014} ".str_repeat('water keeps pooling by the tub ', 30);
+        $workOrder = $this->makeStaffCreatedWorkOrder($owner, description: $description);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $text = $workOrder->owner_conversation()->firstOrFail()->message;
+        $this->assertStringContainsString("Work Order Description: The tenant's upstairs bathroom - water keeps", $text);
+        $this->assertStringContainsString('...', $text);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
+        $this->assertLessThan(1600, strlen($text));
+        // The cap applies to the description, not the whole text.
+        $this->assertStringContainsString("We'll keep you updated", $text);
+    }
+
+    public function test_the_created_text_says_your_property_when_no_address_is_known(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->update(['source' => 'Telephone']);
+        $workOrder->owners()->attach($owner->id);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $text = $workOrder->owner_conversation()->firstOrFail()->message;
+        $this->assertStringContainsString('has been created for your property by our team.', $text);
+    }
+
+    public function test_the_created_text_greets_an_owner_by_the_name_on_file_or_plainly(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        // An LLC: PropertyWare holds the company as the owner's name.
+        $company = $this->makeOwner('3466260693', 100);
+        $company->update(['name' => 'Del Monte Holdings LLC']);
+        $workOrder = $this->makeStaffCreatedWorkOrder($company);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertStringContainsString('Hi Del Monte Holdings LLC, a new work order', $workOrder->owner_conversation()->firstOrFail()->message);
+
+        // No name at all.
+        $nameless = $this->makeOwner('2810000001', 100);
+        $nameless->update(['first_name' => '', 'last_name' => '']);
+        $workOrder = $this->makeStaffCreatedWorkOrder($nameless);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertStringContainsString('Hi, a new work order', $workOrder->owner_conversation()->firstOrFail()->message);
+    }
+
+    public function test_a_turnover_our_team_entered_is_still_skipped(): void
+    {
+        $this->enableGate();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $workOrder = $this->makeStaffCreatedWorkOrder($owner, 'Inspection');
+        $workOrder->update(['type' => 'Turnover']);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
 }

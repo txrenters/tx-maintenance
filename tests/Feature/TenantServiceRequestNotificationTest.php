@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Jobs\SendConversationMessageJob;
+use App\Models\Building;
 use App\Models\Conversation;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
+use App\Services\AutomatedMessageTemplates;
+use App\Services\TenantMessageFormatter;
 use App\Services\TenantServiceRequestNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class TenantServiceRequestNotificationTest extends TestCase
@@ -337,5 +342,124 @@ class TenantServiceRequestNotificationTest extends TestCase
 
         $hoa = $this->makeWorkOrder(['propertyware_id' => 43485005, 'category' => WorkOrder::HOA_VIOLATION_CATEGORY]);
         $this->assertFalse($hoa->hasNoLeaseOnFile());
+    }
+
+    /**
+     * A work order with an address on file, entered in PropertyWare by our
+     * team (Source anything but Tenant Portal or Website).
+     */
+    private function makeStaffCreatedWorkOrder(array $attributes = []): WorkOrder
+    {
+        $building = Building::query()->firstOrCreate(
+            ['propertyware_id' => 'B-500ELM'],
+            ['name' => 'Elm', 'address' => '500 Elm St', 'city' => 'Houston', 'state_region' => 'TX'],
+        );
+
+        return $this->makeWorkOrder(array_merge([
+            'source' => 'None',
+            'building_id' => $building->propertyware_id,
+        ], $attributes));
+    }
+
+    public function test_a_work_order_our_team_entered_tells_the_tenant_it_was_created_for_them(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeStaffCreatedWorkOrder();
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('Hi Dana, a work order #43900 has been created for 500 Elm St by our team.', $text);
+        $this->assertStringContainsString('Work Order Description: Water heater is leaking in the garage', $text);
+        $this->assertStringContainsString("We'll contact you regarding scheduling or access if needed. Thank you!", $text);
+        $this->assertStringContainsString(TenantMessageFormatter::LINK_LEAD, $text);
+        $this->assertStringContainsString('(Ref: WO#43900)', $text);
+        $this->assertStringNotContainsString('received your service request', $text);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+        $this->assertNotNull($workOrder->fresh()->tenant_service_request_notified_at);
+
+        // Same ledger key as the request-received text, marked as this shape.
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'tenant_service_request_sms')
+            ->firstOrFail();
+        $this->assertSame('staff_created', $ledger->properties['variant']);
+    }
+
+    public function test_the_tenant_channels_and_an_unknown_source_keep_the_request_received_wording(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        foreach (['Tenant Portal', 'Website', null] as $source) {
+            $workOrder = $this->makeStaffCreatedWorkOrder(['source' => $source]);
+
+            $this->notify($workOrder);
+
+            $text = $this->tenantMessage($workOrder)->message;
+            $this->assertStringContainsString('we have received your service request for 500 Elm St', $text, 'Source ['.var_export($source, true).']');
+            $this->assertStringNotContainsString('by our team', $text);
+        }
+    }
+
+    public function test_the_created_text_says_your_home_when_no_address_is_known(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder(['source' => 'Inspection', 'building_id' => null]);
+
+        $this->notify($workOrder);
+
+        $this->assertStringContainsString(
+            'has been created for your home by our team.',
+            $this->tenantMessage($workOrder)->message,
+        );
+    }
+
+    public function test_the_created_text_omits_the_description_line_when_there_is_none(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeStaffCreatedWorkOrder(['description' => '']);
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringNotContainsString('Work Order Description', $text);
+        $this->assertStringContainsString("by our team.\n\nOur team will review", $text);
+        $this->assertStringNotContainsString("\n\n\n", $text);
+    }
+
+    public function test_the_created_text_is_sent_once_per_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeStaffCreatedWorkOrder();
+
+        $this->notify($workOrder);
+        $this->notify($workOrder->fresh());
+
+        $this->assertSame(1, Conversation::query()->where('work_order_id', $workOrder->id)->count());
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_an_hoa_notice_our_team_entered_still_gets_no_text(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeStaffCreatedWorkOrder(['category' => WorkOrder::HOA_VIOLATION_CATEGORY]);
+
+        $this->notify($workOrder);
+
+        $this->assertNull($this->tenantMessage($workOrder));
+        Queue::assertNothingPushed();
     }
 }

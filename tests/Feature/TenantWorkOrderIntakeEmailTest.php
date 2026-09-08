@@ -66,7 +66,7 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         return $captured;
     }
 
-    private function makeWorkOrder(?string $email = 'dana@example.com'): WorkOrder
+    private function makeWorkOrder(?string $email = 'dana@example.com', array $attributes = []): WorkOrder
     {
         $tenant = Tenants::query()->create([
             'first_name' => 'Dana',
@@ -76,12 +76,12 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
             'user_id' => User::factory()->create()->id,
         ]);
 
-        return WorkOrder::factory()->create([
+        return WorkOrder::factory()->create(array_merge([
             'status' => 'Open',
             'work_order_no' => 43900,
             'description' => 'Water heater is leaking in the garage',
             'tenant_id' => $tenant->id,
-        ]);
+        ], $attributes));
     }
 
     private function send(WorkOrder $workOrder): bool
@@ -191,5 +191,43 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
 
         // Logged and swallowed, not thrown.
         $this->assertFalse($this->send($this->makeWorkOrder()));
+    }
+
+    public function test_a_work_order_our_team_entered_says_so(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $captured = $this->fakeGraph();
+
+        // Entered in PropertyWare by a coordinator: Source left at "None".
+        $workOrder = $this->makeWorkOrder(attributes: ['source' => 'None']);
+
+        $this->assertTrue($this->send($workOrder));
+
+        // The mailer appends its reply-threading tag after the subject.
+        $this->assertStringStartsWith('A work order has been created — Work Order #43900', $captured->subject);
+        $this->assertStringContainsString('New Work Order', $captured->html);
+        $this->assertStringContainsString('A work order has been created', $captured->html);
+        $this->assertStringContainsString('by our team', $captured->html);
+        $this->assertStringContainsString('contact you regarding scheduling or', $captured->html);
+        $this->assertStringContainsString('Work order description', $captured->html);
+        $this->assertStringContainsString('Water heater is leaking in the garage', $captured->html);
+        $this->assertStringContainsString('View Work Order #43900', $captured->html);
+        $this->assertStringNotContainsString('we have received', $captured->html);
+        $this->assertStringNotContainsString('What you told us', $captured->html);
+    }
+
+    public function test_a_tenant_portal_request_keeps_the_request_received_email(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $captured = $this->fakeGraph();
+
+        $workOrder = $this->makeWorkOrder(attributes: ['source' => 'Tenant Portal']);
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertStringStartsWith('We received your service request — Work Order #43900', $captured->subject);
+        $this->assertStringContainsString('Service Request Received', $captured->html);
+        $this->assertStringContainsString('What you told us', $captured->html);
+        $this->assertStringNotContainsString('by our team', $captured->html);
     }
 }

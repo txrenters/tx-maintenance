@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\View;
 /**
  * Emails the tenant a branded confirmation when their service request comes in,
  * carrying the no-login portal link so they can follow the request, message the
- * coordinator, and add photos without waiting to be asked.
+ * coordinator, and add photos without waiting to be asked. When our team
+ * entered the work order in PropertyWare (Source anything but Tenant Portal or
+ * Website) the same email says a work order has been created for their home by
+ * our team, matching the text they get.
  *
  * Routed through TenantJobberEmailSender so the send is recorded as a
  * TenantEmailNotification with a TNT-{tenantId} correlation tag, which lets
@@ -60,8 +63,15 @@ class TenantWorkOrderEmailSender
                 return false;
             }
 
+            $staffCreated = $workOrder->isStaffCreated();
+            $reference = $workOrder->work_order_no ?? $workOrder->id;
+            $subject = ($staffCreated
+                ? 'A work order has been created — Work Order #'
+                : 'We received your service request — Work Order #').$reference;
+
             $html = View::make('emails.tenant-work-order-intake', [
                 'workOrder' => $workOrder,
+                'staffCreated' => $staffCreated,
                 'tenantName' => trim((string) ($tenant->first_name ?? '')),
                 'property' => $workOrder->propertyAddress() ?: $workOrder->building?->name,
                 'coordinator' => $workOrder->woc?->name,
@@ -72,7 +82,7 @@ class TenantWorkOrderEmailSender
                 tenant: $tenant,
                 job: null,
                 to: $to,
-                subject: 'We received your service request — Work Order #'.($workOrder->work_order_no ?? $workOrder->id),
+                subject: $subject,
                 html: $html,
                 metadata: ['work_order_id' => $workOrder->id, 'type' => 'work_order_intake'],
                 // A rendered blade carries inline styles the sanitizer would
@@ -80,15 +90,19 @@ class TenantWorkOrderEmailSender
                 trustedHtml: true,
             );
 
+            $ledgerExtra = ['subject' => $subject];
+
+            if ($staffCreated) {
+                $ledgerExtra['variant'] = 'staff_created';
+            }
+
             AutomatedMessageLogService::log(
                 AutomatedMessageLogService::CHANNEL_EMAIL,
                 'tenant',
                 'tenant_intake_email',
                 $to,
                 $workOrder,
-                extra: [
-                    'subject' => 'We received your service request — Work Order #'.($workOrder->work_order_no ?? $workOrder->id),
-                ],
+                extra: $ledgerExtra,
             );
 
             return true;

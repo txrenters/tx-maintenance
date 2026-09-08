@@ -297,4 +297,39 @@ class WorkOrderImportTest extends TestCase
 
         $this->assertContains($blank->id, $rendered);
     }
+
+    public function test_reimporting_keeps_the_tenant_portal_source_the_app_stamped(): void
+    {
+        $this->serviceStatus('New');
+        $staff = $this->staffUser();
+
+        // PropertyWare reports the app's own API-created work orders with
+        // Source "None"; one mock serves the three imports in order.
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('getWorkOrderByNumber')
+                ->with(42111)
+                ->andReturn(
+                    [$this->soapWorkOrderPayload(['source' => 'None'])],
+                    [$this->soapWorkOrderPayload(['source' => 'None'])],
+                    [$this->soapWorkOrderPayload(['source' => 'Telephone'])],
+                );
+        });
+
+        $this->actingAs($staff)->post(route('work_orders.import'), ['work_order_no' => 42111]);
+        $this->assertSame('None', WorkOrder::query()->firstOrFail()->source);
+
+        // The tenant portal intake stamps its own rows after the import.
+        WorkOrder::query()->update(['source' => 'Tenant Portal']);
+
+        $this->actingAs($staff)
+            ->post(route('work_orders.import'), ['work_order_no' => 42111])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Tenant Portal', WorkOrder::query()->firstOrFail()->source);
+
+        // A real Source PropertyWare later shows still wins.
+        $this->actingAs($staff)
+            ->post(route('work_orders.import'), ['work_order_no' => 42111])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Telephone', WorkOrder::query()->firstOrFail()->source);
+    }
 }

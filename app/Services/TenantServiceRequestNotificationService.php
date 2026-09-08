@@ -13,7 +13,10 @@ class TenantServiceRequestNotificationService
     public function __construct(private TenantPortalLinkService $portalLinks) {}
 
     /**
-     * Tell the tenant we have received their service request.
+     * Tell the tenant their work order is in: that we have received their
+     * service request, or, when our team entered the work order in
+     * PropertyWare (Source anything but Tenant Portal or Website), that a work
+     * order has been created for their home by our team.
      *
      * The SMS counterpart of the intake email: same moment, same portal link,
      * for the tenants who read texts but not email. Posts into the
@@ -88,8 +91,10 @@ class TenantServiceRequestNotificationService
             return;
         }
 
+        $staffCreated = $workOrder->isStaffCreated();
+
         $message = TenantMessageFormatter::compose(
-            $this->confirmationMessage($workOrder),
+            $staffCreated ? $this->createdMessage($workOrder) : $this->confirmationMessage($workOrder),
             $workOrder->work_order_no ?? $workOrder->id,
             $this->portalLinks->link($workOrder),
         );
@@ -106,6 +111,12 @@ class TenantServiceRequestNotificationService
 
         SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
 
+        $ledgerExtra = ['conversation_id' => $conversation->id];
+
+        if ($staffCreated) {
+            $ledgerExtra['variant'] = 'staff_created';
+        }
+
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
             'tenant',
@@ -113,7 +124,7 @@ class TenantServiceRequestNotificationService
             $tenantNumber,
             $workOrder,
             $message,
-            ['conversation_id' => $conversation->id],
+            $ledgerExtra,
         );
     }
 
@@ -125,13 +136,37 @@ class TenantServiceRequestNotificationService
      */
     private function confirmationMessage(WorkOrder $workOrder): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
         $address = $workOrder->propertyAddress();
 
         return AutomatedMessageTemplates::text('tenant_service_request_sms', [
-            'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
+            'greeting' => $this->greeting($workOrder),
             'property' => $address !== null ? " for {$address}" : '',
         ]);
+    }
+
+    /**
+     * The "created by our team" wording for a work order staff entered in
+     * PropertyWare: the WOC ticket's text, with the description inline and
+     * "your home" standing in for an unknown address.
+     */
+    private function createdMessage(WorkOrder $workOrder): string
+    {
+        return AutomatedMessageTemplates::text('tenant_work_order_created_sms', [
+            'greeting' => $this->greeting($workOrder),
+            'work_order_no' => (string) ($workOrder->work_order_no ?? $workOrder->id),
+            'property' => $workOrder->propertyAddress() ?? 'your home',
+            'description_line' => AutomatedMessageTemplates::descriptionLine($workOrder->description),
+        ]);
+    }
+
+    /**
+     * "Hi <first name>," or "Hi," when the requested-by contact has no name.
+     */
+    private function greeting(WorkOrder $workOrder): string
+    {
+        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+
+        return $name !== '' ? "Hi {$name}," : 'Hi,';
     }
 
     /**
