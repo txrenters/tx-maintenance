@@ -338,8 +338,16 @@ class WorkOrderService
             // context where the scope is already a no-op.)
             $existingWorkOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['id', 'status', 'completed_date', 'created_date', 'lease_id']);
+                ->first(['id', 'status', 'completed_date', 'created_date', 'lease_id', 'source']);
             $workOrderExists = $existingWorkOrder !== null;
+
+            // The app stamps "Tenant Portal" on the work orders it creates for
+            // tenant portal requests, which PropertyWare reports as "None"; a
+            // re-import must not wipe the stamp (same class as the tenant_id
+            // guard above).
+            if ($workOrderExists && ! WorkOrder::importedSourceReplaces($existingWorkOrder->source, $work_order_data['source'] ?? null)) {
+                unset($work_order_data['source']);
+            }
 
             $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
                 $work_order_data['completed_date'],

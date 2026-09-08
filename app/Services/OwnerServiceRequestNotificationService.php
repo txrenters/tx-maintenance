@@ -14,14 +14,16 @@ class OwnerServiceRequestNotificationService
     public function __construct(private OwnerPortalLinkService $portalLinks) {}
 
     /**
-     * Notify every property owner on the work order that a new service request
-     * has come in.
+     * Notify every property owner on the work order that a new work order has
+     * come in.
      *
-     * Sends two texts from (and logged as) the WOC on the owner<->WOC
-     * conversation thread: a confirmation that points the owner at the emailed
-     * copy and their owner portal, followed by the request description. This is
-     * a one-way notification — any reply lands in the same thread for a
-     * coordinator to handle.
+     * Sends from (and logged as) the WOC on the owner<->WOC conversation
+     * thread. For a request the tenant raised (PropertyWare Source "Tenant
+     * Portal" or "Website"): two texts, a confirmation that points the owner at
+     * their owner portal, followed by the request description. For a work
+     * order our team entered in PropertyWare: one text saying so, with the
+     * description inline. Either way this is a one-way notification — any
+     * reply lands in the same thread for a coordinator to handle.
      *
      * Gated off by default, fired at most once per work order, and wrapped so a
      * failure is logged but never breaks intake.
@@ -101,7 +103,8 @@ class OwnerServiceRequestNotificationService
         }
 
         $address = $workOrder->propertyAddress() ?? 'your property';
-        $description = $this->descriptionMessage($workOrder);
+        $staffCreated = $workOrder->isStaffCreated();
+        $description = $staffCreated ? null : $this->descriptionMessage($workOrder);
 
         foreach ($owners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
@@ -111,10 +114,25 @@ class OwnerServiceRequestNotificationService
             }
 
             // Each owner gets their own no-login portal link for this request.
+            $link = $this->portalLinks->link($workOrder, $owner);
+
+            // Our team entered it: one text that says so, description inline.
+            if ($staffCreated) {
+                $created = OwnerMessageFormatter::compose(
+                    $this->createdMessage($workOrder, $owner, $address),
+                    $workOrder->work_order_no,
+                    $link,
+                );
+
+                $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $created, ['variant' => 'staff_created']);
+
+                continue;
+            }
+
             $confirmation = OwnerMessageFormatter::compose(
                 $this->confirmationMessage($workOrder, $address),
                 $workOrder->work_order_no,
-                $this->portalLinks->link($workOrder, $owner),
+                $link,
             );
 
             $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $confirmation);
@@ -127,8 +145,10 @@ class OwnerServiceRequestNotificationService
 
     /**
      * Persist one message to the owner thread (as the WOC) and queue the text.
+     *
+     * @param  array<string, mixed>  $extra  extra ledger properties for this message
      */
-    private function post(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $fromNumber, string $message): void
+    private function post(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $fromNumber, string $message, array $extra = []): void
     {
         $conversation = Conversation::create([
             'message' => $message,
@@ -150,7 +170,7 @@ class OwnerServiceRequestNotificationService
             $ownerNumber,
             $workOrder,
             $message,
-            ['owner_id' => $owner->id, 'conversation_id' => $conversation->id],
+            ['owner_id' => $owner->id, 'conversation_id' => $conversation->id] + $extra,
         );
     }
 
@@ -186,10 +206,29 @@ class OwnerServiceRequestNotificationService
 
         return OwnerMessageFormatter::compose(
             AutomatedMessageTemplates::text('owner_service_request_description_sms', [
-                'description' => $description,
+                'description' => AutomatedMessageTemplates::plainPunctuation($description),
             ]),
             $workOrder->work_order_no,
         );
+    }
+
+    /**
+     * The single "created by our team" text for a work order staff entered in
+     * PropertyWare: the WOC ticket's wording, greeting the owner by name (an
+     * LLC's name when that is what PropertyWare holds, as the vendor-assignment
+     * text already does), with the description inline. "your property" stands
+     * in for an unknown address.
+     */
+    private function createdMessage(WorkOrder $workOrder, Owner $owner, string $address): string
+    {
+        $name = trim((string) $owner->name) ?: trim($owner->first_name.' '.$owner->last_name);
+
+        return AutomatedMessageTemplates::text('owner_work_order_created_sms', [
+            'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
+            'work_order_no' => (string) $workOrder->work_order_no,
+            'property' => $address,
+            'description_line' => AutomatedMessageTemplates::descriptionLine($workOrder->description),
+        ]);
     }
 
     /**

@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-09',
+            'area' => 'Messaging',
+            'title' => 'Owners and tenants are told when our team creates a work order',
+            'description' => 'When someone on our team enters a work order in PropertyWare - a coordinator after a call, a technician after a visit, an inspection finding - the owner and the tenant used to get the same "we have received your service request" texts as a request the tenant sent in, which read wrong for a request they never made. Now, whenever the work order\'s Source in PropertyWare is anything other than Tenant Portal or Website, the owner gets one text instead of two: "Hi <name>, a new work order #<number> has been created for <address> by our team", with the work order description and a note that we will keep them updated as the work progresses. The tenant gets the same in their words, with a note that we will contact them about scheduling or access if needed, and the tenant email says the same. Both texts are on the Automated Messages page under "Created by our team" and can be edited there. Everything else is as before: requests from the tenant portal or the website keep today\'s wording, the per-work-order mute still applies, no texts go out on turnover, re-key, refresh-cleaning, vacant or no-lease homes or on HOA notices, and each work order is texted once.',
+        ],
+        [
             'date' => '2026-09-03',
             'area' => 'Owners',
             'title' => 'New owners can tell us which utilities the HOA handles',

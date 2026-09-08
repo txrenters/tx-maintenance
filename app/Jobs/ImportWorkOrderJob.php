@@ -304,7 +304,7 @@ class ImportWorkOrderJob implements ShouldQueue
             // date already on the row (or the closed board loses the card).
             $existingWorkOrder = DB::table('work_orders')
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['status', 'completed_date', 'created_date']);
+                ->first(['status', 'completed_date', 'created_date', 'source']);
 
             $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
                 $work_order_data['completed_date'],
@@ -313,6 +313,14 @@ class ImportWorkOrderJob implements ShouldQueue
                 $existingWorkOrder?->completed_date,
                 $work_order_data['created_date'] ?? $existingWorkOrder?->created_date,
             );
+
+            // The app stamps "Tenant Portal" on the work orders it creates for
+            // tenant portal requests, which PropertyWare reports as "None"; a
+            // re-import must not wipe the stamp (same class as the tenant_id
+            // guard above).
+            if ($existingWorkOrder !== null && ! WorkOrder::importedSourceReplaces($existingWorkOrder->source, $work_order_data['source'] ?? null)) {
+                unset($work_order_data['source']);
+            }
 
             Log::info('Work order data: ', ['data' => $work_order_data]);
 

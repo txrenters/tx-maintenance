@@ -226,9 +226,17 @@ class WorkOrderImportCommand extends Command
             // so the lookup sees the row.
             $previousState = WorkOrder::query()
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['id', 'description', 'lease_id']);
+                ->first(['id', 'description', 'lease_id', 'source']);
             $previousDescription = $previousState?->description;
             $previousLeaseId = $previousState?->lease_id;
+
+            // The app stamps "Tenant Portal" on the work orders it creates for
+            // tenant portal requests, which PropertyWare reports as "None"; a
+            // re-import must not wipe the stamp (same class as the tenant_id
+            // guard above).
+            if ($previousState !== null && ! WorkOrder::importedSourceReplaces($previousState->source, $work_order_data['source'] ?? null)) {
+                unset($work_order_data['source']);
+            }
 
             // service_status_id is NOT NULL: a payload without the "Service
             // Status" custom field would otherwise fail the insert outright —

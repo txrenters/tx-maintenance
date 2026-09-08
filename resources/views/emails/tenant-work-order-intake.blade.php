@@ -1,20 +1,32 @@
 @php
     $logoSrc = isset($message) ? $message->embed(public_path('tx-logo.png')) : asset('tx-logo.png');
     $reference = $workOrder->work_order_no ?? $workOrder->id;
+    // Our team entered the work order in PropertyWare, rather than the tenant
+    // submitting it: say so instead of confirming a request they never sent.
+    $staffCreated = $staffCreated ?? false;
 @endphp
-<x-mail.branded :logo="$logoSrc" eyebrow="Service Request Received" heading="Work Order #{{ $reference }}">
+<x-mail.branded :logo="$logoSrc" :eyebrow="$staffCreated ? 'New Work Order' : 'Service Request Received'" heading="Work Order #{{ $reference }}">
     <p style="margin:12px 0;">{{ $tenantName ? 'Hi '.$tenantName.',' : 'Hello,' }}</p>
+    @if($staffCreated)
+    <p style="margin:12px 0;">
+        This is TexasRenters.com Maintenance. A work order has been created{{ $property ? ' for '.$property : '' }}
+        by our team. Our team will review the request and coordinate the
+        necessary next steps, and we will contact you regarding scheduling or
+        access if needed.
+    </p>
+    @else
     <p style="margin:12px 0;">
         This is TexasRenters.com Maintenance confirming that we have received
         your service request{{ $property ? ' for '.$property : '' }}. We are
         reviewing it now and will keep you updated as it moves forward.
     </p>
+    @endif
 
     @if($workOrder->description)
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:16px 0; background-color:#f5f7fa; border-radius:8px;">
         <tr>
             <td style="padding:14px 16px;">
-                <div style="font-size:12px; color:#6b7280; font-weight:bold; text-transform:uppercase; letter-spacing:0.4px;">What you told us</div>
+                <div style="font-size:12px; color:#6b7280; font-weight:bold; text-transform:uppercase; letter-spacing:0.4px;">{{ $staffCreated ? 'Work order description' : 'What you told us' }}</div>
                 <div style="margin-top:6px; font-size:14px; color:#374151; white-space:pre-line;">{{ $workOrder->description }}</div>
             </td>
         </tr>
@@ -44,10 +56,17 @@
     </p>
     @endif
 
+    @if($staffCreated)
+    <p style="margin:12px 0;">
+        If you have noticed the issue yourself, photos help us get the right
+        person out the first time — you can add them through the link above.
+    </p>
+    @else
     <p style="margin:12px 0;">
         Photos of the issue help us get the right person out the first time, so
         please add them if you can.
     </p>
+    @endif
 
     @if($coordinator)
     <p style="margin:12px 0; font-size:13px; color:#6b7280;">

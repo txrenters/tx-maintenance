@@ -276,4 +276,56 @@ class AutomatedMessageTemplatesTest extends TestCase
         $this->assertFalse($untouched['is_overridden']);
         $this->assertNull($untouched['override']);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Token helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_plain_punctuation_flattens_smart_characters_and_keeps_the_rest(): void
+    {
+        $pasted = "The tenant\u{2019}s \u{201C}new\u{201D} unit \u{2013} kitchen \u{2014} bath\u{2026} caf\u{00E9}\u{00A0}door\u{200B}";
+
+        $plain = AutomatedMessageTemplates::plainPunctuation($pasted);
+
+        $this->assertSame("The tenant's \"new\" unit - kitchen - bath... café door", $plain);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($plain));
+    }
+
+    public function test_description_line_is_labelled_capped_on_a_word_and_empty_when_blank(): void
+    {
+        $this->assertSame('', AutomatedMessageTemplates::descriptionLine(null));
+        $this->assertSame('', AutomatedMessageTemplates::descriptionLine('   '));
+        $this->assertSame(
+            'Work Order Description: Kitchen sink is leaking',
+            AutomatedMessageTemplates::descriptionLine("  Kitchen sink is leaking\n"),
+        );
+
+        $long = AutomatedMessageTemplates::descriptionLine(str_repeat('water keeps pooling by the tub ', 30));
+
+        $this->assertStringStartsWith('Work Order Description: water keeps pooling', $long);
+        $this->assertStringEndsWith('...', $long);
+        // Cut on a word boundary, never mid-word.
+        $this->assertMatchesRegularExpression('/ (tub|by|the|pooling|keeps|water)\.\.\.$/', $long);
+        $this->assertLessThanOrEqual(
+            strlen('Work Order Description: ') + AutomatedMessageTemplates::SMS_DESCRIPTION_LIMIT + 3,
+            strlen($long),
+        );
+    }
+
+    public function test_the_created_by_our_team_templates_collapse_a_missing_description(): void
+    {
+        foreach (['tenant_work_order_created_sms', 'owner_work_order_created_sms'] as $key) {
+            $text = AutomatedMessageTemplates::text($key, [
+                'greeting' => 'Hi Jane,',
+                'work_order_no' => '43361',
+                'property' => '123 Main St',
+                'description_line' => '',
+            ]);
+
+            $this->assertStringContainsString("by our team.\n\nOur team will review", $text, $key);
+            $this->assertStringNotContainsString("\n\n\n", $text, $key);
+        }
+    }
 }

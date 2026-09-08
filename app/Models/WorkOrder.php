@@ -38,6 +38,15 @@ class WorkOrder extends Model
     public const HOA_VIOLATION_CATEGORY = 'HOA Violation';
 
     /**
+     * PropertyWare "Source" values that mean the tenant raised the work order
+     * themselves: the tenant portal and the public website form. Every other
+     * value PropertyWare emits ("None" when staff leave the picklist unset,
+     * "Telephone", "Inspection", "Internal", "Email", "In Person", ...) is a
+     * work order someone on our team typed in.
+     */
+    public const TENANT_ORIGIN_SOURCES = ['Tenant Portal', 'Website'];
+
+    /**
      * The kanban boards a work order can appear on, keyed by the value the
      * summary endpoint accepts. Each maps to one of the WorkOrderController
      * board methods; scopeForBoard() reproduces that method's predicate.
@@ -262,6 +271,44 @@ class WorkOrder extends Model
         }
 
         return ! $this->tenants()->exists();
+    }
+
+    /**
+     * Whether someone on our team entered this work order in PropertyWare
+     * rather than the tenant submitting it. Read from PropertyWare's Source
+     * field, which PropertyWare stamps itself (its createdBy is not mapped for
+     * work orders): "Tenant Portal" and "Website" are the tenant's own
+     * channels; anything else was typed in by staff after a call, an
+     * inspection, a technician find, or an HOA notice. A blank source is
+     * unknown (PropertyWare never sends one; local rows may carry none) and
+     * keeps the "we received your request" wording rather than claiming our
+     * team created it.
+     */
+    public function isStaffCreated(): bool
+    {
+        $source = trim((string) $this->source);
+
+        return $source !== '' && ! in_array($source, self::TENANT_ORIGIN_SOURCES, true);
+    }
+
+    /**
+     * Whether an import payload's Source may replace the one on file. The app
+     * stamps "Tenant Portal" itself on the work orders it creates for tenant
+     * portal requests (PropertyWare's API create carries no Source, so
+     * PropertyWare reports "None" for them); a later import must not wipe
+     * that stamp, or the request loses its tenant-origin wording and its
+     * exemption from the no-lease skip. A real Source PropertyWare later
+     * shows still wins.
+     */
+    public static function importedSourceReplaces(?string $stored, ?string $incoming): bool
+    {
+        if (trim((string) $stored) !== 'Tenant Portal') {
+            return true;
+        }
+
+        $incoming = trim((string) $incoming);
+
+        return $incoming !== '' && $incoming !== 'None';
     }
 
     /**
