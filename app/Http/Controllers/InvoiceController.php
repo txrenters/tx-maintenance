@@ -148,7 +148,7 @@ class InvoiceController extends Controller
 
         $leaseStatuses = $this->leaseStatusesFor($invoices->getCollection());
 
-        $invoices->through(function ($invoice) use ($leaseStatuses) {
+        $invoices->through(function ($invoice) use ($leaseStatuses, $canPost) {
             return [
                 'id' => $invoice->id,
                 'title' => $invoice->title,
@@ -164,7 +164,10 @@ class InvoiceController extends Controller
                 'vendor' => $invoice->vendor?->name,
                 'created_at' => $invoice->created_at?->toIso8601String(),
                 'posted_at' => $invoice->posted_at?->toIso8601String(),
-                'posted_by' => $invoice->postedBy?->name,
+                // The list now prints the poster's name beside the time, so
+                // the name only goes to the office: a vendor learns that their
+                // invoice was put through, not which staff member did it.
+                'posted_by' => $canPost ? $invoice->postedBy?->name : null,
                 'archived_at' => $invoice->archived_at?->toIso8601String(),
                 'archived_by' => $invoice->archivedBy?->name,
             ];

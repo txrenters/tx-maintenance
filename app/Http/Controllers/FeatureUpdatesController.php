@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-09',
             'area' => 'Work Orders',
+            'title' => 'The Invoices list shows who ticked an invoice as posted',
+            'description' => 'The Posted column on the Invoices page used to show only the date and time an invoice was ticked; who ticked it was there, but only as a tooltip when you hovered the checkbox. The name now sits under the date and time in the same column - "by Work Order Coordinator", for example - so whoever is working the list can see who put an invoice through without hovering each row. Nothing changes about ticking: staff tick and untick as before, and the first person to tick stays on record. Vendors still cannot tick, and they are shown only that an invoice was posted, not who posted it.',
+        ],
+        [
+            'date' => '2026-09-09',
+            'area' => 'Work Orders',
             'title' => 'Invoices are archived instead of deleted, and can be brought back',
             'description' => 'Deleting an invoice used to remove it for good - the record and the uploaded PDF or photo both went, with no way to get either back, even though a copy had already been sent to PropertyWare. The action on the work order Invoices tab and on a Jobber job is now "Archive Invoice": it takes the invoice off the work order and out of the Invoices list, but keeps both the record and the file. On the Invoices page, admins and work order coordinators have a "Show archived" button that lists what has been archived, who archived it and when, with a Restore button on each row to put one back. Vendors never see archived invoices and cannot restore one. The Jobber job invoice menu now also asks for confirmation before archiving, which it did not do before.',
         ],
