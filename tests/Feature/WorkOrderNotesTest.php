@@ -506,4 +506,105 @@ class WorkOrderNotesTest extends TestCase
             ->post(route('api.work_order_notes.push', $note))
             ->assertForbidden();
     }
+
+    public function test_a_propertyware_note_is_edited_there_before_it_is_saved_here(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $note = $this->note($workOrder, ['propertyware_id' => '55501', 'user_id' => null]);
+
+        $this->mock(PropertyWareService::class, function ($mock) use ($note) {
+            $mock->shouldReceive('updateNote')
+                ->once()
+                ->withArgs(fn (WorkOrderNotes $sent, string $subject, string $body) => $sent->is($note)
+                    && $subject === 'Corrected subject'
+                    && $body === 'Corrected body')
+                ->andReturn(true);
+        });
+
+        $this->actingAs($this->makeWoc())
+            ->put(route('api.work_order_notes.update', $note), [
+                'subject' => 'Corrected subject',
+                'body' => 'Corrected body',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'id' => $note->id,
+            'subject' => 'Corrected subject',
+            'body' => 'Corrected body',
+        ]);
+    }
+
+    public function test_a_refused_propertyware_edit_leaves_the_note_untouched(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $note = $this->note($workOrder, ['propertyware_id' => '55502', 'user_id' => null]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldReceive('updateNote')->once()->andReturn(false);
+        });
+
+        $this->actingAs($this->makeWoc())
+            ->put(route('api.work_order_notes.update', $note), [
+                'subject' => 'Attempted subject',
+                'body' => 'Attempted body',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('warning');
+
+        // The row must still read exactly as it did: a local-first save would
+        // be reverted by the next sync without anyone noticing.
+        $this->assertDatabaseHas('work_order_notes', [
+            'id' => $note->id,
+            'subject' => 'Note',
+            'body' => 'Body',
+        ]);
+    }
+
+    public function test_a_note_not_yet_in_propertyware_is_edited_locally_without_calling_it(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $woc = $this->makeWoc();
+        $note = $this->note($workOrder, ['user_id' => $woc->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldNotReceive('updateNote');
+        });
+
+        $this->actingAs($woc)
+            ->put(route('api.work_order_notes.update', $note), [
+                'subject' => 'Fixed before it left',
+                'body' => 'Fixed body',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'id' => $note->id,
+            'subject' => 'Fixed before it left',
+        ]);
+    }
+
+    public function test_a_vendor_cannot_edit_someone_elses_note(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 8144617505]);
+        $workOrder->vendors()->attach($vendor->id);
+        $note = $this->note($workOrder, ['user_id' => User::factory()->create()->id]);
+
+        $this->mock(PropertyWareService::class, function ($mock) {
+            $mock->shouldNotReceive('updateNote');
+        });
+
+        $this->actingAs($vendorUser)
+            ->put(route('api.work_order_notes.update', $note), [
+                'subject' => 'Not mine',
+                'body' => 'Not mine',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'id' => $note->id,
+            'subject' => 'Note',
+        ]);
+    }
 }

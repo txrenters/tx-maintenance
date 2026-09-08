@@ -1395,6 +1395,90 @@ class PropertyWareService
     }
 
     /**
+     * Change a note's text in PropertyWare.
+     *
+     * PropertyWare's updateNote takes a whole Note and identifies it by the ID
+     * it inherits from PWObject, so any note carrying a propertyware_id can be
+     * edited here — including ones PropertyWare itself wrote, not just the
+     * notes this dashboard pushed.
+     *
+     * Only subject and body are the edit. The note's existing private flag and
+     * date are echoed back unchanged: sending fresh ones would silently flip a
+     * public note private or restamp when it was written. Callers must save the
+     * local row only after this returns true, because the importer overwrites
+     * PropertyWare-owned rows from PropertyWare and would revert a local-first
+     * edit at the next sync.
+     */
+    public function updateNote(WorkOrderNotes $note, string $subject, string $body): bool
+    {
+        if (blank($note->propertyware_id)) {
+            Log::warning('Work order note not updated: the note has no PropertyWare id.', [
+                'note_id' => $note->id,
+            ]);
+
+            return false;
+        }
+
+        // The note's own date, echoed back. A blank or unreadable date falls
+        // back to now rather than sending an empty xsd:dateTime.
+        try {
+            $date = blank($note->date)
+                ? now()->utc()->format('Y-m-d\TH:i:s\Z')
+                : Carbon::parse((string) $note->date)->utc()->format('Y-m-d\TH:i:s\Z');
+        } catch (Throwable) {
+            $date = now()->utc()->format('Y-m-d\TH:i:s\Z');
+        }
+
+        $xmlPayload = '
+            <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+            xmlns:ser="http://service.web.propertyware.realpage.com"
+            xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
+            <soapenv:Header/>
+            <soapenv:Body>
+            <ser:updateNote soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+                <note xsi:type="urn:Note" xmlns:urn="urn:PWServices">
+                    <clientData xsi:type="pws:ArrayOf_tns1_ClientDataItem"
+                    soapenc:arrayType="urn:ClientDataItem[]"
+                    xmlns:pws="http://localhost:8080/pw/services/PWServices"/>
+                    <ID xsi:type="xsd:long">'.(int) $note->propertyware_id.'</ID>
+                    <body xsi:type="xsd:string">'.$this->xmlText($body).'</body>
+                    <date xsi:type="xsd:dateTime">'.$date.'</date>
+                    <private xsi:type="xsd:boolean">'.($note->is_private ? '1' : '0').'</private>
+                    <subject xsi:type="xsd:string">'.$this->xmlText($subject).'</subject>
+                </note>
+            </ser:updateNote>
+            </soapenv:Body>
+            </soapenv:Envelope>';
+
+        $response = $this->execute($xmlPayload);
+
+        // execute() always returns an array; only its success flag says whether
+        // PropertyWare took the edit (a SOAP fault decodes to a truthy array).
+        if (! is_array($response) || ($response['success'] ?? false) !== true) {
+            Log::error('PropertyWare rejected the work order note edit.', [
+                'note_id' => $note->id,
+                'propertyware_note_id' => $note->propertyware_id,
+                'error' => is_array($response) ? ($response['error'] ?? null) : null,
+                'http_code' => is_array($response) ? ($response['http_code'] ?? null) : null,
+                'message' => is_array($response) && is_string($response['message'] ?? null)
+                    ? mb_substr($response['message'], 0, 500)
+                    : null,
+            ]);
+
+            return false;
+        }
+
+        Log::info('Work order note updated in PropertyWare.', [
+            'note_id' => $note->id,
+            'propertyware_note_id' => $note->propertyware_id,
+        ]);
+
+        return true;
+    }
+
+    /**
      * @param  array{title: ?string, filename: string, is_publish_to_owner_portal: bool, is_publish_to_tenant_portal: bool}  $attachment
      * @param  ?string  $fileName  PropertyWare filename frozen by the caller; retries must
      *                             reuse the same name so a partial success never strands a
