@@ -215,7 +215,9 @@ Route::middleware([
     Route::delete('/jobber-attachments/{attachment}', [JobberAttachmentsController::class, 'destroy'])->name('jobber.attachments.destroy');
     Route::post('/inspections/{job}/invoices', [JobberInvoiceController::class, 'store'])->name('jobber.invoices.store');
     Route::patch('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'update'])->name('jobber.invoices.update');
+    // destroy archives rather than deletes; restore puts it back.
     Route::delete('/jobber-invoices/{invoice}', [JobberInvoiceController::class, 'destroy'])->name('jobber.invoices.destroy');
+    Route::post('/jobber-invoices/{invoice}/restore', [JobberInvoiceController::class, 'restore'])->name('jobber.invoices.restore');
     Route::post('/inspections/{job}/notes', [JobberJobNoteController::class, 'store'])->name('jobber.notes.store');
     Route::delete('/jobber-notes/{note}', [JobberJobNoteController::class, 'destroy'])->name('jobber.notes.destroy');
 
@@ -307,7 +309,9 @@ Route::middleware([
 
     Route::post('/invoices', [InvoiceController::class, 'store'])->name('api.invoices.store');
     Route::post('/invoices/{invoice}', [InvoiceController::class, 'update'])->name('api.invoices.update');
+    // destroy archives rather than deletes; restore is office-only.
     Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('api.invoices.destroy');
+    Route::post('/invoices/{invoice}/restore', [InvoiceController::class, 'restore'])->name('api.invoices.restore');
 
     Route::get('/notes/{workOrder}/show', [WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
     Route::post('/notes', [WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');

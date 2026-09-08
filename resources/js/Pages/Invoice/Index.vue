@@ -14,7 +14,7 @@ import {
     getLocalTimeZone,
     today,
 } from "@internationalized/date";
-import { CalendarIcon, XIcon } from "lucide-vue-next";
+import { ArchiveIcon, CalendarIcon, XIcon } from "lucide-vue-next";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import TableData from "./Partials/TableData.vue";
 
@@ -27,6 +27,8 @@ const props = defineProps({
     sort: String,
     direction: String,
     canPost: Boolean,
+    canSeeArchived: Boolean,
+    showArchived: Boolean,
 });
 
 const url = ref(route("invoices.index"));
@@ -69,6 +71,20 @@ const applySort = (column) => {
 const applyOccupancy = (value) => {
     occupancy.value = value;
     visitWith({ occupancy: value === "all" ? "" : value });
+};
+
+// The archive is a separate list rather than an extra column: archived
+// invoices are out of the way by default and the office opens them on purpose.
+const toggleArchived = () => {
+    visitWith({ archived: props.showArchived ? "" : "1" });
+};
+
+const restoreInvoice = (invoice) => {
+    router.post(
+        route("api.invoices.restore", invoice.id),
+        {},
+        { preserveState: true, preserveScroll: true }
+    );
 };
 
 /* Date range ------------------------------------------------------------- */
@@ -281,6 +297,18 @@ const rangeLabel = computed(() => {
                         </SelectGroup>
                     </SelectContent>
                 </Select>
+                <!-- Office only: archived invoices are hidden from everyone
+                     else, so there is nothing here for a vendor to open. -->
+                <Button
+                    v-if="canSeeArchived"
+                    type="button"
+                    :variant="showArchived ? 'default' : 'outline'"
+                    class="whitespace-nowrap"
+                    @click="toggleArchived"
+                >
+                    <ArchiveIcon class="mr-2 h-4 w-4" />
+                    {{ showArchived ? "Viewing archived" : "Show archived" }}
+                </Button>
             </div>
         </CardHeader>
         <CardContent>
@@ -289,7 +317,9 @@ const rangeLabel = computed(() => {
                 :sort="sort"
                 :direction="direction"
                 :can-post="canPost"
+                :show-archived="showArchived"
                 @sort="applySort"
+                @restore="restoreInvoice"
             />
         </CardContent>
         <CardFooter

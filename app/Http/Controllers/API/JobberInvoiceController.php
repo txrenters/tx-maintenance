@@ -5,8 +5,8 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Jobber;
 use App\Models\JobberJobInvoice;
+use App\Models\Scopes\NotArchivedScope;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -79,14 +79,53 @@ class JobberInvoiceController extends Controller
         );
     }
 
+    /**
+     * Archive the invoice rather than delete it.
+     *
+     * Same reasoning as the work-order path: an invoice is an accounting
+     * document, so it is hidden rather than destroyed, and the uploaded file is
+     * deliberately left in storage so a restore still opens it.
+     */
     public function destroy(Request $request, JobberJobInvoice $invoice)
     {
         $this->authorizeStaff($request);
 
-        Storage::disk('public')->delete($invoice->filename);
-        $invoice->delete();
+        $invoice->archive($request->user());
 
-        return redirect()->back()->with('success', 'Invoice deleted successfully!');
+        activity('invoice')
+            ->causedBy($request->user())
+            ->performedOn($invoice)
+            ->withProperties([
+                'title' => $invoice->title,
+                'jobber_job_id' => $invoice->jobber_job_id,
+            ])
+            ->log('archived');
+
+        return redirect()->back()->with('success', 'Invoice archived.');
+    }
+
+    /**
+     * Put an archived invoice back.
+     */
+    public function restore(Request $request, int $invoice)
+    {
+        $this->authorizeStaff($request);
+
+        // NotArchivedScope hides exactly the row this action exists to find.
+        $invoice = JobberJobInvoice::withoutGlobalScope(NotArchivedScope::class)->findOrFail($invoice);
+
+        $invoice->unarchive();
+
+        activity('invoice')
+            ->causedBy($request->user())
+            ->performedOn($invoice)
+            ->withProperties([
+                'title' => $invoice->title,
+                'jobber_job_id' => $invoice->jobber_job_id,
+            ])
+            ->log('restored');
+
+        return redirect()->back()->with('success', 'Invoice restored.');
     }
 
     private function authorizeStaff(Request $request): void

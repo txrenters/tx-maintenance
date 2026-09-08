@@ -129,8 +129,11 @@ class VendorPortalController extends Controller
             ->latest()
             ->get(['id', 'title', 'type', 'filename', 'filetype', 'created_at']);
 
-        // This vendor's own invoices for this work order.
+        // This vendor's own invoices for this work order. withoutGlobalScopes()
+        // drops NotArchivedScope too, so archived invoices are excluded here by
+        // hand rather than silently reappearing in the portal.
         $invoices = Invoice::withoutGlobalScopes()
+            ->whereNull('archived_at')
             ->where('work_order_id', $workOrder->id)
             ->where('vendor_id', $vendor->id)
             ->latest()

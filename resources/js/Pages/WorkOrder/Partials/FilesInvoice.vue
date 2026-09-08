@@ -20,7 +20,7 @@ const emit = defineEmits([
     "expandImage",
     "deleteImage",
     "updateInvoice",
-    "deleteInvoice",
+    "archiveInvoice",
 ]);
 
 const openImageModal = (image) => {
@@ -254,9 +254,9 @@ const formatDate = (date) => {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             class="cursor-pointer hover:bg-destructive hover:text-white text-destructive"
-                            @click="() => emit('deleteInvoice', file)"
+                            @click="() => emit('archiveInvoice', file)"
                         >
-                            Delete Invoice
+                            Archive Invoice
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

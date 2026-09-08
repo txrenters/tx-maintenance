@@ -2,17 +2,24 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Archivable;
+use App\Models\Scopes\NotArchivedScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ScopedBy([NotArchivedScope::class])]
 class JobberJobInvoice extends Model
 {
+    use Archivable;
+
     protected $table = 'jobber_job_invoices';
 
     protected $guarded = [];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'archived_at' => 'datetime',
     ];
 
     public function job(): BelongsTo

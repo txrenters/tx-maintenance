@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
-import { router, useForm, usePage } from "@inertiajs/vue3";
+import { useForm, usePage } from "@inertiajs/vue3";
 import { Loader2, File } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilesInvoice from "./FilesInvoice.vue";
@@ -130,27 +130,40 @@ const handleFetchInvoices = () => {
     emit("fetch-invoices");
 };
 
-const handleDeleteInvoice = (invoice) => {
-    if (!confirm(`Are you sure you want to delete invoice "${invoice.title}"?`)) {
+// Archiving hides the invoice but keeps the row and the uploaded file, so the
+// office can put it back from the Invoices page.
+const archiveOpen = ref(false);
+const archiving = ref(null);
+const archiveForm = useForm({});
+
+const handleArchiveInvoice = (invoice) => {
+    archiving.value = invoice;
+    archiveOpen.value = true;
+};
+
+const confirmArchiveInvoice = () => {
+    if (!archiving.value) {
         return;
     }
 
-    router.delete(route("api.invoices.destroy", invoice.id), {
+    archiveForm.delete(route("api.invoices.destroy", archiving.value.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
             toast({
                 title: "Success",
-                description: "Invoice has been deleted successfully!",
+                description: "Invoice has been archived.",
             });
+            archiveOpen.value = false;
+            archiving.value = null;
             handleFetchInvoices();
         },
         onError: (errors) => {
-            console.error('Invoice delete error:', errors);
-            const errorMessage = errors.error || Object.values(errors)[0] || "There was a problem deleting the invoice. Please try again!";
+            console.error('Invoice archive error:', errors);
+            const errorMessage = errors.error || Object.values(errors)[0] || "There was a problem archiving the invoice. Please try again!";
             toast({
                 variant: "destructive",
-                title: "Error deleting invoice",
+                title: "Error archiving invoice",
                 description: errorMessage,
             });
         },
@@ -188,7 +201,7 @@ const handleDeleteInvoice = (invoice) => {
                 :loading="isLoading"
                 @expandImage="handleExpandImage"
                 @updateInvoice="handleUpdateInvoice"
-                @deleteInvoice="handleDeleteInvoice"
+                @archiveInvoice="handleArchiveInvoice"
             />
         </div>
     </div>
@@ -318,6 +331,34 @@ const handleDeleteInvoice = (invoice) => {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+    <AlertDialog v-model:open="archiveOpen">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>
+                    Archive invoice "{{ archiving?.title }}"?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    This hides the invoice from the work order and the Invoices
+                    page. The file is kept, so the office can restore it later
+                    from the Invoices page.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Keep</AlertDialogCancel>
+                <AlertDialogAction
+                    class="destructive"
+                    :disabled="archiveForm.processing"
+                    @click.prevent="confirmArchiveInvoice"
+                >
+                    <Loader2
+                        v-if="archiveForm.processing"
+                        class="mr-1 h-4 w-4 animate-spin"
+                    />
+                    Archive
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     <Dialog v-model:open="openExpandModal">
         <DialogContent
             class="sm:max-w-[900px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

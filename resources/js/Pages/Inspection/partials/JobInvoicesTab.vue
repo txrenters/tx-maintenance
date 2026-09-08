@@ -2,7 +2,7 @@
 /**
  * Invoices tab for a Jobber job, mirroring the work order Invoice tab: an
  * upload button top-right opening a dialog (title / amount / vendor / file),
- * and a card per invoice with a three-dot approve / decline / delete menu.
+ * and a card per invoice with a three-dot approve / decline / archive menu.
  *
  * Self-contained so the board modal and the full job page render exactly the
  * same thing. Emits `saved` after a successful write so the modal — which keeps
@@ -43,6 +43,16 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/Components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/Components/ui/alert-dialog";
 
 const props = defineProps({
     jobId: [Number, String],
@@ -137,13 +147,34 @@ const updateStatus = (id, status) => {
     );
 };
 
-const deleteInvoice = (id) => {
-    router.delete(route("jobber.invoices.destroy", id), {
+// Archiving hides the invoice but keeps the row and the uploaded file.
+const archiveOpen = ref(false);
+const archiving = ref(null);
+const isArchiving = ref(false);
+
+const askArchiveInvoice = (invoice) => {
+    archiving.value = invoice;
+    archiveOpen.value = true;
+};
+
+const confirmArchiveInvoice = () => {
+    if (!archiving.value) {
+        return;
+    }
+
+    isArchiving.value = true;
+
+    router.delete(route("jobber.invoices.destroy", archiving.value.id), {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
-            toast({ title: "Deleted", description: "Invoice removed." });
+            toast({ title: "Archived", description: "Invoice archived." });
+            archiveOpen.value = false;
+            archiving.value = null;
             emit("saved");
+        },
+        onFinish: () => {
+            isArchiving.value = false;
         },
     });
 };
@@ -237,9 +268,9 @@ const deleteInvoice = (id) => {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                                 class="cursor-pointer hover:bg-destructive hover:text-white text-destructive"
-                                @click="deleteInvoice(invoice.id)"
+                                @click="askArchiveInvoice(invoice)"
                             >
-                                Delete Invoice
+                                Archive Invoice
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -332,5 +363,33 @@ const deleteInvoice = (id) => {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        <AlertDialog v-model:open="archiveOpen">
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        Archive invoice "{{ archiving?.title }}"?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This hides the invoice from the job. The file is kept,
+                        so the office can restore it later from the Invoices
+                        page.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Keep</AlertDialogCancel>
+                    <AlertDialogAction
+                        class="destructive"
+                        :disabled="isArchiving"
+                        @click.prevent="confirmArchiveInvoice"
+                    >
+                        <Loader2
+                            v-if="isArchiving"
+                            class="mr-1 h-4 w-4 animate-spin"
+                        />
+                        Archive
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
 </template>

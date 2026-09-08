@@ -43,7 +43,12 @@ class NotifyOperationAccountingOfTurnoverInvoice implements ShouldQueue
         }
 
         $to = (string) config('services.operation_accounting.email');
-        $invoice = Invoice::withoutGlobalScopes()->find($this->invoiceId);
+
+        // An invoice archived between dispatch and this run is no longer
+        // something to bill on, so the notice is dropped rather than sent.
+        $invoice = Invoice::withoutGlobalScopes()
+            ->whereNull('archived_at')
+            ->find($this->invoiceId);
 
         if (blank($to) || ! $invoice) {
             return;

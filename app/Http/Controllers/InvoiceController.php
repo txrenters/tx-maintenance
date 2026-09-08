@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\Lease;
+use App\Models\Scopes\NotArchivedScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +83,20 @@ class InvoiceController extends Controller
             ->all();
     }
 
+    /**
+     * The base query for one side of the archive line: the live invoices, or
+     * only the archived ones.
+     *
+     * Only NotArchivedScope is lifted, never InvoiceScope, so showing the
+     * archive can't widen which invoices a role is allowed to see.
+     */
+    private function archiveState(bool $archived): Builder
+    {
+        return $archived
+            ? Invoice::withoutGlobalScope(NotArchivedScope::class)->archived()
+            : Invoice::query();
+    }
+
     public function index(Request $request)
     {
         $request->validate([
@@ -88,8 +104,14 @@ class InvoiceController extends Controller
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
+        // Archived invoices are hidden by default and only the office may look
+        // at them. A vendor asking for them is ignored rather than refused: the
+        // page still works, it just shows the live list.
+        $canSeeArchived = (bool) $request->user()?->hasAnyRole(['admin', 'woc']);
+        $showArchived = $canSeeArchived && $request->boolean('archived');
+
         $perPage = $request->per_page
-        ? ($request->per_page == 'All' ? Invoice::count() : $request->per_page)
+        ? ($request->per_page == 'All' ? $this->archiveState($showArchived)->count() : $request->per_page)
         : 10;
 
         $sortable = $this->sortableColumns();
@@ -104,8 +126,8 @@ class InvoiceController extends Controller
         // Posting is our own bookkeeping, so only the office may record it.
         $canPost = (bool) $request->user()?->isStaff();
 
-        $invoices = Invoice::query()
-            ->with(['work_order.building', 'vendor', 'postedBy'])
+        $invoices = $this->archiveState($showArchived)
+            ->with(['work_order.building', 'vendor', 'postedBy', 'archivedBy'])
             ->filter($request->only(['search', 'start_date', 'end_date']))
             ->when($occupancy, fn ($query) => $query->whereHas(
                 'work_order',
@@ -143,16 +165,21 @@ class InvoiceController extends Controller
                 'created_at' => $invoice->created_at?->toIso8601String(),
                 'posted_at' => $invoice->posted_at?->toIso8601String(),
                 'posted_by' => $invoice->postedBy?->name,
+                'archived_at' => $invoice->archived_at?->toIso8601String(),
+                'archived_by' => $invoice->archivedBy?->name,
             ];
         });
 
         return inertia('Invoice/Index', [
             'title' => 'Invoices',
             'invoices' => $invoices,
-            'filter' => $request->only(['search', 'per_page', 'occupancy', 'start_date', 'end_date']),
+            'filter' => $request->only(['search', 'per_page', 'occupancy', 'start_date', 'end_date'])
+                + ['archived' => $showArchived],
             'sort' => $sort,
             'direction' => $direction,
             'canPost' => $canPost,
+            'canSeeArchived' => $canSeeArchived,
+            'showArchived' => $showArchived,
         ]);
     }
 }

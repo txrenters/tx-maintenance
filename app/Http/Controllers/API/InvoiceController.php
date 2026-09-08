@@ -5,13 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Models\Invoice;
+use App\Models\Scopes\NotArchivedScope;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -118,38 +118,77 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Archive the invoice rather than delete it.
+     *
+     * An invoice is an accounting document that was pushed to PropertyWare and
+     * is never synced back, so a delete here is permanent. Archiving hides it
+     * from every normal view and deliberately leaves the uploaded file in
+     * storage, so a restore still opens the original document.
      */
     public function destroy(Invoice $invoice)
     {
         $user = User::with('vendor')->find(auth()->id());
 
-        // Only admin, WOC, and the invoice's vendor can delete
+        // Only admin, WOC, and the invoice's vendor can archive
         if (! $user->hasRole('admin') && ! $user->hasRole('woc')) {
             // If not admin/WOC, check if it's the vendor who owns this invoice
             if (! $user->vendor || $user->vendor->id !== $invoice->vendor_id) {
-                abort(403, 'Unauthorized to delete this invoice.');
+                abort(403, 'Unauthorized to archive this invoice.');
             }
         }
 
         try {
-            // Delete the file from storage
-            if ($invoice->filename && Storage::disk('public')->exists($invoice->filename)) {
-                Storage::disk('public')->delete($invoice->filename);
-            }
+            $invoice->archive($user);
 
-            $invoice->delete();
+            activity('invoice')
+                ->causedBy($user)
+                ->performedOn($invoice)
+                ->withProperties([
+                    'title' => $invoice->title,
+                    'work_order_id' => $invoice->work_order_id,
+                ])
+                ->log('archived');
 
-            Log::info('Invoice deleted successfully', [
-                'invoice_id' => $invoice->id,
-                'deleted_by' => $user->id,
-            ]);
-
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Invoice archived.');
         } catch (\Throwable $th) {
-            Log::error('Error deleting invoice:', ['error' => $th->getMessage()]);
+            Log::error('Error archiving invoice:', ['error' => $th->getMessage()]);
 
-            return redirect()->back()->withErrors('Error deleting invoice');
+            return redirect()->back()->withErrors('Error archiving invoice');
+        }
+    }
+
+    /**
+     * Put an archived invoice back. Office only: a vendor may archive their
+     * own upload but must not be able to reinstate one the office filed away.
+     */
+    public function restore(int $invoice)
+    {
+        $user = User::find(auth()->id());
+
+        abort_unless($user->hasRole('admin') || $user->hasRole('woc'), 403, 'Unauthorized to restore this invoice.');
+
+        // NotArchivedScope hides exactly the row this action exists to find,
+        // so the archived invoice is looked up without it. InvoiceScope's role
+        // rules are left in place.
+        $invoice = Invoice::withoutGlobalScope(NotArchivedScope::class)->findOrFail($invoice);
+
+        try {
+            $invoice->unarchive();
+
+            activity('invoice')
+                ->causedBy($user)
+                ->performedOn($invoice)
+                ->withProperties([
+                    'title' => $invoice->title,
+                    'work_order_id' => $invoice->work_order_id,
+                ])
+                ->log('restored');
+
+            return redirect()->back()->with('success', 'Invoice restored.');
+        } catch (\Throwable $th) {
+            Log::error('Error restoring invoice:', ['error' => $th->getMessage()]);
+
+            return redirect()->back()->withErrors('Error restoring invoice');
         }
     }
 }

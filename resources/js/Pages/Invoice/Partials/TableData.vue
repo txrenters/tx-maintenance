@@ -12,6 +12,7 @@ const props = defineProps({
     sort: String,
     direction: String,
     canPost: Boolean,
+    showArchived: Boolean,
 });
 
 const { toast } = useToast();
@@ -48,7 +49,7 @@ const togglePosted = (invoice, checked) => {
     }
 };
 
-const emit = defineEmits(["sort"]);
+const emit = defineEmits(["sort", "restore"]);
 
 const page = usePage();
 
@@ -61,7 +62,9 @@ const isVendor = computed(() =>
     (page.props.auth.user?.roles || []).includes("vendor")
 );
 
-const columnCount = computed(() => (isVendor.value ? 8 : 9));
+const columnCount = computed(
+    () => (isVendor.value ? 8 : 9) + (props.showArchived ? 1 : 0)
+);
 
 // PropertyWare's real lease statuses: Active, "Active - Notice Given",
 // "Going MTM", Eviction and Draft. A tenancy that is ending stands out even
@@ -90,6 +93,15 @@ const formatUploadedAt = (date) => {
     return parsed.isValid
         ? parsed.setZone("America/Chicago").toFormat("MM/dd/yyyy h:mm a")
         : "—";
+};
+
+// Who filed it away and when, so a coordinator can ask the right person.
+const archivedTitle = (invoice) => {
+    if (!invoice.archived_at) return "";
+    const when = formatUploadedAt(invoice.archived_at);
+    return invoice.archived_by
+        ? `Archived by ${invoice.archived_by} on ${when}`
+        : `Archived on ${when}`;
 };
 
 // Who put it through and when, so a coordinator does not have to ask.
@@ -164,10 +176,16 @@ const postedTitle = (invoice) => {
                 >
                     Posted
                 </SortableHead>
+                <TableHead v-if="showArchived">Archived</TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
-            <TableRow v-for="invoice in data" :key="invoice.id">
+            <!-- Archived rows read as set aside rather than active work. -->
+            <TableRow
+                v-for="invoice in data"
+                :key="invoice.id"
+                :class="{ 'opacity-60': invoice.archived_at }"
+            >
                 <TableCell v-if="!isVendor" class="font-medium md:table-cell">
                     {{ invoice.vendor }}
                     <!-- The columns that drop away on a narrow screen. -->
@@ -287,9 +305,34 @@ const postedTitle = (invoice) => {
                         </span>
                     </div>
                 </TableCell>
+                <TableCell v-if="showArchived" class="whitespace-nowrap">
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="hidden text-xs text-muted-foreground lg:inline"
+                            :title="archivedTitle(invoice)"
+                        >
+                            {{ formatUploadedAt(invoice.archived_at) }}
+                        </span>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            :title="archivedTitle(invoice)"
+                            @click="emit('restore', invoice)"
+                        >
+                            Restore
+                        </Button>
+                    </div>
+                </TableCell>
             </TableRow>
             <TableRow v-if="data.length === 0">
-                <TableCell :colspan="columnCount">No invoices found!</TableCell>
+                <TableCell :colspan="columnCount">
+                    {{
+                        showArchived
+                            ? "No archived invoices."
+                            : "No invoices found!"
+                    }}
+                </TableCell>
             </TableRow>
         </TableBody>
     </Table>

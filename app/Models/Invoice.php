@@ -2,15 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Archivable;
 use App\Models\Scopes\InvoiceScope;
+use App\Models\Scopes\NotArchivedScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[ScopedBy([InvoiceScope::class])]
+#[ScopedBy([InvoiceScope::class, NotArchivedScope::class])]
 class Invoice extends Model
 {
+    use Archivable;
+
     /**
      * The office's clock. Upload times are shown in Central and the payment
      * cutoff is read against it, so a date filter has to mean whole Central
@@ -30,6 +34,7 @@ class Invoice extends Model
     {
         return [
             'posted_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

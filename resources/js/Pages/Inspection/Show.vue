@@ -372,10 +372,10 @@ const uploadInvoice = () => {
   });
 };
 
-const deleteInvoice = (id) => {
+const archiveInvoice = (id) => {
   router.delete(route("jobber.invoices.destroy", id), {
     preserveScroll: true,
-    onSuccess: () => toast({ title: "Deleted", description: "Invoice removed." }),
+    onSuccess: () => toast({ title: "Archived", description: "Invoice archived." }),
   });
 };
 
