@@ -63,15 +63,17 @@ const isVendor = computed(() =>
 
 const columnCount = computed(() => (isVendor.value ? 8 : 9));
 
-// PropertyWare's lease statuses, which vary in casing between picklists. Only
-// an active lease reads as normal; anything that means the tenancy is ending
-// stands out, and an unrecognised status still renders as plain text.
+// PropertyWare's real lease statuses: Active, "Active - Notice Given",
+// "Going MTM", Eviction and Draft. A tenancy that is ending stands out even
+// though its status still starts with "Active", so the notice is matched
+// anywhere in the string rather than as a whole value. Anything unrecognised
+// still renders, just without emphasis.
 const leaseVariant = (status) => {
     const normalized = String(status).trim().toLowerCase();
-    if (normalized === "active") return "default";
-    if (normalized === "eviction" || normalized === "notice given") {
+    if (normalized.includes("eviction") || normalized.includes("notice")) {
         return "destructive";
     }
+    if (normalized.startsWith("active")) return "default";
     return "secondary";
 };
 

@@ -5,19 +5,22 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * PropertyWare leases, so the app can show a property's real lease status
- * (Active, Terminated, Notice Given, Eviction, Draft) instead of inferring
- * occupancy from the job type and whether an imported work order happened to
- * carry a lease (WorkOrder::scopeWithoutLease()).
+ * Lease status per property, imported from PropertyWare's saved-report export
+ * by `sync:leases`, so the app can show a real status (Active, Terminated,
+ * Notice Given, Eviction) instead of inferring occupancy from the job type and
+ * whether an imported work order happened to carry a lease
+ * (WorkOrder::scopeWithoutLease()).
  *
- * building_id holds the building's PropertyWare id, not its local primary key,
- * matching the existing WorkOrder::building() convention
- * (belongsTo(Building::class, 'building_id', 'propertyware_id')). It is indexed
- * rather than a real foreign key because leases can arrive from PropertyWare
- * before the building they reference has been imported.
+ * building_id is the key rather than a PropertyWare lease id: the report feed
+ * does not expose one, and it carries the current lease per property, which is
+ * what the column shows. It holds the building's PropertyWare id, not the local
+ * primary key, matching the existing WorkOrder::building() convention. Unique
+ * so a building cannot end up with two competing statuses; indexed by virtue of
+ * being unique. Not a foreign key because it is written by a sync that matches
+ * on address, and a building can be renamed or re-imported underneath it.
  *
  * status is a plain string, not an enum: PropertyWare varies picklist casing
- * and spacing, and a value we have not seen before must not fail the sync.
+ * and a value we have not seen must not fail the sync.
  *
  * Guarded so a startup.sh double-run or a re-run after a partial deploy
  * converges instead of erroring.
@@ -32,13 +35,12 @@ return new class extends Migration
 
         Schema::create('leases', function (Blueprint $table) {
             $table->id();
-            $table->bigInteger('propertyware_id')->unique();
-            $table->bigInteger('building_id')->nullable()->index();
-            $table->bigInteger('unit_id')->nullable();
+            $table->bigInteger('building_id')->unique();
             $table->string('status')->nullable();
-            $table->date('start_date')->nullable();
-            $table->date('end_date')->nullable();
             $table->string('tenant_name')->nullable();
+            // The report address this row matched, so an unexpected pairing can
+            // be traced back without re-running the whole sync.
+            $table->string('address')->nullable();
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
         });

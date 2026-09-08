@@ -2,243 +2,194 @@
 
 namespace App\Console\Commands;
 
-use App\Exceptions\PropertyWareAccessDeniedException;
+use App\Models\Building;
 use App\Models\Lease;
-use App\Services\PropertyWareService;
+use App\Services\PropertyWareLeaseReport;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Imports PropertyWare leases so the app can show a property's real lease
- * status rather than inferring occupancy from the job type.
+ * Imports lease status from PropertyWare's saved-report export so the invoice
+ * list can show whether a property is still tenanted.
  *
- * Paging, retries and backoff mirror ImportAllVendorsCommand: a page that
- * 5xxes is retried three times, and a page that still fails is skipped rather
- * than abandoning the run, so one bad page cannot cost a whole sync.
+ * The REST API denies /leases for our key, so the report feed is the source.
+ * It has no building id, so each row is matched to a building by normalized
+ * address here, once per sync -- the invoice page then does a single indexed
+ * lookup instead of fuzzy-matching on every page load.
+ *
+ * Rows whose address matches no building are counted and reported rather than
+ * stored: a property we cannot identify has nothing to show against.
  */
 class SyncLeasesCommand extends Command
 {
     protected $signature = 'sync:leases
-        {--limit= : Stop after this many leases (for a first run or local testing)}
-        {--dry-run : Fetch and report without writing anything}';
+        {--dry-run : Fetch and report the match rate without writing anything}
+        {--show-unmatched=15 : How many unmatched addresses to list}';
 
-    protected $description = 'Import and update leases from PropertyWare';
+    protected $description = 'Import lease status from the PropertyWare report feed';
 
-    private const BATCH_SIZE = 500;
-
-    public function handle(PropertyWareService $propertyWare): int
+    public function handle(PropertyWareLeaseReport $report): int
     {
-        $maxToImport = $this->option('limit') !== null ? max(1, (int) $this->option('limit')) : null;
         $dryRun = (bool) $this->option('dry-run');
-        $batchSize = $maxToImport !== null ? min(self::BATCH_SIZE, $maxToImport) : self::BATCH_SIZE;
 
-        $offset = 0;
-        $totalProcessed = 0;
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
+        $this->info($dryRun ? 'Fetching the PropertyWare lease report (dry run)...' : 'Importing leases from the PropertyWare report...');
+        Log::info('Lease sync started.', ['dry_run' => $dryRun]);
 
-        Log::info('Lease sync started.', ['limit' => $maxToImport, 'dry_run' => $dryRun]);
-        $this->info($dryRun ? 'Fetching leases from PropertyWare (dry run)...' : 'Importing leases from PropertyWare...');
+        $rows = $report->fetch();
 
-        try {
-            while (true) {
-                $leases = $this->fetchBatch($propertyWare, $batchSize, $offset);
-
-                if ($leases === null) {
-                    $this->warn("Skipping the page at offset {$offset} after repeated failures.");
-                    $offset += $batchSize;
-
-                    continue;
-                }
-
-                if ($leases === []) {
-                    break;
-                }
-
-                if ($maxToImport !== null && $totalProcessed + count($leases) > $maxToImport) {
-                    $leases = array_slice($leases, 0, $maxToImport - $totalProcessed);
-                }
-
-                foreach ($leases as $leaseData) {
-                    $attributes = $this->mapLease((array) $leaseData);
-
-                    if ($attributes === null) {
-                        $skipped++;
-
-                        continue;
-                    }
-
-                    if ($dryRun) {
-                        $this->line(sprintf(
-                            '  PW %s | building %s | %s | %s to %s',
-                            $attributes['propertyware_id'],
-                            $attributes['building_id'] ?? '-',
-                            $attributes['status'] ?? '-',
-                            $attributes['start_date'] ?? '-',
-                            $attributes['end_date'] ?? '-',
-                        ));
-
-                        continue;
-                    }
-
-                    $lease = Lease::updateOrCreate(
-                        ['propertyware_id' => $attributes['propertyware_id']],
-                        $attributes + ['synced_at' => now()],
-                    );
-
-                    $lease->wasRecentlyCreated ? $created++ : $updated++;
-                }
-
-                $totalProcessed += count($leases);
-                $offset += $batchSize;
-
-                $this->info("Processed {$totalProcessed} leases so far...");
-
-                if ($maxToImport !== null && $totalProcessed >= $maxToImport) {
-                    break;
-                }
-
-                if (count($leases) < $batchSize) {
-                    break;
-                }
-            }
-        } catch (PropertyWareAccessDeniedException $e) {
-            Log::error('Lease sync aborted: '.$e->getMessage());
-            $this->error($e->getMessage());
-            $this->line('Ask PropertyWare to grant the API key read access to Leases, then re-run this command.');
-
-            return Command::FAILURE;
-        } catch (\Throwable $e) {
-            Log::error('Lease sync failed: '.$e->getMessage());
-            $this->error('Lease sync failed: '.$e->getMessage());
+        if ($rows === null) {
+            $this->error('Could not read the PropertyWare lease report.');
+            Log::error('Lease sync aborted: the lease report could not be read.');
 
             return Command::FAILURE;
         }
 
-        $summary = $dryRun
-            ? "Dry run complete. Fetched: {$totalProcessed}, unusable: {$skipped}."
-            : "Done. Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Total processed: {$totalProcessed}";
+        if ($rows === []) {
+            $this->warn('The lease report returned no rows; leaving existing leases untouched.');
+            Log::warning('Lease sync found no rows.');
 
-        $this->info($summary);
-        Log::info('Lease sync finished.', [
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
-            'total' => $totalProcessed,
-            'dry_run' => $dryRun,
-        ]);
+            return Command::SUCCESS;
+        }
+
+        $buildingsByAddress = $this->buildingsByAddressKey($report);
+
+        $matched = 0;
+        $created = 0;
+        $updated = 0;
+        $unmatched = [];
+        $syncedAt = now();
+
+        foreach ($rows as $row) {
+            $buildingId = $buildingsByAddress[$row['address_key']] ?? null;
+
+            if ($buildingId === null) {
+                // The report may spell the property without its street suffix.
+                $withoutSuffix = $report->withoutStreetSuffix($row['address_key']);
+                $buildingId = $withoutSuffix !== '' ? ($buildingsByAddress[$withoutSuffix] ?? null) : null;
+            }
+
+            if ($buildingId === null) {
+                $unmatched[] = $row['address'];
+
+                continue;
+            }
+
+            $matched++;
+
+            if ($dryRun) {
+                continue;
+            }
+
+            // The report has no lease id, so a building's lease row is keyed by
+            // the building itself: the feed carries the current lease per
+            // property, which is exactly what the column shows.
+            $lease = Lease::updateOrCreate(
+                ['building_id' => $buildingId],
+                [
+                    'status' => $row['status'],
+                    'tenant_name' => $row['tenant_name'] ?: null,
+                    'address' => $row['address'],
+                    'synced_at' => $syncedAt,
+                ],
+            );
+
+            $lease->wasRecentlyCreated ? $created++ : $updated++;
+        }
+
+        $this->reportOutcome($rows, $matched, $created, $updated, $unmatched, $dryRun);
 
         return Command::SUCCESS;
     }
 
     /**
-     * @return array<int, mixed>|null Null when the page could not be fetched.
-     */
-    private function fetchBatch(PropertyWareService $propertyWare, int $limit, int $offset): ?array
-    {
-        $maxRetries = 3;
-
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-            $leases = $propertyWare->getLeases($limit, $offset);
-
-            if ($leases !== null) {
-                return $leases;
-            }
-
-            if ($attempt < $maxRetries) {
-                Log::warning('PropertyWare lease fetch failed, retrying', [
-                    'offset' => $offset,
-                    'attempt' => $attempt,
-                ]);
-                sleep(5);
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Normalizes one PropertyWare lease payload.
+     * Every building keyed by its normalized address, so a lease row resolves
+     * to a building_id with an array lookup rather than a query each.
      *
-     * PropertyWare is inconsistent about key casing between endpoints, and the
-     * building reference arrives either flat or nested, so each field is read
-     * from the spellings the API is known to use. A row without an id cannot be
-     * upserted, so it is skipped rather than guessed at.
+     * Buildings are keyed by PropertyWare id because that is what
+     * work_orders.building_id holds. A duplicate key keeps the first building
+     * seen, so the mapping stays deterministic between runs.
      *
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>|null
+     * Both the address and the name are indexed, and the street suffix is
+     * dropped from each as a third key. PropertyWare stores a property's
+     * address and its name inconsistently -- building 1122 is named "1122
+     * Cascade Creek" but addressed "1122 Cascade Creek Dr", and the lease
+     * report may carry either -- so matching on one alone loses a large share
+     * of the roster.
+     *
+     * @return array<string, int>
      */
-    private function mapLease(array $data): ?array
+    private function buildingsByAddressKey(PropertyWareLeaseReport $report): array
     {
-        $propertywareId = $this->firstValue($data, ['ID', 'id', 'leaseID', 'leaseId']);
+        $byAddress = [];
 
-        if ($propertywareId === null || ! is_numeric($propertywareId)) {
-            return null;
-        }
+        Building::query()
+            ->whereNotNull('propertyware_id')
+            ->select(['propertyware_id', 'address', 'name'])
+            ->orderBy('propertyware_id')
+            ->chunk(500, function ($buildings) use (&$byAddress, $report): void {
+                foreach ($buildings as $building) {
+                    $propertywareId = (int) $building->propertyware_id;
 
-        $buildingId = $this->firstValue($data, ['buildingID', 'buildingId', 'building_id']);
+                    foreach ([$building->address, $building->name] as $source) {
+                        $key = $report->addressKey((string) $source);
 
-        if ($buildingId === null && isset($data['building']) && is_array($data['building'])) {
-            $buildingId = $this->firstValue($data['building'], ['ID', 'id']);
-        }
+                        if ($key === '') {
+                            continue;
+                        }
 
-        $unitId = $this->firstValue($data, ['unitID', 'unitId', 'unit_id']);
+                        $byAddress[$key] ??= $propertywareId;
 
-        return [
-            'propertyware_id' => (int) $propertywareId,
-            'building_id' => is_numeric($buildingId) ? (int) $buildingId : null,
-            'unit_id' => is_numeric($unitId) ? (int) $unitId : null,
-            'status' => $this->stringOrNull($this->firstValue($data, ['status', 'leaseStatus', 'lease_status'])),
-            'start_date' => $this->dateOrNull($this->firstValue($data, ['startDate', 'start_date', 'moveInDate'])),
-            'end_date' => $this->dateOrNull($this->firstValue($data, ['endDate', 'end_date', 'moveOutDate'])),
-            'tenant_name' => $this->stringOrNull($this->firstValue($data, ['tenantName', 'tenant_name', 'primaryContactName'])),
-        ];
+                        $withoutSuffix = $report->withoutStreetSuffix($key);
+
+                        if ($withoutSuffix !== '' && $withoutSuffix !== $key) {
+                            $byAddress[$withoutSuffix] ??= $propertywareId;
+                        }
+                    }
+                }
+            });
+
+        return $byAddress;
     }
 
     /**
-     * @param  array<string, mixed>  $data
-     * @param  array<int, string>  $keys
+     * @param  array<int, array<string, string>>  $rows
+     * @param  array<int, string>  $unmatched
      */
-    private function firstValue(array $data, array $keys): mixed
+    private function reportOutcome(array $rows, int $matched, int $created, int $updated, array $unmatched, bool $dryRun): void
     {
-        foreach ($keys as $key) {
-            if (array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '') {
-                return $data[$key];
+        $total = count($rows);
+        $rate = $total > 0 ? round($matched / $total * 100, 1) : 0.0;
+
+        $this->info(sprintf(
+            '%s %d of %d lease rows matched a building (%s%%).',
+            $dryRun ? 'Dry run:' : 'Done.',
+            $matched,
+            $total,
+            $rate,
+        ));
+
+        if (! $dryRun) {
+            $this->info("Created: {$created}, Updated: {$updated}.");
+        }
+
+        $showUnmatched = max(0, (int) $this->option('show-unmatched'));
+
+        if ($unmatched !== [] && $showUnmatched > 0) {
+            $this->warn(count($unmatched).' row(s) matched no building. First '.min($showUnmatched, count($unmatched)).':');
+
+            foreach (array_slice($unmatched, 0, $showUnmatched) as $address) {
+                $this->line('  '.$address);
             }
         }
 
-        return null;
-    }
-
-    private function stringOrNull(mixed $value): ?string
-    {
-        if (! is_scalar($value)) {
-            return null;
-        }
-
-        $trimmed = trim((string) $value);
-
-        return $trimmed === '' ? null : $trimmed;
-    }
-
-    /**
-     * PropertyWare returns dates in several shapes across endpoints, so an
-     * unparseable value is stored as null rather than failing the whole sync.
-     */
-    private function dateOrNull(mixed $value): ?string
-    {
-        $value = $this->stringOrNull($value);
-
-        if ($value === null) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($value)->toDateString();
-        } catch (\Throwable) {
-            return null;
-        }
+        Log::info('Lease sync finished.', [
+            'total' => $total,
+            'matched' => $matched,
+            'unmatched' => count($unmatched),
+            'match_rate' => $rate,
+            'created' => $created,
+            'updated' => $updated,
+            'dry_run' => $dryRun,
+        ]);
     }
 }

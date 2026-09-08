@@ -18,8 +18,6 @@ class Lease extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
         'synced_at' => 'datetime',
     ];
 

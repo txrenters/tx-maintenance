@@ -53,11 +53,11 @@ class InvoiceController extends Controller
      * The lease status to show for each building on the page, in one query
      * regardless of how many rows are listed.
      *
-     * A property accumulates leases over time, so the current one has to be
-     * picked: an active lease always wins, and otherwise the most recent one
-     * by start date stands in (a just-terminated lease is what the office
-     * expects to see on a vacant home). Buildings are keyed by PropertyWare id
-     * because that is what work_orders.building_id holds.
+     * sync:leases keeps one row per building -- the report feed carries the
+     * property's current lease -- so this is a straight lookup. Buildings are
+     * keyed by PropertyWare id because that is what work_orders.building_id
+     * holds. A property whose address matched no lease row simply has no entry,
+     * and the column shows a dash.
      *
      * @param  Collection<int, Invoice>  $invoices
      * @return array<int, string>
@@ -77,17 +77,8 @@ class InvoiceController extends Controller
         return Lease::query()
             ->whereIn('building_id', $buildingIds)
             ->whereNotNull('status')
-            ->orderByRaw('CASE WHEN LOWER(TRIM(status)) = ? THEN 0 ELSE 1 END', ['active'])
-            ->orderByRaw('start_date IS NULL')
-            ->orderBy('start_date', 'desc')
-            ->get(['building_id', 'status', 'start_date'])
-            // The first row per building wins, which the ordering above made
-            // the current lease.
-            ->reduce(function (array $statuses, Lease $lease): array {
-                $statuses[$lease->building_id] ??= $lease->status;
-
-                return $statuses;
-            }, []);
+            ->pluck('status', 'building_id')
+            ->all();
     }
 
     public function index(Request $request)

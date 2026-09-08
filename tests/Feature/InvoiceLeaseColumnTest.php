@@ -73,52 +73,21 @@ class InvoiceLeaseColumnTest extends TestCase
         $invoice = $this->makeInvoiceForBuilding(778001);
 
         Lease::query()->create([
-            'propertyware_id' => 990001,
             'building_id' => 778001,
             'status' => 'Active',
-            'start_date' => '2026-01-15',
+            'address' => '6341 Del Monte Dr',
         ]);
 
         $this->assertSame('Active', $this->rowFor($invoice)['lease_status']);
     }
 
-    public function test_an_active_lease_wins_over_an_older_terminated_one(): void
+    public function test_it_shows_a_status_that_is_not_active(): void
     {
         $invoice = $this->makeInvoiceForBuilding(778002, 51002);
 
-        // The terminated lease starts later on purpose: status must outrank
-        // recency, otherwise a tenanted home reads as empty.
         Lease::query()->create([
-            'propertyware_id' => 990002,
             'building_id' => 778002,
-            'status' => 'Active',
-            'start_date' => '2024-03-01',
-        ]);
-        Lease::query()->create([
-            'propertyware_id' => 990003,
-            'building_id' => 778002,
-            'status' => 'Terminated',
-            'start_date' => '2025-06-01',
-        ]);
-
-        $this->assertSame('Active', $this->rowFor($invoice)['lease_status']);
-    }
-
-    public function test_without_an_active_lease_the_most_recent_one_shows(): void
-    {
-        $invoice = $this->makeInvoiceForBuilding(778003, 51003);
-
-        Lease::query()->create([
-            'propertyware_id' => 990004,
-            'building_id' => 778003,
-            'status' => 'Terminated',
-            'start_date' => '2023-01-01',
-        ]);
-        Lease::query()->create([
-            'propertyware_id' => 990005,
-            'building_id' => 778003,
             'status' => 'Notice Given',
-            'start_date' => '2025-09-01',
         ]);
 
         $this->assertSame('Notice Given', $this->rowFor($invoice)['lease_status']);
@@ -140,10 +109,20 @@ class InvoiceLeaseColumnTest extends TestCase
 
         // A lease elsewhere must not leak onto a building-less row.
         Lease::query()->create([
-            'propertyware_id' => 990006,
             'building_id' => 778005,
             'status' => 'Active',
-            'start_date' => '2026-02-01',
+        ]);
+
+        $this->assertNull($this->rowFor($invoice)['lease_status']);
+    }
+
+    public function test_the_lease_of_one_property_does_not_show_on_another(): void
+    {
+        $invoice = $this->makeInvoiceForBuilding(778006, 51006);
+
+        Lease::query()->create([
+            'building_id' => 778007,
+            'status' => 'Active',
         ]);
 
         $this->assertNull($this->rowFor($invoice)['lease_status']);
@@ -155,10 +134,8 @@ class InvoiceLeaseColumnTest extends TestCase
             $buildingId = 779000 + $index;
             $this->makeInvoiceForBuilding($buildingId, $workOrderNo);
             Lease::query()->create([
-                'propertyware_id' => 991000 + $index,
                 'building_id' => $buildingId,
                 'status' => 'Active',
-                'start_date' => '2026-01-01',
             ]);
         }
 

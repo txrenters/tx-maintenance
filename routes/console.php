@@ -79,9 +79,10 @@ Schedule::command('sync:building-details')
     ->withoutOverlapping(30)
     ->runInBackground();
 
-// Pull PropertyWare leases so the invoice list can show a property's real lease
-// status. Runs after the building syncs above so a lease's building_id resolves
-// the same night the building is created.
+// Pull lease status from the PropertyWare report feed so the invoice list can
+// show whether a property is still tenanted. Runs after the building syncs
+// above because leases are matched to buildings by address: a building created
+// tonight is matchable in the same run.
 Schedule::command('sync:leases')
     ->dailyAt('01:00')
     ->withoutOverlapping(60)
