@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Models\Lease;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
 
@@ -47,6 +49,47 @@ class InvoiceController extends Controller
         ];
     }
 
+    /**
+     * The lease status to show for each building on the page, in one query
+     * regardless of how many rows are listed.
+     *
+     * A property accumulates leases over time, so the current one has to be
+     * picked: an active lease always wins, and otherwise the most recent one
+     * by start date stands in (a just-terminated lease is what the office
+     * expects to see on a vacant home). Buildings are keyed by PropertyWare id
+     * because that is what work_orders.building_id holds.
+     *
+     * @param  Collection<int, Invoice>  $invoices
+     * @return array<int, string>
+     */
+    private function leaseStatusesFor($invoices): array
+    {
+        $buildingIds = $invoices
+            ->map(fn ($invoice) => $invoice->work_order?->building_id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($buildingIds->isEmpty()) {
+            return [];
+        }
+
+        return Lease::query()
+            ->whereIn('building_id', $buildingIds)
+            ->whereNotNull('status')
+            ->orderByRaw('CASE WHEN LOWER(TRIM(status)) = ? THEN 0 ELSE 1 END', ['active'])
+            ->orderByRaw('start_date IS NULL')
+            ->orderBy('start_date', 'desc')
+            ->get(['building_id', 'status', 'start_date'])
+            // The first row per building wins, which the ordering above made
+            // the current lease.
+            ->reduce(function (array $statuses, Lease $lease): array {
+                $statuses[$lease->building_id] ??= $lease->status;
+
+                return $statuses;
+            }, []);
+    }
+
     public function index(Request $request)
     {
         $request->validate([
@@ -88,25 +131,29 @@ class InvoiceController extends Controller
                 fn ($query) => $query->latest()->latest('id')
             )
             ->paginate($perPage)
-            ->withQueryString()
-            ->through(function ($invoice) {
-                return [
-                    'id' => $invoice->id,
-                    'title' => $invoice->title,
-                    'file' => asset('storage/'.$invoice->filename),
-                    'filename' => $invoice->filename,
-                    'filetype' => $invoice->filetype,
-                    'amount' => Number::currency($invoice->amount),
-                    'status' => $invoice->status,
-                    'work_order_id' => $invoice->work_order_id,
-                    'work_order_no' => $invoice->work_order?->work_order_no,
-                    'address' => $invoice->work_order?->propertyAddress(),
-                    'vendor' => $invoice->vendor?->name,
-                    'created_at' => $invoice->created_at?->toIso8601String(),
-                    'posted_at' => $invoice->posted_at?->toIso8601String(),
-                    'posted_by' => $invoice->postedBy?->name,
-                ];
-            });
+            ->withQueryString();
+
+        $leaseStatuses = $this->leaseStatusesFor($invoices->getCollection());
+
+        $invoices->through(function ($invoice) use ($leaseStatuses) {
+            return [
+                'id' => $invoice->id,
+                'title' => $invoice->title,
+                'file' => asset('storage/'.$invoice->filename),
+                'filename' => $invoice->filename,
+                'filetype' => $invoice->filetype,
+                'amount' => Number::currency($invoice->amount),
+                'status' => $invoice->status,
+                'work_order_id' => $invoice->work_order_id,
+                'work_order_no' => $invoice->work_order?->work_order_no,
+                'address' => $invoice->work_order?->propertyAddress(),
+                'lease_status' => $leaseStatuses[$invoice->work_order?->building_id] ?? null,
+                'vendor' => $invoice->vendor?->name,
+                'created_at' => $invoice->created_at?->toIso8601String(),
+                'posted_at' => $invoice->posted_at?->toIso8601String(),
+                'posted_by' => $invoice->postedBy?->name,
+            ];
+        });
 
         return inertia('Invoice/Index', [
             'title' => 'Invoices',

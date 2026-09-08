@@ -61,7 +61,19 @@ const isVendor = computed(() =>
     (page.props.auth.user?.roles || []).includes("vendor")
 );
 
-const columnCount = computed(() => (isVendor.value ? 7 : 8));
+const columnCount = computed(() => (isVendor.value ? 8 : 9));
+
+// PropertyWare's lease statuses, which vary in casing between picklists. Only
+// an active lease reads as normal; anything that means the tenancy is ending
+// stands out, and an unrecognised status still renders as plain text.
+const leaseVariant = (status) => {
+    const normalized = String(status).trim().toLowerCase();
+    if (normalized === "active") return "default";
+    if (normalized === "eviction" || normalized === "notice given") {
+        return "destructive";
+    }
+    return "secondary";
+};
 
 // Timestamps are stored in UTC, so convert before showing the upload time —
 // accounting reads these against a Central-time payment cutoff.
@@ -114,6 +126,7 @@ const postedTitle = (invoice) => {
                 >
                     Address
                 </SortableHead>
+                <TableHead class="hidden md:table-cell"> Lease </TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
                 <SortableHead
                     column="amount"
@@ -176,6 +189,15 @@ const postedTitle = (invoice) => {
                 </TableCell>
                 <TableCell class="hidden md:table-cell">
                     {{ invoice.address || "—" }}
+                </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    <Badge
+                        v-if="invoice.lease_status"
+                        :variant="leaseVariant(invoice.lease_status)"
+                    >
+                        {{ invoice.lease_status }}
+                    </Badge>
+                    <template v-else>—</template>
                 </TableCell>
                 <TableCell class="md:table-cell">
                     <button

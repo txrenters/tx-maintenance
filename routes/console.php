@@ -79,6 +79,14 @@ Schedule::command('sync:building-details')
     ->withoutOverlapping(30)
     ->runInBackground();
 
+// Pull PropertyWare leases so the invoice list can show a property's real lease
+// status. Runs after the building syncs above so a lease's building_id resolves
+// the same night the building is created.
+Schedule::command('sync:leases')
+    ->dailyAt('01:00')
+    ->withoutOverlapping(60)
+    ->runInBackground();
+
 // Refresh Jobber token every 30 minutes to prevent expiration. Never overlap:
 // Jobber refresh tokens are single-use, so two concurrent refreshes kill the
 // stored token permanently (the service also serializes behind a cache lock).

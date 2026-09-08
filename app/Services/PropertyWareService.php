@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\PropertyWareAccessDeniedException;
 use App\Jobs\CreateJobberJobForWorkOrder;
 use App\Models\Scopes\WorkOrderScope;
 use App\Models\Vendor;
@@ -356,6 +357,54 @@ class PropertyWareService
             return 'Error: '.$e->getMessage();
         }
 
+    }
+
+    /**
+     * One page of leases from the REST API. Paging and retries belong to the
+     * caller (sync:leases) so a single bad page cannot abandon a whole run.
+     *
+     * Returns null on failure so the caller can tell "the request failed" from
+     * "there are no more leases", which an empty array means.
+     *
+     * @return array<int, mixed>|null
+     */
+    public function getLeases(int $limit = 500, int $offset = 0): ?array
+    {
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->timeout(60)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/leases', [
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+
+            if ($response->successful()) {
+                $leases = $response->json();
+
+                return is_array($leases) ? $leases : [];
+            }
+
+            Log::error('Error retrieving leases', [
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+                'offset' => $offset,
+            ]);
+
+            // A rejected key is permanent: every further page would be denied
+            // too, so stop the run rather than walk 3,000 leases into the same
+            // 403.
+            if (in_array($response->status(), [401, 403], true)) {
+                throw new PropertyWareAccessDeniedException('leases', (string) $response->body());
+            }
+
+            return null;
+        } catch (PropertyWareAccessDeniedException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            Log::error('PropertyWare getLeases failed: '.$e->getMessage());
+
+            return null;
+        }
     }
 
     public function getBuilding($buildingId)
