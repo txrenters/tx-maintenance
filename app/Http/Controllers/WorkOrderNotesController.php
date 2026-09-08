@@ -175,4 +175,55 @@ class WorkOrderNotesController extends Controller
 
         return back();
     }
+
+    /**
+     * Change a note's subject and body.
+     *
+     * Unlike deleting, PropertyWare can take an edit (updateNote), so a note it
+     * owns is editable here too rather than being read-only.
+     *
+     * PropertyWare goes first and the local row is saved only once it accepts.
+     * This is the reverse of store(), deliberately: a failed push on a new note
+     * is retried by notes:push-pending, but the importer overwrites
+     * PropertyWare-owned rows from PropertyWare, so a local-first edit that
+     * failed to reach it would be silently reverted at the next sync.
+     */
+    public function update(Request $request, WorkOrderNotes $note, PropertyWareService $propertyWare): RedirectResponse
+    {
+        $user = auth()->user();
+
+        if (! $user->hasAnyRole(['admin', 'woc', 'accounting']) && (int) $note->user_id !== (int) $user->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'subject' => 'required|string|max:255',
+            'body' => 'required|string',
+        ]);
+
+        // A note with no PropertyWare id has not been taken yet; it is saved
+        // here and notes:push-pending sends the corrected text on its own.
+        if (! blank($note->propertyware_id)) {
+            try {
+                $updated = $propertyWare->updateNote($note, $validated['subject'], $validated['body']);
+            } catch (\Throwable $exception) {
+                Log::error('Work order note edit could not be sent to PropertyWare.', [
+                    'note_id' => $note->id,
+                    'error' => $exception->getMessage(),
+                ]);
+                $updated = false;
+            }
+
+            if (! $updated) {
+                return back()->with('warning', 'PropertyWare did not accept the change, so the note was left as it was. Try again in a few minutes; IT can see the reason in the log.');
+            }
+        }
+
+        $note->update([
+            'subject' => $validated['subject'],
+            'body' => $validated['body'],
+        ]);
+
+        return back();
+    }
 }

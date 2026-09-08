@@ -225,4 +225,47 @@ class PropertyWareAddVendorNoteTest extends TestCase
         $service->shouldReceive('getWorkOrderByNumber')->once()->andReturn([['number' => 43649, 'notes' => $notes]]);
         $this->assertSame($notes, $service->workOrderNotesFromPropertyWare('43649'));
     }
+
+    public function test_an_edit_carries_the_notes_own_id_flag_and_date_and_escapes_the_text(): void
+    {
+        $note = $this->note();
+        $note->forceFill([
+            'propertyware_id' => '987654',
+            'is_private' => false,
+            'date' => '2026-08-14T09:30:00Z',
+        ])->save();
+
+        $service = $this->serviceWithExecuteReturning(
+            ['success' => true, 'response' => '<soapenv:Envelope/>'],
+            function (string $xml): bool {
+                $this->assertStringContainsString('<ser:updateNote', $xml);
+                $this->assertStringContainsString('<ID xsi:type="xsd:long">987654</ID>', $xml);
+                $this->assertStringContainsString('<subject xsi:type="xsd:string">Fixed &amp; tidied</subject>', $xml);
+                $this->assertStringNotContainsString('Fixed & tidied', $xml);
+                // The note's own flag and date are echoed back, not fresh ones:
+                // an edit must not silently privatise or restamp the note.
+                $this->assertStringContainsString('<private xsi:type="xsd:boolean">0</private>', $xml);
+                $this->assertStringContainsString('<date xsi:type="xsd:dateTime">2026-08-14T09:30:00Z</date>', $xml);
+
+                return true;
+            },
+        );
+
+        $this->assertTrue($service->updateNote($note, 'Fixed & tidied', 'New body'));
+    }
+
+    public function test_an_edit_is_refused_without_a_propertyware_id_and_reports_a_fault(): void
+    {
+        $note = $this->note();
+
+        // Nothing to address: PropertyWare is never called.
+        $service = Mockery::mock(PropertyWareService::class)->makePartial();
+        $service->shouldNotReceive('execute');
+        $this->assertFalse($service->updateNote($note, 'Subject', 'Body'));
+
+        // A SOAP fault decodes to a truthy array, so only the success flag counts.
+        $note->forceFill(['propertyware_id' => '987654'])->save();
+        $service = $this->serviceWithExecuteReturning(['success' => false, 'error' => 'Server.userException']);
+        $this->assertFalse($service->updateNote($note, 'Subject', 'Body'));
+    }
 }

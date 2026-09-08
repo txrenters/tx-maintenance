@@ -1,7 +1,15 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
-import { Loader2, Camera, File, FileText, Plus, X } from "lucide-vue-next";
+import {
+    Loader2,
+    Camera,
+    File,
+    FileText,
+    Pencil,
+    Plus,
+    X,
+} from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { DateTime } from "luxon";
 
@@ -18,11 +26,32 @@ const emit = defineEmits(["fetch-notes"]);
 
 const openNoteModal = ref(false);
 
+// The same dialog writes a new note and edits an existing one; this holds the
+// note being edited, or null when the dialog is adding.
+const editingNoteId = ref(null);
+
 const notesForm = useForm({
     subject: "",
     body: "",
     work_order_id: props.workOrder.id,
 });
+
+const openCreateNote = () => {
+    editingNoteId.value = null;
+    notesForm.reset();
+    notesForm.clearErrors();
+    openNoteModal.value = true;
+};
+
+// PropertyWare can take an edit (updateNote), so a note it owns is editable
+// too — unlike deleting, which it has no call for.
+const openEditNote = (note) => {
+    editingNoteId.value = note.id;
+    notesForm.subject = note.subject ?? "";
+    notesForm.body = note.body ?? "";
+    notesForm.clearErrors();
+    openNoteModal.value = true;
+};
 
 const handleFormSubmit = () => {
     if (!notesForm.subject || !notesForm.body) {
@@ -34,6 +63,12 @@ const handleFormSubmit = () => {
         });
         return;
     }
+
+    if (editingNoteId.value !== null) {
+        handleEditSubmit();
+        return;
+    }
+
     notesForm.post(route("api.work_order_notes.store"), {
         preserveState: true,
         preserveScroll: true,
@@ -64,16 +99,55 @@ const handleFormSubmit = () => {
     });
 };
 
+// The server sends the change to PropertyWare first and only keeps it when
+// PropertyWare accepts, so a warning here means nothing was changed at all.
+const handleEditSubmit = () => {
+    notesForm.put(route("api.work_order_notes.update", editingNoteId.value), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: (page) => {
+            const warning = page?.props?.flash?.warning;
+            toast(
+                warning
+                    ? { title: "Not changed", description: warning }
+                    : {
+                          title: "Success",
+                          description: "The note has been updated.",
+                      }
+            );
+            if (!warning) {
+                openNoteModal.value = false;
+                editingNoteId.value = null;
+                notesForm.reset();
+            }
+            handleFetchNotes();
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description:
+                    "There was a problem with your request. Please try again!",
+            });
+        },
+    });
+};
+
 const deleteNoteForm = useForm({
     id: "",
 });
 
 const isDeleteDialogOpen = ref(false);
 
-// Deleting is unrecoverable — the X only ever shows on notes PropertyWare has
-// no copy of — so a stray click must not be enough on its own.
-const askDeleteNote = (note_id) => {
-    deleteNoteForm.id = note_id;
+// PropertyWare has no delete-note call, so a note it holds cannot be removed
+// from here at all. The X still shows on those, and the dialog explains where
+// to go instead — it used to disappear, which read as a broken button.
+const deleteBlockedByPropertyWare = ref(false);
+
+// Deleting is unrecoverable, so a stray click must not be enough on its own.
+const askDeleteNote = (note) => {
+    deleteBlockedByPropertyWare.value = !!note.propertyware_id;
+    deleteNoteForm.id = note.id;
     isDeleteDialogOpen.value = true;
 };
 
@@ -194,6 +268,13 @@ const formatAddedAt = (note) => {
 const noteAuthor = (note) =>
     note.jobber_technician || note.user?.name || "PropertyWare";
 
+// Who may change a note: staff, or the person who wrote it. Mirrors the guard
+// both update() and destroy() apply on the server. Not gated on
+// propertyware_id — whether PropertyWare will take the change is the dialog's
+// business, and hiding the buttons is what made this look broken.
+const canModifyNote = (note) =>
+    isStaff.value || note.user_id === page.props.auth.user.id;
+
 const handleFetchNotes = () => {
     emit("fetch-notes");
 };
@@ -211,13 +292,14 @@ const handleFetchNotes = () => {
                     v-if="
                         $page.props.auth.user.roles.includes('admin') ||
                         $page.props.auth.user.roles.includes('woc') ||
+                        $page.props.auth.user.roles.includes('accounting') ||
                         $page.props.auth.user.roles.includes('vendor')
                     "
                 >
                     <Button
                         :disabled="isLoading"
                         size="icon"
-                        @click="openNoteModal = true"
+                        @click="openCreateNote()"
                     >
                         <Plus v-if="!isLoading" class="" />
                         <Loader2 v-else class="w-4 h-4 animate-spin" />
@@ -231,22 +313,29 @@ const handleFetchNotes = () => {
                         v-for="note in workOrderNotes"
                         :key="note.id"
                     >
-                        <div class="flex justify-between">
+                        <div class="flex justify-between gap-2">
                             <p class="font-bold">{{ note.subject }}</p>
-                            <button
-                                v-if="
-                                    !note.propertyware_id &&
-                                    (note.user_id ===
-                                        $page.props.auth.user.id ||
-                                        !$page.props.auth.user.roles.includes(
-                                            'vendor'
-                                        ))
-                                "
-                                @click.stop="askDeleteNote(note.id)"
-                                class="bg-red-500 text-white rounded-full p-1 w-5 h-5"
+                            <div
+                                v-if="canModifyNote(note)"
+                                class="flex shrink-0 items-center gap-1"
                             >
-                                <X class="w-3 h-3" />
-                            </button>
+                                <button
+                                    type="button"
+                                    title="Edit this note"
+                                    @click.stop="openEditNote(note)"
+                                    class="bg-secondary-foreground/70 text-secondary rounded-full p-1 w-5 h-5"
+                                >
+                                    <Pencil class="w-3 h-3" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Delete this note"
+                                    @click.stop="askDeleteNote(note)"
+                                    class="bg-red-500 text-white rounded-full p-1 w-5 h-5"
+                                >
+                                    <X class="w-3 h-3" />
+                                </button>
+                            </div>
                         </div>
 
                         <p>{{ note.body }}</p>
@@ -279,7 +368,23 @@ const handleFetchNotes = () => {
             </div>
         </div>
         <AlertDialog v-model:open="isDeleteDialogOpen">
-            <AlertDialogContent>
+            <AlertDialogContent v-if="deleteBlockedByPropertyWare">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        This note lives in PropertyWare
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        PropertyWare has no way to delete a note from here, and
+                        removing it only on the dashboard would bring it back at
+                        the next sync. Delete it in PropertyWare instead. You can
+                        still edit its text here.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Close</AlertDialogCancel>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+            <AlertDialogContent v-else>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Delete this note?</AlertDialogTitle>
                     <AlertDialogDescription>
@@ -303,10 +408,15 @@ const handleFetchNotes = () => {
                 class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
             >
                 <DialogHeader class="p-6 pb-0 text-left">
-                    <DialogTitle> Create Notes </DialogTitle>
+                    <DialogTitle>
+                        {{ editingNoteId ? "Edit Note" : "Create Notes" }}
+                    </DialogTitle>
                     <DialogDescription>
-                        Fill out the input fields and then click
-                        submit.</DialogDescription
+                        {{
+                            editingNoteId
+                                ? "The change is sent to PropertyWare as well."
+                                : "Fill out the input fields and then click submit."
+                        }}</DialogDescription
                     >
                 </DialogHeader>
                 <Separator />
