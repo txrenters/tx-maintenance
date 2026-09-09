@@ -297,12 +297,25 @@ const postedTitle = (invoice) => {
                                 (checked) => togglePosted(invoice, checked)
                             "
                         />
-                        <span
+                        <!-- Who ticked it, in the open rather than only in the
+                             checkbox tooltip: the coordinator working the
+                             list needs to know who to ask about a posting
+                             without hovering each row. -->
+                        <div
                             v-if="invoice.posted_at"
-                            class="hidden text-xs text-muted-foreground lg:inline"
+                            class="hidden text-xs leading-tight text-muted-foreground lg:block"
+                            :title="postedTitle(invoice)"
                         >
-                            {{ formatUploadedAt(invoice.posted_at) }}
-                        </span>
+                            <span class="whitespace-nowrap">
+                                {{ formatUploadedAt(invoice.posted_at) }}
+                            </span>
+                            <span
+                                v-if="invoice.posted_by"
+                                class="block whitespace-nowrap"
+                            >
+                                by {{ invoice.posted_by }}
+                            </span>
+                        </div>
                     </div>
                 </TableCell>
                 <TableCell v-if="showArchived" class="whitespace-nowrap">

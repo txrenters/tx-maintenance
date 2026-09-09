@@ -565,6 +565,29 @@ class InvoiceIndexTest extends TestCase
         $this->assertFalse($response->viewData('page')['props']['canPost']);
     }
 
+    public function test_a_vendor_sees_that_their_invoice_was_posted_but_not_by_whom(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        [$vendor, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 52502, 'Alpha invoice');
+
+        $staff = $this->actingAsAdmin();
+        $this->actingAs($staff)->post(route('invoices.posted.store', $invoice->id));
+
+        $vendorUser = User::factory()->create();
+        $vendorUser->assignRole('vendor');
+        $vendor->update(['user_id' => $vendorUser->id]);
+
+        $response = $this->actingAs($vendorUser)->get(route('invoices.index'));
+
+        $response->assertOk();
+        $row = collect($response->viewData('page')['props']['invoices']['data'])->firstWhere('id', $invoice->id);
+
+        $this->assertNotNull($row, 'The vendor still sees their own invoice.');
+        $this->assertNotNull($row['posted_at']);
+        $this->assertNull($row['posted_by'], 'Which staff member posted it stays in the office.');
+    }
+
     public function test_an_invoice_without_a_vendor_still_renders(): void
     {
         $workOrder = WorkOrder::factory()->create(['work_order_no' => 46001, 'status' => 'Open']);
