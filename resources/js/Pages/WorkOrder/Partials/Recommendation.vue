@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue";
+import { usePage } from "@inertiajs/vue3";
 import { Button } from "@/Components/ui/button";
 import {
     Card,
@@ -20,6 +21,8 @@ import {
     ArrowRight,
     AlertTriangle,
     ShieldCheck,
+    Building2,
+    ExternalLink,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -69,6 +72,36 @@ const fallbackAlternates = computed(
 );
 const recommendedVendor = computed(
     () => props.recommendation?.recommended_vendor ?? null,
+);
+
+// --- Previous work orders at this property ---
+
+// Computed fresh by the server on every read: every other work order at the
+// same property, newest first, capped with the total reported alongside.
+const propertyHistory = computed(
+    () => props.recommendation?.property_history ?? null,
+);
+const propertyHistoryItems = computed(() => propertyHistory.value?.items ?? []);
+const propertyHistoryTotal = computed(() =>
+    Number(propertyHistory.value?.total ?? 0),
+);
+const propertyHistoryHiddenCount = computed(() =>
+    Math.max(0, propertyHistoryTotal.value - propertyHistoryItems.value.length),
+);
+
+// Mirrors WorkOrder::CLOSED_STATUSES.
+const CLOSED_STATUSES = ["Closed", "Canceled By Tenant"];
+const isClosed = (item) => CLOSED_STATUSES.includes(item.status);
+
+const historyDetailLine = (item) =>
+    [item.category, item.type, item.service_status].filter(Boolean).join(" · ");
+
+// The property page behind "View all" is staff-only.
+const page = usePage();
+const isStaff = computed(() =>
+    (page.props.auth?.user?.roles ?? []).some((role) =>
+        ["admin", "woc", "accounting"].includes(role),
+    ),
 );
 
 const VENDOR_SOURCE_LABELS = {
@@ -521,6 +554,122 @@ const formatDate = (date) => {
                         </CardContent>
                     </Card>
                 </div>
+
+                <!-- Previous Work Orders at This Property -->
+                <Card v-if="propertyHistory">
+                    <CardHeader class="pb-3">
+                        <CardTitle class="flex flex-wrap items-center gap-2 text-base">
+                            <Building2 class="h-4 w-4" />
+                            Previous Work Orders at This Property
+                            <Badge
+                                v-if="propertyHistory.property_id"
+                                variant="secondary"
+                                class="ml-auto tabular-nums"
+                            >
+                                {{ propertyHistoryTotal }}
+                                {{ propertyHistoryTotal === 1 ? "work order" : "work orders" }}
+                            </Badge>
+                        </CardTitle>
+                        <CardDescription>
+                            Every earlier work order on file for this property, newest first.
+                            Open ones are still in progress.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="pt-0">
+                        <div v-if="propertyHistoryItems.length" class="-mx-2 divide-y">
+                            <div
+                                v-for="item in propertyHistoryItems"
+                                :key="item.id"
+                                class="px-2 py-3"
+                            >
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a
+                                            :href="route('work_orders.details', item.id)"
+                                            target="_blank"
+                                            rel="noopener"
+                                            class="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                                            :title="`Open work order #${item.work_order_no ?? item.id} in a new tab`"
+                                        >
+                                            #{{ item.work_order_no ?? item.id }}
+                                            <ExternalLink class="h-3 w-3" />
+                                        </a>
+                                        <Badge
+                                            v-if="isClosed(item)"
+                                            variant="secondary"
+                                            class="text-[10px]"
+                                        >
+                                            {{ item.status }}
+                                        </Badge>
+                                        <Badge
+                                            v-else
+                                            variant="outline"
+                                            class="border-amber-500/60 text-[10px] text-amber-700"
+                                        >
+                                            {{ item.status || "Open" }}
+                                        </Badge>
+                                        <Badge
+                                            v-if="item.is_emergency"
+                                            class="bg-red-600 text-[10px] text-white hover:bg-red-600"
+                                        >
+                                            Emergency
+                                        </Badge>
+                                    </div>
+                                    <p class="text-[11px] text-muted-foreground">
+                                        {{ item.created_date_label || "Unknown date" }}
+                                        <span v-if="item.completed_date_label">
+                                            · Completed {{ item.completed_date_label }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <p
+                                    v-if="historyDetailLine(item)"
+                                    class="mt-1 text-[11px] text-muted-foreground"
+                                >
+                                    {{ historyDetailLine(item) }}
+                                </p>
+                                <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                    {{ item.description || "No details available." }}
+                                </p>
+                                <p
+                                    v-if="item.vendor_names"
+                                    class="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-primary"
+                                >
+                                    Vendor: {{ item.vendor_names }}
+                                </p>
+                            </div>
+                        </div>
+                        <p
+                            v-else-if="!propertyHistory.property_id"
+                            class="text-sm text-muted-foreground"
+                        >
+                            This work order is not linked to a property, so there is no history to show.
+                        </p>
+                        <p v-else class="text-sm text-muted-foreground">
+                            No previous work orders on file for this property.
+                        </p>
+
+                        <div
+                            v-if="propertyHistoryHiddenCount > 0 || (isStaff && propertyHistory.building && propertyHistoryTotal > 0)"
+                            class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-[11px] text-muted-foreground"
+                        >
+                            <span v-if="propertyHistoryHiddenCount > 0">
+                                Showing the {{ propertyHistoryItems.length }} most recent of
+                                {{ propertyHistoryTotal }}.
+                            </span>
+                            <a
+                                v-if="isStaff && propertyHistory.building && propertyHistoryTotal > 0"
+                                :href="route('buildings.show', propertyHistory.building.id)"
+                                target="_blank"
+                                rel="noopener"
+                                class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                            >
+                                View all on the property page
+                                <ExternalLink class="h-3 w-3" />
+                            </a>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 <!-- Alternate Database Vendors -->
                 <Card v-if="databaseAlternates.length">

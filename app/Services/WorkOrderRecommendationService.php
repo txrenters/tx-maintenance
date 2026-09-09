@@ -35,6 +35,13 @@ class WorkOrderRecommendationService
     private const AUTO_ASSIGN_MAX_AGE_DAYS = 3;
 
     /**
+     * How many of the property's previous work orders the Recommendation tab
+     * lists. The total is always reported alongside, so staff know when the
+     * property page has more.
+     */
+    public const PROPERTY_HISTORY_LIMIT = 10;
+
+    /**
      * @return array{ready: bool, provider: ?string}
      */
     public function aiStatus(): array
@@ -83,6 +90,59 @@ class WorkOrderRecommendationService
         return $workOrder->recommendation()
             ->with(['recommendedVendor', 'workOrder:id,is_emergency,is_repeat_issue,repeat_count'])
             ->first();
+    }
+
+    /**
+     * Every other work order on file at the same property, newest first, for
+     * the Recommendation tab's "Previous Work Orders at This Property" card.
+     *
+     * Deliberately not findMatchedHistory(): that is a cross-site, keyword-
+     * scored, completed-only search that feeds the vendor pick. This is the
+     * plain property history a coordinator reads before acting on it: any
+     * category, open or closed. Computed on every read and never stored, and
+     * left under WorkOrderScope so a vendor, owner or tenant only sees rows
+     * they could open themselves.
+     *
+     * @return array{total: int, limit: int, property_id: mixed, building: array{id: int, name: ?string}|null, items: array<int, array<string, mixed>>}
+     */
+    public function propertyHistory(WorkOrder $workOrder): array
+    {
+        if (blank($workOrder->building_id)) {
+            return [
+                'total' => 0,
+                'limit' => self::PROPERTY_HISTORY_LIMIT,
+                'property_id' => null,
+                'building' => null,
+                'items' => [],
+            ];
+        }
+
+        $priors = WorkOrder::query()
+            ->where('building_id', $workOrder->building_id)
+            ->whereKeyNot($workOrder->getKey());
+
+        $total = (clone $priors)->count();
+
+        $items = $priors
+            ->with(['vendors:vendors.id,vendors.name', 'service_status:id,name'])
+            ->orderByDesc('created_date')
+            ->orderByDesc('id')
+            ->limit(self::PROPERTY_HISTORY_LIMIT)
+            ->get()
+            ->map(fn (WorkOrder $prior) => $this->formatPropertyHistoryItem($prior))
+            ->values()
+            ->all();
+
+        $workOrder->loadMissing('building');
+        $building = $workOrder->building;
+
+        return [
+            'total' => $total,
+            'limit' => self::PROPERTY_HISTORY_LIMIT,
+            'property_id' => $workOrder->building_id,
+            'building' => $building ? ['id' => $building->id, 'name' => $building->name] : null,
+            'items' => $items,
+        ];
     }
 
     /**
@@ -1269,6 +1329,37 @@ class WorkOrderRecommendationService
                 'vendor_type' => $vendor->vendor_type,
             ] : null,
             'closing_comments' => $history->closing_comments,
+        ];
+    }
+
+    /**
+     * One row of the property history card. The dates are pre-formatted here
+     * because the columns are uncast strings, and a bare Y-m-d parsed in the
+     * browser lands on the previous day in Central time.
+     *
+     * @return array<string, mixed>
+     */
+    private function formatPropertyHistoryItem(WorkOrder $prior): array
+    {
+        $createdDate = $this->normalizeDate($prior->created_date);
+        $completedDate = $this->normalizeDate($prior->completed_date);
+        $vendorNames = $prior->vendors->pluck('name')->filter()->implode(', ');
+
+        return [
+            'id' => $prior->id,
+            'work_order_no' => $prior->work_order_no,
+            'status' => $prior->status,
+            'service_status' => $prior->service_status?->name,
+            'category' => $prior->category,
+            'type' => $prior->type,
+            'priority' => $prior->priority,
+            'description' => filled($prior->description) ? Str::limit(trim((string) $prior->description), 140) : null,
+            'created_date' => $createdDate?->toDateString(),
+            'created_date_label' => $createdDate?->format('M j, Y'),
+            'completed_date' => $completedDate?->toDateString(),
+            'completed_date_label' => $completedDate?->format('M j, Y'),
+            'vendor_names' => $vendorNames !== '' ? $vendorNames : null,
+            'is_emergency' => $prior->is_emergency === null ? null : (bool) $prior->is_emergency,
         ];
     }
 

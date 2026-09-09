@@ -29,6 +29,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-09',
             'area' => 'Work Orders',
+            'title' => 'The Recommendation tab lists the property\'s previous work orders',
+            'description' => 'The Recommendation tab on a work order now has a "Previous Work Orders at This Property" card: every earlier work order on file at the same property, newest first, whatever the category and whether it is still open or already closed. Each row shows the work order number, when it was created and completed, its status (open ones are marked, emergencies in red), the category and type, the vendor who did the job, and the first line of the description. Click a number to open that work order in a new tab, so the one you are working on stays put. The ten most recent are listed with the full count, and coordinators get a "View all on the property page" link for the rest. The "Similar Work Orders" card is unchanged - it still lists only the jobs that resemble the current issue.',
+        ],
+        [
+            'date' => '2026-09-09',
+            'area' => 'Work Orders',
             'title' => 'Invoices are archived instead of deleted, and can be brought back',
             'description' => 'Deleting an invoice used to remove it for good - the record and the uploaded PDF or photo both went, with no way to get either back, even though a copy had already been sent to PropertyWare. The action on the work order Invoices tab and on a Jobber job is now "Archive Invoice": it takes the invoice off the work order and out of the Invoices list, but keeps both the record and the file. On the Invoices page, admins and work order coordinators have a "Show archived" button that lists what has been archived, who archived it and when, with a Restore button on each row to put one back. Vendors never see archived invoices and cannot restore one. The Jobber job invoice menu now also asks for confirmation before archiving, which it did not do before.',
         ],
