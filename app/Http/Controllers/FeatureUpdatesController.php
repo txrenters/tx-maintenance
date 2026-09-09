@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-09',
+            'area' => 'Invoices',
+            'title' => 'The Vacant filter no longer calls an occupied home vacant',
+            'description' => 'The Invoices page decided whether a property was vacant partly by looking at whether PropertyWare had attached a lease to the work order. That reads a job raised against the property rather than a tenancy - an owner lawn-service quote, for instance - as an empty home, because PropertyWare attaches no lease to those however occupied the place is. WO #43275 at 2914 County Road 855b showed under "Vacant only" while its own Lease column said Active and PropertyWare said OCCUPIED. Now, where the nightly lease sync has a current status for the property, that status decides it: an active lease means the home counts as occupied. Turnovers, re-keys and the Vacant toggle are unchanged - those describe the work, not the property, so they stay vacant whatever the lease says - and a property the sync has no row for behaves exactly as before.',
+        ],
+        [
+            'date' => '2026-09-09',
             'area' => 'Work Orders',
             'title' => 'Invoices are archived instead of deleted, and can be brought back',
             'description' => 'Deleting an invoice used to remove it for good - the record and the uploaded PDF or photo both went, with no way to get either back, even though a copy had already been sent to PropertyWare. The action on the work order Invoices tab and on a Jobber job is now "Archive Invoice": it takes the invoice off the work order and out of the Invoices list, but keeps both the record and the file. On the Invoices page, admins and work order coordinators have a "Show archived" button that lists what has been archived, who archived it and when, with a Restore button on each row to put one back. Vendors never see archived invoices and cannot restore one. The Jobber job invoice menu now also asks for confirmation before archiving, which it did not do before.',

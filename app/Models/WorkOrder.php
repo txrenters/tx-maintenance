@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 #[ScopedBy([WorkOrderScope::class])]
 class WorkOrder extends Model
@@ -347,7 +348,8 @@ class WorkOrder extends Model
                 ->orWhereRaw('TRIM(category) = ?', ['Turnover'])
                 ->orWhereRaw('TRIM(type) LIKE ?', ['Re%Key'])
                 ->orWhereRaw('TRIM(category) LIKE ?', ['Re%Key'])
-                ->orWhere(fn ($query) => $query->withoutLease());
+                ->orWhere(fn ($query) => $query->withoutLease()
+                    ->whereNot(fn ($lease) => $lease->hasActiveLeaseOnFile()));
         });
     }
 
@@ -366,7 +368,8 @@ class WorkOrder extends Model
                 ->whereRaw('(TRIM(category) <> ? OR category IS NULL)', ['Turnover'])
                 ->whereRaw('(TRIM(type) NOT LIKE ? OR type IS NULL)', ['Re%Key'])
                 ->whereRaw('(TRIM(category) NOT LIKE ? OR category IS NULL)', ['Re%Key'])
-                ->whereNot(fn ($query) => $query->withoutLease());
+                ->whereNot(fn ($query) => $query->withoutLease()
+                    ->whereNot(fn ($lease) => $lease->hasActiveLeaseOnFile()));
         });
     }
 
@@ -385,6 +388,30 @@ class WorkOrder extends Model
             ->whereRaw('(TRIM(category) <> ? OR category IS NULL)', [self::HOA_VIOLATION_CATEGORY])
             ->whereDoesntHave('tenantUploadTokens', fn ($tokens) => $tokens->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION))
             ->whereDoesntHave('tenants');
+    }
+
+    /**
+     * True when PropertyWare currently reports an active lease on the work
+     * order's building.
+     *
+     * withoutLease() infers vacancy from what PropertyWare attached to the work
+     * order, which is only ever a statement about that row: a job raised against
+     * the property rather than a tenancy (an owner lawn-service quote, WO#43275)
+     * carries no lease however occupied the home is, and a row keeps whatever it
+     * was sent with months ago. The leases table is the property's status today,
+     * so where it has an answer it outranks the guess.
+     *
+     * Buildings key on the PropertyWare id, matching Lease::building().
+     */
+    public function scopeHasActiveLeaseOnFile($query)
+    {
+        return $query->whereNotNull('building_id')
+            ->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('leases')
+                    ->whereColumn('leases.building_id', 'work_orders.building_id')
+                    ->whereRaw('LOWER(TRIM(leases.status)) = ?', ['active']);
+            });
     }
 
     /**

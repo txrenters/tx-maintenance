@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Building;
 use App\Models\Invoice;
+use App\Models\Lease;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -586,5 +587,105 @@ class InvoiceIndexTest extends TestCase
 
         $this->assertNotNull($row);
         $this->assertNull($row['vendor']);
+    }
+
+    public function test_an_active_lease_outranks_the_missing_lease_guess(): void
+    {
+        // WO#43275: an owner lawn-service quote raised against the property
+        // rather than a tenancy, so PropertyWare attached no lease however
+        // occupied the home is. The leases table says the property is Active,
+        // and that is the property's status today, so it wins.
+        [, $quoteWo, $quote] = $this->makeVendorInvoice('Breasy Landscaping', 56001, 'Lawn quote invoice');
+        $quoteWo->forceFill([
+            'propertyware_id' => 993001,
+            'building_id' => 771001,
+            'lease_id' => null,
+            'source' => null,
+            'type' => 'Biweekly Lawn Services',
+            'category' => 'Lawn service',
+            'skip_automated_tasks' => false,
+        ])->save();
+
+        Lease::query()->create(['building_id' => 771001, 'status' => 'Active']);
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertFalse($vacantIds->contains($quote->id), 'An actively leased home is not vacant.');
+
+        $occupied = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'occupied']));
+        $occupied->assertOk();
+        $occupiedIds = collect($occupied->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($occupiedIds->contains($quote->id), 'It belongs under Occupied.');
+    }
+
+    public function test_a_non_active_lease_leaves_the_missing_lease_guess_alone(): void
+    {
+        // Only an active lease overrides the guess. A terminated one means the
+        // tenancy has ended, so the row stays vacant as before.
+        [, $endedWo, $ended] = $this->makeVendorInvoice('Alpha Services LLC', 56002, 'Ended lease invoice');
+        $endedWo->forceFill([
+            'propertyware_id' => 993002,
+            'building_id' => 771002,
+            'lease_id' => null,
+            'source' => null,
+            'type' => 'Repair',
+            'skip_automated_tasks' => false,
+        ])->save();
+
+        Lease::query()->create(['building_id' => 771002, 'status' => 'Terminated']);
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($ended->id), 'A terminated lease stays vacant.');
+    }
+
+    public function test_a_turnover_stays_vacant_even_with_an_active_lease(): void
+    {
+        // The job type describes the work, not the property: a turnover is
+        // vacant work whatever the leases table currently says.
+        [, $turnoverWo, $turnover] = $this->makeVendorInvoice('Beta Services LLC', 56003, 'Turnover invoice');
+        $turnoverWo->forceFill([
+            'propertyware_id' => 993003,
+            'building_id' => 771003,
+            'lease_id' => null,
+            'type' => 'Turnover',
+        ])->save();
+
+        Lease::query()->create(['building_id' => 771003, 'status' => 'Active']);
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($turnover->id), 'A turnover is still vacant work.');
+    }
+
+    public function test_a_building_with_no_lease_row_keeps_the_old_behaviour(): void
+    {
+        // Most buildings have no lease row yet (sync:leases runs nightly and
+        // matches on address). Those must behave exactly as before the change.
+        [, $noRowWo, $noRow] = $this->makeVendorInvoice('Gamma Services LLC', 56004, 'No lease row invoice');
+        $noRowWo->forceFill([
+            'propertyware_id' => 993004,
+            'building_id' => 771004,
+            'lease_id' => null,
+            'source' => null,
+            'type' => 'Repair',
+            'skip_automated_tasks' => false,
+        ])->save();
+
+        $admin = $this->actingAsAdmin();
+
+        $vacant = $this->actingAs($admin)->get(route('invoices.index', ['occupancy' => 'vacant']));
+        $vacant->assertOk();
+        $vacantIds = collect($vacant->viewData('page')['props']['invoices']['data'])->pluck('id');
+        $this->assertTrue($vacantIds->contains($noRow->id), 'No lease row means the old guess still applies.');
     }
 }
