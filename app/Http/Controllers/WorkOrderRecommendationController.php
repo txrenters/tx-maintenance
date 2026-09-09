@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WorkOrder;
+use App\Models\WorkOrderRecommendation;
 use App\Services\WorkOrderRecommendationService;
 use Illuminate\Http\JsonResponse;
 
@@ -16,7 +17,7 @@ class WorkOrderRecommendationController extends Controller
         $aiStatus = $this->recommendationService->aiStatus();
 
         return response()->json([
-            'recommendation' => $recommendation,
+            'recommendation' => $this->withPropertyHistory($recommendation, $workOrder),
             'ai_ready' => $aiStatus['ready'],
             'ai_provider' => $aiStatus['provider'],
         ]);
@@ -29,9 +30,29 @@ class WorkOrderRecommendationController extends Controller
 
         return response()->json([
             'message' => 'Work order recommendation generated successfully.',
-            'recommendation' => $recommendation,
+            'recommendation' => $this->withPropertyHistory($recommendation, $workOrder),
             'ai_ready' => $aiStatus['ready'],
             'ai_provider' => $aiStatus['provider'],
         ]);
+    }
+
+    /**
+     * The property's previous work orders ride inside the recommendation
+     * payload because every host of the tab (the modal, the boards, the full
+     * page) keeps only response.data.recommendation. Merged into the array
+     * form rather than set on the model, so nothing can later try to persist
+     * a column that does not exist.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function withPropertyHistory(?WorkOrderRecommendation $recommendation, WorkOrder $workOrder): ?array
+    {
+        if ($recommendation === null) {
+            return null;
+        }
+
+        return $recommendation->toArray() + [
+            'property_history' => $this->recommendationService->propertyHistory($workOrder),
+        ];
     }
 }

@@ -710,6 +710,15 @@ const handleWorkOrder = async (orderId) => {
         console.error("Failed to fetch work order:", error);
     }
     isLoading.value = false;
+
+    // A coordinator can click the Recommendation tab while this data is still
+    // loading. switchTab skips its fetch then (the id is not back yet), and a
+    // tab that never fetched looks like a work order with no recommendation,
+    // so it would auto-generate: a paid AI call that also overwrites the
+    // stored one. Fetch it now instead.
+    if (activeTab.value === "recommendation" && workOrderForm.id) {
+        fetchRecommendation(workOrderForm.id);
+    }
 };
 
 const openImportWorkOrder = ref(false);
