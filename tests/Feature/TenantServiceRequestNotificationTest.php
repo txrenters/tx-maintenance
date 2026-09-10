@@ -737,4 +737,52 @@ class TenantServiceRequestNotificationTest extends TestCase
         $ledger = Activity::query()->where('event', 'tenant_service_request_sms')->firstOrFail();
         $this->assertStringContainsString('Requested By is Dana Contact, who has no phone number', $ledger->properties['message']);
     }
+
+    public function test_the_lease_roster_never_revives_a_vacant_or_opted_out_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // WO#43729's lesson must survive the fallback: a home that is vacant,
+        // being turned over, re-keyed or cleaned gets nothing, however many
+        // reachable tenants sit on the roster PropertyWare attached.
+        foreach ([
+            ['type' => 'Turnover'],
+            ['category' => 'Turnover'],
+            ['category' => 'Re-key'],
+            ['category' => 'Cleaning'],
+            ['category' => 'Make ready'],
+            ['skip_automated_tasks' => true],
+            ['category' => WorkOrder::HOA_VIOLATION_CATEGORY],
+        ] as $attributes) {
+            $technician = $this->makeContact('Moses', null);
+            $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id] + $attributes);
+            $this->makeContact('Forrest', '7132526614', $workOrder);
+            $this->makeContact('Marisol', '5712140948', $workOrder);
+
+            $this->notify($workOrder);
+
+            $label = json_encode($attributes);
+            $this->assertSame([], $this->tenantMessages($workOrder), "{$label} must send nothing.");
+            $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at, "{$label} must stay un-stamped.");
+        }
+
+        Queue::assertNothingPushed();
+        // Opted-out work orders are not "nobody to text" either: no ledger row.
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_service_request_sms')->count());
+    }
+
+    public function test_the_per_work_order_mute_still_covers_the_lease_roster(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeInspectionWorkOrderWithLeaseTenants();
+        $workOrder->setAutomationPaused('tenant', true);
+
+        $this->notify($workOrder->fresh());
+
+        $this->assertSame([], $this->tenantMessages($workOrder));
+        Queue::assertNothingPushed();
+    }
 }

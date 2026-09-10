@@ -329,4 +329,24 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertFalse($this->send($workOrder));
         $this->assertDatabaseCount('tenant_email_notifications', 0);
     }
+
+    public function test_the_lease_roster_never_revives_a_vacant_or_opted_out_work_order(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $this->fakeGraph(expectSend: false);
+
+        foreach ([
+            ['type' => 'Turnover'],
+            ['category' => 'Re-key'],
+            ['category' => 'Cleaning'],
+            ['skip_automated_tasks' => true],
+        ] as $attributes) {
+            $workOrder = $this->makeWorkOrder('mvr@txhomemp.com', ['source' => 'Inspection'] + $attributes);
+            $this->addLeaseTenant($workOrder, 'Forrest', 'forrest@example.com');
+
+            $this->assertFalse($this->send($workOrder), json_encode($attributes).' must send nothing.');
+        }
+
+        $this->assertDatabaseCount('tenant_email_notifications', 0);
+    }
 }
