@@ -428,7 +428,7 @@ const checkDueTask = (task) => {
                 <span
                     role="button"
                     tabindex="0"
-                    class="cursor-pointer rounded underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    class="cursor-pointer rounded underline underline-offset-2 decoration-1 hover:decoration-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
                     title="Open this work order"
                     @click.stop="openWorkOrderModal(task.work_order_id)"
                     @keydown.enter.stop.prevent="openWorkOrderModal(task.work_order_id)"

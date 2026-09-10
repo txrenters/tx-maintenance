@@ -971,7 +971,7 @@ onMounted(() => {
                         }}<span
                             role="button"
                             tabindex="0"
-                            class="cursor-pointer rounded underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            class="cursor-pointer rounded underline underline-offset-4 decoration-2 hover:decoration-[3px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             title="Open this work order"
                             @click.stop="openLinkedWorkOrder"
                             @keydown.enter.stop.prevent="openLinkedWorkOrder"
