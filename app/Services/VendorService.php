@@ -74,9 +74,7 @@ class VendorService
                 [
                     'name' => $name,
                     'name_on_check' => $data['nameOnCheck'] ?? $name,
-                    // The placeholder address keys the user only; the vendor
-                    // record keeps no e-mail, so nothing tries to write to it.
-                    'email' => ! empty($data['email']) ? $data['email'] : null,
+                    'email' => $email,
                     'vendor_type' => $data['type'] ?? null,
                     'is_active' => $data['active'] ?? true,
                     'user_id' => $user->id,

@@ -81,7 +81,10 @@ class VendorSyncTest extends TestCase
         $placeholder->refresh();
         $this->assertNotSame($shared->id, $placeholder->user_id);
         $this->assertTrue(blank($placeholder->phone), 'The placeholder must not carry a phone number.');
-        $this->assertNull($placeholder->email);
+        // The sync keeps its readable placeholder address on the vendor record
+        // (see VendorImportTest); the new user is keyed on it too.
+        $this->assertSame('owner-vendor-4066574337@no-email.texasrenters.com', $placeholder->email);
+        $this->assertSame('owner-vendor-4066574337@no-email.texasrenters.com', $placeholder->user->email);
 
         // The shared row is left exactly as it was: it is still the
         // electrician's, phone and all (the User model stores phones as E.164).
