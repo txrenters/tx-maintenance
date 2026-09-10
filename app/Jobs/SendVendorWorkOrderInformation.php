@@ -79,9 +79,12 @@ class SendVendorWorkOrderInformation implements ShouldQueue
 
         // A WOC can mute this work order's vendor automation from the vendor
         // conversation tab; the assignment email and text below are skipped while
-        // paused (manual sends are unaffected). The PropertyWare upload still runs
-        // — it is an internal document, not an outbound message.
-        $vendorPaused = $workOrder->automationPausedFor('vendor');
+        // paused (manual sends are unaffected). "OWNER VENDOR" is skipped the same
+        // way: it stands for the owner doing the repair themselves, so there is no
+        // vendor to notify, and any contact details its record carries are not
+        // its own (WO#44092: the text reached a stranger). The PropertyWare upload
+        // still runs — it is an internal document, not an outbound message.
+        $vendorPaused = $workOrder->automationPausedFor('vendor') || $vendor->isOwnerPlaceholder();
 
         // 1) Email the vendor via Microsoft Graph (only when we have an address).
         //    The Blade design is unchanged — we render the existing mailable to
