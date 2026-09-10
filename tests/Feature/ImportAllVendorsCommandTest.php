@@ -67,4 +67,55 @@ class ImportAllVendorsCommandTest extends TestCase
 
         $this->artisan('import:all-vendors')->assertFailed();
     }
+
+    public function test_vendors_without_an_email_each_get_their_own_user(): void
+    {
+        // PropertyWare's vendor payload carries "" (not null) for every missing
+        // field. Two e-mail-less vendors used to be keyed to ONE user row
+        // (email ""), so the second one's phone became the first one's too.
+        Http::fake([
+            'api.propertyware.com/*' => Http::response([
+                ['id' => 4066574337, 'companyName' => 'OWNER VENDOR', 'nameOnCheck' => '', 'email' => '', 'phone' => '', 'otherPhone' => '', 'fax' => '', 'type' => 'Administrative', 'active' => true],
+                ['id' => 761069582, 'companyName' => "Grady's Air & Heat", 'nameOnCheck' => '', 'email' => '', 'phone' => '(281) 775-1740', 'otherPhone' => '', 'fax' => '', 'type' => 'HVAC', 'active' => false],
+            ]),
+        ]);
+
+        $this->artisan('import:all-vendors --limit=2')->assertSuccessful();
+
+        $placeholder = Vendor::where('propertyware_id', 4066574337)->first();
+        $hvac = Vendor::where('propertyware_id', 761069582)->first();
+
+        $this->assertNotSame($placeholder->user_id, $hvac->user_id);
+        $this->assertTrue(blank($placeholder->phone), 'OWNER VENDOR must not inherit another vendor\'s phone.');
+        $this->assertSame('+12817751740', $hvac->phone);
+        $this->assertNull($placeholder->email);
+        $this->assertDatabaseMissing('users', ['email' => '']);
+        $this->assertDatabaseHas('users', ['email' => '4066574337@texasrenter.com']);
+    }
+
+    public function test_a_vendor_parked_on_the_shared_blank_email_user_is_moved_to_its_own_user(): void
+    {
+        // The row every e-mail-less vendor was keyed to in production. Its
+        // phone belongs to whichever record was written last, an electrician's
+        // in the WO#44092 case.
+        $shared = User::factory()->create(['email' => '', 'phone' => '3465550199']);
+        $placeholder = Vendor::query()->create(['propertyware_id' => 4066574337, 'name' => 'OWNER VENDOR', 'email' => '', 'user_id' => $shared->id]);
+        $electrician = Vendor::query()->create(['propertyware_id' => 5551, 'name' => 'Southwinds Electric LLC', 'email' => '', 'user_id' => $shared->id]);
+
+        Http::fake([
+            'api.propertyware.com/*' => Http::response([
+                ['id' => 4066574337, 'companyName' => 'OWNER VENDOR', 'nameOnCheck' => '', 'email' => '', 'phone' => '', 'otherPhone' => '', 'fax' => '', 'type' => 'Administrative', 'active' => true],
+            ]),
+        ]);
+
+        $this->artisan('import:all-vendors --limit=1')->assertSuccessful();
+
+        $placeholder->refresh();
+        $this->assertNotSame($shared->id, $placeholder->user_id);
+        $this->assertTrue(blank($placeholder->phone));
+
+        // The shared row is left alone: still the electrician's, phone and all.
+        $this->assertSame('+13465550199', $shared->fresh()->phone);
+        $this->assertSame($shared->id, $electrician->fresh()->user_id);
+    }
 }

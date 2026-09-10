@@ -49,6 +49,21 @@ class Vendor extends Model
     }
 
     /**
+     * The e-mail that keys a vendor's portal user when the vendor is imported
+     * from PropertyWare. PropertyWare returns "" (not null) for a vendor with
+     * no address on file, and `??` only guards null, so every e-mail-less
+     * vendor used to land on ONE shared user row (email "") whose phone was
+     * whatever record had been written last: "OWNER VENDOR" showed a real
+     * vendor's number that way (WO#44092). A blank address now gets the same
+     * per-vendor placeholder a missing one always got, so each vendor owns its
+     * user, and with it its phone number.
+     */
+    public static function userEmailFor(?string $email, int|string $propertywareId): string
+    {
+        return filled($email) ? $email : $propertywareId.'@texasrenter.com';
+    }
+
+    /**
      * True when this is the in-house vendor "Texas Home Maintenance Pros".
      * THMP does not reach out to the tenant to schedule the way a third-party
      * vendor does, so tenant-facing automations (assignment notice, the daily

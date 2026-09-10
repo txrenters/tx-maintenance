@@ -143,7 +143,12 @@ class ImportAllVendorsCommand extends Command
         }
 
         $name = $data['companyName'] ?? $data['name'] ?? null;
-        $email = $data['email'] ?? $pwId.'@texasrenter.com';
+        // PropertyWare sends "" for a vendor with no e-mail; the user row is
+        // keyed on a per-vendor placeholder in that case (see userEmailFor),
+        // while the vendor record itself keeps no address, so nothing tries to
+        // e-mail the placeholder.
+        $pwEmail = $data['email'] ?? null;
+        $email = Vendor::userEmailFor($pwEmail, $pwId);
         $phone = $data['phone'] ?? $data['otherPhone'] ?? null;
         $address = $this->joinAddress($data);
 
@@ -180,7 +185,7 @@ class ImportAllVendorsCommand extends Command
             [
                 'name' => $name,
                 'name_on_check' => $data['nameOnCheck'] ?? $name,
-                'email' => $email,
+                'email' => filled($pwEmail) ? $pwEmail : null,
                 'account_number' => $data['accountNumber'] ?? null,
                 'credit_limit' => $data['creditLimit'] ?? null,
                 'payment_term_days_to_pay' => $data['paymentTermDaysToPay'] ?? null,

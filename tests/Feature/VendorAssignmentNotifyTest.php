@@ -122,6 +122,24 @@ class VendorAssignmentNotifyTest extends TestCase
         Bus::assertNotDispatched(SendVendorWorkOrderInformation::class);
     }
 
+    public function test_it_refuses_the_owner_vendor_placeholder(): void
+    {
+        Bus::fake();
+
+        // Even with a phone on file (its user row used to be shared with every
+        // e-mail-less vendor, so it showed a stranger's number) there is no
+        // vendor behind "OWNER VENDOR" to send assignment info to.
+        $vendor = $this->makeVendor(['name' => 'OWNER VENDOR', 'email' => null]);
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-ov']);
+
+        $this->notify($workOrder, $vendor)
+            ->assertStatus(422)
+            ->assertJson(['error' => 'OWNER VENDOR is a placeholder for the owner handling the repair themselves. There is no vendor to notify.']);
+
+        Bus::assertNotDispatched(SendVendorWorkOrderInformation::class);
+    }
+
     public function test_guests_cannot_trigger_it(): void
     {
         Bus::fake();

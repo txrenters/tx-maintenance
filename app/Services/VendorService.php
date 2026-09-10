@@ -45,10 +45,16 @@ class VendorService
 
             // Prefer the vendor's already-linked user so a re-sync corrects their
             // existing record (e.g. fixes a bad email) instead of orphaning it and
-            // creating a new one. Fall back to matching by email, then creating.
+            // creating a new one — unless that user is the shared blank-email row
+            // the imports used to park every e-mail-less vendor on (see
+            // Vendor::userEmailFor()): renaming that one would rename it for all
+            // of them, so such a vendor gets its own user instead. Fall back to
+            // matching by email, then creating.
             $existingVendor = Vendor::where('propertyware_id', $pwId)->first();
-            $user = $existingVendor?->user
-                ?? User::firstOrNew(['email' => $email]);
+            $linkedUser = $existingVendor?->user;
+            $user = $linkedUser && filled($linkedUser->email)
+                ? $linkedUser
+                : User::firstOrNew(['email' => $email]);
 
             $user->email = $email;
             $user->name = $name;

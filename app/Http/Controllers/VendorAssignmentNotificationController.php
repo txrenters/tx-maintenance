@@ -30,6 +30,13 @@ class VendorAssignmentNotificationController extends Controller
             return response()->json(['error' => 'This vendor is not assigned to this work order.'], 422);
         }
 
+        // The placeholder stands for the owner doing the repair themselves; any
+        // phone or email on its record is not a vendor's, so there is nobody
+        // to send assignment info to.
+        if ($vendor->isOwnerPlaceholder()) {
+            return response()->json(['error' => 'OWNER VENDOR is a placeholder for the owner handling the repair themselves. There is no vendor to notify.'], 422);
+        }
+
         if ($workOrder->automationPausedFor('vendor')) {
             return response()->json(['error' => 'Vendor automation is paused on this work order. Turn it back on to send.'], 422);
         }

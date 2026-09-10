@@ -673,4 +673,37 @@ class VendorWorkOrderInformationTest extends TestCase
         $this->assertDatabaseCount('work_order_conversations', 0);
         Bus::assertNotDispatched(SendConversationMessageJob::class);
     }
+
+    public function test_the_owner_vendor_placeholder_gets_no_assignment_email_or_text_even_with_contact_details(): void
+    {
+        Bus::fake();
+        Mail::fake();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/docs' => Http::response(['id' => 'doc-ov2'], 200),
+            'api.propertyware.com/pw/api/rest/v1/docs/*' => Http::response(['id' => 'doc-ov2'], 200),
+        ]);
+        config(['services.twilio.maintenance_number' => '+15550001111']);
+
+        // WO#44092 (2026-09-10): "OWNER VENDOR" carried a stranger's phone (its
+        // user row was shared with every e-mail-less vendor) and the assignment
+        // text reached an electrician, who replied "Im electrical not pest
+        // control". The placeholder stands for the owner doing the repair
+        // themselves: there is no vendor to notify, whatever its record says.
+        $vendor = $this->makeVendor(['name' => 'OWNER VENDOR', 'email' => 'shared@example.com'], '3465550199');
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 4377411585, 'work_order_no' => 44092]);
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'tok-ov2']);
+
+        (new SendVendorWorkOrderInformation($workOrder->id, $vendor->id))
+            ->handle(app(WorkOrderInformationPdf::class), app(PropertyWareService::class));
+
+        $this->assertDatabaseMissing('email_messages', [
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+        ]);
+        $this->assertDatabaseMissing('work_order_conversations', [
+            'work_order_id' => $workOrder->id,
+            'conversation_type' => 'vendor',
+        ]);
+        Bus::assertNotDispatched(SendConversationMessageJob::class);
+    }
 }
