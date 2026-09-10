@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-11',
+            'area' => 'Messaging',
+            'title' => 'OWNER VENDOR is never texted or emailed as a vendor',
+            'description' => 'Assigning "OWNER VENDOR" to a work order means the owner is handling the repair themselves - it is a placeholder, not a company. The owner and tenant texts already knew that, but the vendor\'s own assignment email and text did not, and on WO #44092 the text reached a real person. The placeholder has no contact details of its own; it showed a phone number because every vendor with no email in PropertyWare (about 3,400 of them, OWNER VENDOR included) had been sharing one contact record behind the scenes, so whichever number was saved last showed on all of them. Now OWNER VENDOR gets no assignment email or text, whether automatic or from the "Send assignment info" button, and each vendor brought in from PropertyWare keeps its own contact record, so the number shown on a vendor is that vendor\'s. The Sunday vendor refresh moves existing vendors onto their own records; "Sync from PropertyWare" on the Vendors page does it for one vendor straight away. A vendor with no email in PropertyWare now shows a blank email instead of a made-up address.',
+        ],
+        [
             'date' => '2026-09-09',
             'area' => 'Invoices',
             'title' => 'The Vacant filter no longer calls an occupied home vacant',
