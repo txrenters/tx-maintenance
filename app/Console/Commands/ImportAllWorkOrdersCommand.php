@@ -343,7 +343,10 @@ class ImportAllWorkOrdersCommand extends Command
 
     private function createVendor(array $vendorData): ?int
     {
-        $vendorEmail = $vendorData['email'] ?? $vendorData['id'].'@texasrenter.com';
+        // PropertyWare sends "" for a vendor with no e-mail; the user row is
+        // keyed on a per-vendor placeholder in that case (see userEmailFor).
+        $pwEmail = $vendorData['email'] ?? null;
+        $vendorEmail = Vendor::userEmailFor($pwEmail, $vendorData['id']);
 
         $user = $this->createOrUpdateUser([
             'email' => $vendorEmail,
@@ -357,7 +360,7 @@ class ImportAllWorkOrdersCommand extends Command
             'propertyware_id' => $vendorData['id'],
             'name' => $vendorData['name'],
             'name_on_check' => $vendorData['name'],
-            'email' => $vendorEmail,
+            'email' => filled($pwEmail) ? $pwEmail : null,
             'user_id' => $user->id,
             'is_active' => true,
         ]);
