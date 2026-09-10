@@ -1047,18 +1047,6 @@
                     <td>Sprinkler / Irrigation System</td>
                     <td>{{ $formData['sprinklerSystem'] ?? 'Not specified' }}</td>
                 </tr>
-                @if (($formData['sprinklerSystem'] ?? '') === 'Yes')
-                    <tr>
-                        <td>Controller Location</td>
-                        <td>{{ !empty($formData['sprinklerControllerLocation']) ? $formData['sprinklerControllerLocation'] : 'Not provided' }}</td>
-                    </tr>
-                    @if (!empty($formData['sprinklerNotes']))
-                        <tr>
-                            <td>Notes</td>
-                            <td>{{ $formData['sprinklerNotes'] }}</td>
-                        </tr>
-                    @endif
-                @endif
             </tbody>
         </table>
 

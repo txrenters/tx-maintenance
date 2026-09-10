@@ -77,10 +77,9 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             'formData.gatedCommunity' => 'required|string|in:Yes,No',
             'formData.gateCode' => 'required_if:formData.gatedCommunity,Yes|nullable|string|max:255',
 
-            // Sprinkler / Irrigation System (Yes/No stored in the "Yard Features" picklist; details on the PDF only)
-            'formData.sprinklerSystem' => 'required|string|in:Yes,No',
-            'formData.sprinklerControllerLocation' => 'required_if:formData.sprinklerSystem,Yes|nullable|string|max:255',
-            'formData.sprinklerNotes' => 'nullable|string|max:500',
+            // Sprinkler / Irrigation System - the answer is a "Yard Features" picklist option,
+            // and Propertyware rejects the whole submission when it is not one of them
+            'formData.sprinklerSystem' => 'required|string|in:Sprinkler System,Lawn Irrigation,Not Applicable',
 
             // Utilities handled by the HOA (the list is stored as text in the "Utilities Handled by HOA" custom field)
             'formData.utilitiesHandledByHoa' => 'required|boolean',
@@ -146,9 +145,6 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
             // Sprinkler / Irrigation System Messages
             'formData.sprinklerSystem.required' => 'Please tell us whether the property has a sprinkler or irrigation system.',
             'formData.sprinklerSystem.in' => 'Please tell us whether the property has a sprinkler or irrigation system.',
-            'formData.sprinklerControllerLocation.required_if' => 'Sprinkler Controller Location is required when there is a sprinkler system.',
-            'formData.sprinklerControllerLocation.max' => 'Sprinkler Controller Location must be 255 characters or fewer.',
-            'formData.sprinklerNotes.max' => 'Sprinkler Notes must be 500 characters or fewer.',
 
             // HOA Utilities Messages
             'formData.utilitiesHandledByHoa.required' => 'Please tell us whether the HOA handles any utilities.',

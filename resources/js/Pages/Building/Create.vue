@@ -153,10 +153,9 @@ const form = useForm({
     //Utilities handled by the HOA
     utilitiesHandledByHoa: false,
     hoaUtilities: "",
-    //Sprinkler / Irrigation System
-    sprinklerSystem: "",
-    sprinklerControllerLocation: "",
-    sprinklerNotes: "",
+    // Sprinkler / Irrigation System - most homes have neither, so the form
+    // opens on "Not Applicable"; a saved "Yard Features" option replaces it.
+    sprinklerSystem: "Not Applicable",
     //Fireplace
     fireplace: "",
     //HVAC Issue Prevention
@@ -896,11 +895,16 @@ const parseGatedCommunityCustomField = () => {
 
 // The sprinkler answer goes to the Propertyware "Yard Features" picklist
 // (Property Information field set). A picklist only accepts its own options,
-// so the Yes/No maps to these exact option values; the controller location
-// and notes have no Propertyware home and reach the onboarding PDF only.
+// and anything else is rejected and takes the whole submission down with it,
+// so the form offers exactly those options and stores the option itself -
+// there is no wording of our own in between to get wrong. "Not Provided" is
+// the picklist default and is not offered; it pre-fills nothing.
 const SPRINKLER_CUSTOM_FIELD = "Yard Features";
-const SPRINKLER_YES_OPTION = "Sprinkler System";
-const SPRINKLER_NO_OPTION = "No Sprinkler System";
+const SPRINKLER_OPTIONS = [
+    "Sprinkler System",
+    "Lawn Irrigation",
+    "Not Applicable",
+];
 
 /**
  * Pick the "Yard Features" option for the sprinkler answer.
@@ -908,36 +912,24 @@ const SPRINKLER_NO_OPTION = "No Sprinkler System";
  * @return {?string} Option value, or null when the owner has not answered
  */
 const buildSprinklerSystemValue = () => {
-    if (form.sprinklerSystem === "Yes") {
-        return SPRINKLER_YES_OPTION;
-    }
-
-    if (form.sprinklerSystem === "No") {
-        return SPRINKLER_NO_OPTION;
-    }
-
-    return null;
+    return SPRINKLER_OPTIONS.includes(form.sprinklerSystem)
+        ? form.sprinklerSystem
+        : null;
 };
 
 /**
- * Map a raw "Yard Features" option back to the sprinkler Yes/No.
- * "Not Provided" (the picklist default) and unknown options pre-fill nothing.
+ * Map a raw "Yard Features" option back to the form's answer.
  *
  * @param {?string} rawValue
- * @return {?string} "Yes", "No", or null when there is nothing to pre-fill
+ * @return {?string} The matching option, or null when there is nothing to pre-fill
  */
 const parseSprinklerSystemValue = (rawValue) => {
     const value = String(rawValue ?? "").trim().toLowerCase();
 
-    if (value === SPRINKLER_YES_OPTION.toLowerCase()) {
-        return "Yes";
-    }
-
-    if (value === SPRINKLER_NO_OPTION.toLowerCase()) {
-        return "No";
-    }
-
-    return null;
+    return (
+        SPRINKLER_OPTIONS.find((option) => option.toLowerCase() === value) ??
+        null
+    );
 };
 
 /**
