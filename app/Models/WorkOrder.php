@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\WorkOrderScope;
+use App\Services\PhoneFormatter;
 use Carbon\Carbon;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -548,6 +549,78 @@ class WorkOrder extends Model
         }
 
         return $digits !== '' ? '+'.$digits : null;
+    }
+
+    /**
+     * The tenants an automated intake message (the request-received or
+     * created-by-our-team text and email) should reach, limited to those
+     * $reachable can actually deliver to on the channel in question.
+     *
+     * PropertyWare's "Requested By" contact is whoever raised the work order.
+     * On a tenant portal or website request that is the tenant; on a work
+     * order our team enters it is whoever staff picked, and on an inspection
+     * finding it is routinely the technician who logged it — WO#44111's
+     * Requested By was a THMP technician with no phone, so the tenant was
+     * never told a work order had been opened for their home. The lease
+     * roster PropertyWare attaches (work_order_tenants) is the tenancy
+     * itself, so:
+     *
+     * - no roster (a website request, a local row): the requester, as before;
+     * - the requester is on the roster: the requester alone, so a portal
+     *   request is answered to the person who sent it rather than the whole
+     *   household — unless they cannot be reached, when the rest of the
+     *   roster stands in;
+     * - the requester is not on the roster (staff, a technician, nobody):
+     *   every tenant on the roster.
+     *
+     * @param  callable(Tenants): bool  $reachable
+     * @return Collection<int, Tenants>
+     */
+    public function tenantIntakeRecipients(callable $reachable): Collection
+    {
+        $this->loadMissing(['requested_by', 'tenants']);
+
+        $requester = $this->requested_by;
+        $roster = $this->tenants;
+
+        if ($requester !== null && ($roster->isEmpty() || $this->requesterIsLeaseTenant()) && $reachable($requester)) {
+            return collect([$requester]);
+        }
+
+        return $roster
+            ->filter(fn (Tenants $tenant): bool => $reachable($tenant))
+            ->values();
+    }
+
+    /**
+     * Whether PropertyWare's Requested By contact is one of the tenants on
+     * the lease roster — by row, or by PropertyWare contact id, since the
+     * same contact can land in tenants twice (once from requestedByContact,
+     * once from the lease).
+     */
+    public function requesterIsLeaseTenant(): bool
+    {
+        $this->loadMissing(['requested_by', 'tenants']);
+
+        $requester = $this->requested_by;
+
+        if ($requester === null) {
+            return false;
+        }
+
+        return $this->tenants->contains(
+            fn (Tenants $tenant): bool => $tenant->is($requester)
+                || (filled($tenant->propertyware_id) && (string) $tenant->propertyware_id === (string) $requester->propertyware_id)
+        );
+    }
+
+    /**
+     * The tenant's best phone number in E.164 (+1XXXXXXXXXX): mobile first,
+     * then home; null if neither is usable.
+     */
+    public function normalizedTenantPhone(Tenants $tenant): ?string
+    {
+        return PhoneFormatter::e164(filled($tenant->mobile_phone) ? $tenant->mobile_phone : $tenant->home_phone);
     }
 
     public function tenants(): BelongsToMany

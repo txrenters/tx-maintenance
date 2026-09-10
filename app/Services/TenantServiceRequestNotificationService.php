@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
+use App\Models\Tenants;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -67,16 +68,33 @@ class TenantServiceRequestNotificationService
 
         $workOrder->loadMissing([
             'requested_by',
+            'tenants',
             'building',
             'woc.wocNumber.twilioPhoneNumber',
         ]);
 
-        $tenant = $workOrder->requested_by;
-        $tenantNumber = $this->toE164($tenant?->mobile_phone ?: $tenant?->home_phone);
+        // The requester when they are the tenant, else the lease roster (see
+        // WorkOrder::tenantIntakeRecipients). Two tenants sharing one line get
+        // a single text.
+        $recipients = $workOrder
+            ->tenantIntakeRecipients(fn (Tenants $tenant): bool => $workOrder->normalizedTenantPhone($tenant) !== null)
+            ->unique(fn (Tenants $tenant): string => (string) $workOrder->normalizedTenantPhone($tenant))
+            ->values();
+
+        // Nobody to text. Left un-stamped so a tenant added later can still be
+        // notified, and recorded so the Automated Messages page shows why the
+        // tenant heard nothing instead of an empty gap (WO#44111: Requested By
+        // was the technician, no phone, and the skip was invisible).
+        if ($recipients->isEmpty()) {
+            $this->recordNobodyToText($workOrder);
+
+            return;
+        }
+
         $fromNumber = $this->fromNumber($workOrder);
 
-        // Nothing to text: no tenant number, or no line to send from.
-        if (blank($tenantNumber) || blank($fromNumber)) {
+        // No line to send from.
+        if (blank($fromNumber)) {
             return;
         }
 
@@ -92,39 +110,86 @@ class TenantServiceRequestNotificationService
         }
 
         $staffCreated = $workOrder->isStaffCreated();
+        $requester = $workOrder->requested_by;
+        $portalLink = $this->portalLinks->link($workOrder);
 
-        $message = TenantMessageFormatter::compose(
-            $staffCreated ? $this->createdMessage($workOrder) : $this->confirmationMessage($workOrder),
-            $workOrder->work_order_no ?? $workOrder->id,
-            $this->portalLinks->link($workOrder),
-        );
+        foreach ($recipients as $tenant) {
+            $tenantNumber = (string) $workOrder->normalizedTenantPhone($tenant);
 
-        $conversation = Conversation::create([
-            'message' => $message,
-            'sender_number' => $fromNumber,
-            'receiver_number' => $tenantNumber,
-            'work_order_id' => $workOrder->id,
-            'conversation_type' => 'tenant',
-            'is_read' => true,
-            'is_mms' => false,
-        ]);
+            $message = TenantMessageFormatter::compose(
+                $staffCreated ? $this->createdMessage($workOrder, $tenant) : $this->confirmationMessage($workOrder, $tenant),
+                $workOrder->work_order_no ?? $workOrder->id,
+                $portalLink,
+            );
 
-        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
+            $conversation = Conversation::create([
+                'message' => $message,
+                'sender_number' => $fromNumber,
+                'receiver_number' => $tenantNumber,
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'tenant',
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
 
-        $ledgerExtra = ['conversation_id' => $conversation->id];
+            SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, null, $conversation->id);
 
-        if ($staffCreated) {
-            $ledgerExtra['variant'] = 'staff_created';
+            $ledgerExtra = ['conversation_id' => $conversation->id, 'tenant_id' => $tenant->id];
+
+            if ($staffCreated) {
+                $ledgerExtra['variant'] = 'staff_created';
+            }
+
+            // Texted from the lease roster because the Requested By contact
+            // was not the tenant, or could not be reached.
+            if ($requester === null || ! $tenant->is($requester)) {
+                $ledgerExtra['recipient_source'] = 'lease_roster';
+            }
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_SMS,
+                'tenant',
+                'tenant_service_request_sms',
+                $tenantNumber,
+                $workOrder,
+                $message,
+                $ledgerExtra,
+            );
         }
+    }
+
+    /**
+     * A ledger row saying why no tenant was texted, in the words the
+     * Automated Messages page shows: whether PropertyWare's Requested By
+     * contact is missing, is not on the lease, or has no number, and how many
+     * lease tenants there were to fall back on.
+     */
+    private function recordNobodyToText(WorkOrder $workOrder): void
+    {
+        $requester = $workOrder->requested_by;
+        $rosterCount = $workOrder->tenants->count();
+
+        if ($requester === null) {
+            $requesterLine = 'PropertyWare lists no Requested By contact';
+        } else {
+            $name = trim(($requester->first_name ?? '').' '.($requester->last_name ?? '')) ?: 'an unnamed contact';
+            $requesterLine = $workOrder->requesterIsLeaseTenant()
+                ? "Requested By is {$name}, who has no phone number"
+                : "Requested By is {$name}, who is not on the lease";
+        }
+
+        $rosterLine = $rosterCount === 0
+            ? 'no lease tenants on file'
+            : "{$rosterCount} lease tenant(s) on file, none with a phone number";
 
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
             'tenant',
             'tenant_service_request_sms',
-            $tenantNumber,
+            null,
             $workOrder,
-            $message,
-            $ledgerExtra,
+            "Not sent: nobody to text. {$requesterLine}; {$rosterLine}.",
+            ['not_texted_reason' => 'no_tenant_phone'],
         );
     }
 
@@ -134,12 +199,12 @@ class TenantServiceRequestNotificationService
      * different system talking to them. Editable from the Automated Messages
      * page via the AutomatedMessageTemplates registry.
      */
-    private function confirmationMessage(WorkOrder $workOrder): string
+    private function confirmationMessage(WorkOrder $workOrder, Tenants $tenant): string
     {
         $address = $workOrder->propertyAddress();
 
         return AutomatedMessageTemplates::text('tenant_service_request_sms', [
-            'greeting' => $this->greeting($workOrder),
+            'greeting' => $this->greeting($tenant),
             'property' => $address !== null ? " for {$address}" : '',
         ]);
     }
@@ -149,10 +214,10 @@ class TenantServiceRequestNotificationService
      * PropertyWare: the WOC ticket's text, with the description inline and
      * "your home" standing in for an unknown address.
      */
-    private function createdMessage(WorkOrder $workOrder): string
+    private function createdMessage(WorkOrder $workOrder, Tenants $tenant): string
     {
         return AutomatedMessageTemplates::text('tenant_work_order_created_sms', [
-            'greeting' => $this->greeting($workOrder),
+            'greeting' => $this->greeting($tenant),
             'work_order_no' => (string) ($workOrder->work_order_no ?? $workOrder->id),
             'property' => $workOrder->propertyAddress() ?? 'your home',
             'description_line' => AutomatedMessageTemplates::descriptionLine($workOrder->description),
@@ -160,11 +225,11 @@ class TenantServiceRequestNotificationService
     }
 
     /**
-     * "Hi <first name>," or "Hi," when the requested-by contact has no name.
+     * "Hi <first name>," or "Hi," when the tenant has no name on file.
      */
-    private function greeting(WorkOrder $workOrder): string
+    private function greeting(Tenants $tenant): string
     {
-        $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
+        $name = trim((string) ($tenant->first_name ?? ''));
 
         return $name !== '' ? "Hi {$name}," : 'Hi,';
     }
@@ -178,20 +243,5 @@ class TenantServiceRequestNotificationService
         return $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
             ?: config('services.twilio.maintenance_from')
             ?: config('services.twilio.from');
-    }
-
-    private function toE164(?string $number): ?string
-    {
-        $digits = preg_replace('/\D+/', '', (string) $number);
-
-        if (strlen($digits) === 10) {
-            return '+1'.$digits;
-        }
-
-        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
-            return '+'.$digits;
-        }
-
-        return $digits !== '' ? '+'.$digits : null;
     }
 }

@@ -27,7 +27,7 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
      * Swap the Graph mailer for a spy so nothing leaves the machine, and hand
      * back the captured send arguments.
      */
-    private function fakeGraph(bool $expectSend = true): object
+    private function fakeGraph(bool $expectSend = true, int $times = 1): object
     {
         $captured = new class
         {
@@ -38,23 +38,35 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
             public string $subject = '';
 
             public string $html = '';
+
+            /** @var array<int, string> every address sent to, in order */
+            public array $recipients = [];
+
+            /** @var array<int, string> every rendered body, in order */
+            public array $bodies = [];
         };
 
         $mock = Mockery::mock(MicrosoftGraphMailService::class);
 
         if ($expectSend) {
             $mock->shouldReceive('sendMail')
-                ->once()
+                ->times($times)
                 ->andReturnUsing(function ($to, $cc, $subject, $html) use ($captured) {
                     $captured->sent = true;
                     $captured->to = $to;
                     $captured->subject = $subject;
                     $captured->html = $html;
+                    $captured->recipients[] = $to;
+                    $captured->bodies[] = $html;
+
+                    // Distinct ids per send, as Graph gives: the sent-mail
+                    // table keys on graph_message_id.
+                    $n = count($captured->recipients);
 
                     return [
-                        'graph_message_id' => 'msg-1',
-                        'graph_conversation_id' => 'conv-1',
-                        'internet_message_id' => '<msg-1@example.com>',
+                        'graph_message_id' => 'msg-'.$n,
+                        'graph_conversation_id' => 'conv-'.$n,
+                        'internet_message_id' => '<msg-'.$n.'@example.com>',
                     ];
                 });
         } else {
@@ -229,5 +241,92 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertStringContainsString('Service Request Received', $captured->html);
         $this->assertStringContainsString('What you told us', $captured->html);
         $this->assertStringNotContainsString('by our team', $captured->html);
+    }
+
+    /**
+     * A tenant on the property's lease roster (work_order_tenants), as the
+     * PropertyWare import fills it in.
+     */
+    private function addLeaseTenant(WorkOrder $workOrder, string $firstName, ?string $email): Tenants
+    {
+        $tenant = Tenants::query()->create([
+            'first_name' => $firstName,
+            'last_name' => 'Lease',
+            'email' => $email,
+            'mobile_phone' => null,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        $workOrder->tenants()->attach($tenant->id);
+
+        return $tenant;
+    }
+
+    public function test_the_lease_tenants_are_emailed_when_the_requester_is_not_on_the_lease(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $captured = $this->fakeGraph(times: 2);
+
+        // WO#44111: Requested By was the technician who logged the inspection
+        // finding — a perfectly deliverable company address that must not get
+        // the "created for your home" email.
+        $workOrder = $this->makeWorkOrder('mvr@txhomemp.com', ['source' => 'Inspection']);
+        $this->addLeaseTenant($workOrder, 'Forrest', 'forrest@example.com');
+        $this->addLeaseTenant($workOrder, 'Marisol', 'marisol@example.com');
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertSame(['forrest@example.com', 'marisol@example.com'], $captured->recipients);
+        $this->assertStringContainsString('Hi Forrest', $captured->bodies[0]);
+        $this->assertStringContainsString('Hi Marisol', $captured->bodies[1]);
+        $this->assertStringContainsString('by our team', $captured->bodies[0]);
+
+        $this->assertDatabaseCount('tenant_email_notifications', 2);
+        $this->assertDatabaseMissing('tenant_email_notifications', ['to_email' => 'mvr@txhomemp.com']);
+
+        // A re-run (lease arrival) must not email the household twice.
+        $this->assertFalse($this->send($workOrder->fresh()));
+        $this->assertDatabaseCount('tenant_email_notifications', 2);
+    }
+
+    public function test_the_requester_on_the_lease_is_emailed_alone(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $captured = $this->fakeGraph();
+
+        $workOrder = $this->makeWorkOrder(attributes: ['source' => 'Tenant Portal']);
+        $workOrder->tenants()->attach($workOrder->tenant_id);
+        $this->addLeaseTenant($workOrder, 'Marisol', 'marisol@example.com');
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertSame(['dana@example.com'], $captured->recipients);
+    }
+
+    public function test_the_other_lease_tenant_stands_in_for_a_requester_with_no_usable_address(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $captured = $this->fakeGraph();
+
+        $workOrder = $this->makeWorkOrder('t-1234@texasrenter.com');
+        $workOrder->tenants()->attach($workOrder->tenant_id);
+        $this->addLeaseTenant($workOrder, 'Marisol', 'marisol@example.com');
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertSame(['marisol@example.com'], $captured->recipients);
+        $this->assertStringContainsString('Hi Marisol', $captured->html);
+    }
+
+    public function test_it_is_silent_when_no_lease_tenant_has_a_real_address_either(): void
+    {
+        config(['services.work_order.tenant_intake_email' => true]);
+        $this->fakeGraph(expectSend: false);
+
+        $workOrder = $this->makeWorkOrder('mvr@txhomemp.com', ['source' => 'Inspection']);
+        $this->addLeaseTenant($workOrder, 'Forrest', 't-7641137158@texasrenter.com');
+
+        $this->assertFalse($this->send($workOrder));
+        $this->assertDatabaseCount('tenant_email_notifications', 0);
     }
 }

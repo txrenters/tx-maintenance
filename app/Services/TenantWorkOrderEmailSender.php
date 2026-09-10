@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\TenantEmailNotification;
+use App\Models\Tenants;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
@@ -50,12 +51,17 @@ class TenantWorkOrderEmailSender
         }
 
         try {
-            $workOrder->loadMissing(['requested_by', 'building', 'woc']);
+            $workOrder->loadMissing(['requested_by', 'tenants', 'building', 'woc']);
 
-            $tenant = $workOrder->requested_by;
-            $to = $this->deliverableEmail($tenant?->email);
+            // The requester when they are the tenant, else the lease roster
+            // (see WorkOrder::tenantIntakeRecipients) — the same people the
+            // SMS twin texts. One email per address.
+            $recipients = $workOrder
+                ->tenantIntakeRecipients(fn (Tenants $tenant): bool => $this->deliverableEmail($tenant->email) !== null)
+                ->unique(fn (Tenants $tenant): string => strtolower((string) $this->deliverableEmail($tenant->email)))
+                ->values();
 
-            if (! $tenant || $to === null) {
+            if ($recipients->isEmpty()) {
                 return false;
             }
 
@@ -64,46 +70,58 @@ class TenantWorkOrderEmailSender
             }
 
             $staffCreated = $workOrder->isStaffCreated();
+            $requester = $workOrder->requested_by;
             $reference = $workOrder->work_order_no ?? $workOrder->id;
             $subject = ($staffCreated
                 ? 'A work order has been created — Work Order #'
                 : 'We received your service request — Work Order #').$reference;
+            $portalLink = $this->portalLinks->link($workOrder);
 
-            $html = View::make('emails.tenant-work-order-intake', [
-                'workOrder' => $workOrder,
-                'staffCreated' => $staffCreated,
-                'tenantName' => trim((string) ($tenant->first_name ?? '')),
-                'property' => $workOrder->propertyAddress() ?: $workOrder->building?->name,
-                'coordinator' => $workOrder->woc?->name,
-                'portalLink' => $this->portalLinks->link($workOrder),
-            ])->render();
+            foreach ($recipients as $tenant) {
+                $to = (string) $this->deliverableEmail($tenant->email);
 
-            $this->tenantEmails->send(
-                tenant: $tenant,
-                job: null,
-                to: $to,
-                subject: $subject,
-                html: $html,
-                metadata: ['work_order_id' => $workOrder->id, 'type' => 'work_order_intake'],
-                // A rendered blade carries inline styles the sanitizer would
-                // strip, so it is handed over as trusted template HTML.
-                trustedHtml: true,
-            );
+                $html = View::make('emails.tenant-work-order-intake', [
+                    'workOrder' => $workOrder,
+                    'staffCreated' => $staffCreated,
+                    'tenantName' => trim((string) ($tenant->first_name ?? '')),
+                    'property' => $workOrder->propertyAddress() ?: $workOrder->building?->name,
+                    'coordinator' => $workOrder->woc?->name,
+                    'portalLink' => $portalLink,
+                ])->render();
 
-            $ledgerExtra = ['subject' => $subject];
+                $this->tenantEmails->send(
+                    tenant: $tenant,
+                    job: null,
+                    to: $to,
+                    subject: $subject,
+                    html: $html,
+                    metadata: ['work_order_id' => $workOrder->id, 'type' => 'work_order_intake'],
+                    // A rendered blade carries inline styles the sanitizer would
+                    // strip, so it is handed over as trusted template HTML.
+                    trustedHtml: true,
+                );
 
-            if ($staffCreated) {
-                $ledgerExtra['variant'] = 'staff_created';
+                $ledgerExtra = ['subject' => $subject, 'tenant_id' => $tenant->id];
+
+                if ($staffCreated) {
+                    $ledgerExtra['variant'] = 'staff_created';
+                }
+
+                // Emailed from the lease roster because the Requested By
+                // contact was not the tenant, or had no usable address.
+                if ($requester === null || ! $tenant->is($requester)) {
+                    $ledgerExtra['recipient_source'] = 'lease_roster';
+                }
+
+                AutomatedMessageLogService::log(
+                    AutomatedMessageLogService::CHANNEL_EMAIL,
+                    'tenant',
+                    'tenant_intake_email',
+                    $to,
+                    $workOrder,
+                    extra: $ledgerExtra,
+                );
             }
-
-            AutomatedMessageLogService::log(
-                AutomatedMessageLogService::CHANNEL_EMAIL,
-                'tenant',
-                'tenant_intake_email',
-                $to,
-                $workOrder,
-                extra: $ledgerExtra,
-            );
 
             return true;
         } catch (\Throwable $exception) {
