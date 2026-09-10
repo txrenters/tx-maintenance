@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
 import { useTaskSelection } from "@/composables/useTaskSelection";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import {
     Loader2,
     Undo2,
@@ -34,6 +35,10 @@ const props = defineProps({
     assignableUsers: { type: Array, default: () => [] },
 });
 const page = usePage();
+
+// The number at the top of a card opens its work order in the app-wide modal
+// (mounted once by AppLayout), so the board never has to be left to check it.
+const { open: openWorkOrderModal } = useWorkOrderModal();
 
 const emit = defineEmits(["update-task-status"]);
 
@@ -416,7 +421,22 @@ const checkDueTask = (task) => {
                 'bg-green-500 text-white': checkDueTask(task) === 'green',
             }"
         >
-            <p v-if="task.work_order_no">#{{ task.work_order_no }}</p>
+            <p v-if="task.work_order_no">
+                <!-- A span, not a button: the description and Assigned blocks
+                     below carry their own click handlers, so this stops the
+                     event rather than letting the card's edit dialog open. -->
+                <span
+                    role="button"
+                    tabindex="0"
+                    class="cursor-pointer rounded underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    title="Open this work order"
+                    @click.stop="openWorkOrderModal(task.work_order_id)"
+                    @keydown.enter.stop.prevent="openWorkOrderModal(task.work_order_id)"
+                    @keydown.space.stop.prevent="openWorkOrderModal(task.work_order_id)"
+                >
+                    #{{ task.work_order_no }}
+                </span>
+            </p>
             <Separator class="mb-2" v-if="task.work_order_no" />
 
             <div class="flex justify-between">

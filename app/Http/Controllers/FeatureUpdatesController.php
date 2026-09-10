@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-10',
+            'area' => 'Work Orders',
+            'title' => 'Task cards open their work order',
+            'description' => 'On the Tasks page, the work order number at the top of every card (#43445 and so on, in the Past Due, Due Today and Pending columns) is now a link: click it and that work order opens in the usual pop-up - details, notes, invoices, conversations and the rest - without leaving the board, so a task can be checked against its order and the board is exactly where it was when the pop-up closes. The number underlines when the mouse is over it, and it can be reached with the Tab key and opened with Enter. Ticking, editing and deleting tasks work exactly as before.',
+        ],
+        [
             'date' => '2026-09-09',
             'area' => 'Invoices',
             'title' => 'The Vacant filter no longer calls an occupied home vacant',
