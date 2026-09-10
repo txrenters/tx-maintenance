@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\JobberTextMessage;
 use App\Models\JobberVisit;
+use App\Services\JobberWorkOrderResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class InspectionVisitController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, JobberWorkOrderResolver $workOrders)
     {
         // Get week range from request or use current week (always in Chicago timezone)
         if ($request->has('week_start') && $request->week_start) {
@@ -34,8 +35,12 @@ class InspectionVisitController extends Controller
             ->whereNotNull('end_at')
             ->get();
 
+        // The work order behind each visit (null for TBP visits), resolved
+        // once for the whole week so the modal's number can open it.
+        $linkedWorkOrders = $workOrders->forVisits($visits);
+
         // Create minimal event objects for performance
-        $events = $visits->map(function ($visit) {
+        $events = $visits->map(function ($visit) use ($linkedWorkOrders) {
             // Database stores dates as Chicago time (from Jobber sync)
             // Create Carbon instances explicitly in Chicago timezone
             $startDate = Carbon::createFromFormat('Y-m-d H:i:s', $visit->start_at, 'America/Chicago');
@@ -58,6 +63,7 @@ class InspectionVisitController extends Controller
                     'title' => $visit->job->title,
                     'jobber_web_uri' => $visit->job->jobber_web_uri,
                 ],
+                'work_order' => $linkedWorkOrders[$visit->id] ?? null,
                 'location' => optional($visit->job->property)->full_address ?? 'No Property',
                 'address' => optional($visit->job->property)->full_address ?? 'No Property',
                 'teamMember' => optional($visit->job->client)->name ?? 'No Client',
@@ -85,10 +91,14 @@ class InspectionVisitController extends Controller
     /**
      * Get full visit details including messages (loaded on demand)
      */
-    public function visitDetails($visitId)
+    public function visitDetails($visitId, JobberWorkOrderResolver $workOrders)
     {
         $visit = JobberVisit::with(['job.client', 'job.property', 'job.clientContacts'])
             ->findOrFail($visitId);
+
+        // Returned here too: the page merges this JSON over the event it
+        // already has, so a missing key would drop the link.
+        $linkedWorkOrder = $workOrders->forVisits(collect([$visit]))[$visit->id] ?? null;
 
         // Scope messages to the selected visit window, not the entire job history.
         $jobVisits = $visit->job->visits()
@@ -170,6 +180,7 @@ class InspectionVisitController extends Controller
                 'client' => $visit->job->client,
                 'property' => $visit->job->property,
             ],
+            'work_order' => $linkedWorkOrder,
             'text_messages_count' => $visitScopedMessages->count(),
             'text_messages' => $visitScopedMessages->map(function ($message) {
                 return [

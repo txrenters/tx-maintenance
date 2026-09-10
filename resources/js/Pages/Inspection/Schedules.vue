@@ -9,6 +9,7 @@ import TbpVisitNoticeDialog from "@/Components/TbpVisitNoticeDialog.vue";
 import { router, usePage, Head } from "@inertiajs/vue3";
 import debounce from "lodash.debounce";
 import { useEchoPublic } from "@laravel/echo-vue";
+import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import axios from "axios";
 import {
     Dialog,
@@ -399,6 +400,44 @@ const search = ref(props.filters.search ?? "");
 const isModalOpen = ref(false);
 const selectedEvent = ref(null);
 const activeTab = ref("details");
+
+// The work order number at the end of a visit's title opens that work order
+// in the app-wide modal (mounted once by AppLayout), on top of this dialog so
+// closing it lands back on the visit. Only the number itself is the link; a
+// visit with no work order (TBP) keeps its plain title.
+const { open: openWorkOrderModal } = useWorkOrderModal();
+
+const openLinkedWorkOrder = () => {
+    const id = selectedEvent.value?.work_order?.id;
+    if (id) {
+        openWorkOrderModal(id);
+    }
+};
+
+// Splits the title around the linked work order's number ("#44046", or the
+// bare number on a few older titles). Null when the visit has no work order
+// or its title does not carry the number, so the title renders as is.
+const titleParts = computed(() => {
+    const event = selectedEvent.value;
+    const workOrder = event?.work_order;
+    const title = event?.title ?? "";
+    if (!workOrder?.id || workOrder.work_order_no == null) {
+        return null;
+    }
+    const digits = String(workOrder.work_order_no);
+    const at = title.lastIndexOf(digits);
+    const end = at + digits.length;
+    // Not found, or only found inside a longer number ("#440461", "143967").
+    if (at === -1 || /\d/.test(title[at - 1] ?? "") || /\d/.test(title[end] ?? "")) {
+        return null;
+    }
+    const start = title[at - 1] === "#" ? at - 1 : at;
+    return {
+        before: title.slice(0, start),
+        number: title.slice(start, end),
+        after: title.slice(end),
+    };
+});
 
 // Messaging state
 const newMessage = ref("");
@@ -927,13 +966,47 @@ onMounted(() => {
         >
             <DialogHeader class="p-6 pb-0 text-left">
                 <DialogTitle class="text-2xl text-primary">
-                    {{ selectedEvent?.title || "Event Details" }}
+                    <template v-if="titleParts"
+                        >{{ titleParts.before
+                        }}<span
+                            role="button"
+                            tabindex="0"
+                            class="cursor-pointer rounded underline underline-offset-4 decoration-2 hover:decoration-[3px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            title="Open this work order"
+                            @click.stop="openLinkedWorkOrder"
+                            @keydown.enter.stop.prevent="openLinkedWorkOrder"
+                            @keydown.space.stop.prevent="openLinkedWorkOrder"
+                            >{{ titleParts.number }}</span
+                        >{{ titleParts.after }}</template
+                    >
+                    <template v-else>
+                        {{ selectedEvent?.title || "Event Details" }}
+                    </template>
                 </DialogTitle>
                 <DialogDescription
                     v-if="selectedEvent"
                     class="text-sm text-muted-foreground flex gap-2"
                 >
                     <Badge>Job #{{ selectedEvent.job.job_number }}</Badge>
+                    <!-- A linked visit whose title does not carry the number
+                         (linked through the stored Jobber id) still gets a way
+                         to the work order. -->
+                    <Badge
+                        v-if="selectedEvent.work_order?.id && !titleParts"
+                        role="button"
+                        tabindex="0"
+                        class="cursor-pointer"
+                        title="Open this work order"
+                        @click.stop="openLinkedWorkOrder"
+                        @keydown.enter.stop.prevent="openLinkedWorkOrder"
+                        @keydown.space.stop.prevent="openLinkedWorkOrder"
+                    >
+                        {{
+                            selectedEvent.work_order.work_order_no
+                                ? `WO #${selectedEvent.work_order.work_order_no}`
+                                : "Open work order"
+                        }}
+                    </Badge>
 
                     <Badge
                         :variant="
