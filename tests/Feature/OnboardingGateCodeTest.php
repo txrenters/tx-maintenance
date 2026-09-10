@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 /**
  * The owner onboarding form must capture whether the property is gated (with
- * the gate code), whether it has a sprinkler system (with its details), what
+ * the gate code), whether it has a sprinkler system, what
  * kind of fireplace it has and which utilities the HOA handles, and forward
  * the PropertyWare values untouched - the gate answer to the "Gated
  * Community? Gate Code?" text field, the sprinkler Yes/No to the "Yard
@@ -76,8 +76,7 @@ class OnboardingGateCodeTest extends TestCase
         Bus::assertDispatched(GenerateOnboardingPdfJob::class, function (GenerateOnboardingPdfJob $job) {
             return ($job->formData['gatedCommunity'] ?? null) === 'Yes'
                 && ($job->formData['gateCode'] ?? null) === '#4321'
-                && ($job->formData['sprinklerSystem'] ?? null) === 'Yes'
-                && ($job->formData['sprinklerControllerLocation'] ?? null) === 'Garage wall';
+                && ($job->formData['sprinklerSystem'] ?? null) === 'Sprinkler System';
         });
     }
 
@@ -118,11 +117,7 @@ class OnboardingGateCodeTest extends TestCase
 
     public function test_missing_sprinkler_answer_is_rejected_with_a_friendly_message(): void
     {
-        $this->postJson(self::ENDPOINT, $this->validPayload([
-            'sprinklerSystem' => '',
-            'sprinklerControllerLocation' => '',
-            'sprinklerNotes' => '',
-        ]))
+        $this->postJson(self::ENDPOINT, $this->validPayload(['sprinklerSystem' => '']))
             ->assertStatus(422)
             ->assertJsonValidationErrors([
                 'formData.sprinklerSystem' => 'Please tell us whether the property has a sprinkler or irrigation system.',
@@ -131,30 +126,42 @@ class OnboardingGateCodeTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_sprinkler_yes_without_a_controller_location_is_rejected(): void
+    public function test_an_answer_outside_the_yard_features_picklist_is_rejected_before_propertyware_sees_it(): void
     {
-        $this->postJson(self::ENDPOINT, $this->validPayload([
-            'sprinklerSystem' => 'Yes',
-            'sprinklerControllerLocation' => '',
-        ]))
+        // "No Sprinkler System" is not one of the picklist's options; sending it made
+        // Propertyware reject the whole submission, so no owner could finish the form.
+        $this->postJson(self::ENDPOINT, $this->validPayload(['sprinklerSystem' => 'No Sprinkler System']))
             ->assertStatus(422)
             ->assertJsonValidationErrors([
-                'formData.sprinklerControllerLocation' => 'Sprinkler Controller Location is required when there is a sprinkler system.',
+                'formData.sprinklerSystem' => 'Please tell us whether the property has a sprinkler or irrigation system.',
             ]);
 
         Http::assertNothingSent();
     }
 
-    public function test_sprinkler_no_without_details_is_accepted(): void
+    public function test_sprinkler_no_is_saved_as_the_picklists_not_applicable_option(): void
     {
         $this->postJson(self::ENDPOINT, $this->validPayload(
-            ['sprinklerSystem' => 'No', 'sprinklerControllerLocation' => '', 'sprinklerNotes' => ''],
-            [['name' => self::SPRINKLER_FIELD, 'value' => 'No Sprinkler System']],
+            ['sprinklerSystem' => 'Not Applicable'],
+            [['name' => self::SPRINKLER_FIELD, 'value' => 'Not Applicable']],
         ))->assertOk();
 
         Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
             && collect($request->data()['fieldSetDTOS'])->contains(
-                fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'No Sprinkler System'
+                fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'Not Applicable'
+            ));
+    }
+
+    public function test_lawn_irrigation_is_saved_as_the_picklists_own_option(): void
+    {
+        $this->postJson(self::ENDPOINT, $this->validPayload(
+            ['sprinklerSystem' => 'Lawn Irrigation'],
+            [['name' => self::SPRINKLER_FIELD, 'value' => 'Lawn Irrigation']],
+        ))->assertOk();
+
+        Http::assertSent(fn (Request $request) => $this->isCustomFieldsPut($request)
+            && collect($request->data()['fieldSetDTOS'])->contains(
+                fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'Lawn Irrigation'
             ));
     }
 
@@ -365,17 +372,13 @@ class OnboardingGateCodeTest extends TestCase
         $html = $this->renderOnboardingPdf([
             'gatedCommunity' => 'Yes',
             'gateCode' => '#4321',
-            'sprinklerSystem' => 'Yes',
-            'sprinklerControllerLocation' => 'Garage wall',
-            'sprinklerNotes' => 'Waters Mon/Thu 5am',
+            'sprinklerSystem' => 'Sprinkler System',
             'fireplace' => 'Wood Burning Fireplace',
         ]);
 
         $this->assertMatchesRegularExpression('#<td>Gated Community</td>\s*<td>Yes</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Gate Code</td>\s*<td>\#4321</td>#', $html);
-        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Yes</td>#', $html);
-        $this->assertMatchesRegularExpression('#<td>Controller Location</td>\s*<td>Garage wall</td>#', $html);
-        $this->assertMatchesRegularExpression('#<td>Notes</td>\s*<td>Waters Mon/Thu 5am</td>#', $html);
+        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Sprinkler System</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Fireplace</td>\s*<td>Wood Burning Fireplace</td>#', $html);
     }
 
@@ -384,16 +387,13 @@ class OnboardingGateCodeTest extends TestCase
         $html = $this->renderOnboardingPdf([
             'gatedCommunity' => 'No',
             'gateCode' => '',
-            'sprinklerSystem' => 'No',
-            'sprinklerControllerLocation' => '',
-            'sprinklerNotes' => '',
+            'sprinklerSystem' => 'Not Applicable',
             'fireplace' => 'No Fireplace',
         ]);
 
         $this->assertMatchesRegularExpression('#<td>Gated Community</td>\s*<td>No</td>#', $html);
         $this->assertStringNotContainsString('<td>Gate Code</td>', $html);
-        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>No</td>#', $html);
-        $this->assertStringNotContainsString('<td>Controller Location</td>', $html);
+        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Not Applicable</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Fireplace</td>\s*<td>No Fireplace</td>#', $html);
     }
 
@@ -463,9 +463,7 @@ class OnboardingGateCodeTest extends TestCase
             'mailboxKeyNo' => '2',
             'mailboxLocation' => 'Front door',
             // Sprinkler / Irrigation System
-            'sprinklerSystem' => 'Yes',
-            'sprinklerControllerLocation' => 'Garage wall',
-            'sprinklerNotes' => 'Waters Mon/Thu 5am, separate irrigation meter',
+            'sprinklerSystem' => 'Sprinkler System',
             // Utilities handled by the HOA
             'utilitiesHandledByHoa' => true,
             'hoaUtilities' => 'Water, Trash',

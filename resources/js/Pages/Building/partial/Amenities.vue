@@ -155,15 +155,6 @@ const validateAmenities = () => {
     ) {
         errors.push("Sprinkler / Irrigation System selection is required");
     }
-    if (
-        form.value.sprinklerSystem === "Yes" &&
-        (!form.value.sprinklerControllerLocation ||
-            form.value.sprinklerControllerLocation.trim() === "")
-    ) {
-        errors.push(
-            "Sprinkler Controller Location is required when there is a sprinkler system",
-        );
-    }
 
     // Utilities handled by the HOA
     if (
@@ -964,7 +955,7 @@ const markSectionCompleted = (value) => {
                         </h4>
                         <p class="text-sm text-gray-500">
                             The utility companies and your tenant both need to
-                            know whether the home has one and how it is run.
+                            know whether the home has one.
                         </p>
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="space-y-2">
@@ -982,48 +973,20 @@ const markSectionCompleted = (value) => {
                                         />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Yes"
+                                        <SelectItem value="Sprinkler System"
                                             >Yes - Has a sprinkler
                                             system</SelectItem
                                         >
-                                        <SelectItem value="No"
-                                            >No sprinkler system</SelectItem
+                                        <SelectItem value="Lawn Irrigation"
+                                            >Yes - Has lawn
+                                            irrigation</SelectItem
+                                        >
+                                        <SelectItem value="Not Applicable"
+                                            >No sprinkler or irrigation
+                                            system</SelectItem
                                         >
                                     </SelectContent>
                                 </Select>
-                            </div>
-
-                            <div
-                                class="space-y-2"
-                                v-if="form.sprinklerSystem === 'Yes'"
-                            >
-                                <label class="text-sm font-medium"
-                                    >Sprinkler Controller Location
-                                    <span class="text-red-600">*</span>
-                                    <span class="text-xs text-gray-500"
-                                        >(Required)</span
-                                    >
-                                </label>
-                                <Input
-                                    v-model="form.sprinklerControllerLocation"
-                                    placeholder="e.g. Garage wall, Utility closet"
-                                />
-                            </div>
-
-                            <div
-                                class="space-y-2 md:col-span-2"
-                                v-if="form.sprinklerSystem === 'Yes'"
-                            >
-                                <label class="text-sm font-medium"
-                                    >Sprinkler Notes
-                                    <span class="text-xs text-gray-500"
-                                        >(Optional)</span
-                                    >
-                                </label>
-                                <Input
-                                    v-model="form.sprinklerNotes"
-                                    placeholder="Watering schedule, separate irrigation meter, who maintains it"
-                                />
                             </div>
                         </div>
                     </div>
