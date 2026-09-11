@@ -7,6 +7,7 @@ use App\Models\Scopes\WorkOrderScope;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\HoaNoticeExtractor;
 use App\Services\HoaPropertyMatcher;
@@ -51,6 +52,9 @@ class HoaViolationController extends Controller
                 ->orderBy('name')
                 ->get()),
             'filter' => $request->only(['search', 'vendor', 'category']),
+            // Plain, not deferred: the cards read it from the page props and a
+            // partial reload of service_status keeps it.
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
             'buildings' => Building::query()
                 ->orderBy('name')
                 ->get(['propertyware_id', 'name'])
@@ -79,7 +83,7 @@ class HoaViolationController extends Controller
                     ->select(WorkOrderController::BOARD_CARD_COLUMNS)
                     ->hoaViolations()
                     ->when($request->filled('search'), fn ($q) => $q->where('work_order_no', $request->input('search')))
-                    ->when($request->filled('vendor'), fn ($q) => $q->whereHas('vendors', fn ($v) => $v->where('work_order_vendors.vendor_id', $request->input('vendor'))))
+                    ->when($request->filled('vendor'), fn ($q) => $q->assignedToVendor($request->input('vendor')))
                     ->latest('id');
             },
             'work_orders.service_status',

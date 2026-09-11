@@ -230,6 +230,9 @@ class WorkOrderController extends Controller
         // the deferred fetch.
         return inertia('WorkOrder/Index', [
             'title' => 'Work Orders',
+            // Plain, not deferred: the cards read it from the page props and a
+            // partial reload of service_status keeps it.
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
             'service_status' => Inertia::defer(fn () => $this->mainBoard($request)),
             'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
             'categories' => Inertia::defer(fn () => $this->cachedCategories()),
@@ -254,11 +257,7 @@ class WorkOrderController extends Controller
                         $query->where('work_order_no', $search);
                     })
                     // Apply vendor filter
-                    ->when(request('vendor'), function ($query, $vendorId) {
-                        $query->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                     // Apply category filter
                     ->when(request('category'), function ($query, $category) {
                         $query->where('category', $category);
@@ -316,11 +315,7 @@ class WorkOrderController extends Controller
                     $query->where('work_order_no', $search);
                 })
                 // Apply vendor filter
-                ->when(request('vendor'), function ($query, $vendorId) {
-                    $query->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
+                ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                 // Apply category filter
                 ->when(request('category'), function ($query, $category) {
                     $query->where('category', $category);
@@ -362,11 +357,7 @@ class WorkOrderController extends Controller
                     $query->where('work_order_no', $search);
                 })
                 // Apply vendor filter
-                ->when(request('vendor'), function ($query, $vendorId) {
-                    $query->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
+                ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                 // Apply category filter
                 ->when(request('category'), function ($query, $category) {
                     $query->where('category', $category);
@@ -747,11 +738,7 @@ class WorkOrderController extends Controller
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
                     ->when(request('category'), function ($q, $category) {
                         $q->where('category', $category);
                     })
@@ -777,6 +764,7 @@ class WorkOrderController extends Controller
         // reloads of service_status skip them.
         return inertia('WorkOrder/Close', [
             'title' => 'Closed Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
             'service_status' => Inertia::defer(function () use ($query, $request) {
                 // Hide specific statuses from vendors
                 if ($request->user()->hasRole('vendor')) {
@@ -801,11 +789,7 @@ class WorkOrderController extends Controller
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
                     ->when(request('category'), function ($q, $category) {
                         $q->where('category', $category);
                     })
@@ -850,11 +834,7 @@ class WorkOrderController extends Controller
                         ->when(request('search'), function ($query, $search) {
                             $query->where('work_order_no', $search);
                         })
-                        ->when(request('vendor'), function ($query, $vendorId) {
-                            $query->whereHas('vendors', function ($q) use ($vendorId) {
-                                $q->where('work_order_vendors.vendor_id', $vendorId);
-                            });
-                        })
+                        ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                         ->when(request('category'), function ($query, $category) {
                             $query->where('category', $category);
                         })
@@ -889,6 +869,7 @@ class WorkOrderController extends Controller
         // request that returns them.
         return inertia('WorkOrder/Inspections', [
             'title' => 'Inspection Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
             'service_status' => Inertia::defer(fn () => $this->inspectionsBoard($request)),
             'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
             'categories' => Inertia::defer(fn () => $this->cachedCategories()),
@@ -911,11 +892,7 @@ class WorkOrderController extends Controller
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
                     ->when(request('category'), function ($q, $category) {
                         $q->where('category', $category);
                     })
@@ -956,11 +933,7 @@ class WorkOrderController extends Controller
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
-                ->when(request('vendor'), function ($query, $vendorId) {
-                    $query->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
+                ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                 ->when(request('category'), function ($query, $category) {
                     $query->where('category', $category);
                 })
@@ -991,11 +964,7 @@ class WorkOrderController extends Controller
                 ->when(request('search'), function ($query, $search) {
                     $query->where('work_order_no', $search);
                 })
-                ->when(request('vendor'), function ($query, $vendorId) {
-                    $query->whereHas('vendors', function ($q) use ($vendorId) {
-                        $q->where('work_order_vendors.vendor_id', $vendorId);
-                    });
-                })
+                ->when(request('vendor'), fn ($query, $vendorId) => $query->assignedToVendor($vendorId))
                 ->when(request('category'), function ($query, $category) {
                     $query->where('category', $category);
                 })
@@ -1051,11 +1020,7 @@ class WorkOrderController extends Controller
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
                     ->when(request('category'), function ($q, $category) {
                         $q->where('category', $category);
                     })
@@ -1080,6 +1045,7 @@ class WorkOrderController extends Controller
         // come from the shared 5-minute cache.
         return inertia('WorkOrder/LawnCare', [
             'title' => 'Lawn Service Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
             'service_status' => Inertia::defer(function () use ($query, $request) {
                 $service_status = $query->get();
 
@@ -1111,11 +1077,7 @@ class WorkOrderController extends Controller
                     ->when(request('search'), function ($q, $search) {
                         $q->where('work_order_no', $search);
                     })
-                    ->when(request('vendor'), function ($q, $vendorId) {
-                        $q->whereHas('vendors', function ($q) use ($vendorId) {
-                            $q->where('work_order_vendors.vendor_id', $vendorId);
-                        });
-                    })
+                    ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
                     ->when(request('category'), function ($q, $category) {
                         $q->where('category', $category);
                     })

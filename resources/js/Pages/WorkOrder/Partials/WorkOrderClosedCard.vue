@@ -2,6 +2,7 @@
 import { Truck, Tag, UserRoundPen, CircleCheckBig } from "lucide-vue-next";
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
+import { computed } from "vue";
 
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -16,6 +17,8 @@ const props = defineProps({
     dateRange: { type: Object, default: null },
 });
 
+const page = usePage();
+
 const matchesSearch = (work_order) => {
     const term = (props.searchTerm || "").trim().toLowerCase();
     if (!term) return true;
@@ -25,12 +28,25 @@ const matchesSearch = (work_order) => {
         .some((value) => String(value).toLowerCase().includes(term));
 };
 
+// Vendors whose work orders the selected vendor's filter must not show: THMP
+// is tagged onto Jimmie Gendke SFA's work orders only so the Jobber job gets
+// created, so THMP's filter leaves them out. The map comes from the controller
+// (vendor_filter_exclusions, THMP id => hidden vendor ids; [] when empty).
+const hiddenVendorIds = computed(
+    () =>
+        new Set(
+            ((page.props.vendor_filter_exclusions ?? {})[String(props.vendorFilter)] ?? []).map(String)
+        )
+);
+
 const matchesVendor = (work_order) => {
     if (!props.vendorFilter || props.vendorFilter === "all") return true;
 
-    return (work_order.vendors || []).some(
-        (vendor) => String(vendor.id) === String(props.vendorFilter)
-    );
+    const vendors = work_order.vendors || [];
+
+    if (vendors.some((vendor) => hiddenVendorIds.value.has(String(vendor.id)))) return false;
+
+    return vendors.some((vendor) => String(vendor.id) === String(props.vendorFilter));
 };
 
 const matchesCategory = (work_order) => {
@@ -64,7 +80,6 @@ const visibleWorkOrders = (status) =>
             matchesDate(work_order)
     );
 
-const page = usePage();
 const authUser = page.props.auth?.user;
 const isVendor = (authUser?.roles ?? []).includes("vendor");
 const myVendorId = authUser?.vendor?.id;
