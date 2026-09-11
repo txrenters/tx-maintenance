@@ -239,6 +239,11 @@ return [
         // phpunit.xml pin this false so development and tests never message a
         // real vendor.
         'vendor_notify_enabled' => env('JOBBER_VENDOR_NOTIFY_ENABLED', true),
+        // Staff tag THMP onto Jimmie Gendke SFA's work orders only so this app
+        // creates the Jobber job; the work is SFA's. Work orders carrying any
+        // of these vendors are hidden when a board's Vendor filter is THMP.
+        // Comma-separated exact vendor names; blank turns the rule off.
+        'thmp_filter_hidden_vendors' => env('JOBBER_THMP_FILTER_HIDDEN_VENDORS', 'Jimmie Gendke SFA'),
     ],
 
     'inbox' => [

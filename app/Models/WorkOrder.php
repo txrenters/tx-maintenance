@@ -748,6 +748,27 @@ class WorkOrder extends Model
     }
 
     /**
+     * Narrow to the work orders the given vendor is assigned to, as the boards'
+     * Vendor chip means it: when that vendor is THMP, work orders that also
+     * carry a vendor THMP is only paired with for the Jobber job (Jimmie Gendke
+     * SFA) are left out — see Vendor::thmpFilterExclusions(). Every server-side
+     * vendor filter (boards, Summary popup, export) goes through here so they
+     * all agree with the cards on screen.
+     */
+    public function scopeAssignedToVendor($query, int|string $vendorId)
+    {
+        $query->whereHas('vendors', fn ($vendors) => $vendors->where('work_order_vendors.vendor_id', $vendorId));
+
+        $hiddenVendorIds = Vendor::thmpFilterExclusions()[(int) $vendorId] ?? [];
+
+        if ($hiddenVendorIds !== []) {
+            $query->whereDoesntHave('vendors', fn ($vendors) => $vendors->whereIn('work_order_vendors.vendor_id', $hiddenVendorIds));
+        }
+
+        return $query;
+    }
+
+    /**
      * Constrain to the HOA violations this feature is actually running: those
      * holding an HOA upload token, whether it came from a notice upload or from
      * adopting a work order raised in PropertyWare.
@@ -792,11 +813,8 @@ class WorkOrder extends Model
                     'location',
                 ], 'LIKE', "%{$search}%");
             })
-            ->when($filters['vendor'] ?? '', function ($q, $vendorId) {
-                $q->whereHas('vendors', function ($query) use ($vendorId) {
-                    $query->where('vendor_id', $vendorId);
-                });
-            })->when(request()->filled(['start_date', 'end_date']) ?? '', function ($q) {
+            ->when($filters['vendor'] ?? '', fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
+            ->when(request()->filled(['start_date', 'end_date']) ?? '', function ($q) {
                 $date = request()->only(['start_date', 'end_date']);
                 $start_date = Carbon::parse($date['start_date'])->startOfDay();
                 $end_date = Carbon::parse($date['end_date'])->endOfDay();
@@ -901,11 +919,7 @@ class WorkOrder extends Model
             ->when($filters['search'] ?? null, function ($q, $search) {
                 $q->where('work_order_no', $search);
             })
-            ->when($filters['vendor'] ?? null, function ($q, $vendorId) {
-                $q->whereHas('vendors', function ($vendors) use ($vendorId) {
-                    $vendors->where('work_order_vendors.vendor_id', $vendorId);
-                });
-            })
+            ->when($filters['vendor'] ?? null, fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
             ->when($filters['category'] ?? null, function ($q, $category) {
                 $q->where('category', $category);
             })
@@ -926,11 +940,7 @@ class WorkOrder extends Model
         $query->when(request('search'), function ($q, $search) {
             $q->where('work_order_no', $search);
         })
-            ->when(request('vendor'), function ($q, $vendorId) {
-                $q->whereHas('vendors', function ($q) use ($vendorId) {
-                    $q->where('work_order_vendors.vendor_id', $vendorId);
-                });
-            })
+            ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
             ->when(request()->filled(['start_date', 'end_date']), function ($q) {
                 $date = request()->only(['start_date', 'end_date']);
                 $start = Carbon::parse($date['start_date'])->startOfDay();

@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-11',
+            'area' => 'Work Orders',
+            'title' => 'Filtering by Texas Home Maintenance Pros leaves out Jimmie Gendke SFA\'s work orders',
+            'description' => 'When a work order is really Jimmie Gendke SFA\'s, Texas Home Maintenance Pros is tagged on it as well only so the Jobber job gets created - so those work orders were filling the board whenever the Vendor filter was set to Texas Home Maintenance Pros. Now, with that filter picked, any work order that also carries Jimmie Gendke SFA is left out on the Active, Inspections, Lawn Service, HOA Violations, Closed, Waiting on Payment and Paid boards, and the Summary popup and the export follow the same rule so the figures match the cards. Pick Jimmie Gendke SFA in the filter and those work orders show as before; every other vendor, and the board with no filter, are unchanged.',
+        ],
+        [
+            'date' => '2026-09-11',
             'area' => 'Owners',
             'title' => 'The onboarding form no longer fails on the sprinkler question',
             'description' => 'An owner who answered "No sprinkler system" could not submit the management onboarding form at all: it stopped at 92% with "Submission Failed - Yard Features (No Sprinkler System is invalid option)" every time, and nothing was saved - no answers, no onboarding PDF, no W-9 - however many times they tried (1309 Martin). "Yard Features" in PropertyWare is a picklist that takes only Lawn Irrigation, Sprinkler System or Not Applicable, and the form was sending "No Sprinkler System", which is not one of them, so PropertyWare rejected the whole submission. The question now offers PropertyWare\'s own three options and saves the one the owner picked, word for word - "Yes - Has a sprinkler system", "Yes - Has lawn irrigation" or "No sprinkler or irrigation system" - so there is no wording of ours in between for PropertyWare to reject. The question opens on "No sprinkler or irrigation system", since most homes have neither; if the property already has an answer in PropertyWare, that is what shows instead. The sprinkler part now asks only whether the home has one: the Sprinkler Controller Location and Sprinkler Notes boxes are gone from the form and from the onboarding PDF.',
