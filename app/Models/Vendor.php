@@ -75,8 +75,30 @@ class Vendor extends Model
     }
 
     /**
+     * Whether the THMP filter rule below is switched on for this login.
+     *
+     * Deliberately per login, never global: WOC staff must still find SFA's
+     * work orders under the THMP filter to process them and message the
+     * tenant, so only the emails in services.jobber.thmp_filter_users (THMP's
+     * own login, John Carlo, by default) get the trimmed view. Case-insensitive.
+     */
+    public static function thmpFilterAppliesTo(User $user): bool
+    {
+        $email = Str::lower(trim((string) $user->email));
+
+        if ($email === '') {
+            return false;
+        }
+
+        return collect(explode(',', (string) config('services.jobber.thmp_filter_users', '')))
+            ->map(fn (string $listed): string => Str::lower(trim($listed)))
+            ->contains($email);
+    }
+
+    /**
      * Vendor ids whose work orders a board's Vendor filter must hide when the
-     * selected vendor is THMP, keyed by THMP vendor id.
+     * selected vendor is THMP, keyed by THMP vendor id — for the logins the
+     * rule applies to (thmpFilterAppliesTo); empty for everyone else.
      *
      * Staff tag THMP onto Jimmie Gendke SFA's work orders only so this app
      * creates the Jobber job (PropertyWareService::changeWorkOrderVendors);
@@ -85,13 +107,20 @@ class Vendor extends Model
      * exact trimmed, case-insensitive name — never LIKE, so "SFA - Michael"
      * is not caught by "Jimmie Gendke SFA". Every vendor row named THMP is a
      * key because some environments carry more than one such row while the
-     * filter chip sends a single id. Empty when the setting is blank or no
-     * matching rows exist. Memoized for the request.
+     * filter chip sends a single id. Empty when either setting is blank or no
+     * matching rows exist. Memoized for the request; defaults to the signed-in
+     * user, so a queued or console caller with nobody signed in gets [].
      *
      * @return array<int, list<int>>
      */
-    public static function thmpFilterExclusions(): array
+    public static function thmpFilterExclusions(?User $user = null): array
     {
+        $user ??= auth()->user();
+
+        if (! $user instanceof User || ! self::thmpFilterAppliesTo($user)) {
+            return [];
+        }
+
         return once(function (): array {
             $hiddenNames = collect(explode(',', (string) config('services.jobber.thmp_filter_hidden_vendors', '')))
                 ->map(fn (string $name): string => Str::lower(trim($name)))

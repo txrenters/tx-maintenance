@@ -14,15 +14,21 @@ use Tests\TestCase;
  * The boards' Vendor filter when the selected vendor is THMP.
  *
  * Staff tag THMP onto Jimmie Gendke SFA's work orders only so the app creates
- * the Jobber job; those work orders are SFA's and must stay off THMP's queue,
- * on the boards and in the Summary popup alike. Every other vendor, and the
- * unfiltered board, are unchanged.
+ * the Jobber job; those work orders are SFA's and must stay off THMP's own
+ * queue — on the boards and in the Summary popup alike. The rule is per login
+ * (THMP's own, John Carlo's, by default): every other staff member still sees
+ * SFA's work orders under the THMP filter so they can process them. Every
+ * other vendor, and the unfiltered board, are unchanged for everyone.
  */
 class WorkOrderVendorFilterTest extends TestCase
 {
     use RefreshDatabase;
 
-    private User $staff;
+    /** THMP's own login, the one the rule applies to. */
+    private User $johnCarlo;
+
+    /** A coordinator: sees everything under the THMP filter. */
+    private User $coordinator;
 
     private ServiceStatus $status;
 
@@ -44,9 +50,8 @@ class WorkOrderVendorFilterTest extends TestCase
     {
         parent::setUp();
 
-        Role::findOrCreate('woc', 'web');
-        $this->staff = User::factory()->create();
-        $this->staff->assignRole('woc');
+        $this->johnCarlo = $this->staff('xservice@txhomemp.com');
+        $this->coordinator = $this->staff('woc@texasrenter.com');
 
         $this->status = ServiceStatus::query()->create(['name' => 'In Progress', 'description' => 'In progress']);
 
@@ -64,6 +69,16 @@ class WorkOrderVendorFilterTest extends TestCase
         $this->workOrder(1004, [$this->thmp, $this->sfaMichael]);
         $this->workOrder(1005, [$this->thmpTwin]);
         $this->workOrder(1006, [$this->thmpTwin, $this->jimmie]);
+    }
+
+    private function staff(string $email): User
+    {
+        Role::findOrCreate('woc', 'web');
+
+        $user = User::factory()->create(['email' => $email]);
+        $user->assignRole('woc');
+
+        return $user;
     }
 
     private function vendor(string $name): Vendor
@@ -110,9 +125,9 @@ class WorkOrderVendorFilterTest extends TestCase
      * @param  array<string, mixed>  $query
      * @return list<int>
      */
-    private function boardWorkOrderNumbers(string $routeName, string $component, array $query = []): array
+    private function boardWorkOrderNumbers(User $user, string $routeName, string $component, array $query = []): array
     {
-        $response = $this->actingAs($this->staff)->get(route($routeName, $query), [
+        $response = $this->actingAs($user)->get(route($routeName, $query), [
             'X-Inertia' => 'true',
             'X-Inertia-Version' => $this->inertiaVersion(),
             'X-Inertia-Partial-Component' => $component,
@@ -134,17 +149,17 @@ class WorkOrderVendorFilterTest extends TestCase
      * @param  array<string, mixed>  $query
      * @return list<int>
      */
-    private function mainBoard(array $query = []): array
+    private function mainBoard(User $user, array $query = []): array
     {
-        return $this->boardWorkOrderNumbers('work_orders.index', 'WorkOrder/Index', $query);
+        return $this->boardWorkOrderNumbers($user, 'work_orders.index', 'WorkOrder/Index', $query);
     }
 
     /**
      * @return array<int, list<int>>
      */
-    private function exclusionsProp(): array
+    private function exclusionsProp(User $user): array
     {
-        $response = $this->actingAs($this->staff)->get(route('work_orders.index'), [
+        $response = $this->actingAs($user)->get(route('work_orders.index'), [
             'X-Inertia' => 'true',
             'X-Inertia-Version' => $this->inertiaVersion(),
         ]);
@@ -157,68 +172,95 @@ class WorkOrderVendorFilterTest extends TestCase
         return $map;
     }
 
-    public function test_the_thmp_filter_hides_work_orders_that_also_carry_jimmie_sfa(): void
+    private function summaryTotal(User $user, Vendor $vendor): int
     {
-        $this->assertSame([1001, 1004], $this->mainBoard(['vendor' => $this->thmp->id]));
+        $response = $this->actingAs($user)
+            ->getJson(route('work_orders.summary', ['board' => 'main', 'vendor' => $vendor->id]));
+
+        $response->assertOk();
+
+        return $response->json('stats.work_orders.total');
+    }
+
+    public function test_the_thmp_filter_hides_work_orders_that_also_carry_jimmie_sfa_for_thmps_login(): void
+    {
+        $this->assertSame([1001, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
     }
 
     public function test_every_vendor_row_named_thmp_hides_them(): void
     {
-        $this->assertSame([1005], $this->mainBoard(['vendor' => $this->thmpTwin->id]));
+        $this->assertSame([1005], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmpTwin->id]));
+    }
+
+    public function test_a_coordinator_still_sees_every_work_order_under_the_thmp_filter(): void
+    {
+        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->coordinator, ['vendor' => $this->thmp->id]));
+        $this->assertSame([1005, 1006], $this->mainBoard($this->coordinator, ['vendor' => $this->thmpTwin->id]));
+    }
+
+    public function test_the_login_match_ignores_case_and_whitespace(): void
+    {
+        config(['services.jobber.thmp_filter_users' => ' XService@TXHomeMP.com , someone@else.com']);
+
+        $this->assertSame([1001, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+    }
+
+    public function test_a_blank_login_list_switches_the_rule_off_for_everyone(): void
+    {
+        config(['services.jobber.thmp_filter_users' => '']);
+
+        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
     }
 
     public function test_filtering_by_jimmie_sfa_still_shows_the_paired_work_orders(): void
     {
-        $this->assertSame([1002, 1003, 1006], $this->mainBoard(['vendor' => $this->jimmie->id]));
+        $this->assertSame([1002, 1003, 1006], $this->mainBoard($this->johnCarlo, ['vendor' => $this->jimmie->id]));
+        $this->assertSame([1002, 1003, 1006], $this->mainBoard($this->coordinator, ['vendor' => $this->jimmie->id]));
     }
 
     public function test_other_vendors_are_unaffected(): void
     {
-        $this->assertSame([1003], $this->mainBoard(['vendor' => $this->ace->id]));
-        $this->assertSame([1004], $this->mainBoard(['vendor' => $this->sfaMichael->id]));
+        $this->assertSame([1003], $this->mainBoard($this->johnCarlo, ['vendor' => $this->ace->id]));
+        $this->assertSame([1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->sfaMichael->id]));
     }
 
     public function test_the_unfiltered_board_shows_everything(): void
     {
-        $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006], $this->mainBoard());
+        $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006], $this->mainBoard($this->johnCarlo));
+        $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006], $this->mainBoard($this->coordinator));
     }
 
-    public function test_a_blank_setting_turns_the_rule_off(): void
+    public function test_a_blank_vendor_setting_turns_the_rule_off(): void
     {
         config(['services.jobber.thmp_filter_hidden_vendors' => '']);
 
-        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard(['vendor' => $this->thmp->id]));
+        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
     }
 
-    public function test_the_setting_takes_several_vendors(): void
+    public function test_the_vendor_setting_takes_several_vendors(): void
     {
         config(['services.jobber.thmp_filter_hidden_vendors' => 'Jimmie Gendke SFA, sfa - michael']);
 
-        $this->assertSame([1001], $this->mainBoard(['vendor' => $this->thmp->id]));
+        $this->assertSame([1001], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
     }
 
-    public function test_the_summary_popup_agrees_with_the_board(): void
+    public function test_the_summary_popup_agrees_with_each_login_board(): void
     {
-        $response = $this->actingAs($this->staff)
-            ->getJson(route('work_orders.summary', ['board' => 'main', 'vendor' => $this->thmp->id]));
-
-        $response->assertOk();
-        $this->assertSame(2, $response->json('stats.work_orders.total'));
+        $this->assertSame(2, $this->summaryTotal($this->johnCarlo, $this->thmp));
+        $this->assertSame(4, $this->summaryTotal($this->coordinator, $this->thmp));
     }
 
-    public function test_the_page_tells_the_cards_which_vendors_to_hide(): void
+    public function test_the_page_tells_thmps_login_which_vendors_to_hide(): void
     {
         $this->assertSame([
             $this->thmp->id => [$this->jimmie->id],
             $this->thmpTwin->id => [$this->jimmie->id],
-        ], $this->exclusionsProp());
+        ], $this->exclusionsProp($this->johnCarlo));
     }
 
-    public function test_the_page_sends_an_empty_map_when_the_rule_is_off(): void
+    public function test_the_page_sends_an_empty_map_to_everyone_else(): void
     {
-        config(['services.jobber.thmp_filter_hidden_vendors' => '']);
-
-        $this->assertSame([], $this->exclusionsProp());
+        $this->assertSame([], $this->exclusionsProp($this->coordinator));
     }
 
     public function test_the_closed_board_follows_the_same_rule(): void
@@ -226,10 +268,11 @@ class WorkOrderVendorFilterTest extends TestCase
         $this->workOrder(2001, [$this->thmp], ['status' => 'Closed']);
         $this->workOrder(2002, [$this->thmp, $this->jimmie], ['status' => 'Closed']);
 
-        $closed = fn (Vendor $vendor) => $this->boardWorkOrderNumbers('work_orders.closed_work_orders', 'WorkOrder/Close', ['vendor' => $vendor->id]);
+        $closed = fn (User $user, Vendor $vendor) => $this->boardWorkOrderNumbers($user, 'work_orders.closed_work_orders', 'WorkOrder/Close', ['vendor' => $vendor->id]);
 
-        $this->assertSame([2001], $closed($this->thmp));
-        $this->assertSame([2002], $closed($this->jimmie));
+        $this->assertSame([2001], $closed($this->johnCarlo, $this->thmp));
+        $this->assertSame([2002], $closed($this->johnCarlo, $this->jimmie));
+        $this->assertSame([2001, 2002], $closed($this->coordinator, $this->thmp));
     }
 
     public function test_the_paid_board_follows_the_same_rule(): void
@@ -240,6 +283,7 @@ class WorkOrderVendorFilterTest extends TestCase
         $this->workOrder(3001, [$this->thmp], $paid);
         $this->workOrder(3002, [$this->thmp, $this->jimmie], $paid);
 
-        $this->assertSame([3001], $this->boardWorkOrderNumbers('work_orders.paid', 'WorkOrder/Paid', ['vendor' => $this->thmp->id]));
+        $this->assertSame([3001], $this->boardWorkOrderNumbers($this->johnCarlo, 'work_orders.paid', 'WorkOrder/Paid', ['vendor' => $this->thmp->id]));
+        $this->assertSame([3001, 3002], $this->boardWorkOrderNumbers($this->coordinator, 'work_orders.paid', 'WorkOrder/Paid', ['vendor' => $this->thmp->id]));
     }
 }

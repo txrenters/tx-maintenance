@@ -749,11 +749,12 @@ class WorkOrder extends Model
 
     /**
      * Narrow to the work orders the given vendor is assigned to, as the boards'
-     * Vendor chip means it: when that vendor is THMP, work orders that also
-     * carry a vendor THMP is only paired with for the Jobber job (Jimmie Gendke
-     * SFA) are left out — see Vendor::thmpFilterExclusions(). Every server-side
-     * vendor filter (boards, Summary popup, export) goes through here so they
-     * all agree with the cards on screen.
+     * Vendor chip means it: for the logins the THMP rule applies to, when that
+     * vendor is THMP, work orders that also carry a vendor THMP is only paired
+     * with for the Jobber job (Jimmie Gendke SFA) are left out — see
+     * Vendor::thmpFilterExclusions(). Everyone else gets the plain match. Every
+     * server-side vendor filter (boards, Summary popup, export) goes through
+     * here so they all agree with the cards on screen.
      */
     public function scopeAssignedToVendor($query, int|string $vendorId)
     {

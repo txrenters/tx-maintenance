@@ -23,8 +23,8 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-11',
             'area' => 'Work Orders',
-            'title' => 'Filtering by Texas Home Maintenance Pros leaves out Jimmie Gendke SFA\'s work orders',
-            'description' => 'When a work order is really Jimmie Gendke SFA\'s, Texas Home Maintenance Pros is tagged on it as well only so the Jobber job gets created - so those work orders were filling the board whenever the Vendor filter was set to Texas Home Maintenance Pros. Now, with that filter picked, any work order that also carries Jimmie Gendke SFA is left out on the Active, Inspections, Lawn Service, HOA Violations, Closed, Waiting on Payment and Paid boards, and the Summary popup and the export follow the same rule so the figures match the cards. Pick Jimmie Gendke SFA in the filter and those work orders show as before; every other vendor, and the board with no filter, are unchanged.',
+            'title' => 'THMP\'s own login no longer sees Jimmie Gendke SFA\'s work orders under the Texas Home Maintenance Pros filter',
+            'description' => 'When a work order is really Jimmie Gendke SFA\'s, Texas Home Maintenance Pros is tagged on it as well only so the Jobber job gets created - so those work orders were filling THMP\'s own view whenever the Vendor filter was set to Texas Home Maintenance Pros. For THMP\'s login (John Carlo) only, that filter now leaves out any work order that also carries Jimmie Gendke SFA, on the Active, Inspections, Lawn Service, HOA Violations, Closed, Waiting on Payment and Paid boards, in the Summary popup and in the export, so the figures match the cards; picking Jimmie Gendke SFA still shows them. Coordinators and everyone else see every work order under the Texas Home Maintenance Pros filter exactly as before, since they still process those jobs and message the tenant. Nothing changes for the board with no filter or for any other vendor.',
         ],
         [
             'date' => '2026-09-11',
