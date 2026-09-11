@@ -126,10 +126,30 @@ class AutomatedMessageTemplatesTest extends TestCase
             'property' => '',
             'vendor_name' => 'ACME Plumbing',
             'scheduled_line' => '',
+            'access_line' => 'Please make sure someone 18 or older is home to let the technician in.',
         ]);
 
         $this->assertStringContainsString(
             "scheduled with ACME Plumbing.\n\nPlease make sure",
+            $text,
+        );
+        $this->assertStringNotContainsString("\n\n\n", $text);
+    }
+
+    public function test_collapse_squashes_two_adjacent_empty_line_tokens(): void
+    {
+        // A THMP appointment with no date leaves both the scheduled line and
+        // the be-home line empty, back to back.
+        $text = AutomatedMessageTemplates::text('tenant_appointment_sms', [
+            'greeting' => 'Hi,',
+            'property' => '',
+            'vendor_name' => 'Texas Home Maintenance Pros',
+            'scheduled_line' => '',
+            'access_line' => '',
+        ]);
+
+        $this->assertStringContainsString(
+            "scheduled with Texas Home Maintenance Pros.\n\nThank you!",
             $text,
         );
         $this->assertStringNotContainsString("\n\n\n", $text);

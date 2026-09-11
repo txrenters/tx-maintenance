@@ -148,10 +148,18 @@ class TenantAppointmentNotificationService
     }
 
     /**
+     * The line asking the tenant to be home for a third-party vendor. Left out
+     * of appointments with THMP: their technicians have their own access, and
+     * telling the tenant to be home invited trip-charge disputes (WOC, 09-11).
+     */
+    private const ACCESS_LINE = 'Please make sure someone 18 or older is home to let the technician in.';
+
+    /**
      * The tenant-facing appointment message. A schedule with a chosen
      * technician sends the THMP Technician Visit Reminder (their photo rides
      * along when one is on file); otherwise the standard vendor appointment
-     * message goes out exactly as it always has.
+     * message goes out as it always has, minus the be-home line when the
+     * vendor is THMP.
      */
     private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, bool $photoAttached): string
     {
@@ -180,13 +188,24 @@ class TenantAppointmentNotificationService
             ?: 'the assigned vendor'));
 
         $when = $this->formatAppointment($serviceSchedule);
+        $vendorIsThmp = (bool) $serviceSchedule->vendor?->isThmp();
 
-        return AutomatedMessageTemplates::text('tenant_appointment_sms', [
+        $message = AutomatedMessageTemplates::text('tenant_appointment_sms', [
             'greeting' => $name !== '' ? "Hi {$name}," : 'Hi,',
             'property' => $address !== null ? ' at '.$address : '',
             'vendor_name' => $vendorName,
             'scheduled_line' => $when !== '' ? "Scheduled: {$when}" : '',
+            'access_line' => $vendorIsThmp ? '' : self::ACCESS_LINE,
         ]);
+
+        // A template override saved before {access_line} existed still spells
+        // the sentence out; a THMP appointment must not carry it either way.
+        if ($vendorIsThmp && str_contains($message, self::ACCESS_LINE)) {
+            $message = str_replace(self::ACCESS_LINE, '', $message);
+            $message = trim((string) preg_replace("/\n{3,}/", "\n\n", $message));
+        }
+
+        return $message;
     }
 
     /**
