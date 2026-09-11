@@ -28,12 +28,6 @@ class FeatureUpdatesController extends Controller
         ],
         [
             'date' => '2026-09-11',
-            'area' => 'Messaging',
-            'title' => 'The Inbox list shows what came in, not what we sent',
-            'description' => 'Each row in the Inbox now shows the conversation\'s latest incoming message - what the tenant, owner or vendor last said - with the time it arrived, and the list is ordered by those. Before, a row followed the newest message of any kind, so every automated text (the request-received notice, the appointment text, the daily follow-ups) took over the preview and pushed the conversation to the top, and the message that actually needed reading was buried under our own words. Conversations that only hold our outgoing texts are no longer listed; open the work order for those. A conversation stays bold and under Unread - and on the Messages badge - until you open it or a coordinator replies; an automated text going out no longer clears it. The red dot and the Awaiting reply view are unchanged: they mark conversations where nothing at all has gone out since the message arrived. Opening a conversation still shows both sides in full.',
-        ],
-        [
-            'date' => '2026-09-11',
             'area' => 'Work Orders',
             'title' => 'THMP\'s own login no longer sees Jimmie Gendke SFA\'s work orders under the Texas Home Maintenance Pros filter',
             'description' => 'When a work order is really Jimmie Gendke SFA\'s, Texas Home Maintenance Pros is tagged on it as well only so the Jobber job gets created - so those work orders were filling THMP\'s own view whenever the Vendor filter was set to Texas Home Maintenance Pros. For THMP\'s login (John Carlo) only, that filter now leaves out any work order that also carries Jimmie Gendke SFA, on the Active, Inspections, Lawn Service, HOA Violations, Closed, Waiting on Payment and Paid boards, in the Summary popup and in the export, so the figures match the cards; picking Jimmie Gendke SFA still shows them. Coordinators and everyone else see every work order under the Texas Home Maintenance Pros filter exactly as before, since they still process those jobs and message the tenant. Nothing changes for the board with no filter or for any other vendor.',

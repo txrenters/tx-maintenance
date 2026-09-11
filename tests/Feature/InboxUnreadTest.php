@@ -6,16 +6,14 @@ use App\Models\Conversation;
 use App\Models\InboxThreadRead;
 use App\Models\User;
 use App\Models\WorkOrder;
-use App\Services\AutomatedMessageLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
  * Per-staff-user unread state on the Inbox: a thread with a new inbound
- * message reads as unread until this user opens it or a coordinator replies,
- * and opening it records a marker without touching is_read (the direction
- * column). An automated text going out is not a reply and never clears it.
+ * message reads as unread until this user opens it, and opening it records a
+ * marker without touching is_read (the direction column).
  */
 class InboxUnreadTest extends TestCase
 {
@@ -80,95 +78,15 @@ class InboxUnreadTest extends TestCase
         $this->assertTrue($threads[0]['awaiting']);
     }
 
-    /**
-     * An outgoing text the automated-message ledger claims — the only record
-     * of which texts no person typed.
-     */
-    private function automatedText(WorkOrder $workOrder): Conversation
-    {
-        $text = $this->message($workOrder, inbound: false);
-
-        AutomatedMessageLogService::log(
-            AutomatedMessageLogService::CHANNEL_SMS,
-            'tenant',
-            'tenant_schedule_follow_up_sms',
-            self::THEIR_NUMBER,
-            $workOrder,
-            $text->message,
-            ['conversation_id' => $text->id],
-        );
-
-        return $text;
-    }
-
     public function test_a_thread_we_answered_last_is_never_unread(): void
     {
         $workOrder = WorkOrder::factory()->create();
         $this->message($workOrder, inbound: true);
-        // A typed reply: a coordinator has dealt with it, for everyone.
         $this->message($workOrder, inbound: false);
 
         $threads = $this->threadsFor($this->staffUser());
 
         $this->assertFalse($threads[0]['unread']);
-    }
-
-    public function test_an_automated_text_never_clears_unread(): void
-    {
-        $user = $this->staffUser();
-        $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true);
-        $this->automatedText($workOrder);
-
-        $threads = $this->threadsFor($user);
-
-        $this->assertCount(1, $threads);
-        $this->assertTrue($threads[0]['unread'], 'A reminder going out is not anyone reading the message.');
-        // ...but something did go out, so the thread is not flagged as waiting.
-        $this->assertFalse($threads[0]['awaiting']);
-
-        $unread = $this->threadsFor($user, ['status' => 'unread']);
-
-        $this->assertCount(1, $unread);
-        $this->assertSame($workOrder->id, $unread[0]['work_order_id']);
-    }
-
-    public function test_a_typed_reply_after_an_automated_text_clears_unread(): void
-    {
-        $user = $this->staffUser();
-        $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true);
-        $this->automatedText($workOrder);
-        $this->message($workOrder, inbound: false);
-
-        $this->assertFalse($this->threadsFor($user)[0]['unread']);
-        $this->assertCount(0, $this->threadsFor($user, ['status' => 'unread']));
-    }
-
-    public function test_opening_the_thread_clears_unread_after_an_automated_text_too(): void
-    {
-        $user = $this->staffUser();
-        $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true);
-        $this->automatedText($workOrder);
-
-        $this->openThread($user, $workOrder);
-
-        $this->assertFalse($this->threadsFor($user)[0]['unread']);
-    }
-
-    public function test_a_newer_question_after_a_typed_reply_is_unread_again(): void
-    {
-        $user = $this->staffUser();
-        $workOrder = WorkOrder::factory()->create();
-        $this->message($workOrder, inbound: true);
-        $this->message($workOrder, inbound: false);
-        $this->message($workOrder, inbound: true);
-
-        $threads = $this->threadsFor($user);
-
-        $this->assertTrue($threads[0]['unread']);
-        $this->assertTrue($threads[0]['awaiting']);
     }
 
     public function test_opening_a_thread_marks_it_read_without_touching_is_read(): void
