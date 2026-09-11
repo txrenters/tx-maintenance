@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageLogService;
 use App\Services\UnreadThreadCounter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -14,7 +16,8 @@ use Tests\TestCase;
  * The red count on the Messages nav: how many conversations hold a message
  * this user has not looked at yet. Messenger semantics — opening a thread
  * clears it, replying is not required — so the badge drains as people read
- * instead of sitting at the whole reply backlog.
+ * instead of sitting at the whole reply backlog. A coordinator's reply clears
+ * it for everyone; an automated text going out clears nothing.
  */
 class UnreadThreadBadgeTest extends TestCase
 {
@@ -115,9 +118,43 @@ class UnreadThreadBadgeTest extends TestCase
     {
         $workOrder = WorkOrder::factory()->create();
         $this->message($workOrder, inbound: true);
+        // A typed reply: a coordinator has dealt with it, for everyone.
         $this->message($workOrder, inbound: false);
 
         $this->assertSame(0, app(UnreadThreadCounter::class)->countFor($this->staffUser()->id));
+    }
+
+    public function test_an_automated_text_never_clears_the_badge(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true);
+        $reminder = $this->message($workOrder, inbound: false, attributes: [
+            'message' => 'Reminder: the vendor visits tomorrow.',
+        ]);
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_SMS,
+            'tenant',
+            'tenant_schedule_follow_up_sms',
+            self::THEIR_NUMBER,
+            $workOrder,
+            $reminder->message,
+            ['conversation_id' => $reminder->id],
+        );
+
+        $this->assertSame(1, app(UnreadThreadCounter::class)->countFor($this->staffUser()->id));
+    }
+
+    public function test_a_counting_failure_shows_no_badge_rather_than_breaking_the_page(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->message($workOrder, inbound: true);
+
+        // The badge is a shared prop on every page a coordinator opens; a
+        // broken table underneath it must not take those pages down.
+        Schema::drop('inbox_thread_reads');
+
+        $this->assertSame(0, app(UnreadThreadCounter::class)->cachedCountFor($this->staffUser()->id));
     }
 
     public function test_closed_work_orders_never_count(): void
