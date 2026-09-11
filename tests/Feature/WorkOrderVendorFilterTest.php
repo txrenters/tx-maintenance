@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -261,6 +262,45 @@ class WorkOrderVendorFilterTest extends TestCase
     public function test_the_page_sends_an_empty_map_to_everyone_else(): void
     {
         $this->assertSame([], $this->exclusionsProp($this->coordinator));
+    }
+
+    /**
+     * The guarantee everyone else relies on: for a login the rule does not
+     * apply to, the scope that replaced the boards' inline vendor clause
+     * builds exactly the SQL that clause built, with the same bindings, and
+     * resolving the rule costs no query at all.
+     */
+    public function test_for_everyone_else_the_scope_is_the_old_clause_and_costs_nothing(): void
+    {
+        $this->actingAs($this->coordinator);
+
+        $before = WorkOrder::query()->whereHas('vendors', fn ($q) => $q->where('work_order_vendors.vendor_id', $this->thmp->id));
+        $after = WorkOrder::query()->assignedToVendor($this->thmp->id);
+
+        $this->assertSame($before->toSql(), $after->toSql());
+        $this->assertSame($before->getBindings(), $after->getBindings());
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->assertSame([], Vendor::thmpFilterExclusions());
+        $this->assertCount(0, DB::getQueryLog());
+        DB::disableQueryLog();
+    }
+
+    public function test_for_thmps_login_the_scope_only_adds_the_exclusion(): void
+    {
+        $this->actingAs($this->johnCarlo);
+
+        $plain = WorkOrder::query()->whereHas('vendors', fn ($q) => $q->where('work_order_vendors.vendor_id', $this->thmp->id))->toSql();
+        $trimmed = WorkOrder::query()->assignedToVendor($this->thmp->id)->toSql();
+
+        $this->assertStringStartsWith($plain, $trimmed);
+        $this->assertSame(1, substr_count($trimmed, 'not exists'));
+        $this->assertSame(0, substr_count($plain, 'not exists'));
+
+        // Nobody signed in (a queued or console caller): plain clause, no rule.
+        auth()->logout();
+        $this->assertSame($plain, WorkOrder::query()->assignedToVendor($this->thmp->id)->toSql());
     }
 
     public function test_the_closed_board_follows_the_same_rule(): void
