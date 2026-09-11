@@ -9,6 +9,7 @@ use App\Services\ConversationParticipants;
 use App\Services\CourtesyCloserService;
 use App\Services\MessageTriageService;
 use App\Services\TapbackDetector;
+use App\Services\ThreadNewestMessages;
 use App\Services\UnreadThreadCounter;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
@@ -26,6 +27,14 @@ use Illuminate\Support\Facades\Log;
  * A "thread" here is one work order plus one party, matching how
  * BoardSummaryService already groups: a work order can hold a tenant thread, an
  * owner thread, and one thread per assigned vendor.
+ *
+ * Each row is the thread's newest INCOMING message — what the tenant, owner or
+ * vendor last said — never a text of ours. Automations send plenty (intake
+ * notices, appointment texts, daily follow-ups), and while a row followed the
+ * newest message of any kind those texts took over the preview, the time and
+ * the order of the list, burying the message that needed reading. A thread
+ * that only holds our own outgoing texts is not listed at all; the opened
+ * conversation on the right still shows both directions.
  */
 class InboxController extends Controller
 {
@@ -35,6 +44,9 @@ class InboxController extends Controller
     private const PREVIEW_LENGTH = 120;
 
     private const STATUS_FILTERS = ['all', 'awaiting', 'unread', 'unanswered_24h'];
+
+    /** The status filters that list only threads nobody has written back on. */
+    private const AWAITING_FILTERS = ['awaiting', 'unanswered_24h'];
 
     /**
      * The conversation_type values threads are actually stored under. Anything
@@ -46,6 +58,7 @@ class InboxController extends Controller
         private ConversationParticipants $participants,
         private CourtesyCloserService $courtesyClosers,
         private MessageTriageService $triage,
+        private ThreadNewestMessages $newest,
     ) {}
 
     public function index(Request $request)
@@ -76,8 +89,9 @@ class InboxController extends Controller
 
     /**
      * The next page of the thread list, appended client-side by the list's
-     * Load-more. The cursor is the newest-message position the previous page
-     * ended on, so new arrivals at the top never shift what comes next.
+     * Load-more. The cursor is the newest-incoming-message position the
+     * previous page ended on, so new arrivals at the top never shift what
+     * comes next.
      */
     public function more(Request $request): JsonResponse
     {
@@ -228,14 +242,17 @@ class InboxController extends Controller
     }
 
     /**
-     * One row per thread, carrying its newest message.
+     * One row per thread, carrying its newest incoming message.
      *
-     * The newest row per thread is picked with MAX(id): ids are monotonic, so
-     * this is free of created_at ties. Names are resolved in PHP afterwards
-     * rather than in four more joins — the page is bounded, and the fallbacks
-     * for legacy untagged rows read better as code.
+     * ThreadNewestMessages picks that message per thread with MAX(id) — ids
+     * are monotonic, so this is free of created_at ties — alongside the
+     * thread's newest message of any kind (is anyone still waiting?) and the
+     * newest one a person here typed (has a coordinator dealt with it?). Names
+     * are resolved in PHP afterwards rather than in four more joins — the page
+     * is bounded, and the fallbacks for legacy untagged rows read better as
+     * code.
      *
-     * With a cursor, only threads whose newest message sits strictly before
+     * With a cursor, only threads whose incoming message sits strictly before
      * that position are considered — the next page, ordered the same way.
      *
      * @param  array<string, mixed>  $filters
@@ -250,7 +267,7 @@ class InboxController extends Controller
         $courtesyIds = $this->courtesyClosers->courtesyIds();
 
         $rows = DB::table('work_order_conversations as c')
-            ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->joinSub($this->newestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_inbound_id'))
             ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
             ->leftJoin('inbox_thread_reads as r', $this->readMarkerJoin())
             ->select([
@@ -265,6 +282,8 @@ class InboxController extends Controller
                 'c.is_mms',
                 'c.twilio_status',
                 'c.created_at',
+                'latest.last_id',
+                'latest.last_human_id',
                 'r.last_read_conversation_id as last_read_id',
                 'wo.work_order_no',
                 'wo.status as work_order_status',
@@ -276,15 +295,17 @@ class InboxController extends Controller
             )
             ->when(
                 $filters['status'] !== 'all',
-                fn ($query) => $query->where('c.is_read', false)
+                fn ($query) => $query
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
                     ->tap(fn ($q) => $this->notClosed($q))
             )
             ->when(
+                in_array($filters['status'], self::AWAITING_FILTERS, true),
+                fn ($query) => $this->nobodyWroteBack($query)
+            )
+            ->when(
                 $filters['status'] === 'unread',
-                fn ($query) => $query->where(fn ($query) => $query
-                    ->whereNull('r.id')
-                    ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
+                fn ($query) => $this->unseenByThisUser($query)
             )
             ->when(
                 $cursor !== null,
@@ -311,7 +332,7 @@ class InboxController extends Controller
 
         $now = Carbon::now();
 
-        // AI intent chips for the newest message of each listed thread —
+        // AI intent chips for the incoming message of each listed thread —
         // absent entries simply render no chip.
         $intents = $this->triage->intentsForMessages($rows->pluck('id')->map(fn ($id) => (int) $id)->all());
 
@@ -357,31 +378,60 @@ class InboxController extends Controller
     }
 
     /**
-     * The newest message of every thread, as a subquery to join against.
+     * The newest messages of every thread, as a subquery to join against.
      *
      * The work order set is run through Conversation first so the model's
      * global scope applies — the inbox must never widen anyone's visibility.
      */
-    private function latestPerThread(): Builder
+    private function newestPerThread(): Builder
     {
         $visibleWorkOrderIds = Conversation::query()
             ->select('work_order_id')
             ->distinct()
-            ->pluck('work_order_id');
+            ->pluck('work_order_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-        return DB::table('work_order_conversations')
-            ->selectRaw('MAX(id) as last_id')
-            ->whereIn('work_order_id', $visibleWorkOrderIds)
-            ->groupByRaw("work_order_id, COALESCE(NULLIF(conversation_type, ''), 'unknown'), COALESCE(vendor_id, 0), COALESCE(owner_id, 0)");
+        return $this->newest->perThread($visibleWorkOrderIds);
     }
 
     /**
-     * The join that pairs a thread's newest message with the signed-in staff
-     * user's read marker for that thread, matching the same NULL normalization
-     * the thread grouping uses. Each staff member has their own markers, so
-     * "unread" is personal — one coordinator opening a thread does not clear
-     * it for anyone else.
+     * Threads where the incoming message is still the newest message of any
+     * kind: nothing, automated or typed, has gone out since. Requires `latest`
+     * to be joined.
+     *
+     * @template TQuery of \Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
      */
+    private function nobodyWroteBack($query)
+    {
+        return $query->whereColumn('latest.last_id', '=', 'c.id');
+    }
+
+    /**
+     * Threads whose incoming message this staff user has not opened since it
+     * arrived AND no coordinator has answered since. An automated text is not
+     * an answer, so it never hides a message from the Unread view — see
+     * ThreadNewestMessages. Requires `latest` and `r` to be joined.
+     *
+     * @template TQuery of \Illuminate\Database\Query\Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    private function unseenByThisUser($query)
+    {
+        return $query
+            ->where(fn ($q) => $q
+                ->whereNull('r.id')
+                ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
+            ->where(fn ($q) => $q
+                ->whereNull('latest.last_human_id')
+                ->orWhereColumn('latest.last_human_id', '<', 'c.id'));
+    }
+
     /**
      * Threads on closed work orders wait on nobody. NULL-safe: a status-less
      * row keeps counting rather than going silent. Requires `wo` to be joined.
@@ -398,6 +448,13 @@ class InboxController extends Controller
             ->orWhereNull('wo.status'));
     }
 
+    /**
+     * The join that pairs a thread's incoming message with the signed-in staff
+     * user's read marker for that thread, matching the same NULL normalization
+     * the thread grouping uses. Each staff member has their own markers, so
+     * "unread" is personal — one coordinator opening a thread does not clear
+     * it for anyone else.
+     */
     private function readMarkerJoin(): \Closure
     {
         $userId = (int) (auth()->id() ?? 0);
@@ -416,10 +473,11 @@ class InboxController extends Controller
      *
      * Counted over every thread rather than the page the list draws, so a chip
      * never reads zero while holding conversations. The status filter is
-     * applied here too — is_read false is the inbound marker, and 24h is the
-     * same cutoff presentThread derives waiting_hours from — but search is not,
-     * because search matches on names resolved in PHP. The page hides these
-     * numbers while a search is active rather than showing stale ones.
+     * applied here too — the same awaiting and unread conditions the list
+     * uses, and 24h is the same cutoff presentThread derives waiting_hours
+     * from — but search is not, because search matches on names resolved in
+     * PHP. The page hides these numbers while a search is active rather than
+     * showing stale ones.
      *
      * @param  array<string, mixed>  $filters
      * @return array<string, int>
@@ -429,21 +487,23 @@ class InboxController extends Controller
         $courtesyIds = $this->courtesyClosers->courtesyIds();
 
         $counts = DB::table('work_order_conversations as c')
-            ->joinSub($this->latestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_id'))
+            ->joinSub($this->newestPerThread(), 'latest', fn ($join) => $join->on('c.id', '=', 'latest.last_inbound_id'))
             ->when(
                 $filters['status'] !== 'all',
-                fn ($query) => $query->where('c.is_read', false)
+                fn ($query) => $query
                     ->when($courtesyIds !== [], fn ($q) => $q->whereNotIn('c.id', $courtesyIds))
                     ->join('work_orders as wo', 'wo.id', '=', 'c.work_order_id')
                     ->tap(fn ($q) => $this->notClosed($q))
             )
             ->when(
+                in_array($filters['status'], self::AWAITING_FILTERS, true),
+                fn ($query) => $this->nobodyWroteBack($query)
+            )
+            ->when(
                 $filters['status'] === 'unread',
                 fn ($query) => $query
                     ->leftJoin('inbox_thread_reads as r', $this->readMarkerJoin())
-                    ->where(fn ($query) => $query
-                        ->whereNull('r.id')
-                        ->orWhereColumn('c.id', '>', 'r.last_read_conversation_id'))
+                    ->tap(fn ($q) => $this->unseenByThisUser($q))
             )
             ->when(
                 $filters['status'] === 'unanswered_24h',
@@ -469,7 +529,7 @@ class InboxController extends Controller
     private function presentThread(object $row, ?WorkOrder $workOrder, Carbon $now, array $courtesyIds = [], array $intents = []): array
     {
         return [
-            // The newest message's id: the pagination cursor and the summary
+            // The incoming message's id: the pagination cursor and the summary
             // report's view scoping both key on it.
             'id' => (int) $row->id,
             'intent' => $intents[(int) $row->id] ?? null,
@@ -490,18 +550,19 @@ class InboxController extends Controller
             'preview' => $this->preview($row),
             'last_message_at' => $row->created_at,
             'waiting_hours' => (int) Carbon::parse($row->created_at)->diffInHours($now),
-            // is_read is the de facto direction column (see BoardSummaryService):
-            // 0 means the message came in from the outside and nobody replied.
-            // A judged courtesy closer ("thank you") no longer waits on anyone,
-            // and neither does a thread on a closed work order (NULL-safe: a
-            // status-less row keeps counting).
-            'awaiting' => ! $row->is_read
+            // Nothing has gone out since — no automated text, no typed reply —
+            // so the message is genuinely waiting. A judged courtesy closer
+            // ("thank you") waits on nobody, and neither does a thread on a
+            // closed work order (NULL-safe: a status-less row keeps counting).
+            'awaiting' => (int) $row->last_id === (int) $row->id
                 && ! in_array((int) $row->id, $courtesyIds, true)
                 && ! in_array((string) ($row->work_order_status ?? ''), WorkOrder::CLOSED_STATUSES, true),
-            // Unread is personal: the newest message is inbound AND this staff
-            // user has not opened the thread since it arrived.
-            'unread' => ! $row->is_read
-                && ($row->last_read_id === null || (int) $row->id > (int) $row->last_read_id),
+            // Unread is personal: this staff user has not opened the thread
+            // since the message arrived, and no coordinator has answered it
+            // since. An automated text is not an answer — see
+            // ThreadNewestMessages.
+            'unread' => ($row->last_read_id === null || (int) $row->id > (int) $row->last_read_id)
+                && ($row->last_human_id === null || (int) $row->last_human_id < (int) $row->id),
             'twilio_status' => $row->twilio_status,
         ];
     }
@@ -543,9 +604,10 @@ class InboxController extends Controller
 
     private function preview(object $row): string
     {
-        // An inbound tapback reaction quotes the entire original message;
-        // "👍 Liked a message" reads better than that wall of text.
-        if (! $row->is_read && ($tapback = TapbackDetector::detect($row->message)) !== null) {
+        // Every row is an incoming message. A tapback reaction quotes the
+        // entire original message; "👍 Liked a message" reads better than that
+        // wall of text.
+        if (($tapback = TapbackDetector::detect($row->message)) !== null) {
             return $tapback['emoji'].' '.$tapback['label'];
         }
 

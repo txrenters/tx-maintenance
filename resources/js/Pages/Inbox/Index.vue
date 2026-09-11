@@ -226,8 +226,8 @@ watch(loadMoreSentinel, (element, previous) => {
 
 onBeforeUnmount(() => sentinelObserver.disconnect());
 
-// The newest-message id of every listed thread — the Summary report is scoped
-// to these, so it describes the view on screen.
+// The incoming-message id of every listed thread — the Summary report is
+// scoped to these, so it describes the view on screen.
 const loadedThreadIds = computed(() =>
     loadedThreads.value.map((item) => item.id).filter(Boolean)
 );

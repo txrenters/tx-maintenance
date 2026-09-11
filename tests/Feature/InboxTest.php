@@ -13,7 +13,9 @@ use Tests\TestCase;
 /**
  * The Inbox: every conversation in one list, grouped one row per work order and
  * party, so a coordinator can see who is still waiting without opening each
- * work order.
+ * work order. Each row is the thread's newest incoming message — our own
+ * outgoing texts, automated or typed, never take over the preview, the time or
+ * the order of the list.
  */
 class InboxTest extends TestCase
 {
@@ -108,7 +110,7 @@ class InboxTest extends TestCase
         $this->assertTrue($threads[0]['awaiting']);
     }
 
-    public function test_an_outbound_tapback_shaped_body_keeps_its_verbatim_preview(): void
+    public function test_a_thread_holding_only_our_own_texts_is_not_listed(): void
     {
         $workOrder = WorkOrder::factory()->create();
         $this->message($workOrder, inbound: false, attributes: [
@@ -117,9 +119,10 @@ class InboxTest extends TestCase
 
         $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
 
-        $threads = $response->viewData('page')['props']['threads'];
+        $props = $response->viewData('page')['props'];
 
-        $this->assertSame('Liked “Sounds good”', $threads[0]['preview']);
+        $this->assertCount(0, $props['threads']);
+        $this->assertSame(0, $props['partyCounts']['all']);
     }
 
     public function test_a_thread_whose_newest_message_is_inbound_is_flagged_as_awaiting(): void
@@ -152,13 +155,74 @@ class InboxTest extends TestCase
         $this->assertCount(1, $threads);
         $this->assertFalse($threads[0]['awaiting']);
         $this->assertSame(0, $response->viewData('page')['props']['stats']['awaiting']);
+        // The row still reads what the tenant said, not our reply.
+        $this->assertSame('Any update?', $threads[0]['preview']);
+    }
+
+    public function test_the_row_keeps_the_incoming_message_after_our_later_text(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $question = $this->message($workOrder, inbound: true, attributes: [
+            'message' => 'Is the plumber still coming today?',
+            'created_at' => now()->subHours(3),
+            'updated_at' => now()->subHours(3),
+        ]);
+        $this->message($workOrder, inbound: false, attributes: [
+            'message' => 'Reminder: your appointment is tomorrow between 9 and 11.',
+        ]);
+
+        $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
+
+        $threads = $response->viewData('page')['props']['threads'];
+
+        $this->assertCount(1, $threads);
+        $this->assertSame($question->id, $threads[0]['id']);
+        $this->assertSame('Is the plumber still coming today?', $threads[0]['preview']);
+        $this->assertSame(
+            $question->created_at->format('Y-m-d H:i:s'),
+            (string) $threads[0]['last_message_at'],
+            'The row is stamped with when the question arrived, not when our text went out.'
+        );
+        // Something did go out since, so nobody is flagged as waiting.
+        $this->assertFalse($threads[0]['awaiting']);
+    }
+
+    public function test_threads_are_ordered_by_their_incoming_message_not_by_our_texts(): void
+    {
+        $now = now();
+
+        $olderQuestion = WorkOrder::factory()->create();
+        $this->message($olderQuestion, inbound: true, attributes: [
+            'created_at' => $now->copy()->subMinutes(10),
+            'updated_at' => $now->copy()->subMinutes(10),
+        ]);
+        // Our text a minute ago must not lift this thread over the newer question.
+        $this->message($olderQuestion, inbound: false, attributes: [
+            'created_at' => $now->copy()->subMinute(),
+            'updated_at' => $now->copy()->subMinute(),
+        ]);
+
+        $newerQuestion = WorkOrder::factory()->create();
+        $this->message($newerQuestion, inbound: true, attributes: [
+            'created_at' => $now->copy()->subMinutes(5),
+            'updated_at' => $now->copy()->subMinutes(5),
+        ]);
+
+        $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
+
+        $threads = collect($response->viewData('page')['props']['threads']);
+
+        $this->assertSame(
+            [$newerQuestion->id, $olderQuestion->id],
+            $threads->pluck('work_order_id')->all(),
+        );
     }
 
     public function test_each_party_on_a_work_order_gets_its_own_thread(): void
     {
         $workOrder = WorkOrder::factory()->create();
         $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'tenant']);
-        $this->message($workOrder, inbound: false, attributes: ['conversation_type' => 'owner']);
+        $this->message($workOrder, inbound: true, attributes: ['conversation_type' => 'owner']);
 
         $response = $this->actingAs($this->staffUser())->get(route('inbox.index'));
 
