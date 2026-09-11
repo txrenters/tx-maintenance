@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-12',
+            'area' => 'Messaging',
+            'title' => 'THMP appointment texts no longer tell the tenant to be home',
+            'description' => 'The automated "appointment scheduled" text to the tenant ended with "Please make sure someone 18 or older is home to let the technician in." whoever the vendor was. For a visit by Texas Home Maintenance Pros that line was wrong - THMP technicians have their own access and the tenant does not need to be there - and a tenant could point to it later to dispute a trip charge for not being home. When the appointment on the service schedule is with THMP, the text now leaves that line out and reads: the appointment has been scheduled with Texas Home Maintenance Pros, the date, and thank you. Appointments with any other vendor keep the line exactly as before. On the Automated Messages page the line is now the {access_line} token of the "Appointment scheduled" tenant template, so it can be reworded there, and it stays empty for THMP whatever the wording. The "THMP technician visit" text that goes out when a technician is picked on the schedule is unchanged.',
+        ],
+        [
             'date' => '2026-09-11',
             'area' => 'Owners',
             'title' => 'The onboarding form no longer fails on the sprinkler question',

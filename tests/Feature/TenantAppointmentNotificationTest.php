@@ -12,6 +12,7 @@ use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Services\AutomatedMessageTemplates;
 use App\Services\TenantAppointmentNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -55,7 +56,7 @@ class TenantAppointmentNotificationTest extends TestCase
         ]);
     }
 
-    private function makeSchedule(?Tenants $tenant = null, string $status = 'scheduled', ?Technician $technician = null): ServiceSchedule
+    private function makeSchedule(?Tenants $tenant = null, string $status = 'scheduled', ?Technician $technician = null, ?Vendor $vendor = null): ServiceSchedule
     {
         $workOrder = WorkOrder::factory()->create([
             'status' => 'Open',
@@ -68,10 +69,12 @@ class TenantAppointmentNotificationTest extends TestCase
             'scheduled_date' => now()->addDays(3)->setTime(9, 0),
             'status' => $status,
             'work_order_id' => $workOrder->id,
-            'vendor_id' => $this->makeVendor()->id,
+            'vendor_id' => ($vendor ?? $this->makeVendor())->id,
             'technician_id' => $technician?->id,
         ]);
     }
+
+    private const ACCESS_LINE = 'Please make sure someone 18 or older is home to let the technician in.';
 
     private function makeTechnician(bool $withPhoto): Technician
     {
@@ -366,7 +369,86 @@ class TenantAppointmentNotificationTest extends TestCase
         $this->assertFalse((bool) $message->is_mms);
         $this->assertStringNotContainsString('THMP Technician Visit Reminder', $message->message);
         $this->assertStringContainsString('scheduled with Reliable Plumbing', $message->message);
+        $this->assertStringContainsString(self::ACCESS_LINE, $message->message);
         $this->assertDatabaseCount('work_order_conversation_medias', 0);
+    }
+
+    public function test_a_thmp_appointment_does_not_ask_the_tenant_to_be_home(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        // THMP technicians have their own access; telling the tenant to be
+        // home invited trip-charge disputes (WOC ticket, 2026-09-11).
+        $this->notify($this->makeSchedule(vendor: $this->makeVendor(Vendor::THMP_NAME)));
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertStringContainsString('scheduled with Texas Home Maintenance Pros', $message->message);
+        $this->assertStringContainsString('Scheduled:', $message->message);
+        $this->assertStringContainsString('Thank you!', $message->message);
+        $this->assertStringNotContainsString('18 or older', $message->message);
+        $this->assertStringNotContainsString('let the technician in', $message->message);
+        // The dropped line leaves no double blank in its place.
+        $this->assertStringNotContainsString("\n\n\n", $message->message);
+        $this->assertStringContainsString('(Ref: WO#43900)', $message->message);
+    }
+
+    public function test_a_thmp_vendor_is_matched_by_name_whatever_the_casing(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        $this->notify($this->makeSchedule(vendor: $this->makeVendor('  texas home maintenance pros ')));
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertStringNotContainsString('18 or older', $message->message);
+    }
+
+    public function test_a_template_override_that_still_spells_out_the_line_drops_it_for_thmp_only(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        // An override saved on the Automated Messages page before the
+        // {access_line} token existed carries the sentence literally.
+        AutomatedMessageTemplates::put('tenant_appointment_sms', "{greeting}\n\n"
+            ."Your appointment with {vendor_name} is set.\n\n"
+            ."{scheduled_line}\n\n"
+            .self::ACCESS_LINE."\n\n"
+            .'Thank you!');
+
+        $this->notify($this->makeSchedule(vendor: $this->makeVendor(Vendor::THMP_NAME)));
+        $thmp = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertStringContainsString('Your appointment with Texas Home Maintenance Pros is set.', $thmp->message);
+        $this->assertStringNotContainsString('18 or older', $thmp->message);
+        $this->assertStringNotContainsString("\n\n\n", $thmp->message);
+
+        $this->notify($this->makeSchedule());
+        $thirdParty = Conversation::query()->where('conversation_type', 'tenant')->latest('id')->firstOrFail();
+
+        $this->assertStringContainsString('Your appointment with Reliable Plumbing is set.', $thirdParty->message);
+        $this->assertStringContainsString(self::ACCESS_LINE, $thirdParty->message);
+    }
+
+    public function test_the_line_is_kept_for_a_third_party_vendor_on_a_work_order_that_also_has_thmp(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+
+        // Only the vendor on the schedule decides; THMP being assigned to the
+        // same work order for another task must not silence a plumber's visit.
+        $schedule = $this->makeSchedule();
+        $schedule->work_order->vendors()->attach($this->makeVendor(Vendor::THMP_NAME)->id);
+
+        $this->notify($schedule->fresh());
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertStringContainsString('scheduled with Reliable Plumbing', $message->message);
+        $this->assertStringContainsString(self::ACCESS_LINE, $message->message);
     }
 
     public function test_without_a_tenant_phone_it_logs_the_thread_entry_but_texts_nobody(): void

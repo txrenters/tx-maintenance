@@ -279,12 +279,13 @@ class AutomatedMessageTemplates
             'group' => null,
             'channel' => 'sms',
             'audience' => 'tenant',
-            'sends_when' => 'Texted to the tenant when a vendor sets a service appointment on their work order. The sign-off is added automatically below this text.',
+            'sends_when' => 'Texted to the tenant when a vendor sets a service appointment on their work order. The "someone 18 or older is home" line is left out when the appointment is with Texas Home Maintenance Pros, whose technicians have their own access. The sign-off is added automatically below this text.',
             'tokens' => [
                 'greeting' => 'Opening line — "Hi <first name>," or "Hi," when no name is on file',
                 'property' => '" at <street address>" or empty when no address is on file',
                 'vendor_name' => "The assigned vendor's name",
                 'scheduled_line' => '"Scheduled: <date, and time if one was set>" or empty when no date is set',
+                'access_line' => '"Please make sure someone 18 or older is home to let the technician in." or empty when the appointment is with Texas Home Maintenance Pros',
             ],
             'required' => ['vendor_name'],
             'sample' => [
@@ -292,12 +293,13 @@ class AutomatedMessageTemplates
                 'property' => ' at 123 Main St',
                 'vendor_name' => 'ACME Plumbing',
                 'scheduled_line' => 'Scheduled: Monday, August 24, 2026 at 3:00 PM',
+                'access_line' => 'Please make sure someone 18 or older is home to let the technician in.',
             ],
             'collapse' => true,
             'default' => "{greeting}\n\n"
                 ."This is TexasRenters.com Maintenance. The service appointment for your home{property} has been scheduled with {vendor_name}.\n\n"
                 ."{scheduled_line}\n\n"
-                ."Please make sure someone 18 or older is home to let the technician in.\n\n"
+                ."{access_line}\n\n"
                 .'Thank you!',
         ],
         'tenant_technician_visit_sms' => [
