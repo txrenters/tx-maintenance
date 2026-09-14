@@ -462,4 +462,327 @@ class TenantServiceRequestNotificationTest extends TestCase
         $this->assertNull($this->tenantMessage($workOrder));
         Queue::assertNothingPushed();
     }
+
+    /**
+     * A contact, named, with or without a number — the requester or a lease
+     * tenant. Lease tenants are attached to the roster (work_order_tenants)
+     * the PropertyWare import fills in.
+     */
+    private function makeContact(string $firstName, ?string $phone, ?WorkOrder $onLeaseOf = null, ?string $propertywareId = null): Tenants
+    {
+        $tenant = Tenants::query()->create([
+            'first_name' => $firstName,
+            'last_name' => 'Contact',
+            'email' => strtolower($firstName).uniqid().'@example.com',
+            'mobile_phone' => $phone,
+            'propertyware_id' => $propertywareId,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        $onLeaseOf?->tenants()->attach($tenant->id);
+
+        return $tenant;
+    }
+
+    /**
+     * WO#44111's shape: an inspection finding whose Requested By is the
+     * technician who logged it, with no phone, on a home with two tenants on
+     * the lease.
+     */
+    private function makeInspectionWorkOrderWithLeaseTenants(?string $technicianPhone = null): WorkOrder
+    {
+        $technician = $this->makeContact('Moses', $technicianPhone);
+        $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id]);
+        $this->makeContact('Forrest', '7132526614', $workOrder);
+        $this->makeContact('Marisol', '5712140948', $workOrder);
+
+        return $workOrder;
+    }
+
+    /**
+     * @return array<int, Conversation>
+     */
+    private function tenantMessages(WorkOrder $workOrder): array
+    {
+        return Conversation::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'tenant')
+            ->orderBy('id')
+            ->get()
+            ->all();
+    }
+
+    public function test_the_lease_tenants_are_texted_when_the_requester_is_not_on_the_lease(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeInspectionWorkOrderWithLeaseTenants();
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(2, $messages);
+        $this->assertSame(['+17132526614', '+15712140948'], array_map(fn (Conversation $message) => $message->receiver_number, $messages));
+        $this->assertStringContainsString('Hi Forrest, a work order #43900 has been created for 500 Elm St by our team.', $messages[0]->message);
+        $this->assertStringContainsString('Hi Marisol, a work order #43900 has been created for 500 Elm St by our team.', $messages[1]->message);
+        $this->assertNotNull($workOrder->fresh()->tenant_service_request_notified_at);
+
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+
+        // Each text is on the ledger, marked as sent to the lease roster
+        // rather than to the requester.
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'tenant_service_request_sms')
+            ->orderBy('id')
+            ->get();
+        $this->assertCount(2, $ledger);
+        $this->assertSame(['+17132526614', '+15712140948'], $ledger->pluck('properties.recipient')->all());
+        $this->assertSame(['lease_roster', 'lease_roster'], $ledger->pluck('properties.recipient_source')->all());
+        $this->assertSame(['staff_created', 'staff_created'], $ledger->pluck('properties.variant')->all());
+    }
+
+    public function test_a_requester_off_the_lease_is_passed_over_even_when_they_have_a_phone(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // A technician with a number on their PropertyWare contact must not
+        // be told a work order was created for "your home".
+        $workOrder = $this->makeInspectionWorkOrderWithLeaseTenants(technicianPhone: '8325550000');
+
+        $this->notify($workOrder);
+
+        $receivers = array_map(fn (Conversation $message) => $message->receiver_number, $this->tenantMessages($workOrder));
+
+        $this->assertSame(['+17132526614', '+15712140948'], $receivers);
+        $this->assertNotContains('+18325550000', $receivers);
+    }
+
+    public function test_a_requester_on_the_lease_is_texted_alone(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // A portal request is answered to the person who sent it, not to the
+        // whole household.
+        $workOrder = $this->makeWorkOrder(['source' => 'Tenant Portal']);
+        $workOrder->tenants()->attach($workOrder->tenant_id);
+        $this->makeContact('Marisol', '5712140948', $workOrder);
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(1, $messages);
+        $this->assertSame('+15125559999', $messages[0]->receiver_number);
+        $this->assertStringContainsString('Hi Dana,', $messages[0]->message);
+
+        $ledger = Activity::query()->where('event', 'tenant_service_request_sms')->firstOrFail();
+        $this->assertArrayNotHasKey('recipient_source', $ledger->properties->all());
+    }
+
+    public function test_a_requester_matched_by_propertyware_id_counts_as_on_the_lease(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // The same PropertyWare contact can sit in tenants twice (one row from
+        // requestedByContact, one from the lease roster): still the requester.
+        $requester = $this->makeContact('Dana', '5125559999', propertywareId: '7641137158');
+        $workOrder = $this->makeWorkOrder(['tenant_id' => $requester->id]);
+        $this->makeContact('Dana', '5125559999', $workOrder, propertywareId: '7641137158');
+        $this->makeContact('Marisol', '5712140948', $workOrder);
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(1, $messages);
+        $this->assertSame('+15125559999', $messages[0]->receiver_number);
+    }
+
+    public function test_the_other_lease_tenants_stand_in_for_a_requester_with_no_phone(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $requester = $this->makeContact('Dana', null);
+        $workOrder = $this->makeWorkOrder(['tenant_id' => $requester->id]);
+        $workOrder->tenants()->attach($requester->id);
+        $this->makeContact('Marisol', '5712140948', $workOrder);
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(1, $messages);
+        $this->assertSame('+15712140948', $messages[0]->receiver_number);
+        $this->assertStringContainsString('Hi Marisol,', $messages[0]->message);
+    }
+
+    public function test_lease_tenants_sharing_one_number_get_a_single_text(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $technician = $this->makeContact('Moses', null);
+        $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id]);
+        $this->makeContact('Forrest', '(713) 252-6614', $workOrder);
+        $this->makeContact('Marisol', '7132526614', $workOrder);
+
+        $this->notify($workOrder);
+
+        $this->assertCount(1, $this->tenantMessages($workOrder));
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_a_lease_tenant_with_only_a_home_phone_is_still_texted(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // PropertyWare had both of WO#44111's tenants under Home Phone only.
+        $technician = $this->makeContact('Moses', null);
+        $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id]);
+        $homeOnly = $this->makeContact('Forrest', null, $workOrder);
+        $homeOnly->update(['home_phone' => '(713) 252-6614']);
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(1, $messages);
+        $this->assertSame('+17132526614', $messages[0]->receiver_number);
+    }
+
+    public function test_a_lease_less_work_order_still_texts_the_requester(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // A local row with no roster (a website request, an app-created work
+        // order): the requester, exactly as before.
+        $workOrder = $this->makeWorkOrder(['propertyware_id' => null]);
+
+        $this->notify($workOrder);
+
+        $messages = $this->tenantMessages($workOrder);
+
+        $this->assertCount(1, $messages);
+        $this->assertSame('+15125559999', $messages[0]->receiver_number);
+    }
+
+    public function test_the_skip_is_recorded_when_nobody_has_a_phone(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $technician = $this->makeContact('Moses', null);
+        $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id]);
+        $this->makeContact('Forrest', null, $workOrder);
+
+        $this->notify($workOrder);
+
+        $this->assertSame([], $this->tenantMessages($workOrder));
+        // Left un-stamped so a number added later can still be notified.
+        $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at);
+        Queue::assertNothingPushed();
+
+        // The Automated Messages page shows why instead of nothing at all.
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'tenant_service_request_sms')
+            ->firstOrFail();
+        $this->assertSame($workOrder->id, $ledger->properties['work_order_id']);
+        $this->assertNull($ledger->properties['recipient']);
+        $this->assertSame('no_tenant_phone', $ledger->properties['not_texted_reason']);
+        $this->assertSame(
+            'Not sent: nobody to text. Requested By is Moses Contact, who is not on the lease; 1 lease tenant(s) on file, none with a phone number.',
+            $ledger->properties['message'],
+        );
+    }
+
+    public function test_the_skip_names_a_missing_requester_and_an_empty_roster(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder(['tenant_id' => null, 'propertyware_id' => null]);
+
+        $this->notify($workOrder);
+
+        $this->assertSame([], $this->tenantMessages($workOrder));
+
+        $ledger = Activity::query()->where('event', 'tenant_service_request_sms')->firstOrFail();
+        $this->assertSame(
+            'Not sent: nobody to text. PropertyWare lists no Requested By contact; no lease tenants on file.',
+            $ledger->properties['message'],
+        );
+    }
+
+    public function test_the_skip_names_a_requester_on_the_lease_with_no_phone(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $requester = $this->makeContact('Dana', null);
+        $workOrder = $this->makeWorkOrder(['tenant_id' => $requester->id]);
+        $workOrder->tenants()->attach($requester->id);
+
+        $this->notify($workOrder);
+
+        $ledger = Activity::query()->where('event', 'tenant_service_request_sms')->firstOrFail();
+        $this->assertStringContainsString('Requested By is Dana Contact, who has no phone number', $ledger->properties['message']);
+    }
+
+    public function test_the_lease_roster_never_revives_a_vacant_or_opted_out_work_order(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        // WO#43729's lesson must survive the fallback: a home that is vacant,
+        // being turned over, re-keyed or cleaned gets nothing, however many
+        // reachable tenants sit on the roster PropertyWare attached.
+        foreach ([
+            ['type' => 'Turnover'],
+            ['category' => 'Turnover'],
+            ['category' => 'Re-key'],
+            ['category' => 'Cleaning'],
+            ['category' => 'Make ready'],
+            ['skip_automated_tasks' => true],
+            ['category' => WorkOrder::HOA_VIOLATION_CATEGORY],
+        ] as $attributes) {
+            $technician = $this->makeContact('Moses', null);
+            $workOrder = $this->makeStaffCreatedWorkOrder(['source' => 'Inspection', 'tenant_id' => $technician->id] + $attributes);
+            $this->makeContact('Forrest', '7132526614', $workOrder);
+            $this->makeContact('Marisol', '5712140948', $workOrder);
+
+            $this->notify($workOrder);
+
+            $label = json_encode($attributes);
+            $this->assertSame([], $this->tenantMessages($workOrder), "{$label} must send nothing.");
+            $this->assertNull($workOrder->fresh()->tenant_service_request_notified_at, "{$label} must stay un-stamped.");
+        }
+
+        Queue::assertNothingPushed();
+        // Opted-out work orders are not "nobody to text" either: no ledger row.
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_service_request_sms')->count());
+    }
+
+    public function test_the_per_work_order_mute_still_covers_the_lease_roster(): void
+    {
+        config(['services.twilio.tenant_intake_sms' => true]);
+        Queue::fake();
+
+        $workOrder = $this->makeInspectionWorkOrderWithLeaseTenants();
+        $workOrder->setAutomationPaused('tenant', true);
+
+        $this->notify($workOrder->fresh());
+
+        $this->assertSame([], $this->tenantMessages($workOrder));
+        Queue::assertNothingPushed();
+    }
 }
