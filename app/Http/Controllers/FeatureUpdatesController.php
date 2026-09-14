@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-15',
+            'area' => 'Work Orders',
+            'title' => 'The Texas Home Maintenance Pros filter now really leaves out Jimmie Gendke SFA\'s work orders for THMP\'s login',
+            'description' => 'The 11 September update was meant to hide Jimmie Gendke SFA\'s work orders from THMP\'s own login (John Carlo) under the Texas Home Maintenance Pros filter, but on the live system nothing was hidden - WO #44085 and #44083 still showed. The rule looked the vendor up by the name "Jimmie Gendke SFA", and that is not how the vendor is recorded here: the Vendors list takes each vendor\'s name from the company name in PropertyWare, which for this vendor reads "Jimmie" (and read "THMP" until 12 September), so the rule never found it. It now recognises the vendor by its PropertyWare record instead of its name, so it keeps working whatever the vendor is called, and the same goes for recognising Texas Home Maintenance Pros itself. Everything else is as announced on 11 September: John Carlo\'s login only, every board plus the Summary popup and the export, and coordinators still see every work order under that filter.',
+        ],
+        [
             'date' => '2026-09-12',
             'area' => 'Messaging',
             'title' => 'THMP appointment texts no longer tell the tenant to be home',

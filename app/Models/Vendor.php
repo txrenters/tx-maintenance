@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -22,6 +23,14 @@ class Vendor extends Model
      * environment, mirroring how the Jobber integration detects THMP jobs.
      */
     public const THMP_NAME = 'Texas Home Maintenance Pros';
+
+    /**
+     * THMP's PropertyWare vendor id. The vendors table names each row after
+     * PropertyWare's COMPANY name (import:all-vendors), which anyone can edit
+     * in PropertyWare, so a rule that must survive a rename keys on this id
+     * alongside THMP_NAME. Used by the THMP filter only.
+     */
+    public const THMP_PROPERTYWARE_ID = '246120584';
 
     protected $fillable = [
         'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
@@ -117,14 +126,21 @@ class Vendor extends Model
      *
      * Staff tag THMP onto Jimmie Gendke SFA's work orders only so this app
      * creates the Jobber job (PropertyWareService::changeWorkOrderVendors);
-     * the work is SFA's, so THMP's queue must not list it. The hidden vendors
-     * come from services.jobber.thmp_filter_hidden_vendors and are matched by
-     * exact trimmed, case-insensitive name — never LIKE, so "SFA - Michael"
-     * is not caught by "Jimmie Gendke SFA". Every vendor row named THMP is a
-     * key because some environments carry more than one such row while the
-     * filter chip sends a single id. Empty when either setting is blank or no
-     * matching rows exist. Memoized for the request; defaults to the signed-in
-     * user, so a queued or console caller with nobody signed in gets [].
+     * the work is SFA's, so THMP's queue must not list it.
+     *
+     * The hidden vendors are keyed on PropertyWare vendor id
+     * (services.jobber.thmp_filter_hidden_vendor_ids), not on name: the
+     * vendors table names a row after PropertyWare's COMPANY name, so in
+     * production SFA's row reads "Jimmie" (it read "THMP" until 2026-09-12),
+     * and a name-only rule hid nothing (WO#44085, #44083). Exact trimmed,
+     * case-insensitive names (services.jobber.thmp_filter_hidden_vendors) are
+     * honoured as well — never LIKE, so "SFA - Michael" is not caught by
+     * "Jimmie Gendke SFA". Every row that is THMP, by THMP_PROPERTYWARE_ID or
+     * by name, is a key because some environments carry more than one such
+     * row while the filter chip sends a single id. Empty when both settings
+     * are blank or no matching rows exist. Memoized for the request; defaults
+     * to the signed-in user, so a queued or console caller with nobody signed
+     * in gets [].
      *
      * @return array<int, list<int>>
      */
@@ -137,25 +153,30 @@ class Vendor extends Model
         }
 
         return once(function (): array {
-            $hiddenNames = collect(explode(',', (string) config('services.jobber.thmp_filter_hidden_vendors', '')))
-                ->map(fn (string $name): string => Str::lower(trim($name)))
-                ->filter()
-                ->unique()
-                ->values();
+            $hiddenPropertywareIds = self::thmpFilterList('services.jobber.thmp_filter_hidden_vendor_ids');
+            $hiddenNames = self::thmpFilterList('services.jobber.thmp_filter_hidden_vendors')
+                ->map(fn (string $name): string => Str::lower($name));
 
-            if ($hiddenNames->isEmpty()) {
+            if ($hiddenPropertywareIds->isEmpty() && $hiddenNames->isEmpty()) {
                 return [];
             }
 
             $thmpName = Str::lower(trim(self::THMP_NAME));
+            $thmpPropertywareId = self::THMP_PROPERTYWARE_ID;
 
             $rows = DB::table('vendors')
-                ->select('id', DB::raw('LOWER(TRIM(name)) as normalized_name'))
-                ->whereIn(DB::raw('LOWER(TRIM(name))'), $hiddenNames->merge([$thmpName])->all())
+                ->select('id', 'propertyware_id', DB::raw('LOWER(TRIM(name)) as normalized_name'))
+                ->where(function ($query) use ($hiddenPropertywareIds, $hiddenNames, $thmpName, $thmpPropertywareId): void {
+                    $query->whereIn(DB::raw('LOWER(TRIM(name))'), $hiddenNames->merge([$thmpName])->all())
+                        ->orWhereIn('propertyware_id', $hiddenPropertywareIds->merge([$thmpPropertywareId])->all());
+                })
                 ->get();
 
-            $thmpIds = $rows->where('normalized_name', $thmpName)->pluck('id')->map(fn ($id): int => (int) $id)->values();
-            $hiddenIds = $rows->where('normalized_name', '!=', $thmpName)->pluck('id')->map(fn ($id): int => (int) $id)->values();
+            $isThmp = fn (object $row): bool => $row->normalized_name === $thmpName
+                || trim((string) $row->propertyware_id) === $thmpPropertywareId;
+
+            $thmpIds = $rows->filter($isThmp)->pluck('id')->map(fn ($id): int => (int) $id)->values();
+            $hiddenIds = $rows->reject($isThmp)->pluck('id')->map(fn ($id): int => (int) $id)->values();
 
             if ($thmpIds->isEmpty() || $hiddenIds->isEmpty()) {
                 return [];
@@ -163,6 +184,21 @@ class Vendor extends Model
 
             return $thmpIds->mapWithKeys(fn (int $thmpId): array => [$thmpId => $hiddenIds->all()])->all();
         });
+    }
+
+    /**
+     * A comma-separated config value as a list of trimmed, non-blank,
+     * distinct entries.
+     *
+     * @return Collection<int, string>
+     */
+    private static function thmpFilterList(string $configKey): Collection
+    {
+        return collect(explode(',', (string) config($configKey, '')))
+            ->map(fn (string $entry): string => trim($entry))
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     public function workOrders(): BelongsToMany
