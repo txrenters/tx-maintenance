@@ -242,8 +242,15 @@ return [
         // Staff tag THMP onto Jimmie Gendke SFA's work orders only so this app
         // creates the Jobber job; the work is SFA's. Work orders carrying any
         // of these vendors are hidden when a board's Vendor filter is THMP.
-        // Comma-separated exact vendor names; blank turns the rule off.
-        'thmp_filter_hidden_vendors' => env('JOBBER_THMP_FILTER_HIDDEN_VENDORS', 'Jimmie Gendke SFA'),
+        // Keyed on PropertyWare vendor ids because the vendors table names a
+        // row after PropertyWare's COMPANY name (import:all-vendors), which is
+        // "Jimmie" for this vendor (it read "THMP" until 2026-09-12) and can
+        // be edited in PropertyWare at any time; the id cannot. Comma-separated.
+        'thmp_filter_hidden_vendor_ids' => env('JOBBER_THMP_FILTER_HIDDEN_VENDOR_IDS', '4802084865'),
+        // Exact vendor names to hide as well, for a vendor with no stable id
+        // to hand. Comma-separated; case and surrounding spaces are ignored.
+        // The rule is off only when this AND the id list are both blank.
+        'thmp_filter_hidden_vendors' => env('JOBBER_THMP_FILTER_HIDDEN_VENDORS', ''),
         // The logins that rule applies to, by email. Deliberately not global:
         // WOC staff must still find SFA's work orders under the THMP filter
         // to process them and message the tenant, so only THMP's own login

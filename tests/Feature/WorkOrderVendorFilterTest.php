@@ -20,10 +20,19 @@ use Tests\TestCase;
  * (THMP's own, John Carlo's, by default): every other staff member still sees
  * SFA's work orders under the THMP filter so they can process them. Every
  * other vendor, and the unfiltered board, are unchanged for everyone.
+ *
+ * The fixture is shaped like production: the vendors table names a row after
+ * PropertyWare's COMPANY name, so SFA's row is "Jimmie" (it read "THMP" until
+ * 2026-09-12) and only its PropertyWare id and name_on_check say whose it is.
+ * A rule keyed on the name "Jimmie Gendke SFA" hid nothing on the live system
+ * (WO#44085, #44083); the rule keys on the PropertyWare id.
  */
 class WorkOrderVendorFilterTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Jimmie Gendke SFA's PropertyWare vendor id, as in production. */
+    private const JIMMIE_PROPERTYWARE_ID = '4802084865';
 
     /** THMP's own login, the one the rule applies to. */
     private User $johnCarlo;
@@ -56,9 +65,11 @@ class WorkOrderVendorFilterTest extends TestCase
 
         $this->status = ServiceStatus::query()->create(['name' => 'In Progress', 'description' => 'In progress']);
 
-        $this->thmp = $this->vendor(Vendor::THMP_NAME);
+        $this->thmp = $this->vendor(Vendor::THMP_NAME, Vendor::THMP_PROPERTYWARE_ID);
         $this->thmpTwin = $this->vendor(' texas home maintenance pros ');
-        $this->jimmie = $this->vendor('Jimmie Gendke SFA');
+        // Production shape: named after PropertyWare's company name, not the
+        // vendor name; the PropertyWare id and name_on_check identify the row.
+        $this->jimmie = $this->vendor('Jimmie', self::JIMMIE_PROPERTYWARE_ID, 'Jimmie Gendke SFA');
         $this->sfaMichael = $this->vendor('SFA - Michael');
         $this->ace = $this->vendor('Ace Plumbing');
 
@@ -82,13 +93,14 @@ class WorkOrderVendorFilterTest extends TestCase
         return $user;
     }
 
-    private function vendor(string $name): Vendor
+    private function vendor(string $name, ?string $propertywareId = null, ?string $nameOnCheck = null): Vendor
     {
         $this->vendorSequence++;
 
         return Vendor::query()->create([
-            'propertyware_id' => 'V-'.$this->vendorSequence,
+            'propertyware_id' => $propertywareId ?? 'V-'.$this->vendorSequence,
             'name' => $name,
+            'name_on_check' => $nameOnCheck ?? $name,
             'vendor_type' => 'General',
             'is_active' => true,
             'user_id' => User::factory()->create()->id,
@@ -231,18 +243,61 @@ class WorkOrderVendorFilterTest extends TestCase
         $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006], $this->mainBoard($this->coordinator));
     }
 
-    public function test_a_blank_vendor_setting_turns_the_rule_off(): void
+    /**
+     * What went wrong in production: the shipped rule looked the vendor up by
+     * the name "Jimmie Gendke SFA", and no row carries that name — the row is
+     * "Jimmie" — so nothing was hidden. (One configuration per test: the
+     * exclusion map is memoized for the request, and tests flush it only
+     * between tests.)
+     */
+    public function test_a_rule_keyed_on_the_vendor_name_alone_hides_nothing_here(): void
     {
-        config(['services.jobber.thmp_filter_hidden_vendors' => '']);
+        config(['services.jobber.thmp_filter_hidden_vendor_ids' => '', 'services.jobber.thmp_filter_hidden_vendors' => 'Jimmie Gendke SFA']);
 
         $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+        $this->assertSame([], $this->exclusionsProp($this->johnCarlo));
     }
 
-    public function test_the_vendor_setting_takes_several_vendors(): void
+    public function test_the_hidden_vendor_is_found_by_propertyware_id_whatever_its_row_is_named(): void
     {
-        config(['services.jobber.thmp_filter_hidden_vendors' => 'Jimmie Gendke SFA, sfa - michael']);
+        $this->jimmie->update(['name' => 'THMP']);
+
+        $this->assertSame([1001, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+        $this->assertSame([1002, 1003, 1006], $this->mainBoard($this->johnCarlo, ['vendor' => $this->jimmie->id]));
+    }
+
+    public function test_thmp_itself_is_found_by_propertyware_id_when_its_row_is_renamed(): void
+    {
+        $this->thmp->update(['name' => 'THMP']);
+
+        $this->assertSame([1001, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->coordinator, ['vendor' => $this->thmp->id]));
+        $this->assertArrayHasKey($this->thmp->id, $this->exclusionsProp($this->johnCarlo));
+    }
+
+    public function test_the_name_list_still_hides_a_vendor_with_no_id_listed(): void
+    {
+        config(['services.jobber.thmp_filter_hidden_vendor_ids' => '', 'services.jobber.thmp_filter_hidden_vendors' => ' JIMMIE ']);
+
+        $this->assertSame([1001, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+    }
+
+    public function test_the_id_and_name_lists_combine_and_take_several_vendors(): void
+    {
+        config([
+            'services.jobber.thmp_filter_hidden_vendor_ids' => self::JIMMIE_PROPERTYWARE_ID.' , V-999',
+            'services.jobber.thmp_filter_hidden_vendors' => 'sfa - michael',
+        ]);
 
         $this->assertSame([1001], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+    }
+
+    public function test_the_rule_is_off_only_when_both_vendor_settings_are_blank(): void
+    {
+        config(['services.jobber.thmp_filter_hidden_vendor_ids' => '', 'services.jobber.thmp_filter_hidden_vendors' => '']);
+
+        $this->assertSame([1001, 1002, 1003, 1004], $this->mainBoard($this->johnCarlo, ['vendor' => $this->thmp->id]));
+        $this->assertSame([], $this->exclusionsProp($this->johnCarlo));
     }
 
     public function test_the_summary_popup_agrees_with_each_login_board(): void
