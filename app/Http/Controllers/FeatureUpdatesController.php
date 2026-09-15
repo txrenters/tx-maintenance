@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-16',
+            'area' => 'Invoices',
+            'title' => 'Invoices open in a preview instead of downloading',
+            'description' => 'Clicking the red icon in the File column of the Invoices page used to save the invoice to your Downloads folder every time, so checking an amount or a line item meant opening a file from there. The eye icon in that column now opens the invoice in a pop-up on the page - PDFs and photos alike - in the same viewer the Invoices tab on a work order already uses. Close it and the list is exactly where it was, with the sort, filters and page kept. The small download icon beside the eye still saves the file for anyone who needs a copy, and nothing else on the page changes.',
+        ],
+        [
             'date' => '2026-09-12',
             'area' => 'Messaging',
             'title' => 'THMP appointment texts no longer tell the tenant to be home',

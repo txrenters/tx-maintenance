@@ -152,7 +152,7 @@ class InvoiceIndexTest extends TestCase
         );
     }
 
-    public function test_the_invoice_title_is_still_sent_for_the_download_label(): void
+    public function test_the_row_carries_what_the_preview_needs(): void
     {
         [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 46101, 'THMP_Invoice INV-5087');
 
@@ -162,9 +162,11 @@ class InvoiceIndexTest extends TestCase
         $row = collect($response->viewData('page')['props']['invoices']['data'])
             ->firstWhere('id', $invoice->id);
 
-        // The File column shows an icon, and names the invoice on hover.
+        // The File column names the invoice on hover and in the viewer's title,
+        // and the viewer picks a PDF frame or an image from the mime type.
         $this->assertSame('THMP_Invoice INV-5087', $row['title']);
         $this->assertNotEmpty($row['file']);
+        $this->assertSame('application/pdf', $row['filetype']);
     }
 
     public function test_sorting_by_upload_time_orders_recent_or_oldest_first(): void

@@ -16,6 +16,7 @@ import {
 } from "@internationalized/date";
 import { ArchiveIcon, CalendarIcon, XIcon } from "lucide-vue-next";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
 import TableData from "./Partials/TableData.vue";
 
 defineOptions({ layout: AppLayout });
@@ -85,6 +86,21 @@ const restoreInvoice = (invoice) => {
         {},
         { preserveState: true, preserveScroll: true }
     );
+};
+
+// The shared viewer shows a PDF in a frame and a photo inline, so the file
+// never has to land in Downloads just to be read. The row sends the real mime
+// type, which is what the viewer picks the frame or the image from.
+const openPreview = ref(false);
+const previewedFile = ref(null);
+
+const previewInvoice = (invoice) => {
+    previewedFile.value = {
+        url: invoice.file,
+        name: invoice.title || invoice.filename,
+        mime: invoice.filetype,
+    };
+    openPreview.value = true;
 };
 
 /* Date range ------------------------------------------------------------- */
@@ -320,6 +336,7 @@ const rangeLabel = computed(() => {
                 :show-archived="showArchived"
                 @sort="applySort"
                 @restore="restoreInvoice"
+                @preview="previewInvoice"
             />
         </CardContent>
         <CardFooter
@@ -329,4 +346,5 @@ const rangeLabel = computed(() => {
             <Pagination :pagination="invoices.links" />
         </CardFooter>
     </Card>
+    <FilePreviewDialog v-model:open="openPreview" :file="previewedFile" />
 </template>
