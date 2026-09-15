@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
-import { FileDownIcon } from "lucide-vue-next";
+import { Download, Eye } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { useWorkOrderModal } from "@/composables/useWorkOrderModal";
 import SortableHead from "./SortableHead.vue";
@@ -49,7 +49,7 @@ const togglePosted = (invoice, checked) => {
     }
 };
 
-const emit = defineEmits(["sort", "restore"]);
+const emit = defineEmits(["sort", "restore", "preview"]);
 
 const page = usePage();
 
@@ -258,15 +258,30 @@ const postedTitle = (invoice) => {
                     {{ invoice.amount }}
                 </TableCell>
                 <TableCell>
-                    <a
-                        :href="invoice.file"
-                        download
-                        class="text-destructive hover:text-destructive/80"
-                        :title="invoice.title"
-                        :aria-label="`Download ${invoice.title}`"
-                    >
-                        <FileDownIcon class="h-5 w-5" />
-                    </a>
+                    <!-- The invoice opens in the in-app viewer rather than
+                         landing in Downloads: accounting reads these against
+                         the payment cutoff far more often than it files them.
+                         The small icon still saves the file. -->
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            class="text-primary hover:text-primary/80 focus-visible:ring-ring rounded focus-visible:outline-none focus-visible:ring-1"
+                            :title="`Preview ${invoice.title}`"
+                            :aria-label="`Preview ${invoice.title}`"
+                            @click="emit('preview', invoice)"
+                        >
+                            <Eye class="h-5 w-5" />
+                        </button>
+                        <a
+                            :href="invoice.file"
+                            download
+                            class="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded focus-visible:outline-none focus-visible:ring-1"
+                            :title="`Download ${invoice.title}`"
+                            :aria-label="`Download ${invoice.title}`"
+                        >
+                            <Download class="h-4 w-4" />
+                        </a>
+                    </div>
                 </TableCell>
                 <TableCell class="hidden md:table-cell whitespace-nowrap">
                     {{ formatUploadedAt(invoice.created_at) }}
