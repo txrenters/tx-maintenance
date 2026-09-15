@@ -23,6 +23,7 @@
             'Description' => $workOrder->description ?: '—',
             'Vendor' => $vendor?->name ?: '—',
             'Invoice' => $invoice->title,
+            'Invoice #' => $invoice->invoice_number ?: '—',
             'Amount' => '$'.number_format((float) $invoice->amount, 2),
             'Uploaded' => $invoice->created_at?->format('M j, Y g:i A'),
         ] as $label => $value)

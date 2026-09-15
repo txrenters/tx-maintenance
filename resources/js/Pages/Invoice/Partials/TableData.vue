@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import { DateTime } from "luxon";
 import { FileDownIcon } from "lucide-vue-next";
@@ -49,6 +49,73 @@ const togglePosted = (invoice, checked) => {
     }
 };
 
+// The vendor's invoice number is typed straight into the row: accounting works
+// down this list entering bills, and the number is what bill pay files each
+// one under. Drafts are kept per row so a save here (or a Posted tick)
+// replacing the page's rows cannot wipe what someone is typing in another.
+const drafts = ref({});
+const editingId = ref(null);
+
+watch(
+    () => props.data,
+    (rows) => {
+        (rows || []).forEach((row) => {
+            if (
+                row.id !== editingId.value &&
+                !savingIds.value.includes(row.id)
+            ) {
+                drafts.value[row.id] = row.invoice_number ?? "";
+            }
+        });
+    },
+    { immediate: true }
+);
+
+const resetInvoiceNumber = (invoice) => {
+    drafts.value[invoice.id] = invoice.invoice_number ?? "";
+};
+
+const saveInvoiceNumber = (invoice) => {
+    editingId.value = null;
+    if (
+        !props.canPost ||
+        invoice.archived_at ||
+        savingIds.value.includes(invoice.id)
+    ) {
+        return;
+    }
+
+    const next = (drafts.value[invoice.id] ?? "").trim();
+    if (next === (invoice.invoice_number ?? "")) return;
+
+    savingIds.value.push(invoice.id);
+
+    router.patch(
+        route("invoices.number.update", invoice.id),
+        { invoice_number: next || null },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                drafts.value[invoice.id] = next;
+            },
+            onError: () => {
+                resetInvoiceNumber(invoice);
+                toast({
+                    variant: "destructive",
+                    title: "Uh oh! Something went wrong.",
+                    description: "Could not save that. Please try again!",
+                });
+            },
+            onFinish: () => {
+                savingIds.value = savingIds.value.filter(
+                    (id) => id !== invoice.id
+                );
+            },
+        }
+    );
+};
+
 const emit = defineEmits(["sort", "restore"]);
 
 const page = usePage();
@@ -63,7 +130,7 @@ const isVendor = computed(() =>
 );
 
 const columnCount = computed(
-    () => (isVendor.value ? 8 : 9) + (props.showArchived ? 1 : 0)
+    () => (isVendor.value ? 9 : 10) + (props.showArchived ? 1 : 0)
 );
 
 // PropertyWare's real lease statuses: Active, "Active - Notice Given",
@@ -142,6 +209,7 @@ const postedTitle = (invoice) => {
                 </SortableHead>
                 <TableHead class="hidden md:table-cell"> Lease </TableHead>
                 <TableHead class="md:table-cell"> Work Order </TableHead>
+                <TableHead class="hidden md:table-cell"> Invoice # </TableHead>
                 <SortableHead
                     column="amount"
                     class="hidden md:table-cell"
@@ -192,6 +260,12 @@ const postedTitle = (invoice) => {
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ invoice.address }}
                     </p>
+                    <p
+                        v-if="invoice.invoice_number"
+                        class="text-xs font-normal mt-1 md:hidden"
+                    >
+                        Invoice #{{ invoice.invoice_number }}
+                    </p>
                     <p class="text-xs font-normal mt-1 md:hidden">
                         {{ invoice.amount }}
                     </p>
@@ -236,6 +310,12 @@ const postedTitle = (invoice) => {
                         <p class="text-xs font-normal mt-1 md:hidden">
                             {{ invoice.address }}
                         </p>
+                        <p
+                            v-if="invoice.invoice_number"
+                            class="text-xs font-normal mt-1 md:hidden"
+                        >
+                            Invoice #{{ invoice.invoice_number }}
+                        </p>
                         <p class="text-xs font-normal mt-1 md:hidden">
                             {{ invoice.amount }}
                         </p>
@@ -252,6 +332,32 @@ const postedTitle = (invoice) => {
                         <p class="text-xs font-normal mt-1 md:hidden">
                             {{ formatUploadedAt(invoice.created_at) }}
                         </p>
+                    </template>
+                </TableCell>
+                <TableCell class="hidden md:table-cell">
+                    <!-- Staff type it here; a vendor, and an archived row,
+                         only read it. Enter or clicking away saves, Esc puts
+                         back what was there. -->
+                    <Input
+                        v-if="canPost && !invoice.archived_at"
+                        v-model="drafts[invoice.id]"
+                        type="text"
+                        maxlength="100"
+                        autocomplete="off"
+                        class="h-8 w-28"
+                        placeholder="—"
+                        :disabled="savingIds.includes(invoice.id)"
+                        :aria-label="`Invoice number for ${invoice.title}`"
+                        @focus="editingId = invoice.id"
+                        @keydown.enter.prevent="$event.target.blur()"
+                        @keydown.esc.prevent="
+                            resetInvoiceNumber(invoice);
+                            $event.target.blur();
+                        "
+                        @blur="saveInvoiceNumber(invoice)"
+                    />
+                    <template v-else>
+                        {{ invoice.invoice_number || "—" }}
                     </template>
                 </TableCell>
                 <TableCell class="hidden md:table-cell">

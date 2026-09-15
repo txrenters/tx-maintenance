@@ -152,6 +152,7 @@ class InvoiceController extends Controller
             return [
                 'id' => $invoice->id,
                 'title' => $invoice->title,
+                'invoice_number' => $invoice->invoice_number,
                 'file' => asset('storage/'.$invoice->filename),
                 'filename' => $invoice->filename,
                 'filetype' => $invoice->filetype,

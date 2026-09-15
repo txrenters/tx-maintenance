@@ -137,7 +137,7 @@ class VendorPortalController extends Controller
             ->where('work_order_id', $workOrder->id)
             ->where('vendor_id', $vendor->id)
             ->latest()
-            ->get(['id', 'title', 'amount', 'status', 'filename', 'created_at']);
+            ->get(['id', 'title', 'invoice_number', 'amount', 'status', 'filename', 'created_at']);
 
         // This vendor's own service schedules for this work order.
         $schedules = ServiceSchedule::withoutGlobalScopes()
@@ -193,6 +193,7 @@ class VendorPortalController extends Controller
             'invoices' => $invoices->map(fn ($inv) => [
                 'id' => $inv->id,
                 'title' => $inv->title,
+                'invoice_number' => $inv->invoice_number,
                 'amount' => $inv->amount,
                 'status' => $inv->status,
                 'url' => asset('storage/'.$inv->filename),
@@ -408,6 +409,9 @@ class VendorPortalController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
+            // The number printed on the vendor's own invoice. Optional: not
+            // every trade numbers its invoices, and the office can fill it in.
+            'invoice_number' => 'nullable|string|max:100',
             'amount' => 'required|numeric|min:0',
             'filename' => 'required|file|mimes:jpg,jpeg,png,pdf|max:51200',
         ]);
@@ -420,6 +424,7 @@ class VendorPortalController extends Controller
 
             $invoice = Invoice::create([
                 'title' => $validated['title'],
+                'invoice_number' => $validated['invoice_number'] ?? null,
                 'filename' => $file->storeAs('invoices', $uniqueName, 'public'),
                 'filetype' => $file->getMimeType(),
                 'amount' => $validated['amount'],

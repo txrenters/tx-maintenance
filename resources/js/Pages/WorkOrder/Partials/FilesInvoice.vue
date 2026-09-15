@@ -210,6 +210,9 @@ const formatDate = (date) => {
             <div class="flex flex-col gap-1 flex-grow">
                 <p class="mt-2 font-semibold">Invoice: {{ file.title }}</p>
                 <p class="text-sm">Amount: ${{ file.amount }}</p>
+                <p v-if="file.invoice_number" class="text-sm">
+                    Invoice #: {{ file.invoice_number }}
+                </p>
                 <p class="text-xs">
                     <Badge
                         :variant="

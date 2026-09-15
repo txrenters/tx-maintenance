@@ -28,6 +28,7 @@ use App\Http\Controllers\InboxSummaryController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
+use App\Http\Controllers\InvoiceNumberController;
 use App\Http\Controllers\InvoicePostedController;
 use App\Http\Controllers\ItToolsController;
 use App\Http\Controllers\JobberAuthController;
@@ -300,6 +301,7 @@ Route::middleware([
     Route::get('/work_order/invoices', [ControllersInvoiceController::class, 'index'])->name('invoices.index');
     Route::post('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'store'])->name('invoices.posted.store');
     Route::delete('/work_order/invoices/{invoice}/posted', [InvoicePostedController::class, 'destroy'])->name('invoices.posted.destroy');
+    Route::patch('/work_order/invoices/{invoice}/number', [InvoiceNumberController::class, 'update'])->name('invoices.number.update');
 
     Route::get('/buildings', [BuildingController::class, 'index'])->name('buildings.index');
     Route::get('/buildings/{building}', [BuildingController::class, 'show'])->name('buildings.show');
@@ -454,7 +456,7 @@ if (app()->environment('local')) {
         ];
         $owner = (object) ['name' => 'SDM Home Services LLC', 'first_name' => 'SDM', 'last_name' => 'Home'];
         $vendor = (object) ['name' => 'Cool Air Co', 'phone' => '555-1212'];
-        $invoice = (object) ['title' => 'AC Repair Invoice', 'amount' => 450.5, 'created_at' => now()];
+        $invoice = (object) ['title' => 'AC Repair Invoice', 'invoice_number' => 'INV-5087', 'amount' => 450.5, 'created_at' => now()];
 
         $templates = [
             'vendor-service-request' => ['emails.vendor-service-request', [
