@@ -216,6 +216,16 @@ return [
         'turnover_invoice_notifications' => env('OA_TURNOVER_INVOICE_NOTIFICATIONS', true),
     ],
 
+    'invoices' => [
+        // Reads the vendor's invoice number off a PHOTO or scanned PDF with
+        // the OpenAI vision model when the uploader left it blank. PDFs with
+        // a text layer are read locally for free and never reach the model.
+        // Needs an OpenAI key (env or the AI Settings page); a cheap model is
+        // enough for one printed number.
+        'number_vision_enabled' => env('INVOICE_NUMBER_VISION', true),
+        'number_vision_model' => env('INVOICE_NUMBER_VISION_MODEL', 'gpt-5-mini'),
+    ],
+
     'jobber' => [
         'graphql_url' => env('JOBBER_GRAPHQL_URL', 'https://api.getjobber.com/api/graphql'),
         'api_version' => env('JOBBER_API_VERSION'),

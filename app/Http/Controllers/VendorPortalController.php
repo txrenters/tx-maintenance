@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
+use App\Jobs\ExtractInvoiceNumber;
 use App\Jobs\GenerateThumbnail;
 use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Jobs\ReviewCompletionPhoto;
@@ -442,6 +443,12 @@ class VendorPortalController extends Controller
             ]);
 
             return back()->withErrors(['invoice' => 'Could not upload your invoice. Please try again.']);
+        }
+
+        // The vendor left the invoice number blank, so read it out of the
+        // file. Queued first so it lands before the accounting email below.
+        if (blank($invoice->invoice_number)) {
+            ExtractInvoiceNumber::dispatch($invoice->id);
         }
 
         // Turnover invoices are billed through Operation Accounting, so tell

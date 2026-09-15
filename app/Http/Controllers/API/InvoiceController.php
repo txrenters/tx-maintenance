@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ExtractInvoiceNumber;
 use App\Jobs\NotifyOperationAccountingOfTurnoverInvoice;
 use App\Models\Invoice;
 use App\Models\Scopes\NotArchivedScope;
@@ -89,6 +90,12 @@ class InvoiceController extends Controller
             $propertyware->uploadVendorInvoice($invoice->work_order_id, $invoice);
 
             DB::commit();
+
+            // Nobody typed the vendor's invoice number, so read it out of the
+            // file. Queued first so it lands before the accounting email below.
+            if (blank($invoice->invoice_number)) {
+                ExtractInvoiceNumber::dispatch($invoice->id);
+            }
 
             // Turnover invoices are billed through Operation Accounting, so
             // tell them the moment one lands.
