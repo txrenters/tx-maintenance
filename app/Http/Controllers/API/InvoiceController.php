@@ -36,6 +36,7 @@ class InvoiceController extends Controller
 
         $validatedData = $request->validate([
             'title' => 'required',
+            'invoice_number' => 'nullable|string|max:100',
             'filename' => 'required|mimes:jpg,jpeg,png,pdf',
             'amount' => 'required',
             'work_order_id' => 'required|exists:work_orders,id',
@@ -145,6 +146,7 @@ class InvoiceController extends Controller
                 ->performedOn($invoice)
                 ->withProperties([
                     'title' => $invoice->title,
+                    'invoice_number' => $invoice->invoice_number,
                     'work_order_id' => $invoice->work_order_id,
                 ])
                 ->log('archived');
@@ -180,6 +182,7 @@ class InvoiceController extends Controller
                 ->performedOn($invoice)
                 ->withProperties([
                     'title' => $invoice->title,
+                    'invoice_number' => $invoice->invoice_number,
                     'work_order_id' => $invoice->work_order_id,
                 ])
                 ->log('restored');

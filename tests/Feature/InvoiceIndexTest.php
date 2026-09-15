@@ -9,6 +9,9 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -19,7 +22,7 @@ class InvoiceIndexTest extends TestCase
     /**
      * @return array{0: Vendor, 1: WorkOrder, 2: Invoice}
      */
-    private function makeVendorInvoice(string $vendorName, int $workOrderNo, string $title): array
+    private function makeVendorInvoice(string $vendorName, int $workOrderNo, string $title, ?string $invoiceNumber = null): array
     {
         $vendor = Vendor::query()->create([
             'propertyware_id' => 'V-'.$workOrderNo,
@@ -35,6 +38,7 @@ class InvoiceIndexTest extends TestCase
 
         $invoice = Invoice::query()->create([
             'title' => $title,
+            'invoice_number' => $invoiceNumber,
             'filename' => 'invoices/'.$workOrderNo.'.pdf',
             'filetype' => 'application/pdf',
             'amount' => 227.33,
@@ -531,6 +535,131 @@ class InvoiceIndexTest extends TestCase
             ->assertForbidden();
 
         $this->assertNull($invoice->refresh()->posted_at);
+    }
+
+    public function test_the_row_carries_the_vendor_invoice_number(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 55001, 'Alpha invoice', 'INV-5087');
+
+        $response = $this->actingAs($this->actingAsAdmin())->get(route('invoices.index'));
+
+        $response->assertOk();
+        $row = collect($response->viewData('page')['props']['invoices']['data'])
+            ->firstWhere('id', $invoice->id);
+
+        $this->assertSame('INV-5087', $row['invoice_number']);
+    }
+
+    public function test_search_matches_the_invoice_number(): void
+    {
+        [, , $matching] = $this->makeVendorInvoice('Alpha Services LLC', 55101, 'Alpha invoice', 'INV-5087');
+        [, , $other] = $this->makeVendorInvoice('Beta Services LLC', 55102, 'Beta invoice', 'INV-5088');
+
+        $response = $this->actingAs($this->actingAsAdmin())
+            ->get(route('invoices.index', ['search' => '5087']));
+
+        $response->assertOk();
+        $ids = collect($response->viewData('page')['props']['invoices']['data'])->pluck('id');
+
+        $this->assertTrue($ids->contains($matching->id), 'Accounting looks an invoice up by the number on the bill.');
+        $this->assertFalse($ids->contains($other->id));
+    }
+
+    public function test_a_vendor_searching_another_vendors_invoice_number_sees_nothing(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        [$ownVendor, , $ownInvoice] = $this->makeVendorInvoice('Alpha Services LLC', 55201, 'Alpha invoice', 'INV-1');
+        [, , $foreignInvoice] = $this->makeVendorInvoice('Beta Services LLC', 55202, 'Beta invoice', 'INV-9999');
+
+        $vendorUser = User::factory()->create();
+        $vendorUser->assignRole('vendor');
+        $ownVendor->update(['user_id' => $vendorUser->id]);
+
+        // The number joins the grouped OR clauses, so it must stay inside the role restriction.
+        $response = $this->actingAs($vendorUser)
+            ->get(route('invoices.index', ['search' => '9999']));
+
+        $response->assertOk();
+        $ids = collect($response->viewData('page')['props']['invoices']['data'])->pluck('id');
+
+        $this->assertFalse($ids->contains($foreignInvoice->id), 'A vendor must never match another vendor invoice by number.');
+        $this->assertFalse($ids->contains($ownInvoice->id));
+    }
+
+    public function test_staff_can_type_and_clear_the_invoice_number_from_the_list(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 55301, 'Alpha invoice');
+
+        $staff = $this->actingAsAdmin();
+
+        $this->actingAs($staff)
+            ->patch(route('invoices.number.update', $invoice->id), ['invoice_number' => '  INV-5087  '])
+            ->assertRedirect();
+
+        $this->assertSame('INV-5087', $invoice->refresh()->invoice_number, 'Surrounding spaces are not part of the number.');
+
+        $this->actingAs($staff)
+            ->patch(route('invoices.number.update', $invoice->id), ['invoice_number' => ''])
+            ->assertRedirect();
+
+        $this->assertNull($invoice->refresh()->invoice_number, 'A blank submission clears it.');
+    }
+
+    public function test_an_overlong_invoice_number_is_rejected(): void
+    {
+        [, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 55401, 'Alpha invoice', 'INV-1');
+
+        $this->actingAs($this->actingAsAdmin())
+            ->from(route('invoices.index'))
+            ->patch(route('invoices.number.update', $invoice->id), ['invoice_number' => str_repeat('9', 101)])
+            ->assertSessionHasErrors('invoice_number');
+
+        $this->assertSame('INV-1', $invoice->refresh()->invoice_number);
+    }
+
+    public function test_a_vendor_cannot_change_their_own_invoice_number(): void
+    {
+        Role::findOrCreate('vendor', 'web');
+
+        [$vendor, , $invoice] = $this->makeVendorInvoice('Alpha Services LLC', 55501, 'Alpha invoice', 'INV-1');
+
+        $vendorUser = User::factory()->create();
+        $vendorUser->assignRole('vendor');
+        $vendor->update(['user_id' => $vendorUser->id]);
+
+        // InvoiceScope lets them read this invoice, so the write needs its own gate.
+        $this->actingAs($vendorUser)
+            ->patch(route('invoices.number.update', $invoice->id), ['invoice_number' => 'INV-2'])
+            ->assertForbidden();
+
+        $this->assertSame('INV-1', $invoice->refresh()->invoice_number);
+    }
+
+    public function test_the_staff_upload_keeps_the_invoice_number(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        [$vendor, $workOrder] = $this->makeVendorInvoice('Alpha Services LLC', 55601, 'Earlier invoice');
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-alpha']);
+
+        $this->actingAs($this->actingAsAdmin())->post(route('api.invoices.store'), [
+            'title' => 'Labor and parts',
+            'invoice_number' => 'INV-5087',
+            'amount' => '325.00',
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+            'is_publish_to_owner_portal' => 'No',
+            'is_publish_to_tenant_portal' => 'No',
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertDatabaseHas('invoices', [
+            'work_order_id' => $workOrder->id,
+            'title' => 'Labor and parts',
+            'invoice_number' => 'INV-5087',
+        ]);
     }
 
     public function test_the_index_reports_the_posted_state_and_who_posted_it(): void

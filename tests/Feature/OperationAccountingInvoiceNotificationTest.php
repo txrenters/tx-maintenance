@@ -58,13 +58,19 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         ]);
     }
 
-    private function mockGraphExpectingOaEmail(WorkOrder $workOrder): void
+    /**
+     * @param  array<int, string>  $htmlContains  strings the email body must carry
+     * @param  array<int, string>  $htmlMissing  strings it must not
+     */
+    private function mockGraphExpectingOaEmail(WorkOrder $workOrder, array $htmlContains = [], array $htmlMissing = []): void
     {
         $graph = Mockery::mock(MicrosoftGraphMailService::class);
         $graph->shouldReceive('sendMail')
             ->once()
-            ->withArgs(function ($to, $cc, $subject, $html, $attachments, $mailbox = null, $replyTo = []) use ($workOrder) {
+            ->withArgs(function ($to, $cc, $subject, $html, $attachments, $mailbox = null, $replyTo = []) use ($workOrder, $htmlContains, $htmlMissing) {
                 return $to === 'oa@texasrenters.com'
+                    && collect($htmlContains)->every(fn (string $needle) => str_contains($html, $needle))
+                    && collect($htmlMissing)->every(fn (string $needle) => ! str_contains($html, $needle))
                     && $cc === []
                     && str_starts_with($subject, '2927 Burning Tree Ln - ')
                     && str_contains($subject, 'Work Order #4567')
@@ -103,10 +109,12 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder('Turnover');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
 
-        $this->mockGraphExpectingOaEmail($workOrder);
+        // Accounting files the bill under the vendor's number, so it travels in the email.
+        $this->mockGraphExpectingOaEmail($workOrder, ['Invoice #', 'INV-5087']);
 
         $this->post(route('vendor.portal.invoice', 'token-acme'), [
             'title' => 'Labor and parts',
+            'invoice_number' => 'INV-5087',
             'amount' => '325.00',
             'filename' => UploadedFile::fake()->createWithContent('invoice.pdf', '%PDF-1.4 fake invoice'),
         ])->assertRedirect();
@@ -125,7 +133,8 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder('Turnover');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
 
-        $this->mockGraphExpectingOaEmail($workOrder);
+        // No number given: the row is still there so accounting sees it is missing.
+        $this->mockGraphExpectingOaEmail($workOrder, ['Invoice #'], ['INV-']);
 
         $this->actingAs($woc)->post(route('api.invoices.store'), [
             'title' => 'Labor and parts',

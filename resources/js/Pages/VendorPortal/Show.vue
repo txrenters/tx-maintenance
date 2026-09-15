@@ -267,7 +267,7 @@ const uploadPhotos = () => {
 };
 
 // --- Invoice upload ---
-const invoiceForm = ref({ title: "", amount: "" });
+const invoiceForm = ref({ title: "", amount: "", invoice_number: "" });
 const invoiceFile = ref(null);
 const invoiceInput = ref(null);
 const uploadingInvoice = ref(false);
@@ -282,13 +282,16 @@ const uploadInvoice = () => {
     const data = new FormData();
     data.append("title", invoiceForm.value.title || invoiceFile.value.name);
     data.append("amount", invoiceForm.value.amount);
+    if (invoiceForm.value.invoice_number.trim()) {
+        data.append("invoice_number", invoiceForm.value.invoice_number.trim());
+    }
     data.append("filename", invoiceFile.value);
 
     router.post(route("vendor.portal.invoice", props.token), data, {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
-            invoiceForm.value = { title: "", amount: "" };
+            invoiceForm.value = { title: "", amount: "", invoice_number: "" };
             invoiceFile.value = null;
             if (invoiceInput.value) invoiceInput.value.value = "";
         },
@@ -774,6 +777,11 @@ const confirmCompleteTask = () => {
                                         class="w-4 h-4 shrink-0 text-muted-foreground"
                                     />
                                     <span class="truncate">{{ inv.title }}</span>
+                                    <span
+                                        v-if="inv.invoice_number"
+                                        class="shrink-0 text-xs text-muted-foreground"
+                                        >#{{ inv.invoice_number }}</span
+                                    >
                                 </span>
                                 <span class="flex items-center gap-2 shrink-0">
                                     <span class="text-sm font-medium"
@@ -1106,6 +1114,11 @@ const confirmCompleteTask = () => {
                                         <span class="truncate">{{
                                             inv.title
                                         }}</span>
+                                        <span
+                                            v-if="inv.invoice_number"
+                                            class="shrink-0 text-xs text-muted-foreground"
+                                            >#{{ inv.invoice_number }}</span
+                                        >
                                     </span>
                                     <span class="flex items-center gap-2 shrink-0">
                                         <span class="text-sm font-medium"
@@ -1145,6 +1158,22 @@ const confirmCompleteTask = () => {
                                     type="text"
                                     class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
                                     placeholder="e.g. Labor + parts"
+                                />
+                            </div>
+                            <!-- The number on the vendor's own invoice, which is
+                                 what accounting files the bill under. -->
+                            <div>
+                                <label
+                                    class="text-xs font-medium text-muted-foreground"
+                                    >Invoice # (from your invoice, optional)</label
+                                >
+                                <input
+                                    v-model="invoiceForm.invoice_number"
+                                    type="text"
+                                    maxlength="100"
+                                    autocomplete="off"
+                                    class="mt-1 w-full rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground px-4 py-3 text-base focus:border-ring focus:ring-0"
+                                    placeholder="e.g. 5087"
                                 />
                             </div>
 

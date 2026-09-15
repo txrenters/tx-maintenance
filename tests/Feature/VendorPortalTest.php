@@ -529,6 +529,7 @@ class VendorPortalTest extends TestCase
 
         $this->post(route('vendor.portal.invoice', 'token-acme'), [
             'title' => 'Labor and parts',
+            'invoice_number' => 'INV-5087',
             'amount' => '325.00',
             'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
@@ -536,8 +537,32 @@ class VendorPortalTest extends TestCase
         $this->assertDatabaseHas('invoices', [
             'work_order_id' => $workOrder->id,
             'vendor_id' => $vendor->id,
+            'invoice_number' => 'INV-5087',
             'amount' => '325.00',
             'status' => 'approved',
+        ]);
+    }
+
+    public function test_the_invoice_number_is_optional_on_the_portal(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        // Not every trade numbers its invoices; a photo of a receipt still goes through.
+        $this->post(route('vendor.portal.invoice', 'token-acme'), [
+            'title' => 'Labor and parts',
+            'amount' => '325.00',
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('invoices', [
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $vendor->id,
+            'invoice_number' => null,
         ]);
     }
 

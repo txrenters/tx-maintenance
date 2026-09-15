@@ -23,6 +23,7 @@ const openAttachmentModal = ref(false);
 
 const attachmentForm = useForm({
     title: "",
+    invoice_number: "",
     amount: "",
     filename: "",
     vendor_id: "",
@@ -226,6 +227,19 @@ const confirmArchiveInvoice = () => {
                         type="text"
                         placeholder="Enter file description"
                         v-model="attachmentForm.title"
+                    />
+                </div>
+                <!-- The number on the vendor's own invoice: accounting files
+                     the bill under it. Optional, so a photo of an unnumbered
+                     receipt still goes through. -->
+                <div class="mb-3">
+                    <Label>Invoice # (optional)</Label>
+                    <Input
+                        type="text"
+                        maxlength="100"
+                        autocomplete="off"
+                        placeholder="As printed on the vendor's invoice"
+                        v-model="attachmentForm.invoice_number"
                     />
                 </div>
                 <div class="mb-3">

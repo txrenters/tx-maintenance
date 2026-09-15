@@ -98,6 +98,7 @@ class Invoice extends Model
                 $query
                     ->whereAny([
                         'title',
+                        'invoice_number',
                         'filename',
                         'status',
                         'amount',

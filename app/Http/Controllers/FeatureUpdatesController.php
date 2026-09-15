@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-16',
             'area' => 'Invoices',
+            'title' => 'Invoices carry the vendor\'s invoice number',
+            'description' => 'Operation Accounting enters every invoice into bill pay under the number printed on the vendor\'s own invoice, and until now that number lived only inside the PDF, so each one had to be opened to read it. The Invoices page now has an Invoice # column: staff type the number straight into the row (Enter or clicking away saves it, Esc puts back what was there), and the page search finds an invoice by it. Whoever uploads can enter it up front - there is an optional "Invoice #" box on the upload form in the work order and on the vendor portal - and it shows on the work order\'s Invoices tab, in the vendor\'s portal list and in the turnover-invoice email to Operation Accounting. It is optional everywhere, so an invoice without a number uploads exactly as before, and older invoices show a dash until someone fills them in.',
+        ],
+        [
+            'date' => '2026-09-16',
+            'area' => 'Invoices',
             'title' => 'Invoices open in a preview instead of downloading',
             'description' => 'Clicking the red icon in the File column of the Invoices page used to save the invoice to your Downloads folder every time, so checking an amount or a line item meant opening a file from there. The eye icon in that column now opens the invoice in a pop-up on the page - PDFs and photos alike - in the same viewer the Invoices tab on a work order already uses. Close it and the list is exactly where it was, with the sort, filters and page kept. The small download icon beside the eye still saves the file for anyone who needs a copy, and nothing else on the page changes.',
         ],
