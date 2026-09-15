@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-09-16',
             'area' => 'Invoices',
+            'title' => 'Invoice numbers are read from the invoice file automatically',
+            'description' => 'When an invoice is uploaded without an Invoice # - on the vendor portal or from a work order - the app now reads the number out of the file itself a few moments later and fills the box. Invoices produced by software (Jobber and the like) are read straight from the PDF text at no cost; a photo or a scanned page is read by the AI vision model, which costs about a cent. Whatever is read only fills a blank box: a number typed at upload or on the Invoices page is never replaced, and staff can still correct one that was read wrongly. Older invoices are not touched - this starts with uploads from today.',
+        ],
+        [
+            'date' => '2026-09-16',
+            'area' => 'Invoices',
             'title' => 'Invoices carry the vendor\'s invoice number',
             'description' => 'Operation Accounting enters every invoice into bill pay under the number printed on the vendor\'s own invoice, and until now that number lived only inside the PDF, so each one had to be opened to read it. The Invoices page now has an Invoice # column: staff type the number straight into the row (Enter or clicking away saves it, Esc puts back what was there), and the page search finds an invoice by it. Whoever uploads can enter it up front - there is an optional "Invoice #" box on the upload form in the work order and on the vendor portal - and it shows on the work order\'s Invoices tab, in the vendor\'s portal list and in the turnover-invoice email to Operation Accounting. It is optional everywhere, so an invoice without a number uploads exactly as before, and older invoices show a dash until someone fills them in.',
         ],
