@@ -199,6 +199,19 @@ class SendHoaViolationReminders extends Command
                 continue;
             }
 
+            // The tenant was never told. "Assign a vendor, the tenant did not
+            // fix it in time" is only true if we asked them to, and the whole
+            // point of the five-message window is the chance to fix it for
+            // free. Sending a vendor to a tenant who never heard from us bills
+            // the owner for work the tenant was never given a chance to do, so
+            // flag the silence for a human instead and leave the escalation
+            // stamp clear — it escalates normally once they have been texted.
+            if ($token->notified_count < 1) {
+                $this->flagNeverNotified($token);
+
+                continue;
+            }
+
             $claimed = TenantUploadToken::query()
                 ->whereKey($token->id)
                 ->whereNull('escalation_flagged_at')
@@ -220,6 +233,39 @@ class SendHoaViolationReminders extends Command
         }
 
         return $flagged;
+    }
+
+    /**
+     * The deadline passed but the tenant was never texted, so this needs a
+     * human before it can become a vendor's job: usually no tenant linked on
+     * the work order, or no phone on the one that is (see hoa:relink-tenants).
+     * One bell per work order, ever — the nightly run would otherwise re-raise
+     * the same alert until someone fixes it.
+     */
+    private function flagNeverNotified(TenantUploadToken $token): void
+    {
+        $workOrder = $token->work_order;
+
+        $alreadyFlagged = Activity::query()
+            ->where('event', 'hoa_violation_never_notified')
+            ->forSubject($workOrder)
+            ->exists();
+
+        if ($alreadyFlagged) {
+            return;
+        }
+
+        activity()
+            ->performedOn($workOrder)
+            ->event('hoa_violation_never_notified')
+            ->withProperties([
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'message' => 'HOA violation deadline passed but the tenant was never texted — check that a tenant with a phone number is linked, then decide whether to give them time or assign a vendor.',
+                'deadline' => $token->hoa_deadline_at?->toDateString(),
+                'read' => false,
+            ])
+            ->log('HOA VIOLATION - TENANT NEVER NOTIFIED - Work Order #'.$workOrder->work_order_no);
     }
 
     private function flagStaff(TenantUploadToken $token): void

@@ -62,6 +62,7 @@ return [
 
         'message_undelivered' => ['audience' => 'assigned', 'priority' => 'high'],
         'hoa_violation_overdue' => ['audience' => 'assigned', 'priority' => 'high'],
+        'hoa_violation_never_notified' => ['audience' => 'staff', 'priority' => 'high'],
         'hoa_tenant_link_missing' => ['audience' => 'staff', 'priority' => 'high'],
         'jobber_not_sent' => ['audience' => 'staff', 'priority' => 'high'],
         'jobber_reconnect_required' => ['audience' => 'admin', 'priority' => 'high'],
