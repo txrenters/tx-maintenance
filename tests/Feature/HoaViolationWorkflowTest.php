@@ -469,6 +469,55 @@ class HoaViolationWorkflowTest extends TestCase
     }
 
     /**
+     * The day's send is claimed before the text is attempted, so a send that
+     * never happens has to put the claim back. Otherwise the token reads as
+     * "done for today", the tenant hears nothing all the way to the deadline,
+     * and every run reports a healthy send.
+     */
+    public function test_a_reminder_that_could_not_send_does_not_burn_the_day(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-24 10:00:00'));
+
+        // No tenant on the work order: nothing to text.
+        $workOrder = $this->hoaWorkOrder();
+        $token = $this->hoaToken($workOrder, [
+            'notified_count' => 1,
+            'last_notified_at' => Carbon::parse('2026-07-23 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        // The claim is released, not left stamped with today.
+        $this->assertTrue(
+            $token->fresh()->last_notified_at->isSameDay(Carbon::parse('2026-07-23')),
+            'A failed send must leave the previous claim in place.',
+        );
+        $this->assertSame(1, $token->fresh()->notified_count);
+    }
+
+    /**
+     * The count the command prints is what staff read to know the run worked,
+     * so it has to mean texts, not claims.
+     */
+    public function test_the_run_does_not_report_a_reminder_it_could_not_send(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-24 10:00:00'));
+
+        $this->hoaToken($this->hoaWorkOrder(), [
+            'notified_count' => 1,
+            'last_notified_at' => Carbon::parse('2026-07-23 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')
+            ->expectsOutputToContain('0 reminders')
+            ->assertSuccessful();
+    }
+
+    /**
      * The 2026-08 shape: no tenant linked, so no reminder could ever send, and
      * the deadline passed anyway. Escalating here would put a vendor on a job
      * the tenant was never asked to do.
