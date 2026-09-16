@@ -27,6 +27,7 @@ use App\Http\Controllers\InboxController;
 use App\Http\Controllers\InboxSummaryController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\InspectionVisitController;
+use App\Http\Controllers\IntakeNotificationController;
 use App\Http\Controllers\InvoiceController as ControllersInvoiceController;
 use App\Http\Controllers\InvoiceNumberController;
 use App\Http\Controllers\InvoicePostedController;
@@ -260,6 +261,7 @@ Route::middleware([
     Route::get('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'show'])->name('work_order.automation.show');
     Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
     Route::post('/work_orders/{workOrder}/vendors/{vendor}/notify-assignment', [VendorAssignmentNotificationController::class, 'store'])->name('work_orders.vendor.notify_assignment');
+    Route::post('/work_orders/{workOrder}/notify-intake/{audience}', [IntakeNotificationController::class, 'store'])->name('work_orders.notify_intake');
 
     Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');

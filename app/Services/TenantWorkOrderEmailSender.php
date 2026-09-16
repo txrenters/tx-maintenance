@@ -30,8 +30,11 @@ class TenantWorkOrderEmailSender
     /**
      * Send the intake confirmation. Log-never-throw: intake must not fail
      * because an email could not go out.
+     *
+     * @param  bool  $force  a WOC pressed "send anyway" on the tenant tab, so
+     *                       send even though this work order reads as muted
      */
-    public function sendIntakeConfirmation(WorkOrder $workOrder): bool
+    public function sendIntakeConfirmation(WorkOrder $workOrder, bool $force = false): bool
     {
         if (! config('services.work_order.tenant_intake_email')) {
             return false;
@@ -46,7 +49,7 @@ class TenantWorkOrderEmailSender
         // Turnover/re-key/vacant homes and company-ordered refresh cleanings
         // are opted out; mirrors the SMS twin in
         // TenantServiceRequestNotificationService.
-        if ($workOrder->skipsAutomatedMessages()) {
+        if (! $force && $workOrder->skipsAutomatedMessages()) {
             return false;
         }
 

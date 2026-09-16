@@ -19,7 +19,7 @@ class SendTenantWorkOrderIntakeEmailJob implements ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [60, 300, 900];
 
-    public function __construct(public int $workOrderId) {}
+    public function __construct(public int $workOrderId, public bool $force = false) {}
 
     public function handle(TenantWorkOrderEmailSender $sender): void
     {
@@ -29,6 +29,6 @@ class SendTenantWorkOrderIntakeEmailJob implements ShouldQueue
             return;
         }
 
-        $sender->sendIntakeConfirmation($workOrder);
+        $sender->sendIntakeConfirmation($workOrder, $this->force);
     }
 }

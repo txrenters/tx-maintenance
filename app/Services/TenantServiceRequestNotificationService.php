@@ -25,8 +25,13 @@ class TenantServiceRequestNotificationService
      *
      * Fired at most once per work order, and wrapped so a failure is logged but
      * never breaks intake.
+     *
+     * @param  bool  $force  a WOC pressed "send anyway" on the tenant tab, so
+     *                       send even though this work order reads as muted
+     *                       (most often a website request whose lease has not
+     *                       been attached in PropertyWare yet)
      */
-    public function notify(WorkOrder $workOrder): void
+    public function notify(WorkOrder $workOrder, bool $force = false): void
     {
         if (! config('services.twilio.tenant_intake_sms')) {
             return;
@@ -39,7 +44,7 @@ class TenantServiceRequestNotificationService
         }
 
         try {
-            $this->send($workOrder);
+            $this->send($workOrder, $force);
         } catch (\Throwable $exception) {
             Log::error('Tenant service-request notification failed to send.', [
                 'work_order_id' => $workOrder->id,
@@ -48,11 +53,12 @@ class TenantServiceRequestNotificationService
         }
     }
 
-    private function send(WorkOrder $workOrder): void
+    private function send(WorkOrder $workOrder, bool $force = false): void
     {
         // An HOA violation is not something the tenant asked us for, and the HOA
         // flow sends them its own texts. Confirming "we received your service
-        // request" would be wrong on both counts.
+        // request" would be wrong on both counts. Never forceable: the HOA flow
+        // is what should be talking to this tenant.
         if ($workOrder->isHoaViolation()) {
             return;
         }
@@ -62,7 +68,7 @@ class TenantServiceRequestNotificationService
         // confirming "we received your service request" only confuses them.
         // Checked here rather than in notify() so the one-shot stamp stays
         // clear and a work order later re-categorized can still notify.
-        if ($workOrder->skipsAutomatedMessages()) {
+        if (! $force && $workOrder->skipsAutomatedMessages()) {
             return;
         }
 
