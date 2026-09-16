@@ -19,7 +19,7 @@ class SendTenantServiceRequestNotificationJob implements ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [60, 300, 900];
 
-    public function __construct(public int $workOrderId) {}
+    public function __construct(public int $workOrderId, public bool $force = false) {}
 
     public function handle(TenantServiceRequestNotificationService $service): void
     {
@@ -29,6 +29,6 @@ class SendTenantServiceRequestNotificationJob implements ShouldQueue
             return;
         }
 
-        $service->notify($workOrder);
+        $service->notify($workOrder, $this->force);
     }
 }

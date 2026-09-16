@@ -20,7 +20,7 @@ class SendOwnerServiceRequestNotificationJob implements ShouldQueue
      */
     public int $tries = 1;
 
-    public function __construct(public int $workOrderId) {}
+    public function __construct(public int $workOrderId, public bool $force = false) {}
 
     public function handle(OwnerServiceRequestNotificationService $service): void
     {
@@ -30,6 +30,6 @@ class SendOwnerServiceRequestNotificationJob implements ShouldQueue
             return;
         }
 
-        $service->notify($workOrder);
+        $service->notify($workOrder, $this->force);
     }
 }

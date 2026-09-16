@@ -17,6 +17,7 @@ import {
 } from "@/Components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
+import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
 import { buildParticipants } from "@/utils/conversation";
@@ -196,11 +197,18 @@ watch(
                 <p class="text-xs font-semibold uppercase tracking-wide">
                     Tenant ↔ Coordinator
                 </p>
-                <AutomationToggle
-                    v-if="workOrder?.id"
-                    :work-order-id="workOrder.id"
-                    channel="tenant"
-                />
+                <div class="flex items-center gap-2">
+                    <IntakeNotifyButton
+                        v-if="workOrder?.id"
+                        :work-order-id="workOrder.id"
+                        audience="tenant"
+                    />
+                    <AutomationToggle
+                        v-if="workOrder?.id"
+                        :work-order-id="workOrder.id"
+                        channel="tenant"
+                    />
+                </div>
             </div>
 
             <div

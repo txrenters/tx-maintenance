@@ -27,8 +27,13 @@ class OwnerServiceRequestNotificationService
      *
      * Gated off by default, fired at most once per work order, and wrapped so a
      * failure is logged but never breaks intake.
+     *
+     * @param  bool  $force  a WOC pressed "send anyway" on the owner tab, so
+     *                       send even though this work order reads as muted
+     *                       (most often a website request whose lease has not
+     *                       been attached in PropertyWare yet)
      */
-    public function notify(WorkOrder $workOrder): void
+    public function notify(WorkOrder $workOrder, bool $force = false): void
     {
         if (! config('services.twilio.owner_service_request_sms')) {
             return;
@@ -41,7 +46,7 @@ class OwnerServiceRequestNotificationService
         }
 
         try {
-            $this->send($workOrder);
+            $this->send($workOrder, $force);
         } catch (\Throwable $exception) {
             Log::error('Owner service-request notification failed to send.', [
                 'work_order_id' => $workOrder->id,
@@ -50,7 +55,7 @@ class OwnerServiceRequestNotificationService
         }
     }
 
-    private function send(WorkOrder $workOrder): void
+    private function send(WorkOrder $workOrder, bool $force = false): void
     {
         // A turnover/re-key/vacant or refresh-cleaning work order is not a
         // tenant service request — it is work the company already set in
@@ -60,14 +65,14 @@ class OwnerServiceRequestNotificationService
         // one-shot stamp clear so a re-categorized work order can still
         // notify. (This skip existed before, was removed by the 07-29 intake
         // reword, and is deliberately restored per the 08-06 ticket.)
-        if ($workOrder->skipsAutomatedMessages()) {
+        if (! $force && $workOrder->skipsAutomatedMessages()) {
             return;
         }
 
         // HOA violations are not service requests. The generic confirmation plus
         // a raw dump of the notice's items and remedies reads to the owner as a
         // repair request, so skip the intake notification entirely and leave the
-        // HOA flow to message them.
+        // HOA flow to message them. Never forceable: the HOA flow messages them.
         if ($workOrder->isHoaViolation()) {
             return;
         }
