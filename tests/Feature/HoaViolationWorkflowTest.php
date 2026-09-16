@@ -468,6 +468,68 @@ class HoaViolationWorkflowTest extends TestCase
             ->where('event', 'hoa_violation_overdue')->count());
     }
 
+    /**
+     * The 2026-08 shape: no tenant linked, so no reminder could ever send, and
+     * the deadline passed anyway. Escalating here would put a vendor on a job
+     * the tenant was never asked to do.
+     */
+    public function test_an_overdue_violation_the_tenant_never_heard_about_is_not_escalated(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-28 10:00:00'));
+
+        $workOrder = $this->hoaWorkOrder(); // no tenant: nothing can be texted
+        $token = $this->hoaToken($workOrder, ['hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay()]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        $this->assertSame(0, $token->fresh()->notified_count);
+
+        // Left clear, so it escalates normally once the tenant has been texted.
+        $this->assertNull($token->fresh()->escalation_flagged_at);
+        $this->assertDatabaseMissing('activity_log', [
+            'event' => 'hoa_violation_overdue',
+            'subject_id' => $workOrder->id,
+        ]);
+
+        // The silence is surfaced instead, once.
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'hoa_violation_never_notified',
+            'subject_id' => $workOrder->id,
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+        $this->assertSame(1, Activity::query()
+            ->where('event', 'hoa_violation_never_notified')->count());
+    }
+
+    /**
+     * The guard is about silence, not about the window being unfinished: one
+     * text is enough for "they were asked and did not do it" to be true.
+     */
+    public function test_an_overdue_violation_still_escalates_after_a_single_text(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-28 10:00:00'));
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        $token = $this->hoaToken($workOrder, [
+            'hoa_deadline_at' => Carbon::parse('2026-07-27')->endOfDay(),
+            'notified_count' => 1,
+            'last_notified_at' => Carbon::parse('2026-07-27 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        $this->assertNotNull($token->fresh()->escalation_flagged_at);
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'hoa_violation_overdue',
+            'subject_id' => $workOrder->id,
+        ]);
+    }
+
     public function test_a_completed_violation_emails_the_tenant_and_owner_once(): void
     {
         config(['services.twilio.hoa_violation_sms' => true]);
