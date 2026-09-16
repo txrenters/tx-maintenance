@@ -103,6 +103,8 @@ class SendHoaViolationReminders extends Command
             }
 
             // Claim today's reminder atomically before sending.
+            $previousClaim = $token->last_notified_at;
+
             $claimed = TenantUploadToken::query()
                 ->whereKey($token->id)
                 ->where(function ($query) use ($startOfToday) {
@@ -115,7 +117,19 @@ class SendHoaViolationReminders extends Command
                 continue;
             }
 
-            $linkService->remind($token->refresh());
+            // Nothing went out — most often no tenant, or no phone, on the work
+            // order. Put the claim back, or this token is marked "done for
+            // today" for a text that never happened: the tenant hears nothing
+            // all the way to the deadline while every run reports a healthy
+            // send. A successful send sets its own last_notified_at.
+            if (! $linkService->remind($token->refresh())) {
+                TenantUploadToken::query()
+                    ->whereKey($token->id)
+                    ->update(['last_notified_at' => $previousClaim]);
+
+                continue;
+            }
+
             $sent++;
         }
 

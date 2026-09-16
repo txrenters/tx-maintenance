@@ -90,47 +90,53 @@ class TenantPortalLinkService
         }
     }
 
-    public function remind(TenantUploadToken $token): void
+    /**
+     * @return bool whether a reminder text was actually queued. The daily
+     *              command claims the day's send before calling this, so a
+     *              false lets it release that claim and try again tomorrow
+     *              instead of burning the slot on a send that never happened.
+     */
+    public function remind(TenantUploadToken $token): bool
     {
         if (! $this->enabledFor($token->purpose)) {
-            return;
+            return false;
         }
 
         try {
             $workOrder = $token->work_order;
 
             if (! $workOrder || $token->isCompleted()) {
-                return;
+                return false;
             }
 
             if ($token->purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION) {
                 // HOA reminders are daily and bounded by their own five-message
                 // window, not the easy-fix notification cap.
                 if ($token->notified_count >= self::HOA_MAX_NOTIFICATIONS) {
-                    return;
+                    return false;
                 }
 
-                $this->text($workOrder, $token, $this->hoaReminderMessage($workOrder, $token), 'tenant_hoa_violation_reminder_sms');
-
-                return;
+                return $this->text($workOrder, $token, $this->hoaReminderMessage($workOrder, $token), 'tenant_hoa_violation_reminder_sms');
             }
 
             // Easy-fix links follow the same vacancy rules as every other
             // automated tenant message; the HOA window above keeps its own.
             if ($workOrder->skipsAutomatedMessages()) {
-                return;
+                return false;
             }
 
             if ($token->notified_count >= self::MAX_NOTIFICATIONS) {
-                return;
+                return false;
             }
 
-            $this->text($workOrder, $token, $this->reminderMessage($workOrder, $token), 'tenant_portal_link_reminder_sms');
+            return $this->text($workOrder, $token, $this->reminderMessage($workOrder, $token), 'tenant_portal_link_reminder_sms');
         } catch (\Throwable $exception) {
             Log::error('Tenant portal reminder failed to send.', [
                 'tenant_upload_token_id' => $token->id,
                 'error' => $exception->getMessage(),
             ]);
+
+            return false;
         }
     }
 
@@ -200,13 +206,16 @@ class TenantPortalLinkService
      * queue the text, then record the notification on the token. The automation
      * key names which portal-link message this is on the IT Tools automated
      * messages log.
+     *
+     * @return bool whether a text was actually queued, so a caller that claimed
+     *              the send up front can release its claim when none was
      */
-    private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message, string $automationKey): void
+    private function text(WorkOrder $workOrder, TenantUploadToken $token, string $message, string $automationKey): bool
     {
         // A WOC can mute this work order's tenant automation from the tenant
         // conversation tab; manual sends are unaffected.
         if ($workOrder->automationPausedFor('tenant')) {
-            return;
+            return false;
         }
 
         $workOrder->loadMissing(['requested_by', 'woc.wocNumber.twilioPhoneNumber']);
@@ -230,7 +239,7 @@ class TenantPortalLinkService
                 'has_from_number' => filled($fromNumber),
             ]);
 
-            return;
+            return false;
         }
 
         $conversation = Conversation::create([
@@ -259,6 +268,8 @@ class TenantPortalLinkService
             'last_notified_at' => now(),
             'notified_count' => $token->notified_count + 1,
         ]);
+
+        return true;
     }
 
     private function initialMessage(WorkOrder $workOrder, TenantUploadToken $token): string
