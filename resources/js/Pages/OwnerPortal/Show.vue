@@ -244,12 +244,18 @@ const coordinatorLabel = computed(
 );
 const approvalSubmitting = ref(null);
 
+// An optional note sent with the decision. On an approval it is carried into
+// PropertyWare's approval comment above the line naming the owner, so the
+// office can see who approved and what they said.
+const APPROVAL_COMMENT_MAX = 1000;
+const approvalComment = ref("");
+
 const submitApproval = (decision) => {
     if (approvalSubmitting.value) return;
     approvalSubmitting.value = decision;
     router.post(
         route("owner.portal.approval", props.token),
-        { decision },
+        { decision, comment: approvalComment.value.trim() || null },
         {
             preserveScroll: true,
             onFinish: () => (approvalSubmitting.value = null),
@@ -449,6 +455,30 @@ watch(photoFilters, (filters) => {
                             Please review this work order and let us know your
                             decision.
                         </p>
+                        <div class="mt-3">
+                            <label
+                                for="approval-comment"
+                                class="text-xs font-medium text-muted-foreground"
+                            >
+                                Add a comment (optional)
+                            </label>
+                            <textarea
+                                id="approval-comment"
+                                v-model="approvalComment"
+                                rows="3"
+                                :maxlength="APPROVAL_COMMENT_MAX"
+                                :disabled="!!approvalSubmitting"
+                                placeholder="Anything you'd like us to know or pass along to the vendor."
+                                class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+                            />
+                            <p
+                                class="mt-1 text-right text-xs text-muted-foreground"
+                            >
+                                {{ approvalComment.length }}/{{
+                                    APPROVAL_COMMENT_MAX
+                                }}
+                            </p>
+                        </div>
                         <div class="mt-3 grid grid-cols-2 gap-2">
                             <button
                                 type="button"

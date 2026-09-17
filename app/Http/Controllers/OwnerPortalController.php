@@ -11,6 +11,8 @@ use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
+use App\Services\PropertyWareService;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,14 @@ class OwnerPortalController extends Controller
     private const SOURCE_COORDINATOR = 'From work order coordinator';
 
     private const SOURCE_OWNER = 'From you';
+
+    /**
+     * How much an owner may type into the approval note. PropertyWare's own
+     * limit on approvalComment is not documented and was not probed, so this
+     * stays well short of anything a text field is likely to refuse; the
+     * attribution line is added on top of it.
+     */
+    private const APPROVAL_COMMENT_MAX = 1000;
 
     public function show(Request $request)
     {
@@ -285,9 +295,11 @@ class OwnerPortalController extends Controller
 
         $validated = $request->validate([
             'decision' => 'required|in:approved,disapproved',
+            'comment' => 'nullable|string|max:'.self::APPROVAL_COMMENT_MAX,
         ]);
 
         $approved = $validated['decision'] === 'approved';
+        $ownerComment = trim((string) ($validated['comment'] ?? ''));
 
         $workOrder->loadMissing('woc.wocNumber.twilioPhoneNumber');
 
@@ -301,9 +313,7 @@ class OwnerPortalController extends Controller
 
         try {
             $conversation = Conversation::create([
-                'message' => $approved
-                    ? 'I approve this work order. — sent from the owner portal'
-                    : 'I do not approve this work order. — sent from the owner portal',
+                'message' => $this->approvalMessage($approved, $ownerComment),
                 'sender_number' => $ownerNumber,
                 'receiver_number' => $wocNumber ?: null,
                 'work_order_id' => $workOrder->id,
@@ -322,6 +332,7 @@ class OwnerPortalController extends Controller
                     'work_order_no' => $workOrder->work_order_no,
                     'owner_id' => $owner->id,
                     'decision' => $validated['decision'],
+                    'comment' => $ownerComment !== '' ? $ownerComment : null,
                     'conversation_id' => $conversation->id,
                     'message' => $approved
                         ? $ownerName.' approved this work order from the owner portal.'
@@ -337,6 +348,13 @@ class OwnerPortalController extends Controller
 
             $portalToken->markResponded();
 
+            // Only after the decision is safely recorded: PropertyWare is the
+            // outside system, and a failure there must not cost the owner
+            // their answer. Approvals only — see pushApprovalToPropertyWare.
+            if ($approved) {
+                $this->pushApprovalToPropertyWare($workOrder, $ownerName, $ownerComment);
+            }
+
             return back()->with('success', $approved
                 ? 'Approved — your work order coordinator has been notified.'
                 : 'Got it — your work order coordinator has been notified.');
@@ -350,6 +368,94 @@ class OwnerPortalController extends Controller
             ]);
 
             return back()->withErrors(['error' => 'Could not record your decision. Please try again.']);
+        }
+    }
+
+    /**
+     * The owner's decision as it reads in the coordinator's thread — their own
+     * words first, when they wrote any, so the coordinator sees what the owner
+     * actually said rather than a bare yes or no.
+     */
+    private function approvalMessage(bool $approved, string $ownerComment): string
+    {
+        $decision = $approved
+            ? 'I approve this work order.'
+            : 'I do not approve this work order.';
+
+        return ($ownerComment !== '' ? $ownerComment."\n\n" : '')
+            .$decision.' — sent from the owner portal';
+    }
+
+    /**
+     * PropertyWare's approval comment: the owner's note, then the line that
+     * names them.
+     *
+     * PropertyWare has exactly one approval — a flag, an approver, a date and
+     * this comment — and it credits whichever login made the call, which for
+     * us is always the app's own ("Maintenance Dashboard"). It cannot be made
+     * to name the owner. So the name goes here, where a coordinator reading
+     * the work order in PropertyWare can see who actually approved it.
+     */
+    private function approvalComment(string $ownerName, string $ownerComment, CarbonInterface $decidedAt): string
+    {
+        $attribution = '- Approved by '.($ownerName !== '' ? $ownerName : 'the owner')
+            .', '.$decidedAt->format('m/d/Y');
+
+        return ($ownerComment !== '' ? $ownerComment."\n\n" : '').$attribution;
+    }
+
+    /**
+     * Carry an owner-portal approval into PropertyWare.
+     *
+     * Without this the work order stays unapproved there, so PropertyWare's
+     * owner portal keeps emailing the owner to approve what they have already
+     * approved here (WO#44039). Approvals only: PropertyWare has no declined
+     * state, and an unapproved work order is indistinguishable from one nobody
+     * has answered yet, so a disapproval stays in the thread and the bell.
+     *
+     * Log-never-throw and gated off by default — it writes to the live record
+     * and makes PropertyWare send its own "Work Order Approved" alert. The
+     * owner has already been told their coordinator was notified, and that
+     * remains true whatever PropertyWare does.
+     */
+    private function pushApprovalToPropertyWare(WorkOrder $workOrder, string $ownerName, string $ownerComment): void
+    {
+        if (! config('services.propertyware.owner_approval_push', false)) {
+            return;
+        }
+
+        if (blank($workOrder->propertyware_id)) {
+            Log::warning('Owner approved a work order that has no PropertyWare id; nothing was pushed.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+            ]);
+
+            return;
+        }
+
+        try {
+            $decidedAt = now();
+
+            $workOrder->forceFill([
+                'is_approved' => true,
+                'approved_date' => $decidedAt->toDateString(),
+                'approval_comments' => $this->approvalComment($ownerName, $ownerComment, $decidedAt),
+            ])->save();
+
+            // Reads the local flag and comment set just above, and sends
+            // PropertyWare's entity id rather than the work order number.
+            app(PropertyWareService::class)->approvedWorkOrder($workOrder);
+
+            Log::info('Owner portal approval pushed to PropertyWare.', [
+                'work_order_no' => $workOrder->work_order_no,
+                'propertyware_id' => $workOrder->propertyware_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Could not push the owner portal approval to PropertyWare; the decision is still recorded here.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
