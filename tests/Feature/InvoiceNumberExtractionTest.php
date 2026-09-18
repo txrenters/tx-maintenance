@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\ExtractInvoiceNumber;
+use App\Models\Attachments;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Vendor;
@@ -90,6 +91,17 @@ class InvoiceNumberExtractionTest extends TestCase
         ]);
 
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-psdr']);
+
+        // The portal refuses an invoice from a vendor who has uploaded no
+        // photos, so give them one: this suite is about the number, not the gate.
+        Attachments::query()->create([
+            'title' => 'Vendor photo',
+            'filename' => 'attachments/proof.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'after',
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendor->user_id,
+        ]);
 
         return [$vendor, $workOrder];
     }
