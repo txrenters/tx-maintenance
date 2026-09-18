@@ -14,11 +14,7 @@ class GenerateWorkOrderRecommendationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * $allowAutoAssign is only set by intake of a brand new work order, which
-     * is the sole path permitted to auto-assign a repeat vendor.
-     */
-    public function __construct(public int $workOrderId, public bool $allowAutoAssign = false) {}
+    public function __construct(public int $workOrderId) {}
 
     public function handle(WorkOrderRecommendationService $recommendationService): void
     {
@@ -28,6 +24,6 @@ class GenerateWorkOrderRecommendationJob implements ShouldQueue
             return;
         }
 
-        $recommendationService->generate($workOrder, $this->allowAutoAssign);
+        $recommendationService->generate($workOrder);
     }
 }

@@ -383,9 +383,7 @@ class WorkOrderService
             // most once per work order — a re-import must never re-classify.
             if ($isNewWorkOrder) {
                 if ($dispatchNewWorkOrderAutomations) {
-                    // Intake of a brand new work order is the only path allowed
-                    // to auto-assign the repeat vendor.
-                    GenerateWorkOrderRecommendationJob::dispatch($work_order, allowAutoAssign: true);
+                    GenerateWorkOrderRecommendationJob::dispatch($work_order);
 
                     // The same intake fan-out the scheduled import performs:
                     // each job is independently gated, so a disabled channel

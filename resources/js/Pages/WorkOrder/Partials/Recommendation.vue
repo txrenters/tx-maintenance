@@ -105,6 +105,7 @@ const isStaff = computed(() =>
 );
 
 const VENDOR_SOURCE_LABELS = {
+    repeat_issue: { label: "Repeat Issue", variant: "default" },
     owner_preferred: { label: "Owner Preferred", variant: "default" },
     building_history: { label: "Building History", variant: "secondary" },
     cross_site_history: { label: "Cross-Site History", variant: "secondary" },

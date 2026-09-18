@@ -294,7 +294,7 @@ class TenantRequestIntakeTest extends TestCase
         $newId = $result['work_order']->id;
 
         Queue::assertPushed(GenerateWorkOrderRecommendationJob::class,
-            fn ($job) => $job->workOrderId === $newId && $job->allowAutoAssign === true);
+            fn ($job) => $job->workOrderId === $newId);
         Queue::assertPushed(SendOwnerServiceRequestNotificationJob::class, fn ($job) => $job->workOrderId === $newId);
         Queue::assertPushed(SendTenantWorkOrderIntakeEmailJob::class, fn ($job) => $job->workOrderId === $newId);
         Queue::assertPushed(SendTenantServiceRequestNotificationJob::class, fn ($job) => $job->workOrderId === $newId);

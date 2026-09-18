@@ -26,15 +26,6 @@ class WorkOrderRecommendationService
     private const REPEAT_WINDOW_MONTHS = 12;
 
     /**
-     * How recently a work order must have been created to be eligible for
-     * repeat-vendor auto-assignment. This is the fresh-start guarantee: when
-     * the feature is switched on, the entire pre-existing backlog is already
-     * older than this, so turning it on can never assign or email a vendor for
-     * work that was sitting in the system before the deploy.
-     */
-    private const AUTO_ASSIGN_MAX_AGE_DAYS = 3;
-
-    /**
      * How many of the property's previous work orders the Recommendation tab
      * lists. The total is always reported alongside, so staff know when the
      * property page has more.
@@ -148,13 +139,12 @@ class WorkOrderRecommendationService
     /**
      * Generate (or regenerate) the recommendation for a work order.
      *
-     * $allowAutoAssign must only be true when generation is triggered by intake
-     * of a brand new work order. Every other caller — the recommendation tab's
-     * auto-generate on first open, a manual PropertyWare refresh, a staff
-     * "Regenerate" click — passes false, so browsing an old work order can
-     * never email a vendor. See maybeAutoAssignRepeatVendor().
+     * Generating is always read-only with respect to the vendor: it records who
+     * is recommended, including the repeat-issue suggestion, but never assigns
+     * anyone. Assignment stays a human action in the work order's vendor picker,
+     * which is the only path that emails the vendor and syncs PropertyWare.
      */
-    public function generate(WorkOrder $workOrder, bool $allowAutoAssign = false): WorkOrderRecommendation
+    public function generate(WorkOrder $workOrder): WorkOrderRecommendation
     {
         $workOrder->loadMissing(['vendors', 'managed_by', 'requested_by', 'recommendation.recommendedVendor', 'building']);
 
@@ -175,6 +165,21 @@ class WorkOrderRecommendationService
             $buildingHistory,
             $activeVendors,
         );
+
+        // A confident repeat outranks the AI/heuristic pick: operations want the
+        // vendor who already handled this same issue at this same building. It
+        // is only ever a suggestion — staff press "Assign Vendor" themselves, so
+        // the vendor is not emailed and PropertyWare is not touched here.
+        $repeatVendor = $this->repeatVendorSuggestion($workOrder, $repeat);
+
+        if ($repeatVendor instanceof Vendor) {
+            $recommendedVendor = $repeatVendor;
+            $vendorSource = 'repeat_issue';
+            $vendorReasoning = sprintf(
+                'Repeat issue at this building (%d prior job(s)) - suggesting the vendor who handled the same issue here before. Review and assign if you agree.',
+                $repeat['count'],
+            );
+        }
 
         $ownerPreferredName = $vendorSource === 'owner_preferred'
             ? $this->extractPreferredVendorName(
@@ -224,9 +229,6 @@ class WorkOrderRecommendationService
 
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
         $this->applyRepeatAssessment($workOrder, $repeat);
-        if ($allowAutoAssign) {
-            $this->maybeAutoAssignRepeatVendor($workOrder, $repeat);
-        }
 
         return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
     }
@@ -365,67 +367,38 @@ class WorkOrderRecommendationService
     }
 
     /**
-     * For a confident repeat, automatically assign the vendor who handled the
-     * SAME issue at this building before — "same building, same vendor" per
-     * operations. The vendor comes strictly from the matching same-issue priors
-     * (see determineRepeatIssue), so it can never reach for an unrelated vendor;
-     * if none of those priors has an active vendor it does nothing. Never
-     * overrides a vendor a human already chose, and is gated behind config so it
-     * never emails a vendor or writes to PropertyWare in local/testing.
+     * For a confident repeat, SUGGEST the vendor who handled the SAME issue at
+     * this building before — "same building, same vendor" per operations. This
+     * only writes the suggestion onto the recommendation, so staff still press
+     * "Assign Vendor" themselves: nothing here emails the vendor or writes to
+     * PropertyWare. The vendor comes strictly from the matching same-issue
+     * priors (see determineRepeatIssue), so it can never reach for an unrelated
+     * vendor; if none of those priors has an active vendor it does nothing.
+     *
+     * Returns the suggested vendor, or null when the repeat does not qualify.
      *
      * @param  array{is_repeat: bool, count: int, vendor: ?Vendor}  $repeat
      */
-    private function maybeAutoAssignRepeatVendor(WorkOrder $workOrder, array $repeat): void
+    private function repeatVendorSuggestion(WorkOrder $workOrder, array $repeat): ?Vendor
     {
-        if (! config('services.work_order.auto_assign_vendor')) {
-            return;
-        }
-
         $vendor = $repeat['vendor'] ?? null;
 
         if (! ($repeat['is_repeat'] ?? false) || ! $vendor instanceof Vendor) {
-            return;
+            return null;
         }
 
-        // Only an open, not-yet-completed work order is ever auto-assigned.
+        // Only an open, not-yet-completed work order is worth suggesting for.
         if ($workOrder->status !== 'Open' || $workOrder->completed_date !== null) {
-            return;
+            return null;
         }
 
-        // Fresh start: only work orders created since the feature went live are
-        // eligible, so switching it on never reaches back into the backlog.
-        $createdAt = $this->normalizeDate($workOrder->created_at);
-
-        if ($createdAt === null || $createdAt->lessThan(now()->subDays(self::AUTO_ASSIGN_MAX_AGE_DAYS))) {
-            return;
-        }
-
-        // Respect a human's choice — only auto-assign an unassigned work order.
+        // Respect a human's choice — a work order that already has a vendor
+        // needs no suggestion.
         if ($workOrder->vendors()->exists()) {
-            return;
+            return null;
         }
 
-        // Reload the full record so the assignment has the email (to notify) and
-        // propertyware_id (to sync).
-        $vendor = Vendor::query()->find($vendor->id);
-
-        if (! $vendor instanceof Vendor) {
-            return;
-        }
-
-        try {
-            app(VendorAssignmentService::class)->autoAssign(
-                $workOrder,
-                $vendor,
-                sprintf('Repeat issue at this building (%d prior job(s)) — reusing the vendor who handled the same issue here before.', $repeat['count']),
-            );
-        } catch (\Throwable $e) {
-            Log::error('Repeat-vendor auto-assign failed.', [
-                'work_order_id' => $workOrder->id,
-                'vendor_id' => $vendor->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        return Vendor::query()->find($vendor->id);
     }
 
     /**
