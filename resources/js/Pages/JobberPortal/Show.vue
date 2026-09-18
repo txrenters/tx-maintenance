@@ -10,7 +10,7 @@ import { Label } from "@/Components/ui/label";
 import { Separator } from "@/Components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/Components/ui/select";
-import { Eye, Loader2, MapPin, Paperclip, Phone, Upload, User } from "lucide-vue-next";
+import { AlertTriangle, Eye, Loader2, MapPin, Paperclip, Phone, Upload, User } from "lucide-vue-next";
 
 const props = defineProps({
   title: String,
@@ -217,6 +217,24 @@ const uploadInvoice = () => {
             <p class="text-sm text-muted-foreground">This job has been closed. Invoices are no longer accepted.</p>
           </div>
           <div v-else class="space-y-2">
+            <!-- Why the form below is locked. Deliberately loud and above the
+                 form: many vendors are older or working on a phone outdoors,
+                 so a quiet line under the button gets missed and the invoice
+                 looks broken instead of blocked. -->
+            <div
+              v-if="!can_upload_invoice"
+              class="rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/40 p-4"
+            >
+              <div class="flex items-start gap-3">
+                <AlertTriangle class="h-7 w-7 shrink-0 text-amber-600 dark:text-amber-500" />
+                <div class="min-w-0">
+                  <p class="text-base font-bold text-amber-900 dark:text-amber-200">Add photos first</p>
+                  <p class="mt-1 text-base leading-6 text-amber-900 dark:text-amber-200">
+                    Please upload at least one photo of the work above before you send your invoice.
+                  </p>
+                </div>
+              </div>
+            </div>
             <div>
               <Label class="text-sm">Title (optional)</Label>
               <Input v-model="invoiceForm.title" placeholder="Invoice title" />
@@ -234,8 +252,8 @@ const uploadInvoice = () => {
               <Upload v-else class="h-4 w-4" />
               Upload invoice
             </Button>
-            <p v-if="!can_upload_invoice" class="text-center text-xs text-muted-foreground">
-              Upload at least one photo of the work above before submitting your invoice.
+            <p v-if="!can_upload_invoice" class="text-center text-sm font-medium text-amber-700 dark:text-amber-500">
+              Add a photo of the work to turn this on.
             </p>
           </div>
         </CardContent>

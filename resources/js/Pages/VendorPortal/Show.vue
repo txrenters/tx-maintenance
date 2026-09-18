@@ -1097,6 +1097,44 @@ const confirmCompleteTask = () => {
 
                         <!-- Invoice -->
                         <div v-show="activeTab === 'invoice'" class="space-y-3">
+                            <!-- Why the form below is locked. Deliberately loud
+                                 and above the form: many vendors are older or
+                                 working on a phone outdoors, so a quiet line
+                                 under the button gets missed and the invoice
+                                 looks broken instead of blocked. -->
+                            <div
+                                v-if="!can_upload_invoice"
+                                class="rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/40 p-4"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <AlertTriangle
+                                        class="w-7 h-7 shrink-0 text-amber-600 dark:text-amber-500"
+                                    />
+                                    <div class="min-w-0">
+                                        <p
+                                            class="text-base font-bold text-amber-900 dark:text-amber-200"
+                                        >
+                                            Add photos first
+                                        </p>
+                                        <p
+                                            class="mt-1 text-base leading-6 text-amber-900 dark:text-amber-200"
+                                        >
+                                            Please upload at least one photo of
+                                            the work before you send your
+                                            invoice.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="mt-3 w-full rounded-md bg-amber-600 text-white font-semibold py-3 text-base flex items-center justify-center gap-2 active:bg-amber-700"
+                                    @click="activeTab = 'photos'"
+                                >
+                                    <Camera class="w-5 h-5" />
+                                    Go to Photos
+                                </button>
+                            </div>
+
                             <!-- Already-submitted invoices -->
                             <div
                                 v-if="invoices.length"
@@ -1218,10 +1256,9 @@ const confirmCompleteTask = () => {
                             </button>
                             <p
                                 v-if="!can_upload_invoice"
-                                class="text-xs text-muted-foreground text-center"
+                                class="text-sm font-medium text-amber-700 dark:text-amber-500 text-center"
                             >
-                                Upload at least one photo of the work on the
-                                Photos tab before submitting your invoice.
+                                Add a photo of the work to turn this on.
                             </p>
                             <p
                                 v-else-if="invoiceFile && !invoiceForm.amount"
