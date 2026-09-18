@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AppSetting;
 use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
+use App\Services\OwnerMessageFormatter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -322,7 +323,7 @@ class AutomatedMessageTemplatesTest extends TestCase
             AutomatedMessageTemplates::descriptionLine("  Kitchen sink is leaking\n"),
         );
 
-        $long = AutomatedMessageTemplates::descriptionLine(str_repeat('water keeps pooling by the tub ', 30));
+        $long = AutomatedMessageTemplates::descriptionLine(str_repeat('water keeps pooling by the tub ', 60));
 
         $this->assertStringStartsWith('Work Order Description: water keeps pooling', $long);
         $this->assertStringEndsWith('...', $long);
@@ -332,6 +333,52 @@ class AutomatedMessageTemplatesTest extends TestCase
             strlen('Work Order Description: ') + AutomatedMessageTemplates::SMS_DESCRIPTION_LIMIT + 3,
             strlen($long),
         );
+    }
+
+    /**
+     * WO#44178: a 406-character description was cut at "has signs of", losing
+     * both mentions of cockroach activity and the pest control line, and the
+     * owner replied asking why they were expected to replace appliances the
+     * tenant had not cleaned. A description of this length now rides along
+     * whole.
+     */
+    public function test_a_real_propertyware_description_is_not_cut_mid_sentence(): void
+    {
+        $description = '-removal and disposal of the existing stove, dishwasher, and refrigerator '
+            .'due to their current condition. The dishwasher is reportedly not functioning, the '
+            .'stove is in poor condition with significant debris/contamination, and the '
+            .'refrigerator is only partially functional, dirty, and has signs of cockroach '
+            ."activity around the back.\n"
+            .'-cockroach activity has been reported at the property, needs pest control';
+
+        $line = AutomatedMessageTemplates::descriptionLine($description);
+
+        $this->assertStringNotContainsString('...', $line);
+        $this->assertStringContainsString('cockroach activity around the back', $line);
+        $this->assertStringContainsString('needs pest control', $line);
+    }
+
+    /**
+     * The cap exists so the longest possible text still reaches the owner:
+     * Twilio rejects a body over 1,600 characters outright, which would be a
+     * worse failure than a truncated one.
+     */
+    public function test_the_longest_possible_description_text_stays_under_the_twilio_body_limit(): void
+    {
+        $body = AutomatedMessageTemplates::text('owner_work_order_created_sms', [
+            'greeting' => 'Hi '.str_repeat('a', 40).',',
+            'work_order_no' => '44178',
+            'property' => str_repeat('b', 60),
+            'description_line' => AutomatedMessageTemplates::descriptionLine(str_repeat('water pooling ', 500)),
+        ]);
+
+        $envelope = OwnerMessageFormatter::compose(
+            $body,
+            '44178',
+            'https://txrenters.azurewebsites.net/owner-portal/'.str_repeat('c', 48),
+        );
+
+        $this->assertLessThan(1600, mb_strlen($envelope));
     }
 
     public function test_the_created_by_our_team_templates_collapse_a_missing_description(): void

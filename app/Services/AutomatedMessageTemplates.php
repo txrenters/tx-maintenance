@@ -888,11 +888,21 @@ class AutomatedMessageTemplates
     /**
      * How much of a work order description rides along inside an SMS.
      * PropertyWare descriptions run 260 characters on average but reach
-     * thousands; the cap keeps a text with a description inline (body, portal
-     * link, sign-off) around six GSM-7 segments and well under Twilio's
-     * 1,600-character body limit. The portal link carries the full text.
+     * thousands, so a cap is still needed: the longest envelope (body, portal
+     * link, sign-off) is 473 characters, which holds the worst case to 1,476 —
+     * under Twilio's 1,600-character body limit, past which the message is
+     * rejected outright and the owner hears nothing at all.
+     *
+     * Raised from 300 after WO#44178, where a 406-character description was
+     * cut at "the refrigerator ... has signs of" — losing both mentions of
+     * cockroach activity and the pest control line. The owner read the
+     * remainder as a complaint about uncleaned appliances and replied asking
+     * why they were expected to replace them. The tail of a description is
+     * where the reason for the request tends to live, and an owner deciding
+     * whether to approve work needs it in the text they actually read; the
+     * portal link is not a substitute for someone who never taps it.
      */
-    public const SMS_DESCRIPTION_LIMIT = 300;
+    public const SMS_DESCRIPTION_LIMIT = 1000;
 
     /**
      * The "Work Order Description: ..." token value for the texts that carry
