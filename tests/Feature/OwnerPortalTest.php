@@ -260,6 +260,61 @@ class OwnerPortalTest extends TestCase
             );
     }
 
+    public function test_a_tenant_upload_is_credited_to_the_tenant_not_the_coordinator(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        // The tenant's own photo of the problem, sent in through their portal
+        // and published to the owner. It used to read "From work order
+        // coordinator", which put the whole gallery under that one heading.
+        Attachments::create([
+            'title' => 'Tenant photo',
+            'filename' => 'attachments/tenant.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'before',
+            'work_order_id' => $workOrder->id,
+            'user_id' => null,
+            'uploaded_via_tenant_portal' => true,
+            'is_publish_to_owner_portal' => true,
+        ]);
+
+        Attachments::create([
+            'title' => 'Office photo',
+            'filename' => 'attachments/office.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'before',
+            'work_order_id' => $workOrder->id,
+            'user_id' => null,
+            'uploaded_via_tenant_portal' => false,
+            'is_publish_to_owner_portal' => true,
+        ]);
+
+        Attachments::create([
+            'title' => 'Owner photo',
+            'filename' => 'attachments/owner.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'before',
+            'work_order_id' => $workOrder->id,
+            'user_id' => $owner->user_id,
+            'is_publish_to_owner_portal' => true,
+        ]);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 3)
+                ->where('attachments', function ($items) {
+                    $sources = collect($items)->pluck('source', 'title');
+
+                    return $sources['Tenant photo'] === 'From tenant'
+                        && $sources['Office photo'] === 'From work order coordinator'
+                        && $sources['Owner photo'] === 'From you';
+                })
+            );
+    }
+
     public function test_the_gallery_includes_photos_from_the_tenant_and_owner_threads(): void
     {
         $owner = $this->makeOwner();

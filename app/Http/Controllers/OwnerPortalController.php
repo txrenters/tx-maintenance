@@ -90,7 +90,10 @@ class OwnerPortalController extends Controller
             ->where('work_order_id', $workOrder->id)
             ->where('is_publish_to_owner_portal', true)
             ->latest()
-            ->get(['id', 'title', 'type', 'filename', 'filetype', 'user_id', 'created_at']);
+            ->get([
+                'id', 'title', 'type', 'filename', 'filetype', 'user_id',
+                'uploaded_via_tenant_portal', 'created_at',
+            ]);
 
         return inertia('OwnerPortal/Show', [
             'title' => 'Work Order #'.$workOrder->work_order_no,
@@ -162,11 +165,7 @@ class OwnerPortalController extends Controller
             'id' => 'attachment-'.$a->id,
             'title' => $a->title,
             'type' => $a->type,
-            // Anything this owner uploaded is theirs; everything else the
-            // office published on their behalf.
-            'source' => $a->user_id !== null && $a->user_id === $owner->user_id
-                ? self::SOURCE_OWNER
-                : self::SOURCE_COORDINATOR,
+            'source' => $this->attachmentLabel($a, $owner),
             'url' => asset('storage/'.$a->filename),
             'is_image' => $this->looksLikeImage($a->filetype, $a->filename),
             'is_video' => str_starts_with((string) $a->filetype, 'video/'),
@@ -194,6 +193,28 @@ class OwnerPortalController extends Controller
      * traceable to the owner or the tenant came from the coordinator, which is
      * true of every outbound message on both threads.
      */
+    /**
+     * Who a published file came from, from the owner's point of view.
+     *
+     * Anything this owner uploaded is theirs, anything the tenant sent in
+     * through their own portal is the tenant's, and whatever is left is what
+     * the office published. Without the tenant case every photo the tenant
+     * took of the problem reads as "From work order coordinator", which is
+     * both wrong and lumps the whole gallery under one heading.
+     */
+    private function attachmentLabel(Attachments $attachment, Owner $owner): string
+    {
+        if ($attachment->user_id !== null && $attachment->user_id === $owner->user_id) {
+            return self::SOURCE_OWNER;
+        }
+
+        if ($attachment->uploaded_via_tenant_portal) {
+            return self::SOURCE_TENANT;
+        }
+
+        return self::SOURCE_COORDINATOR;
+    }
+
     private function senderLabel(Conversation $message, ?string $ownerDigits, ?string $tenantDigits): string
     {
         if ($message->conversation_type === 'owner') {
