@@ -107,39 +107,7 @@ class OwnerApprovalToPropertyWareTest extends TestCase
         return $captured;
     }
 
-    public function test_an_approval_with_a_note_reaches_propertyware_with_the_owner_name_below_it(): void
-    {
-        $owner = $this->makeOwner();
-        $workOrder = $this->makeWorkOrder($owner);
-        $token = $this->makeToken($workOrder, $owner);
-
-        $captured = $this->spyPropertyWare();
-
-        $this->post('/owner-portal/'.$token->token.'/approval', [
-            'decision' => 'approved',
-            'comment' => 'Please use the same plumber as last time.',
-        ])->assertRedirect()->assertSessionHas('success');
-
-        $this->assertSame(1, $captured->calls);
-
-        $comment = $captured->workOrder->approval_comments;
-
-        // The owner's words first, then the line that names them.
-        $this->assertStringStartsWith('Please use the same plumber as last time.', $comment);
-        $this->assertStringContainsString('- Approved by Maria Delgado, '.now()->format('m/d/Y'), $comment);
-        $this->assertLessThan(
-            strpos($comment, '- Approved by'),
-            strpos($comment, 'Please use the same plumber'),
-            'The owner comment must come before the attribution line.',
-        );
-
-        $workOrder->refresh();
-        $this->assertTrue((bool) $workOrder->is_approved);
-        $this->assertNotNull($workOrder->approved_date);
-        $this->assertSame($comment, $workOrder->approval_comments);
-    }
-
-    public function test_approving_without_a_note_sends_the_attribution_line_alone(): void
+    public function test_an_approval_reaches_propertyware_as_a_fixed_line_naming_the_owner(): void
     {
         $owner = $this->makeOwner();
         $workOrder = $this->makeWorkOrder($owner);
@@ -148,11 +116,40 @@ class OwnerApprovalToPropertyWareTest extends TestCase
         $captured = $this->spyPropertyWare();
 
         $this->post('/owner-portal/'.$token->token.'/approval', ['decision' => 'approved'])
-            ->assertRedirect();
+            ->assertRedirect()->assertSessionHas('success');
 
+        $this->assertSame(1, $captured->calls);
+
+        // One canned line: PropertyWare credits the app's own login, so the
+        // owner's name in the comment is the only record of who approved.
         $this->assertSame(
-            '- Approved by Maria Delgado, '.now()->format('m/d/Y'),
+            'I approve this work order. - Maria Delgado, '.now()->format('m/d/Y'),
             $captured->workOrder->approval_comments,
+        );
+
+        $workOrder->refresh();
+        $this->assertTrue((bool) $workOrder->is_approved);
+        $this->assertNotNull($workOrder->approved_date);
+    }
+
+    public function test_the_owner_cannot_put_their_own_words_into_propertyware(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner);
+        $token = $this->makeToken($workOrder, $owner);
+
+        $captured = $this->spyPropertyWare();
+
+        // Nothing but the decision is accepted, so a posted comment cannot
+        // reach the live PropertyWare record.
+        $this->post('/owner-portal/'.$token->token.'/approval', [
+            'decision' => 'approved',
+            'comment' => 'Please use the same plumber as last time.',
+        ])->assertRedirect();
+
+        $this->assertStringNotContainsString(
+            'plumber',
+            (string) $captured->workOrder->approval_comments,
         );
     }
 
@@ -164,10 +161,8 @@ class OwnerApprovalToPropertyWareTest extends TestCase
 
         $this->spyPropertyWare(expectCall: false);
 
-        $this->post('/owner-portal/'.$token->token.'/approval', [
-            'decision' => 'disapproved',
-            'comment' => 'Too expensive, please get another quote.',
-        ])->assertRedirect()->assertSessionHas('success');
+        $this->post('/owner-portal/'.$token->token.'/approval', ['decision' => 'disapproved'])
+            ->assertRedirect()->assertSessionHas('success');
 
         // PropertyWare has no declined state, so the work order stays exactly
         // as it was there and the refusal lives in the thread and the bell.
@@ -181,7 +176,7 @@ class OwnerApprovalToPropertyWareTest extends TestCase
             ->latest('id')
             ->first();
 
-        $this->assertStringContainsString('Too expensive', $conversation->message);
+        $this->assertSame('Not approved.', $conversation->message);
     }
 
     public function test_the_push_is_off_unless_it_is_switched_on(): void
@@ -241,7 +236,7 @@ class OwnerApprovalToPropertyWareTest extends TestCase
         $this->assertNotNull($token->fresh()->responded_at);
     }
 
-    public function test_the_owner_note_is_kept_with_the_decision_for_the_coordinator(): void
+    public function test_the_thread_message_is_just_the_decision(): void
     {
         $owner = $this->makeOwner();
         $workOrder = $this->makeWorkOrder($owner);
@@ -249,10 +244,8 @@ class OwnerApprovalToPropertyWareTest extends TestCase
 
         $this->spyPropertyWare();
 
-        $this->post('/owner-portal/'.$token->token.'/approval', [
-            'decision' => 'approved',
-            'comment' => 'Please use the same plumber as last time.',
-        ])->assertRedirect();
+        $this->post('/owner-portal/'.$token->token.'/approval', ['decision' => 'approved'])
+            ->assertRedirect();
 
         $conversation = Conversation::query()
             ->withoutGlobalScopes()
@@ -260,26 +253,6 @@ class OwnerApprovalToPropertyWareTest extends TestCase
             ->latest('id')
             ->first();
 
-        $this->assertStringContainsString('Please use the same plumber', $conversation->message);
-        $this->assertStringContainsString('I approve this work order', $conversation->message);
-
-        $activity = Activity::query()->where('event', 'owner_portal_approval')->latest('id')->first();
-        $this->assertSame('Please use the same plumber as last time.', $activity->properties['comment']);
-    }
-
-    public function test_an_overlong_note_is_refused(): void
-    {
-        $owner = $this->makeOwner();
-        $workOrder = $this->makeWorkOrder($owner);
-        $token = $this->makeToken($workOrder, $owner);
-
-        $this->spyPropertyWare(expectCall: false);
-
-        $this->post('/owner-portal/'.$token->token.'/approval', [
-            'decision' => 'approved',
-            'comment' => str_repeat('a', 1001),
-        ])->assertSessionHasErrors('comment');
-
-        $this->assertFalse((bool) $workOrder->fresh()->is_approved);
+        $this->assertSame('Approved.', $conversation->message);
     }
 }

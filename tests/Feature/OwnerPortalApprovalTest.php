@@ -116,7 +116,7 @@ class OwnerPortalApprovalTest extends TestCase
         $this->assertNotNull($conversation);
         $this->assertSame($owner->id, $conversation->owner_id);
         $this->assertFalse((bool) $conversation->is_read);
-        $this->assertStringContainsString('I approve this work order', $conversation->message);
+        $this->assertStringContainsString('Approved.', $conversation->message);
 
         $activity = Activity::query()->where('event', 'owner_portal_approval')->latest('id')->first();
 
@@ -146,7 +146,7 @@ class OwnerPortalApprovalTest extends TestCase
             ->latest('id')
             ->first();
 
-        $this->assertStringContainsString('I do not approve this work order', $conversation->message);
+        $this->assertStringContainsString('Not approved.', $conversation->message);
 
         $activity = Activity::query()->where('event', 'owner_portal_approval')->latest('id')->first();
 

@@ -38,14 +38,6 @@ class OwnerPortalController extends Controller
 
     private const SOURCE_OWNER = 'From you';
 
-    /**
-     * How much an owner may type into the approval note. PropertyWare's own
-     * limit on approvalComment is not documented and was not probed, so this
-     * stays well short of anything a text field is likely to refuse; the
-     * attribution line is added on top of it.
-     */
-    private const APPROVAL_COMMENT_MAX = 1000;
-
     public function show(Request $request)
     {
         /** @var WorkOrder $workOrder */
@@ -295,11 +287,9 @@ class OwnerPortalController extends Controller
 
         $validated = $request->validate([
             'decision' => 'required|in:approved,disapproved',
-            'comment' => 'nullable|string|max:'.self::APPROVAL_COMMENT_MAX,
         ]);
 
         $approved = $validated['decision'] === 'approved';
-        $ownerComment = trim((string) ($validated['comment'] ?? ''));
 
         $workOrder->loadMissing('woc.wocNumber.twilioPhoneNumber');
 
@@ -313,7 +303,7 @@ class OwnerPortalController extends Controller
 
         try {
             $conversation = Conversation::create([
-                'message' => $this->approvalMessage($approved, $ownerComment),
+                'message' => $approved ? 'Approved.' : 'Not approved.',
                 'sender_number' => $ownerNumber,
                 'receiver_number' => $wocNumber ?: null,
                 'work_order_id' => $workOrder->id,
@@ -332,7 +322,6 @@ class OwnerPortalController extends Controller
                     'work_order_no' => $workOrder->work_order_no,
                     'owner_id' => $owner->id,
                     'decision' => $validated['decision'],
-                    'comment' => $ownerComment !== '' ? $ownerComment : null,
                     'conversation_id' => $conversation->id,
                     'message' => $approved
                         ? $ownerName.' approved this work order from the owner portal.'
@@ -352,7 +341,7 @@ class OwnerPortalController extends Controller
             // outside system, and a failure there must not cost the owner
             // their answer. Approvals only — see pushApprovalToPropertyWare.
             if ($approved) {
-                $this->pushApprovalToPropertyWare($workOrder, $ownerName, $ownerComment);
+                $this->pushApprovalToPropertyWare($workOrder, $ownerName);
             }
 
             return back()->with('success', $approved
@@ -372,36 +361,19 @@ class OwnerPortalController extends Controller
     }
 
     /**
-     * The owner's decision as it reads in the coordinator's thread — their own
-     * words first, when they wrote any, so the coordinator sees what the owner
-     * actually said rather than a bare yes or no.
-     */
-    private function approvalMessage(bool $approved, string $ownerComment): string
-    {
-        $decision = $approved
-            ? 'I approve this work order.'
-            : 'I do not approve this work order.';
-
-        return ($ownerComment !== '' ? $ownerComment."\n\n" : '')
-            .$decision.' — sent from the owner portal';
-    }
-
-    /**
-     * PropertyWare's approval comment: the owner's note, then the line that
-     * names them.
+     * PropertyWare's approval comment — a fixed line naming the owner.
      *
-     * PropertyWare has exactly one approval — a flag, an approver, a date and
-     * this comment — and it credits whichever login made the call, which for
-     * us is always the app's own ("Maintenance Dashboard"). It cannot be made
-     * to name the owner. So the name goes here, where a coordinator reading
-     * the work order in PropertyWare can see who actually approved it.
+     * PropertyWare has exactly one approval: a flag, an approver, a date and
+     * this comment. It credits whichever login made the call, which for us is
+     * always the app's own ("Maintenance Dashboard"), and it cannot be made to
+     * name the owner. So the name goes here, where a coordinator reading the
+     * work order in PropertyWare can see who actually approved it.
      */
-    private function approvalComment(string $ownerName, string $ownerComment, CarbonInterface $decidedAt): string
+    private function approvalComment(string $ownerName, CarbonInterface $decidedAt): string
     {
-        $attribution = '- Approved by '.($ownerName !== '' ? $ownerName : 'the owner')
+        return 'I approve this work order. - '
+            .($ownerName !== '' ? $ownerName : 'the owner')
             .', '.$decidedAt->format('m/d/Y');
-
-        return ($ownerComment !== '' ? $ownerComment."\n\n" : '').$attribution;
     }
 
     /**
@@ -418,7 +390,7 @@ class OwnerPortalController extends Controller
      * owner has already been told their coordinator was notified, and that
      * remains true whatever PropertyWare does.
      */
-    private function pushApprovalToPropertyWare(WorkOrder $workOrder, string $ownerName, string $ownerComment): void
+    private function pushApprovalToPropertyWare(WorkOrder $workOrder, string $ownerName): void
     {
         if (! config('services.propertyware.owner_approval_push', false)) {
             return;
@@ -439,7 +411,7 @@ class OwnerPortalController extends Controller
             $workOrder->forceFill([
                 'is_approved' => true,
                 'approved_date' => $decidedAt->toDateString(),
-                'approval_comments' => $this->approvalComment($ownerName, $ownerComment, $decidedAt),
+                'approval_comments' => $this->approvalComment($ownerName, $decidedAt),
             ])->save();
 
             // Reads the local flag and comment set just above, and sends
