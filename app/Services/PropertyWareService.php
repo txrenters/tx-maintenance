@@ -2195,7 +2195,16 @@ class PropertyWareService
         // every other envelope here; sent the work order number, the call
         // returns quietly and approves nothing (checked live, 2026-09-03).
         $approved = $workOrder->is_approved;
-        $approvedDate = $workOrder->approved_date ?? '';
+
+        // approvedDate is an xsd:dateTime. A bare date ("2026-09-18") is
+        // accepted and then silently dropped: the work order comes back
+        // approved with approvedDate null (checked live on the demo work order,
+        // 2026-09-18). Send the same normalised datetime the rest of the
+        // envelopes use, and date an undated approval now rather than push one
+        // PropertyWare will store without a date.
+        $approvedDate = $this->soapDateTime($workOrder->approved_date)
+            ?? now()->format('Y-m-d\TH:i:s');
+
         $approvalComment = $workOrder->approval_comments ?? '';
 
         $client->approveWorkOrder((int) $workOrder->propertyware_id, $approved, $approvedDate, $approvalComment);

@@ -345,7 +345,9 @@ class WorkOrderApprovalPreservationTest extends TestCase
         $this->assertCount(1, $approveCalls);
         $this->assertSame(888005, $approveCalls[0][1][0], 'approveWorkOrder takes the PropertyWare id, not the number');
         $this->assertTrue((bool) $approveCalls[0][1][1]);
-        $this->assertSame('2026-08-17', $approveCalls[0][1][2]);
+        // As an xsd:dateTime: PropertyWare takes a bare date and then stores no
+        // date at all (checked live, 2026-09-18).
+        $this->assertSame('2026-08-17T00:00:00', $approveCalls[0][1][2]);
         $this->assertSame(self::OWNER_COMMENT, $approveCalls[0][1][3]);
     }
 
