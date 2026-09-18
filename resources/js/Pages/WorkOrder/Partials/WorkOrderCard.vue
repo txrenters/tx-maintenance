@@ -34,6 +34,13 @@ const props = defineProps({
     // HOA board: render the HOA deadline + state pill on each card (data comes
     // from work_order.hoa, decorated server-side). No effect on other boards.
     hoa: { type: Boolean, default: false },
+    // HVAC board: count and mark the work orders that moved since this user
+    // last marked the board seen. Off (false) for every other board, which
+    // renders exactly as it did before this existed.
+    newActivity: { type: Boolean, default: false },
+    // ISO-8601 UTC string; null means this user has never marked the board
+    // seen, in which case nothing is called new rather than everything.
+    boardSeenAt: { type: String, default: null },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -361,17 +368,49 @@ const matchesDate = (work_order) => {
     return true;
 };
 
-const visibleWorkOrders = (status) => {
-    return (status.work_orders || []).filter(
-        (work_order) =>
-            matchesSearch(work_order) &&
-            matchesVendor(work_order) &&
-            matchesCategory(work_order) &&
-            matchesEmergency(work_order) &&
-            matchesColor(work_order) &&
-            matchesDate(work_order)
-    );
+// Filtered cards per column, computed once per board change rather than per
+// call: the template reads this for the column's v-if, its count, its badge and
+// its card loop, and recomputing the whole filter chain four times per column on
+// every render is work the board does not need to repeat.
+const visibleByStatus = computed(() => {
+    const map = new Map();
+
+    for (const status of props.service_status || []) {
+        map.set(
+            status.id,
+            (status.work_orders || []).filter(
+                (work_order) =>
+                    matchesSearch(work_order) &&
+                    matchesVendor(work_order) &&
+                    matchesCategory(work_order) &&
+                    matchesEmergency(work_order) &&
+                    matchesColor(work_order) &&
+                    matchesDate(work_order)
+            )
+        );
+    }
+
+    return map;
+});
+
+const visibleWorkOrders = (status) => visibleByStatus.value.get(status.id) ?? [];
+
+/**
+ * Whether this work order moved since the user last marked the board seen.
+ *
+ * Both sides are ISO-8601 UTC strings as Laravel serializes them, so a plain
+ * string comparison orders them correctly without parsing a date per card.
+ */
+const isNew = (work_order) => {
+    if (!props.newActivity || !props.boardSeenAt || !work_order?.updated_at) {
+        return false;
+    }
+
+    return work_order.updated_at > props.boardSeenAt;
 };
+
+/** How many of a column's *visible* cards are new, so it agrees with its count. */
+const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
 </script>
 
 <template>
@@ -388,13 +427,21 @@ const visibleWorkOrders = (status) => {
                 <div class="text-center font-semibol">
                     <!-- Status Name -->
                     <div
-                        class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
+                        class="h-16 flex items-center justify-center gap-1.5 border p-3 text-sm uppercase font-semibold"
                     >
                         <p>
                             {{ status.name }} ({{
                                 visibleWorkOrders(status).length
                             }})
                         </p>
+                        <!-- How many of this column's cards moved since the
+                             user last marked the board seen. HVAC board only. -->
+                        <span
+                            v-if="newCount(status)"
+                            :title="`${newCount(status)} updated since you last marked this board seen`"
+                            class="bg-destructive text-destructive-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                            >{{ newCount(status) }}</span
+                        >
                     </div>
 
                     <!-- Work Orders List -->
@@ -435,8 +482,18 @@ const visibleWorkOrders = (status) => {
                             <div
                                 class="flex justify-between items-center border-b pb-2 mb-2"
                             >
-                                <h1 class="text-lg font-semibold">
+                                <h1
+                                    class="text-lg font-semibold flex items-center gap-1.5"
+                                >
                                     {{ work_order.work_order_no }}
+                                    <!-- This card moved since the board was
+                                         last marked seen. HVAC board only. -->
+                                    <span
+                                        v-if="isNew(work_order)"
+                                        class="inline-flex items-center rounded-full border border-white/60 bg-white/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                        title="Updated since you last marked this board seen"
+                                        >New</span
+                                    >
                                 </h1>
                                 <p class="text-xs text-gray-200">
                                     📅 {{ formatDate(work_order.created_date) }}

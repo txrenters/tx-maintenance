@@ -305,4 +305,13 @@ return [
         'stale_digest' => env('STALE_DIGEST_ENABLED', true),
     ],
 
+    'hvac_board' => [
+        // Who sees the "new activity" counters on the HVAC board, comma
+        // separated. An allow-list rather than a role check on purpose: several
+        // users hold the woc role, and only the coordinator who actually works
+        // this board (plus IT) should get the counters. Configured by email so
+        // the list can change from an App Setting without a deploy.
+        'badge_emails' => env('HVAC_BOARD_BADGE_EMAILS', 'woc@texasrenter.com,admin@texasrenter.com'),
+    ],
+
 ];

@@ -1019,10 +1019,14 @@ class WorkOrderController extends Controller
     public function hvac_work_orders(Request $request)
     {
         // Same deferred structure as index(): heavy props only run on the
-        // request that returns them.
+        // request that returns them. board_seen_at and shows_new_activity are
+        // two scalars, so they stay plain — the board needs them to render its
+        // counters on the very first paint.
         return inertia('WorkOrder/Hvac', [
             'title' => 'HVAC Work Orders',
             'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
+            'shows_new_activity' => $this->showsHvacNewActivity($request->user()),
+            'board_seen_at' => $request->user()?->hvac_board_seen_at?->toJSON(),
             'service_status' => Inertia::defer(fn () => $this->hvacBoard($request)),
             'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
             'categories' => Inertia::defer(fn () => $this->cachedCategories()),
@@ -1033,15 +1037,63 @@ class WorkOrderController extends Controller
     }
 
     /**
+     * Mark the whole HVAC board as seen for the signed-in user, which clears the
+     * "new activity" counters.
+     *
+     * Deliberately explicit rather than stamped on page load: a glance at the
+     * board, or landing on it by accident, must never wipe the list of what
+     * moved before the coordinator has acted on it.
+     */
+    public function hvac_mark_seen(Request $request)
+    {
+        // The hidden button is not the control — anyone off the allow-list has
+        // no counters to clear and has no business writing this column.
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        $request->user()->forceFill(['hvac_board_seen_at' => now()])->save();
+
+        return back();
+    }
+
+    /**
+     * Whether this user gets the "new activity" counters on the HVAC board.
+     *
+     * An allow-list rather than a role check on purpose: several users hold the
+     * woc role, and only the coordinator who actually works this board (plus IT)
+     * should see the counters. Everyone else gets the board exactly as it was
+     * before the feature existed.
+     */
+    private function showsHvacNewActivity(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $allowed = collect(explode(',', (string) config('services.hvac_board.badge_emails')))
+            ->map(fn (string $email): string => mb_strtolower(trim($email)))
+            ->filter()
+            ->all();
+
+        return in_array(mb_strtolower(trim((string) $user->email)), $allowed, true);
+    }
+
+    /**
      * The HVAC kanban board: the same shape as inspectionsBoard(), restricted to
      * heating and cooling work by WorkOrder::scopeHvac(), which owns the
      * spelling rules PropertyWare's picklist forces on us.
      */
     private function hvacBoard(Request $request): Collection
     {
+        // updated_at rides along so the board can mark what moved since the
+        // coordinator last looked. It is added here rather than to
+        // BOARD_CARD_COLUMNS because that constant is shared by every board; a
+        // timestamp is 8 bytes and safe, but the payload that exhausted PHP's
+        // memory in production is not a thing to widen casually.
+        $columns = [...self::BOARD_CARD_COLUMNS, 'updated_at'];
+
         $query = ServiceStatus::with([
-            'work_orders' => function ($query) {
-                $this->applyBoardFilters($query->select(self::BOARD_CARD_COLUMNS)->scoped())
+            'work_orders' => function ($query) use ($columns) {
+                $this->applyBoardFilters($query->select($columns)->scoped())
                     ->hvac()
                     ->where('status', 'Open');
             },
@@ -1067,7 +1119,7 @@ class WorkOrderController extends Controller
         if ($paidStatus) {
             $paidStatus->setRelation('work_orders', $this->applyBoardFilters(
                 WorkOrder::query()
-                    ->select(self::BOARD_CARD_COLUMNS)
+                    ->select($columns)
                     ->scoped()
                     ->with($this->boardCardRelations())
             )
@@ -1086,7 +1138,7 @@ class WorkOrderController extends Controller
         if ($closedStatus) {
             $closedStatus->setRelation('work_orders', $this->applyBoardFilters(
                 WorkOrder::query()
-                    ->select(self::BOARD_CARD_COLUMNS)
+                    ->select($columns)
                     ->scoped()
                     ->with($this->boardCardRelations())
             )

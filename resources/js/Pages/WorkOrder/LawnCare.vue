@@ -41,6 +41,7 @@ import {
     Loader2Icon,
     Loader2,
     Sparkles,
+    CircleCheckBig,
 } from "lucide-vue-next";
 import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
@@ -80,6 +81,19 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    // HVAC board: count the work orders that moved since this user last marked
+    // the board seen, mark them on the cards, and poll so the counts keep up
+    // without a manual refresh. Harmless (false) for every other board that
+    // reuses this page.
+    newActivity: {
+        type: Boolean,
+        default: false,
+    },
+    // ISO-8601 UTC string, or null when this user has never marked it seen.
+    boardSeenAt: {
+        type: String,
+        default: null,
+    },
 });
 
 const url = ref(route(props.listRouteName));
@@ -91,6 +105,52 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // upcoming). Colors are computed client-side per card, so this filter is
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
+
+// How many work orders across the whole board moved since this user last marked
+// it seen. Counted off the loaded payload — no extra request, and nothing here
+// touches the database.
+const boardNewCount = computed(() => {
+    if (!props.newActivity || !props.boardSeenAt) return 0;
+
+    return (props.service_status || []).reduce(
+        (total, status) =>
+            total +
+            (status.work_orders || []).filter(
+                (work_order) =>
+                    work_order.updated_at &&
+                    work_order.updated_at > props.boardSeenAt
+            ).length,
+        0
+    );
+});
+
+const markingSeen = ref(false);
+
+// Clearing the counters is deliberate, never automatic: opening the board must
+// not wipe the list of what moved before it has been dealt with.
+const markBoardSeen = () => {
+    if (markingSeen.value) return;
+
+    markingSeen.value = true;
+
+    router.post(
+        route("work_orders.hvac.seen"),
+        {},
+        {
+            preserveScroll: true,
+            preserveState: false,
+            onFinish: () => {
+                markingSeen.value = false;
+            },
+        }
+    );
+};
+
+// Keep the counters current while the board is open. Guarded so only the board
+// that shows counters pays for it; every other board stays as it was.
+if (props.newActivity) {
+    usePoll(60000, { only: ["service_status"] });
+}
 
 const openWorkOrder = ref(false);
 
@@ -794,6 +854,19 @@ const page = usePage();
             <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
             <!-- Page-specific primary action (e.g. HOA "Upload Notice"). -->
             <slot name="board-actions" />
+            <!-- How much moved since this board was last marked seen, and the
+                 only way to clear it. Hidden entirely when nothing is new. -->
+            <Button
+                v-if="newActivity && boardNewCount"
+                variant="outline"
+                :disabled="markingSeen"
+                class="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                :title="`${boardNewCount} work order${boardNewCount === 1 ? '' : 's'} updated since you last marked this board seen`"
+                @click="markBoardSeen"
+            >
+                <CircleCheckBig class="w-4 h-4 mr-1" />
+                {{ boardNewCount }} new · Mark all seen
+            </Button>
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
@@ -917,6 +990,8 @@ const page = usePage();
             <WorkOrderCard
                 :service_status="service_status"
                 :hoa="hoa"
+                :new-activity="newActivity"
+                :board-seen-at="boardSeenAt"
                 :color-filter="filter_color"
                 :search-term="search"
                 :vendor-filter="filter_vendor"
