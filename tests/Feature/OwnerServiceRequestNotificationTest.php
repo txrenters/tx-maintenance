@@ -551,7 +551,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $owner = $this->makeOwner('3466260693', 100);
         // Pasted from Word: curly apostrophe and an em dash, then far more
         // text than a single SMS should carry.
-        $description = "The tenant\u{2019}s upstairs bathroom \u{2014} ".str_repeat('water keeps pooling by the tub ', 30);
+        $description = "The tenant\u{2019}s upstairs bathroom \u{2014} ".str_repeat('water keeps pooling by the tub ', 60);
         $workOrder = $this->makeStaffCreatedWorkOrder($owner, description: $description);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
