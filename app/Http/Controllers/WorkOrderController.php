@@ -1011,6 +1011,146 @@ class WorkOrderController extends Controller
         return $service_status;
     }
 
+    /**
+     * The HVAC board: every heating and cooling work order, grouped by service
+     * status so the coordinator can see at a glance what is stuck waiting on
+     * scheduling, owner approval or parts.
+     */
+    public function hvac_work_orders(Request $request)
+    {
+        // Same deferred structure as index(): heavy props only run on the
+        // request that returns them.
+        return inertia('WorkOrder/Hvac', [
+            'title' => 'HVAC Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
+            'service_status' => Inertia::defer(fn () => $this->hvacBoard($request)),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+        ]);
+    }
+
+    /**
+     * The HVAC kanban board: the same shape as inspectionsBoard(), restricted to
+     * heating and cooling work by WorkOrder::scopeHvac(), which owns the
+     * spelling rules PropertyWare's picklist forces on us.
+     */
+    private function hvacBoard(Request $request): Collection
+    {
+        $query = ServiceStatus::with([
+            'work_orders' => function ($query) {
+                $this->applyBoardFilters($query->select(self::BOARD_CARD_COLUMNS)->scoped())
+                    ->hvac()
+                    ->where('status', 'Open');
+            },
+            ...$this->boardCardRelations('work_orders.'),
+        ])
+            ->whereNot('name', 'Not Changed');
+
+        $service_status = $query->get();
+
+        // Pull the trailing statuses out so they can be re-pushed in order after
+        // the Paid and Closed buckets are rebuilt with their 30-day windows.
+        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
+        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
+
+        $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+            'Completed - Verified - Waiting on Bill',
+            'Approved - Waiting on Payment',
+            'Closed',
+        ], true));
+
+        // "Paid": HVAC work that was actually billed, within the last 30 days.
+        $paidStatus = ServiceStatus::where('name', 'Paid')->first();
+        if ($paidStatus) {
+            $paidStatus->setRelation('work_orders', $this->applyBoardFilters(
+                WorkOrder::query()
+                    ->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
+                    ->with($this->boardCardRelations())
+            )
+                ->hvac()
+                ->whereNotNull('total_cost')
+                ->where('total_cost', '>', 0)
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS))
+                ->latest('completed_date')
+                ->get());
+        }
+
+        // "Closed": HVAC work finished within the last 30 days, so recent
+        // completions stay visible without the list growing without bound.
+        $closedStatus = ServiceStatus::where('name', 'Closed')->first();
+        if ($closedStatus) {
+            $closedStatus->setRelation('work_orders', $this->applyBoardFilters(
+                WorkOrder::query()
+                    ->select(self::BOARD_CARD_COLUMNS)
+                    ->scoped()
+                    ->with($this->boardCardRelations())
+            )
+                ->hvac()
+                ->where('status', 'Closed')
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS))
+                ->latest('completed_date')
+                ->get());
+        }
+
+        if ($waitingOnBillStatus) {
+            $service_status->push($waitingOnBillStatus);
+        }
+        if ($waitingOnPaymentStatus) {
+            $service_status->push($waitingOnPaymentStatus);
+        }
+        if ($paidStatus) {
+            $service_status->push($paidStatus);
+        }
+        if ($closedStatus) {
+            $service_status->push($closedStatus);
+        }
+
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized collection (including the Paid/Closed buckets pushed
+        // above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
+        if ($request->user()->hasRole('vendor')) {
+            $service_status = $service_status
+                ->reject(fn ($status) => in_array($status->name, self::VENDOR_HIDDEN_STATUSES, true))
+                ->values();
+        }
+
+        return $service_status;
+    }
+
+    /**
+     * The search / vendor / category / date-range filters every board applies to
+     * its card query, read off the current request.
+     *
+     * The category filter is an exact match on purpose: the value comes from the
+     * board's own category list, so it round-trips the stored spelling verbatim
+     * — including PropertyWare's trailing spaces.
+     */
+    private function applyBoardFilters($query)
+    {
+        return $query
+            ->when(request('search'), function ($q, $search) {
+                $q->where('work_order_no', $search);
+            })
+            ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
+            ->when(request('category'), function ($q, $category) {
+                $q->where('category', $category);
+            })
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $date = request()->only(['start_date', 'end_date']);
+                $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                $q->whereBetween('created_date', [$start_date, $end_date]);
+            });
+    }
+
     public function lawn_service_work_orders(Request $request)
     {
         $query = ServiceStatus::with([

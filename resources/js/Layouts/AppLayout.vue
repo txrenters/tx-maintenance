@@ -125,6 +125,7 @@ const SUMMARY_BOARDS = [
     ["/work_orders/closed", "closed"],
     ["/work_orders/paid", "paid"],
     ["/work_orders/hoa", "hoa"],
+    ["/work_orders/hvac", "hvac"],
 ];
 
 // Only the staff who work the boards; the endpoint enforces this too.
@@ -329,6 +330,13 @@ const navs = computed(() => {
                               url: route("work_orders.lawn_service"),
                               isActive: page.url.startsWith(
                                   "/work_orders/lawn_service"
+                              ),
+                          },
+                          {
+                              title: "HVAC",
+                              url: route("work_orders.hvac"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/hvac"
                               ),
                           },
                           {

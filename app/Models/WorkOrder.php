@@ -64,6 +64,7 @@ class WorkOrder extends Model
         'waiting_on_payment',
         'paid',
         'hoa',
+        'hvac',
     ];
 
     /**
@@ -863,6 +864,43 @@ class WorkOrder extends Model
     }
 
     /**
+     * The heating and cooling work orders, for the HVAC board.
+     *
+     * Matched with LIKE, never an equality test. PropertyWare's real picklist
+     * value is "HVAC " with a trailing space (1,444 work orders carry it); only
+     * six carry a clean "HVAC", so where('category', 'HVAC') would find six rows
+     * instead of ~3,000. The same trailing space is why
+     * WorkOrderCategory::canonicalName() exists.
+     *
+     * Some work orders carry HVAC as the type ("HVAC Maintenance") and leave the
+     * category blank, the same inconsistency isTurnover() documents, so both
+     * columns are matched.
+     *
+     * Water heaters are plumbing rather than heating and cooling, so they are
+     * excluded even though "Water heater" contains the %heater% term.
+     *
+     * The whereNull branches are required: in SQL, NULL NOT LIKE '%x%' evaluates
+     * to NULL, so without them a work order with no category would be dropped.
+     */
+    public function scopeHvac($query)
+    {
+        return $query
+            ->where(function ($q) {
+                $q->where('category', 'LIKE', '%hvac%')
+                    ->orWhere('type', 'LIKE', '%hvac%')
+                    ->orWhere('category', 'LIKE', '%ac filter%')
+                    ->orWhere('category', 'LIKE', '%thermostat%')
+                    ->orWhere('category', 'LIKE', '%heater%')
+                    ->orWhere('category', 'LIKE', '%furnace%')
+                    ->orWhere('category', 'LIKE', '%central heating%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('category')
+                    ->orWhere('category', 'NOT LIKE', '%water heater%');
+            });
+    }
+
+    /**
      * Whether this work order is an HOA violation, without touching the
      * database when the category alone already answers it. Used to keep
      * tenant/owner repair automations off violation notices.
@@ -973,6 +1011,10 @@ class WorkOrder extends Model
                 ->where('completed_date', '>=', now()->subDays(self::COMPLETED_WINDOW_DAYS)),
 
             'hoa' => $query->hoaViolations(),
+
+            // HVAC work orders deliberately stay on the main board too, the way
+            // HOA violations do, so nobody loses sight of them.
+            'hvac' => $query->hvac()->where('status', 'Open'),
 
             default => $query,
         };

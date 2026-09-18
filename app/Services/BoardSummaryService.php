@@ -58,6 +58,7 @@ class BoardSummaryService
         'waiting_on_payment' => 'Waiting on Payment',
         'paid' => 'Paid Work Orders',
         'hoa' => 'HOA Violations',
+        'hvac' => 'HVAC',
     ];
 
     public function __construct(
