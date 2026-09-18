@@ -19,6 +19,10 @@ const props = defineProps({
   job: Object,
   attachments: { type: Array, default: () => [] },
   invoices: { type: Array, default: () => [] },
+  // False until this vendor has uploaded a photo of their own to this job. The
+  // server refuses the invoice either way; this only keeps the form from
+  // inviting a submission that cannot succeed.
+  can_upload_invoice: { type: Boolean, default: false },
   // The office has finished with this job: it stays readable, but uploads are
   // closed off. The server enforces this too.
   isClosed: { type: Boolean, default: false },
@@ -225,11 +229,14 @@ const uploadInvoice = () => {
               <Label class="text-sm">File</Label>
               <Input :key="invoiceInputKey" type="file" accept=".jpg,.jpeg,.png,.pdf" @change="handleInvoiceSelect" />
             </div>
-            <Button class="w-full" @click="uploadInvoice" :disabled="isUploadingInvoice">
+            <Button class="w-full" @click="uploadInvoice" :disabled="isUploadingInvoice || !can_upload_invoice">
               <Loader2 v-if="isUploadingInvoice" class="h-4 w-4 animate-spin" />
               <Upload v-else class="h-4 w-4" />
               Upload invoice
             </Button>
+            <p v-if="!can_upload_invoice" class="text-center text-xs text-muted-foreground">
+              Upload at least one photo of the work above before submitting your invoice.
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -35,6 +35,10 @@ const props = defineProps({
     estimate: { type: Object, default: () => ({}) },
     attachments: { type: Array, default: () => [] },
     invoices: { type: Array, default: () => [] },
+    // False until this vendor has uploaded a photo of their own to this work
+    // order. The server refuses the invoice either way; this only keeps the
+    // form from inviting a submission that cannot succeed.
+    can_upload_invoice: { type: Boolean, default: false },
     schedules: { type: Array, default: () => [] },
     messages: { type: Array, default: () => [] },
     tenantContacts: { type: Array, default: () => [] },
@@ -1200,7 +1204,8 @@ const confirmCompleteTask = () => {
                                 :disabled="
                                     uploadingInvoice ||
                                     !invoiceFile ||
-                                    !invoiceForm.amount
+                                    !invoiceForm.amount ||
+                                    !can_upload_invoice
                                 "
                                 class="w-full rounded-md bg-primary text-primary-foreground font-medium py-3 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2"
                                 @click="uploadInvoice"
@@ -1212,7 +1217,14 @@ const confirmCompleteTask = () => {
                                 Submit invoice
                             </button>
                             <p
-                                v-if="invoiceFile && !invoiceForm.amount"
+                                v-if="!can_upload_invoice"
+                                class="text-xs text-muted-foreground text-center"
+                            >
+                                Upload at least one photo of the work on the
+                                Photos tab before submitting your invoice.
+                            </p>
+                            <p
+                                v-else-if="invoiceFile && !invoiceForm.amount"
                                 class="text-xs text-muted-foreground text-center"
                             >
                                 Enter the invoice amount above to submit.

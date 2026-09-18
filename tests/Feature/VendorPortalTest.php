@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\ReviewCompletionPhoto;
 use App\Jobs\UploadAttachment;
+use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
@@ -35,6 +36,23 @@ class VendorPortalTest extends TestCase
             'is_active' => true,
             'user_id' => $user->id,
             'email' => $email,
+        ]);
+    }
+
+    /**
+     * A photo uploaded by this vendor, which is what unlocks the invoice form.
+     * Written straight to the table so invoice tests do not depend on the photo
+     * upload endpoint.
+     */
+    private function giveVendorAPhoto(WorkOrder $workOrder, Vendor $vendor, string $type = 'after'): void
+    {
+        Attachments::query()->create([
+            'title' => 'Vendor photo',
+            'filename' => 'attachments/proof.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => $type,
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendor->user_id,
         ]);
     }
 
@@ -526,6 +544,7 @@ class VendorPortalTest extends TestCase
         $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
         $workOrder = $this->makeWorkOrder();
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         $this->post(route('vendor.portal.invoice', 'token-acme'), [
             'title' => 'Labor and parts',
@@ -551,6 +570,7 @@ class VendorPortalTest extends TestCase
         $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
         $workOrder = $this->makeWorkOrder();
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         // Not every trade numbers its invoices; a photo of a receipt still goes through.
         $this->post(route('vendor.portal.invoice', 'token-acme'), [
@@ -564,6 +584,90 @@ class VendorPortalTest extends TestCase
             'vendor_id' => $vendor->id,
             'invoice_number' => null,
         ]);
+    }
+
+    public function test_an_invoice_is_refused_when_the_vendor_uploaded_no_photos(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->post(route('vendor.portal.invoice', 'token-acme'), [
+            'title' => 'Labor and parts',
+            'amount' => '325.00',
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasErrors('invoice');
+
+        $this->assertDatabaseCount('invoices', 0);
+    }
+
+    public function test_the_office_before_photo_does_not_unlock_the_invoice(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        // Intake stores the tenant's own photos as type "before" under their
+        // user. The vendor still has to document their own work.
+        Attachments::query()->create([
+            'title' => 'Tenant intake photo',
+            'filename' => 'attachments/intake.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'before',
+            'work_order_id' => $workOrder->id,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        $this->post(route('vendor.portal.invoice', 'token-acme'), [
+            'title' => 'Labor and parts',
+            'amount' => '325.00',
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasErrors('invoice');
+
+        $this->assertDatabaseCount('invoices', 0);
+    }
+
+    public function test_an_other_type_photo_also_unlocks_the_invoice(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        // The rule is "some proof of the work", not a before/after pair: the
+        // portal's type picker defaults to "after" and many vendors never
+        // touch it, so any upload of their own counts.
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor, 'attachment');
+
+        $this->post(route('vendor.portal.invoice', 'token-acme'), [
+            'title' => 'Labor and parts',
+            'amount' => '325.00',
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 20, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('invoices', 1);
+    }
+
+    public function test_the_portal_tells_the_page_whether_an_invoice_can_be_uploaded(): void
+    {
+        $vendor = $this->makeVendor('V-1', 'Acme Plumbing');
+        $workOrder = $this->makeWorkOrder();
+        $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertInertia(fn (Assert $page) => $page->where('can_upload_invoice', false));
+
+        $this->giveVendorAPhoto($workOrder, $vendor);
+
+        $this->get(route('vendor.portal.show', 'token-acme'))
+            ->assertInertia(fn (Assert $page) => $page->where('can_upload_invoice', true));
     }
 
     public function test_vendor_message_is_stored_unread_for_coordinator(): void

@@ -79,7 +79,24 @@ class JobberVendorPortalController extends Controller
                 'status' => $i->status,
                 'url' => asset('storage/'.$i->filename),
             ])->values(),
+            // Drives the disabled state and hint on the invoice form. The
+            // server guard in uploadInvoice() is what actually enforces this.
+            'can_upload_invoice' => $this->hasVendorPhotos($job, $vendor),
         ]);
+    }
+
+    /**
+     * Whether this vendor has uploaded anything of their own to this job.
+     * Photos are the office's only proof the work happened, so an invoice is
+     * refused until at least one exists — see uploadInvoice(). The office's own
+     * "before" photos carry another vendor_id and so do not satisfy it.
+     */
+    private function hasVendorPhotos(Jobber $job, Vendor $vendor): bool
+    {
+        return JobberJobAttachment::query()
+            ->where('jobber_job_id', $job->id)
+            ->where('vendor_id', $vendor->id)
+            ->exists();
     }
 
     /**
@@ -150,6 +167,16 @@ class JobberVendorPortalController extends Controller
         $vendor = $request->attributes->get('portal_vendor');
 
         $this->abortIfClosed($job);
+
+        // No photos, no invoice: the office bills from the vendor's own record
+        // of the work, so an undocumented invoice is refused rather than chased
+        // down afterwards. A correctable mistake, so it returns a message the
+        // vendor can act on rather than aborting like abortIfClosed().
+        if (! $this->hasVendorPhotos($job, $vendor)) {
+            return back()->withErrors([
+                'invoice' => 'Please upload at least one photo of the work before submitting your invoice.',
+            ]);
+        }
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',

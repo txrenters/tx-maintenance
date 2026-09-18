@@ -199,6 +199,9 @@ class VendorPortalController extends Controller
                 'status' => $inv->status,
                 'url' => asset('storage/'.$inv->filename),
             ])->values(),
+            // Drives the disabled state and hint on the invoice form. The
+            // server guard in uploadInvoice() is what actually enforces this.
+            'can_upload_invoice' => $this->hasVendorPhotos($workOrder, $vendor),
             'schedules' => $schedules->map(fn ($s) => [
                 'id' => $s->id,
                 'title' => $s->title,
@@ -334,6 +337,24 @@ class VendorPortalController extends Controller
     }
 
     /**
+     * Whether this vendor has uploaded anything of their own to this work
+     * order. Photos are the office's only proof the work happened, so an
+     * invoice is refused until at least one exists — see uploadInvoice().
+     *
+     * Scoped to the vendor's own uploads by user_id (the attachments table has
+     * no vendor_id), so the office's or tenant's intake "before" photos do not
+     * satisfy it: the ticket asks for photos uploaded in the portal.
+     */
+    private function hasVendorPhotos(WorkOrder $workOrder, Vendor $vendor): bool
+    {
+        return Attachments::query()
+            ->withoutGlobalScopes()
+            ->where('work_order_id', $workOrder->id)
+            ->where('user_id', $vendor->user_id)
+            ->exists();
+    }
+
+    /**
      * Upload one or more photos / screenshots and sync them to PropertyWare.
      */
     public function uploadAttachments(Request $request)
@@ -407,6 +428,15 @@ class VendorPortalController extends Controller
         $workOrder = $request->attributes->get('portal_work_order');
         /** @var Vendor $vendor */
         $vendor = $request->attributes->get('portal_vendor');
+
+        // No photos, no invoice: the office bills from the vendor's own record
+        // of the work, so an undocumented invoice is refused here rather than
+        // chased down after it has already reached PropertyWare.
+        if (! $this->hasVendorPhotos($workOrder, $vendor)) {
+            return back()->withErrors([
+                'invoice' => 'Please upload at least one photo of the work before submitting your invoice.',
+            ]);
+        }
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',

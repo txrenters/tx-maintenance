@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\UploadAttachment;
 use App\Models\Jobber;
 use App\Models\JobberClient;
+use App\Models\JobberJobAttachment;
 use App\Models\JobberJobInvoice;
 use App\Models\JobberProperty;
 use App\Models\User;
@@ -217,6 +218,7 @@ class JobberVendorPortalTest extends TestCase
         $job = $this->makeJob();
         $vendor = $this->makeVendor();
         $token = $this->assign($job, $vendor, str_repeat('i', 48));
+        $this->giveVendorAPhoto($job, $vendor);
 
         $this->post(route('jobber.portal.invoice', $token), [
             'title' => 'Job 3001 invoice',
@@ -232,5 +234,55 @@ class JobberVendorPortalTest extends TestCase
 
         Http::assertNothingSent();
         $this->assertDatabaseCount('invoices', 0);
+    }
+
+    /**
+     * A photo uploaded by this vendor, which is what unlocks the invoice form.
+     */
+    private function giveVendorAPhoto(Jobber $job, Vendor $vendor): void
+    {
+        JobberJobAttachment::query()->create([
+            'jobber_job_id' => $job->id,
+            'user_id' => $vendor->user_id,
+            'vendor_id' => $vendor->id,
+            'title' => 'Vendor photo',
+            'filename' => 'jobber-attachments/proof.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'after',
+            'uploaded_via' => 'vendor_portal',
+        ]);
+    }
+
+    public function test_an_invoice_is_refused_when_the_vendor_uploaded_no_photos(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $job = $this->makeJob();
+        $vendor = $this->makeVendor();
+        $token = $this->assign($job, $vendor, str_repeat('j', 48));
+
+        $this->post(route('jobber.portal.invoice', $token), [
+            'title' => 'Job 3001 invoice',
+            'amount' => 425.50,
+            'filename' => UploadedFile::fake()->create('invoice.pdf', 100, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasErrors('invoice');
+
+        $this->assertDatabaseCount('jobber_job_invoices', 0);
+    }
+
+    public function test_the_job_page_tells_the_page_whether_an_invoice_can_be_uploaded(): void
+    {
+        $job = $this->makeJob();
+        $vendor = $this->makeVendor();
+        $token = $this->assign($job, $vendor, str_repeat('k', 48));
+
+        $this->get(route('jobber.portal.show', $token))
+            ->assertInertia(fn ($page) => $page->where('can_upload_invoice', false));
+
+        $this->giveVendorAPhoto($job, $vendor);
+
+        $this->get(route('jobber.portal.show', $token))
+            ->assertInertia(fn ($page) => $page->where('can_upload_invoice', true));
     }
 }

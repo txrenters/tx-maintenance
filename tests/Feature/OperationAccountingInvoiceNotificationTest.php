@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Attachments;
 use App\Models\Building;
 use App\Models\ServiceStatus;
 use App\Models\User;
@@ -30,6 +31,23 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
             'vendor_type' => 'General',
             'is_active' => true,
             'user_id' => $user->id,
+        ]);
+    }
+
+    /**
+     * The portal refuses an invoice from a vendor who has uploaded no photos,
+     * so give them one: this suite is about the Operation Accounting email,
+     * not the gate.
+     */
+    private function giveVendorAPhoto(WorkOrder $workOrder, Vendor $vendor): void
+    {
+        Attachments::query()->create([
+            'title' => 'Vendor photo',
+            'filename' => 'attachments/proof.jpg',
+            'filetype' => 'image/jpeg',
+            'type' => 'after',
+            'work_order_id' => $workOrder->id,
+            'user_id' => $vendor->user_id,
         ]);
     }
 
@@ -108,6 +126,7 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $vendor = $this->makeVendor();
         $workOrder = $this->makeWorkOrder('Turnover');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         // Accounting files the bill under the vendor's number, so it travels in the email.
         $this->mockGraphExpectingOaEmail($workOrder, ['Invoice #', 'INV-5087']);
@@ -132,6 +151,7 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $vendor = $this->makeVendor();
         $workOrder = $this->makeWorkOrder('Turnover');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         // No number given: the row is still there so accounting sees it is missing.
         $this->mockGraphExpectingOaEmail($workOrder, ['Invoice #'], ['INV-']);
@@ -155,6 +175,7 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $vendor = $this->makeVendor();
         $workOrder = $this->makeWorkOrder('Standard');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         $this->mockGraphExpectingNoEmail();
 
@@ -179,6 +200,7 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $vendor = $this->makeVendor();
         $workOrder = $this->makeWorkOrder('Turnover');
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         $this->mockGraphExpectingNoEmail();
 
@@ -203,6 +225,7 @@ class OperationAccountingInvoiceNotificationTest extends TestCase
         $workOrder = $this->makeWorkOrder('Standard');
         $workOrder->update(['category' => 'Turnover']);
         $workOrder->vendors()->attach($vendor->id, ['access_token' => 'token-acme']);
+        $this->giveVendorAPhoto($workOrder, $vendor);
 
         $this->mockGraphExpectingOaEmail($workOrder);
 
