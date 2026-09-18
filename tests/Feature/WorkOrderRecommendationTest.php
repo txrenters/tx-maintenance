@@ -220,10 +220,13 @@ class WorkOrderRecommendationTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('work_orders.recommendation.generate', $currentWorkOrder));
 
+        // The history vendor wins over the owner-preferred notice. Prior same-issue
+        // work at this same building also makes this a repeat, so it is labeled
+        // repeat_issue — the stronger form of building history.
         $response->assertOk()
             ->assertJsonPath('recommendation.issue_type', 'Plumbing')
             ->assertJsonPath('recommendation.recommended_vendor.id', $historyVendor->id)
-            ->assertJsonPath('recommendation.vendor_source', 'building_history');
+            ->assertJsonPath('recommendation.vendor_source', 'repeat_issue');
     }
 
     public function test_history_with_rework_signals_in_closing_comments_is_demoted(): void

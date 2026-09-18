@@ -193,7 +193,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
         Queue::assertPushed(
             GenerateWorkOrderRecommendationJob::class,
-            fn ($job) => $job->workOrderId === $imported->id && $job->allowAutoAssign === true
+            fn ($job) => $job->workOrderId === $imported->id
         );
         Queue::assertPushed(SendOwnerServiceRequestNotificationJob::class, fn ($job) => $job->workOrderId === $imported->id);
         Queue::assertPushed(AdoptCategorizedHoaViolationJob::class, fn ($job) => $job->workOrderId === $imported->id);
@@ -222,7 +222,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
         Queue::assertPushed(
             GenerateWorkOrderRecommendationJob::class,
-            fn ($job) => $job->workOrderId === $imported->id && $job->allowAutoAssign === false
+            fn ($job) => $job->workOrderId === $imported->id
         );
         Queue::assertNotPushed(SendOwnerServiceRequestNotificationJob::class);
         Queue::assertNotPushed(AdoptCategorizedHoaViolationJob::class);
@@ -326,7 +326,7 @@ class ImportMissingWorkOrdersTest extends TestCase
 
         Queue::assertPushed(
             GenerateWorkOrderRecommendationJob::class,
-            fn ($job) => $job->workOrderId === $imported->id && $job->allowAutoAssign === false
+            fn ($job) => $job->workOrderId === $imported->id
         );
         Queue::assertNotPushed(SendOwnerServiceRequestNotificationJob::class);
         Queue::assertNotPushed(SendTenantServiceRequestNotificationJob::class);

@@ -335,7 +335,7 @@ class TenantRequestIntakeService
      */
     private function dispatchIntakeAutomations(WorkOrder $workOrder): void
     {
-        GenerateWorkOrderRecommendationJob::dispatch($workOrder->id, allowAutoAssign: true);
+        GenerateWorkOrderRecommendationJob::dispatch($workOrder->id);
         SendOwnerServiceRequestNotificationJob::dispatch($workOrder->id);
         SendTenantWorkOrderIntakeEmailJob::dispatch($workOrder->id);
         SendTenantServiceRequestNotificationJob::dispatch($workOrder->id);

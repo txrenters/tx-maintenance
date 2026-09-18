@@ -197,7 +197,7 @@ class WorkOrderImportTest extends TestCase
 
         Queue::assertPushed(
             GenerateWorkOrderRecommendationJob::class,
-            fn ($job) => $job->workOrderId === $workOrder->id && $job->allowAutoAssign === true
+            fn ($job) => $job->workOrderId === $workOrder->id
         );
         Queue::assertPushed(SendOwnerServiceRequestNotificationJob::class, fn ($job) => $job->workOrderId === $workOrder->id);
         Queue::assertPushed(AdoptCategorizedHoaViolationJob::class, fn ($job) => $job->workOrderId === $workOrder->id);

@@ -195,13 +195,12 @@ return [
         // comes in, carrying the no-login portal link. Not a Twilio channel, so
         // it lives here rather than under `twilio`.
         'tenant_intake_email' => env('TENANT_INTAKE_EMAIL_ENABLED', true),
-        // Automatically assign the prior vendor when a new work order is a
-        // confident repeat (same issue type + same building -> same vendor).
-        // ON by default so a production deploy starts reusing repeat vendors
-        // immediately. Local .env and phpunit.xml pin this false so development
-        // and tests never email a real vendor or push an assignment to
-        // PropertyWare.
-        'auto_assign_vendor' => env('VENDOR_AUTO_ASSIGN_ENABLED', true),
+        // Repeat work orders (same issue type + same building) no longer assign
+        // the prior vendor automatically — they only surface that vendor as the
+        // recommendation, for staff to assign by hand. Nothing reads this gate
+        // any more; it is kept so an existing VENDOR_AUTO_ASSIGN_ENABLED in a
+        // deployed .env stays harmless.
+        'auto_assign_vendor' => false,
     ],
 
     'microsoft' => [
