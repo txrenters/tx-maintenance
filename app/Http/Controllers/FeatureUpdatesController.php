@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-18',
+            'area' => 'Owner Portal',
+            'title' => 'An owner approving in the portal now approves it in PropertyWare too, under their name',
+            'description' => 'When an owner tapped Approve on their portal link, the decision reached us - the coordinator got the alert and the message in the owner thread - but the work order stayed unapproved in PropertyWare, so PropertyWare kept emailing the owner to approve the same job they had just approved. Approving in the portal now approves the work order in PropertyWare as well, which takes it out of PropertyWare\'s approval queue and stops those emails. PropertyWare always records whoever makes the change, which for an approval sent from the portal is the maintenance system itself, so it cannot show the owner as the approver; instead the owner\'s name goes into the Approval Comments, which now end with "- Approved by (owner name)" and the date. There is also a new optional comment box on the approval card: whatever the owner types appears above that line in PropertyWare, and in the coordinator\'s owner thread either way. "Don\'t approve" is unchanged and never touches PropertyWare - it has no "declined" setting, so a declined work order would look there exactly like one nobody has answered yet - and it still reaches the coordinator through the alert and the thread as before.',
+        ],
+        [
             'date' => '2026-09-16',
             'area' => 'Invoices',
             'title' => 'Invoice numbers are read from the invoice file automatically',

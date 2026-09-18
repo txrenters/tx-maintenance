@@ -41,6 +41,14 @@ return [
         'client_id' => env('PROPERTYWARE_CLIENT_ID'),
         'client_secret_key' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
         'system_id' => env('PROPERTYWARE_SYSTEM_ID'),
+        // Push an owner-portal approval through to PropertyWare, so its own
+        // approval queue stops asking the owner to approve the same work
+        // order by email. PropertyWare records the API login as the approver
+        // whoever triggered it, so the owner's name is carried in the
+        // approval comment instead. Off by default: it writes to the live
+        // PropertyWare record and fires PropertyWare's own "Work Order
+        // Approved" alert. Set OWNER_APPROVAL_TO_PW_ENABLED=true to turn on.
+        'owner_approval_push' => env('OWNER_APPROVAL_TO_PW_ENABLED', false),
     ],
 
     'asana' => [
