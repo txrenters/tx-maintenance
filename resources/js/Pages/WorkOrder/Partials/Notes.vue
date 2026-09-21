@@ -390,7 +390,7 @@ const handleFetchNotes = () => {
                         <!-- The photos the crew attached to the note in Jobber. -->
                         <div
                             v-if="note.photos?.length"
-                            class="mt-2 flex flex-wrap gap-2"
+                            class="mt-2 mb-2 flex flex-wrap gap-2"
                         >
                             <a
                                 v-for="photo in note.photos"
