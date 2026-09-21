@@ -782,6 +782,16 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderNotes::class);
     }
 
+    /**
+     * Notes the THMP crew wrote on this work order's Jobber job. Read-only
+     * copies: kept apart from notes() so the PropertyWare reconciliation
+     * cannot delete them and the PropertyWare push cannot pick them up.
+     */
+    public function jobberNotes(): HasMany
+    {
+        return $this->hasMany(WorkOrderJobberNote::class, 'work_order_id');
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(WorkOrderTask::class)

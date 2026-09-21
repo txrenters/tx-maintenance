@@ -96,6 +96,18 @@ Schedule::command('jobber:refresh-token')
     ->withoutOverlapping(10)
     ->runInBackground();
 
+// The THMP crew's Jobber notes, onto the work orders they belong to. Jobber
+// publishes no note webhook (46 topics, none about notes), so this polls: one
+// GraphQL call per linked work order, paced by Jobber's own cost accounting.
+// On the half hour so it never shares a tick with the PropertyWare imports,
+// and opening a work order's Notes tab queues its own refresh, so nobody
+// waits half an hour to see a note they just wrote. Gated off by default
+// (JOBBER_NOTE_SYNC_ENABLED): until that is on this is a no-op.
+Schedule::command('jobber:sync-job-notes')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping(25)
+    ->runInBackground();
+
 // With no --days the command runs its defaults: the 3, 7, and 14-day tiers.
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')

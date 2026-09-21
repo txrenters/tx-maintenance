@@ -4,17 +4,27 @@ namespace App\Services;
 
 /**
  * GraphQL selections the Jobber syncs ask for on top of the fields Jobber
- * has always served: who a visit is assigned to, and the coordinates Jobber
- * holds for a property address. Their names come from schema references
- * rather than a live call, so each one is optional — when Jobber rejects
- * it, the sync drops that selection for the rest of the run and retries,
- * and one unknown field never sinks an import or a webhook.
+ * has always served: who a visit is assigned to, the coordinates Jobber
+ * holds for a property address, and a note's photos and pinned flag. Their
+ * names come from schema references rather than a live call, so each one is
+ * optional — when Jobber rejects it, the sync drops that selection for the
+ * rest of the run and retries, and one unknown field never sinks an import
+ * or a webhook.
+ *
+ * Matching is a substring test against the error message, so a field named
+ * here has to be a word Jobber would only mention when complaining about
+ * that selection. Anything shorter or more common than these would start
+ * disabling itself on unrelated errors.
  */
 class JobberOptionalSelections
 {
     public const ASSIGNED_USERS = 'assignedUsers';
 
     public const COORDINATES = 'coordinates';
+
+    public const NOTE_FILE_ATTACHMENTS = 'fileAttachments';
+
+    public const NOTE_PINNED = 'pinned';
 
     /**
      * Jobber prices a query by what it could return, and nested three deep
@@ -28,6 +38,11 @@ class JobberOptionalSelections
     private const FRAGMENTS = [
         self::ASSIGNED_USERS => 'assignedUsers(first: 2) { nodes { id name { full } } }',
         self::COORDINATES => 'coordinates { latitude longitude }',
+        // A note's photos. Ten slots per note: a crew note carries a handful
+        // of phone pictures, and the count multiplies against every note on
+        // the page. Dropping this leaves the notes themselves importing.
+        self::NOTE_FILE_ATTACHMENTS => 'fileAttachments(first: 10) { nodes { id fileName contentType fileSize status url } }',
+        self::NOTE_PINNED => 'pinned',
     ];
 
     /**

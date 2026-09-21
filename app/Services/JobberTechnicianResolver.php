@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Jobber;
 use App\Models\JobberVisit;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
@@ -19,11 +18,8 @@ use Illuminate\Support\Collection;
  * and answers with the technician(s) assigned to the visit nearest the
  * moment the note was written.
  *
- * There is no foreign key between the two worlds, so the job is found by, in
- * order: the stored Jobber GID, the stored Jobber web URL, and finally the
- * "#<work order number>" suffix the app writes into every job title it
- * creates. Null whenever any link is missing — the caller falls back to the
- * vendor name, exactly today's behavior.
+ * Finding the job itself is JobberJobLocator's job. Null whenever any link is
+ * missing — the caller falls back to the vendor name, exactly today's behavior.
  */
 class JobberTechnicianResolver
 {
@@ -33,6 +29,8 @@ class JobberTechnicianResolver
      * @var array<int, Collection<int, JobberVisit>|null>
      */
     private array $visitsByWorkOrder = [];
+
+    public function __construct(private JobberJobLocator $jobs) {}
 
     public function technicianForNote(WorkOrder $workOrder, ?CarbonInterface $writtenAt): ?string
     {
@@ -61,23 +59,7 @@ class JobberTechnicianResolver
      */
     private function assignedVisits(WorkOrder $workOrder): ?Collection
     {
-        $job = null;
-
-        if (filled($workOrder->jobber_job_gid)) {
-            $job = Jobber::query()->where('jobber_id', $workOrder->jobber_job_gid)->first();
-        }
-
-        if ($job === null && filled($workOrder->jobber_web_uri)) {
-            $job = Jobber::query()->where('jobber_web_uri', $workOrder->jobber_web_uri)->first();
-        }
-
-        // App-created titles end "- #<number>"; the suffix match cannot hit a
-        // longer number ("#143967" does not end in "#43967").
-        if ($job === null && filled($workOrder->work_order_no)) {
-            $job = Jobber::query()->where('title', 'LIKE', '%#'.(int) $workOrder->work_order_no)->first();
-        }
-
-        return $job?->visits()
+        return $this->jobs->forWorkOrder($workOrder)?->visits()
             ->whereNotNull('assigned_to')
             ->get(['id', 'jobber_job_id', 'start_at', 'end_at', 'completed_at', 'assigned_to']);
     }
