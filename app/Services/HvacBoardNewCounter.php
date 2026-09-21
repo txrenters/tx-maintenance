@@ -54,7 +54,27 @@ class HvacBoardNewCounter
             ->where('status', 'Open')
             ->hvac()
             ->where('updated_at', '>', $user->hvac_board_seen_at)
+            ->whereNotExists(fn ($q) => $this->dismissedSince($q, $user->id))
             ->count();
+    }
+
+    /**
+     * Rows this user dismissed individually, and that have not moved since.
+     *
+     * A correlated EXISTS on a two-column unique index, not a join or a
+     * subquery over the whole table: it is checked only for the handful of work
+     * orders that already passed the updated_at filter.
+     *
+     * Comparing against dismissed_at (rather than just "a row exists") is what
+     * makes a work order come back when it changes again.
+     */
+    private function dismissedSince($query, int $userId): void
+    {
+        $query->selectRaw('1')
+            ->from('hvac_board_reads')
+            ->whereColumn('hvac_board_reads.work_order_id', 'work_orders.id')
+            ->where('hvac_board_reads.user_id', $userId)
+            ->whereColumn('hvac_board_reads.dismissed_updated_at', '>=', 'work_orders.updated_at');
     }
 
     private function cacheKey(int $userId): string

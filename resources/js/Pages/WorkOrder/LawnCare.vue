@@ -99,6 +99,8 @@ const props = defineProps({
     },
 });
 
+const page = usePage();
+
 const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
 const filter_vendor = ref(props.filter.vendor ?? "");
@@ -109,10 +111,10 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
 
-// How many work orders across the whole board moved since this user last marked
-// it seen. Counted off the loaded payload — no extra request, and nothing here
-// touches the database.
-const boardNewCount = computed(() => {
+// How many work orders moved since this user last marked the board seen,
+// counted off the already-loaded payload — no extra request. It cannot see
+// per-row dismissals, which is what serverNewCount below is for.
+const payloadNewCount = computed(() => {
     if (!props.newActivity || !props.boardSeenAt) return 0;
 
     // service_status arrives as an object keyed by index, not an array — the
@@ -127,6 +129,20 @@ const boardNewCount = computed(() => {
             ).length,
         0
     );
+});
+
+// The authoritative count once a row has been dismissed: the server applies the
+// dismissals, the payload cannot. Null until a dismissal returns one.
+const serverNewCount = ref(null);
+
+// Rows dismissed in this session but not yet confirmed by the server, so the
+// badge drops the instant a row is clicked.
+const dismissedCount = ref(0);
+
+const boardNewCount = computed(() => {
+    if (serverNewCount.value !== null) return serverNewCount.value;
+
+    return Math.max(0, payloadNewCount.value - dismissedCount.value);
 });
 
 // The dropdown behind the badge: which work orders moved and what happened to
@@ -145,6 +161,13 @@ const loadActivity = async () => {
     try {
         const { data } = await axios.get(route("work_orders.hvac.activity"));
         activityUpdates.value = data.updates ?? [];
+
+        // The server applies dismissals; the payload count cannot. Once it has
+        // told us the real number, trust it over the local tally.
+        if (typeof data.new_count === "number") {
+            serverNewCount.value = data.new_count;
+            dismissedCount.value = 0;
+        }
     } catch {
         // The count itself comes from the board payload and is still correct;
         // only the breakdown is missing, so say so rather than blanking it.
@@ -158,11 +181,40 @@ watch(activityOpen, (open) => {
     if (open) loadActivity();
 });
 
-// Jump to the work order. Opening it does NOT clear its badge: the count is
-// cleared deliberately, by "Mark all seen", and never by looking.
-const openUpdate = (update) => {
+// Clicking a row is the deliberate act that clears it, the way opening a
+// message does — unlike merely opening the board, which still clears nothing.
+// The server records WHEN it was dismissed, so if this work order moves again
+// it comes straight back.
+const openUpdate = async (update) => {
     activityOpen.value = false;
     handleWorkOrder(update.id);
+
+    // Drop it from the list straight away rather than waiting on the request;
+    // the board is already navigating and the server is the source of truth for
+    // the count that comes back.
+    activityUpdates.value = activityUpdates.value.filter(
+        (row) => row.id !== update.id,
+    );
+    dismissedCount.value += 1;
+
+    try {
+        const { data } = await axios.post(
+            route("work_orders.hvac.dismiss", update.id),
+        );
+
+        if (typeof data.new_count === "number") {
+            serverNewCount.value = data.new_count;
+            dismissedCount.value = 0;
+
+            // The sidebar number is a shared Inertia prop, so it would otherwise
+            // sit stale until the next navigation and disagree with the board.
+            if (page.props) page.props.hvac_board_new_count = data.new_count;
+        }
+    } catch {
+        // The dismissal did not stick. Put the optimistic decrement back so the
+        // badge keeps telling the truth rather than quietly under-counting.
+        dismissedCount.value -= 1;
+    }
 };
 
 const markingSeen = ref(false);
@@ -186,6 +238,28 @@ const markBoardSeen = () => {
         }
     );
 };
+
+// A reloaded board carries a fresh payload that knows nothing about per-row
+// dismissals, so falling back to counting it would quietly resurrect everything
+// already dealt with. Once anything has been dismissed the server owns the
+// number, and a reload re-asks it rather than recomputing locally.
+watch(
+    () => props.service_status,
+    async () => {
+        dismissedCount.value = 0;
+
+        if (serverNewCount.value === null) return;
+
+        try {
+            const { data } = await axios.get(route("work_orders.hvac.activity"));
+            activityUpdates.value = data.updates ?? activityUpdates.value;
+            serverNewCount.value = data.new_count ?? serverNewCount.value;
+        } catch {
+            // Keep the last known-good number rather than jumping to a count
+            // that ignores dismissals.
+        }
+    }
+);
 
 // Keep the counters current while the board is open. Guarded so only the board
 // that shows counters pays for it; every other board stays as it was.
@@ -877,7 +951,6 @@ const date_range = ref({
 // Vendor, category, search and date filtering are applied client-side on the
 // already-loaded board (see WorkOrderCard) — no server round-trips on change.
 
-const page = usePage();
 </script>
 <template>
     <Head :title="title" />

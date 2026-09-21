@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\HvacBoardActivityFeed;
 use App\Services\HvacBoardNewCounter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -317,6 +318,104 @@ class HvacBoardSeenTest extends TestCase
         $this->actingAs($user)->getJson(route('work_orders.hvac.activity'))
             ->assertOk()
             ->assertJsonCount(0, 'updates');
+    }
+
+    /**
+     * Clicking a row clears that one, the way opening a message does — and a
+     * work order that moves again afterwards comes back, so one click can never
+     * silence a job for good.
+     */
+    public function test_dismissing_one_row_clears_it_until_it_moves_again(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3030,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $counter = app(HvacBoardNewCounter::class);
+        $this->assertSame(1, $counter->cachedCountFor($user->fresh()));
+
+        $this->actingAs($user)
+            ->postJson(route('work_orders.hvac.dismiss', $workOrder))
+            ->assertOk()
+            ->assertJson(['new_count' => 0]);
+
+        $this->assertSame(0, $counter->cachedCountFor($user->fresh()));
+        $this->assertSame([], app(HvacBoardActivityFeed::class)->for($user->fresh()));
+
+        // It moves again: back on the list, and back in the count.
+        $this->travel(2)->seconds();
+        $workOrder->touch();
+        $counter->forgetFor($user->id);
+
+        $this->assertSame(1, $counter->cachedCountFor($user->fresh()));
+        $this->assertCount(1, app(HvacBoardActivityFeed::class)->for($user->fresh()));
+    }
+
+    /** One person dealing with a row must not clear it for anyone else. */
+    public function test_dismissing_is_per_user(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $colleague = User::factory()->create([
+            'email' => 'it@example.com',
+            'hvac_board_seen_at' => now()->subDay(),
+        ]);
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3031,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $this->actingAs($user)->postJson(route('work_orders.hvac.dismiss', $workOrder))->assertOk();
+
+        $counter = app(HvacBoardNewCounter::class);
+        $this->assertSame(0, $counter->cachedCountFor($user->fresh()));
+        $this->assertSame(1, $counter->cachedCountFor($colleague->fresh()));
+    }
+
+    public function test_a_user_off_the_allow_list_cannot_dismiss(): void
+    {
+        $other = User::factory()->create(['email' => 'someone.else@example.com']);
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3032,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $this->actingAs($other)
+            ->postJson(route('work_orders.hvac.dismiss', $workOrder))
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('hvac_board_reads', 0);
     }
 
     public function test_a_user_off_the_allow_list_cannot_read_the_activity_feed(): void

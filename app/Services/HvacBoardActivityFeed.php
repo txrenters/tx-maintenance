@@ -66,6 +66,16 @@ class HvacBoardActivityFeed
             ->where('status', 'Open')
             ->hvac()
             ->where('updated_at', '>', $seenAt)
+            // Rows this user dismissed individually drop out, until the work
+            // order moves again. Same predicate the badge count uses, so the
+            // list and the number can never disagree.
+            ->whereNotExists(function ($q) use ($user) {
+                $q->selectRaw('1')
+                    ->from('hvac_board_reads')
+                    ->whereColumn('hvac_board_reads.work_order_id', 'work_orders.id')
+                    ->where('hvac_board_reads.user_id', $user->id)
+                    ->whereColumn('hvac_board_reads.dismissed_updated_at', '>=', 'work_orders.updated_at');
+            })
             ->orderByDesc('updated_at')
             ->limit(self::MAX_ROWS)
             ->get();

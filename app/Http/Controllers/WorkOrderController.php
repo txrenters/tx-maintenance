@@ -9,6 +9,7 @@ use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
+use App\Models\HvacBoardRead;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -1062,6 +1063,33 @@ class WorkOrderController extends Controller
     }
 
     /**
+     * Dismiss one work order from this user's HVAC "what moved" list, the way
+     * opening a message clears it.
+     *
+     * Stores when it was dismissed rather than a read flag, so the work order
+     * comes back by itself if it moves again — one click can never silence a
+     * job permanently.
+     */
+    public function hvac_dismiss(Request $request, WorkOrder $workOrder)
+    {
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        // Store the work order's own updated_at, not the clock: both columns are
+        // second-precision, so a click landing in the same second as the change
+        // would otherwise be indistinguishable from one landing after it.
+        HvacBoardRead::query()->updateOrCreate(
+            ['user_id' => $request->user()->id, 'work_order_id' => $workOrder->id],
+            ['dismissed_updated_at' => $workOrder->updated_at ?? now()],
+        );
+
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+
+        return response()->json([
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
+        ]);
+    }
+
+    /**
      * What moved on the HVAC board since this user last marked it seen, for the
      * dropdown behind the badge.
      *
@@ -1075,6 +1103,9 @@ class WorkOrderController extends Controller
 
         return response()->json([
             'updates' => app(HvacBoardActivityFeed::class)->for($request->user()),
+            // The same number the badge shows, so a caller refreshing the list
+            // does not need a second request to keep the two in step.
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
         ]);
     }
 
