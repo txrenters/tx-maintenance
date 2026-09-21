@@ -82,6 +82,11 @@ const openDocumentPreview = ref(false);
 const previewedDocument = ref(null);
 
 const handlePreviewDocument = (doc) => {
+    if (isImageDocument(doc)) {
+        openDocumentGallery(doc);
+        return;
+    }
+
     previewedDocument.value = {
         url: documentUrl(doc),
         name: doc.file_name || "Document",
@@ -129,7 +134,30 @@ const handleCapturedImage = (capturedImage) => {
 const openGallery = ref(false);
 const galleryImages = ref([]);
 const galleryIndex = ref(0);
+const galleryCanDelete = ref(true);
 const deleteFileForm = useForm({ id: "" });
+
+// PropertyWare image documents step through the same viewer as uploaded
+// photos. They are read-only here, so the Delete footer stays out.
+const openDocumentGallery = (doc) => {
+    const photos = (props.workOrderDocuments || []).filter(isImageDocument);
+    galleryImages.value = photos.map((item) => ({
+        id: item.id,
+        url: documentUrl(item),
+        name: item.file_name || "Document",
+        downloadName: attachmentDownloadName(
+            item.file_name,
+            item.file_name,
+            item.file_type
+        ),
+    }));
+    galleryIndex.value = Math.max(
+        0,
+        photos.findIndex((item) => item.id === doc.id)
+    );
+    galleryCanDelete.value = false;
+    openGallery.value = true;
+};
 
 const sectionFor = (file) => {
     if (file.type === "before") return beforePics.value;
@@ -156,6 +184,7 @@ const handleExpandImage = (imageSelected) => {
         photos.findIndex((file) => file.id === imageSelected.id)
     );
     deleteFileForm.id = imageSelected.id;
+    galleryCanDelete.value = true;
     openGallery.value = true;
 };
 
@@ -465,7 +494,7 @@ function handleFiles(event) {
             v-model:index="galleryIndex"
             :images="galleryImages"
         >
-            <template #footer>
+            <template v-if="galleryCanDelete" #footer>
                 <Button
                     type="submit"
                     :disabled="deleteFileForm.processing"
