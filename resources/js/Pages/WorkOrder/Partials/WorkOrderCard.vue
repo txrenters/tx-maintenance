@@ -448,13 +448,19 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                             }})
                         </p>
                         <!-- How many of this column's cards moved since the
-                             user last marked the board seen. HVAC board only. -->
+                             user last marked the board seen. Carries the word
+                             "new" because a bare number beside "(15)" reads as
+                             another total. HVAC board only. -->
                         <span
                             v-if="newCount(status)"
                             :title="`${newCount(status)} updated since you last marked this board seen`"
-                            class="bg-destructive text-destructive-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                            >{{ newCount(status) }}</span
+                            class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground normal-case"
                         >
+                            <span
+                                class="inline-block h-1.5 w-1.5 rounded-full bg-current"
+                            ></span>
+                            {{ newCount(status) }} new
+                        </span>
                     </div>
 
                     <!-- Work Orders List -->
@@ -498,15 +504,25 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                 <h1
                                     class="text-lg font-semibold flex items-center gap-1.5"
                                 >
-                                    {{ work_order.work_order_no }}
                                     <!-- This card moved since the board was
-                                         last marked seen. HVAC board only. -->
+                                         last marked seen. A dot rather than a
+                                         word: it has to catch the eye while
+                                         scanning a column, not compete with the
+                                         work order number for the headline.
+                                         HVAC board only. -->
                                     <span
                                         v-if="isNew(work_order)"
-                                        class="inline-flex items-center rounded-full border border-white/60 bg-white/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                        class="relative flex h-2.5 w-2.5 shrink-0"
                                         title="Updated since you last marked this board seen"
-                                        >New</span
                                     >
+                                        <span
+                                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"
+                                        ></span>
+                                        <span
+                                            class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white/70"
+                                        ></span>
+                                    </span>
+                                    {{ work_order.work_order_no }}
                                 </h1>
                                 <p class="text-xs text-gray-200">
                                     📅 {{ formatDate(work_order.created_date) }}

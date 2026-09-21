@@ -235,12 +235,22 @@ class WorkOrder extends Model
      * A short phrase for the change about to be saved, or null when nothing
      * worth naming changed.
      */
+    /**
+     * Status id => name, resolved once per request.
+     *
+     * This hook runs on every work order save in the application, and the
+     * PropertyWare sync saves them in bulk — so a per-save SELECT here would
+     * add one query per status change across an import. The table is ~21
+     * near-static rows, so it is read once and held for the process.
+     *
+     * @var array<int, string>|null
+     */
+    private static ?array $serviceStatusNames = null;
+
     private function describeOwnChanges(): ?string
     {
         if ($this->isDirty('service_status_id')) {
-            $name = ServiceStatus::query()
-                ->whereKey($this->service_status_id)
-                ->value('name');
+            $name = self::serviceStatusName($this->service_status_id);
 
             return $name ? 'moved to '.$name : 'status changed';
         }
@@ -252,6 +262,62 @@ class WorkOrder extends Model
         }
 
         return null;
+    }
+
+    /**
+     * The name of a service status, from the per-process cache.
+     *
+     * Returns null rather than throwing if the lookup fails: this runs inside
+     * every work order save, and a cosmetic label for one board must never be
+     * the reason a save fails. The caller degrades to "status changed".
+     */
+    private static function serviceStatusName(mixed $id): ?string
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        $id = (int) $id;
+
+        if (self::$serviceStatusNames === null) {
+            self::$serviceStatusNames = self::loadServiceStatusNames();
+        }
+
+        if (isset(self::$serviceStatusNames[$id])) {
+            return self::$serviceStatusNames[$id];
+        }
+
+        // An id the cache has never seen: a status added through the admin
+        // page after a long-lived queue worker filled this. Refresh once so the
+        // worker picks it up without a restart. A genuinely unknown id (a
+        // deleted status) re-reads at most once per save, which only happens on
+        // a status change, so it cannot become a hot path.
+        self::$serviceStatusNames = self::loadServiceStatusNames();
+
+        return self::$serviceStatusNames[$id] ?? null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function loadServiceStatusNames(): array
+    {
+        try {
+            return ServiceStatus::query()->pluck('name', 'id')->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Drop the cached status names.
+     *
+     * Only needed where statuses are created mid-process — chiefly tests, which
+     * build them with factories after this cache may already have been filled.
+     */
+    public static function forgetServiceStatusNames(): void
+    {
+        self::$serviceStatusNames = null;
     }
 
     /**

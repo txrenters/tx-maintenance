@@ -535,6 +535,130 @@ class HvacBoardSeenTest extends TestCase
         $this->assertSame('moved to Scheduled', $workOrder->fresh()->last_change_summary);
     }
 
+    /**
+     * The naming hook runs on every work order save in the application, and the
+     * PropertyWare sync saves them in bulk. Resolving the status name must not
+     * cost a query per save, or an import pays for a cosmetic label on one
+     * board. The names are read once and held for the process.
+     */
+    public function test_naming_a_status_move_does_not_query_once_per_save(): void
+    {
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $to = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
+
+        $workOrders = collect(range(1, 5))->map(fn (int $n) => WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3600 + $n,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]));
+
+        // Warm the cache exactly as the first save of a request would.
+        WorkOrder::forgetServiceStatusNames();
+        $first = $workOrders->shift();
+        $first->service_status_id = $to->id;
+        $first->save();
+
+        $statusReads = 0;
+        $seen = [];
+        DB::listen(function ($query) use (&$statusReads, &$seen): void {
+            // Only reads OF the status table. The work_orders UPDATE carries
+            // the column name "service_status_id", so a bare substring match
+            // on "service_status" counts every save as a lookup.
+            if (str_contains($query->sql, 'from "service_status"')) {
+                $statusReads++;
+                $seen[] = $query->sql;
+            }
+        });
+
+        foreach ($workOrders as $workOrder) {
+            $workOrder->service_status_id = $to->id;
+            $workOrder->save();
+        }
+
+        $this->assertSame(0, $statusReads, 'The status name was re-read during a bulk save: '.implode(' | ', $seen));
+        $this->assertSame('moved to Scheduled', $workOrders->first()->fresh()->last_change_summary);
+    }
+
+    /**
+     * A status added through the admin page after a long-lived queue worker
+     * filled its cache must still be named, without a restart.
+     */
+    public function test_a_status_created_after_the_cache_filled_is_still_named(): void
+    {
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3620,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        // Fill the cache while the later status does not yet exist.
+        WorkOrder::forgetServiceStatusNames();
+        $workOrder->priority = 'High';
+        $workOrder->save();
+
+        $added = ServiceStatus::query()->create(['name' => 'Awaiting Parts', 'description' => 'Awaiting Parts']);
+
+        $workOrder->service_status_id = $added->id;
+        $workOrder->save();
+
+        $this->assertSame('moved to Awaiting Parts', $workOrder->fresh()->last_change_summary);
+    }
+
+    /**
+     * The label is cosmetic, so it must degrade rather than throw. A status id
+     * the names cannot resolve falls back to the generic phrase instead of
+     * failing the save.
+     *
+     * The database's own foreign key makes a dangling id unreachable through a
+     * normal save, so the resolver is exercised directly. That is the point: the
+     * fallback exists for the case the schema already prevents, because this
+     * runs inside every work order save in the application.
+     */
+    public function test_an_unresolvable_status_degrades_instead_of_throwing(): void
+    {
+        ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+
+        WorkOrder::forgetServiceStatusNames();
+
+        $resolve = new \ReflectionMethod(WorkOrder::class, 'serviceStatusName');
+
+        $this->assertNull($resolve->invoke(null, 987654), 'An unknown id must resolve to null, not throw.');
+        $this->assertNull($resolve->invoke(null, null), 'A null id must resolve to null, not throw.');
+    }
+
+    /**
+     * A save that changes the status must never fail because the label could not
+     * be worked out. Proven end to end: the work order still saves and still
+     * carries its new status.
+     */
+    public function test_a_status_change_saves_even_with_no_statuses_cached(): void
+    {
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $to = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3640,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        WorkOrder::forgetServiceStatusNames();
+
+        $workOrder->service_status_id = $to->id;
+        $workOrder->save();
+
+        $this->assertSame($to->id, $workOrder->fresh()->service_status_id);
+        $this->assertSame('moved to Scheduled', $workOrder->fresh()->last_change_summary);
+    }
+
     /** Nothing has moved, so the dropdown has nothing to show. */
     public function test_the_activity_feed_is_empty_when_nothing_moved(): void
     {

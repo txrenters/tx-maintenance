@@ -45,6 +45,18 @@ import {
     Sparkles,
     CircleCheckBig,
     ChevronDown,
+    Bell,
+    BellOff,
+    MessageSquare,
+    StickyNote,
+    ImageIcon,
+    Receipt,
+    Truck,
+    ArrowRightLeft,
+    DollarSign,
+    CalendarClock,
+    TriangleAlert,
+    Pencil,
 } from "lucide-vue-next";
 import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
@@ -188,6 +200,32 @@ const activityOpen = ref(false);
 const activityUpdates = ref([]);
 const activityLoading = ref(false);
 const activityError = ref(false);
+
+// An icon per kind of change, so a column of rows can be scanned by shape
+// instead of read word by word. Keyed by the phrases the server sends
+// (HvacBoardActivityFeed::SOURCES and WorkOrder::CHANGE_LABELS); anything
+// unrecognised, including the old generic "updated", falls back to the pencil.
+const CHANGE_ICONS = {
+    "new message": MessageSquare,
+    "note added": StickyNote,
+    "photo or file added": ImageIcon,
+    "invoice added": Receipt,
+    "vendor assigned": Truck,
+    "cost updated": DollarSign,
+    "estimate updated": DollarSign,
+    "schedule changed": CalendarClock,
+    "emergency flag changed": TriangleAlert,
+    "priority changed": TriangleAlert,
+};
+
+const changeIcon = (change) => {
+    if (!change) return Pencil;
+    // Status moves are phrased "moved to <status name>", so they cannot be
+    // matched by an exact key.
+    if (change.startsWith("moved to")) return ArrowRightLeft;
+
+    return CHANGE_ICONS[change] ?? Pencil;
+};
 
 const loadActivity = async () => {
     activityLoading.value = true;
@@ -1063,80 +1101,127 @@ const date_range = ref({
                 <PopoverTrigger as-child>
                     <Button
                         variant="outline"
-                        class="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        class="relative shrink-0 gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                         :title="`${boardNewCount} work order${boardNewCount === 1 ? '' : 's'} updated since you last marked this board seen`"
                     >
-                        <CircleCheckBig class="w-4 h-4 mr-1" />
-                        {{ boardNewCount }} new
-                        <ChevronDown class="w-4 h-4 ml-1" />
+                        <span class="relative flex">
+                            <Bell class="h-4 w-4" />
+                            <!-- A live ping, so movement is noticed without
+                                 the board being watched. -->
+                            <span
+                                class="absolute -right-0.5 -top-0.5 flex h-1.5 w-1.5"
+                            >
+                                <span
+                                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-75"
+                                ></span>
+                                <span
+                                    class="relative inline-flex h-1.5 w-1.5 rounded-full bg-current"
+                                ></span>
+                            </span>
+                        </span>
+                        <span class="font-semibold">{{ boardNewCount }}</span>
+                        new
+                        <ChevronDown class="h-4 w-4 opacity-70" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" class="w-[22rem] p-0">
+                <PopoverContent align="end" class="w-[24rem] p-0">
                     <div
-                        class="flex items-center justify-between border-b px-3 py-2"
+                        class="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2.5"
                     >
-                        <p class="text-sm font-semibold">What moved</p>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold leading-tight">
+                                What moved
+                            </p>
+                            <p
+                                class="text-[11px] leading-tight text-muted-foreground"
+                            >
+                                Since you last marked this board seen
+                            </p>
+                        </div>
                         <Button
                             variant="ghost"
                             size="sm"
                             :disabled="markingSeen"
-                            class="h-7 text-xs"
+                            class="h-7 shrink-0 gap-1 text-xs"
                             @click="markBoardSeen"
                         >
+                            <BellOff class="h-3.5 w-3.5" />
                             Mark all seen
                         </Button>
                     </div>
 
                     <div
                         v-if="activityLoading"
-                        class="px-3 py-6 text-center text-sm text-muted-foreground"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
                     >
-                        <Loader2 class="w-4 h-4 mx-auto mb-1 animate-spin" />
+                        <Loader2 class="mx-auto mb-1 h-4 w-4 animate-spin" />
                         Loading…
                     </div>
                     <p
                         v-else-if="activityError"
-                        class="px-3 py-6 text-center text-sm text-muted-foreground"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
                     >
                         Could not load the list. The count above is still right.
                     </p>
-                    <ScrollArea v-else class="max-h-[22rem]">
+                    <!-- Everything queued has been clicked through, but the
+                         board has not been marked seen yet. -->
+                    <div
+                        v-else-if="!activityUpdates.length"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
+                    >
+                        <CircleCheckBig class="mx-auto mb-1 h-5 w-5 opacity-60" />
+                        You are all caught up.
+                    </div>
+                    <ScrollArea v-else class="max-h-[24rem]">
                         <button
                             v-for="update in activityUpdates"
                             :key="update.id"
                             type="button"
-                            class="w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                            class="group flex w-full items-start gap-2.5 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                             @click="openUpdate(update)"
                         >
-                            <div
-                                class="flex items-baseline justify-between gap-2"
+                            <!-- The kind of change, as a shape. Lets a column of
+                                 rows be scanned without reading each one. -->
+                            <span
+                                class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
                             >
-                                <span class="text-sm font-semibold"
-                                    >#{{ update.work_order_no }}</span
-                                >
+                                <component
+                                    :is="changeIcon(update.change)"
+                                    class="h-3.5 w-3.5"
+                                />
+                            </span>
+
+                            <span class="min-w-0 flex-1">
                                 <span
-                                    class="text-[10px] text-muted-foreground shrink-0"
-                                    >{{ agoLabel(update.at) }}</span
+                                    class="flex items-baseline justify-between gap-2"
                                 >
-                            </div>
-                            <p
-                                v-if="update.location"
-                                class="truncate text-xs text-muted-foreground"
-                            >
-                                {{ update.location }}
-                            </p>
-                            <div
-                                class="mt-0.5 flex items-center justify-between gap-2"
-                            >
-                                <span class="text-xs font-medium text-destructive">{{
-                                    update.change
-                                }}</span>
+                                    <!-- What happened leads: it is the reason
+                                         this row is in the list at all. -->
+                                    <span
+                                        class="truncate text-sm font-semibold capitalize"
+                                        >{{ update.change }}</span
+                                    >
+                                    <span
+                                        class="shrink-0 text-[10px] text-muted-foreground"
+                                        >{{ agoLabel(update.at) }}</span
+                                    >
+                                </span>
+                                <span
+                                    class="mt-0.5 flex items-baseline gap-1.5 text-xs text-muted-foreground"
+                                >
+                                    <span class="shrink-0 font-medium"
+                                        >#{{ update.work_order_no }}</span
+                                    >
+                                    <span v-if="update.location" class="truncate">{{
+                                        update.location
+                                    }}</span>
+                                </span>
                                 <span
                                     v-if="update.status"
-                                    class="truncate text-[10px] text-muted-foreground"
+                                    class="mt-1 inline-flex max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground group-hover:bg-background"
                                     >{{ update.status }}</span
                                 >
-                            </div>
+                            </span>
                         </button>
                     </ScrollArea>
                 </PopoverContent>
