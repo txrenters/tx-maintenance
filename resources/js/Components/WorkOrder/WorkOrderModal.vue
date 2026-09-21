@@ -282,6 +282,7 @@ const workOrderAttachments = ref([]);
 const workOrderDocuments = ref([]);
 const workOrderInvoices = ref([]);
 const workOrderNotes = ref([]);
+const jobberNotes = ref([]);
 const workOrderVendorData = ref([]);
 // Copyable vendor magic links, staff-only (the endpoint decides).
 const vendorLinks = ref([]);
@@ -534,6 +535,7 @@ const fetchNotes = async (workOrderId) => {
         );
 
         workOrderNotes.value = response.data.notes;
+        jobberNotes.value = response.data.jobber_notes ?? [];
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -981,6 +983,7 @@ watch(
 
             <Notes
                 :workOrderNotes="workOrderNotes"
+                :jobberNotes="jobberNotes"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-notes="fetchNotes(workOrderForm.id)"

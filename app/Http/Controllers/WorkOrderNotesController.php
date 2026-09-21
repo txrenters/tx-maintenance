@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncJobberJobNotesJob;
 use App\Models\Scopes\WorkOrderScope;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderNotes;
 use App\Services\JobberTechnicianResolver;
 use App\Services\PropertyWareService;
@@ -11,6 +13,7 @@ use App\Services\VendorPortalLinkService;
 use App\Services\WorkOrderNotePushService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WorkOrderNotesController extends Controller
@@ -57,10 +60,78 @@ class WorkOrderNotesController extends Controller
             $vendor->pivot?->makeHidden('access_token');
         });
 
+        // The crew's Jobber notes ride in their own key rather than being
+        // merged into `notes`. The tab shows one list, but keeping them apart
+        // on the wire means nothing that writes, pushes or deletes a
+        // work_order_notes row can ever be handed one of these by id.
+        $jobberNotes = $this->jobberNotesFor($workOrder);
+
+        // A note written in Jobber a minute ago should not wait for the
+        // half-hourly poll. Queued, never inline: a throttled Jobber call can
+        // pause for up to a minute, which would hang this tab for a request
+        // that had nothing new to show anyway. Cache::add is atomic, so five
+        // coordinators opening the same work order queue one job, not five.
+        if (config('services.jobber.note_sync_enabled')
+            && filled($workOrder->jobber_job_gid)
+            && Cache::add("jobber:notes:wo:{$workOrder->id}", true, now()->addMinutes(10))) {
+            SyncJobberJobNotesJob::dispatch($workOrder->id)->afterResponse();
+        }
+
         return response()->json(
-            $workOrder->toArray() + ['vendor_links' => $vendorLinks],
+            $workOrder->toArray() + [
+                'vendor_links' => $vendorLinks,
+                'jobber_notes' => $jobberNotes,
+            ],
             200,
         );
+    }
+
+    /**
+     * The work order's Jobber notes, shaped for the Notes tab.
+     *
+     * Visibility follows the rule the boards use for the Jobber deep link:
+     * office staff and THMP's own account see them, every other vendor does
+     * not, and owner and tenant logins never do — these are the crew's
+     * internal record of the job, not portal content.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function jobberNotesFor(WorkOrder $workOrder): array
+    {
+        $user = auth()->user();
+        $isStaff = (bool) $user?->hasAnyRole(['admin', 'woc', 'accounting']);
+        $isThmp = (bool) $user?->vendor?->isThmp();
+
+        if (! $isStaff && ! $isThmp) {
+            return [];
+        }
+
+        return $workOrder->jobberNotes()
+            ->with('files')
+            ->get()
+            ->sortByDesc(fn (WorkOrderJobberNote $note) => $note->jobber_created_at ?? $note->created_at)
+            ->values()
+            ->map(fn (WorkOrderJobberNote $note) => [
+                'id' => $note->id,
+                'message' => $note->message,
+                'note_type' => $note->note_type,
+                'author_name' => $note->author_name,
+                'pinned' => (bool) $note->pinned,
+                'added_at' => $note->added_at,
+                'last_edited_at' => $note->jobber_last_edited_at?->utc()->toISOString(),
+                // Only files that actually made it onto the disk: one still
+                // downloading would render as a broken image.
+                'photos' => $note->files
+                    ->filter(fn ($file) => filled($file->filename) && $file->isImage())
+                    ->map(fn ($file) => [
+                        'id' => $file->id,
+                        'url' => $file->url(),
+                        'file_name' => $file->file_name,
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
     }
 
     /**
