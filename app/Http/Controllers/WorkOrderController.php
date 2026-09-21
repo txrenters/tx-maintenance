@@ -450,6 +450,16 @@ class WorkOrderController extends Controller
             ]);
         }
 
+        // Drives the dots on the modal's other tabs for the HVAC coordinator:
+        // once the board says a work order moved, this says which tab it moved
+        // in. Empty for everyone else, so no other modal changes.
+        $workOrder->setAttribute(
+            'hvac_tab_counts',
+            request()->user()
+                ? app(HvacBoardActivityFeed::class)->tabCountsFor(request()->user(), $workOrder)
+                : [],
+        );
+
         return response()->json($workOrder, 200);
     }
 

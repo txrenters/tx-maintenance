@@ -44,6 +44,21 @@ class HvacBoardActivityFeed
     ];
 
     /**
+     * Which modal tab each named change belongs to, so clicking a row opens the
+     * thing that actually changed instead of the Details tab. A change with no
+     * entry here (the "updated" fallback) opens the modal as it always did.
+     *
+     * @var array<string, string>
+     */
+    private const CHANGE_TABS = [
+        'new message' => 'conversation',
+        'note added' => 'notes',
+        'photo or file added' => 'attachments',
+        'invoice added' => 'invoices',
+        'vendor assigned' => 'vendor_edit',
+    ];
+
+    /**
      * @return array<int, array{
      *     id:int, work_order_no:mixed, location:?string, category:?string,
      *     status:?string, change:string, at:?string
@@ -86,17 +101,63 @@ class HvacBoardActivityFeed
 
         $changes = $this->namedChanges($moved->pluck('id')->all(), $seenAt);
 
-        return $moved->map(fn (WorkOrder $workOrder): array => [
-            'id' => $workOrder->id,
-            'work_order_no' => $workOrder->work_order_no,
-            'location' => $workOrder->location,
-            'category' => $workOrder->category,
-            'status' => $workOrder->service_status?->name,
+        return $moved->map(function (WorkOrder $workOrder) use ($changes): array {
             // No child record explains it, so the row itself changed: a status
             // move, or an edited field. Say "updated" rather than guess.
-            'change' => $changes[$workOrder->id] ?? 'updated',
-            'at' => optional($workOrder->updated_at)->toJSON(),
-        ])->all();
+            $change = $changes[$workOrder->id] ?? 'updated';
+
+            return [
+                'id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'location' => $workOrder->location,
+                'category' => $workOrder->category,
+                'status' => $workOrder->service_status?->name,
+                'change' => $change,
+                'tab' => self::CHANGE_TABS[$change] ?? null,
+                'at' => optional($workOrder->updated_at)->toJSON(),
+            ];
+        })->all();
+    }
+
+    /**
+     * Which of a single work order's tabs hold something added since this user
+     * last marked the board seen, as tab name => count.
+     *
+     * Used for the dots on the work order modal's own tabs, so once the board
+     * has said "this one moved" the modal can say where. Attachments is
+     * deliberately absent: that tab already carries its own unseen count, which
+     * clears on its own terms, and two competing badges would contradict.
+     *
+     * @return array<string, int>
+     */
+    public function tabCountsFor(User $user, WorkOrder $workOrder): array
+    {
+        $seenAt = $user->hvac_board_seen_at;
+
+        if ($seenAt === null || ! $user->seesHvacBoardActivity()) {
+            return [];
+        }
+
+        $tabs = [
+            'conversation' => 'work_order_conversations',
+            'notes' => 'work_order_notes',
+            'invoices' => 'invoices',
+        ];
+
+        $counts = [];
+
+        foreach ($tabs as $tab => $table) {
+            $count = DB::table($table)
+                ->where('work_order_id', $workOrder->id)
+                ->where('created_at', '>', $seenAt)
+                ->count();
+
+            if ($count > 0) {
+                $counts[$tab] = $count;
+            }
+        }
+
+        return $counts;
     }
 
     /**

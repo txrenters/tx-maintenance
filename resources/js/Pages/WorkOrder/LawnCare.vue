@@ -187,7 +187,9 @@ watch(activityOpen, (open) => {
 // it comes straight back.
 const openUpdate = async (update) => {
     activityOpen.value = false;
-    handleWorkOrder(update.id);
+    // Land on the tab the change happened in; "updated" has no specific tab to
+    // blame, so it opens on Details as before.
+    handleWorkOrder(update.id, update.tab);
 
     // Drop it from the list straight away rather than waiting on the request;
     // the board is already navigating and the server is the source of truth for
@@ -644,6 +646,28 @@ const workOrderAttachments = ref([]);
 const workOrderDocuments = ref([]);
 const { unseenAttachments, buttonsWithAttachmentBadge } =
     useUnseenAttachments(tabButtons);
+
+// Per-tab counts for the open work order: once the board says a work order
+// moved, these say which tab it moved in. Layered on top of the attachments
+// badge rather than replacing it, so that tab keeps its own unseen count.
+const hvacTabCounts = ref({});
+
+const tabButtonsWithBadges = computed(() => {
+    const counts = hvacTabCounts.value;
+
+    if (!props.newActivity || !Object.keys(counts).length) {
+        return buttonsWithAttachmentBadge.value;
+    }
+
+    return buttonsWithAttachmentBadge.value.map((button) => {
+        const count = counts[button.name];
+
+        // Never overwrite a badge the tab already owns.
+        if (!count || button.count) return button;
+
+        return { ...button, count, countVariant: "alert" };
+    });
+});
 const fetchAttachments = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -823,9 +847,11 @@ const handleCloseOrderSubmit = () => {
     });
 };
 
-const handleWorkOrder = async (orderId) => {
+// `openOnTab` lets the HVAC "what moved" list land on the tab that actually
+// changed. Every other caller passes an id alone and still opens on Details.
+const handleWorkOrder = async (orderId, openOnTab = null) => {
     workOrderForm.reset();
-    activeTab.value = "details";
+    activeTab.value = openOnTab || "details";
     workOrderTasks.value = [];
     recommendation.value = null;
     isGeneratingRecommendation.value = false;
@@ -837,6 +863,7 @@ const handleWorkOrder = async (orderId) => {
         const order = response.data; // Assuming the API returns the work order details
 
         unseenAttachments.value = order.unseen_attachments_count ?? 0;
+        hvacTabCounts.value = order.hvac_tab_counts ?? {};
 
         workOrderForm.id = order.id;
         workOrderForm.work_order_no = order.work_order_no;
@@ -1238,7 +1265,7 @@ const date_range = ref({
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="buttonsWithAttachmentBadge"
+                        :buttons="tabButtonsWithBadges"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />

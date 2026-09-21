@@ -294,6 +294,118 @@ class HvacBoardSeenTest extends TestCase
         $this->assertSame('updated', $updates[3021]['change']);
     }
 
+    /**
+     * Each named change points at the modal tab it happened in, so clicking a
+     * row lands on the thing that changed. "updated" has no tab to blame.
+     */
+    public function test_each_change_points_at_the_tab_it_happened_in(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $messaged = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3040,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        DB::table('work_order_conversations')->insert([
+            'work_order_id' => $messaged->id,
+            'message' => 'Still not cooling.',
+            'conversation_type' => 'tenant',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3041,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $updates = collect($this->actingAs($user)->getJson(route('work_orders.hvac.activity'))
+            ->assertOk()->json('updates'))->keyBy('work_order_no');
+
+        $this->assertSame('conversation', $updates[3040]['tab']);
+        $this->assertNull($updates[3041]['tab']);
+    }
+
+    /** The modal's own tabs say which one holds the new thing. */
+    public function test_the_modal_carries_per_tab_counts(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3042,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        DB::table('work_order_conversations')->insert([
+            'work_order_id' => $workOrder->id,
+            'message' => 'Still not cooling.',
+            'conversation_type' => 'tenant',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $counts = app(HvacBoardActivityFeed::class)->tabCountsFor($user->fresh(), $workOrder);
+
+        $this->assertSame(['conversation' => 1], $counts);
+    }
+
+    /** Nobody else's modal grows badges from this feature. */
+    public function test_tab_counts_are_empty_for_users_off_the_allow_list(): void
+    {
+        $other = User::factory()->create([
+            'email' => 'someone.else@example.com',
+            'hvac_board_seen_at' => now()->subDay(),
+        ]);
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3043,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        DB::table('work_order_conversations')->insert([
+            'work_order_id' => $workOrder->id,
+            'message' => 'Still not cooling.',
+            'conversation_type' => 'tenant',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertSame([], app(HvacBoardActivityFeed::class)->tabCountsFor($other, $workOrder));
+    }
+
     /** Nothing has moved, so the dropdown has nothing to show. */
     public function test_the_activity_feed_is_empty_when_nothing_moved(): void
     {
