@@ -18,6 +18,9 @@ const page = usePage();
 
 const props = defineProps({
     workOrderNotes: Object,
+    // The THMP crew's notes off the Jobber job. Defaulted so a page that has
+    // not been taught to pass them still renders rather than breaking.
+    jobberNotes: { type: Array, default: () => [] },
     isLoading: Boolean,
     workOrder: Object,
 });
@@ -194,11 +197,38 @@ const isStaff = computed(() =>
     )
 );
 
+// A note read off the Jobber job. Jobber owns it: there is no write path back
+// and it is not in PropertyWare at all, so editing, deleting or pushing one
+// here would either do nothing or be undone by the next sync.
+const isJobberNote = (note) => note.source === "jobber";
+
+// One list on screen, two sources on the wire. The keys are namespaced
+// because the two tables have separate id spaces and would otherwise collide.
+const allNotes = computed(() => {
+    const jobber = (props.jobberNotes ?? []).map((note) => ({
+        ...note,
+        source: "jobber",
+    }));
+    const dashboard = Object.values(props.workOrderNotes ?? {}).map((note) => ({
+        ...note,
+        source: "propertyware",
+    }));
+
+    return [...jobber, ...dashboard].sort(
+        (a, b) =>
+            new Date(b.added_at ?? b.created_at ?? 0) -
+            new Date(a.added_at ?? a.created_at ?? 0)
+    );
+});
+
 // A dashboard note with no PropertyWare id is one PropertyWare has not taken
 // yet (the save's push failed, or its answer could not be read). The app
 // re-sends it on a schedule; this is the same send, on the spot.
 const isPendingInPropertyWare = (note) =>
-    isStaff.value && !!note.user_id && !note.propertyware_id;
+    !isJobberNote(note) &&
+    isStaff.value &&
+    !!note.user_id &&
+    !note.propertyware_id;
 
 const pushingNoteId = ref(null);
 
@@ -265,15 +295,20 @@ const formatAddedAt = (note) => {
 // login, so the server swaps in the Jobber-assigned technician's name when it
 // can (jobber_technician). Otherwise: the dashboard user who typed it, or
 // "PropertyWare" for synced notes — PropertyWare never reports an author.
+// A Jobber note carries the name Jobber recorded against it.
 const noteAuthor = (note) =>
-    note.jobber_technician || note.user?.name || "PropertyWare";
+    note.jobber_technician ||
+    note.author_name ||
+    note.user?.name ||
+    "PropertyWare";
 
 // Who may change a note: staff, or the person who wrote it. Mirrors the guard
 // both update() and destroy() apply on the server. Not gated on
 // propertyware_id — whether PropertyWare will take the change is the dialog's
 // business, and hiding the buttons is what made this look broken.
 const canModifyNote = (note) =>
-    isStaff.value || note.user_id === page.props.auth.user.id;
+    !isJobberNote(note) &&
+    (isStaff.value || note.user_id === page.props.auth.user.id);
 
 const handleFetchNotes = () => {
     emit("fetch-notes");
@@ -307,14 +342,24 @@ const handleFetchNotes = () => {
                 </div>
             </div>
             <div class="mb-14">
-                <div v-if="workOrderNotes">
+                <div v-if="allNotes.length">
                     <div
                         class="p-2 mb-2 border bg-secondary"
-                        v-for="note in workOrderNotes"
-                        :key="note.id"
+                        v-for="note in allNotes"
+                        :key="`${note.source}-${note.id}`"
                     >
                         <div class="flex justify-between gap-2">
-                            <p class="font-bold">{{ note.subject }}</p>
+                            <p class="font-bold">
+                                <span
+                                    v-if="isJobberNote(note)"
+                                    class="mr-1 inline-block rounded bg-blue-100 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                >
+                                    Jobber
+                                </span>
+                                <span v-if="!isJobberNote(note)">{{
+                                    note.subject
+                                }}</span>
+                            </p>
                             <div
                                 v-if="canModifyNote(note)"
                                 class="flex shrink-0 items-center gap-1"
@@ -338,7 +383,10 @@ const handleFetchNotes = () => {
                             </div>
                         </div>
 
-                        <p>{{ note.body }}</p>
+                        <p class="whitespace-pre-wrap break-words">
+                            {{ note.message ?? note.body }}
+                        </p>
+
                         <p class="text-xs">
                             Added: {{ formatAddedAt(note) }} &middot;
                             {{ noteAuthor(note) }}

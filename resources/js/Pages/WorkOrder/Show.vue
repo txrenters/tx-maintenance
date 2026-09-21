@@ -303,6 +303,7 @@ watch(
 const isLoading = ref(false);
 const workOrderTasks = ref(props.tasks ?? []);
 const workOrderNotes = ref(props.notes ?? []);
+const jobberNotes = ref(props.jobber_notes ?? []);
 const workOrderAttachments = ref(props.attachments ?? []);
 const workOrderDocuments = ref([]);
 const workOrderInvoices = ref(props.invoices ?? []);
@@ -525,6 +526,7 @@ const fetchNotes = async () => {
             route("api.work_order_notes.show", workOrderForm.id),
         );
         workOrderNotes.value = res.data.notes;
+        jobberNotes.value = res.data.jobber_notes ?? [];
     } catch (e) {
         console.error(e);
     } finally {
@@ -935,6 +937,7 @@ const handleCloseOrderSubmit = () => {
             <Notes
                 v-if="activeTab === 'notes'"
                 :workOrderNotes="workOrderNotes"
+                :jobberNotes="jobberNotes"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-notes="fetchNotes"

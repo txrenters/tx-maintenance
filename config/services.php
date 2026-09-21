@@ -264,6 +264,14 @@ return [
         // "Jimmie" for this vendor (it read "THMP" until 2026-09-12) and can
         // be edited in PropertyWare at any time; the id cannot. Comma-separated.
         'thmp_filter_hidden_vendor_ids' => env('JOBBER_THMP_FILTER_HIDDEN_VENDOR_IDS', '4802084865'),
+        // Read the THMP crew's notes, and the photos on them, off the Jobber
+        // job and show them on the work order's Notes tab. OFF by default:
+        // reading notes may need an OAuth scope this app's Jobber connection
+        // was never granted, and adding a scope forces every connected account
+        // to re-authorize by hand. Turn this on only after
+        // `jobber:sync-job-notes --work-order=<id>` has been run once against
+        // a real THMP work order and come back with notes.
+        'note_sync_enabled' => env('JOBBER_NOTE_SYNC_ENABLED', false),
         // Exact vendor names to hide as well, for a vendor with no stable id
         // to hand. Comma-separated; case and surrounding spaces are ignored.
         // The rule is off only when this AND the id list are both blank.

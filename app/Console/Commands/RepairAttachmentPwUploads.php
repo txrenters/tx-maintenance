@@ -72,6 +72,11 @@ class RepairAttachmentPwUploads extends Command
             ->where(fn ($query) => $query
                 ->where('title', '!=', 'HOA violation notice')
                 ->orWhereNull('title'))
+            // Photos read off a Jobber note are the crew's internal record and
+            // have no PropertyWare copy to reconcile with. Their pw_file_name
+            // is null and always will be, so without this they would every one
+            // of them be swept into PropertyWare a day after arriving.
+            ->whereNull('jobber_note_file_gid')
             ->where('created_at', '>=', now()->subDays($days))
             // Grace period: a just-created row may still have its upload job
             // sitting in the queue — don't dispatch a second one.

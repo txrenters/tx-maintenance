@@ -7,6 +7,7 @@ use App\Models\Tenants;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderNotes;
 use App\Services\PropertyWareService;
 use Carbon\Carbon;
@@ -606,5 +607,112 @@ class WorkOrderNotesTest extends TestCase
             'id' => $note->id,
             'subject' => 'Note',
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function jobberNote(WorkOrder $workOrder, array $attributes = []): WorkOrderJobberNote
+    {
+        return WorkOrderJobberNote::query()->create(array_merge([
+            'work_order_id' => $workOrder->id,
+            'jobber_note_gid' => 'note-'.uniqid(),
+            'note_type' => 'JobNote',
+            'message' => 'Replaced the thermocouple.',
+            'author_name' => 'Marco Ruiz',
+            'jobber_created_at' => now(),
+        ], $attributes));
+    }
+
+    public function test_jobber_notes_are_in_the_notes_payload_for_staff(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $this->jobberNote($workOrder);
+
+        $response = $this->actingAs($this->makeWoc())
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk();
+
+        $response->assertJsonPath('jobber_notes.0.message', 'Replaced the thermocouple.');
+        $response->assertJsonPath('jobber_notes.0.author_name', 'Marco Ruiz');
+        $response->assertJsonPath('jobber_notes.0.note_type', 'JobNote');
+    }
+
+    /**
+     * THMP's own account works these jobs, so it keeps the crew's notes; the
+     * same rule the boards use for the Jobber deep link.
+     */
+    public function test_thmp_vendor_receives_jobber_notes(): void
+    {
+        [$vendorUser, $vendor] = $this->makeVendorUser();
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id);
+        $this->jobberNote($workOrder);
+
+        $this->actingAs($vendorUser)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('jobber_notes.0.message', 'Replaced the thermocouple.');
+    }
+
+    public function test_a_non_thmp_vendor_does_not_receive_jobber_notes(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('vendor');
+
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => 'V-outside-'.$user->id,
+            'name' => 'Some Other Plumbing',
+            'vendor_type' => 'General',
+            'is_active' => true,
+            'user_id' => $user->id,
+        ]);
+
+        $workOrder = WorkOrder::factory()->create();
+        $workOrder->vendors()->attach($vendor->id);
+        $this->jobberNote($workOrder);
+
+        $this->actingAs($user)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('jobber_notes', []);
+    }
+
+    public function test_an_owner_login_does_not_receive_jobber_notes(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('owner');
+
+        $workOrder = WorkOrder::factory()->create();
+        $this->jobberNote($workOrder);
+
+        $this->actingAs($user)
+            ->getJson(route('api.work_order_notes.show', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('jobber_notes', []);
+    }
+
+    /**
+     * The two tables have separate id spaces, so a Jobber note's id can
+     * collide with a dashboard note's. Deleting by that id must never reach
+     * across and take the wrong note.
+     */
+    public function test_a_jobber_note_id_cannot_delete_a_dashboard_note(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+        $woc = $this->makeWoc();
+
+        $dashboardNote = $this->note($workOrder, ['user_id' => $woc->id]);
+        $jobberNote = $this->jobberNote($workOrder);
+
+        // Line the ids up so a mix-up would be visible rather than lucky.
+        $this->assertSame($dashboardNote->id, $jobberNote->id);
+
+        $this->actingAs($woc)
+            ->delete(route('api.work_order_notes.destroy', $jobberNote->id));
+
+        // Whatever the endpoint made of that id, the Jobber note is still here:
+        // it is not reachable through the work_order_notes routes at all.
+        $this->assertDatabaseHas('work_order_jobber_notes', ['id' => $jobberNote->id]);
     }
 }

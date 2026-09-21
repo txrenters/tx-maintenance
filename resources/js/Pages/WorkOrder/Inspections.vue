@@ -489,6 +489,7 @@ const fetchInvoices = async (workOrderId) => {
     }
 };
 const workOrderNotes = ref([]);
+const jobberNotes = ref([]);
 const fetchNotes = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -497,6 +498,7 @@ const fetchNotes = async (workOrderId) => {
         );
 
         workOrderNotes.value = response.data.notes;
+        jobberNotes.value = response.data.jobber_notes ?? [];
     } catch (error) {
         console.error("Error fetching tasks:", error);
     } finally {
@@ -1124,6 +1126,7 @@ const page = usePage();
 
             <Notes
                 :workOrderNotes="workOrderNotes"
+                :jobberNotes="jobberNotes"
                 :workOrder="workOrderForm"
                 :isLoading="isLoading"
                 @fetch-notes="fetchNotes(workOrderForm.id)"
