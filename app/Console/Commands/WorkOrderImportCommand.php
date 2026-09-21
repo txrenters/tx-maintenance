@@ -247,21 +247,16 @@ class WorkOrderImportCommand extends Command
                 $work_order_data['service_status_id'] = DB::table('service_status')->where('name', 'New')->value('id') ?? 1;
             }
 
-            // An existing row is only written where the payload really differs.
-            // The array above stamps created_at/updated_at to $now for the
-            // insert, and hands back numbers, dates and flags in a different
-            // shape from what the database returns (150 vs "150.00", a Carbon
-            // vs its stored string, false vs 0) — Eloquent counted each as a
-            // change, so every run rewrote created_at and marked every
-            // imported work order as moved, which is what the HVAC board's
-            // "since I last looked" counter reads (2026-09-22: 22 of 22 "new").
+            // An existing row is only written where the payload really differs
+            // (see WorkOrder::importChanges); the created_at/updated_at the
+            // array stamps for the insert never reach an update, so every run
+            // no longer rewrites created_at or marks the row as moved.
             // $work_order_data itself stays whole: the description and lease
             // checks after the write read the payload, not the diff.
             $columnsToWrite = $previousState === null
                 ? $work_order_data
-                : self::onlyChangedColumns(
+                : $previousState->importChanges(
                     array_diff_key($work_order_data, ['created_at' => null, 'updated_at' => null]),
-                    $previousState,
                 );
 
             $savedWorkOrder = WorkOrder::updateOrCreate(
@@ -671,51 +666,5 @@ class WorkOrderImportCommand extends Command
 
             }
         }
-    }
-
-    /**
-     * The payload columns whose value differs from what the row already holds,
-     * so an unchanged work order produces no save and keeps its updated_at.
-     *
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private static function onlyChangedColumns(array $data, WorkOrder $existing): array
-    {
-        foreach ($data as $column => $incoming) {
-            if (self::sameStoredValue($incoming, $existing->getRawOriginal($column))) {
-                unset($data[$column]);
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * Whether a payload value and a stored value mean the same thing once
-     * PropertyWare's shape is normalised to the database's: a Carbon and its
-     * string, 150 and "150.00", false and 0, null and "".
-     */
-    private static function sameStoredValue(mixed $incoming, mixed $stored): bool
-    {
-        if ($incoming instanceof \DateTimeInterface) {
-            $incoming = $incoming->format('Y-m-d H:i:s');
-        }
-
-        if (is_bool($incoming)) {
-            $incoming = (int) $incoming;
-        }
-
-        $blank = fn (mixed $value): bool => $value === null || $value === '';
-
-        if ($blank($incoming) || $blank($stored)) {
-            return $blank($incoming) && $blank($stored);
-        }
-
-        if (is_numeric($incoming) && is_numeric($stored)) {
-            return (float) $incoming === (float) $stored;
-        }
-
-        return (string) $incoming === (string) $stored;
     }
 }

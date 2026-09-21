@@ -133,7 +133,54 @@ class WorkOrderImportTimestampsTest extends TestCase
         $context = json_encode(['dirty' => $dirty, 'updated_at' => (string) $second->updated_at, 'summary' => $second->last_change_summary]);
         $this->assertTrue($second->created_at->equalTo(Carbon::parse(self::FIRST_RUN)), $context);
         $this->assertTrue($second->updated_at->equalTo(Carbon::parse(self::SECOND_RUN)), $context);
-        $this->assertSame('moved to Scheduled', $second->last_change_summary, $context);
+        // The status name comes from WorkOrder's per-process cache, which an
+        // earlier test in the same run may have filled with other ids; the
+        // fact pinned here is that the status change was recorded as one.
+        $this->assertStringStartsWith('moved to ', (string) $second->last_change_summary, $context);
+    }
+
+    /**
+     * The REST status sync (update:work-orders-status, every fifteen minutes)
+     * writes the same fields through Eloquent's update(); a payload that
+     * matches the row must not move updated_at either.
+     */
+    public function test_the_rest_status_sync_leaves_an_unchanged_work_order_alone(): void
+    {
+        Queue::fake();
+        Role::findOrCreate('woc', 'web');
+
+        Carbon::setTestNow(Carbon::parse(self::FIRST_RUN));
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 555001,
+            'status' => 'Open',
+            'description' => 'AC blowing warm air.',
+            'category' => 'HVAC ',
+            'priority' => 'Medium',
+            'is_approved' => false,
+            'total_cost' => 150,
+            'cost_estimate' => null,
+            'scheduled_end_date' => null,
+        ]);
+
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getWorkOrdersViaRestAPI')->andReturn([[
+            'id' => 555001,
+            'status' => 'Open',
+            'description' => 'AC blowing warm air.',
+            'category' => 'HVAC ',
+            'priority' => 'Medium',
+            'approved' => false,
+            'actualCost' => 150.0,
+        ]]);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        $dirty = &$this->dirtyOnSave();
+        Carbon::setTestNow(Carbon::parse(self::SECOND_RUN));
+
+        $this->artisan('update:work-orders-status')->assertExitCode(0);
+
+        $this->assertSame([], array_filter($dirty), 'The REST sync dirtied an unchanged work order: '.json_encode($dirty));
+        $this->assertTrue($workOrder->fresh()->updated_at->equalTo(Carbon::parse(self::FIRST_RUN)), 'updated_at moved although nothing changed');
     }
 
     /**

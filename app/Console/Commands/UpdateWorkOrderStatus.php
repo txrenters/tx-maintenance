@@ -122,7 +122,11 @@ class UpdateWorkOrderStatus extends Command
                                 }
                             }
 
-                            $workOrder->update($work_order_data);
+                            // Only the columns that really differ, or this
+                            // fifteen-minute sync re-saves every work order
+                            // (false vs 0 on is_approved alone did it) and the
+                            // HVAC board's "moved" counter never settles.
+                            $workOrder->update($workOrder->importChanges($work_order_data));
 
                             // Alert staff when PropertyWare changed the
                             // description of an existing work order (e.g. a
