@@ -14,6 +14,8 @@ import Files from "./Files.vue";
 import CameraModal from "./CameraModal.vue";
 import ImageCropper from "./ImageCropper.vue";
 import FilePreviewDialog from "@/Components/FilePreviewDialog.vue";
+import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
+import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
 
 const { toast } = useToast();
 
@@ -122,17 +124,46 @@ const handleCapturedImage = (capturedImage) => {
     reader.readAsDataURL(capturedImage.blob); // Directly read blob
 };
 
-const openExpandModal = ref(false);
-const expandedImage = ref("");
-const expandedImageName = ref("");
+// The viewer steps through the photos of the section the click came from
+// (Attachments, Before, After). Files that aren't images never become a slide.
+const openGallery = ref(false);
+const galleryImages = ref([]);
+const galleryIndex = ref(0);
 const deleteFileForm = useForm({ id: "" });
 
-const handleExpandImage = (imageSelected) => {
-    expandedImage.value = imageSelected.attachment_url;
-    expandedImageName.value = imageSelected.title;
-    deleteFileForm.id = imageSelected.id;
-    openExpandModal.value = true;
+const sectionFor = (file) => {
+    if (file.type === "before") return beforePics.value;
+    if (file.type === "after") return afterPics.value;
+    return attachmentFile.value;
 };
+
+const handleExpandImage = (imageSelected) => {
+    const photos = sectionFor(imageSelected).filter((file) =>
+        String(file.filetype || "").startsWith("image/")
+    );
+    galleryImages.value = photos.map((file) => ({
+        id: file.id,
+        url: file.attachment_url,
+        name: file.title,
+        downloadName: attachmentDownloadName(
+            file.title,
+            file.filename,
+            file.filetype
+        ),
+    }));
+    galleryIndex.value = Math.max(
+        0,
+        photos.findIndex((file) => file.id === imageSelected.id)
+    );
+    deleteFileForm.id = imageSelected.id;
+    openGallery.value = true;
+};
+
+// Delete acts on whichever photo is on screen.
+watch(galleryIndex, (index) => {
+    const photo = galleryImages.value[index];
+    if (photo) deleteFileForm.id = photo.id;
+});
 
 const openDeleteModal = ref(false);
 const handleDeleteImage = (imageSelected) => {
@@ -149,7 +180,7 @@ const handleDeleteImageSubmit = () => {
                 title: "Success",
                 description: "Attachments has been deleted successfully!",
             });
-            openExpandModal.value = false;
+            openGallery.value = false;
             openDeleteModal.value = false;
             deleteFileForm.reset();
             handleFetchAttachment();
@@ -429,39 +460,26 @@ function handleFiles(event) {
             @fetch-attachments="handleFetchAttachment"
             @update:show="openCropper = $event"
         />
-        <Dialog v-model:open="openExpandModal">
-            <DialogContent
-                class="sm:max-w-[900px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
-            >
-                <DialogHeader class="p-6 pb-0 text-left">
-                    <DialogTitle> Image Preview</DialogTitle>
-                    <DialogDescription> </DialogDescription>
-                </DialogHeader>
-                <Separator />
-                <div
-                    class="flex flex-row flex-nowrap overflow-x-auto scrollbar-hide px-6"
+        <ImageGalleryDialog
+            v-model:open="openGallery"
+            v-model:index="galleryIndex"
+            :images="galleryImages"
+        >
+            <template #footer>
+                <Button
+                    type="submit"
+                    :disabled="deleteFileForm.processing"
+                    @click.prevent="handleDeleteImageSubmit"
+                    variant="destructive"
                 >
-                    <div class="mb-3 w-full">
-                        <img :src="expandedImage" alt="" class="w-full mt-3" />
-                        <Label>{{ expandedImageName }}</Label>
-                    </div>
-                </div>
-                <DialogFooter class="p-6 pt-0">
-                    <Button
-                        type="submit"
-                        :disabled="deleteFileForm.processing"
-                        @click.prevent="handleDeleteImageSubmit"
-                        variant="destructive"
-                    >
-                        <Loader2
-                            v-if="deleteFileForm.processing"
-                            class="w-4 h-4 animate-spin"
-                        />
-                        Delete
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <Loader2
+                        v-if="deleteFileForm.processing"
+                        class="w-4 h-4 animate-spin"
+                    />
+                    Delete
+                </Button>
+            </template>
+        </ImageGalleryDialog>
         <Dialog v-model:open="openAttachmentModal">
             <DialogContent
                 class="sm:max-w-[500px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"

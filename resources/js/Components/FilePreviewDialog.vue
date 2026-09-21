@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { Download } from "lucide-vue-next";
+import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
 
 const props = defineProps({
     open: Boolean,
@@ -25,6 +26,12 @@ const isPdf = computed(() => {
     if (!props.file) return false;
     return props.file.mime === "application/pdf" || extension.value === "pdf";
 });
+
+const downloadName = computed(() =>
+    props.file
+        ? attachmentDownloadName(props.file.name, props.file.url, props.file.mime)
+        : ""
+);
 </script>
 
 <template>
@@ -36,7 +43,22 @@ const isPdf = computed(() => {
                 <DialogTitle class="break-all line-clamp-1">
                     {{ file?.name || "Preview" }}
                 </DialogTitle>
-                <DialogDescription></DialogDescription>
+                <DialogDescription class="sr-only">
+                    File preview
+                </DialogDescription>
+                <!-- Previewable files still get a one-click save; the
+                     unpreviewable branch below keeps its own button. -->
+                <div v-if="file && (isImage || isPdf)" class="pt-1">
+                    <Button as-child size="sm" variant="secondary">
+                        <a
+                            :href="file.url"
+                            :download="downloadName"
+                            data-testid="preview-download"
+                        >
+                            <Download class="w-4 h-4 mr-2" /> Download
+                        </a>
+                    </Button>
+                </div>
             </DialogHeader>
             <div class="min-h-0 px-4 pb-4">
                 <iframe
