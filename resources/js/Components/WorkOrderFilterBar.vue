@@ -87,7 +87,7 @@ const clearAllFilters = () => {
 
         <div
             v-if="canFilter"
-            class="flex flex-1 min-w-0 sm:min-w-max flex-wrap items-center gap-2"
+            class="flex flex-none min-w-0 sm:min-w-max flex-wrap items-center gap-2"
         >
             <FilterChip
                 label="Vendor"
@@ -139,6 +139,11 @@ const clearAllFilters = () => {
             </TooltipProvider>
         </div>
 
-        <slot name="actions" />
+        <!-- Right-aligned on its line, whether that is the first or the
+             second: the chips no longer grow to fill the row, so the cluster
+             stays beside them wherever there is room. -->
+        <div class="w-full sm:w-auto sm:ml-auto">
+            <slot name="actions" />
+        </div>
     </div>
 </template>

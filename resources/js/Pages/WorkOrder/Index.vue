@@ -1034,7 +1034,7 @@ const page = usePage();
                     <Button
                         variant="outline"
                         :class="[
-                            'w-full justify-start text-left text-xs font-normal sm:w-[220px]',
+                            'w-full justify-start text-left text-xs font-normal sm:w-auto sm:min-w-[150px]',
                             !date_range.start ? 'text-muted-foreground' : '',
                         ]"
                     >
