@@ -3,6 +3,7 @@ import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2, CalendarCloc
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { statusList } from "@/utils/serviceStatusList";
 
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -375,7 +376,9 @@ const matchesDate = (work_order) => {
 const visibleByStatus = computed(() => {
     const map = new Map();
 
-    for (const status of props.service_status || []) {
+    // service_status arrives as an object keyed by index, not an array — the
+    // template's v-for does not care, but for…of does.
+    for (const status of statusList(props.service_status)) {
         map.set(
             status.id,
             (status.work_orders || []).filter(

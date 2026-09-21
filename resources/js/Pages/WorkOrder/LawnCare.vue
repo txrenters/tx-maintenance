@@ -7,6 +7,7 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
+import { statusList } from "@/utils/serviceStatusList";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -112,7 +113,9 @@ const filter_color = ref("all");
 const boardNewCount = computed(() => {
     if (!props.newActivity || !props.boardSeenAt) return 0;
 
-    return (props.service_status || []).reduce(
+    // service_status arrives as an object keyed by index, not an array — the
+    // template's v-for does not care, but Array methods do.
+    return statusList(props.service_status).reduce(
         (total, status) =>
             total +
             (status.work_orders || []).filter(

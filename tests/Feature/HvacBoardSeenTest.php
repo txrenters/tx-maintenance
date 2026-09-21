@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\HvacBoardNewCounter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -156,6 +157,93 @@ class HvacBoardSeenTest extends TestCase
     public function test_a_guest_cannot_mark_the_board_seen(): void
     {
         $this->post(route('work_orders.hvac.seen'))->assertRedirect(route('login'));
+    }
+
+    /**
+     * The sidebar number is what makes movement visible without opening the
+     * board, so it has to be shared on an ordinary page, not just the board.
+     */
+    public function test_the_sidebar_count_reaches_every_page_for_an_allow_listed_user(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3010,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'), [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => hash_file('xxh128', public_path('build/manifest.json')),
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('props.hvac_board_new_count'));
+    }
+
+    public function test_the_sidebar_count_stays_zero_for_everyone_else(): void
+    {
+        $other = User::factory()->create([
+            'email' => 'someone.else@example.com',
+            'hvac_board_seen_at' => now()->subDay(),
+        ]);
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3011,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $response = $this->actingAs($other)->get(route('dashboard'), [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => hash_file('xxh128', public_path('build/manifest.json')),
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(0, $response->json('props.hvac_board_new_count'));
+    }
+
+    /** Marking the board seen must drop the number now, not in a minute. */
+    public function test_marking_seen_clears_the_sidebar_count_immediately(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3012,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $counter = app(HvacBoardNewCounter::class);
+        $this->assertSame(1, $counter->cachedCountFor($user->fresh()));
+
+        $this->actingAs($user)->post(route('work_orders.hvac.seen'))->assertRedirect();
+
+        $this->assertSame(0, $counter->cachedCountFor($user->fresh()));
     }
 
     /**

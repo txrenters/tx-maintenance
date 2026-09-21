@@ -176,6 +176,17 @@ const unreadThreadsBadge = computed(() => {
     return count > 99 ? "99+" : String(count);
 });
 
+// Count beside HVAC in the sidebar: work orders that moved since this user last
+// marked that board seen, so movement shows without opening the board. Server
+// sends 0 to everyone off the allow-list, which renders no badge at all.
+const hvacNewBadge = computed(() => {
+    const count = Number(page.props.hvac_board_new_count ?? 0);
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
 // Count on the What's New nav, same look as the Messages badge: how many
 // updates shipped since this browser last opened the page. Last-seen is a
 // release date kept in localStorage, so it needs no server state.
@@ -338,6 +349,7 @@ const navs = computed(() => {
                               isActive: page.url.startsWith(
                                   "/work_orders/hvac"
                               ),
+                              badge: hvacNewBadge.value,
                           },
                           {
                               title: "Turnovers",

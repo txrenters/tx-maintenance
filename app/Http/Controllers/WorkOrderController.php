@@ -17,6 +17,7 @@ use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\EmergencyAlertService;
+use App\Services\HvacBoardNewCounter;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\VendorPortalLinkService;
@@ -1052,29 +1053,20 @@ class WorkOrderController extends Controller
 
         $request->user()->forceFill(['hvac_board_seen_at' => now()])->save();
 
+        // The sidebar number is cached per user, so clear it here rather than
+        // leaving a count standing for up to a minute after it was cleared.
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+
         return back();
     }
 
     /**
      * Whether this user gets the "new activity" counters on the HVAC board.
-     *
-     * An allow-list rather than a role check on purpose: several users hold the
-     * woc role, and only the coordinator who actually works this board (plus IT)
-     * should see the counters. Everyone else gets the board exactly as it was
-     * before the feature existed.
+     * The rule lives on the user so the sidebar badge applies the same one.
      */
     private function showsHvacNewActivity(?User $user): bool
     {
-        if ($user === null) {
-            return false;
-        }
-
-        $allowed = collect(explode(',', (string) config('services.hvac_board.badge_emails')))
-            ->map(fn (string $email): string => mb_strtolower(trim($email)))
-            ->filter()
-            ->all();
-
-        return in_array(mb_strtolower(trim((string) $user->email)), $allowed, true);
+        return (bool) $user?->seesHvacBoardActivity();
     }
 
     /**
