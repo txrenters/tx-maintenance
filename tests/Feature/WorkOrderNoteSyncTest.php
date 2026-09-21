@@ -8,6 +8,7 @@ use App\Jobs\ImportWorkOrderJob;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderNotes;
 use App\Services\PropertyWareService;
 use App\Services\WorkOrderNoteSyncService;
@@ -351,5 +352,36 @@ class WorkOrderNoteSyncTest extends TestCase
             DB::table('work_order_notes')->where('work_order_id', $workOrder->id)->where('propertyware_id', 901)->count(),
         );
         $this->assertSame(2, DB::table('work_order_notes')->where('work_order_id', $workOrder->id)->count());
+    }
+
+    /**
+     * Jobber notes live in their own table precisely so this reconciliation
+     * cannot reach them: they carry no local author, which is the shape this
+     * sync deletes. Passing here is a structural guarantee rather than a
+     * guard, and the test exists so that moving them onto work_order_notes
+     * later fails loudly instead of quietly wiping the crew's notes every ten
+     * minutes.
+     */
+    public function test_propertyware_sync_does_not_delete_jobber_notes(): void
+    {
+        $workOrder = WorkOrder::factory()->create();
+
+        $jobberNote = WorkOrderJobberNote::query()->create([
+            'work_order_id' => $workOrder->id,
+            'jobber_note_gid' => 'note-1',
+            'note_type' => 'JobNote',
+            'message' => 'Replaced the thermocouple.',
+            'jobber_created_at' => now(),
+        ]);
+
+        // PropertyWare reports nothing for this work order: the case that
+        // makes the stale delete run.
+        $this->sync($workOrder, []);
+
+        $this->assertDatabaseHas('work_order_jobber_notes', [
+            'id' => $jobberNote->id,
+            'work_order_id' => $workOrder->id,
+            'jobber_note_gid' => 'note-1',
+        ]);
     }
 }
