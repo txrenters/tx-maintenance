@@ -139,6 +139,11 @@ const serverNewCount = ref(null);
 // badge drops the instant a row is clicked.
 const dismissedCount = ref(0);
 
+// Bumped on every dismissal. A refresh that started before the newest dismissal
+// is stale by the time it answers, and applying its count would snap the badge
+// back up over a row already cleared.
+const dismissSeq = ref(0);
+
 const boardNewCount = computed(() => {
     if (serverNewCount.value !== null) return serverNewCount.value;
 
@@ -158,8 +163,14 @@ const loadActivity = async () => {
     activityLoading.value = true;
     activityError.value = false;
 
+    const seq = dismissSeq.value;
+
     try {
         const { data } = await axios.get(route("work_orders.hvac.activity"));
+
+        // A dismissal landed while this was in flight; its answer is stale.
+        if (seq !== dismissSeq.value) return;
+
         activityUpdates.value = data.updates ?? [];
 
         // The server applies dismissals; the payload count cannot. Once it has
@@ -198,6 +209,8 @@ const openUpdate = async (update) => {
         (row) => row.id !== update.id,
     );
     dismissedCount.value += 1;
+    // Invalidate any refresh already in flight: its count predates this click.
+    dismissSeq.value += 1;
 
     try {
         const { data } = await axios.post(
@@ -242,20 +255,30 @@ const markBoardSeen = () => {
 };
 
 // A reloaded board carries a fresh payload that knows nothing about per-row
-// dismissals, so falling back to counting it would quietly resurrect everything
-// already dealt with. Once anything has been dismissed the server owns the
-// number, and a reload re-asks it rather than recomputing locally.
+// dismissals, so recounting it locally would resurrect everything already dealt
+// with — which is exactly what the 60-second poll used to do, snapping the
+// badge back up a few seconds after a row was cleared. Re-ask the server, which
+// is the only thing that applies dismissals, and leave the displayed number
+// alone until it answers.
 watch(
     () => props.service_status,
     async () => {
-        dismissedCount.value = 0;
+        if (!props.newActivity) return;
 
-        if (serverNewCount.value === null) return;
+        const seq = dismissSeq.value;
 
         try {
             const { data } = await axios.get(route("work_orders.hvac.activity"));
-            activityUpdates.value = data.updates ?? activityUpdates.value;
-            serverNewCount.value = data.new_count ?? serverNewCount.value;
+
+            // A dismissal happened while this was in flight, so its answer
+            // predates that click and would put the row back.
+            if (seq !== dismissSeq.value) return;
+
+            if (typeof data.new_count === "number") {
+                activityUpdates.value = data.updates ?? activityUpdates.value;
+                serverNewCount.value = data.new_count;
+                dismissedCount.value = 0;
+            }
         } catch {
             // Keep the last known-good number rather than jumping to a count
             // that ignores dismissals.
