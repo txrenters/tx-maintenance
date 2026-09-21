@@ -4,6 +4,8 @@ import { useForm, usePage } from "@inertiajs/vue3";
 import { Loader2, File } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilesInvoice from "./FilesInvoice.vue";
+import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
+import { attachmentDownloadName } from "@/utils/attachmentDownloadName";
 
 const { toast } = useToast();
 
@@ -37,9 +39,10 @@ const updateInvoiceForm = useForm({
     status: "",
 });
 
-const openExpandModal = ref(false);
-const expandedImage = ref("");
-const expandedImageName = ref("");
+// The viewer steps through the image invoices; PDFs open in their own preview.
+const openGallery = ref(false);
+const galleryImages = ref([]);
+const galleryIndex = ref(0);
 
 const invoiceVendors = computed(() =>
     props.assignedVendors.filter(
@@ -56,9 +59,24 @@ const canPublishInvoice = computed(() => {
 });
 
 const handleExpandImage = (imageSelected) => {
-    expandedImage.value = imageSelected.invoice_url;
-    expandedImageName.value = imageSelected.title;
-    openExpandModal.value = true;
+    const photos = Object.values(props.workOrderInvoices || {}).filter(
+        (file) => String(file.filetype || "").startsWith("image/")
+    );
+    galleryImages.value = photos.map((file) => ({
+        id: file.id,
+        url: file.invoice_url,
+        name: file.title,
+        downloadName: attachmentDownloadName(
+            file.title,
+            file.filename,
+            file.filetype
+        ),
+    }));
+    galleryIndex.value = Math.max(
+        0,
+        photos.findIndex((file) => file.id === imageSelected.id)
+    );
+    openGallery.value = true;
 };
 
 const handleUpdateInvoice = (invoice, status) => {
@@ -373,23 +391,9 @@ const confirmArchiveInvoice = () => {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-    <Dialog v-model:open="openExpandModal">
-        <DialogContent
-            class="sm:max-w-[900px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
-        >
-            <DialogHeader class="p-6 pb-0 text-left">
-                <DialogTitle> Image Preview</DialogTitle>
-                <DialogDescription> </DialogDescription>
-            </DialogHeader>
-            <Separator />
-            <div
-                class="flex flex-row flex-nowrap space-x-2 overflow-x-auto scrollbar-hide px-6"
-            >
-                <div class="mb-3 w-full">
-                    <img :src="expandedImage" alt="" class="w-full mt-3" />
-                    <Label>{{ expandedImageName }}</Label>
-                </div>
-            </div>
-        </DialogContent>
-    </Dialog>
+    <ImageGalleryDialog
+        v-model:open="openGallery"
+        v-model:index="galleryIndex"
+        :images="galleryImages"
+    />
 </template>
