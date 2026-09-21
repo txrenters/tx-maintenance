@@ -455,11 +455,26 @@ class WorkOrder extends Model
     /**
      * Whether a payload value and a stored value mean the same thing once the
      * payload's shape is normalised to the database's.
+     *
+     * Text is compared without regard to case or edge whitespace: the SOAP
+     * feed spells a priority "Medium" and the REST feed spells the same one
+     * "MEDIUM", so the two scheduled syncs otherwise overwrite each other
+     * every ten and fifteen minutes and every open work order reads as
+     * "priority changed" all day (HVAC board, 2026-09-22). A picklist value
+     * that only changed case is not a change anyone needs to see.
      */
     private static function sameStoredValue(mixed $incoming, mixed $stored): bool
     {
         if ($incoming instanceof \DateTimeInterface) {
             $incoming = $incoming->format('Y-m-d H:i:s');
+        }
+
+        $blank = fn (mixed $value): bool => $value === null || $value === '';
+
+        // The imports write `false` for a missing text value, which lands in
+        // a string column as '' — the same nothing.
+        if ($incoming === false && $blank($stored)) {
+            return true;
         }
 
         if (is_bool($incoming)) {
@@ -470,8 +485,6 @@ class WorkOrder extends Model
             $stored = (int) $stored;
         }
 
-        $blank = fn (mixed $value): bool => $value === null || $value === '';
-
         if ($blank($incoming) || $blank($stored)) {
             return $blank($incoming) && $blank($stored);
         }
@@ -480,7 +493,7 @@ class WorkOrder extends Model
             return (float) $incoming === (float) $stored;
         }
 
-        return (string) $incoming === (string) $stored;
+        return strcasecmp(trim((string) $incoming), trim((string) $stored)) === 0;
     }
 
     /**

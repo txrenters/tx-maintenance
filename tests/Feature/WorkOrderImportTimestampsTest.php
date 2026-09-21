@@ -184,6 +184,76 @@ class WorkOrderImportTimestampsTest extends TestCase
     }
 
     /**
+     * PropertyWare's two feeds spell the same priority differently — SOAP
+     * "Medium", REST "MEDIUM" (seen live on WO #44012, 2026-09-22) — and the
+     * syncs took turns rewriting it, so every open work order showed
+     * "priority changed" every fifteen minutes. A case-only difference is
+     * not a change.
+     */
+    public function test_the_rest_status_sync_ignores_a_priority_that_only_changed_case(): void
+    {
+        Queue::fake();
+        Role::findOrCreate('woc', 'web');
+
+        Carbon::setTestNow(Carbon::parse(self::FIRST_RUN));
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 555002,
+            'status' => 'Open',
+            'description' => 'AC blowing warm air.',
+            'category' => 'HVAC ',
+            'priority' => 'Medium',
+            'is_approved' => false,
+            'total_cost' => 150,
+            'cost_estimate' => null,
+            'scheduled_end_date' => null,
+        ]);
+
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getWorkOrdersViaRestAPI')->andReturn([[
+            'id' => 555002,
+            'status' => 'Open',
+            'description' => 'AC blowing warm air.',
+            'category' => 'HVAC',
+            'priority' => 'MEDIUM',
+            'approved' => false,
+            'actualCost' => 150.0,
+        ]]);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        $dirty = &$this->dirtyOnSave();
+        Carbon::setTestNow(Carbon::parse(self::SECOND_RUN));
+
+        $this->artisan('update:work-orders-status')->assertExitCode(0);
+
+        $this->assertSame([], array_filter($dirty), 'A case-only difference dirtied the work order: '.json_encode($dirty));
+        $fresh = $workOrder->fresh();
+        $this->assertSame('Medium', $fresh->priority);
+        $this->assertTrue($fresh->updated_at->equalTo(Carbon::parse(self::FIRST_RUN)), 'updated_at moved on a case-only difference');
+    }
+
+    /**
+     * The SOAP import writes `false` for a work order without a priority,
+     * which the string column stores as ''. The next run must read that as
+     * the same nothing rather than rewrite it every ten minutes.
+     */
+    public function test_reimporting_a_work_order_without_a_priority_does_not_rewrite_it(): void
+    {
+        Queue::fake();
+        $this->prepareSoapImports(
+            $this->soapWorkOrderPayload(['priority' => '']),
+            $this->soapWorkOrderPayload(['priority' => '']),
+        );
+
+        $this->importAt(self::FIRST_RUN);
+        $dirty = &$this->dirtyOnSave();
+
+        $second = $this->importAt(self::SECOND_RUN);
+
+        $this->assertSame([], array_filter($dirty), 'A missing priority dirtied the row again: '.json_encode($dirty));
+        $this->assertTrue($second->updated_at->equalTo(Carbon::parse(self::FIRST_RUN)), 'updated_at moved although nothing changed');
+    }
+
+    /**
      * Collects the dirty attributes of every WorkOrder save from here on.
      *
      * @return array<int, array<string, mixed>>
