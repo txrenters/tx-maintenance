@@ -43,6 +43,7 @@ class Technician extends Model
         'is_active',
         'phone',
         'email',
+        'address',
         'specialty',
         'notes',
         'photo_path',

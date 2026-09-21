@@ -40,6 +40,7 @@ class TechnicianRosterPageTest extends TestCase
             'specialty' => 'HVAC and electrical',
             'phone' => '512-555-0100',
             'email' => 'emanuel@example.test',
+            'address' => '1234 Oak St, Cypress, TX 77429',
             'notes' => 'Ten years in the trade.',
         ]);
         Technician::factory()->inactive()->create(['name' => 'Away Person']);
@@ -54,6 +55,7 @@ class TechnicianRosterPageTest extends TestCase
                 ->where('technicians.0.specialty', 'HVAC and electrical')
                 ->where('technicians.0.phone', '512-555-0100')
                 ->where('technicians.0.email', 'emanuel@example.test')
+                ->where('technicians.0.address', '1234 Oak St, Cypress, TX 77429')
                 ->where('technicians.0.notes', 'Ten years in the trade.')
                 ->where('technicians.0.initials', 'EH')
                 ->where('technicians.0.has_photo', false)
@@ -81,12 +83,14 @@ class TechnicianRosterPageTest extends TestCase
             'is_active' => true,
             'phone' => '512-555-0111',
             'email' => 'thomas@example.test',
+            'address' => '900 Pine Ave, Kyle, TX 78640',
             'specialty' => 'Plumbing',
             'notes' => null,
         ])->assertRedirect();
 
         $technician = Technician::query()->where('name', 'Thomas Allen')->firstOrFail();
         $this->assertSame('Plumbing', $technician->specialty);
+        $this->assertSame('900 Pine Ave, Kyle, TX 78640', $technician->address);
 
         $this->put(route('technicians.update', $technician), [
             'name' => 'Thomas Allen',
@@ -94,11 +98,13 @@ class TechnicianRosterPageTest extends TestCase
             'is_active' => false,
             'phone' => null,
             'email' => null,
+            'address' => '15 Willow Ct, Buda, TX 78610',
             'specialty' => 'Plumbing and make-ready',
             'notes' => 'Bio line.',
         ])->assertRedirect();
 
         $technician->refresh();
+        $this->assertSame('15 Willow Ct, Buda, TX 78610', $technician->address);
         $this->assertSame('both', $technician->role);
         $this->assertFalse($technician->is_active);
         $this->assertNull($technician->phone);
@@ -114,6 +120,44 @@ class TechnicianRosterPageTest extends TestCase
         $this->delete(route('technicians.destroy', $technician))->assertRedirect();
 
         $this->assertDatabaseMissing('technicians', ['id' => $technician->id]);
+    }
+
+    public function test_the_address_is_optional_and_clears_back_to_empty(): void
+    {
+        $this->actingAs($this->staff());
+
+        $this->post(route('technicians.store'), [
+            'name' => 'No Address',
+            'role' => 'repair',
+            'is_active' => true,
+        ])->assertRedirect();
+
+        $technician = Technician::query()->where('name', 'No Address')->firstOrFail();
+        $this->assertNull($technician->address);
+
+        $technician->update(['address' => '77 Elm St, Austin, TX 78702']);
+
+        // The form sends a cleared box as null, and it must land as null.
+        $this->put(route('technicians.update', $technician), [
+            'name' => 'No Address',
+            'role' => 'repair',
+            'is_active' => true,
+            'address' => null,
+        ])->assertRedirect();
+
+        $this->assertNull($technician->refresh()->address);
+    }
+
+    public function test_an_overlong_address_is_rejected(): void
+    {
+        $this->actingAs($this->staff());
+
+        $this->post(route('technicians.store'), [
+            'name' => 'Long Address',
+            'role' => 'repair',
+            'is_active' => true,
+            'address' => str_repeat('a', 201),
+        ])->assertSessionHasErrors('address');
     }
 
     public function test_an_invalid_role_is_rejected(): void

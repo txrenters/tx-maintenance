@@ -175,6 +175,7 @@ class TechnicianController extends Controller
             'is_active' => ['required', 'boolean'],
             'phone' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:190'],
+            'address' => ['nullable', 'string', 'max:200'],
             'specialty' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
@@ -194,6 +195,7 @@ class TechnicianController extends Controller
             'is_active' => $technician->is_active,
             'phone' => $technician->phone,
             'email' => $technician->email,
+            'address' => $technician->address,
             'specialty' => $technician->specialty,
             'notes' => $technician->notes,
             'has_photo' => $technician->hasPhoto(),

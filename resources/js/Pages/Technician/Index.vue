@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import { router, useForm } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
-import { PlusCircle, Loader2, Phone, Mail } from "lucide-vue-next";
+import { PlusCircle, Loader2, Phone, Mail, MapPin } from "lucide-vue-next";
 import { Button } from "@/Components/ui/button";
 import { Badge } from "@/Components/ui/badge";
 import { Input } from "@/Components/ui/input";
@@ -57,6 +57,7 @@ const blankForm = () => ({
     is_active: true,
     phone: "",
     email: "",
+    address: "",
     specialty: "",
     notes: "",
 });
@@ -69,6 +70,7 @@ form.transform((data) => ({
     ...data,
     phone: data.phone || null,
     email: data.email || null,
+    address: data.address || null,
     specialty: data.specialty || null,
     notes: data.notes || null,
 }));
@@ -93,6 +95,7 @@ const openProfile = (technician) => {
         is_active: technician.is_active,
         phone: technician.phone ?? "",
         email: technician.email ?? "",
+        address: technician.address ?? "",
         specialty: technician.specialty ?? "",
         notes: technician.notes ?? "",
     });
@@ -264,6 +267,13 @@ const removePhoto = () => {
                 >
                     <Mail class="h-3 w-3" /> {{ technician.email }}
                 </span>
+                <span
+                    v-if="technician.address"
+                    class="flex items-center gap-1 text-center"
+                >
+                    <MapPin class="h-3 w-3 shrink-0" />
+                    {{ technician.address }}
+                </span>
             </div>
         </button>
 
@@ -397,6 +407,17 @@ const removePhoto = () => {
                     />
                     <p v-if="form.errors.email" class="text-xs text-red-500">
                         {{ form.errors.email }}
+                    </p>
+                </div>
+
+                <div class="space-y-1 sm:col-span-2">
+                    <Label>Address</Label>
+                    <Input
+                        v-model="form.address"
+                        placeholder="e.g. 1234 Oak St, Cypress, TX 77429"
+                    />
+                    <p v-if="form.errors.address" class="text-xs text-red-500">
+                        {{ form.errors.address }}
                     </p>
                 </div>
 
