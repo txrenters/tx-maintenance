@@ -76,7 +76,7 @@ class HvacBoardActivityFeed
         // so the dropdown can never name a work order the board would hide.
         $moved = WorkOrder::query()
             ->scoped()
-            ->select(['id', 'work_order_no', 'location', 'category', 'service_status_id', 'updated_at'])
+            ->select(['id', 'work_order_no', 'location', 'category', 'service_status_id', 'updated_at', 'last_change_summary'])
             ->with('service_status:id,name')
             ->where('status', 'Open')
             ->hvac()
@@ -102,9 +102,13 @@ class HvacBoardActivityFeed
         $changes = $this->namedChanges($moved->pluck('id')->all(), $seenAt);
 
         return $moved->map(function (WorkOrder $workOrder) use ($changes): array {
-            // No child record explains it, so the row itself changed: a status
-            // move, or an edited field. Say "updated" rather than guess.
-            $change = $changes[$workOrder->id] ?? 'updated';
+            // A child record explains it best ("new message"); failing that the
+            // row recorded its own change as it was saved ("moved to
+            // Scheduled"). Only a row changed before that recording existed, or
+            // in a way not worth naming, falls back to the generic word.
+            $change = $changes[$workOrder->id]
+                ?? $workOrder->last_change_summary
+                ?? 'updated';
 
             return [
                 'id' => $workOrder->id,

@@ -406,6 +406,135 @@ class HvacBoardSeenTest extends TestCase
         $this->assertSame([], app(HvacBoardActivityFeed::class)->tabCountsFor($other, $workOrder));
     }
 
+    /**
+     * A status move is the commonest reason a card changes column, and it used
+     * to read as the generic "updated" because nothing recorded it.
+     */
+    public function test_a_status_move_is_named_with_the_status_it_moved_to(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $to = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3050,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $workOrder->service_status_id = $to->id;
+        $workOrder->save();
+
+        $updates = collect(app(HvacBoardActivityFeed::class)->for($user->fresh()))
+            ->keyBy('work_order_no');
+
+        $this->assertSame('moved to Scheduled', $updates[3050]['change']);
+    }
+
+    /** Edits that are not status moves still get named rather than generic. */
+    public function test_field_edits_are_named(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $costed = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3051,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+        $costed->total_cost = 250.00;
+        $costed->save();
+
+        $prioritised = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3052,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+        $prioritised->priority = 'HIGH';
+        $prioritised->save();
+
+        $updates = collect(app(HvacBoardActivityFeed::class)->for($user->fresh()))
+            ->keyBy('work_order_no');
+
+        $this->assertSame('cost updated', $updates[3051]['change']);
+        $this->assertSame('priority changed', $updates[3052]['change']);
+    }
+
+    /**
+     * A child record is the better explanation, so it outranks the row's own
+     * summary — "new message" says more than "moved to Scheduled".
+     */
+    public function test_a_child_record_outranks_the_rows_own_summary(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $to = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3053,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $workOrder->service_status_id = $to->id;
+        $workOrder->save();
+
+        DB::table('work_order_conversations')->insert([
+            'work_order_id' => $workOrder->id,
+            'message' => 'Still not cooling.',
+            'conversation_type' => 'tenant',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $updates = collect(app(HvacBoardActivityFeed::class)->for($user->fresh()))
+            ->keyBy('work_order_no');
+
+        $this->assertSame('new message', $updates[3053]['change']);
+    }
+
+    /**
+     * A save that changes nothing worth naming must not overwrite the last real
+     * change, or a PropertyWare sync would erase "moved to Scheduled".
+     */
+    public function test_a_bare_touch_keeps_the_last_real_change(): void
+    {
+        $from = ServiceStatus::query()->create(['name' => 'New', 'description' => 'New']);
+        $to = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled']);
+
+        $workOrder = WorkOrder::query()->create([
+            'service_status_id' => $from->id,
+            'work_order_no' => 3054,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $workOrder->service_status_id = $to->id;
+        $workOrder->save();
+        $workOrder->touch();
+
+        $this->assertSame('moved to Scheduled', $workOrder->fresh()->last_change_summary);
+    }
+
     /** Nothing has moved, so the dropdown has nothing to show. */
     public function test_the_activity_feed_is_empty_when_nothing_moved(): void
     {

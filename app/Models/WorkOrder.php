@@ -189,6 +189,72 @@ class WorkOrder extends Model
     }
 
     /**
+     * The fields worth naming when they change, as column => phrase. Order
+     * matters: the first match wins, so the status move — the thing that
+     * actually moves a card between columns — is named ahead of an edit that
+     * happened in the same save.
+     *
+     * @var array<string, string>
+     */
+    private const CHANGE_LABELS = [
+        'is_emergency' => 'emergency flag changed',
+        'priority' => 'priority changed',
+        'scheduled_end_date' => 'schedule changed',
+        'start_date' => 'schedule changed',
+        'total_cost' => 'cost updated',
+        'cost_estimate' => 'estimate updated',
+        'category' => 'category changed',
+        'type' => 'type changed',
+        'is_approved' => 'approval changed',
+        'description' => 'description edited',
+    ];
+
+    protected static function booted(): void
+    {
+        // Record what changed, in words, so the HVAC board's "what moved" list
+        // can say "moved to Scheduled" instead of the generic "updated".
+        //
+        // A model hook rather than a line in each caller: the status is written
+        // from controllers, services, jobs and PropertyWare sync alike, and one
+        // missed caller would silently go back to saying "updated". This is a
+        // string assignment on a save that is already happening — no query.
+        static::saving(function (self $workOrder): void {
+            if (! $workOrder->exists) {
+                return;
+            }
+
+            $summary = $workOrder->describeOwnChanges();
+
+            if ($summary !== null) {
+                $workOrder->last_change_summary = $summary;
+            }
+        });
+    }
+
+    /**
+     * A short phrase for the change about to be saved, or null when nothing
+     * worth naming changed.
+     */
+    private function describeOwnChanges(): ?string
+    {
+        if ($this->isDirty('service_status_id')) {
+            $name = ServiceStatus::query()
+                ->whereKey($this->service_status_id)
+                ->value('name');
+
+            return $name ? 'moved to '.$name : 'status changed';
+        }
+
+        foreach (self::CHANGE_LABELS as $column => $label) {
+            if ($this->isDirty($column)) {
+                return $label;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Whether this is a turnover job (vacant property). PropertyWare data is
      * inconsistent about where "Turnover" lives — some work orders carry it as
      * the type, others as the category — so turnover behavior (task workflow,
