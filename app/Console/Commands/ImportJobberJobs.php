@@ -6,8 +6,8 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\JobberVisit;
+use App\Services\JobberGraphqlClient;
 use App\Services\JobberOptionalSelections;
-use App\Services\JobberTokenService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -41,12 +41,6 @@ class ImportJobberJobs extends Command
      */
     private const VISITS_FOLLOW_UP_PAGE_SIZE = 50;
 
-    /**
-     * Longest single pause while waiting for Jobber's rate-limit bucket to
-     * refill; anything longer means something other than the limiter.
-     */
-    private const MAX_WAIT_SECONDS = 60;
-
     private int $pageSize = self::PAGE_SIZE;
 
     /**
@@ -54,10 +48,6 @@ class ImportJobberJobs extends Command
      * ceiling — the cue to shrink the page rather than wait.
      */
     private bool $lastRequestOverCeiling = false;
-
-    private const THROTTLE_ATTEMPTS = 5;
-
-    private const THROTTLE_BACKOFF_SECONDS = 5;
 
     /**
      * Visit assignees and property coordinates: dropped one at a time for
@@ -70,7 +60,7 @@ class ImportJobberJobs extends Command
 
     protected $description = 'Import jobs from Jobber GraphQL API';
 
-    public function __construct(private JobberTokenService $tokens)
+    public function __construct(private JobberGraphqlClient $client)
     {
         parent::__construct();
 
@@ -81,6 +71,12 @@ class ImportJobberJobs extends Command
     {
         $this->info('Importing jobs from Jobber...');
         Log::info('Importing jobs from Jobber');
+
+        // The limiter lives in the client, but an operator watching a long
+        // import should still see why it has gone quiet.
+        $this->client->reportThrottleWaits(function (int $seconds, int $attempt): void {
+            $this->warn("Jobber throttled the request, waiting {$seconds}s (attempt {$attempt})");
+        });
 
         $cursor = null;
         $importedCount = 0;
@@ -470,129 +466,28 @@ class ImportJobberJobs extends Command
     }
 
     /**
-     * POST a GraphQL body, waiting and retrying while Jobber reports the
-     * request as throttled. Jobber answers every call with its cost
-     * accounting (points charged, points left, refill per second), so the
-     * wait is sized from those numbers when they are present and falls back
-     * to a fixed backoff when they are not. A request priced over the
-     * ceiling is never retried here — no wait can help it — the caller
-     * shrinks the page instead.
+     * POST a GraphQL body through the shared client, which waits out Jobber's
+     * rate limiter and paces the next call. A request priced over the ceiling
+     * comes back null with lastRequestOverCeiling set — no wait can help it,
+     * so getJobs() shrinks the page instead.
      *
      * @param  array<string, mixed>  $body
      * @return array<string, mixed>|null
      */
     private function postWithThrottleRetry(array $body): ?array
     {
-        $this->lastRequestOverCeiling = false;
+        $json = $this->client->post($body);
 
-        for ($attempt = 1; $attempt <= self::THROTTLE_ATTEMPTS; $attempt++) {
-            $response = $this->tokens->graphql($body);
+        $this->lastRequestOverCeiling = $this->client->lastRequestOverCeiling();
 
-            if ($response->failed()) {
-                $this->error('Failed to fetch jobs: '.$response->body());
-                Log::error('Failed to fetch jobs:', ['response' => $response->body()]);
-
-                return null;
-            }
-
-            $json = $response->json();
-
-            if (! $this->isThrottled($json)) {
-                $this->paceForNextRequest($json);
-
-                return $json;
-            }
-
-            $cost = $json['extensions']['cost'] ?? [];
-            $requested = $cost['requestedQueryCost'] ?? null;
-            $ceiling = $cost['throttleStatus']['maximumAvailable'] ?? null;
-
-            if (is_numeric($requested) && is_numeric($ceiling) && $requested > $ceiling) {
-                $this->lastRequestOverCeiling = true;
-                $this->error("Jobber refused the query: it costs {$requested} points against a {$ceiling} ceiling.");
-                Log::error('Jobber query costs more than the rate-limit ceiling', ['cost' => $cost]);
-
-                return null;
-            }
-
-            $wait = $this->secondsUntilAffordable($cost, $requested) ?? self::THROTTLE_BACKOFF_SECONDS * $attempt;
-            $this->warn("Jobber throttled the request, waiting {$wait}s (attempt {$attempt})");
-            Log::warning('Jobber throttled the jobs query', [
-                'attempt' => $attempt,
-                'wait_seconds' => $wait,
-                'message' => $json['errors'][0]['message'] ?? null,
-                'cost' => $cost,
-            ]);
-
-            sleep($wait);
+        if ($json === null && ! $this->lastRequestOverCeiling) {
+            $this->error('Failed to fetch jobs from Jobber; see the log for the response.');
         }
 
-        Log::error('Gave up on the Jobber jobs query after repeated throttling');
-
-        return null;
-    }
-
-    /**
-     * After a successful page, pause just long enough that the next page of
-     * the same cost fits the bucket, instead of bouncing off the limiter
-     * and spending a retry to learn that.
-     *
-     * @param  array<string, mixed>  $json
-     */
-    private function paceForNextRequest(array $json): void
-    {
-        $cost = $json['extensions']['cost'] ?? null;
-
-        if (! is_array($cost)) {
-            return;
+        if ($this->lastRequestOverCeiling) {
+            $this->error('Jobber refused the query: it costs more than the rate-limit ceiling.');
         }
 
-        // Jobber admits a query on its requested (reserved) cost, not the
-        // smaller amount it ends up charging — measured on prod: 6,555
-        // requested, 3,094 charged — so the next page must fit the former.
-        $wait = $this->secondsUntilAffordable($cost, $cost['requestedQueryCost'] ?? $cost['actualQueryCost'] ?? null);
-
-        if ($wait !== null && $wait > 0) {
-            sleep($wait);
-        }
-    }
-
-    /**
-     * Seconds until the bucket holds enough points for a query of the given
-     * cost, from Jobber's own accounting — null when the response did not
-     * carry the numbers. Zero when it already fits.
-     *
-     * @param  array<string, mixed>  $cost
-     */
-    private function secondsUntilAffordable(array $cost, mixed $needed): ?int
-    {
-        $available = $cost['throttleStatus']['currentlyAvailable'] ?? null;
-        $restoreRate = $cost['throttleStatus']['restoreRate'] ?? null;
-
-        if (! is_numeric($needed) || ! is_numeric($available) || ! is_numeric($restoreRate) || $restoreRate <= 0) {
-            return null;
-        }
-
-        if ($available >= $needed) {
-            return 0;
-        }
-
-        return (int) min(self::MAX_WAIT_SECONDS, max(1, ceil(($needed - $available) / $restoreRate) + 1));
-    }
-
-    /**
-     * Jobber reports a rate limit as HTTP 200 with a THROTTLED error code.
-     *
-     * @param  array<string, mixed>|null  $json
-     */
-    private function isThrottled(?array $json): bool
-    {
-        foreach ($json['errors'] ?? [] as $error) {
-            if (($error['extensions']['code'] ?? null) === 'THROTTLED') {
-                return true;
-            }
-        }
-
-        return false;
+        return $json;
     }
 }
