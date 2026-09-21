@@ -226,7 +226,7 @@ class WorkOrderImportCommand extends Command
             // so the lookup sees the row.
             $previousState = WorkOrder::query()
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['id', 'description', 'lease_id', 'source']);
+                ->first();
             $previousDescription = $previousState?->description;
             $previousLeaseId = $previousState?->lease_id;
 
@@ -247,9 +247,21 @@ class WorkOrderImportCommand extends Command
                 $work_order_data['service_status_id'] = DB::table('service_status')->where('name', 'New')->value('id') ?? 1;
             }
 
+            // An existing row is only written where the payload really differs
+            // (see WorkOrder::importChanges); the created_at/updated_at the
+            // array stamps for the insert never reach an update, so every run
+            // no longer rewrites created_at or marks the row as moved.
+            // $work_order_data itself stays whole: the description and lease
+            // checks after the write read the payload, not the diff.
+            $columnsToWrite = $previousState === null
+                ? $work_order_data
+                : $previousState->importChanges(
+                    array_diff_key($work_order_data, ['created_at' => null, 'updated_at' => null]),
+                );
+
             $savedWorkOrder = WorkOrder::updateOrCreate(
                 ['propertyware_id' => $work_order_propertyware_id],
-                $work_order_data
+                $columnsToWrite
             );
 
             $isNewWorkOrder = $savedWorkOrder->wasRecentlyCreated;

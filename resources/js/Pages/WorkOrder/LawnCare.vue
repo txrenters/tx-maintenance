@@ -1094,7 +1094,7 @@ const date_range = ref({
         :categories="categories"
     >
         <template #actions>
-            <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
+            <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto sm:ml-auto">
             <!-- Page-specific primary action (e.g. HOA "Upload Notice"). -->
             <slot name="board-actions" />
             <!-- How much moved since this board was last marked seen, and the

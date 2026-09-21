@@ -427,6 +427,63 @@ class WorkOrder extends Model
     }
 
     /**
+     * The import payload columns whose value differs from what this row holds.
+     *
+     * PropertyWare hands back numbers, dates and flags in a different shape
+     * from what the database returns (150 vs "150.00", a Carbon vs its stored
+     * string, false vs 0) and Eloquent counts each as a change, so every
+     * scheduled sync re-saved every work order: created_at drifted to the last
+     * import and updated_at moved every ten minutes, which the HVAC board's
+     * "moved since I last looked" counter reads (22 of 22 on 2026-09-22).
+     * Writing only these columns leaves an unchanged row untouched and lets a
+     * real change bump updated_at and record what moved.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function importChanges(array $data): array
+    {
+        foreach ($data as $column => $incoming) {
+            if (self::sameStoredValue($incoming, $this->getRawOriginal($column))) {
+                unset($data[$column]);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Whether a payload value and a stored value mean the same thing once the
+     * payload's shape is normalised to the database's.
+     */
+    private static function sameStoredValue(mixed $incoming, mixed $stored): bool
+    {
+        if ($incoming instanceof \DateTimeInterface) {
+            $incoming = $incoming->format('Y-m-d H:i:s');
+        }
+
+        if (is_bool($incoming)) {
+            $incoming = (int) $incoming;
+        }
+
+        if (is_bool($stored)) {
+            $stored = (int) $stored;
+        }
+
+        $blank = fn (mixed $value): bool => $value === null || $value === '';
+
+        if ($blank($incoming) || $blank($stored)) {
+            return $blank($incoming) && $blank($stored);
+        }
+
+        if (is_numeric($incoming) && is_numeric($stored)) {
+            return (float) $incoming === (float) $stored;
+        }
+
+        return (string) $incoming === (string) $stored;
+    }
+
+    /**
      * Whether an import payload's Source may replace the one on file. The app
      * stamps "Tenant Portal" itself on the work orders it creates for tenant
      * portal requests (PropertyWare's API create carries no Source, so

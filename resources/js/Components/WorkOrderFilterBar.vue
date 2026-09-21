@@ -78,12 +78,16 @@ const clearAllFilters = () => {
 </script>
 
 <template>
-    <div class="flex gap-3 flex-col sm:flex-row items-center">
+    <!-- When the row is short of space (a board with a "new" badge on a
+         laptop), the chips keep their single line and the action cluster
+         drops to a second line instead of the chips folding into a 2x2 block
+         beside a centred search box. -->
+    <div class="flex gap-3 flex-col sm:flex-row sm:flex-wrap items-center">
         <SearchBar v-model="search" />
 
         <div
             v-if="canFilter"
-            class="flex flex-1 min-w-0 flex-wrap items-center gap-2"
+            class="flex flex-1 min-w-0 sm:min-w-max flex-wrap items-center gap-2"
         >
             <FilterChip
                 label="Vendor"
