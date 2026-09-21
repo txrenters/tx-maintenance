@@ -246,6 +246,86 @@ class HvacBoardSeenTest extends TestCase
         $this->assertSame(0, $counter->cachedCountFor($user->fresh()));
     }
 
+    /** The dropdown names what happened where a child record explains it. */
+    public function test_the_activity_feed_names_the_change(): void
+    {
+        $user = $this->allowedUser();
+        $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        $messaged = WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3020,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        DB::table('work_order_conversations')->insert([
+            'work_order_id' => $messaged->id,
+            'message' => 'The AC is still not cooling.',
+            'conversation_type' => 'tenant',
+            'is_read' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Moved, but nothing explains how — the honest fallback.
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3021,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        $updates = collect(
+            $this->actingAs($user)->getJson(route('work_orders.hvac.activity'))
+                ->assertOk()
+                ->json('updates')
+        )->keyBy('work_order_no');
+
+        $this->assertSame('new message', $updates[3020]['change']);
+        $this->assertSame('updated', $updates[3021]['change']);
+    }
+
+    /** Nothing has moved, so the dropdown has nothing to show. */
+    public function test_the_activity_feed_is_empty_when_nothing_moved(): void
+    {
+        $user = $this->allowedUser();
+
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'Scheduled',
+            'description' => 'Scheduled',
+        ]);
+
+        WorkOrder::query()->create([
+            'service_status_id' => $serviceStatus->id,
+            'work_order_no' => 3022,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        // Marked seen after the work order was created.
+        $user->forceFill(['hvac_board_seen_at' => now()->addMinute()])->save();
+
+        $this->actingAs($user)->getJson(route('work_orders.hvac.activity'))
+            ->assertOk()
+            ->assertJsonCount(0, 'updates');
+    }
+
+    public function test_a_user_off_the_allow_list_cannot_read_the_activity_feed(): void
+    {
+        $other = User::factory()->create(['email' => 'someone.else@example.com']);
+
+        $this->actingAs($other)->getJson(route('work_orders.hvac.activity'))->assertForbidden();
+    }
+
     /**
      * The 2026-09-11 outage: a badge count joined a JSON-extract derived table
      * over the activity log onto every message row, and every cache miss pinned

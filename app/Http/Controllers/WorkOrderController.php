@@ -17,6 +17,7 @@ use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\EmergencyAlertService;
+use App\Services\HvacBoardActivityFeed;
 use App\Services\HvacBoardNewCounter;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
@@ -1058,6 +1059,23 @@ class WorkOrderController extends Controller
         app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
 
         return back();
+    }
+
+    /**
+     * What moved on the HVAC board since this user last marked it seen, for the
+     * dropdown behind the badge.
+     *
+     * Its own endpoint rather than a board prop: the queries that name each
+     * change run only when the dropdown is opened, never on board load or on
+     * the 60-second poll.
+     */
+    public function hvac_activity(Request $request)
+    {
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        return response()->json([
+            'updates' => app(HvacBoardActivityFeed::class)->for($request->user()),
+        ]);
     }
 
     /**

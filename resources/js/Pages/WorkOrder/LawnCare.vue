@@ -8,6 +8,7 @@ import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
 import { statusList } from "@/utils/serviceStatusList";
+import { agoLabel } from "@/utils/conversation.js";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -43,6 +44,7 @@ import {
     Loader2,
     Sparkles,
     CircleCheckBig,
+    ChevronDown,
 } from "lucide-vue-next";
 import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
@@ -126,6 +128,42 @@ const boardNewCount = computed(() => {
         0
     );
 });
+
+// The dropdown behind the badge: which work orders moved and what happened to
+// them. Fetched only when it is opened, never on board load or on the poll —
+// the badge count that took production down on 2026-09-11 was one that ran on
+// every request.
+const activityOpen = ref(false);
+const activityUpdates = ref([]);
+const activityLoading = ref(false);
+const activityError = ref(false);
+
+const loadActivity = async () => {
+    activityLoading.value = true;
+    activityError.value = false;
+
+    try {
+        const { data } = await axios.get(route("work_orders.hvac.activity"));
+        activityUpdates.value = data.updates ?? [];
+    } catch {
+        // The count itself comes from the board payload and is still correct;
+        // only the breakdown is missing, so say so rather than blanking it.
+        activityError.value = true;
+    } finally {
+        activityLoading.value = false;
+    }
+};
+
+watch(activityOpen, (open) => {
+    if (open) loadActivity();
+});
+
+// Jump to the work order. Opening it does NOT clear its badge: the count is
+// cleared deliberately, by "Mark all seen", and never by looking.
+const openUpdate = (update) => {
+    activityOpen.value = false;
+    handleWorkOrder(update.id);
+};
 
 const markingSeen = ref(false);
 
@@ -859,17 +897,88 @@ const page = usePage();
             <slot name="board-actions" />
             <!-- How much moved since this board was last marked seen, and the
                  only way to clear it. Hidden entirely when nothing is new. -->
-            <Button
-                v-if="newActivity && boardNewCount"
-                variant="outline"
-                :disabled="markingSeen"
-                class="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                :title="`${boardNewCount} work order${boardNewCount === 1 ? '' : 's'} updated since you last marked this board seen`"
-                @click="markBoardSeen"
-            >
-                <CircleCheckBig class="w-4 h-4 mr-1" />
-                {{ boardNewCount }} new · Mark all seen
-            </Button>
+            <Popover v-if="newActivity && boardNewCount" v-model:open="activityOpen">
+                <PopoverTrigger as-child>
+                    <Button
+                        variant="outline"
+                        class="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        :title="`${boardNewCount} work order${boardNewCount === 1 ? '' : 's'} updated since you last marked this board seen`"
+                    >
+                        <CircleCheckBig class="w-4 h-4 mr-1" />
+                        {{ boardNewCount }} new
+                        <ChevronDown class="w-4 h-4 ml-1" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" class="w-[22rem] p-0">
+                    <div
+                        class="flex items-center justify-between border-b px-3 py-2"
+                    >
+                        <p class="text-sm font-semibold">What moved</p>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            :disabled="markingSeen"
+                            class="h-7 text-xs"
+                            @click="markBoardSeen"
+                        >
+                            Mark all seen
+                        </Button>
+                    </div>
+
+                    <div
+                        v-if="activityLoading"
+                        class="px-3 py-6 text-center text-sm text-muted-foreground"
+                    >
+                        <Loader2 class="w-4 h-4 mx-auto mb-1 animate-spin" />
+                        Loading…
+                    </div>
+                    <p
+                        v-else-if="activityError"
+                        class="px-3 py-6 text-center text-sm text-muted-foreground"
+                    >
+                        Could not load the list. The count above is still right.
+                    </p>
+                    <ScrollArea v-else class="max-h-[22rem]">
+                        <button
+                            v-for="update in activityUpdates"
+                            :key="update.id"
+                            type="button"
+                            class="w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                            @click="openUpdate(update)"
+                        >
+                            <div
+                                class="flex items-baseline justify-between gap-2"
+                            >
+                                <span class="text-sm font-semibold"
+                                    >#{{ update.work_order_no }}</span
+                                >
+                                <span
+                                    class="text-[10px] text-muted-foreground shrink-0"
+                                    >{{ agoLabel(update.at) }}</span
+                                >
+                            </div>
+                            <p
+                                v-if="update.location"
+                                class="truncate text-xs text-muted-foreground"
+                            >
+                                {{ update.location }}
+                            </p>
+                            <div
+                                class="mt-0.5 flex items-center justify-between gap-2"
+                            >
+                                <span class="text-xs font-medium text-destructive">{{
+                                    update.change
+                                }}</span>
+                                <span
+                                    v-if="update.status"
+                                    class="truncate text-[10px] text-muted-foreground"
+                                    >{{ update.status }}</span
+                                >
+                            </div>
+                        </button>
+                    </ScrollArea>
+                </PopoverContent>
+            </Popover>
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
