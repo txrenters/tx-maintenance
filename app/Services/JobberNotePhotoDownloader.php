@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Attachments;
 use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderJobberNoteFile;
 use Illuminate\Support\Facades\Http;
@@ -10,13 +11,26 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Fetches a Jobber note's photos onto the public disk.
+ * Fetches the photos on a Jobber note onto the work order's Attachments tab.
  *
  * Downloaded rather than linked: Jobber serves note files from ActiveStorage
  * behind short-TTL signed URLs, so a stored url renders for about an hour and
  * is a broken image afterwards — a failure that looks perfect in testing and
- * surfaces days later in production. Downloading also keeps the photo after
- * the note is deleted in Jobber, and needs nothing from Jobber at page render.
+ * surfaces days later in production.
+ *
+ * The rows land in `attachments`, which is what the Attachments tab reads, and
+ * they are deliberately inert everywhere else:
+ *
+ *  - `is_publish_to_owner_portal` / `is_publish_to_tenant_portal` stay false,
+ *    which is what the two portals filter on;
+ *  - `uploaded_via_tenant_portal` stays false — it is a second way into the
+ *    tenant portal, not just a provenance label;
+ *  - UploadAttachment is never dispatched, and `jobber_note_file_gid` keeps
+ *    RepairAttachmentPwUploads' daily sweep off them, so nothing reaches
+ *    PropertyWare;
+ *  - `type` is 'attachment': the tab renders nothing outside its three enum
+ *    buckets, and 'before'/'after' would force an owner-portal publish on the
+ *    PropertyWare copy if one were ever made.
  *
  * Every failure here is logged and swallowed. A photo that will not download
  * must never cost us the note it belongs to.
@@ -25,18 +39,19 @@ class JobberNotePhotoDownloader
 {
     /**
      * Refuse anything larger. Crew photos are phone-camera sized; something
-     * far bigger is a video or a mistake, and neither belongs inline.
+     * far bigger is a video or a mistake, and neither belongs on the tab.
      */
     private const MAX_BYTES = 20 * 1024 * 1024;
 
-    private const DIRECTORY = 'jobber-note-photos';
+    private const DIRECTORY = 'attachments';
 
     /**
-     * Store one of Jobber's note files, unless it is already here.
+     * Store one of Jobber's note files as a work order attachment, unless it
+     * is already here.
      *
      * Returns the stored key on the public disk, or null when the file is
-     * still processing, is not something we show, or the download failed —
-     * each of which is simply retried on the next sync.
+     * still processing, carries no usable url, or the download failed — each
+     * of which is simply retried on the next sync.
      *
      * @param  array<string, mixed>  $file
      */
@@ -53,26 +68,18 @@ class JobberNotePhotoDownloader
             return null;
         }
 
-        $row = WorkOrderJobberNoteFile::firstOrNew([
-            'work_order_jobber_note_id' => $note->id,
-            'jobber_file_gid' => $gid,
-        ]);
+        // Already downloaded for this work order: the dedupe that keeps a
+        // re-sync free, and what stops the tab filling with copies.
+        $existing = Attachments::withoutGlobalScopes()
+            ->where('work_order_id', $note->work_order_id)
+            ->where('jobber_note_file_gid', $gid)
+            ->first();
 
-        $row->file_name = isset($file['fileName']) ? (string) $file['fileName'] : $row->file_name;
-        $row->content_type = isset($file['contentType']) ? (string) $file['contentType'] : $row->content_type;
-        $row->file_size = isset($file['fileSize']) && is_numeric($file['fileSize'])
-            ? (int) $file['fileSize']
-            : $row->file_size;
+        if ($existing !== null) {
+            $this->link($note, $gid, $existing);
 
-        // Already downloaded: keep the bytes we have. This is what makes a
-        // re-sync cost nothing, and it is the dedupe the feature was asked for.
-        if (filled($row->filename)) {
-            $row->save();
-
-            return $row->filename;
+            return $existing->filename;
         }
-
-        $row->save();
 
         $url = $file['url'] ?? null;
 
@@ -80,35 +87,84 @@ class JobberNotePhotoDownloader
             return null;
         }
 
-        $stored = $this->download($url, (string) ($file['fileName'] ?? ''), $note->id);
+        $fileName = (string) ($file['fileName'] ?? '');
+        $stored = $this->download($url, $fileName, $note->id);
 
         if ($stored === null) {
             return null;
         }
 
-        $row->filename = $stored;
-        $row->save();
+        // Files.vue calls filetype.startsWith() unguarded, so a null here
+        // throws and blanks the whole tab. Fall back to a sane default.
+        $contentType = $file['contentType'] ?? null;
+        $contentType = is_string($contentType) && $contentType !== ''
+            ? $contentType
+            : 'application/octet-stream';
+
+        $attachment = Attachments::withoutGlobalScopes()->create([
+            'title' => $fileName !== '' ? $fileName : 'Jobber photo',
+            'filename' => $stored,
+            'filetype' => $contentType,
+            'type' => 'attachment',
+            'work_order_id' => $note->work_order_id,
+            // No local uploader: this came from a technician in Jobber, whose
+            // name is on the note rather than in our users table.
+            'user_id' => null,
+            'jobber_note_file_gid' => $gid,
+            // The crew's own photos are not a PropertyWare document and are
+            // not portal content; these are the columns both portals filter
+            // on, set explicitly rather than left to their defaults.
+            'is_publish_to_owner_portal' => false,
+            'is_publish_to_tenant_portal' => false,
+            'uploaded_via_tenant_portal' => false,
+            // Badge it as new: a photo arriving from the field is exactly the
+            // kind of thing a coordinator should be shown.
+            'viewed_by_staff_at' => null,
+        ]);
+
+        $this->link($note, $gid, $attachment);
 
         return $stored;
     }
 
     /**
-     * Drop a note's downloaded files from disk before its rows cascade away,
-     * so a note deleted in Jobber does not leave its photos orphaned there.
+     * Record which note brought a photo in. The attachment is what the tab
+     * renders; this row is the bookkeeping that lets a note's photos be found
+     * again when the note is deleted in Jobber.
+     */
+    private function link(WorkOrderJobberNote $note, string $gid, Attachments $attachment): void
+    {
+        WorkOrderJobberNoteFile::updateOrCreate(
+            ['work_order_jobber_note_id' => $note->id, 'jobber_file_gid' => $gid],
+            ['attachment_id' => $attachment->id]
+        );
+    }
+
+    /**
+     * Drop a note's downloaded photos from disk and from the Attachments tab
+     * when the note goes away in Jobber, so nothing is left pointing at a note
+     * that no longer exists.
      */
     public function forget(WorkOrderJobberNote $note): void
     {
-        foreach ($note->files()->get() as $file) {
-            if (blank($file->filename)) {
-                continue;
-            }
+        $attachmentIds = $note->files()->pluck('attachment_id')->filter()->all();
 
+        if ($attachmentIds === []) {
+            return;
+        }
+
+        $rows = Attachments::withoutGlobalScopes()->whereIn('id', $attachmentIds)->get();
+
+        foreach ($rows as $row) {
             try {
-                Storage::disk('public')->delete($file->filename);
+                if (filled($row->filename)) {
+                    Storage::disk('public')->delete($row->filename);
+                }
+
+                $row->delete();
             } catch (\Throwable $e) {
                 Log::warning('Could not remove a Jobber note photo', [
-                    'work_order_jobber_note_id' => $note->id,
-                    'filename' => $file->filename,
+                    'attachment_id' => $row->id,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -160,8 +216,8 @@ class JobberNotePhotoDownloader
 
     /**
      * An extension for the stored file, from Jobber's file name where it has
-     * one and the served content type otherwise. Kept so the disk stays
-     * browsable and the browser is told what it is being handed.
+     * one and the served content type otherwise. Files.vue splits on it for
+     * the tile icon, so a name without one is worth filling in.
      */
     private function extension(string $fileName, ?string $contentType): string
     {

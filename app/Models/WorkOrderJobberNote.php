@@ -54,6 +54,10 @@ class WorkOrderJobberNote extends Model
         return $this->belongsTo(WorkOrder::class, 'work_order_id');
     }
 
+    /**
+     * The photos this note brought onto the work order's Attachments tab.
+     * Link rows, not the photos themselves — each points at an attachment.
+     */
     public function files(): HasMany
     {
         return $this->hasMany(WorkOrderJobberNoteFile::class, 'work_order_jobber_note_id');

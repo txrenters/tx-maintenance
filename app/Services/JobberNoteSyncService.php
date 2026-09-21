@@ -197,8 +197,9 @@ class JobberNoteSyncService
             ->get();
 
         foreach ($stale as $note) {
-            // Unlink the downloaded photos before the rows cascade away,
-            // otherwise the files linger on disk with nothing pointing at them.
+            // Take the photos off the Attachments tab too: they were only ever
+            // there because the note brought them, and a photo whose note is
+            // gone has nothing explaining it.
             $this->photos->forget($note);
             $note->delete();
         }

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\UploadAttachment;
+use App\Models\Attachments;
 use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
@@ -12,6 +14,7 @@ use App\Models\WorkOrderJobberNoteFile;
 use App\Services\JobberNoteSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -115,7 +118,7 @@ class JobberNotePhotoTest extends TestCase
         return app(JobberNoteSyncService::class);
     }
 
-    public function test_a_ready_photo_is_downloaded_to_the_public_disk(): void
+    public function test_a_ready_photo_lands_on_the_attachments_tab(): void
     {
         $workOrder = $this->linkedWorkOrder();
 
@@ -126,14 +129,68 @@ class JobberNotePhotoTest extends TestCase
 
         $this->sync()->syncWorkOrder($workOrder);
 
-        $file = WorkOrderJobberNoteFile::query()->firstOrFail();
-        $this->assertNotNull($file->filename);
-        $this->assertStringStartsWith('jobber-note-photos/', $file->filename);
-        $this->assertStringEndsWith('.jpg', $file->filename);
-        Storage::disk('public')->assertExists($file->filename);
-        $this->assertSame('heater.jpg', $file->file_name);
-        $this->assertSame('image/jpeg', $file->content_type);
-        $this->assertTrue($file->isImage());
+        $attachment = Attachments::withoutGlobalScopes()->firstOrFail();
+        $this->assertSame($workOrder->id, $attachment->work_order_id);
+        $this->assertSame('heater.jpg', $attachment->title);
+        $this->assertSame('image/jpeg', $attachment->filetype);
+        $this->assertSame('attachment', $attachment->type);
+        $this->assertSame('file-1', $attachment->jobber_note_file_gid);
+        $this->assertStringStartsWith('attachments/', $attachment->filename);
+        Storage::disk('public')->assertExists($attachment->filename);
+
+        // The link back to the note that brought it.
+        $link = WorkOrderJobberNoteFile::query()->firstOrFail();
+        $this->assertSame($attachment->id, $link->attachment_id);
+    }
+
+    /**
+     * These are the crew's internal working photos. The two portals filter on
+     * exactly these columns, so getting them wrong shows an owner or tenant
+     * every picture a technician takes.
+     */
+    public function test_a_jobber_photo_is_not_portal_content(): void
+    {
+        $workOrder = $this->linkedWorkOrder();
+
+        Http::fake([
+            self::PHOTO_URL => Http::response('binary-image', 200, ['Content-Type' => 'image/jpeg']),
+            self::GRAPHQL => Http::response($this->notesPageWithFile($this->fileNode())),
+        ]);
+
+        $this->sync()->syncWorkOrder($workOrder);
+
+        $attachment = Attachments::withoutGlobalScopes()->firstOrFail();
+        $this->assertFalse((bool) $attachment->is_publish_to_owner_portal);
+        $this->assertFalse((bool) $attachment->is_publish_to_tenant_portal);
+        // Not a label: it is a second way into the tenant portal.
+        $this->assertFalse((bool) $attachment->uploaded_via_tenant_portal);
+    }
+
+    /**
+     * Nothing pushes an attachment to PropertyWare on insert, but the daily
+     * repair sweep picks up every row whose pw_file_name is null -- which a
+     * Jobber photo's always is. Without the exclusion it would send the
+     * crew's whole camera roll to PropertyWare a day after it arrived.
+     */
+    public function test_the_propertyware_repair_sweep_skips_jobber_photos(): void
+    {
+        Queue::fake();
+
+        $workOrder = $this->linkedWorkOrder();
+
+        Http::fake([
+            self::PHOTO_URL => Http::response('binary-image', 200, ['Content-Type' => 'image/jpeg']),
+            self::GRAPHQL => Http::response($this->notesPageWithFile($this->fileNode())),
+        ]);
+
+        $this->sync()->syncWorkOrder($workOrder);
+
+        // Age it past the command's one-hour grace period.
+        Attachments::withoutGlobalScopes()->update(['created_at' => now()->subDay()]);
+
+        $this->artisan('attachments:repair-pw-uploads')->assertExitCode(0);
+
+        Queue::assertNotPushed(UploadAttachment::class);
     }
 
     /**
@@ -144,8 +201,6 @@ class JobberNotePhotoTest extends TestCase
     {
         $workOrder = $this->linkedWorkOrder();
 
-        // The photo URL keeps its own stub; only the notes answer changes, so
-        // the GraphQL endpoint gets the sequence and the file host does not.
         Http::fake([
             self::PHOTO_URL => Http::response('binary-image', 200, ['Content-Type' => 'image/jpeg']),
             self::GRAPHQL => Http::sequence()
@@ -156,17 +211,15 @@ class JobberNotePhotoTest extends TestCase
         $this->sync()->syncWorkOrder($workOrder);
 
         $this->assertSame(1, WorkOrderJobberNote::query()->count());
-        $this->assertSame(0, WorkOrderJobberNoteFile::query()->whereNotNull('filename')->count());
+        $this->assertSame(0, Attachments::withoutGlobalScopes()->count());
 
         $this->sync()->syncWorkOrder($workOrder);
 
-        $file = WorkOrderJobberNoteFile::query()->firstOrFail();
-        $this->assertNotNull($file->filename);
-        Storage::disk('public')->assertExists($file->filename);
+        $this->assertSame(1, Attachments::withoutGlobalScopes()->count());
     }
 
     /**
-     * The dedupe that keeps a re-sync cheap: the bytes are fetched once.
+     * The dedupe that keeps a re-sync cheap and the tab free of copies.
      */
     public function test_the_same_photo_is_not_downloaded_twice(): void
     {
@@ -181,6 +234,7 @@ class JobberNotePhotoTest extends TestCase
         $this->sync()->syncWorkOrder($workOrder);
         $this->sync()->syncWorkOrder($workOrder);
 
+        $this->assertSame(1, Attachments::withoutGlobalScopes()->count());
         $this->assertSame(1, WorkOrderJobberNoteFile::query()->count());
 
         $downloads = 0;
@@ -209,12 +263,12 @@ class JobberNotePhotoTest extends TestCase
 
         $this->assertSame(1, $count);
         $this->assertSame(1, WorkOrderJobberNote::query()->count());
-        $this->assertNull(WorkOrderJobberNoteFile::query()->value('filename'));
+        $this->assertSame(0, Attachments::withoutGlobalScopes()->count());
     }
 
     /**
-     * A note deleted in Jobber takes its photos with it, rather than leaving
-     * files on disk with nothing pointing at them.
+     * A note deleted in Jobber takes its photos off the tab with it, rather
+     * than leaving pictures nothing explains.
      */
     public function test_removing_a_note_clears_its_photos(): void
     {
@@ -234,13 +288,31 @@ class JobberNotePhotoTest extends TestCase
 
         $this->sync()->syncWorkOrder($workOrder);
 
-        $stored = WorkOrderJobberNoteFile::query()->value('filename');
+        $stored = Attachments::withoutGlobalScopes()->value('filename');
         Storage::disk('public')->assertExists($stored);
 
         $this->sync()->syncWorkOrder($workOrder);
 
         $this->assertSame(0, WorkOrderJobberNote::query()->count());
-        $this->assertSame(0, WorkOrderJobberNoteFile::query()->count());
+        $this->assertSame(0, Attachments::withoutGlobalScopes()->count());
         Storage::disk('public')->assertMissing($stored);
+    }
+
+    /**
+     * Files.vue calls filetype.startsWith() unguarded, so a null blanks the
+     * whole tab rather than hiding one tile.
+     */
+    public function test_a_photo_with_no_content_type_still_gets_a_filetype(): void
+    {
+        $workOrder = $this->linkedWorkOrder();
+
+        Http::fake([
+            self::PHOTO_URL => Http::response('binary-image', 200),
+            self::GRAPHQL => Http::response($this->notesPageWithFile($this->fileNode(['contentType' => null]))),
+        ]);
+
+        $this->sync()->syncWorkOrder($workOrder);
+
+        $this->assertNotNull(Attachments::withoutGlobalScopes()->value('filetype'));
     }
 }

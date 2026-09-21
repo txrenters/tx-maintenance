@@ -387,27 +387,6 @@ const handleFetchNotes = () => {
                             {{ note.message ?? note.body }}
                         </p>
 
-                        <!-- The photos the crew attached to the note in Jobber. -->
-                        <div
-                            v-if="note.photos?.length"
-                            class="mt-2 mb-2 flex flex-wrap gap-2"
-                        >
-                            <a
-                                v-for="photo in note.photos"
-                                :key="photo.id"
-                                :href="photo.url"
-                                target="_blank"
-                                rel="noopener"
-                            >
-                                <img
-                                    :src="photo.url"
-                                    :alt="photo.file_name ?? 'Jobber photo'"
-                                    loading="lazy"
-                                    class="h-20 w-20 rounded border object-cover"
-                                />
-                            </a>
-                        </div>
-
                         <p class="text-xs">
                             Added: {{ formatAddedAt(note) }} &middot;
                             {{ noteAuthor(note) }}

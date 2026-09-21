@@ -107,7 +107,6 @@ class WorkOrderNotesController extends Controller
         }
 
         return $workOrder->jobberNotes()
-            ->with('files')
             ->get()
             ->sortByDesc(fn (WorkOrderJobberNote $note) => $note->jobber_created_at ?? $note->created_at)
             ->values()
@@ -119,17 +118,6 @@ class WorkOrderNotesController extends Controller
                 'pinned' => (bool) $note->pinned,
                 'added_at' => $note->added_at,
                 'last_edited_at' => $note->jobber_last_edited_at?->utc()->toISOString(),
-                // Only files that actually made it onto the disk: one still
-                // downloading would render as a broken image.
-                'photos' => $note->files
-                    ->filter(fn ($file) => filled($file->filename) && $file->isImage())
-                    ->map(fn ($file) => [
-                        'id' => $file->id,
-                        'url' => $file->url(),
-                        'file_name' => $file->file_name,
-                    ])
-                    ->values()
-                    ->all(),
             ])
             ->all();
     }
