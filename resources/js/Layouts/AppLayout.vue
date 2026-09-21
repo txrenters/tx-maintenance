@@ -125,6 +125,7 @@ const SUMMARY_BOARDS = [
     ["/work_orders/closed", "closed"],
     ["/work_orders/paid", "paid"],
     ["/work_orders/hoa", "hoa"],
+    ["/work_orders/hvac", "hvac"],
 ];
 
 // Only the staff who work the boards; the endpoint enforces this too.
@@ -169,6 +170,17 @@ const data = computed(() => ({
 // Shared from the server so it is right on every page, not only in the Inbox.
 const unreadThreadsBadge = computed(() => {
     const count = Number(page.props.unread_thread_count ?? 0);
+
+    if (!count) return null;
+
+    return count > 99 ? "99+" : String(count);
+});
+
+// Count beside HVAC in the sidebar: work orders that moved since this user last
+// marked that board seen, so movement shows without opening the board. Server
+// sends 0 to everyone off the allow-list, which renders no badge at all.
+const hvacNewBadge = computed(() => {
+    const count = Number(page.props.hvac_board_new_count ?? 0);
 
     if (!count) return null;
 
@@ -330,6 +342,14 @@ const navs = computed(() => {
                               isActive: page.url.startsWith(
                                   "/work_orders/lawn_service"
                               ),
+                          },
+                          {
+                              title: "HVAC",
+                              url: route("work_orders.hvac"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/hvac"
+                              ),
+                              badge: hvacNewBadge.value,
                           },
                           {
                               title: "Turnovers",

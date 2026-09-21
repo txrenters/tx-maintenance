@@ -98,6 +98,15 @@ const canAccess = (requiredRoles) => {
             "
             >{{ button.count }}</span
           >
+
+          <!-- Something changed here but a number would be misleading (e.g. the
+               attachments tab already owns its own count). A bare dot says
+               "look here" without claiming how many. -->
+          <span
+            v-else-if="button.dot"
+            class="ml-0.5 h-2 w-2 rounded-full bg-destructive"
+            aria-hidden="true"
+          />
         </Button>
       </TooltipTrigger>
       <TooltipContent>

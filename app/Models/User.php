@@ -64,6 +64,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'hvac_board_seen_at' => 'datetime',
         ];
     }
 
@@ -81,6 +82,25 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return $this->hasAnyRole(self::STAFF_ROLES);
+    }
+
+    /**
+     * Whether this user gets the "new activity" counters on the HVAC board and
+     * the matching number beside HVAC in the sidebar.
+     *
+     * An allow-list rather than a role check on purpose: several users hold the
+     * woc role, and only the coordinator who actually works this board (plus
+     * IT) should see the counters. Everyone else gets the board exactly as it
+     * was before the feature existed.
+     */
+    public function seesHvacBoardActivity(): bool
+    {
+        $allowed = collect(explode(',', (string) config('services.hvac_board.badge_emails')))
+            ->map(fn (string $email): string => mb_strtolower(trim($email)))
+            ->filter()
+            ->all();
+
+        return in_array(mb_strtolower(trim((string) $this->email)), $allowed, true);
     }
 
     public function vendor(): HasOne

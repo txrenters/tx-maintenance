@@ -3,6 +3,7 @@ import { Truck, Tag, UserRoundPen, CircleCheckBig, MapPin, Repeat2, CalendarCloc
 import { DateTime } from "luxon";
 import { usePage } from "@inertiajs/vue3";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { statusList } from "@/utils/serviceStatusList";
 
 const emit = defineEmits(["showWorkOrder"]);
 
@@ -34,6 +35,17 @@ const props = defineProps({
     // HOA board: render the HOA deadline + state pill on each card (data comes
     // from work_order.hoa, decorated server-side). No effect on other boards.
     hoa: { type: Boolean, default: false },
+    // HVAC board: count and mark the work orders that moved since this user
+    // last marked the board seen. Off (false) for every other board, which
+    // renders exactly as it did before this existed.
+    newActivity: { type: Boolean, default: false },
+    // ISO-8601 UTC string; null means this user has never marked the board
+    // seen, in which case nothing is called new rather than everything.
+    boardSeenAt: { type: String, default: null },
+    // Work order ids already dealt with from the "what moved" list. The board
+    // payload cannot know about dismissals, so without these the chips and
+    // pills would keep counting rows the badge has already dropped.
+    dismissedIds: { type: Object, default: () => new Set() },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -361,17 +373,57 @@ const matchesDate = (work_order) => {
     return true;
 };
 
-const visibleWorkOrders = (status) => {
-    return (status.work_orders || []).filter(
-        (work_order) =>
-            matchesSearch(work_order) &&
-            matchesVendor(work_order) &&
-            matchesCategory(work_order) &&
-            matchesEmergency(work_order) &&
-            matchesColor(work_order) &&
-            matchesDate(work_order)
-    );
+// Filtered cards per column, computed once per board change rather than per
+// call: the template reads this for the column's v-if, its count, its badge and
+// its card loop, and recomputing the whole filter chain four times per column on
+// every render is work the board does not need to repeat.
+const visibleByStatus = computed(() => {
+    const map = new Map();
+
+    // service_status arrives as an object keyed by index, not an array — the
+    // template's v-for does not care, but for…of does.
+    for (const status of statusList(props.service_status)) {
+        map.set(
+            status.id,
+            (status.work_orders || []).filter(
+                (work_order) =>
+                    matchesSearch(work_order) &&
+                    matchesVendor(work_order) &&
+                    matchesCategory(work_order) &&
+                    matchesEmergency(work_order) &&
+                    matchesColor(work_order) &&
+                    matchesDate(work_order)
+            )
+        );
+    }
+
+    return map;
+});
+
+const visibleWorkOrders = (status) => visibleByStatus.value.get(status.id) ?? [];
+
+/**
+ * Whether this work order moved since the user last marked the board seen.
+ *
+ * Both sides are ISO-8601 UTC strings as Laravel serializes them, so a plain
+ * string comparison orders them correctly without parsing a date per card.
+ */
+const isNew = (work_order) => {
+    if (!props.newActivity || !props.boardSeenAt || !work_order?.updated_at) {
+        return false;
+    }
+
+    // Already dealt with from the "what moved" list, so the badge has dropped
+    // it and the chips must agree.
+    if (props.dismissedIds?.has?.(work_order.id)) {
+        return false;
+    }
+
+    return work_order.updated_at > props.boardSeenAt;
 };
+
+/** How many of a column's *visible* cards are new, so it agrees with its count. */
+const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
 </script>
 
 <template>
@@ -388,13 +440,27 @@ const visibleWorkOrders = (status) => {
                 <div class="text-center font-semibol">
                     <!-- Status Name -->
                     <div
-                        class="h-16 flex items-center justify-center border p-3 text-sm uppercase font-semibold"
+                        class="h-16 flex items-center justify-center gap-1.5 border p-3 text-sm uppercase font-semibold"
                     >
                         <p>
                             {{ status.name }} ({{
                                 visibleWorkOrders(status).length
                             }})
                         </p>
+                        <!-- How many of this column's cards moved since the
+                             user last marked the board seen. Carries the word
+                             "new" because a bare number beside "(15)" reads as
+                             another total. HVAC board only. -->
+                        <span
+                            v-if="newCount(status)"
+                            :title="`${newCount(status)} updated since you last marked this board seen`"
+                            class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground normal-case"
+                        >
+                            <span
+                                class="inline-block h-1.5 w-1.5 rounded-full bg-current"
+                            ></span>
+                            {{ newCount(status) }} new
+                        </span>
                     </div>
 
                     <!-- Work Orders List -->
@@ -435,7 +501,27 @@ const visibleWorkOrders = (status) => {
                             <div
                                 class="flex justify-between items-center border-b pb-2 mb-2"
                             >
-                                <h1 class="text-lg font-semibold">
+                                <h1
+                                    class="text-lg font-semibold flex items-center gap-1.5"
+                                >
+                                    <!-- This card moved since the board was
+                                         last marked seen. A dot rather than a
+                                         word: it has to catch the eye while
+                                         scanning a column, not compete with the
+                                         work order number for the headline.
+                                         HVAC board only. -->
+                                    <span
+                                        v-if="isNew(work_order)"
+                                        class="relative flex h-2.5 w-2.5 shrink-0"
+                                        title="Updated since you last marked this board seen"
+                                    >
+                                        <span
+                                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"
+                                        ></span>
+                                        <span
+                                            class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white/70"
+                                        ></span>
+                                    </span>
                                     {{ work_order.work_order_no }}
                                 </h1>
                                 <p class="text-xs text-gray-200">

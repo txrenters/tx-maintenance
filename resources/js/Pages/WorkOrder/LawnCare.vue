@@ -7,6 +7,8 @@ import { useToast } from "@/Components/ui/toast/use-toast";
 import WorkOrderCard from "./Partials/WorkOrderCard.vue";
 import TabSwitcher from "./Partials/TabSwitcher.vue";
 import { useUnseenAttachments } from "@/composables/useUnseenAttachments";
+import { statusList } from "@/utils/serviceStatusList";
+import { agoLabel } from "@/utils/conversation.js";
 const WorkOrderDetails = defineAsyncComponent(() => import("./Partials/WorkOrderDetails.vue"));
 const WorkOrderTask = defineAsyncComponent(() => import("./Partials/WorkOrderTask.vue"));
 const VendorWocConversation = defineAsyncComponent(() => import("./Partials/VendorWocConversation.vue"));
@@ -41,6 +43,20 @@ import {
     Loader2Icon,
     Loader2,
     Sparkles,
+    CircleCheckBig,
+    ChevronDown,
+    Bell,
+    BellOff,
+    MessageSquare,
+    StickyNote,
+    ImageIcon,
+    Receipt,
+    Truck,
+    ArrowRightLeft,
+    DollarSign,
+    CalendarClock,
+    TriangleAlert,
+    Pencil,
 } from "lucide-vue-next";
 import WorkOrderExternalLinks from "@/Components/WorkOrder/WorkOrderExternalLinks.vue";
 
@@ -80,7 +96,22 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    // HVAC board: count the work orders that moved since this user last marked
+    // the board seen, mark them on the cards, and poll so the counts keep up
+    // without a manual refresh. Harmless (false) for every other board that
+    // reuses this page.
+    newActivity: {
+        type: Boolean,
+        default: false,
+    },
+    // ISO-8601 UTC string, or null when this user has never marked it seen.
+    boardSeenAt: {
+        type: String,
+        default: null,
+    },
 });
+
+const page = usePage();
 
 const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
@@ -91,6 +122,252 @@ const filter_emergency = ref(props.filter.emergency ?? "");
 // upcoming). Colors are computed client-side per card, so this filter is
 // applied on the board itself rather than via a server query.
 const filter_color = ref("all");
+
+// How many work orders moved since this user last marked the board seen,
+// counted off the already-loaded payload — no extra request. It cannot see
+// per-row dismissals, which is what serverNewCount below is for.
+const payloadNewCount = computed(() => {
+    if (!props.newActivity || !props.boardSeenAt) return 0;
+
+    // service_status arrives as an object keyed by index, not an array — the
+    // template's v-for does not care, but Array methods do.
+    return statusList(props.service_status).reduce(
+        (total, status) =>
+            total +
+            (status.work_orders || []).filter(
+                (work_order) =>
+                    work_order.updated_at &&
+                    work_order.updated_at > props.boardSeenAt
+            ).length,
+        0
+    );
+});
+
+// The authoritative count once a row has been dismissed: the server applies the
+// dismissals, the payload cannot. Null until a dismissal returns one.
+const serverNewCount = ref(null);
+
+// Rows dismissed in this session but not yet confirmed by the server, so the
+// badge drops the instant a row is clicked.
+const dismissedCount = ref(0);
+
+// Bumped on every dismissal. A refresh that started before the newest dismissal
+// is stale by the time it answers, and applying its count would snap the badge
+// back up over a row already cleared.
+const dismissSeq = ref(0);
+
+// Work orders dealt with in this session. The board payload cannot know about
+// dismissals, so without this the column chips and card pills keep counting
+// rows the badge has already dropped — the board contradicting itself in plain
+// sight. Refreshed from the server's list, which applies the dismissals.
+const dismissedIds = ref(new Set());
+
+const rememberDismissedFrom = (updates) => {
+    if (!Array.isArray(updates)) return;
+
+    // Anything the board still thinks is new, but the server left out of the
+    // list, has been dealt with.
+    const stillNew = new Set(updates.map((row) => row.id));
+    const dismissed = new Set();
+
+    for (const status of statusList(props.service_status)) {
+        for (const workOrder of status.work_orders || []) {
+            const movedSinceSeen =
+                workOrder.updated_at &&
+                props.boardSeenAt &&
+                workOrder.updated_at > props.boardSeenAt;
+
+            if (movedSinceSeen && !stillNew.has(workOrder.id)) {
+                dismissed.add(workOrder.id);
+            }
+        }
+    }
+
+    dismissedIds.value = dismissed;
+};
+
+const boardNewCount = computed(() => {
+    if (serverNewCount.value !== null) return serverNewCount.value;
+
+    return Math.max(0, payloadNewCount.value - dismissedCount.value);
+});
+
+// The dropdown behind the badge: which work orders moved and what happened to
+// them. Fetched only when it is opened, never on board load or on the poll —
+// the badge count that took production down on 2026-09-11 was one that ran on
+// every request.
+const activityOpen = ref(false);
+const activityUpdates = ref([]);
+const activityLoading = ref(false);
+const activityError = ref(false);
+
+// An icon per kind of change, so a column of rows can be scanned by shape
+// instead of read word by word. Keyed by the phrases the server sends
+// (HvacBoardActivityFeed::SOURCES and WorkOrder::CHANGE_LABELS); anything
+// unrecognised, including the old generic "updated", falls back to the pencil.
+const CHANGE_ICONS = {
+    "new message": MessageSquare,
+    "note added": StickyNote,
+    "photo or file added": ImageIcon,
+    "invoice added": Receipt,
+    "vendor assigned": Truck,
+    "cost updated": DollarSign,
+    "estimate updated": DollarSign,
+    "schedule changed": CalendarClock,
+    "emergency flag changed": TriangleAlert,
+    "priority changed": TriangleAlert,
+};
+
+const changeIcon = (change) => {
+    if (!change) return Pencil;
+    // Status moves are phrased "moved to <status name>", so they cannot be
+    // matched by an exact key.
+    if (change.startsWith("moved to")) return ArrowRightLeft;
+
+    return CHANGE_ICONS[change] ?? Pencil;
+};
+
+const loadActivity = async () => {
+    activityLoading.value = true;
+    activityError.value = false;
+
+    const seq = dismissSeq.value;
+
+    try {
+        const { data } = await axios.get(route("work_orders.hvac.activity"));
+
+        // A dismissal landed while this was in flight; its answer is stale.
+        if (seq !== dismissSeq.value) return;
+
+        activityUpdates.value = data.updates ?? [];
+        rememberDismissedFrom(data.updates);
+
+        // The server applies dismissals; the payload count cannot. Once it has
+        // told us the real number, trust it over the local tally.
+        if (typeof data.new_count === "number") {
+            serverNewCount.value = data.new_count;
+            dismissedCount.value = 0;
+        }
+    } catch {
+        // The count itself comes from the board payload and is still correct;
+        // only the breakdown is missing, so say so rather than blanking it.
+        activityError.value = true;
+    } finally {
+        activityLoading.value = false;
+    }
+};
+
+watch(activityOpen, (open) => {
+    if (open) loadActivity();
+});
+
+// Clicking a row is the deliberate act that clears it, the way opening a
+// message does — unlike merely opening the board, which still clears nothing.
+// The server records WHEN it was dismissed, so if this work order moves again
+// it comes straight back.
+const openUpdate = async (update) => {
+    activityOpen.value = false;
+    // Land on the tab the change happened in; "updated" has no specific tab to
+    // blame, so it opens on Details as before.
+    handleWorkOrder(update.id, update.tab);
+
+    // Drop it from the list straight away rather than waiting on the request;
+    // the board is already navigating and the server is the source of truth for
+    // the count that comes back.
+    activityUpdates.value = activityUpdates.value.filter(
+        (row) => row.id !== update.id,
+    );
+    dismissedCount.value += 1;
+    // Invalidate any refresh already in flight: its count predates this click.
+    dismissSeq.value += 1;
+    // Drop its column chip and card pill in the same breath as the badge.
+    dismissedIds.value = new Set(dismissedIds.value).add(update.id);
+
+    try {
+        const { data } = await axios.post(
+            route("work_orders.hvac.dismiss", update.id),
+        );
+
+        if (typeof data.new_count === "number") {
+            serverNewCount.value = data.new_count;
+            dismissedCount.value = 0;
+
+            // The sidebar number is a shared Inertia prop, so it would otherwise
+            // sit stale until the next navigation and disagree with the board.
+            if (page.props) page.props.hvac_board_new_count = data.new_count;
+        }
+    } catch {
+        // The dismissal did not stick. Put the optimistic decrement back so the
+        // badge keeps telling the truth rather than quietly under-counting.
+        dismissedCount.value -= 1;
+    }
+};
+
+const markingSeen = ref(false);
+
+// Clearing the counters is deliberate, never automatic: opening the board must
+// not wipe the list of what moved before it has been dealt with.
+const markBoardSeen = () => {
+    if (markingSeen.value) return;
+
+    markingSeen.value = true;
+
+    router.post(
+        route("work_orders.hvac.seen"),
+        {},
+        {
+            preserveScroll: true,
+            preserveState: false,
+            onFinish: () => {
+                markingSeen.value = false;
+            },
+        }
+    );
+};
+
+// A reloaded board carries a fresh payload that knows nothing about per-row
+// dismissals, so recounting it locally would resurrect everything already dealt
+// with — which is exactly what the 60-second poll used to do, snapping the
+// badge back up a few seconds after a row was cleared. Re-ask the server, which
+// is the only thing that applies dismissals, and leave the displayed number
+// alone until it answers.
+watch(
+    () => props.service_status,
+    async () => {
+        if (!props.newActivity) return;
+
+        const seq = dismissSeq.value;
+
+        try {
+            const { data } = await axios.get(route("work_orders.hvac.activity"));
+
+            // A dismissal happened while this was in flight, so its answer
+            // predates that click and would put the row back.
+            if (seq !== dismissSeq.value) return;
+
+            if (typeof data.new_count === "number") {
+                activityUpdates.value = data.updates ?? activityUpdates.value;
+                rememberDismissedFrom(data.updates);
+                serverNewCount.value = data.new_count;
+                dismissedCount.value = 0;
+            }
+        } catch {
+            // Keep the last known-good number rather than jumping to a count
+            // that ignores dismissals.
+        }
+    }
+);
+
+// Keep the counters current while the board is open. Guarded so only the board
+// that shows counters pays for it; every other board stays as it was.
+if (props.newActivity) {
+    usePoll(60000, { only: ["service_status"] });
+
+    // Ask once on arrival so the column chips and card pills already agree with
+    // the badge, rather than counting dismissed rows until the dropdown is
+    // opened for the first time.
+    onMounted(loadActivity);
+}
 
 const openWorkOrder = ref(false);
 
@@ -469,6 +746,28 @@ const workOrderAttachments = ref([]);
 const workOrderDocuments = ref([]);
 const { unseenAttachments, buttonsWithAttachmentBadge } =
     useUnseenAttachments(tabButtons);
+
+// Per-tab counts for the open work order: once the board says a work order
+// moved, these say which tab it moved in. Layered on top of the attachments
+// badge rather than replacing it, so that tab keeps its own unseen count.
+const hvacTabCounts = ref({});
+
+const tabButtonsWithBadges = computed(() => {
+    const counts = hvacTabCounts.value;
+
+    if (!props.newActivity || !Object.keys(counts).length) {
+        return buttonsWithAttachmentBadge.value;
+    }
+
+    return buttonsWithAttachmentBadge.value.map((button) => {
+        const count = counts[button.name];
+
+        // Never overwrite a badge the tab already owns.
+        if (!count || button.count) return button;
+
+        return { ...button, count, countVariant: "alert" };
+    });
+});
 const fetchAttachments = async (workOrderId) => {
     try {
         isLoading.value = true;
@@ -648,9 +947,11 @@ const handleCloseOrderSubmit = () => {
     });
 };
 
-const handleWorkOrder = async (orderId) => {
+// `openOnTab` lets the HVAC "what moved" list land on the tab that actually
+// changed. Every other caller passes an id alone and still opens on Details.
+const handleWorkOrder = async (orderId, openOnTab = null) => {
     workOrderForm.reset();
-    activeTab.value = "details";
+    activeTab.value = openOnTab || "details";
     workOrderTasks.value = [];
     recommendation.value = null;
     isGeneratingRecommendation.value = false;
@@ -662,6 +963,7 @@ const handleWorkOrder = async (orderId) => {
         const order = response.data; // Assuming the API returns the work order details
 
         unseenAttachments.value = order.unseen_attachments_count ?? 0;
+        hvacTabCounts.value = order.hvac_tab_counts ?? {};
 
         workOrderForm.id = order.id;
         workOrderForm.work_order_no = order.work_order_no;
@@ -776,7 +1078,6 @@ const date_range = ref({
 // Vendor, category, search and date filtering are applied client-side on the
 // already-loaded board (see WorkOrderCard) — no server round-trips on change.
 
-const page = usePage();
 </script>
 <template>
     <Head :title="title" />
@@ -794,6 +1095,137 @@ const page = usePage();
             <div class="flex gap-2 shrink-0 justify-end w-full sm:w-auto">
             <!-- Page-specific primary action (e.g. HOA "Upload Notice"). -->
             <slot name="board-actions" />
+            <!-- How much moved since this board was last marked seen, and the
+                 only way to clear it. Hidden entirely when nothing is new. -->
+            <Popover v-if="newActivity && boardNewCount" v-model:open="activityOpen">
+                <PopoverTrigger as-child>
+                    <Button
+                        variant="outline"
+                        class="relative shrink-0 gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        :title="`${boardNewCount} work order${boardNewCount === 1 ? '' : 's'} updated since you last marked this board seen`"
+                    >
+                        <span class="relative flex">
+                            <Bell class="h-4 w-4" />
+                            <!-- A live ping, so movement is noticed without
+                                 the board being watched. -->
+                            <span
+                                class="absolute -right-0.5 -top-0.5 flex h-1.5 w-1.5"
+                            >
+                                <span
+                                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-75"
+                                ></span>
+                                <span
+                                    class="relative inline-flex h-1.5 w-1.5 rounded-full bg-current"
+                                ></span>
+                            </span>
+                        </span>
+                        <span class="font-semibold">{{ boardNewCount }}</span>
+                        new
+                        <ChevronDown class="h-4 w-4 opacity-70" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" class="w-[24rem] p-0">
+                    <div
+                        class="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2.5"
+                    >
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold leading-tight">
+                                What moved
+                            </p>
+                            <p
+                                class="text-[11px] leading-tight text-muted-foreground"
+                            >
+                                Since you last marked this board seen
+                            </p>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            :disabled="markingSeen"
+                            class="h-7 shrink-0 gap-1 text-xs"
+                            @click="markBoardSeen"
+                        >
+                            <BellOff class="h-3.5 w-3.5" />
+                            Mark all seen
+                        </Button>
+                    </div>
+
+                    <div
+                        v-if="activityLoading"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
+                    >
+                        <Loader2 class="mx-auto mb-1 h-4 w-4 animate-spin" />
+                        Loading…
+                    </div>
+                    <p
+                        v-else-if="activityError"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
+                    >
+                        Could not load the list. The count above is still right.
+                    </p>
+                    <!-- Everything queued has been clicked through, but the
+                         board has not been marked seen yet. -->
+                    <div
+                        v-else-if="!activityUpdates.length"
+                        class="px-3 py-8 text-center text-sm text-muted-foreground"
+                    >
+                        <CircleCheckBig class="mx-auto mb-1 h-5 w-5 opacity-60" />
+                        You are all caught up.
+                    </div>
+                    <ScrollArea v-else class="max-h-[24rem]">
+                        <button
+                            v-for="update in activityUpdates"
+                            :key="update.id"
+                            type="button"
+                            class="group flex w-full items-start gap-2.5 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                            @click="openUpdate(update)"
+                        >
+                            <!-- The kind of change, as a shape. Lets a column of
+                                 rows be scanned without reading each one. -->
+                            <span
+                                class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                            >
+                                <component
+                                    :is="changeIcon(update.change)"
+                                    class="h-3.5 w-3.5"
+                                />
+                            </span>
+
+                            <span class="min-w-0 flex-1">
+                                <span
+                                    class="flex items-baseline justify-between gap-2"
+                                >
+                                    <!-- What happened leads: it is the reason
+                                         this row is in the list at all. -->
+                                    <span
+                                        class="truncate text-sm font-semibold capitalize"
+                                        >{{ update.change }}</span
+                                    >
+                                    <span
+                                        class="shrink-0 text-[10px] text-muted-foreground"
+                                        >{{ agoLabel(update.at) }}</span
+                                    >
+                                </span>
+                                <span
+                                    class="mt-0.5 flex items-baseline gap-1.5 text-xs text-muted-foreground"
+                                >
+                                    <span class="shrink-0 font-medium"
+                                        >#{{ update.work_order_no }}</span
+                                    >
+                                    <span v-if="update.location" class="truncate">{{
+                                        update.location
+                                    }}</span>
+                                </span>
+                                <span
+                                    v-if="update.status"
+                                    class="mt-1 inline-flex max-w-full truncate rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground group-hover:bg-background"
+                                    >{{ update.status }}</span
+                                >
+                            </span>
+                        </button>
+                    </ScrollArea>
+                </PopoverContent>
+            </Popover>
             <Popover>
                 <PopoverTrigger as-child>
                     <Button
@@ -917,6 +1349,9 @@ const page = usePage();
             <WorkOrderCard
                 :service_status="service_status"
                 :hoa="hoa"
+                :new-activity="newActivity"
+                :board-seen-at="boardSeenAt"
+                :dismissed-ids="dismissedIds"
                 :color-filter="filter_color"
                 :search-term="search"
                 :vendor-filter="filter_vendor"
@@ -978,7 +1413,7 @@ const page = usePage();
                 </DialogDescription>
                 <div class="flex justify-center gap-2 flex-wrap">
                     <TabSwitcher
-                        :buttons="buttonsWithAttachmentBadge"
+                        :buttons="tabButtonsWithBadges"
                         :activeTab="activeTab"
                         @switchTab="switchTab"
                     />

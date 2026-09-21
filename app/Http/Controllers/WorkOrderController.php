@@ -9,6 +9,7 @@ use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
+use App\Models\HvacBoardRead;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -17,6 +18,8 @@ use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\EmergencyAlertService;
+use App\Services\HvacBoardActivityFeed;
+use App\Services\HvacBoardNewCounter;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
 use App\Services\VendorPortalLinkService;
@@ -446,6 +449,16 @@ class WorkOrderController extends Controller
                 'attachments as unseen_attachments_count' => fn ($query) => $query->whereNull('viewed_by_staff_at'),
             ]);
         }
+
+        // Drives the dots on the modal's other tabs for the HVAC coordinator:
+        // once the board says a work order moved, this says which tab it moved
+        // in. Empty for everyone else, so no other modal changes.
+        $workOrder->setAttribute(
+            'hvac_tab_counts',
+            request()->user()
+                ? app(HvacBoardActivityFeed::class)->tabCountsFor(request()->user(), $workOrder)
+                : [],
+        );
 
         return response()->json($workOrder, 200);
     }
@@ -1009,6 +1022,236 @@ class WorkOrderController extends Controller
         }
 
         return $service_status;
+    }
+
+    /**
+     * The HVAC board: every heating and cooling work order, grouped by service
+     * status so the coordinator can see at a glance what is stuck waiting on
+     * scheduling, owner approval or parts.
+     */
+    public function hvac_work_orders(Request $request)
+    {
+        // Same deferred structure as index(): heavy props only run on the
+        // request that returns them. board_seen_at and shows_new_activity are
+        // two scalars, so they stay plain — the board needs them to render its
+        // counters on the very first paint.
+        return inertia('WorkOrder/Hvac', [
+            'title' => 'HVAC Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
+            'shows_new_activity' => $this->showsHvacNewActivity($request->user()),
+            'board_seen_at' => $request->user()?->hvac_board_seen_at?->toJSON(),
+            'service_status' => Inertia::defer(fn () => $this->hvacBoard($request)),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+        ]);
+    }
+
+    /**
+     * Mark the whole HVAC board as seen for the signed-in user, which clears the
+     * "new activity" counters.
+     *
+     * Deliberately explicit rather than stamped on page load: a glance at the
+     * board, or landing on it by accident, must never wipe the list of what
+     * moved before the coordinator has acted on it.
+     */
+    public function hvac_mark_seen(Request $request)
+    {
+        // The hidden button is not the control — anyone off the allow-list has
+        // no counters to clear and has no business writing this column.
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        $request->user()->forceFill(['hvac_board_seen_at' => now()])->save();
+
+        // The sidebar number is cached per user, so clear it here rather than
+        // leaving a count standing for up to a minute after it was cleared.
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+
+        return back();
+    }
+
+    /**
+     * Dismiss one work order from this user's HVAC "what moved" list, the way
+     * opening a message clears it.
+     *
+     * Stores when it was dismissed rather than a read flag, so the work order
+     * comes back by itself if it moves again — one click can never silence a
+     * job permanently.
+     */
+    public function hvac_dismiss(Request $request, WorkOrder $workOrder)
+    {
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        // Store the work order's own updated_at, not the clock: both columns are
+        // second-precision, so a click landing in the same second as the change
+        // would otherwise be indistinguishable from one landing after it.
+        HvacBoardRead::query()->updateOrCreate(
+            ['user_id' => $request->user()->id, 'work_order_id' => $workOrder->id],
+            ['dismissed_updated_at' => $workOrder->updated_at ?? now()],
+        );
+
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+
+        return response()->json([
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
+        ]);
+    }
+
+    /**
+     * What moved on the HVAC board since this user last marked it seen, for the
+     * dropdown behind the badge.
+     *
+     * Its own endpoint rather than a board prop: the queries that name each
+     * change run only when the dropdown is opened, never on board load or on
+     * the 60-second poll.
+     */
+    public function hvac_activity(Request $request)
+    {
+        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+
+        return response()->json([
+            'updates' => app(HvacBoardActivityFeed::class)->for($request->user()),
+            // The same number the badge shows, so a caller refreshing the list
+            // does not need a second request to keep the two in step.
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
+        ]);
+    }
+
+    /**
+     * Whether this user gets the "new activity" counters on the HVAC board.
+     * The rule lives on the user so the sidebar badge applies the same one.
+     */
+    private function showsHvacNewActivity(?User $user): bool
+    {
+        return (bool) $user?->seesHvacBoardActivity();
+    }
+
+    /**
+     * The HVAC kanban board: the same shape as inspectionsBoard(), restricted to
+     * heating and cooling work by WorkOrder::scopeHvac(), which owns the
+     * spelling rules PropertyWare's picklist forces on us.
+     */
+    private function hvacBoard(Request $request): Collection
+    {
+        // updated_at rides along so the board can mark what moved since the
+        // coordinator last looked. It is added here rather than to
+        // BOARD_CARD_COLUMNS because that constant is shared by every board; a
+        // timestamp is 8 bytes and safe, but the payload that exhausted PHP's
+        // memory in production is not a thing to widen casually.
+        $columns = [...self::BOARD_CARD_COLUMNS, 'updated_at'];
+
+        $query = ServiceStatus::with([
+            'work_orders' => function ($query) use ($columns) {
+                $this->applyBoardFilters($query->select($columns)->scoped())
+                    ->hvac()
+                    ->where('status', 'Open');
+            },
+            ...$this->boardCardRelations('work_orders.'),
+        ])
+            ->whereNot('name', 'Not Changed');
+
+        $service_status = $query->get();
+
+        // Pull the trailing statuses out so they can be re-pushed in order after
+        // the Paid and Closed buckets are rebuilt with their 30-day windows.
+        $waitingOnBillStatus = $service_status->firstWhere('name', 'Completed - Verified - Waiting on Bill');
+        $waitingOnPaymentStatus = $service_status->firstWhere('name', 'Approved - Waiting on Payment');
+
+        $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
+            'Completed - Verified - Waiting on Bill',
+            'Approved - Waiting on Payment',
+            'Closed',
+        ], true));
+
+        // "Paid": HVAC work that was actually billed, within the last 30 days.
+        $paidStatus = ServiceStatus::where('name', 'Paid')->first();
+        if ($paidStatus) {
+            $paidStatus->setRelation('work_orders', $this->applyBoardFilters(
+                WorkOrder::query()
+                    ->select($columns)
+                    ->scoped()
+                    ->with($this->boardCardRelations())
+            )
+                ->hvac()
+                ->whereNotNull('total_cost')
+                ->where('total_cost', '>', 0)
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS))
+                ->latest('completed_date')
+                ->get());
+        }
+
+        // "Closed": HVAC work finished within the last 30 days, so recent
+        // completions stay visible without the list growing without bound.
+        $closedStatus = ServiceStatus::where('name', 'Closed')->first();
+        if ($closedStatus) {
+            $closedStatus->setRelation('work_orders', $this->applyBoardFilters(
+                WorkOrder::query()
+                    ->select($columns)
+                    ->scoped()
+                    ->with($this->boardCardRelations())
+            )
+                ->hvac()
+                ->where('status', 'Closed')
+                ->whereNotNull('completed_date')
+                ->where('completed_date', '>=', now()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS))
+                ->latest('completed_date')
+                ->get());
+        }
+
+        if ($waitingOnBillStatus) {
+            $service_status->push($waitingOnBillStatus);
+        }
+        if ($waitingOnPaymentStatus) {
+            $service_status->push($waitingOnPaymentStatus);
+        }
+        if ($paidStatus) {
+            $service_status->push($paidStatus);
+        }
+        if ($closedStatus) {
+            $service_status->push($closedStatus);
+        }
+
+        // Hide specific statuses from vendors. This must reject from the already
+        // materialized collection (including the Paid/Closed buckets pushed
+        // above) — filtering the $query builder here is a no-op because it was
+        // executed with ->get() earlier.
+        if ($request->user()->hasRole('vendor')) {
+            $service_status = $service_status
+                ->reject(fn ($status) => in_array($status->name, self::VENDOR_HIDDEN_STATUSES, true))
+                ->values();
+        }
+
+        return $service_status;
+    }
+
+    /**
+     * The search / vendor / category / date-range filters every board applies to
+     * its card query, read off the current request.
+     *
+     * The category filter is an exact match on purpose: the value comes from the
+     * board's own category list, so it round-trips the stored spelling verbatim
+     * — including PropertyWare's trailing spaces.
+     */
+    private function applyBoardFilters($query)
+    {
+        return $query
+            ->when(request('search'), function ($q, $search) {
+                $q->where('work_order_no', $search);
+            })
+            ->when(request('vendor'), fn ($q, $vendorId) => $q->assignedToVendor($vendorId))
+            ->when(request('category'), function ($q, $category) {
+                $q->where('category', $category);
+            })
+            ->when(request()->filled(['start_date', 'end_date']), function ($q) {
+                $date = request()->only(['start_date', 'end_date']);
+                $start_date = Carbon::parse($date['start_date'])->startOfDay();
+                $end_date = Carbon::parse($date['end_date'])->endOfDay();
+
+                $q->whereBetween('created_date', [$start_date, $end_date]);
+            });
     }
 
     public function lawn_service_work_orders(Request $request)

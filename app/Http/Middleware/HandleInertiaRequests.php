@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\FeatureUpdatesController;
+use App\Services\HvacBoardNewCounter;
 use App\Services\UnreadThreadCounter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -86,6 +87,13 @@ class HandleInertiaRequests extends Middleware
             'feature_update_dates' => fn () => $request->user()?->hasAnyRole(['admin', 'woc'])
                 ? FeatureUpdatesController::updateDates()
                 : [],
+            // Drives the number beside HVAC in the sidebar: the work orders that
+            // moved since this user last marked that board seen, so movement is
+            // visible without opening the board. Only the handful of users on
+            // the allow-list pay for the query; cached per user for a minute.
+            'hvac_board_new_count' => fn () => $request->user()?->seesHvacBoardActivity()
+                ? app(HvacBoardNewCounter::class)->cachedCountFor($request->user())
+                : 0,
         ]);
     }
 }

@@ -64,6 +64,7 @@ class WorkOrder extends Model
         'waiting_on_payment',
         'paid',
         'hoa',
+        'hvac',
     ];
 
     /**
@@ -185,6 +186,138 @@ class WorkOrder extends Model
     public function service_status(): BelongsTo
     {
         return $this->belongsTo(ServiceStatus::class, 'service_status_id');
+    }
+
+    /**
+     * The fields worth naming when they change, as column => phrase. Order
+     * matters: the first match wins, so the status move — the thing that
+     * actually moves a card between columns — is named ahead of an edit that
+     * happened in the same save.
+     *
+     * @var array<string, string>
+     */
+    private const CHANGE_LABELS = [
+        'is_emergency' => 'emergency flag changed',
+        'priority' => 'priority changed',
+        'scheduled_end_date' => 'schedule changed',
+        'start_date' => 'schedule changed',
+        'total_cost' => 'cost updated',
+        'cost_estimate' => 'estimate updated',
+        'category' => 'category changed',
+        'type' => 'type changed',
+        'is_approved' => 'approval changed',
+        'description' => 'description edited',
+    ];
+
+    protected static function booted(): void
+    {
+        // Record what changed, in words, so the HVAC board's "what moved" list
+        // can say "moved to Scheduled" instead of the generic "updated".
+        //
+        // A model hook rather than a line in each caller: the status is written
+        // from controllers, services, jobs and PropertyWare sync alike, and one
+        // missed caller would silently go back to saying "updated". This is a
+        // string assignment on a save that is already happening — no query.
+        static::saving(function (self $workOrder): void {
+            if (! $workOrder->exists) {
+                return;
+            }
+
+            $summary = $workOrder->describeOwnChanges();
+
+            if ($summary !== null) {
+                $workOrder->last_change_summary = $summary;
+            }
+        });
+    }
+
+    /**
+     * A short phrase for the change about to be saved, or null when nothing
+     * worth naming changed.
+     */
+    /**
+     * Status id => name, resolved once per request.
+     *
+     * This hook runs on every work order save in the application, and the
+     * PropertyWare sync saves them in bulk — so a per-save SELECT here would
+     * add one query per status change across an import. The table is ~21
+     * near-static rows, so it is read once and held for the process.
+     *
+     * @var array<int, string>|null
+     */
+    private static ?array $serviceStatusNames = null;
+
+    private function describeOwnChanges(): ?string
+    {
+        if ($this->isDirty('service_status_id')) {
+            $name = self::serviceStatusName($this->service_status_id);
+
+            return $name ? 'moved to '.$name : 'status changed';
+        }
+
+        foreach (self::CHANGE_LABELS as $column => $label) {
+            if ($this->isDirty($column)) {
+                return $label;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The name of a service status, from the per-process cache.
+     *
+     * Returns null rather than throwing if the lookup fails: this runs inside
+     * every work order save, and a cosmetic label for one board must never be
+     * the reason a save fails. The caller degrades to "status changed".
+     */
+    private static function serviceStatusName(mixed $id): ?string
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        $id = (int) $id;
+
+        if (self::$serviceStatusNames === null) {
+            self::$serviceStatusNames = self::loadServiceStatusNames();
+        }
+
+        if (isset(self::$serviceStatusNames[$id])) {
+            return self::$serviceStatusNames[$id];
+        }
+
+        // An id the cache has never seen: a status added through the admin
+        // page after a long-lived queue worker filled this. Refresh once so the
+        // worker picks it up without a restart. A genuinely unknown id (a
+        // deleted status) re-reads at most once per save, which only happens on
+        // a status change, so it cannot become a hot path.
+        self::$serviceStatusNames = self::loadServiceStatusNames();
+
+        return self::$serviceStatusNames[$id] ?? null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function loadServiceStatusNames(): array
+    {
+        try {
+            return ServiceStatus::query()->pluck('name', 'id')->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Drop the cached status names.
+     *
+     * Only needed where statuses are created mid-process — chiefly tests, which
+     * build them with factories after this cache may already have been filled.
+     */
+    public static function forgetServiceStatusNames(): void
+    {
+        self::$serviceStatusNames = null;
     }
 
     /**
@@ -863,6 +996,43 @@ class WorkOrder extends Model
     }
 
     /**
+     * The heating and cooling work orders, for the HVAC board.
+     *
+     * Matched with LIKE, never an equality test. PropertyWare's real picklist
+     * value is "HVAC " with a trailing space (1,444 work orders carry it); only
+     * six carry a clean "HVAC", so where('category', 'HVAC') would find six rows
+     * instead of ~3,000. The same trailing space is why
+     * WorkOrderCategory::canonicalName() exists.
+     *
+     * Some work orders carry HVAC as the type ("HVAC Maintenance") and leave the
+     * category blank, the same inconsistency isTurnover() documents, so both
+     * columns are matched.
+     *
+     * Water heaters are plumbing rather than heating and cooling, so they are
+     * excluded even though "Water heater" contains the %heater% term.
+     *
+     * The whereNull branches are required: in SQL, NULL NOT LIKE '%x%' evaluates
+     * to NULL, so without them a work order with no category would be dropped.
+     */
+    public function scopeHvac($query)
+    {
+        return $query
+            ->where(function ($q) {
+                $q->where('category', 'LIKE', '%hvac%')
+                    ->orWhere('type', 'LIKE', '%hvac%')
+                    ->orWhere('category', 'LIKE', '%ac filter%')
+                    ->orWhere('category', 'LIKE', '%thermostat%')
+                    ->orWhere('category', 'LIKE', '%heater%')
+                    ->orWhere('category', 'LIKE', '%furnace%')
+                    ->orWhere('category', 'LIKE', '%central heating%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('category')
+                    ->orWhere('category', 'NOT LIKE', '%water heater%');
+            });
+    }
+
+    /**
      * Whether this work order is an HOA violation, without touching the
      * database when the category alone already answers it. Used to keep
      * tenant/owner repair automations off violation notices.
@@ -973,6 +1143,10 @@ class WorkOrder extends Model
                 ->where('completed_date', '>=', now()->subDays(self::COMPLETED_WINDOW_DAYS)),
 
             'hoa' => $query->hoaViolations(),
+
+            // HVAC work orders deliberately stay on the main board too, the way
+            // HOA violations do, so nobody loses sight of them.
+            'hvac' => $query->hvac()->where('status', 'Open'),
 
             default => $query,
         };
