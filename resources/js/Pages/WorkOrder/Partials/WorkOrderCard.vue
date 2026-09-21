@@ -42,6 +42,10 @@ const props = defineProps({
     // ISO-8601 UTC string; null means this user has never marked the board
     // seen, in which case nothing is called new rather than everything.
     boardSeenAt: { type: String, default: null },
+    // Work order ids already dealt with from the "what moved" list. The board
+    // payload cannot know about dismissals, so without these the chips and
+    // pills would keep counting rows the badge has already dropped.
+    dismissedIds: { type: Object, default: () => new Set() },
 });
 
 // Remembers each column's scroll offset for the whole SPA session, keyed by
@@ -406,6 +410,12 @@ const visibleWorkOrders = (status) => visibleByStatus.value.get(status.id) ?? []
  */
 const isNew = (work_order) => {
     if (!props.newActivity || !props.boardSeenAt || !work_order?.updated_at) {
+        return false;
+    }
+
+    // Already dealt with from the "what moved" list, so the badge has dropped
+    // it and the chips must agree.
+    if (props.dismissedIds?.has?.(work_order.id)) {
         return false;
     }
 

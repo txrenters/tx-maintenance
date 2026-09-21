@@ -144,6 +144,36 @@ const dismissedCount = ref(0);
 // back up over a row already cleared.
 const dismissSeq = ref(0);
 
+// Work orders dealt with in this session. The board payload cannot know about
+// dismissals, so without this the column chips and card pills keep counting
+// rows the badge has already dropped — the board contradicting itself in plain
+// sight. Refreshed from the server's list, which applies the dismissals.
+const dismissedIds = ref(new Set());
+
+const rememberDismissedFrom = (updates) => {
+    if (!Array.isArray(updates)) return;
+
+    // Anything the board still thinks is new, but the server left out of the
+    // list, has been dealt with.
+    const stillNew = new Set(updates.map((row) => row.id));
+    const dismissed = new Set();
+
+    for (const status of statusList(props.service_status)) {
+        for (const workOrder of status.work_orders || []) {
+            const movedSinceSeen =
+                workOrder.updated_at &&
+                props.boardSeenAt &&
+                workOrder.updated_at > props.boardSeenAt;
+
+            if (movedSinceSeen && !stillNew.has(workOrder.id)) {
+                dismissed.add(workOrder.id);
+            }
+        }
+    }
+
+    dismissedIds.value = dismissed;
+};
+
 const boardNewCount = computed(() => {
     if (serverNewCount.value !== null) return serverNewCount.value;
 
@@ -172,6 +202,7 @@ const loadActivity = async () => {
         if (seq !== dismissSeq.value) return;
 
         activityUpdates.value = data.updates ?? [];
+        rememberDismissedFrom(data.updates);
 
         // The server applies dismissals; the payload count cannot. Once it has
         // told us the real number, trust it over the local tally.
@@ -211,6 +242,8 @@ const openUpdate = async (update) => {
     dismissedCount.value += 1;
     // Invalidate any refresh already in flight: its count predates this click.
     dismissSeq.value += 1;
+    // Drop its column chip and card pill in the same breath as the badge.
+    dismissedIds.value = new Set(dismissedIds.value).add(update.id);
 
     try {
         const { data } = await axios.post(
@@ -276,6 +309,7 @@ watch(
 
             if (typeof data.new_count === "number") {
                 activityUpdates.value = data.updates ?? activityUpdates.value;
+                rememberDismissedFrom(data.updates);
                 serverNewCount.value = data.new_count;
                 dismissedCount.value = 0;
             }
@@ -290,6 +324,11 @@ watch(
 // that shows counters pays for it; every other board stays as it was.
 if (props.newActivity) {
     usePoll(60000, { only: ["service_status"] });
+
+    // Ask once on arrival so the column chips and card pills already agree with
+    // the badge, rather than counting dismissed rows until the dropdown is
+    // opened for the first time.
+    onMounted(loadActivity);
 }
 
 const openWorkOrder = ref(false);
@@ -1227,6 +1266,7 @@ const date_range = ref({
                 :hoa="hoa"
                 :new-activity="newActivity"
                 :board-seen-at="boardSeenAt"
+                :dismissed-ids="dismissedIds"
                 :color-filter="filter_color"
                 :search-term="search"
                 :vendor-filter="filter_vendor"
