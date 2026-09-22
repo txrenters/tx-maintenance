@@ -106,7 +106,8 @@ return [
         // order as waiting on their approval: a text, or an email when the
         // owner has no phone on file. Copies PropertyWare's own daily "Work
         // Order Pending Approval" alert (no cap), so that alert can be switched
-        // off there once this is on. Off by default.
+        // off there once this is on. Fresh start: the deploy backfill stamps
+        // the existing backlog as excluded. Off by default.
         'owner_approval_nudge' => env('OWNER_APPROVAL_NUDGE_ENABLED', false),
         // Text the primary property owner via the owner<->WOC conversation when
         // a new service request comes in (confirmation + description).

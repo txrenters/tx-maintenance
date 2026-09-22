@@ -61,7 +61,9 @@ class NudgeOwnerApproval extends Command
      *    there directly) or no longer Open
      *  - the WOC muted owner automation for this work order
      * Turnover, re-key and refresh-cleaning work orders are company-ordered
-     * work, so they are left out as with the other owner messages.
+     * work, so they are left out as with the other owner messages. Work
+     * orders that predate the feature are stamped excluded by the fresh-start
+     * backfill and never enter the loop.
      */
     public function handle(OwnerPortalLinkService $portalLinks, OwnerWorkOrderEmailSender $emails): int
     {
@@ -75,10 +77,13 @@ class NudgeOwnerApproval extends Command
         $dryRun = (bool) $this->option('dry-run');
         $startOfToday = now()->startOfDay();
 
-        // Scoped in SQL so we never load the whole open board.
+        // Scoped in SQL so we never load the whole open board. Work orders
+        // that existed when this shipped carry the fresh-start stamp and are
+        // never reminded about: the reminder starts with what arrives after.
         $workOrderIds = DB::table('work_orders')
             ->where('status', 'Open')
             ->where('is_approved', false)
+            ->whereNull('approval_nudge_excluded_at')
             ->orderBy('id')
             ->pluck('id');
 

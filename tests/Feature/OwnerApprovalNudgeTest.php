@@ -299,6 +299,24 @@ class OwnerApprovalNudgeTest extends TestCase
         $this->assertSame(1, $this->conversations());
     }
 
+    public function test_the_pre_existing_backlog_stamped_at_deploy_is_never_reminded(): void
+    {
+        $this->expectNoEmail();
+        $owner = $this->makeOwner();
+
+        // The fresh-start backfill stamps every work order that exists at
+        // deploy time; those are PropertyWare's problem, not ours.
+        $this->makeUnapprovedWorkOrder($owner, ['approval_nudge_excluded_at' => now()->subMinute()]);
+
+        $this->artisan('owners:nudge-approval')
+            ->expectsOutputToContain('reminders sent: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(0, $this->conversations());
+        $this->assertSame(0, OwnerPortalToken::query()->count());
+        $this->assertSame(0, Activity::query()->where('log_name', 'automated_message')->count());
+    }
+
     public function test_a_muted_work_order_is_skipped(): void
     {
         $this->expectNoEmail();
