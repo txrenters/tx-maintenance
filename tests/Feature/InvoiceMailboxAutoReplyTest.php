@@ -82,6 +82,23 @@ class InvoiceMailboxAutoReplyTest extends TestCase
         $this->assertNull($row->vendor_id);
     }
 
+    public function test_an_address_shared_by_two_vendor_records_gets_the_generic_reply(): void
+    {
+        $this->vendor('shared@example.com');
+        $this->vendor('SHARED@example.com');
+        $this->fakeInbox([$this->graphMessage(['from' => $this->sender('shared@example.com')])]);
+
+        $this->graph->shouldReceive('reply')
+            ->once()
+            ->withArgs(fn (string $id, string $html) => ! str_contains($html, '/vendor/'));
+
+        $this->artisan('invoices:auto-reply')->assertSuccessful();
+
+        $row = InvoiceEmailReply::query()->sole();
+        $this->assertSame(InvoiceMailboxAutoReplyService::OUTCOME_REPLIED_GENERIC, $row->outcome);
+        $this->assertNull($row->vendor_id);
+    }
+
     public function test_unknown_sender_without_an_attachment_is_not_answered(): void
     {
         $this->fakeInbox([$this->graphMessage([

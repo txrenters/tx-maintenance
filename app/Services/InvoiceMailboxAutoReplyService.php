@@ -179,13 +179,20 @@ class InvoiceMailboxAutoReplyService
         return Str::lower(trim((string) ($message['from']['emailAddress']['address'] ?? '')));
     }
 
+    /**
+     * The one vendor this address belongs to. An address shared by several
+     * vendor records is ambiguous, so it matches none of them: the sender is
+     * still answered, but with the generic instructions rather than a
+     * dashboard that might list another record's work orders.
+     */
     private function vendorFor(string $from): ?Vendor
     {
-        return Vendor::query()
+        $vendors = Vendor::query()
             ->whereRaw('LOWER(email) = ?', [$from])
-            ->orderByDesc('is_active')
-            ->orderBy('id')
-            ->first();
+            ->limit(2)
+            ->get();
+
+        return $vendors->count() === 1 ? $vendors->first() : null;
     }
 
     private function isInternal(string $from): bool
