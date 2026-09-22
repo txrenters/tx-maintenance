@@ -208,7 +208,9 @@ class TenantEasyFixCriteria
 
     /**
      * The property's "Included Appliances" value, or null when the field is
-     * absent or blank.
+     * absent, blank, or still PropertyWare's "Not Completed" placeholder (or
+     * another value that answers nothing, see
+     * config tenant_easy_fix.unknown_appliances_values).
      *
      * @param  array<int, mixed>|null  $customFields
      */
@@ -227,10 +229,25 @@ class TenantEasyFixCriteria
 
             $value = trim((string) ($field['value'] ?? ''));
 
-            return $value === '' ? null : $value;
+            if ($value === '' || self::isPlaceholderValue($value)) {
+                return null;
+            }
+
+            return $value;
         }
 
         return null;
+    }
+
+    /**
+     * Whether an "Included Appliances" value is a placeholder rather than an
+     * answer ("Not Completed", "Yes", "TBD").
+     */
+    public static function isPlaceholderValue(string $value): bool
+    {
+        $value = trim(Str::lower($value), " .\t");
+
+        return in_array($value, (array) config('tenant_easy_fix.unknown_appliances_values', []), true);
     }
 
     /**

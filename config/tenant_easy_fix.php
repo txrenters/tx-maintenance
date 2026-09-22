@@ -395,4 +395,13 @@ return [
     | "Included Appliances" values that mean the property provides nothing.
     */
     'no_appliances_values' => ['none', 'n/a', 'na', 'no', 'not applicable', 'nothing', '-'],
+
+    /*
+    | "Included Appliances" values that are placeholders, not an answer:
+    | PropertyWare's default "Not Completed" is the single most common value
+    | (218 of the buildings synced locally), and "Yes" says nothing. They are
+    | treated the same as a blank field: ownership unknown, nobody is told
+    | the appliance is theirs.
+    */
+    'unknown_appliances_values' => ['not completed', 'not complete', 'incomplete', 'yes', 'tbd', 'to be determined', 'unknown', 'update', 'pending', 'see lease', 'per lease', '?', '—'],
 ];

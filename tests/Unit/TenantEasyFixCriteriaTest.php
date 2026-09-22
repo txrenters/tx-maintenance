@@ -272,6 +272,22 @@ class TenantEasyFixCriteriaTest extends TestCase
         $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [['fieldName' => 'Paint Color', 'value' => 'Agreeable Gray']])['status']);
     }
 
+    public function test_a_placeholder_value_leaves_ownership_unknown(): void
+    {
+        // PropertyWare's default "Not Completed" is the most common value on
+        // file; it must never read as "the refrigerator is not included".
+        foreach (['Not Completed', 'not completed.', 'Yes', 'TBD', 'Unknown', 'UPDATE'] as $value) {
+            $result = TenantEasyFixCriteria::assessAppliance('our refrigerator has a extremely slow stream', [['fieldName' => 'Included Appliances', 'value' => $value]]);
+
+            $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, $result['status'], $value);
+            $this->assertNull($result['included_value'], $value);
+        }
+
+        // "None" is an answer, not a placeholder.
+        $this->assertFalse(TenantEasyFixCriteria::isPlaceholderValue('None'));
+        $this->assertTrue(TenantEasyFixCriteria::isPlaceholderValue(' Not Completed '));
+    }
+
     public function test_a_hookup_or_a_dishwasher_is_not_a_tenant_appliance(): void
     {
         $fields = [['fieldName' => 'Included Appliances', 'value' => 'None']];
