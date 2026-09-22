@@ -191,9 +191,16 @@ class TenantEasyFixCriteriaTest extends TestCase
             'Front door lock is broken and will not lock',
             'Roof shingles blew off in the storm',
             'Fence panel in the backyard is leaning over',
+            // A technician's inspection note about AC ductwork that happens to
+            // mention the exhaust fan they were replacing (real WO, 09-22).
+            'As I was replacing the exhaust fan in guest bathroom, I felt a cool wind draft behind me. Ends up being that the A.C. ducy has a significant hole in it. Recommend assessing all the AC ductwork and replacing as needed. Also the bottom step to the attic ladder is damaged and needs to be repaired.',
+            'Bathroom exhaust fan is damaged and needs to be replaced',
         ] as $text) {
             $this->assertNull($this->scan($text), $text);
         }
+
+        // The fan row still matches its own symptom.
+        $this->assertSame('bathroom_fan', $this->scan('Bathroom exhaust fan is really noisy and dusty'));
     }
 
     public function test_an_item_without_a_video_is_recognised_but_not_sendable(): void

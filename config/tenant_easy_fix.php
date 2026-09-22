@@ -54,6 +54,10 @@ return [
         'no one has come', 'nobody has come', 'no one came', 'nobody came', 'following up', 'follow up on', 'work orders',
         // Fitting, mounting or moving a part is a vendor job.
         'fitted', 'mounted', 'remount', 're-mount', 'relocate', 'relocated', 'moved to', 'move it to', 'falling apart', 'shorts out', 'short out', 'shorting',
+        // A damaged part, a hole, or "needs to be repaired/replaced" is a
+        // vendor job whatever else the description mentions (a technician's
+        // inspection note about AC ductwork also mentioned an exhaust fan).
+        'damaged', 'damage to', 'hole in', 'holes in', 'needs to be repaired', 'needs to be replaced', 'needs repair', 'needs replacing', 'needs replacement', 'recommend assessing', 'recommend replacing',
     ],
 
     /*
@@ -336,7 +340,7 @@ return [
             'label' => 'bathroom exhaust fan',
             'pw_categories' => [],
             'keywords' => ['bathroom fan', 'bathroom exhaust fan', 'exhaust fan', 'bath fan', 'vent fan', 'bathroom vent', 'fan is noisy', 'fan is loud', 'fan dirty', 'fan is dirty', 'fan makes noise', 'fan makes a noise', 'fan rattles', 'fan rattling', 'fan is rattling', 'dusty fan', 'fan full of dust'],
-            'exclude' => ['ceiling fan', 'not working', 'is not working', 'stopped working', 'won\'t turn on', 'wont turn on', 'doesn\'t turn on', 'does not turn on', 'not turning on', 'no power', 'burning', 'smoke', 'smell', 'fell', 'kitchen', 'stove', 'range hood', 'hood'],
+            'exclude' => ['ceiling fan', 'not working', 'is not working', 'stopped working', 'won\'t turn on', 'wont turn on', 'doesn\'t turn on', 'does not turn on', 'not turning on', 'no power', 'burning', 'smoke', 'smell', 'fell', 'kitchen', 'stove', 'range hood', 'hood', 'replacing', 'replace', 'replaced', 'install', 'installing', 'installed', 'duct', 'ducts', 'ductwork', 'draft'],
             'video_url' => 'https://www.youtube.com/watch?v=9G_z_6OF3hU',
             'tip' => 'Clean visible dust/debris from grille',
         ],
