@@ -932,14 +932,14 @@ class TenantServiceRequestNotificationTest extends TestCase
         $this->enableEasyFix();
         Queue::fake();
 
-        // The light-bulb item has no handbook link filled in.
-        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Light bulb in the hallway burned out', 'category' => 'Light Fixture']);
+        // The gas water-heater pilot row is recognised but has no video.
+        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Water heater pilot light went out', 'category' => 'Water Heater']);
 
         $this->notify($workOrder);
 
         $text = $this->tenantMessage($workOrder)->message;
         $this->assertStringContainsString('we have received your service request', $text);
-        $this->assertSame('light_bulb', $workOrder->fresh()->easy_fix_key);
+        $this->assertSame('water_heater_pilot', $workOrder->fresh()->easy_fix_key);
     }
 
     public function test_a_leaking_disposal_keeps_the_request_received_text(): void

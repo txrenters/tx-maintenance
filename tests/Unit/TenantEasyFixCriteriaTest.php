@@ -44,17 +44,15 @@ class TenantEasyFixCriteriaTest extends TestCase
     {
         $this->assertCount(26, TenantEasyFixCriteria::items());
 
-        // Rows whose handbook link is a search page (or, for the stove
-        // burner, the bathroom-fan search copied from the row above), or
-        // that overlap the emergency rules, carry no video and are never
-        // texted.
-        foreach (['light_bulb', 'water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working', 'stove_burner'] as $key) {
+        // Rows that overlap the emergency / gas rules carry no video and are
+        // never texted.
+        foreach (['water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working'] as $key) {
             $this->assertNull(TenantEasyFixCriteria::items()[$key]['video_url'], $key);
         }
 
-        // Rows 21-24 had search-page links in the sheet; Earl supplied real
-        // videos for them on 2026-09-23.
-        foreach (['dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve'] as $key) {
+        // Rows 3, 21-24 and 26 had search-page (or copied) links in the
+        // sheet; Earl supplied real videos for them on 2026-09-23.
+        foreach (['light_bulb', 'dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve', 'stove_burner'] as $key) {
             $this->assertTrue(TenantEasyFixCriteria::isSendable($key), $key);
         }
 
@@ -205,13 +203,13 @@ class TenantEasyFixCriteriaTest extends TestCase
 
     public function test_an_item_without_a_video_is_recognised_but_not_sendable(): void
     {
-        $this->assertSame('light_bulb', $this->scan('Kitchen light bulb burned out'));
+        $this->assertSame('water_heater_pilot', $this->scan('Water heater pilot light went out'));
 
-        $this->assertFalse(TenantEasyFixCriteria::isSendable('light_bulb'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
 
-        $this->withVideo('light_bulb');
+        $this->withVideo('water_heater_pilot');
 
-        $this->assertTrue(TenantEasyFixCriteria::isSendable('light_bulb'));
+        $this->assertTrue(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
         $this->assertTrue(TenantEasyFixCriteria::isSendable('disposal_jammed'));
         $this->assertFalse(TenantEasyFixCriteria::isSendable('not_a_key'));
     }

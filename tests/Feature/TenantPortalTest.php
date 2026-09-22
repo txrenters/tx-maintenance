@@ -757,7 +757,7 @@ class TenantPortalTest extends TestCase
 
         // Judged an easy fix, but the handbook link is not filled in yet.
         $noVideo = $this->makeWorkOrder($this->makeTenant());
-        $noVideo->update(['easy_fix_key' => 'light_bulb']);
+        $noVideo->update(['easy_fix_key' => 'water_heater_pilot']);
         $this->get(route('tenant.portal.show', $this->makeToken($noVideo)->token))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));

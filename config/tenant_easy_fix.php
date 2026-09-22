@@ -97,8 +97,8 @@ return [
             'tip' => 'Check/reset tripped breaker',
         ],
         [
-            // Handbook row 3 - the handbook links a YouTube search page, not a
-            // video, so this is recognised but not texted until a video is picked.
+            // Handbook row 3 (video picked by Earl 2026-09-23; the sheet's own
+            // link was a search page).
             'key' => 'light_bulb',
             'label' => 'light bulb',
             'pw_categories' => [],
@@ -107,7 +107,7 @@ return [
             // bulb under the "Light Fixture" category, and that word is in
             // the scanned text. A bulb in the description is a bulb.
             'exclude' => ['flicker', 'flickering', 'flickers', 'wiring', 'wire', 'wires', 'ceiling fan', 'socket', 'switch', 'buzzing', 'humming', 'all the lights', 'every light', 'half the house', 'no lights', 'no power', 'fixture fell', 'fixture is loose', 'fixture loose', 'fixture hanging', 'fixture broke', 'fixture is broke'],
-            'video_url' => null,
+            'video_url' => 'https://www.youtube.com/watch?v=MCeT3fJWO7w',
             'tip' => 'Replace bulb with correct type/wattage',
         ],
         [
@@ -345,15 +345,14 @@ return [
             'tip' => 'Clean visible dust/debris from grille',
         ],
         [
-            // Handbook row 26 - the handbook's link for this row is the bathroom
-            // exhaust fan search page (copied from row 25), so no video until it
-            // is corrected; recognised, not texted.
+            // Handbook row 26 (video picked by Earl 2026-09-23; the sheet's own
+            // link was the bathroom-fan search page copied from row 25).
             'key' => 'stove_burner',
             'label' => 'stove burner',
             'pw_categories' => [],
             'keywords' => ['burner won\'t light', 'burner wont light', 'burner will not light', 'burner not lighting', 'burner won\'t ignite', 'burner wont ignite', 'burner not igniting', 'burner doesn\'t light', 'burner does not light', 'burner isn\'t lighting', 'igniter clicks', 'igniter keeps clicking', 'keeps clicking', 'clicking but', 'clicks but', 'stove burner', 'burner not working', 'burner is not working', 'one burner', 'one of the burners', 'burner won\'t turn on', 'burner wont turn on', 'burner won\'t come on', 'burner wont come on'],
             'exclude' => ['all burners', 'all the burners', 'none of the burners', 'no burners', 'oven', 'electric', 'glass top', 'coil', 'coils', 'element', 'smell', 'gas'],
-            'video_url' => null,
+            'video_url' => 'https://www.youtube.com/watch?v=6Mamw4pQGTk',
             'tip' => 'Check burner cap placement and clean food/debris around igniter',
         ],
     ],
