@@ -90,8 +90,7 @@
                     <!-- Sign off -->
                     <tr>
                         <td style="padding:8px 28px 20px; font-size:16px; line-height:1.55; color:#374151;">
-                            <p style="margin:14px 0 2px;">Thank you,</p>
-                            <p style="margin:0; font-weight:bold; color:#0f2c66;">The TexasRenters.com Property Management Team</p>
+                            <p style="margin:14px 0 0; font-weight:bold; color:#0f2c66;">texasrenters.com</p>
                         </td>
                     </tr>
 
