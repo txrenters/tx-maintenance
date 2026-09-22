@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-23',
+            'area' => 'Owner Portal',
+            'title' => 'Owners are reminded daily about a work order waiting on their approval - from here, not from PropertyWare',
+            'description' => 'PropertyWare emails an owner every day while a work order is waiting on their approval, and that email sends them into the PropertyWare owner portal. The maintenance system now sends that daily reminder itself: a text with the owner\'s no-login portal link, or an email with the same link when the owner has no phone on file (one message a day per owner, never both). The owner reads the request and taps Approve or Don\'t approve in our portal, and the reminder stops the moment they answer, or when the work order is approved or closed in PropertyWare - however long that takes, exactly like PropertyWare\'s alert. The Approve / Don\'t approve buttons on the portal now also stay available for as long as PropertyWare shows the work order as unapproved, not only while it is New, so an owner who opens a reminder always finds them. Turnover, re-key and refresh-cleaning work orders are left out, as with the other owner messages, and the owner tab\'s mute switch stops it for a work order. The wording is on the Automated Messages page as "Approval reminder". It is switched off until IT turns it on; once it is on, PropertyWare\'s own "Work Order Pending Approval" alert is switched off there so owners are not reminded twice.',
+        ],
+        [
             'date' => '2026-09-18',
             'area' => 'Owner Portal',
             'title' => 'An owner approving in the portal now approves it in PropertyWare too, under their name',

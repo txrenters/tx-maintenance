@@ -177,6 +177,17 @@ Schedule::command('owners:followup-schedule')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Owner approval reminder: daily text (or email when the owner has no phone)
+// to each owner while PropertyWare still shows the work order as waiting on
+// their approval, until they answer in their portal or it is approved or
+// closed. Copies PropertyWare's own daily "Work Order Pending Approval"
+// alert. Gated off by default (OWNER_APPROVAL_NUDGE_ENABLED).
+Schedule::command('owners:nudge-approval')
+    ->timezone('America/Chicago')
+    ->dailyAt('10:22')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Tenant appointment reminder: daily text to the tenant, starting the day after
 // a service schedule is set, keeping the date in front of them until the
 // appointment arrives (or they reply / the cap is hit). Gated by

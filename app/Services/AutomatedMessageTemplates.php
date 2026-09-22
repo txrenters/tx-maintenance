@@ -407,6 +407,28 @@ class AutomatedMessageTemplates
                 ."Please let us know if you would like to be available at the appointment time to speak with the technician directly, or to approve the work order, and we will coordinate that with you.\n\n"
                 .'Thank you!',
         ],
+        'owner_approval_nudge' => [
+            'automation' => 'owner_approval_nudge_sms',
+            'label' => 'Approval reminder',
+            'group' => null,
+            'channel' => 'sms_email',
+            'audience' => 'owner',
+            'sends_when' => 'Sent to each owner once a day while PropertyWare still shows the work order as waiting on their approval: a text, or an email when the owner has no phone on file. Stops as soon as they answer in their portal or the work order is approved or closed. The portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'work_order_no' => 'The work order number',
+                'property' => '" at <street address>" or empty when no address is on file',
+            ],
+            'required' => ['work_order_no'],
+            'sample' => [
+                'work_order_no' => '43361',
+                'property' => ' at 123 Main St',
+            ],
+            'collapse' => false,
+            'default' => "Hello,\n\n"
+                ."Work order #{work_order_no} for your property{property} is waiting for your approval.\n\n"
+                ."Please review the request and let us know your decision using the Approve or Don't approve button on the link below. We will send this reminder each day until we have your answer.\n\n"
+                .'Thank you!',
+        ],
         'tenant_schedule_follow_up_no_date' => [
             'automation' => 'tenant_schedule_follow_up_sms',
             'label' => 'Reminder — no date on file',

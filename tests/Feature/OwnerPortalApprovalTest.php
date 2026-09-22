@@ -96,6 +96,37 @@ class OwnerPortalApprovalTest extends TestCase
         }
     }
 
+    public function test_the_portal_keeps_asking_while_propertyware_still_shows_the_work_order_unapproved(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner, 'Assigned - Waiting on Owner Approval');
+        $workOrder->update(['status' => 'Open', 'is_approved' => false]);
+        $token = $this->makeToken($workOrder, $owner);
+
+        // Past New, but PropertyWare still holds it open and unapproved: the
+        // daily reminder points the owner here, so the buttons must be here.
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('approval.requested', true)
+                ->where('approval.decision', null)
+            );
+    }
+
+    public function test_the_portal_stops_asking_once_propertyware_closes_the_work_order(): void
+    {
+        $owner = $this->makeOwner();
+        $workOrder = $this->makeWorkOrder($owner, 'Completed');
+        $workOrder->update(['status' => 'Closed', 'is_approved' => false]);
+        $token = $this->makeToken($workOrder, $owner);
+
+        $this->get('/owner-portal/'.$token->token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('approval.requested', false)
+            );
+    }
+
     public function test_approving_records_a_thread_message_and_notifies_the_coordinator(): void
     {
         $owner = $this->makeOwner();

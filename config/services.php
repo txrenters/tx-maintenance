@@ -102,6 +102,12 @@ return [
         // chasing that same question until they reply (capped). Off by default
         // until the wording is approved.
         'owner_schedule_followup_sms' => env('OWNER_SCHEDULE_FOLLOWUP_SMS_ENABLED', false),
+        // Daily reminder to each owner while PropertyWare still shows the work
+        // order as waiting on their approval: a text, or an email when the
+        // owner has no phone on file. Copies PropertyWare's own daily "Work
+        // Order Pending Approval" alert (no cap), so that alert can be switched
+        // off there once this is on. Off by default.
+        'owner_approval_nudge' => env('OWNER_APPROVAL_NUDGE_ENABLED', false),
         // Text the primary property owner via the owner<->WOC conversation when
         // a new service request comes in (confirmation + description).
         'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),
