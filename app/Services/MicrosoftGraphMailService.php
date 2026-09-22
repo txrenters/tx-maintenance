@@ -141,6 +141,23 @@ class MicrosoftGraphMailService
         return $files;
     }
 
+    /**
+     * Reply to a message in place, so the answer lands in the sender's thread
+     * and goes out from the mailbox they wrote to. Graph fills in the
+     * recipient and the "Re:" subject from the original.
+     */
+    public function reply(string $messageId, string $html, ?string $mailbox = null): void
+    {
+        $senderMailbox = $mailbox ?? $this->mailbox;
+        $this->request()
+            ->post("/users/{$senderMailbox}/messages/{$messageId}/reply", [
+                'message' => [
+                    'body' => ['contentType' => 'HTML', 'content' => $html],
+                ],
+            ])
+            ->throw();
+    }
+
     public function markRead(string $messageId, ?string $mailbox = null): void
     {
         $senderMailbox = $mailbox ?? $this->mailbox;
