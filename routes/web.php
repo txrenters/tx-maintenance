@@ -70,6 +70,8 @@ use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\WorkOrderEmailController;
 use App\Http\Controllers\WorkOrderNotesController;
 use App\Http\Controllers\WorkOrderRecommendationController;
+use App\Models\Vendor;
+use App\Services\VendorPortalLinkService;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -478,6 +480,17 @@ if (app()->environment('local')) {
             'operation-accounting-invoice' => ['emails.operation-accounting-invoice', [
                 'workOrder' => $workOrder, 'vendor' => $vendor, 'invoice' => $invoice,
                 'attached' => true, 'workOrderUrl' => 'https://x.test/wo/5',
+            ]],
+            // The dashboard button points at a real local vendor when one has
+            // a token, so the preview can be clicked through to the portal.
+            'invoices-auto-reply' => ['emails.invoices-auto-reply', [
+                'vendorName' => $vendor->name,
+                'dashboardUrl' => app(VendorPortalLinkService::class)->dashboardLink(
+                    Vendor::query()->whereNotNull('portal_token')->orderBy('id')->firstOrFail(),
+                ),
+            ]],
+            'invoices-auto-reply-generic' => ['emails.invoices-auto-reply', [
+                'vendorName' => null, 'dashboardUrl' => null,
             ]],
         ];
 

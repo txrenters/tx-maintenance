@@ -187,8 +187,10 @@ class InvoiceMailboxAutoReplyService
      */
     private function vendorFor(string $from): ?Vendor
     {
+        // PropertyWare pads some vendor emails with trailing spaces, and MySQL
+        // and sqlite disagree on whether those count in "=", so trim both sides.
         $vendors = Vendor::query()
-            ->whereRaw('LOWER(email) = ?', [$from])
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$from])
             ->limit(2)
             ->get();
 

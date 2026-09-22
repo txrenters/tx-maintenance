@@ -82,6 +82,18 @@ class InvoiceMailboxAutoReplyTest extends TestCase
         $this->assertNull($row->vendor_id);
     }
 
+    public function test_a_vendor_email_padded_with_spaces_still_matches(): void
+    {
+        $vendor = $this->vendor('padded@example.com                 ');
+        $this->fakeInbox([$this->graphMessage(['from' => $this->sender('Padded@example.com')])]);
+
+        $this->graph->shouldReceive('reply')->once();
+
+        $this->artisan('invoices:auto-reply')->assertSuccessful();
+
+        $this->assertSame($vendor->id, InvoiceEmailReply::query()->sole()->vendor_id);
+    }
+
     public function test_an_address_shared_by_two_vendor_records_gets_the_generic_reply(): void
     {
         $this->vendor('shared@example.com');
