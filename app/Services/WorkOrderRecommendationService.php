@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Ai\Agents\VendorRecommendationAgent;
 use App\Ai\Agents\WorkOrderRecommendationAgent;
 use App\Ai\EmergencyCriteria;
+use App\Ai\TenantEasyFixCriteria;
 use App\Models\FallbackVendor;
 use App\Models\Vendor;
 use App\Models\WorkOrder;
@@ -79,7 +80,7 @@ class WorkOrderRecommendationService
     public function latest(WorkOrder $workOrder): ?WorkOrderRecommendation
     {
         return $workOrder->recommendation()
-            ->with(['recommendedVendor', 'workOrder:id,is_emergency,is_repeat_issue,repeat_count'])
+            ->with(['recommendedVendor', 'workOrder:id,is_emergency,is_repeat_issue,repeat_count,easy_fix_key'])
             ->first();
     }
 
@@ -230,7 +231,7 @@ class WorkOrderRecommendationService
         $this->applyEmergencyAssessment($workOrder, $classification, $recommendation);
         $this->applyRepeatAssessment($workOrder, $repeat);
 
-        return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count');
+        return $recommendation->load('workOrder:id,is_emergency,is_repeat_issue,repeat_count,easy_fix_key');
     }
 
     /**
@@ -961,6 +962,9 @@ class WorkOrderRecommendationService
                 'emergency_category' => EmergencyCriteria::normalizeCategory(data_get($response, 'emergency_category')),
                 'emergency_confidence' => max(0, min(100, (int) data_get($response, 'emergency_confidence', 0))),
                 'emergency_reason' => data_get($response, 'emergency_reason'),
+                'is_tenant_easy_fix' => (bool) data_get($response, 'is_tenant_easy_fix', false),
+                'easy_fix_key' => TenantEasyFixCriteria::normalizeKey(data_get($response, 'easy_fix_key')),
+                'tenant_responsibility_reason' => data_get($response, 'tenant_responsibility_reason') ?: null,
                 'source' => 'laravel_ai',
                 'model' => $this->aiModelName(),
                 'raw_response' => method_exists($response, 'toArray') ? $response->toArray() : (array) $response,
@@ -1014,6 +1018,11 @@ class WorkOrderRecommendationService
 
         $emergency = EmergencyCriteria::scan($text);
 
+        // The same deterministic judgement the intake automation makes, so
+        // the Recommendation tab shows what the tenant was (or would be) told.
+        $easyFix = TenantEasyFixCriteria::scan(TenantEasyFixService::textOf($workOrder), $workOrder->category);
+        $appliance = TenantEasyFixCriteria::assessAppliance(TenantEasyFixService::textOf($workOrder), $workOrder->building?->custom_fields);
+
         return [
             'issue_type' => $bestIssueType,
             'issue_subtype' => $keywords->first(),
@@ -1028,6 +1037,15 @@ class WorkOrderRecommendationService
             'emergency_reason' => $emergency['is_emergency']
                 ? 'Matched emergency keywords: '.implode(', ', $emergency['matched'])
                 : 'No emergency indicators found in the work order text',
+            'is_tenant_easy_fix' => $easyFix !== null,
+            'easy_fix_key' => $easyFix['key'] ?? null,
+            'tenant_responsibility_reason' => $appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NONE
+                ? null
+                : match ($appliance['status']) {
+                    TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED => 'The request concerns the tenant\'s own '.TenantEasyFixCriteria::item($appliance['key'])['label'].': the property\'s Included Appliances ("'.$appliance['included_value'].'") does not list it.',
+                    TenantEasyFixCriteria::APPLIANCE_INCLUDED => 'The request concerns the '.TenantEasyFixCriteria::item($appliance['key'])['label'].', which the property provides ("'.$appliance['included_value'].'").',
+                    default => 'The request concerns a '.TenantEasyFixCriteria::item($appliance['key'])['label'].'; the property has no Included Appliances on file, so ownership is unknown.',
+                },
             'source' => 'heuristic',
             'model' => null,
             'raw_response' => null,

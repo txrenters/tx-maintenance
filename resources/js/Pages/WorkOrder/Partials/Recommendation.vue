@@ -165,6 +165,49 @@ const emergencyClassifiedBy = computed(() => {
         : "staff";
 });
 
+// --- Tenant easy fix / tenant-owned appliance ---
+
+// What the AI (or the keyword fallback) thinks, and what the intake
+// automation actually decided (stored on the work order). Shown whenever
+// either says something, so staff can spot the ones the keywords missed.
+const aiEasyFixKey = computed(
+    () => props.recommendation?.classification?.easy_fix_key ?? null,
+);
+const aiSaysEasyFix = computed(() =>
+    Boolean(props.recommendation?.classification?.is_tenant_easy_fix),
+);
+const tenantResponsibilityReason = computed(
+    () => props.recommendation?.classification?.tenant_responsibility_reason ?? null,
+);
+const intakeEasyFixKey = computed(
+    () => props.recommendation?.work_order?.easy_fix_key ?? null,
+);
+const hasEasyFixAssessment = computed(
+    () =>
+        aiSaysEasyFix.value ||
+        Boolean(tenantResponsibilityReason.value) ||
+        Boolean(intakeEasyFixKey.value),
+);
+const humanizeKey = (key) =>
+    key
+        ? String(key)
+              .replace(/^appliance_/, "")
+              .replace(/_/g, " ")
+        : "";
+const intakeEasyFixLabel = computed(() => {
+    const key = intakeEasyFixKey.value;
+    if (!key) return null;
+    return String(key).startsWith("appliance_")
+        ? `Tenant-owned ${humanizeKey(key)}`
+        : `Tenant easy fix: ${humanizeKey(key)}`;
+});
+const easyFixDisagrees = computed(
+    () =>
+        aiSaysEasyFix.value &&
+        !intakeEasyFixKey.value &&
+        Boolean(aiEasyFixKey.value),
+);
+
 // --- Repeat issue ---
 
 // Whether the engine flagged this as a repeat of prior work at the same
@@ -315,6 +358,58 @@ const formatDate = (date) => {
                                     ? "applied automatically by AI"
                                     : "set by staff"
                             }}
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <!-- Tenant easy fix / tenant-owned appliance -->
+                <Card
+                    v-if="hasEasyFixAssessment"
+                    class="overflow-hidden border-2 border-sky-500/50 bg-sky-500/5"
+                >
+                    <CardContent class="space-y-2 p-5">
+                        <div
+                            class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-sky-600"
+                        >
+                            <Wrench class="h-3.5 w-3.5" />
+                            Tenant Easy Fix
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <Badge
+                                v-if="intakeEasyFixLabel"
+                                class="bg-sky-600 text-white hover:bg-sky-600"
+                            >
+                                {{ intakeEasyFixLabel }}
+                            </Badge>
+                            <Badge v-if="aiSaysEasyFix" variant="outline">
+                                AI: easy fix{{ aiEasyFixKey ? ` (${humanizeKey(aiEasyFixKey)})` : "" }}
+                            </Badge>
+                        </div>
+
+                        <p
+                            v-if="intakeEasyFixLabel"
+                            class="text-sm leading-6 text-muted-foreground"
+                        >
+                            Decided at intake: the tenant was sent the handbook's
+                            how-to instead of the usual "request received" text
+                            (when the easy-fix texts are switched on), and the
+                            owner was told.
+                        </p>
+                        <p
+                            v-else-if="easyFixDisagrees"
+                            class="text-sm leading-6 text-muted-foreground"
+                        >
+                            AI suggests this is a tenant easy fix, but the intake
+                            rules did not match it, so the tenant got the usual
+                            text. Worth a look.
+                        </p>
+
+                        <p
+                            v-if="tenantResponsibilityReason"
+                            class="border-l-2 border-sky-500/40 pl-3 text-sm italic leading-6 text-muted-foreground"
+                        >
+                            {{ tenantResponsibilityReason }}
                         </p>
                     </CardContent>
                 </Card>

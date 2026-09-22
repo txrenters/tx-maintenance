@@ -5,16 +5,20 @@ namespace Tests\Feature;
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Building;
 use App\Models\Conversation;
+use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
+use App\Services\PropertyWareService;
+use App\Services\TenantEasyFixService;
 use App\Services\TenantMessageFormatter;
 use App\Services\TenantServiceRequestNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
@@ -784,5 +788,240 @@ class TenantServiceRequestNotificationTest extends TestCase
 
         $this->assertSame([], $this->tenantMessages($workOrder));
         Queue::assertNothingPushed();
+    }
+
+    // --- Tenant easy fix ---
+
+    /**
+     * Switch the easy-fix texts on, give the disposal item a video, and stub
+     * PropertyWare's status push so the status move can be asserted.
+     */
+    private function enableEasyFix(bool $propertyWareAccepts = true): void
+    {
+        config([
+            'services.twilio.tenant_intake_sms' => true,
+            'services.twilio.tenant_easy_fix_sms' => true,
+        ]);
+
+        $items = config('tenant_easy_fix.items');
+
+        foreach ($items as $index => $item) {
+            if ($item['key'] === 'disposal_jammed') {
+                $items[$index]['video_url'] = 'https://youtu.be/disposal';
+            }
+        }
+
+        config(['tenant_easy_fix.items' => $items]);
+
+        // The factory takes the first status on file; keep the easy-fix
+        // statuses from being it so the status move is a real move.
+        ServiceStatus::query()->firstOrCreate(['name' => 'New'], ['description' => 'New']);
+        ServiceStatus::query()->firstOrCreate(['name' => TenantEasyFixService::EASY_FIX_STATUS], ['description' => 'easy fix']);
+        ServiceStatus::query()->firstOrCreate(['name' => TenantEasyFixService::APPLIANCE_STATUS], ['description' => 'non real property']);
+
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('updateServiceStatus')->andReturn($propertyWareAccepts);
+        $this->app->instance(PropertyWareService::class, $mock);
+    }
+
+    /**
+     * A tenant-portal request about a jammed disposal on a PropertyWare work
+     * order with a lease.
+     */
+    private function makeDisposalWorkOrder(array $attributes = []): WorkOrder
+    {
+        return $this->makeWorkOrder(array_merge([
+            'source' => 'Tenant Portal',
+            'propertyware_id' => 43900001,
+            'lease_id' => 555001,
+            'description' => 'Garbage disposal is humming but not turning',
+            'category' => 'Garbage Disposal',
+        ], $attributes));
+    }
+
+    public function test_a_disposal_request_gets_the_how_to_video_instead_of_request_received(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('Hi Dana,', $text);
+        $this->assertStringContainsString('We received your request about the garbage disposal.', $text);
+        $this->assertStringContainsString('quick fix tenants can take care of themselves', $text);
+        $this->assertStringContainsString('https://youtu.be/disposal', $text);
+        $this->assertStringContainsString('press the red reset button', $text);
+        $this->assertStringContainsString('If it still is not working after you try this', $text);
+        $this->assertStringContainsString(TenantMessageFormatter::LINK_LEAD, $text);
+        $this->assertStringContainsString('(Ref: WO#43900)', $text);
+        $this->assertStringNotContainsString('we have received your service request', $text);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
+
+        // Links the easy-fix photo token, opened as already notified once so
+        // the scheduled reminders follow from this text.
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)
+            ->firstOrFail();
+        $this->assertStringContainsString(route('tenant.portal.show', $token->token), $text);
+        $this->assertSame(1, $token->notified_count);
+
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+
+        $fresh = $workOrder->fresh();
+        $this->assertNotNull($fresh->tenant_service_request_notified_at);
+        $this->assertSame('disposal_jammed', $fresh->easy_fix_key);
+        $this->assertSame(
+            ServiceStatus::query()->where('name', TenantEasyFixService::EASY_FIX_STATUS)->value('id'),
+            $fresh->service_status_id,
+        );
+
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'tenant_easy_fix_sms')
+            ->firstOrFail();
+        $this->assertSame('disposal_jammed', $ledger->properties['easy_fix_key']);
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_service_request_sms')->count());
+    }
+
+    public function test_the_easy_fix_text_is_sent_once_and_the_portal_link_command_does_not_repeat_it(): void
+    {
+        $this->enableEasyFix();
+        config(['services.twilio.tenant_portal_sms' => true, 'services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+
+        $this->notify($workOrder);
+        $this->notify($workOrder->fresh());
+        $this->artisan('tenant-portal:send-links')->assertSuccessful();
+
+        $this->assertCount(1, $this->tenantMessages($workOrder));
+        Queue::assertPushed(SendConversationMessageJob::class, 1);
+    }
+
+    public function test_the_gate_off_keeps_the_request_received_text_but_still_records_the_verdict(): void
+    {
+        $this->enableEasyFix();
+        config(['services.twilio.tenant_easy_fix_sms' => false]);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('we have received your service request', $text);
+        $this->assertStringNotContainsString('youtu.be', $text);
+
+        $fresh = $workOrder->fresh();
+        $this->assertSame('disposal_jammed', $fresh->easy_fix_key);
+        $this->assertNotNull($fresh->easy_fix_assessed_at);
+        $this->assertNull(TenantUploadToken::query()->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)->first());
+        $this->assertNotSame(
+            ServiceStatus::query()->where('name', TenantEasyFixService::EASY_FIX_STATUS)->value('id'),
+            $fresh->service_status_id,
+        );
+    }
+
+    public function test_an_item_with_no_video_yet_keeps_the_request_received_text(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        // The light-bulb item has no handbook link filled in.
+        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Light bulb in the hallway burned out', 'category' => 'Light Fixture']);
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('we have received your service request', $text);
+        $this->assertSame('light_bulb', $workOrder->fresh()->easy_fix_key);
+    }
+
+    public function test_a_leaking_disposal_keeps_the_request_received_text(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Garbage disposal leaking under the sink']);
+
+        $this->notify($workOrder);
+
+        $this->assertStringContainsString('we have received your service request', $this->tenantMessage($workOrder)->message);
+        $this->assertNull($workOrder->fresh()->easy_fix_key);
+    }
+
+    public function test_a_disposal_work_order_our_team_entered_keeps_the_created_by_our_team_text(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder(['source' => 'Phone']);
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('by our team', $text);
+        $this->assertStringNotContainsString('youtu.be', $text);
+    }
+
+    public function test_a_tenant_owned_washer_is_told_it_is_their_responsibility(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-700OAK',
+            'name' => 'Oak',
+            'address' => '700 Oak St',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+            'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'refrigerator', 'dataType' => 'Text']],
+        ]);
+        $workOrder = $this->makeDisposalWorkOrder([
+            'description' => 'Our washing machine will not spin',
+            'category' => 'Washer',
+            'building_id' => $building->propertyware_id,
+        ]);
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('We received your request about the washer.', $text);
+        $this->assertStringContainsString("the tenant's responsibility under the lease", $text);
+        $this->assertStringContainsString('reply here and we will double-check', $text);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
+
+        // General portal link, no easy-fix photo token.
+        $general = TenantUploadToken::query()->where('work_order_id', $workOrder->id)->where('purpose', TenantUploadToken::PURPOSE_WORK_ORDER)->firstOrFail();
+        $this->assertStringContainsString(route('tenant.portal.show', $general->token), $text);
+        $this->assertSame(0, TenantUploadToken::query()->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)->count());
+
+        $fresh = $workOrder->fresh();
+        $this->assertSame('appliance_washer', $fresh->easy_fix_key);
+        $this->assertSame(
+            ServiceStatus::query()->where('name', TenantEasyFixService::APPLIANCE_STATUS)->value('id'),
+            $fresh->service_status_id,
+        );
+
+        $this->assertSame(1, Activity::query()->where('event', 'tenant_appliance_responsibility_sms')->count());
+    }
+
+    public function test_the_status_stays_put_when_propertyware_rejects_it_but_the_text_still_goes(): void
+    {
+        $this->enableEasyFix(propertyWareAccepts: false);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+        $before = $workOrder->service_status_id;
+
+        $this->notify($workOrder);
+
+        $this->assertStringContainsString('https://youtu.be/disposal', $this->tenantMessage($workOrder)->message);
+        $this->assertSame($before, $workOrder->fresh()->service_status_id);
     }
 }

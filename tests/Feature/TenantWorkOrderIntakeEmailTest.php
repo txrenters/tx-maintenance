@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Building;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\User;
@@ -348,5 +349,110 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         }
 
         $this->assertDatabaseCount('tenant_email_notifications', 0);
+    }
+
+    // --- Tenant easy fix ---
+
+    private function enableEasyFix(): void
+    {
+        config([
+            'services.work_order.tenant_intake_email' => true,
+            'services.twilio.tenant_easy_fix_sms' => true,
+        ]);
+
+        $items = config('tenant_easy_fix.items');
+
+        foreach ($items as $index => $item) {
+            if ($item['key'] === 'disposal_jammed') {
+                $items[$index]['video_url'] = 'https://youtu.be/disposal';
+            }
+        }
+
+        config(['tenant_easy_fix.items' => $items]);
+    }
+
+    public function test_a_disposal_request_is_emailed_the_how_to_video(): void
+    {
+        $this->enableEasyFix();
+        $captured = $this->fakeGraph();
+
+        $workOrder = $this->makeWorkOrder(attributes: [
+            'source' => 'Tenant Portal',
+            'propertyware_id' => 43900001,
+            'lease_id' => 555001,
+            'description' => 'Garbage disposal is humming but not turning',
+            'category' => 'Garbage Disposal',
+        ]);
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertStringContainsString('A quick fix for your garbage disposal', $captured->subject);
+        $this->assertStringContainsString('Work Order #43900', $captured->subject);
+        $this->assertStringContainsString('A Quick Fix You Can Try', $captured->html);
+        $this->assertStringContainsString('garbage disposal', $captured->html);
+        $this->assertStringContainsString('https://youtu.be/disposal', $captured->html);
+        $this->assertStringContainsString('Watch the how-to video', $captured->html);
+        $this->assertStringContainsString('press the red reset button', $captured->html);
+        $this->assertStringNotContainsString('confirming that we have received', $captured->html);
+
+        // The easy-fix photo link, so a photo through it stops the reminders.
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)
+            ->firstOrFail();
+        $this->assertStringContainsString($token->token, $captured->html);
+        $this->assertSame(1, $token->notified_count);
+
+        $this->assertSame('disposal_jammed', $workOrder->fresh()->easy_fix_key);
+    }
+
+    public function test_the_gate_off_keeps_the_request_received_email(): void
+    {
+        $this->enableEasyFix();
+        config(['services.twilio.tenant_easy_fix_sms' => false]);
+        $captured = $this->fakeGraph();
+
+        $workOrder = $this->makeWorkOrder(attributes: [
+            'source' => 'Tenant Portal',
+            'propertyware_id' => 43900001,
+            'lease_id' => 555001,
+            'description' => 'Garbage disposal is humming but not turning',
+            'category' => 'Garbage Disposal',
+        ]);
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertStringContainsString('We received your service request', $captured->subject);
+        $this->assertStringNotContainsString('youtu.be', $captured->html);
+    }
+
+    public function test_a_tenant_owned_refrigerator_is_emailed_the_responsibility_note(): void
+    {
+        $this->enableEasyFix();
+        $captured = $this->fakeGraph();
+
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-700OAK',
+            'name' => 'Oak',
+            'address' => '700 Oak St',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+            'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'None', 'dataType' => 'Text']],
+        ]);
+        $workOrder = $this->makeWorkOrder(attributes: [
+            'source' => 'Tenant Portal',
+            'propertyware_id' => 43900001,
+            'lease_id' => 555001,
+            'description' => 'Refrigerator stopped cooling',
+            'category' => 'Refrigerator',
+            'building_id' => $building->propertyware_id,
+        ]);
+
+        $this->assertTrue($this->send($workOrder));
+
+        $this->assertStringContainsString('About your service request', $captured->subject);
+        $this->assertStringContainsString("the tenant's responsibility under the lease", $captured->html);
+        $this->assertStringNotContainsString('Watch the how-to video', $captured->html);
+        $this->assertSame('appliance_refrigerator', $workOrder->fresh()->easy_fix_key);
     }
 }

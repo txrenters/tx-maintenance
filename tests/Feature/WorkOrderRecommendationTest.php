@@ -346,4 +346,55 @@ class WorkOrderRecommendationTest extends TestCase
             ->assertJsonPath('recommendation.issue_type', 'Lockout')
             ->assertJsonPath('recommendation.alternate_vendors.fallback.0.name', 'Express Key');
     }
+
+    public function test_the_heuristic_classification_carries_the_tenant_easy_fix_verdict(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'New',
+            'description' => 'New',
+        ]);
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Garbage disposal is humming but not turning',
+            'type' => 'Repair',
+            'category' => 'Garbage Disposal',
+            'easy_fix_key' => 'disposal_jammed',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        $response->assertOk()
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'disposal_jammed')
+            ->assertJsonPath('recommendation.classification.tenant_responsibility_reason', null)
+            ->assertJsonPath('recommendation.work_order.easy_fix_key', 'disposal_jammed');
+    }
+
+    public function test_the_heuristic_classification_explains_an_appliance_of_unknown_ownership(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'New',
+            'description' => 'New',
+        ]);
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Refrigerator stopped cooling',
+            'type' => 'Repair',
+            'category' => 'Refrigerator',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        $response->assertOk()
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', false)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', null);
+
+        $this->assertStringContainsString('ownership is unknown', $response->json('recommendation.classification.tenant_responsibility_reason'));
+    }
 }

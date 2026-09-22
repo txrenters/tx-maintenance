@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\TenantEasyFixCriteria;
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Tenants;
@@ -11,7 +12,10 @@ use Illuminate\Support\Facades\Log;
 
 class TenantServiceRequestNotificationService
 {
-    public function __construct(private TenantPortalLinkService $portalLinks) {}
+    public function __construct(
+        private TenantPortalLinkService $portalLinks,
+        private TenantEasyFixService $easyFix,
+    ) {}
 
     /**
      * Tell the tenant their work order is in: that we have received their
@@ -119,11 +123,42 @@ class TenantServiceRequestNotificationService
         $requester = $workOrder->requested_by;
         $portalLink = $this->portalLinks->link($workOrder);
 
+        // A tenant easy fix (or a tenant-owned appliance) gets its own text
+        // instead of "request received": the handbook's how-to video, or
+        // "this one is your responsibility". Assessed (and recorded on the
+        // work order) whether or not the easy-fix gate is on, so the verdict
+        // can be watched before anyone is texted. Only for requests the
+        // tenant raised - a work order our team entered keeps the "created
+        // by our team" wording.
+        $verdict = $this->easyFix->assess($workOrder);
+        $easyFixKind = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabled()
+            ? $verdict['kind']
+            : null;
+        $automation = match ($easyFixKind) {
+            TenantEasyFixCriteria::KIND_EASY_FIX => 'tenant_easy_fix_sms',
+            TenantEasyFixCriteria::KIND_APPLIANCE => 'tenant_appliance_responsibility_sms',
+            default => 'tenant_service_request_sms',
+        };
+
+        // The easy-fix text links the easy-fix photo token (created here as
+        // already-notified-once) so the scheduled reminders follow from this
+        // text and a photo the tenant uploads through it stops them. The
+        // appliance text keeps the general link.
+        if ($easyFixKind === TenantEasyFixCriteria::KIND_EASY_FIX) {
+            $portalLink = $this->portalLinks->urlFor($this->easyFix->openEasyFixToken($workOrder));
+        }
+
         foreach ($recipients as $tenant) {
             $tenantNumber = (string) $workOrder->normalizedTenantPhone($tenant);
 
+            $body = match ($easyFixKind) {
+                TenantEasyFixCriteria::KIND_EASY_FIX => $this->easyFixMessage($workOrder, $tenant, $verdict['item']),
+                TenantEasyFixCriteria::KIND_APPLIANCE => $this->applianceMessage($workOrder, $tenant, $verdict['item']),
+                default => $staffCreated ? $this->createdMessage($workOrder, $tenant) : $this->confirmationMessage($workOrder, $tenant),
+            };
+
             $message = TenantMessageFormatter::compose(
-                $staffCreated ? $this->createdMessage($workOrder, $tenant) : $this->confirmationMessage($workOrder, $tenant),
+                $body,
                 $workOrder->work_order_no ?? $workOrder->id,
                 $portalLink,
             );
@@ -152,16 +187,55 @@ class TenantServiceRequestNotificationService
                 $ledgerExtra['recipient_source'] = 'lease_roster';
             }
 
+            if ($easyFixKind !== null) {
+                $ledgerExtra['easy_fix_key'] = $verdict['key'];
+            }
+
             AutomatedMessageLogService::log(
                 AutomatedMessageLogService::CHANNEL_SMS,
                 'tenant',
-                'tenant_service_request_sms',
+                $automation,
                 $tenantNumber,
                 $workOrder,
                 $message,
                 $ledgerExtra,
             );
         }
+
+        // Texts are queued; now move the work order to the matching status
+        // (PropertyWare first, local only on success).
+        if ($easyFixKind !== null) {
+            $this->easyFix->applyStatus($workOrder, $easyFixKind);
+        }
+    }
+
+    /**
+     * The tenant easy-fix wording: the handbook item, its how-to video and
+     * one-line tip. Editable from the Automated Messages page.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function easyFixMessage(WorkOrder $workOrder, Tenants $tenant, array $item): string
+    {
+        return AutomatedMessageTemplates::text('tenant_easy_fix_sms', [
+            'greeting' => $this->greeting($tenant),
+            'item_label' => (string) $item['label'],
+            'video_link' => (string) $item['video_url'],
+            'tip' => AutomatedMessageTemplates::plainPunctuation((string) ($item['tip'] ?? '')),
+        ]);
+    }
+
+    /**
+     * The tenant-owned appliance wording.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function applianceMessage(WorkOrder $workOrder, Tenants $tenant, array $item): string
+    {
+        return AutomatedMessageTemplates::text('tenant_appliance_responsibility_sms', [
+            'greeting' => $this->greeting($tenant),
+            'appliance_label' => (string) $item['label'],
+        ]);
     }
 
     /**

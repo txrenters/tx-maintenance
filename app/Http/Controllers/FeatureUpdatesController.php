@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-23',
+            'area' => 'Automated Messages',
+            'title' => 'Tenant easy fixes get a how-to video instead of a vendor',
+            'description' => 'When a new request is one of the Maintenance handbook\'s tenant easy fixes - a jammed garbage disposal, a light bulb, a chirping smoke detector, a tripped breaker or GFCI outlet, a clogged sink or toilet, a running toilet, a blank thermostat, an AC filter - the tenant\'s "we received your request" text and email are replaced by one that says this is normally something tenants take care of themselves, with the handbook\'s how-to video and a one-line tip, and asks them to reply or send a photo if it still does not work. The owner\'s "we will arrange the estimate" text is replaced by one saying we sent the tenant the video first. The work order moves to "Checking for Tenant Easy Fix" in PropertyWare, so the existing photo reminders follow. The same happens for a request about the tenant\'s own washer, dryer or refrigerator when the home\'s Included Appliances in PropertyWare does not list it: tenant and owner are told it is the tenant\'s responsibility and the work order moves to "Waiting Tenants Decision - Non Real Property Item". Anything that also mentions a leak, sparking, burning, a broken part or a whole-house outage, or reads as an emergency, keeps the usual texts. The wording is editable on the Message Templates tab, the four new texts show on this page\'s log, and the Recommendation tab on each work order shows what was decided (and where the AI thinks a request was missed). Switched on by IT once the wording is signed off; until then every new work order is only assessed, not texted.',
+        ],
+        [
             'date' => '2026-09-18',
             'area' => 'Owner Portal',
             'title' => 'An owner approving in the portal now approves it in PropertyWare too, under their name',

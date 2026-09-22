@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Ai\TenantEasyFixCriteria;
 use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
@@ -10,6 +11,7 @@ use App\Models\ConversationMedia;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
+use App\Services\TenantEasyFixService;
 use App\Services\TenantPhotoMirrorService;
 use App\Services\TenantRequestIntakeService;
 use Illuminate\Http\Request;
@@ -84,7 +86,19 @@ class TenantPortalController extends Controller
 
         $isHoa = $uploadToken->purpose === TenantUploadToken::PURPOSE_HOA_VIOLATION;
 
+        // The handbook how-to for a request judged a tenant easy fix at
+        // intake, shown whichever link the tenant opened.
+        $easyFix = app(TenantEasyFixService::class)->verdictFor($workOrder->easy_fix_key);
+        $easyFixCard = $easyFix !== null && $easyFix['sendable'] && $easyFix['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX
+            ? [
+                'label' => $easyFix['item']['label'],
+                'video_url' => $easyFix['item']['video_url'],
+                'tip' => $easyFix['item']['tip'],
+            ]
+            : null;
+
         return inertia('TenantPortal/Show', [
+            'easyFix' => $easyFixCard,
             'title' => 'Service Request #'.$workOrder->work_order_no,
             'token' => $uploadToken->token,
             'tenantName' => trim((string) ($tenant?->first_name ?? '')),

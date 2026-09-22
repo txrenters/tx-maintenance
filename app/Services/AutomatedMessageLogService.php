@@ -65,6 +65,10 @@ class AutomatedMessageLogService
         'tenant_job_reminder_sms' => 'Tenant: Jobber visit reminder (text)',
         'tenant_job_reminder_email' => 'Tenant: Jobber visit reminder (email)',
         'tenant_tbp_visit_notice_sms' => 'Tenant: TBP visit notice (Send notification button)',
+        'tenant_easy_fix_sms' => 'Tenant: easy fix how-to',
+        'tenant_appliance_responsibility_sms' => 'Tenant: appliance is tenant responsibility',
+        'owner_easy_fix_sms' => 'Owner: tenant easy fix',
+        'owner_appliance_responsibility_sms' => 'Owner: appliance is tenant responsibility',
     ];
 
     /**

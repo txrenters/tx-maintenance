@@ -31,6 +31,8 @@ const props = defineProps({
     isHoa: Boolean,
     canCreateRequest: Boolean,
     deadline: String,
+    // {label, video_url, tip} when the request was judged a tenant easy fix
+    easyFix: { type: Object, default: null },
     workOrder: Object,
     messages: { type: Array, default: () => [] },
     attachments: { type: Array, default: () => [] },
@@ -438,6 +440,34 @@ watch(photoFilters, (filters) => {
                         <span class="font-semibold">Please complete by {{ deadline }}.</span>
                         If the items are not corrected by then, a vendor may be
                         sent to complete the work.
+                    </div>
+
+                    <!-- Tenant easy fix: the handbook's how-to video -->
+                    <div
+                        v-if="easyFix && easyFix.video_url"
+                        class="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-100"
+                    >
+                        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                            Quick fix you can try
+                        </p>
+                        <p class="mt-1">
+                            A {{ easyFix.label }} issue is usually something you can
+                            take care of yourself in a few minutes.
+                        </p>
+                        <p v-if="easyFix.tip" class="mt-2">{{ easyFix.tip }}</p>
+                        <a
+                            :href="easyFix.video_url"
+                            target="_blank"
+                            rel="noopener"
+                            class="mt-3 inline-flex items-center gap-2 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                        >
+                            Watch the how-to video
+                            <ChevronRight class="h-4 w-4" />
+                        </a>
+                        <p class="mt-2 text-xs text-sky-800/80 dark:text-sky-200/80">
+                            Still not working after you try it? Send us a message
+                            or a photo below and we will take it from there.
+                        </p>
                     </div>
 
                     <!-- Appointment, when one has been set -->

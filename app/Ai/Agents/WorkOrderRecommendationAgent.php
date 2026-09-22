@@ -4,6 +4,7 @@ namespace App\Ai\Agents;
 
 use App\Ai\Concerns\ConfigurableAiProvider;
 use App\Ai\EmergencyCriteria;
+use App\Ai\TenantEasyFixCriteria;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
@@ -29,6 +30,7 @@ class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
             'If the issue is ambiguous, lower confidence and set needs_human_review to true.',
             'Only use a vendor_category that is present in this allowed list: '.implode(', ', $this->vendorTypes),
             ...EmergencyCriteria::agentInstructions(),
+            ...TenantEasyFixCriteria::agentInstructions(),
         ]);
     }
 
@@ -46,6 +48,9 @@ class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
             'emergency_category' => $schema->string()->nullable()->required(),
             'emergency_confidence' => $schema->integer()->required(),
             'emergency_reason' => $schema->string()->required(),
+            'is_tenant_easy_fix' => $schema->boolean()->required(),
+            'easy_fix_key' => $schema->string()->nullable()->required(),
+            'tenant_responsibility_reason' => $schema->string()->nullable()->required(),
         ];
     }
 }
