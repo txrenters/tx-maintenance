@@ -11,6 +11,8 @@ use App\Models\TenantUploadToken;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\OwnerServiceRequestNotificationService;
+use App\Services\TenantEasyFixService;
+use App\Services\TenantPortalLinkService;
 use App\Services\TenantServiceRequestNotificationService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -135,10 +137,49 @@ class DemoTenantEasyFixSeeder extends Seeder
             foreach ($fresh->owner_conversation()->orderBy('id')->get() as $message) {
                 $this->command?->line("--- Owner text ---\n{$message->message}");
             }
+
+            // For the first easy fix, also show the three check-ins that
+            // follow on the next three weekdays when the tenant stays quiet.
+            if ($spec['no'] === 990201) {
+                $this->showFollowUps($fresh);
+            }
         }
 
         $this->command?->info('');
         $this->command?->info('Seeded 4 demo work orders (search the board for 990201, 990203, 990204, 990202) - no SMS sent, nothing pushed to PropertyWare.');
+    }
+
+    /**
+     * Replay the daily check-ins on the easy-fix token by backdating its last
+     * notification one weekday at a time, exactly as the scheduled
+     * `tenant-portal:send-links` run would find it.
+     */
+    private function showFollowUps(WorkOrder $workOrder): void
+    {
+        $token = TenantUploadToken::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)
+            ->first();
+
+        if ($token === null) {
+            return;
+        }
+
+        $links = app(TenantPortalLinkService::class);
+
+        for ($day = 1; $day <= TenantEasyFixService::FOLLOW_UP_DAYS; $day++) {
+            // Re-read first: remind() stamps the row, and an in-memory copy
+            // holding the same backdated value would not write it again.
+            $token = $token->fresh();
+            $token->forceFill(['last_notified_at' => now()->subWeekdays(1)->subMinute()])->save();
+
+            if (! $links->remind($token->fresh())) {
+                break;
+            }
+
+            $message = $workOrder->tenant_conversation()->orderByDesc('id')->first();
+            $this->command?->line("--- Tenant check-in, weekday +{$day} ---\n{$message?->message}");
+        }
     }
 
     /**

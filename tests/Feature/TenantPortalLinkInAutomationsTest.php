@@ -14,6 +14,7 @@ use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use App\Services\TenantAppointmentNotificationService;
+use App\Services\TenantEasyFixService;
 use App\Services\TenantPortalLinkService;
 use App\Services\WorkOrderInformationPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -244,7 +245,7 @@ class TenantPortalLinkInAutomationsTest extends TestCase
 
         // A link service that cannot issue a token.
         $this->app->bind(TenantPortalLinkService::class, function () {
-            return new class extends TenantPortalLinkService
+            return new class(app(TenantEasyFixService::class)) extends TenantPortalLinkService
             {
                 public function link(WorkOrder $workOrder, string $purpose = TenantUploadToken::PURPOSE_WORK_ORDER): ?string
                 {

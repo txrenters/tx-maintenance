@@ -303,6 +303,68 @@ class AutomatedMessageTemplates
                 ."{tip}\n\n"
                 .'If it still is not working after you try this, reply here or add a photo through your link below and we will take it from there.',
         ],
+        // The three check-ins after the easy-fix text (the manual's "follow
+        // up with the tenant within 1 day"): one per weekday, different
+        // wording each day, stopping as soon as the tenant replies, adds a
+        // photo, a vendor is assigned or the work order moves on. They share
+        // one ledger key; the day picks the template.
+        'tenant_easy_fix_follow_up_1_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 1',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted to the tenant one weekday after the easy-fix how-to, asking whether the video helped. Skipped once the tenant has replied or added a photo, a vendor is assigned, or the work order has moved on. Their portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}hope you are doing well. Just checking in on the {item_label}. Did the video help? Please let us know either way and we will go from there. Thank you!',
+        ],
+        'tenant_easy_fix_follow_up_2_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 2',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'The second check-in, one weekday after the first, when the tenant has not replied or added a photo yet.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}checking in again on the {item_label}. Were you able to give the video a try? If it did not work, please reply here and we will get a repair scheduled. Thank you!',
+        ],
+        'tenant_easy_fix_follow_up_3_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 3 (last)',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'The third and last check-in, one weekday after the second, when the tenant has still not replied or added a photo. Nothing is sent after this one.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}following up one last time on the {item_label}. If it is still giving you trouble, please reply here and we will arrange a repair. If it is working now, a quick reply lets us close it out. Thank you!',
+        ],
         'tenant_appliance_responsibility_sms' => [
             // Sent INSTEAD of "Request received" when the request is about
             // the tenant's own washer, dryer or refrigerator (the property's

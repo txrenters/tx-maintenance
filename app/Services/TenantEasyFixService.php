@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\TenantEasyFixCriteria;
+use App\Models\Conversation;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
@@ -10,6 +11,7 @@ use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * Decides at intake whether a new work order is a tenant easy fix (a small
@@ -32,7 +34,75 @@ class TenantEasyFixService
 
     public const APPLIANCE_STATUS = 'Waiting Tenants Decision - Non Real Property Item';
 
+    /**
+     * How many check-ins follow the easy-fix text (the manual's "follow up
+     * with the tenant within 1 day"): one per weekday, then silence.
+     */
+    public const FOLLOW_UP_DAYS = 3;
+
+    /**
+     * The token's notification cap for an easy-fix text: the text itself plus
+     * the check-ins.
+     */
+    public const FOLLOW_UP_MAX_NOTIFICATIONS = 1 + self::FOLLOW_UP_DAYS;
+
+    /**
+     * Service statuses a work order can sit in while the tenant is still
+     * trying the fix. Anything else means a WOC has moved it on.
+     */
+    private const FOLLOW_UP_STATUSES = [self::EASY_FIX_STATUS, 'New'];
+
     public function __construct(private PropertyWareService $propertyWare) {}
+
+    /**
+     * Whether this work order's tenant was actually sent the easy-fix how-to
+     * text (the ledger row the intake sender writes), which is what makes the
+     * portal token's reminders the "did the video help?" check-ins instead of
+     * the generic photo reminders.
+     */
+    public function tenantWasTexted(WorkOrder $workOrder): bool
+    {
+        return Activity::query()
+            ->inLog(AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'tenant_easy_fix_sms')
+            ->where('subject_type', $workOrder->getMorphClass())
+            ->where('subject_id', $workOrder->id)
+            ->exists();
+    }
+
+    /**
+     * Whether the check-ins should stop: the tenant has replied since the
+     * how-to text went out, a vendor has been assigned, the work order is no
+     * longer open, or a WOC has moved it past "Checking for Tenant Easy Fix"
+     * / "New". A photo through the portal is handled by the token's
+     * completed_at, as for every reminder.
+     */
+    public function followUpClosed(WorkOrder $workOrder, TenantUploadToken $token): bool
+    {
+        if ($workOrder->status !== null && strcasecmp((string) $workOrder->status, 'Open') !== 0) {
+            return true;
+        }
+
+        $workOrder->loadMissing('service_status');
+        $statusName = (string) ($workOrder->service_status?->name ?? '');
+
+        if ($statusName !== '' && ! in_array($statusName, self::FOLLOW_UP_STATUSES, true)) {
+            return true;
+        }
+
+        if ($workOrder->vendors()->exists()) {
+            return true;
+        }
+
+        // is_read is the direction marker on work_order_conversations: false
+        // means the tenant wrote it.
+        return Conversation::query()
+            ->where('work_order_id', $workOrder->id)
+            ->where('conversation_type', 'tenant')
+            ->where('is_read', false)
+            ->where('created_at', '>=', $token->created_at)
+            ->exists();
+    }
 
     /**
      * The work order's verdict: which item it matched and whether that item
