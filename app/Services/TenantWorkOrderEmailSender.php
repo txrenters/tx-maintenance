@@ -88,7 +88,7 @@ class TenantWorkOrderEmailSender
                     'key' => $verdict['key'],
                     'label' => (string) $verdict['item']['label'],
                     'video_url' => $verdict['item']['video_url'] ?? null,
-                    'tip' => (string) ($verdict['item']['tip'] ?? ''),
+                    'tip' => TenantEasyFixService::tipSentence((string) ($verdict['item']['tip'] ?? '')),
                 ]
                 : null;
 

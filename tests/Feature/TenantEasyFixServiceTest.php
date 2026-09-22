@@ -182,6 +182,31 @@ class TenantEasyFixServiceTest extends TestCase
         $this->assertTrue($verdict['sendable']);
     }
 
+    public function test_a_property_provided_refrigerator_gets_the_handbook_s_check_first_row(): void
+    {
+        $workOrder = $this->makeWorkOrder([
+            'description' => 'Refrigerator stopped cooling yesterday',
+            'category' => 'Refrigerator',
+            'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
+        ]);
+
+        $verdict = $this->service()->assess($workOrder);
+
+        $this->assertSame('easy_fix', $verdict['kind']);
+        $this->assertSame('refrigerator_not_cooling', $verdict['key']);
+        $this->assertTrue($verdict['sendable']);
+
+        // The same request on a tenant-owned refrigerator is the tenant's.
+        $tenantOwned = $this->makeWorkOrder([
+            'work_order_no' => 43903,
+            'description' => 'Refrigerator stopped cooling yesterday',
+            'category' => 'Refrigerator',
+            'building_id' => $this->makeBuilding('None')->propertyware_id,
+        ]);
+
+        $this->assertSame('appliance_refrigerator', $this->service()->assess($tenantOwned)['key']);
+    }
+
     public function test_an_included_or_unknown_appliance_is_left_alone(): void
     {
         $included = $this->makeWorkOrder([

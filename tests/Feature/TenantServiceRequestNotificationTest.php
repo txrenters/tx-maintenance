@@ -853,7 +853,7 @@ class TenantServiceRequestNotificationTest extends TestCase
         $this->assertStringContainsString('We received your request about the garbage disposal.', $text);
         $this->assertStringContainsString('quick fix tenants can take care of themselves', $text);
         $this->assertStringContainsString('https://youtu.be/disposal', $text);
-        $this->assertStringContainsString('press the red reset button', $text);
+        $this->assertStringContainsString("Only use the manufacturer's safe reset", $text);
         $this->assertStringContainsString('If it still is not working after you try this', $text);
         $this->assertStringContainsString(TenantMessageFormatter::LINK_LEAD, $text);
         $this->assertStringContainsString('(Ref: WO#43900)', $text);

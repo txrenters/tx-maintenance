@@ -93,7 +93,7 @@ class TenantPortalController extends Controller
             ? [
                 'label' => $easyFix['item']['label'],
                 'video_url' => $easyFix['item']['video_url'],
-                'tip' => $easyFix['item']['tip'],
+                'tip' => TenantEasyFixService::tipSentence((string) ($easyFix['item']['tip'] ?? '')),
             ]
             : null;
 

@@ -221,7 +221,7 @@ class TenantServiceRequestNotificationService
             'greeting' => $this->greeting($tenant),
             'item_label' => (string) $item['label'],
             'video_link' => (string) $item['video_url'],
-            'tip' => AutomatedMessageTemplates::plainPunctuation((string) ($item['tip'] ?? '')),
+            'tip' => AutomatedMessageTemplates::plainPunctuation(TenantEasyFixService::tipSentence((string) ($item['tip'] ?? ''))),
         ]);
     }
 

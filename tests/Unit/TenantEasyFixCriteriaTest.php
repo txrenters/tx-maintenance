@@ -12,23 +12,47 @@ class TenantEasyFixCriteriaTest extends TestCase
         return TenantEasyFixCriteria::scan(strtolower($text), $category)['key'] ?? null;
     }
 
-    public function test_a_jammed_or_humming_disposal_is_an_easy_fix(): void
+    public function test_a_jammed_or_humming_disposal_is_handbook_row_6(): void
     {
         foreach ([
             'Garbage disposal is humming but not turning',
             'The disposal is jammed, something is stuck in it',
-            'disposal stopped working, makes no sound when I flip the switch',
-            'Kitchen garbage disposal not working',
+            'Garbage disposal jammed',
         ] as $text) {
             $this->assertSame('disposal_jammed', $this->scan($text), $text);
         }
     }
 
+    public function test_a_dead_disposal_is_handbook_row_5(): void
+    {
+        foreach ([
+            'disposal stopped working, makes no sound when I flip the switch',
+            'Kitchen garbage disposal not working',
+        ] as $text) {
+            $this->assertSame('disposal_not_working', $this->scan($text), $text);
+        }
+    }
+
     public function test_the_propertyware_category_alone_matches_a_disposal(): void
     {
-        $this->assertSame('disposal_jammed', $this->scan('Not working', 'Garbage Disposal'));
+        $this->assertSame('disposal_not_working', $this->scan('Not working', 'Garbage Disposal'));
         $this->assertSame('smoke_detector_battery', $this->scan('', 'Smoke Detectors'));
-        $this->assertSame('clogged_drain', $this->scan('', 'Clogged Sink'));
+        $this->assertSame('clogged_sink', $this->scan('', 'Clogged Sink'));
+    }
+
+    public function test_the_library_mirrors_the_handbook_s_26_rows(): void
+    {
+        $this->assertCount(26, TenantEasyFixCriteria::items());
+
+        // Rows whose handbook link is a search page, or that overlap the
+        // emergency rules, carry no video and are never texted.
+        foreach (['light_bulb', 'water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working', 'dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve', 'stove_burner'] as $key) {
+            $this->assertNull(TenantEasyFixCriteria::items()[$key]['video_url'], $key);
+        }
+
+        foreach (TenantEasyFixCriteria::items() as $key => $item) {
+            $this->assertStringNotContainsString('results?search_query', (string) $item['video_url'], $key);
+        }
     }
 
     public function test_a_light_fixture_category_alone_is_not_a_bulb(): void
@@ -72,13 +96,43 @@ class TenantEasyFixCriteriaTest extends TestCase
     public function test_the_other_handbook_items_match_their_wording(): void
     {
         $this->assertSame('smoke_detector_battery', $this->scan('Smoke detector chirping every minute in the hallway'));
-        $this->assertSame('tripped_breaker', $this->scan('No power in the master bedroom, outlets not working'));
+        $this->assertSame('tripped_breaker', $this->scan('Power lost to part of the house, the bedroom lights and outlets are out'));
         $this->assertSame('gfci_outlet', $this->scan('Bathroom outlet stopped working, the GFCI one'));
-        $this->assertSame('clogged_drain', $this->scan('Bathroom sink is draining very slowly'));
+        $this->assertSame('faucet_aerator', $this->scan('Kitchen faucet has very low water pressure, just a trickle'));
+        $this->assertSame('clogged_sink', $this->scan('Bathroom sink is draining very slowly'));
+        $this->assertSame('slow_shower_drain', $this->scan('The shower drain is slow, water pools around my feet'));
         $this->assertSame('clogged_toilet', $this->scan('Toilet is clogged and will not flush'));
         $this->assertSame('running_toilet', $this->scan('The toilet keeps running after flushing'));
         $this->assertSame('thermostat_batteries', $this->scan('Thermostat screen is blank'));
-        $this->assertSame('ac_filter', $this->scan('Need a new air filter for the AC, the old one is dirty'));
+        $this->assertSame('hvac_filter', $this->scan('Need a new air filter for the AC, the old one is dirty'));
+        $this->assertSame('dishwasher_not_draining', $this->scan('Dishwasher not draining, water in the bottom after every cycle'));
+        $this->assertSame('dishwasher_not_starting', $this->scan('Dishwasher won\'t start at all'));
+        $this->assertSame('dishwasher_not_cleaning', $this->scan('Dishes come out dirty every time'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Refrigerator stopped cooling yesterday'));
+        $this->assertSame('bathroom_fan', $this->scan('Bathroom exhaust fan is really noisy and dusty'));
+        $this->assertSame('garage_door', $this->scan('Garage door remote does not open the door anymore'));
+        $this->assertSame('stove_burner', $this->scan('Front left stove burner won\'t light, it just clicks'));
+        $this->assertSame('water_shutoff_valve', $this->scan('No water to the toilet, the tank will not fill'));
+    }
+
+    public function test_the_recognised_only_rows_are_not_sendable(): void
+    {
+        $this->assertSame('ac_heat_not_working', $this->scan('AC not cooling very well'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('ac_heat_not_working'));
+
+        $this->assertSame('furnace_not_working', $this->scan('Furnace not turning on'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('furnace_not_working'));
+
+        $this->assertSame('water_heater_pilot', $this->scan('Water heater pilot light went out'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
+
+        // "Not heating" on a dryer or an oven is not the AC/heat row.
+        $this->assertNotSame('ac_heat_not_working', $this->scan('Dryer is not heating anymore'));
+        $this->assertNotSame('ac_heat_not_working', $this->scan('Oven not heating up to temperature'));
+
+        // A dead AC in summer or no heat in a freeze stays an emergency.
+        $this->assertNull($this->scan('No AC at all, the house is 95 degrees'));
+        $this->assertNull($this->scan('No heat and it is freezing outside'));
     }
 
     public function test_a_clogged_toilet_that_overflows_or_is_the_only_one_is_not(): void
@@ -119,7 +173,7 @@ class TenantEasyFixCriteriaTest extends TestCase
         $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance(strtolower($list.' The refrigerator is also warm.'), [['fieldName' => 'Included Appliances', 'value' => 'None']])['status']);
 
         // Under the cap, the same disposal wording matches.
-        $this->assertSame('disposal_jammed', $this->scan('The garbage disposal is not working.'));
+        $this->assertSame('disposal_not_working', $this->scan('The garbage disposal is not working.'));
     }
 
     public function test_unrelated_requests_match_nothing(): void
@@ -128,7 +182,7 @@ class TenantEasyFixCriteriaTest extends TestCase
             'Water heater is leaking in the garage',
             'Front door lock is broken and will not lock',
             'Roof shingles blew off in the storm',
-            'Dishwasher not draining',
+            'Fence panel in the backyard is leaning over',
         ] as $text) {
             $this->assertNull($this->scan($text), $text);
         }
@@ -136,14 +190,14 @@ class TenantEasyFixCriteriaTest extends TestCase
 
     public function test_an_item_without_a_video_is_recognised_but_not_sendable(): void
     {
-        $this->assertSame('disposal_jammed', $this->scan('Disposal jammed'));
+        $this->assertSame('light_bulb', $this->scan('Kitchen light bulb burned out'));
 
-        $this->assertFalse(TenantEasyFixCriteria::isSendable('disposal_jammed'));
-
-        $this->withVideo('disposal_jammed');
-
-        $this->assertTrue(TenantEasyFixCriteria::isSendable('disposal_jammed'));
         $this->assertFalse(TenantEasyFixCriteria::isSendable('light_bulb'));
+
+        $this->withVideo('light_bulb');
+
+        $this->assertTrue(TenantEasyFixCriteria::isSendable('light_bulb'));
+        $this->assertTrue(TenantEasyFixCriteria::isSendable('disposal_jammed'));
         $this->assertFalse(TenantEasyFixCriteria::isSendable('not_a_key'));
     }
 
@@ -217,7 +271,7 @@ class TenantEasyFixCriteriaTest extends TestCase
     {
         $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey('disposal_jammed'));
         $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey(' Disposal-Jammed '));
-        $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey('garbage disposal'));
+        $this->assertSame('disposal_not_working', TenantEasyFixCriteria::normalizeKey('garbage disposal'));
         $this->assertSame('appliance_washer', TenantEasyFixCriteria::normalizeKey('appliance washer'));
         $this->assertNull(TenantEasyFixCriteria::normalizeKey('roof'));
         $this->assertNull(TenantEasyFixCriteria::normalizeKey(null));

@@ -373,7 +373,7 @@ class WorkOrderRecommendationTest extends TestCase
             ->assertJsonPath('recommendation.work_order.easy_fix_key', 'disposal_jammed');
     }
 
-    public function test_the_heuristic_classification_explains_an_appliance_of_unknown_ownership(): void
+    public function test_the_heuristic_classification_follows_the_handbook_for_an_appliance_of_unknown_ownership(): void
     {
         $user = User::factory()->create();
         $serviceStatus = ServiceStatus::query()->create([
@@ -391,9 +391,11 @@ class WorkOrderRecommendationTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('work_orders.recommendation.generate', $workOrder));
 
+        // Ownership unknown => not the tenant's problem by default, so the
+        // handbook's "check power, plug, breaker" row applies.
         $response->assertOk()
-            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', false)
-            ->assertJsonPath('recommendation.classification.easy_fix_key', null);
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'refrigerator_not_cooling');
 
         $this->assertStringContainsString('ownership is unknown', $response->json('recommendation.classification.tenant_responsibility_reason'));
     }

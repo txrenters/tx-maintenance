@@ -1020,8 +1020,8 @@ class WorkOrderRecommendationService
 
         // The same deterministic judgement the intake automation makes, so
         // the Recommendation tab shows what the tenant was (or would be) told.
-        $easyFix = TenantEasyFixCriteria::scan(TenantEasyFixService::textOf($workOrder), $workOrder->category);
-        $appliance = TenantEasyFixCriteria::assessAppliance(TenantEasyFixService::textOf($workOrder), $workOrder->building?->custom_fields);
+        $judgement = app(TenantEasyFixService::class)->judge($workOrder);
+        $appliance = $judgement['appliance'];
 
         return [
             'issue_type' => $bestIssueType,
@@ -1037,8 +1037,8 @@ class WorkOrderRecommendationService
             'emergency_reason' => $emergency['is_emergency']
                 ? 'Matched emergency keywords: '.implode(', ', $emergency['matched'])
                 : 'No emergency indicators found in the work order text',
-            'is_tenant_easy_fix' => $easyFix !== null,
-            'easy_fix_key' => $easyFix['key'] ?? null,
+            'is_tenant_easy_fix' => $judgement['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX,
+            'easy_fix_key' => $judgement['key'],
             'tenant_responsibility_reason' => $appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NONE
                 ? null
                 : match ($appliance['status']) {

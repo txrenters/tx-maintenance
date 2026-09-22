@@ -392,7 +392,7 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertStringContainsString('garbage disposal', $captured->html);
         $this->assertStringContainsString('https://youtu.be/disposal', $captured->html);
         $this->assertStringContainsString('Watch the how-to video', $captured->html);
-        $this->assertStringContainsString('press the red reset button', $captured->html);
+        $this->assertStringContainsString('safe reset/un-jamming procedure', $captured->html);
         $this->assertStringNotContainsString('confirming that we have received', $captured->html);
 
         // The easy-fix photo link, so a photo through it stops the reminders.

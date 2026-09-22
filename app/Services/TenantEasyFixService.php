@@ -192,6 +192,22 @@ class TenantEasyFixService
     }
 
     /**
+     * The handbook's "Tenant can try first" wording as a sentence: the sheet
+     * writes them as fragments ("Check/reset GFCI"), so add the full stop
+     * the text and email need.
+     */
+    public static function tipSentence(string $tip): string
+    {
+        $tip = trim($tip);
+
+        if ($tip === '' || preg_match('/[.!?]$/', $tip)) {
+            return $tip;
+        }
+
+        return $tip.'.';
+    }
+
+    /**
      * The text the criteria are judged against: what the tenant wrote plus
      * PropertyWare's type and category.
      */
@@ -229,14 +245,17 @@ class TenantEasyFixService
             return ['key' => null, 'kind' => null, 'reason' => 'marked_emergency', 'appliance' => $appliance];
         }
 
+        // A tenant-owned appliance is the tenant's whatever the symptom; a
+        // property-provided (or unknown) one falls through to the handbook's
+        // own rows for that appliance (check the plug, the breaker...).
+        if ($appliance['status'] === TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED) {
+            return ['key' => $appliance['key'], 'kind' => TenantEasyFixCriteria::KIND_APPLIANCE, 'reason' => 'tenant_owned:'.implode(', ', $appliance['matched']), 'appliance' => $appliance];
+        }
+
         $easyFix = TenantEasyFixCriteria::scan($text, $workOrder->category);
 
         if ($easyFix !== null) {
             return ['key' => $easyFix['key'], 'kind' => TenantEasyFixCriteria::KIND_EASY_FIX, 'reason' => 'matched:'.implode(', ', $easyFix['matched']), 'appliance' => $appliance];
-        }
-
-        if ($appliance['status'] === TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED) {
-            return ['key' => $appliance['key'], 'kind' => TenantEasyFixCriteria::KIND_APPLIANCE, 'reason' => 'tenant_owned:'.implode(', ', $appliance['matched']), 'appliance' => $appliance];
         }
 
         return ['key' => null, 'kind' => null, 'reason' => match ($appliance['status']) {
