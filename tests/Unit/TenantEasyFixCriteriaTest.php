@@ -44,10 +44,18 @@ class TenantEasyFixCriteriaTest extends TestCase
     {
         $this->assertCount(26, TenantEasyFixCriteria::items());
 
-        // Rows whose handbook link is a search page, or that overlap the
-        // emergency rules, carry no video and are never texted.
-        foreach (['light_bulb', 'water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working', 'dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve', 'stove_burner'] as $key) {
+        // Rows whose handbook link is a search page (or, for the stove
+        // burner, the bathroom-fan search copied from the row above), or
+        // that overlap the emergency rules, carry no video and are never
+        // texted.
+        foreach (['light_bulb', 'water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working', 'stove_burner'] as $key) {
             $this->assertNull(TenantEasyFixCriteria::items()[$key]['video_url'], $key);
+        }
+
+        // Rows 21-24 had search-page links in the sheet; Earl supplied real
+        // videos for them on 2026-09-23.
+        foreach (['dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve'] as $key) {
+            $this->assertTrue(TenantEasyFixCriteria::isSendable($key), $key);
         }
 
         foreach (TenantEasyFixCriteria::items() as $key => $item) {

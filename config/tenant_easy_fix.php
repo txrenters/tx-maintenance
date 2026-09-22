@@ -287,43 +287,47 @@ return [
             'tip' => 'Check power, plug, breaker/GFCI and temperature setting',
         ],
         [
-            // Handbook row 21 - search-page link: recognised, not texted.
+            // Handbook row 21 (video supplied by Earl 2026-09-23; the
+            // sheet's own link was a search page).
             'key' => 'dryer_not_heating',
             'label' => 'dryer',
             'pw_categories' => [],
             'keywords' => ['dryer not heating', 'dryer is not heating', 'dryer isn\'t heating', 'dryer not drying', 'dryer is not drying', 'dryer isn\'t drying', 'dryer no heat', 'dryer has no heat', 'dryer not getting hot', 'dryer runs but', 'clothes still wet', 'clothes come out wet', 'clothes are still wet', 'clothes come out damp', 'dryer takes forever', 'dryer takes hours', 'dryer takes several cycles'],
             'exclude' => ['burning', 'smoke', 'smell', 'vent', 'venting', 'duct', 'gas', 'not starting', 'won\'t start', 'wont start', 'no power', 'not turning on', 'won\'t turn on', 'wont turn on', 'noise', 'squeal', 'squealing', 'thump', 'thumping', 'banging'],
-            'video_url' => null,
+            'video_url' => 'https://youtu.be/umSXSNeNPf0',
             'tip' => 'Clean lint filter, confirm proper settings and avoid overloading',
         ],
         [
-            // Handbook row 22 - search-page link: recognised, not texted.
+            // Handbook row 22 (video supplied by Earl 2026-09-23; the
+            // sheet's own link was a search page).
             'key' => 'washer_not_starting',
             'label' => 'washer',
             'pw_categories' => [],
             'keywords' => ['washer not starting', 'washer is not starting', 'washer won\'t start', 'washer wont start', 'washing machine not starting', 'washing machine won\'t start', 'washing machine wont start', 'washer not turning on', 'washer won\'t turn on', 'washer wont turn on', 'washing machine not turning on', 'washing machine won\'t turn on', 'washing machine wont turn on', 'washer has no power', 'washer no power', 'washer is dead', 'washer not working', 'washer is not working', 'washing machine not working', 'washing machine is not working', 'washer stopped working', 'washing machine stopped working', 'washer won\'t fill', 'washer wont fill', 'washer not filling', 'washer is not filling', 'no water coming into the washer', 'no water going into the washer'],
             'exclude' => ['leak', 'leaks', 'water on the floor', 'not draining', 'won\'t drain', 'wont drain', 'not spinning', 'won\'t spin', 'wont spin', 'noise', 'banging', 'shaking', 'smell', 'burning', 'smoke', 'hookup', 'hookups', 'hook up', 'hook-up', 'valve', 'valves', 'standpipe'],
-            'video_url' => null,
+            'video_url' => 'https://youtu.be/YdWuLw15xhk',
             'tip' => 'Check door/lid, power, breaker and water supply',
         ],
         [
-            // Handbook row 23 - search-page link: recognised, not texted.
+            // Handbook row 23 (video supplied by Earl 2026-09-23; the
+            // sheet's own link was a search page).
             'key' => 'garage_door',
             'label' => 'garage door',
             'pw_categories' => [],
             'keywords' => ['garage door not working', 'garage door is not working', 'garage door won\'t open', 'garage door wont open', 'garage door won\'t close', 'garage door wont close', 'garage door will not open', 'garage door will not close', 'garage door opener', 'garage door remote', 'garage remote', 'garage door not opening', 'garage door not closing', 'garage door stopped', 'garage door is stuck', 'garage door stuck', 'garage door won\'t go', 'garage door wont go', 'garage door sensor', 'garage door sensors', 'garage door keypad', 'garage door button'],
             'exclude' => ['off track', 'off the track', 'off its track', 'spring', 'springs', 'cable', 'cables', 'bent', 'dent', 'dented', 'crashed', 'hit the door', 'backed into', 'ran into', 'panel', 'panels', 'fell', 'roller', 'rollers', 'noise', 'loud', 'grinding'],
-            'video_url' => null,
+            'video_url' => 'https://youtu.be/E0je1HfGyaM',
             'tip' => 'Check opener power, remote batteries and safety sensors',
         ],
         [
-            // Handbook row 24 - search-page link: recognised, not texted.
+            // Handbook row 24 (video supplied by Earl 2026-09-23; the
+            // sheet's own link was a search page).
             'key' => 'water_shutoff_valve',
             'label' => 'water shutoff valve',
             'pw_categories' => [],
             'keywords' => ['no water to the toilet', 'no water to the sink', 'no water to toilet', 'no water to sink', 'toilet won\'t fill', 'toilet wont fill', 'toilet not filling', 'toilet is not filling', 'toilet tank not filling', 'toilet tank won\'t fill', 'toilet tank wont fill', 'no water in the toilet', 'no water in the tank', 'sink has no water', 'no water from the faucet', 'no water coming out of the faucet', 'no water from the sink', 'faucet has no water', 'shutoff valve', 'shut off valve', 'shut-off valve', 'supply valve', 'valve under the sink', 'valve behind the toilet'],
             'exclude' => ['no water in the house', 'no water at all', 'whole house', 'entire house', 'entire home', 'whole home', 'leak', 'leaks', 'leaking', 'burst', 'hot water', 'water heater', 'shower', 'tub'],
-            'video_url' => null,
+            'video_url' => 'https://youtu.be/L-cTL7JJr8E',
             'tip' => 'Check that local shutoff valve hasn\'t been accidentally closed',
         ],
         [
