@@ -8,6 +8,9 @@ import { Search } from "lucide-vue-next";
 const props = defineProps({
     url: String,
     modelValue: String,
+    // Fill whatever width the parent gives instead of the fixed 180/220px
+    // box, so a toolbar can let the search give way before it wraps.
+    fluid: { type: Boolean, default: false },
 });
 const emit = defineEmits(["update:modelValue"]);
 
@@ -64,7 +67,10 @@ function handlePaste(event) {
 </script>
 
 <template>
-    <div class="relative flex items-center flex-1 md:grow-0">
+    <div
+        class="relative flex items-center"
+        :class="fluid ? 'min-w-0' : 'flex-1 md:grow-0'"
+    >
         <Search
             class="absolute left-2.5 top-2.8 h-4 w-4 text-muted-foreground"
         />
@@ -74,7 +80,8 @@ function handlePaste(event) {
             v-model="model"
             @keydown.enter.prevent
             @paste="handlePaste"
-            class="w-full rounded-lg bg-background pl-8 md:w-[180px] lg:w-[220px]"
+            class="w-full rounded-lg bg-background pl-8"
+            :class="fluid ? '' : 'md:w-[180px] lg:w-[220px]'"
         />
     </div>
 </template>
