@@ -16,7 +16,7 @@ class ServiceScheduleController extends Controller
 {
     public function get_schedules(WorkOrder $workOrder)
     {
-        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'service_schedules.technician', 'tenants', 'vendors.user']);
+        $workOrder->load(['service_schedules.tenant', 'service_schedules.vendor', 'service_schedules.technicians', 'tenants', 'vendors.user']);
 
         return response()->json($workOrder, 200);
     }
@@ -33,7 +33,8 @@ class ServiceScheduleController extends Controller
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
             'tenant_id' => 'nullable|exists:tenants,id',
-            'technician_id' => 'nullable|exists:technicians,id',
+            'technician_ids' => 'nullable|array',
+            'technician_ids.*' => 'integer|distinct|exists:technicians,id',
             'work_order_id' => 'required|exists:work_orders,id',
         ]);
 
@@ -46,8 +47,11 @@ class ServiceScheduleController extends Controller
                 'work_order_id' => $validatedData['work_order_id'],
                 'vendor_id' => $validatedData['vendor_id'],
                 'tenant_id' => $validatedData['tenant_id'] ?? null,
-                'technician_id' => $validatedData['technician_id'] ?? null,
             ]);
+
+            // Recorded before the tenant job below, which reloads the
+            // schedule by id to name the technicians in the text.
+            $serviceSchedule->setTechnicians($validatedData['technician_ids'] ?? []);
 
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
@@ -86,28 +90,28 @@ class ServiceScheduleController extends Controller
             'description' => 'nullable|string',
             'vendor_id' => 'required|exists:vendors,id',
             'tenant_id' => 'nullable|exists:tenants,id',
-            'technician_id' => 'nullable|exists:technicians,id',
+            'technician_ids' => 'sometimes|nullable|array',
+            'technician_ids.*' => 'integer|distinct|exists:technicians,id',
         ]);
 
         try {
             $originalDate = $serviceSchedule->scheduled_date;
 
-            $attributes = [
+            $serviceSchedule->update([
                 'title' => $validatedData['title'],
                 'scheduled_date' => $validatedData['date'],
                 'scheduled_end_date' => $validatedData['end_date'] ?? null,
                 'description' => $validatedData['description'] ?? null,
                 'vendor_id' => $validatedData['vendor_id'],
                 'tenant_id' => $validatedData['tenant_id'] ?? null,
-            ];
+            ]);
 
             // Only a form that carries the field (the staff dialog) may change
-            // the technician; a vendor-portal edit must not wipe the choice.
-            if (array_key_exists('technician_id', $validatedData)) {
-                $attributes['technician_id'] = $validatedData['technician_id'];
+            // the technicians; a vendor-portal edit must not wipe the picks.
+            // An explicit empty list clears them.
+            if (array_key_exists('technician_ids', $validatedData)) {
+                $serviceSchedule->setTechnicians($validatedData['technician_ids'] ?? []);
             }
-
-            $serviceSchedule->update($attributes);
 
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
@@ -215,6 +219,8 @@ class ServiceScheduleController extends Controller
         ]);
 
         if ($request->status == 'delete') {
+            // The pivot has no cascading key, so the picks go with the schedule.
+            $serviceSchedule->technicians()->detach();
             $serviceSchedule->delete();
 
             return redirect()->back();
@@ -237,7 +243,8 @@ class ServiceScheduleController extends Controller
             $workOrderId = $serviceSchedule->work_order_id;
             $vendorId = $serviceSchedule->vendor_id;
 
-            // Delete the service schedule
+            // Delete the service schedule and its technician picks
+            $serviceSchedule->technicians()->detach();
             $serviceSchedule->delete();
 
             // Sync to PropertyWare after deletion

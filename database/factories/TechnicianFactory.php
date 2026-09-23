@@ -24,6 +24,7 @@ class TechnicianFactory extends Factory
             'is_active' => true,
             'phone' => null,
             'email' => null,
+            'address' => null,
             'specialty' => null,
             'notes' => null,
             'photo_path' => null,

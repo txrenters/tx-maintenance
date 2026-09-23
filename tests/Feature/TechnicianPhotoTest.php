@@ -170,16 +170,21 @@ class TechnicianPhotoTest extends TestCase
         $this->getJson(route('technicians.options'))->assertForbidden();
     }
 
-    public function test_the_schedule_stores_the_chosen_technician(): void
+    private function makeVendor(): Vendor
     {
-        $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
-        $vendor = Vendor::query()->create([
+        return Vendor::query()->create([
             'propertyware_id' => 'V-'.uniqid(),
             'name' => 'Reliable Plumbing',
             'vendor_type' => 'Plumbing',
             'is_active' => true,
             'user_id' => User::factory()->create()->id,
         ]);
+    }
+
+    public function test_the_schedule_stores_the_chosen_technician(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
+        $vendor = $this->makeVendor();
         $technician = Technician::factory()->create();
 
         $this->post(route('work_order.service_schedule.create'), [
@@ -187,54 +192,80 @@ class TechnicianPhotoTest extends TestCase
             'date' => now()->addDays(2)->toDateString(),
             'vendor_id' => $vendor->id,
             'work_order_id' => $workOrder->id,
-            'technician_id' => $technician->id,
+            'technician_ids' => [$technician->id],
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('service_schedules', [
-            'work_order_id' => $workOrder->id,
+        $schedule = ServiceSchedule::query()->where('work_order_id', $workOrder->id)->firstOrFail();
+
+        $this->assertDatabaseHas('service_schedule_technicians', [
+            'service_schedule_id' => $schedule->id,
             'technician_id' => $technician->id,
         ]);
+        // The older single column mirrors the pick so a code revert keeps it.
+        $this->assertSame($technician->id, $schedule->technician_id);
+    }
+
+    public function test_the_schedule_stores_two_technicians_for_one_visit(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
+        $vendor = $this->makeVendor();
+        $kevin = Technician::factory()->create(['name' => 'Kevin Cole']);
+        $emanuel = Technician::factory()->create(['name' => 'Emanuel Hall']);
+
+        $this->post(route('work_order.service_schedule.create'), [
+            'title' => 'Water heater',
+            'date' => now()->addDays(2)->toDateString(),
+            'vendor_id' => $vendor->id,
+            'work_order_id' => $workOrder->id,
+            'technician_ids' => [$kevin->id, $emanuel->id],
+        ])->assertRedirect();
+
+        $schedule = ServiceSchedule::query()->where('work_order_id', $workOrder->id)->firstOrFail();
+
+        $this->assertEqualsCanonicalizing(
+            [$kevin->id, $emanuel->id],
+            $schedule->technicians()->pluck('technicians.id')->all(),
+        );
+        $this->assertSame($kevin->id, $schedule->technician_id);
+
+        // The page's fetch carries every pick, ordered by name.
+        $this->actingAs($this->staff())
+            ->getJson(route('work_order.service_schedules', $workOrder))
+            ->assertOk()
+            ->assertJsonPath('service_schedules.0.technicians.0.name', 'Emanuel Hall')
+            ->assertJsonPath('service_schedules.0.technicians.1.name', 'Kevin Cole');
     }
 
     public function test_an_unknown_technician_is_rejected(): void
     {
         $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
-        $vendor = Vendor::query()->create([
-            'propertyware_id' => 'V-'.uniqid(),
-            'name' => 'Reliable Plumbing',
-            'vendor_type' => 'Plumbing',
-            'is_active' => true,
-            'user_id' => User::factory()->create()->id,
-        ]);
+        $vendor = $this->makeVendor();
 
         $this->postJson(route('work_order.service_schedule.create'), [
             'title' => 'Water heater',
             'date' => now()->addDays(2)->toDateString(),
             'vendor_id' => $vendor->id,
             'work_order_id' => $workOrder->id,
-            'technician_id' => 999999,
-        ])->assertJsonValidationErrors('technician_id');
+            'technician_ids' => [999999],
+        ])->assertJsonValidationErrors('technician_ids.0');
+
+        $this->assertDatabaseCount('service_schedules', 0);
     }
 
-    public function test_an_update_without_the_field_keeps_the_technician(): void
+    public function test_an_update_without_the_field_keeps_the_technicians(): void
     {
         $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
-        $vendor = Vendor::query()->create([
-            'propertyware_id' => 'V-'.uniqid(),
-            'name' => 'Reliable Plumbing',
-            'vendor_type' => 'Plumbing',
-            'is_active' => true,
-            'user_id' => User::factory()->create()->id,
-        ]);
-        $technician = Technician::factory()->create();
+        $vendor = $this->makeVendor();
+        $kevin = Technician::factory()->create(['name' => 'Kevin Cole']);
+        $emanuel = Technician::factory()->create(['name' => 'Emanuel Hall']);
 
         $schedule = ServiceSchedule::query()->create([
             'title' => 'Water heater',
             'scheduled_date' => now()->addDays(2),
             'work_order_id' => $workOrder->id,
             'vendor_id' => $vendor->id,
-            'technician_id' => $technician->id,
         ]);
+        $schedule->setTechnicians([$kevin->id, $emanuel->id]);
 
         // A vendor-portal style edit carries no technician field at all.
         $this->put(route('work_order.service_schedule.update', $schedule), [
@@ -243,16 +274,49 @@ class TechnicianPhotoTest extends TestCase
             'vendor_id' => $vendor->id,
         ])->assertRedirect();
 
-        $this->assertSame($technician->id, $schedule->fresh()->technician_id);
+        $this->assertSame(2, $schedule->technicians()->count());
+        $this->assertSame($kevin->id, $schedule->fresh()->technician_id);
 
-        // The staff dialog sending an explicit null clears it.
+        // The staff dialog unticking one keeps the other.
         $this->put(route('work_order.service_schedule.update', $schedule), [
             'title' => 'Water heater - moved',
             'date' => now()->addDays(4)->toDateString(),
             'vendor_id' => $vendor->id,
-            'technician_id' => null,
+            'technician_ids' => [$emanuel->id],
         ])->assertRedirect();
 
+        $this->assertSame([$emanuel->id], $schedule->technicians()->pluck('technicians.id')->all());
+        $this->assertSame($emanuel->id, $schedule->fresh()->technician_id);
+
+        // The staff dialog sending an empty list clears them all.
+        $this->put(route('work_order.service_schedule.update', $schedule), [
+            'title' => 'Water heater - moved',
+            'date' => now()->addDays(4)->toDateString(),
+            'vendor_id' => $vendor->id,
+            'technician_ids' => [],
+        ])->assertRedirect();
+
+        $this->assertSame(0, $schedule->technicians()->count());
         $this->assertNull($schedule->fresh()->technician_id);
+    }
+
+    public function test_deleting_the_schedule_drops_its_technician_picks(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['status' => 'Open']);
+        $technician = Technician::factory()->create();
+
+        $schedule = ServiceSchedule::query()->create([
+            'title' => 'Water heater',
+            'scheduled_date' => now()->addDays(2),
+            'work_order_id' => $workOrder->id,
+            'vendor_id' => $this->makeVendor()->id,
+        ]);
+        $schedule->setTechnicians([$technician->id]);
+
+        $this->post(route('service_schedule.status.completed', $schedule), ['status' => 'delete'])
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('service_schedules', 0);
+        $this->assertDatabaseCount('service_schedule_technicians', 0);
     }
 }

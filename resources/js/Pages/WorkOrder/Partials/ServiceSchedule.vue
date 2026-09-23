@@ -26,17 +26,14 @@ const serviceScheduleForm = useForm({
     end_date: "",
     vendor_id: "",
     tenant_id: "",
-    technician_id: "",
+    technician_ids: [],
     work_order_id: props.workOrder.id,
 });
 
-// "none" is the explicit "No technician" pick; either way null goes out.
+// Ticked technicians go out as ids; an empty list means nobody.
 serviceScheduleForm.transform((data) => ({
     ...data,
-    technician_id:
-        data.technician_id && data.technician_id !== "none"
-            ? Number(data.technician_id)
-            : null,
+    technician_ids: (data.technician_ids ?? []).map(Number),
 }));
 const emit = defineEmits(["fetch-schedule"]);
 
@@ -87,9 +84,23 @@ watch(openService, (newValue) => {
 });
 
 // ---- Technician picker ----
-// Naming who is going lets the tenant's appointment text carry that
-// technician's photo. Staff-only endpoint — a 403 just hides the picker.
+// Naming who is going lets the tenant's appointment text carry their
+// photos. THMP sometimes sends two on one visit, so any number can be
+// ticked. Staff-only endpoint — a 403 just hides the picker.
 const technicianOptions = ref([]);
+
+const isTechnicianChosen = (technicianId) =>
+    serviceScheduleForm.technician_ids.includes(String(technicianId));
+
+const toggleTechnician = (technicianId, checked) => {
+    const id = String(technicianId);
+    const chosen = serviceScheduleForm.technician_ids.filter((t) => t !== id);
+
+    serviceScheduleForm.technician_ids = checked ? [...chosen, id] : chosen;
+};
+
+const technicianNames = (schedule) =>
+    (schedule.technicians ?? []).map((t) => t.name).join(", ");
 
 const fetchTechnicianOptions = async () => {
     try {
@@ -215,7 +226,7 @@ const openEditMode = (schedule) => {
     serviceScheduleForm.end_date = formatDateForInput(schedule.scheduled_end_date);
     serviceScheduleForm.vendor_id = String(schedule.vendor_id);
     serviceScheduleForm.tenant_id = schedule.tenant_id ? String(schedule.tenant_id) : "";
-    serviceScheduleForm.technician_id = schedule.technician_id ? String(schedule.technician_id) : "";
+    serviceScheduleForm.technician_ids = (schedule.technicians ?? []).map((t) => String(t.id));
 
     openService.value = true;
 };
@@ -511,12 +522,12 @@ const handleMeetingSubmit = () => {
                             </p>
                         </div>
                         <div
-                            v-if="schedule.technician"
+                            v-if="schedule.technicians?.length"
                             class="flex flex-col text-xs gap-1"
                         >
-                            <p>Technician</p>
+                            <p>{{ schedule.technicians.length > 1 ? "Technicians" : "Technician" }}</p>
                             <p class="flex gap-1 items-center">
-                                {{ schedule.technician.name }}
+                                {{ technicianNames(schedule) }}
                             </p>
                         </div>
                     </div>
@@ -576,31 +587,31 @@ const handleMeetingSubmit = () => {
                         </Select>
                     </div>
 
-                    <!-- Technician (optional) — the tenant's appointment text
-                         attaches this technician's photo -->
+                    <!-- Technicians (optional) — tick everyone going; the
+                         tenant's appointment text names each and attaches
+                         their photos -->
                     <div v-if="technicianOptions.length" class="space-y-2">
-                        <Label class="text-sm font-medium">Technician</Label>
-                        <Select v-model="serviceScheduleForm.technician_id">
-                            <SelectTrigger class="w-full">
-                                <SelectValue placeholder="Select a technician (optional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="none">No technician</SelectItem>
-                                    <template
-                                        v-for="technician in technicianOptions"
-                                        :key="technician.id"
-                                    >
-                                        <SelectItem :value="String(technician.id)">
-                                            {{ technician.name }}{{ technician.has_photo ? "" : " (no photo on file)" }}
-                                        </SelectItem>
-                                    </template>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
+                        <Label class="text-sm font-medium">Technicians</Label>
+                        <div class="max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
+                            <label
+                                v-for="technician in technicianOptions"
+                                :key="technician.id"
+                                :for="`schedule-technician-${technician.id}`"
+                                class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-secondary"
+                            >
+                                <Checkbox
+                                    :id="`schedule-technician-${technician.id}`"
+                                    :checked="isTechnicianChosen(technician.id)"
+                                    @update:checked="(checked) => toggleTechnician(technician.id, checked)"
+                                />
+                                <span>
+                                    {{ technician.name }}<span v-if="!technician.has_photo" class="text-muted-foreground"> (no photo on file)</span>
+                                </span>
+                            </label>
+                        </div>
                         <p class="text-xs text-muted-foreground">
-                            The tenant's appointment text includes their name and
-                            photo, so the tenant knows who to expect.
+                            Optional. The tenant's appointment text includes their
+                            names and photos, so the tenant knows who to expect.
                         </p>
                     </div>
 

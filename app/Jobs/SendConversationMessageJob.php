@@ -20,11 +20,16 @@ class SendConversationMessageJob implements ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [60, 180, 300];
 
+    /**
+     * @param  string|list<string>|null  $mediaUrl  one media link, or several (a
+     *                                              schedule with two technicians
+     *                                              sends both photos)
+     */
     public function __construct(
         protected string $to,
         protected string $from,
         protected string $message,
-        protected ?string $mediaUrl = null,
+        protected string|array|null $mediaUrl = null,
         protected ?int $conversationId = null,
     ) {}
 

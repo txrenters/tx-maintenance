@@ -79,7 +79,7 @@ class TenantAppointmentNotificationService
     {
         $serviceSchedule->loadMissing([
             'vendor.user',
-            'technician',
+            'technicians',
             'work_order.requested_by',
             'work_order.building',
             'work_order.woc.wocNumber.twilioPhoneNumber',
@@ -95,10 +95,10 @@ class TenantAppointmentNotificationService
         $tenantNumber = $this->toE164($tenant?->mobile_phone ?: $tenant?->home_phone);
         $fromNumber = $this->fromNumber($workOrder);
 
-        $technicianPhoto = $this->technicianPhoto($serviceSchedule);
+        $technicianPhotos = $this->technicianPhotos($serviceSchedule);
 
         $message = TenantMessageFormatter::compose(
-            $this->message($serviceSchedule, $workOrder, $technicianPhoto !== null),
+            $this->message($serviceSchedule, $workOrder, count($technicianPhotos)),
             $workOrder->work_order_no ?? $workOrder->id,
             $this->portalLinks->link($workOrder),
         );
@@ -112,16 +112,16 @@ class TenantAppointmentNotificationService
             'work_order_id' => $workOrder->id,
             'conversation_type' => 'tenant',
             'is_read' => true,
-            'is_mms' => $technicianPhoto !== null,
+            'is_mms' => $technicianPhotos !== [],
         ]);
 
-        // Attach the chosen technician's photo so the tenant recognizes who
-        // is coming. The media row reuses the roster file (no copy) and its
+        // Attach each chosen technician's photo so the tenant recognizes who
+        // is coming. A media row reuses the roster file (no copy) and its
         // signed URL is what Twilio fetches; the thread displays it too.
-        $mediaUrl = null;
+        $mediaUrls = [];
 
-        if ($technicianPhoto !== null) {
-            $mediaUrl = ConversationMedia::create([
+        foreach ($technicianPhotos as $technicianPhoto) {
+            $mediaUrls[] = ConversationMedia::create([
                 'message_id' => $conversation->id,
                 'original_url' => '',
                 'local_path' => $technicianPhoto['path'],
@@ -134,7 +134,7 @@ class TenantAppointmentNotificationService
             return;
         }
 
-        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, $mediaUrl, $conversation->id);
+        SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $message, $mediaUrls ?: null, $conversation->id);
 
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
@@ -155,19 +155,23 @@ class TenantAppointmentNotificationService
     private const ACCESS_LINE = 'Please make sure someone 18 or older is home to let the technician in.';
 
     /**
-     * The tenant-facing appointment message. A schedule with a chosen
-     * technician sends the THMP Technician Visit Reminder (their photo rides
-     * along when one is on file); otherwise the standard vendor appointment
-     * message goes out as it always has, minus the be-home line when the
-     * vendor is THMP.
+     * The tenant-facing appointment message. A schedule with chosen
+     * technicians sends the THMP Technician Visit Reminder naming each of
+     * them (their photos ride along when on file); otherwise the standard
+     * vendor appointment message goes out as it always has, minus the
+     * be-home line when the vendor is THMP.
      */
-    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, bool $photoAttached): string
+    private function message(ServiceSchedule $serviceSchedule, WorkOrder $workOrder, int $photosAttached): string
     {
         $name = trim((string) ($workOrder->requested_by?->first_name ?? ''));
         $address = $workOrder->propertyAddress();
-        $technicianName = trim((string) ($serviceSchedule->technician?->name ?? ''));
+        $technicianNames = $serviceSchedule->technicians
+            ->map(fn (Technician $technician): string => trim((string) $technician->name))
+            ->filter()
+            ->values()
+            ->all();
 
-        if ($technicianName !== '') {
+        if ($technicianNames !== []) {
             $when = $this->formatAppointmentShort($serviceSchedule);
             $workOrderLabel = trim((string) ($workOrder->type ?: str($workOrder->description ?? '')->limit(60)));
 
@@ -176,10 +180,13 @@ class TenantAppointmentNotificationService
                 'property' => $address !== null ? ' at '.$address : '',
                 'date_line' => $when !== '' ? "Date: {$when}" : '',
                 'work_order_line' => $workOrderLabel !== '' ? "Work Order: {$workOrderLabel}" : '',
-                'technician_name' => $technicianName,
-                'photo_line' => $photoAttached
-                    ? 'A photo of the technician assigned to your work order is attached for your reference.'
-                    : '',
+                'technician_label' => count($technicianNames) > 1 ? 'Assigned Technicians' : 'Assigned Technician',
+                'technician_name' => $this->joinNames($technicianNames),
+                'photo_line' => match (true) {
+                    $photosAttached > 1 => 'Photos of the technicians assigned to your work order are attached for your reference.',
+                    $photosAttached === 1 => 'A photo of the technician assigned to your work order is attached for your reference.',
+                    default => '',
+                },
             ]);
         }
 
@@ -217,21 +224,50 @@ class TenantAppointmentNotificationService
     private const MMS_SAFE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
 
     /**
-     * The chosen technician's photo, when there is one on disk to attach.
-     * A missing file or a carrier-unfriendly type quietly downgrades the
-     * message to plain text instead of producing a Twilio media error.
+     * "Kevin Cole", "Kevin Cole and Emanuel Hall", "A, B and C".
      *
-     * @return array{path: string, content_type: string, file_name: string}|null
+     * @param  list<string>  $names
      */
-    private function technicianPhoto(ServiceSchedule $serviceSchedule): ?array
+    private function joinNames(array $names): string
     {
-        $technician = $serviceSchedule->technician;
-
-        if (! $technician instanceof Technician || ! $technician->hasPhoto()) {
-            return null;
+        if (count($names) <= 1) {
+            return $names[0] ?? '';
         }
 
-        if (! Storage::exists($technician->photo_path)) {
+        $last = array_pop($names);
+
+        return implode(', ', $names).' and '.$last;
+    }
+
+    /**
+     * The chosen technicians' photos, one per technician with a file on
+     * disk to attach. A missing file or a carrier-unfriendly type quietly
+     * leaves that technician's photo out instead of producing a Twilio
+     * media error; with none left the message stays a plain text.
+     *
+     * @return list<array{path: string, content_type: string, file_name: string}>
+     */
+    private function technicianPhotos(ServiceSchedule $serviceSchedule): array
+    {
+        $photos = [];
+
+        foreach ($serviceSchedule->technicians as $technician) {
+            $photo = $this->technicianPhoto($technician);
+
+            if ($photo !== null) {
+                $photos[] = $photo;
+            }
+        }
+
+        return $photos;
+    }
+
+    /**
+     * @return array{path: string, content_type: string, file_name: string}|null
+     */
+    private function technicianPhoto(Technician $technician): ?array
+    {
+        if (! $technician->hasPhoto() || ! Storage::exists($technician->photo_path)) {
             return null;
         }
 

@@ -56,7 +56,10 @@ class TenantAppointmentNotificationTest extends TestCase
         ]);
     }
 
-    private function makeSchedule(?Tenants $tenant = null, string $status = 'scheduled', ?Technician $technician = null, ?Vendor $vendor = null): ServiceSchedule
+    /**
+     * @param  Technician|list<Technician>|null  $technician
+     */
+    private function makeSchedule(?Tenants $tenant = null, string $status = 'scheduled', Technician|array|null $technician = null, ?Vendor $vendor = null): ServiceSchedule
     {
         $workOrder = WorkOrder::factory()->create([
             'status' => 'Open',
@@ -64,26 +67,30 @@ class TenantAppointmentNotificationTest extends TestCase
             'tenant_id' => ($tenant ?? $this->makeTenant())->id,
         ]);
 
-        return ServiceSchedule::query()->create([
+        $schedule = ServiceSchedule::query()->create([
             'title' => 'Water heater',
             'scheduled_date' => now()->addDays(3)->setTime(9, 0),
             'status' => $status,
             'work_order_id' => $workOrder->id,
             'vendor_id' => ($vendor ?? $this->makeVendor())->id,
-            'technician_id' => $technician?->id,
         ]);
+
+        $technicians = $technician instanceof Technician ? [$technician] : ($technician ?? []);
+        $schedule->setTechnicians(array_map(fn (Technician $chosen): int => $chosen->id, $technicians));
+
+        return $schedule;
     }
 
     private const ACCESS_LINE = 'Please make sure someone 18 or older is home to let the technician in.';
 
-    private function makeTechnician(bool $withPhoto): Technician
+    private function makeTechnician(bool $withPhoto, string $name = 'Kevin Cole', string $file = 'kevin.jpg'): Technician
     {
-        $attributes = ['name' => 'Kevin Cole'];
+        $attributes = ['name' => $name];
 
         if ($withPhoto) {
-            Storage::put('technician-photos/kevin.jpg', 'jpeg-bytes');
+            Storage::put('technician-photos/'.$file, 'jpeg-bytes');
             $attributes += [
-                'photo_path' => 'technician-photos/kevin.jpg',
+                'photo_path' => 'technician-photos/'.$file,
                 'photo_content_type' => 'image/jpeg',
             ];
         }
@@ -92,9 +99,12 @@ class TenantAppointmentNotificationTest extends TestCase
     }
 
     /**
-     * The mediaUrl the queued job would hand Twilio (a protected property).
+     * The media link(s) the queued job would hand Twilio (a protected
+     * property): one URL, a list of URLs, or null for a plain text.
+     *
+     * @return string|list<string>|null
      */
-    private function jobMediaUrl(SendConversationMessageJob $job): ?string
+    private function jobMediaUrl(SendConversationMessageJob $job): string|array|null
     {
         $property = new \ReflectionProperty($job, 'mediaUrl');
 
@@ -293,8 +303,61 @@ class TenantAppointmentNotificationTest extends TestCase
         $this->assertSame('image/jpeg', $media->content_type);
 
         Queue::assertPushed(SendConversationMessageJob::class, function (SendConversationMessageJob $job) use ($media): bool {
-            return $this->jobMediaUrl($job) === $media->public_url;
+            return $this->jobMediaUrl($job) === [$media->public_url];
         });
+    }
+
+    public function test_two_technicians_are_both_named_and_both_photos_go_out(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+        Storage::fake();
+
+        // THMP sometimes sends two on one visit.
+        $schedule = $this->makeSchedule(technician: [
+            $this->makeTechnician(withPhoto: true),
+            $this->makeTechnician(withPhoto: true, name: 'Emanuel Hall', file: 'emanuel.jpg'),
+        ]);
+
+        $this->notify($schedule);
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertTrue((bool) $message->is_mms);
+        $this->assertStringContainsString('Assigned Technicians: Emanuel Hall and Kevin Cole', $message->message);
+        $this->assertStringContainsString('Photos of the technicians assigned to your work order are attached', $message->message);
+        $this->assertStringNotContainsString('A photo of the technician', $message->message);
+
+        $media = ConversationMedia::query()->where('message_id', $message->id)->orderBy('id')->get();
+        $this->assertSame(
+            ['technician-photos/emanuel.jpg', 'technician-photos/kevin.jpg'],
+            $media->pluck('local_path')->all(),
+        );
+
+        Queue::assertPushed(SendConversationMessageJob::class, function (SendConversationMessageJob $job) use ($media): bool {
+            return $this->jobMediaUrl($job) === $media->pluck('public_url')->all();
+        });
+    }
+
+    public function test_two_technicians_with_one_photo_between_them_name_both_and_attach_the_one(): void
+    {
+        config(['services.twilio.tenant_schedule_sms' => true]);
+        Queue::fake();
+        Storage::fake();
+
+        $schedule = $this->makeSchedule(technician: [
+            $this->makeTechnician(withPhoto: true),
+            $this->makeTechnician(withPhoto: false, name: 'Emanuel Hall'),
+        ]);
+
+        $this->notify($schedule);
+
+        $message = Conversation::query()->where('conversation_type', 'tenant')->firstOrFail();
+
+        $this->assertTrue((bool) $message->is_mms);
+        $this->assertStringContainsString('Assigned Technicians: Emanuel Hall and Kevin Cole', $message->message);
+        $this->assertStringContainsString('A photo of the technician assigned to your work order is attached', $message->message);
+        $this->assertDatabaseCount('work_order_conversation_medias', 1);
     }
 
     public function test_a_technician_without_a_photo_adds_the_name_but_stays_a_plain_text(): void

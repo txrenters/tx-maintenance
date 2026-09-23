@@ -311,14 +311,15 @@ class AutomatedMessageTemplates
             'group' => null,
             'channel' => 'sms',
             'audience' => 'tenant',
-            'sends_when' => 'Texted to the tenant INSTEAD of the standard appointment message when a technician is chosen on the service schedule. Their photo is attached when one is on file. The portal link and sign-off are added automatically below this text.',
+            'sends_when' => 'Texted to the tenant INSTEAD of the standard appointment message when one or more technicians are chosen on the service schedule. Each technician\'s photo is attached when one is on file. The portal link and sign-off are added automatically below this text.',
             'tokens' => [
                 'greeting' => '"Hi <first name>!" or "Hi!" when no name is on file',
                 'property' => '" at <street address>" or empty when no address is on file',
                 'date_line' => '"Date: <mm/dd/yyyy, and time if one was set>" or empty when no date is set',
                 'work_order_line' => '"Work Order: <type or description>" or empty when neither is on file',
-                'technician_name' => "The assigned technician's name",
-                'photo_line' => '"A photo of the technician assigned to your work order is attached for your reference." or empty when no photo is on file',
+                'technician_label' => '"Assigned Technician" for one technician, "Assigned Technicians" for several',
+                'technician_name' => 'The assigned technician\'s name, or the names joined ("Emanuel Hall and Kevin Cole") when several are chosen',
+                'photo_line' => '"A photo of the technician assigned to your work order is attached for your reference." (plural wording when several photos are attached) or empty when no photo is on file',
             ],
             'required' => ['technician_name'],
             'sample' => [
@@ -326,6 +327,7 @@ class AutomatedMessageTemplates
                 'property' => ' at 123 Main St',
                 'date_line' => 'Date: 08/27/2026',
                 'work_order_line' => 'Work Order: Tenant Benefit Package',
+                'technician_label' => 'Assigned Technician',
                 'technician_name' => 'Emanuel Hall',
                 'photo_line' => 'A photo of the technician assigned to your work order is attached for your reference.',
             ],
@@ -335,7 +337,7 @@ class AutomatedMessageTemplates
                 ."This is a reminder from THMP regarding the scheduled technician visit at your property{property}.\n\n"
                 ."{date_line}\n"
                 ."{work_order_line}\n"
-                ."Assigned Technician: {technician_name}\n\n"
+                ."{technician_label}: {technician_name}\n\n"
                 ."{photo_line}\n\n"
                 ."Please make sure our technician can access the property at the scheduled time to avoid unnecessary rescheduling and penalties.\n\n"
                 .'Thank you for your cooperation!',

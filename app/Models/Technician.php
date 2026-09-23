@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * An in-house field technician's profile: who they are, what they do,
@@ -63,6 +64,15 @@ class Technician extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * The service schedules this technician was named on.
+     */
+    public function serviceSchedules(): BelongsToMany
+    {
+        return $this->belongsToMany(ServiceSchedule::class, 'service_schedule_technicians', 'technician_id', 'service_schedule_id')
+            ->withTimestamps();
     }
 
     /**

@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-23',
+            'area' => 'Work Orders',
+            'title' => 'A service schedule can name more than one technician',
+            'description' => 'THMP sometimes sends two technicians on one visit, and the Create/Edit Service Schedule window only let you pick one. The Technician dropdown is now a list with a box beside each name: tick everyone who is going. The schedule card lists all of them, and the tenant\'s automatic THMP Technician Visit Reminder names each one - "Assigned Technicians: Kevin Cole and Emanuel Hall" - with each technician\'s photo attached when one is on file. Schedules set before today keep the technician they had, and ticking nobody still sends the standard appointment message exactly as before.',
+        ],
+        [
             'date' => '2026-09-18',
             'area' => 'Owner Portal',
             'title' => 'An owner approving in the portal now approves it in PropertyWare too, under their name',
@@ -174,7 +180,7 @@ class FeatureUpdatesController extends Controller
             'date' => '2026-09-02',
             'area' => 'People',
             'title' => 'A Technicians page, and tenant appointment texts that carry the technician\'s photo',
-            'description' => 'The People menu has a new Technicians page: the in-house roster as profile cards - photo, name, specialty, role - where clicking a card opens the full profile (photo upload, phone, email, bio, active). And on a work order, the Create/Edit Service Schedule window has an optional Technician dropdown: pick who is going and the tenant\'s automatic appointment text becomes the THMP Technician Visit Reminder - the date, the work order, "Assigned Technician: <name>" - with that technician\'s photo attached as a picture message, so the tenant recognizes who is at their door. The wording is editable under IT Tools, Automated Messages ("THMP technician visit"). Photos are JPG or PNG up to 2 MB - the sizes and types phone carriers reliably deliver. Picking nobody sends the standard appointment message exactly as before, and all the existing rules still apply: the per-work-order automation mute, and no automated texts on turnover, re-key, refresh-cleaning or vacant homes.',
+            'description' => 'The People menu has a new Technicians page: the in-house roster as profile cards - photo, name, specialty, role - where clicking a card opens the full profile (photo upload, phone, email, bio, active). And on a work order, the Create/Edit Service Schedule window has an optional Technician pick: choose who is going and the tenant\'s automatic appointment text becomes the THMP Technician Visit Reminder - the date, the work order, "Assigned Technician: <name>" - with that technician\'s photo attached as a picture message, so the tenant recognizes who is at their door. The wording is editable under IT Tools, Automated Messages ("THMP technician visit"). Photos are JPG or PNG up to 2 MB - the sizes and types phone carriers reliably deliver. Picking nobody sends the standard appointment message exactly as before, and all the existing rules still apply: the per-work-order automation mute, and no automated texts on turnover, re-key, refresh-cleaning or vacant homes.',
         ],
         [
             'date' => '2026-09-02',
