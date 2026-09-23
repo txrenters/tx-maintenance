@@ -167,6 +167,73 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Move an invoice that was uploaded against the wrong work order.
+     *
+     * Office only. The invoice row keeps everything else (vendor, amount,
+     * status, posted mark, file) and only changes work order. PropertyWare
+     * gets a fresh copy of the document on the new work order, because the
+     * original upload attached it to the old one and PropertyWare never hands
+     * back a document id we could move; the old copy stays there.
+     */
+    public function transfer(Request $request, Invoice $invoice)
+    {
+        $user = User::find(auth()->id());
+
+        abort_unless($user->hasRole('admin') || $user->hasRole('woc'), 403, 'Unauthorized to transfer this invoice.');
+
+        $validated = $request->validate([
+            'work_order_id' => ['required', 'integer', 'exists:work_orders,id'],
+        ]);
+
+        $fromWorkOrder = WorkOrder::withoutGlobalScopes()->find($invoice->work_order_id);
+        $toWorkOrder = WorkOrder::withoutGlobalScopes()->find($validated['work_order_id']);
+
+        if ($toWorkOrder->id === $invoice->work_order_id) {
+            return redirect()->back()->withErrors(['work_order_id' => 'The invoice is already on that work order.']);
+        }
+
+        try {
+            $invoice->update(['work_order_id' => $toWorkOrder->id]);
+
+            $copiedToPropertyWare = app(PropertyWareService::class)->uploadVendorInvoice($toWorkOrder->id, $invoice->fresh());
+
+            activity('invoice')
+                ->causedBy($user)
+                ->performedOn($invoice)
+                ->withProperties([
+                    'title' => $invoice->title,
+                    'invoice_number' => $invoice->invoice_number,
+                    'from_work_order_id' => $fromWorkOrder?->id,
+                    'from_work_order_no' => $fromWorkOrder?->work_order_no,
+                    'to_work_order_id' => $toWorkOrder->id,
+                    'to_work_order_no' => $toWorkOrder->work_order_no,
+                    'copied_to_propertyware' => (bool) $copiedToPropertyWare,
+                ])
+                ->log('transferred');
+
+            // Same rule as an upload: an invoice landing on a turnover work
+            // order is billed through Operation Accounting.
+            if ($toWorkOrder->isTurnover()) {
+                NotifyOperationAccountingOfTurnoverInvoice::dispatch($invoice->id);
+            }
+
+            $message = 'Invoice moved to WO #'.$toWorkOrder->work_order_no.'.';
+
+            if (! $copiedToPropertyWare) {
+                return redirect()->back()
+                    ->with('success', $message)
+                    ->with('warning', 'The copy could not be sent to PropertyWare; attach the file to WO #'.$toWorkOrder->work_order_no.' there by hand.');
+            }
+
+            return redirect()->back()->with('success', $message);
+        } catch (\Throwable $th) {
+            Log::error('Error transferring invoice:', ['error' => $th->getMessage()]);
+
+            return redirect()->back()->withErrors(['error' => 'Error transferring invoice']);
+        }
+    }
+
+    /**
      * Put an archived invoice back. Office only: a vendor may archive their
      * own upload but must not be able to reinstate one the office filed away.
      */

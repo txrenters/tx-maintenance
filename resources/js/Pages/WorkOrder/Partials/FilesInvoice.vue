@@ -21,6 +21,7 @@ const emit = defineEmits([
     "deleteImage",
     "updateInvoice",
     "archiveInvoice",
+    "transferInvoice",
 ]);
 
 const openImageModal = (image) => {
@@ -253,6 +254,12 @@ const formatDate = (date) => {
                             @click="() => updateInvoice(file, 'decline')"
                         >
                             Mark as Declined
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            class="cursor-pointer hover:bg-secondary"
+                            @click="() => emit('transferInvoice', file)"
+                        >
+                            Transfer to another WO
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
