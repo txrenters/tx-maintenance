@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\WorkOrder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,6 +15,7 @@ class OwnerServiceRequestNotificationService
     public function __construct(
         private OwnerPortalLinkService $portalLinks,
         private TenantEasyFixService $easyFix,
+        private OwnerWorkOrderEmailSender $emails,
     ) {}
 
     /**
@@ -27,6 +29,11 @@ class OwnerServiceRequestNotificationService
      * order our team entered in PropertyWare: one text saying so, with the
      * description inline. Either way this is a one-way notification — any
      * reply lands in the same thread for a coordinator to handle.
+     *
+     * An owner with no phone on file gets the same notice as one email
+     * instead (confirmation and description together, same portal link), so
+     * the half of owners PropertyWare holds without a phone are not left
+     * silent.
      *
      * Gated off by default, fired at most once per work order, and wrapped so a
      * failure is logged but never breaks intake.
@@ -89,13 +96,20 @@ class OwnerServiceRequestNotificationService
 
         // Every owner on the work order, any ownership percentage (0% owners
         // are usually spouses or the humans behind a phoneless LLC), shared
-        // numbers de-duplicated.
-        $owners = $workOrder->notifiableOwners();
+        // numbers de-duplicated. Owners with no phone but an email are
+        // emailed instead; owners with neither get nothing.
+        $textOwners = $workOrder->notifiableOwners();
+        $emailOwners = $this->emailFallbackOwners($workOrder);
         $fromNumber = $this->fromNumber($workOrder);
 
-        // No usable numbers: nothing to text (mirrors the live vendor-assignment
+        // Nothing to send from: leave the stamp clear so the texts still go
+        // out once a number is configured (mirrors the live vendor-assignment
         // owner notification, which also skips silently).
-        if ($owners->isEmpty() || blank($fromNumber)) {
+        if ($textOwners->isNotEmpty() && blank($fromNumber)) {
+            return;
+        }
+
+        if ($textOwners->isEmpty() && $emailOwners->isEmpty()) {
             return;
         }
 
@@ -122,7 +136,7 @@ class OwnerServiceRequestNotificationService
         $verdict = $this->easyFix->assess($workOrder);
         $easyFix = ! $staffCreated && $this->easyFix->tenantWillBeTold($workOrder, $verdict);
 
-        foreach ($owners as $owner) {
+        foreach ($textOwners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
 
             if ($ownerNumber === null) {
@@ -167,6 +181,43 @@ class OwnerServiceRequestNotificationService
                 $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $description);
             }
         }
+
+        foreach ($emailOwners as $owner) {
+            $this->email($workOrder, $owner, $address, $staffCreated, $easyFix, $verdict);
+        }
+    }
+
+    /**
+     * The owners this notice reaches by email: those with no usable phone but
+     * a real email address, one per address (a couple sharing an inbox gets a
+     * single email). Empty when the email fallback is switched off.
+     *
+     * @return Collection<int, Owner>
+     */
+    private function emailFallbackOwners(WorkOrder $workOrder): Collection
+    {
+        if (! config('services.work_order.owner_intake_email')) {
+            return collect();
+        }
+
+        return $workOrder->owners
+            ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership)
+            ->filter(fn (Owner $owner): bool => $workOrder->normalizedOwnerPhone($owner) === null)
+            ->filter(fn (Owner $owner): bool => $this->ownerEmail($owner) !== null)
+            ->unique(fn (Owner $owner): string => (string) $this->ownerEmail($owner))
+            ->values();
+    }
+
+    /**
+     * The owner's email address, lower-cased, or null when blank or not an
+     * address at all (PropertyWare sends "" rather than null, and the odd
+     * placeholder).
+     */
+    private function ownerEmail(Owner $owner): ?string
+    {
+        $email = strtolower(trim((string) $owner->email));
+
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : null;
     }
 
     /**
@@ -198,6 +249,72 @@ class OwnerServiceRequestNotificationService
             $workOrder,
             $message,
             ['owner_id' => $owner->id, 'conversation_id' => $conversation->id] + $extra,
+        );
+    }
+
+    /**
+     * The email twin of the texts for an owner with no phone on file: the
+     * same editable wording (the created-by-our-team text, or the
+     * confirmation with the request description under it) with their portal
+     * link as a button, from the work-orders mailbox, recorded on the owner's
+     * email history like the vendor-assignment email.
+     *
+     * @param  array<string, mixed>|null  $verdict  the easy-fix verdict when $easyFix is true
+     */
+    private function email(WorkOrder $workOrder, Owner $owner, string $address, bool $staffCreated, bool $easyFix, ?array $verdict): void
+    {
+        $to = (string) $this->ownerEmail($owner);
+        $reference = $workOrder->work_order_no ?? $workOrder->id;
+
+        $body = match (true) {
+            $staffCreated => $this->createdMessage($workOrder, $owner, $address),
+            $easyFix => $this->easyFixConfirmation($workOrder, $address, $verdict['item']),
+            default => $this->confirmationMessage($workOrder, $address),
+        };
+
+        $subject = $workOrder->subjectWithProperty(
+            ($staffCreated ? 'A work order has been created - Work Order #' : 'New service request - Work Order #').$reference,
+        );
+
+        $html = view('emails.owner-service-request', [
+            'workOrder' => $workOrder,
+            'owner' => $owner,
+            'body' => $body,
+            'staffCreated' => $staffCreated,
+            // The created-by-our-team wording already carries the description.
+            'description' => $staffCreated ? null : trim((string) $workOrder->description),
+            'portalLink' => $this->portalLinks->link($workOrder, $owner),
+        ])->render();
+
+        $extra = [];
+
+        if ($staffCreated) {
+            $extra['variant'] = 'staff_created';
+        } elseif ($easyFix) {
+            $extra['variant'] = 'easy_fix';
+            $extra['easy_fix_key'] = $verdict['key'];
+        }
+
+        $notification = $this->emails->send(
+            owner: $owner,
+            workOrder: $workOrder,
+            to: $to,
+            mailbox: (string) config('services.microsoft.mailbox'),
+            subject: $subject,
+            html: $html,
+            trustedHtml: true,
+            metadata: ['automation' => 'owner_service_request_email'] + $extra,
+            type: 'service_request',
+        );
+
+        AutomatedMessageLogService::log(
+            AutomatedMessageLogService::CHANNEL_EMAIL,
+            'owner',
+            'owner_service_request_email',
+            $to,
+            $workOrder,
+            $body,
+            ['owner_id' => $owner->id, 'owner_email_notification_id' => $notification->id, 'subject' => $subject] + $extra,
         );
     }
 
