@@ -97,6 +97,7 @@ class DemoTenantEasyFixSeeder extends Seeder
             'services.twilio.tenant_intake_sms' => true,
             'services.twilio.owner_service_request_sms' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
+            'services.twilio.tenant_appliance_sms' => true,
         ]);
         Queue::fake();
 

@@ -633,6 +633,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         config([
             'services.twilio.tenant_intake_sms' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
+            'services.twilio.tenant_appliance_sms' => true,
         ]);
 
         $items = config('tenant_easy_fix.items');

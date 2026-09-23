@@ -152,11 +152,25 @@ class TenantEasyFixService
     }
 
     /**
-     * Whether the easy-fix / tenant-responsibility texts are switched on.
+     * Whether the easy-fix texts (the how-to and its check-ins) are on.
      */
     public function enabled(): bool
     {
         return (bool) config('services.twilio.tenant_easy_fix_sms');
+    }
+
+    /**
+     * Whether the texts for a verdict of this kind are on: the easy-fix
+     * switch for the handbook rows, the separate appliance switch for the
+     * non-realty washer / dryer / refrigerator case.
+     */
+    public function enabledFor(?string $kind): bool
+    {
+        return match ($kind) {
+            TenantEasyFixCriteria::KIND_EASY_FIX => $this->enabled(),
+            TenantEasyFixCriteria::KIND_APPLIANCE => (bool) config('services.twilio.tenant_appliance_sms'),
+            default => false,
+        };
     }
 
     /**
@@ -170,7 +184,7 @@ class TenantEasyFixService
      */
     public function tenantWillBeTold(WorkOrder $workOrder, ?array $verdict): bool
     {
-        if ($verdict === null || ! $verdict['sendable'] || ! $this->enabled()) {
+        if ($verdict === null || ! $verdict['sendable'] || ! $this->enabledFor($verdict['kind'])) {
             return false;
         }
 

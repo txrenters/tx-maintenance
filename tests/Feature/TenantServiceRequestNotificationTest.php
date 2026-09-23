@@ -801,6 +801,7 @@ class TenantServiceRequestNotificationTest extends TestCase
         config([
             'services.twilio.tenant_intake_sms' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
+            'services.twilio.tenant_appliance_sms' => true,
         ]);
 
         $items = config('tenant_easy_fix.items');
@@ -1011,6 +1012,45 @@ class TenantServiceRequestNotificationTest extends TestCase
         );
 
         $this->assertSame(1, Activity::query()->where('event', 'tenant_appliance_responsibility_sms')->count());
+    }
+
+    public function test_the_appliance_texts_have_their_own_switch(): void
+    {
+        // Easy-fix texts on, appliance texts off (Earl 09-23: hold the
+        // non-realty half, ship the easy fixes): a washer request keeps the
+        // "request received" text, the verdict is still recorded, the
+        // status is left alone.
+        $this->enableEasyFix();
+        config(['services.twilio.tenant_appliance_sms' => false]);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Our washing machine will not spin', 'category' => 'Washer']);
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('we have received your service request', $text);
+        $this->assertStringNotContainsString('non-realty', $text);
+
+        $fresh = $workOrder->fresh();
+        $this->assertSame('appliance_washer', $fresh->easy_fix_key);
+        $this->assertNotSame(
+            ServiceStatus::query()->where('name', TenantEasyFixService::APPLIANCE_STATUS)->value('id'),
+            $fresh->service_status_id,
+        );
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_appliance_responsibility_sms')->count());
+
+        // And the other way round: appliance on, easy fix off, a disposal
+        // request keeps "request received" while a washer gets its text.
+        config(['services.twilio.tenant_easy_fix_sms' => false, 'services.twilio.tenant_appliance_sms' => true]);
+
+        $disposal = $this->makeDisposalWorkOrder(['work_order_no' => 43901, 'propertyware_id' => 43900002]);
+        $this->notify($disposal);
+        $this->assertStringContainsString('we have received your service request', $this->tenantMessage($disposal)->message);
+
+        $washer = $this->makeDisposalWorkOrder(['work_order_no' => 43902, 'propertyware_id' => 43900003, 'description' => 'Our washing machine will not spin', 'category' => 'Washer']);
+        $this->notify($washer);
+        $this->assertStringContainsString('non-realty property item', $this->tenantMessage($washer)->message);
     }
 
     public function test_the_status_stays_put_when_propertyware_rejects_it_but_the_text_still_goes(): void

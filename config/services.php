@@ -136,14 +136,20 @@ return [
         // tenant-handled repairs (garbage disposal jammed, light bulb, smoke
         // detector battery, tripped breaker, clogged drain...), the intake
         // text and email tell the tenant how to fix it themselves, with the
-        // handbook's how-to video, instead of "we received your request", and
-        // the owner is told we did that instead of "we will arrange the
-        // estimate". Same for a request about the tenant's own washer, dryer
-        // or refrigerator (told it is their responsibility). Also moves the
-        // work order to the matching service status in PropertyWare. Off by
-        // default until the wording is signed off; the verdict is still
-        // recorded on every new work order while off, so it can be watched.
+        // handbook's how-to video, instead of "we received your request", the
+        // owner is told we did that instead of "we will arrange the
+        // estimate", the work order moves to "Checking for Tenant Easy Fix"
+        // in PropertyWare and the daily check-ins follow. Off by default
+        // until the wording is signed off; the verdict is still recorded on
+        // every new work order while off, so it can be watched.
         'tenant_easy_fix_sms' => env('TENANT_EASY_FIX_SMS_ENABLED', false),
+
+        // The non-realty appliance half of the same feature: a request about
+        // a washer, dryer or refrigerator tells the tenant it is theirs under
+        // the lease, asks the owner whether to cover it, and moves the work
+        // order to "Waiting Tenants Decision - Non Real Property Item". Its
+        // own switch so the easy-fix texts can go live first (Earl, 09-23).
+        'tenant_appliance_sms' => env('TENANT_APPLIANCE_SMS_ENABLED', false),
     ],
 
     'hoa' => [

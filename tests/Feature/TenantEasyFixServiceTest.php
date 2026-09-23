@@ -228,6 +228,15 @@ class TenantEasyFixServiceTest extends TestCase
         // Muted on this work order.
         $workOrder->setAutomationPaused('tenant', true);
         $this->assertFalse($this->service()->tenantWillBeTold($workOrder->fresh(), $verdict));
+
+        // An appliance verdict follows the appliance switch, not the easy-fix one.
+        $washer = $this->makeWorkOrder(['work_order_no' => 43904, 'description' => 'Our washing machine will not spin', 'category' => 'Washer']);
+        $applianceVerdict = $this->service()->assess($washer);
+        $this->assertSame('appliance', $applianceVerdict['kind']);
+        $this->assertFalse($this->service()->tenantWillBeTold($washer, $applianceVerdict));
+
+        config(['services.twilio.tenant_appliance_sms' => true]);
+        $this->assertTrue($this->service()->tenantWillBeTold($washer, $applianceVerdict));
     }
 
     public function test_the_tenant_counts_as_told_by_email_when_they_have_no_phone(): void

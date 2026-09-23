@@ -82,7 +82,7 @@ class TenantWorkOrderEmailSender
             // video (or the tenant-owned appliance note) instead of "we
             // received your request". Same verdict the text uses, same gate.
             $verdict = $this->easyFix->assess($workOrder);
-            $easyFix = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabled()
+            $easyFix = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabledFor($verdict['kind'])
                 ? [
                     'kind' => $verdict['kind'],
                     'key' => $verdict['key'],

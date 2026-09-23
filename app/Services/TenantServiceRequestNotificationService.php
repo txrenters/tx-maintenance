@@ -131,7 +131,7 @@ class TenantServiceRequestNotificationService
         // tenant raised - a work order our team entered keeps the "created
         // by our team" wording.
         $verdict = $this->easyFix->assess($workOrder);
-        $easyFixKind = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabled()
+        $easyFixKind = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabledFor($verdict['kind'])
             ? $verdict['kind']
             : null;
         $automation = match ($easyFixKind) {
