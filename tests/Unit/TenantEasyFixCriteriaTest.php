@@ -115,6 +115,10 @@ class TenantEasyFixCriteriaTest extends TestCase
         $this->assertSame('dishwasher_not_starting', $this->scan('Dishwasher won\'t start at all'));
         $this->assertSame('dishwasher_not_cleaning', $this->scan('Dishes come out dirty every time'));
         $this->assertSame('refrigerator_not_cooling', $this->scan('Refrigerator stopped cooling yesterday'));
+        // WO 44058: no apostrophe, and the freezer rather than the fridge.
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Freezer isnt freezing food properly and ice maker not making ice'));
+        // An ice maker on its own is a water-line job, not the fridge row.
+        $this->assertNull($this->scan('Ice maker not making ice'));
         $this->assertSame('bathroom_fan', $this->scan('Bathroom exhaust fan is really noisy and dusty'));
         $this->assertSame('garage_door', $this->scan('Garage door remote does not open the door anymore'));
         $this->assertSame('stove_burner', $this->scan('Front left stove burner won\'t light, it just clicks'));
