@@ -854,21 +854,31 @@ class PropertyWareService
                 ],
             ]);
 
-            if ($response->status() == 200) {
+            if ($response->successful()) {
                 Log::info('Success in updating work order service status', [
                     'work order' => $workOrder->work_order_no,
                     'status_code' => $response->status(),
                     'headers' => $response->headers(),
                 ]);
+
+                return true;
             }
 
-            return true;
+            // Used to return true whatever PropertyWare answered, so a caller
+            // that writes the status locally only on success could never tell
+            // a rejection from a success.
+            Log::error('Updating service status failed', [
+                'work order' => $workOrder->work_order_no,
+                'status_code' => $response->status(),
+                'body' => $response->body(),
+            ]);
 
-        } catch (Exception $exception) {
             return false;
+        } catch (Exception $exception) {
             Log::error('Updating service status failed: '.$exception);
-        }
 
+            return false;
+        }
     }
 
     public function closeWorkOrder(object $workOrder, $url)

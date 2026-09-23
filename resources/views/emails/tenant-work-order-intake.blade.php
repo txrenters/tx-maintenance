@@ -4,8 +4,13 @@
     // Our team entered the work order in PropertyWare, rather than the tenant
     // submitting it: say so instead of confirming a request they never sent.
     $staffCreated = $staffCreated ?? false;
+    // A tenant easy fix ({label, video_url, tip}): the how-to video instead
+    // of "we received your request".
+    $easyFix = $easyFix ?? null;
+    $isEasyFix = $easyFix !== null;
+    $eyebrow = $staffCreated ? 'New Work Order' : ($isEasyFix ? 'A Quick Fix You Can Try' : 'Service Request Received');
 @endphp
-<x-mail.branded :logo="$logoSrc" :eyebrow="$staffCreated ? 'New Work Order' : 'Service Request Received'" heading="Work Order #{{ $reference }}">
+<x-mail.branded :logo="$logoSrc" :eyebrow="$eyebrow" heading="Work Order #{{ $reference }}">
     <p style="margin:12px 0;">{{ $tenantName ? 'Hi '.$tenantName.',' : 'Hello,' }}</p>
     @if($staffCreated)
     <p style="margin:12px 0;">
@@ -13,6 +18,38 @@
         by our team. Our team will review the request and coordinate the
         necessary next steps, and we will contact you regarding scheduling or
         access if needed.
+    </p>
+    @elseif($isEasyFix)
+    <p style="margin:12px 0;">
+        This is TexasRenters.com Maintenance. We received your request about the
+        {{ $easyFix['label'] }}{{ $property ? ' at '.$property : '' }}. This is
+        usually a quick fix tenants can take care of themselves, so we wanted to
+        save you the wait (and a service call charge).
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+        <tr>
+            <td style="border-radius:8px; background-color:#0284c7;">
+                <a href="{{ $easyFix['video_url'] }}" target="_blank"
+                   style="display:inline-block; padding:13px 30px; font-size:15px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
+                    Watch the how-to video
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="font-size:12px; color:#6b7280; margin:12px 0;">
+        If the button does not work, copy and paste this link into your browser:<br>
+        {{ $easyFix['video_url'] }}
+    </p>
+
+    @if(!empty($easyFix['tip']))
+    <p style="margin:12px 0;">{{ $easyFix['tip'] }}</p>
+    @endif
+
+    <p style="margin:12px 0;">
+        If it still is not working after you try this, reply to this email or
+        add a photo through your link below and we will take it from there.
     </p>
     @else
     <p style="margin:12px 0;">
@@ -61,7 +98,7 @@
         If you have noticed the issue yourself, photos help us get the right
         person out the first time — you can add them through the link above.
     </p>
-    @else
+    @elseif(!$isEasyFix)
     <p style="margin:12px 0;">
         Photos of the issue help us get the right person out the first time, so
         please add them if you can.

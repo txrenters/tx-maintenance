@@ -346,4 +346,56 @@ class WorkOrderRecommendationTest extends TestCase
             ->assertJsonPath('recommendation.issue_type', 'Lockout')
             ->assertJsonPath('recommendation.alternate_vendors.fallback.0.name', 'Express Key');
     }
+
+    public function test_the_heuristic_classification_carries_the_tenant_easy_fix_verdict(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'New',
+            'description' => 'New',
+        ]);
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Garbage disposal is humming but not turning',
+            'type' => 'Repair',
+            'category' => 'Garbage Disposal',
+            'easy_fix_key' => 'disposal_jammed',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        $response->assertOk()
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'disposal_jammed')
+            ->assertJsonMissingPath('recommendation.classification.tenant_responsibility_reason')
+            ->assertJsonPath('recommendation.work_order.easy_fix_key', 'disposal_jammed');
+    }
+
+    public function test_the_heuristic_classification_treats_a_refrigerator_as_an_easy_fix_like_any_other_row(): void
+    {
+        $user = User::factory()->create();
+        $serviceStatus = ServiceStatus::query()->create([
+            'name' => 'New',
+            'description' => 'New',
+        ]);
+
+        $workOrder = WorkOrder::factory()->create([
+            'service_status_id' => $serviceStatus->id,
+            'description' => 'Refrigerator stopped cooling',
+            'type' => 'Repair',
+            'category' => 'Refrigerator',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->post(route('work_orders.recommendation.generate', $workOrder));
+
+        // Whether the fridge is a non-realty item under the lease is the
+        // WOC's call by hand; the rules only see the handbook row.
+        $response->assertOk()
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'refrigerator_not_cooling')
+            ->assertJsonMissingPath('recommendation.classification.tenant_responsibility_reason');
+    }
 }

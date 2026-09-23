@@ -1,0 +1,293 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Ai\TenantEasyFixCriteria;
+use Tests\TestCase;
+
+class TenantEasyFixCriteriaTest extends TestCase
+{
+    private function scan(string $text, ?string $category = null): ?string
+    {
+        return TenantEasyFixCriteria::scan(strtolower($text), $category)['key'] ?? null;
+    }
+
+    public function test_a_jammed_or_humming_disposal_is_handbook_row_6(): void
+    {
+        foreach ([
+            'Garbage disposal is humming but not turning',
+            'The disposal is jammed, something is stuck in it',
+            'Garbage disposal jammed',
+        ] as $text) {
+            $this->assertSame('disposal_jammed', $this->scan($text), $text);
+        }
+    }
+
+    public function test_a_dead_disposal_is_handbook_row_5(): void
+    {
+        foreach ([
+            'disposal stopped working, makes no sound when I flip the switch',
+            'Kitchen garbage disposal not working',
+        ] as $text) {
+            $this->assertSame('disposal_not_working', $this->scan($text), $text);
+        }
+    }
+
+    public function test_the_propertyware_category_alone_matches_a_disposal(): void
+    {
+        $this->assertSame('disposal_not_working', $this->scan('Not working', 'Garbage Disposal'));
+        $this->assertSame('smoke_detector_battery', $this->scan('', 'Smoke Detectors'));
+        $this->assertSame('clogged_sink', $this->scan('', 'Clogged Sink'));
+    }
+
+    public function test_the_library_mirrors_the_handbook_s_26_rows(): void
+    {
+        $this->assertCount(26, TenantEasyFixCriteria::items());
+
+        // Rows that overlap the emergency / gas rules carry no video and are
+        // never texted.
+        foreach (['water_heater_pilot', 'ac_heat_not_working', 'furnace_not_working'] as $key) {
+            $this->assertNull(TenantEasyFixCriteria::items()[$key]['video_url'], $key);
+        }
+
+        // Rows 3, 21-24 and 26 had search-page (or copied) links in the
+        // sheet; Earl supplied real videos for them on 2026-09-23.
+        foreach (['light_bulb', 'dryer_not_heating', 'washer_not_starting', 'garage_door', 'water_shutoff_valve', 'stove_burner'] as $key) {
+            $this->assertTrue(TenantEasyFixCriteria::isSendable($key), $key);
+        }
+
+        foreach (TenantEasyFixCriteria::items() as $key => $item) {
+            $this->assertStringNotContainsString('results?search_query', (string) $item['video_url'], $key);
+        }
+    }
+
+    public function test_a_light_fixture_category_alone_is_not_a_bulb(): void
+    {
+        // Fixture repair is a vendor job; only a bulb in the text qualifies.
+        $this->assertNull($this->scan('Light in the hallway not working', 'Light Fixture'));
+        $this->assertSame('light_bulb', $this->scan('Light bulb in the hallway burned out', 'Light Fixture'));
+    }
+
+    public function test_a_leaking_disposal_is_not_an_easy_fix(): void
+    {
+        foreach ([
+            'Garbage disposal leaking under the sink',
+            'Disposal is dripping water into the cabinet',
+            'The garbage disposal leaks when I run it',
+            'Disposal jammed and there is water under the sink',
+        ] as $text) {
+            $this->assertNull($this->scan($text), $text);
+        }
+    }
+
+    public function test_hazards_and_emergencies_are_never_easy_fixes(): void
+    {
+        foreach ([
+            'Garbage disposal sparking when turned on',
+            'Breaker tripped and there is a burning smell from the panel',
+            'Smoke detector going off, smoke coming from the kitchen',
+            'Breaker tripped, no power in the house at all',
+            'Disposal jammed and the AC is completely out, no a/c in this heat',
+        ] as $text) {
+            $this->assertNull($this->scan($text), $text);
+        }
+    }
+
+    public function test_a_fix_the_tenant_already_tried_is_not_repeated(): void
+    {
+        $this->assertNull($this->scan('Disposal humming, already tried the reset button'));
+        $this->assertNull($this->scan('Breaker keeps tripping every time I turn on the dryer'));
+    }
+
+    public function test_the_other_handbook_items_match_their_wording(): void
+    {
+        $this->assertSame('smoke_detector_battery', $this->scan('Smoke detector chirping every minute in the hallway'));
+        $this->assertSame('tripped_breaker', $this->scan('Power lost to part of the house, the bedroom lights and outlets are out'));
+        $this->assertSame('gfci_outlet', $this->scan('Bathroom outlet stopped working, the GFCI one'));
+        $this->assertSame('faucet_aerator', $this->scan('Kitchen faucet has very low water pressure, just a trickle'));
+        $this->assertSame('clogged_sink', $this->scan('Bathroom sink is draining very slowly'));
+        $this->assertSame('slow_shower_drain', $this->scan('The shower drain is slow, water pools around my feet'));
+        $this->assertSame('clogged_toilet', $this->scan('Toilet is clogged and will not flush'));
+        $this->assertSame('running_toilet', $this->scan('The toilet keeps running after flushing'));
+        $this->assertSame('thermostat_batteries', $this->scan('Thermostat screen is blank'));
+        $this->assertSame('hvac_filter', $this->scan('Need a new air filter for the AC, the old one is dirty'));
+        $this->assertSame('dishwasher_not_draining', $this->scan('Dishwasher not draining, water in the bottom after every cycle'));
+        $this->assertSame('dishwasher_not_starting', $this->scan('Dishwasher won\'t start at all'));
+        $this->assertSame('dishwasher_not_cleaning', $this->scan('Dishes come out dirty every time'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Refrigerator stopped cooling yesterday'));
+        // WO 44058: no apostrophe, and the freezer rather than the fridge.
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Freezer isnt freezing food properly and ice maker not making ice'));
+        // An ice maker on its own is a water-line job, not the fridge row.
+        $this->assertNull($this->scan('Ice maker not making ice'));
+        $this->assertSame('bathroom_fan', $this->scan('Bathroom exhaust fan is really noisy and dusty'));
+        $this->assertSame('garage_door', $this->scan('Garage door remote does not open the door anymore'));
+        $this->assertSame('stove_burner', $this->scan('Front left stove burner won\'t light, it just clicks'));
+        $this->assertSame('water_shutoff_valve', $this->scan('No water to the toilet, the tank will not fill'));
+    }
+
+    public function test_the_recognised_only_rows_are_not_sendable(): void
+    {
+        $this->assertSame('ac_heat_not_working', $this->scan('AC not cooling very well'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('ac_heat_not_working'));
+
+        $this->assertSame('furnace_not_working', $this->scan('Furnace not turning on'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('furnace_not_working'));
+
+        $this->assertSame('water_heater_pilot', $this->scan('Water heater pilot light went out'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
+
+        // "Not heating" on a dryer or an oven is not the AC/heat row.
+        $this->assertNotSame('ac_heat_not_working', $this->scan('Dryer is not heating anymore'));
+        $this->assertNotSame('ac_heat_not_working', $this->scan('Oven not heating up to temperature'));
+
+        // A dead AC in summer or no heat in a freeze stays an emergency.
+        $this->assertNull($this->scan('No AC at all, the house is 95 degrees'));
+        $this->assertNull($this->scan('No heat and it is freezing outside'));
+    }
+
+    public function test_a_clogged_toilet_that_overflows_or_is_the_only_one_is_not(): void
+    {
+        $this->assertNull($this->scan('Toilet clogged and overflowing onto the floor'));
+        $this->assertNull($this->scan('Toilet is clogged, it is the only toilet in the house'));
+    }
+
+    /**
+     * Real descriptions the first audit over local data matched wrongly.
+     */
+    public function test_the_audit_s_false_positives_stay_out(): void
+    {
+        foreach ([
+            'Clogged roof gutters. The water over flow.',
+            'The sink drainer is clogged badly - smells, water is not coming through. The stopper is falling apart as it is last century old.',
+            'We cant use microwave. It always gives issues for the breaker so idk if that has anything to do with it.',
+            'Smoke alarm isnt fitted correctly, can it be moved to the correct spot',
+            'Microwave shorts out the breaker and has no handle. Stove vent just vents right back into the kitchen. Backyard fence in need of repair.',
+            'Its been 2 weeks, and doorbell wiring and garbage disposal work orders still havent been serviced',
+            'A/C filter grid cover needs to properly mounted or replaced. Keeps falling as it is being held with weak magnets',
+            'The master shower is draining slowly. I can get it to go down with a plunger, but the problem is getting worse with time.',
+            'Sink in guest bathroom is stopped up. Seems as though water backup. Main bathroom shower head is spewing water. Air filters need to get replaced since',
+        ] as $text) {
+            $this->assertNull($this->scan($text), $text);
+        }
+    }
+
+    public function test_a_long_multi_issue_description_never_gets_the_one_item_text(): void
+    {
+        $list = 'The garbage disposal is not working and the kitchen sink is clogged on the side with the garbage disposal. '
+            .'Also, the movers arrived and while they were bringing in the couch they scratched the hallway wall, the second bedroom door does not close, '
+            .'the blinds in the living room are missing two slats, the back gate latch is loose, the patio light does not come on, '
+            .'the dishwasher rack is rusty and the upstairs bathroom fan is very loud. Please send someone to look at all of these.';
+
+        $this->assertGreaterThan(80, str_word_count($list));
+        $this->assertNull($this->scan($list));
+        $this->assertNull($this->scan($list.' The refrigerator is also warm.'));
+
+        // Under the cap, the same disposal wording matches.
+        $this->assertSame('disposal_not_working', $this->scan('The garbage disposal is not working.'));
+    }
+
+    public function test_unrelated_requests_match_nothing(): void
+    {
+        foreach ([
+            'Water heater is leaking in the garage',
+            'Front door lock is broken and will not lock',
+            'Roof shingles blew off in the storm',
+            'Fence panel in the backyard is leaning over',
+            // A technician's inspection note about AC ductwork that happens to
+            // mention the exhaust fan they were replacing (real WO, 09-22).
+            'As I was replacing the exhaust fan in guest bathroom, I felt a cool wind draft behind me. Ends up being that the A.C. ducy has a significant hole in it. Recommend assessing all the AC ductwork and replacing as needed. Also the bottom step to the attic ladder is damaged and needs to be repaired.',
+            'Bathroom exhaust fan is damaged and needs to be replaced',
+            // A short version of a real complaint (09-23): a dishwasher dead
+            // because a contractor's job cut the hot water, with water that
+            // came through a light. Neither "leaking" nor the emergency
+            // rules fire on that wording; the word cap alone had saved it.
+            'Dishwasher is not working since the tech removed the hot water from the kitchen, and one day water was coming down from the lamp',
+            'Dishwasher is not working, there are new leackages in the kitchen ceiling',
+        ] as $text) {
+            $this->assertNull($this->scan($text), $text);
+        }
+
+        // The fan row still matches its own symptom.
+        $this->assertSame('bathroom_fan', $this->scan('Bathroom exhaust fan is really noisy and dusty'));
+    }
+
+    public function test_an_item_without_a_video_is_recognised_but_not_sendable(): void
+    {
+        $this->assertSame('water_heater_pilot', $this->scan('Water heater pilot light went out'));
+
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
+
+        $this->withVideo('water_heater_pilot');
+
+        $this->assertTrue(TenantEasyFixCriteria::isSendable('water_heater_pilot'));
+        $this->assertTrue(TenantEasyFixCriteria::isSendable('disposal_jammed'));
+        $this->assertFalse(TenantEasyFixCriteria::isSendable('not_a_key'));
+    }
+
+    public function test_every_configured_video_link_is_a_youtube_link(): void
+    {
+        foreach (TenantEasyFixCriteria::items() as $key => $item) {
+            if ($item['video_url'] === null) {
+                continue;
+            }
+
+            $this->assertMatchesRegularExpression('#^https://(www\.)?(youtube\.com|youtu\.be)/#', $item['video_url'], $key);
+        }
+    }
+
+    public function test_a_washer_dryer_or_refrigerator_request_gets_its_handbook_row_like_any_other(): void
+    {
+        // Whether the appliance is a non-realty item under the lease (WO#44011,
+        // WO#44058: both owner-provided, both handled as the tenant's) is the
+        // WOC's call by hand; the scan only asks whether the handbook has a
+        // video for the symptom.
+        $this->assertSame('washer_not_starting', $this->scan('Washer won\'t start, nothing happens when I press start'));
+        $this->assertSame('dryer_not_heating', $this->scan('The dryer is not heating, clothes are still wet'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Freezer isnt freezing food properly and ice maker not making ice'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Refrigerator has no power, the outlet behind the fridge is dead'));
+
+        // A leak, or a symptom the handbook has no row for, matches nothing.
+        $this->assertNull($this->scan('My washer is leaking soap everywhere'));
+        $this->assertNull($this->scan('Washer hookup valve is leaking'));
+        $this->assertNull($this->scan('Dryer vent needs cleaning'));
+
+        // WO#44011: a technician has already diagnosed the drum spider; a
+        // video would not help, the usual text goes out.
+        $this->assertNull($this->scan('Samsung washer has not been working since Friday and the drum is not rotating. Tenant had a technician inspect the unit, who advised the motor is functioning but the drum spider needs replacement; estimated repair cost was $600 for parts and labor.'));
+    }
+
+    public function test_keys_and_labels_from_the_ai_are_normalised(): void
+    {
+        $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey('disposal_jammed'));
+        $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey(' Disposal-Jammed '));
+        $this->assertSame('disposal_not_working', TenantEasyFixCriteria::normalizeKey('garbage disposal'));
+        $this->assertSame('washer_not_starting', TenantEasyFixCriteria::normalizeKey('washer'));
+        $this->assertNull(TenantEasyFixCriteria::normalizeKey('appliance washer'));
+        $this->assertNull(TenantEasyFixCriteria::normalizeKey('roof'));
+        $this->assertNull(TenantEasyFixCriteria::normalizeKey(null));
+    }
+
+    public function test_the_agent_instructions_name_every_item(): void
+    {
+        $instructions = implode("\n", TenantEasyFixCriteria::agentInstructions());
+
+        foreach (array_keys(TenantEasyFixCriteria::items()) as $key) {
+            $this->assertStringContainsString($key, $instructions);
+        }
+
+        $this->assertStringNotContainsString('tenant_responsibility_reason', $instructions);
+    }
+
+    private function withVideo(string $key, string $url = 'https://youtu.be/example'): void
+    {
+        $items = config('tenant_easy_fix.items');
+
+        foreach ($items as $index => $item) {
+            if ($item['key'] === $key) {
+                $items[$index]['video_url'] = $url;
+            }
+        }
+
+        config(['tenant_easy_fix.items' => $items]);
+    }
+}

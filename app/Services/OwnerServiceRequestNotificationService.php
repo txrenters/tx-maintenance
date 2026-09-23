@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Log;
 
 class OwnerServiceRequestNotificationService
 {
-    public function __construct(private OwnerPortalLinkService $portalLinks) {}
+    public function __construct(
+        private OwnerPortalLinkService $portalLinks,
+        private TenantEasyFixService $easyFix,
+    ) {}
 
     /**
      * Notify every property owner on the work order that a new work order has
@@ -111,6 +114,14 @@ class OwnerServiceRequestNotificationService
         $staffCreated = $workOrder->isStaffCreated();
         $description = $staffCreated ? null : $this->descriptionMessage($workOrder);
 
+        // When the tenant is being sent the easy-fix how-to, the owner is
+        // told that instead of "we will arrange the estimate". Only when the
+        // tenant really is being told - the same gate, mute and reachability
+        // the tenant text itself checks - so the owner is never promised a
+        // text the tenant never got. The description text still follows.
+        $verdict = $this->easyFix->assess($workOrder);
+        $easyFix = ! $staffCreated && $this->easyFix->tenantWillBeTold($workOrder, $verdict);
+
         foreach ($owners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
 
@@ -135,12 +146,22 @@ class OwnerServiceRequestNotificationService
             }
 
             $confirmation = OwnerMessageFormatter::compose(
-                $this->confirmationMessage($workOrder, $address),
+                $easyFix
+                    ? $this->easyFixConfirmation($workOrder, $address, $verdict['item'])
+                    : $this->confirmationMessage($workOrder, $address),
                 $workOrder->work_order_no,
                 $link,
             );
 
-            $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $confirmation);
+            $this->post(
+                $workOrder,
+                $owner,
+                $ownerNumber,
+                $fromNumber,
+                $confirmation,
+                $easyFix ? ['easy_fix_key' => $verdict['key']] : [],
+                $easyFix ? 'owner_easy_fix_sms' : 'owner_service_request_sms',
+            );
 
             if ($description !== null) {
                 $this->post($workOrder, $owner, $ownerNumber, $fromNumber, $description);
@@ -152,8 +173,9 @@ class OwnerServiceRequestNotificationService
      * Persist one message to the owner thread (as the WOC) and queue the text.
      *
      * @param  array<string, mixed>  $extra  extra ledger properties for this message
+     * @param  string  $automation  the ledger key this message is recorded under
      */
-    private function post(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $fromNumber, string $message, array $extra = []): void
+    private function post(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $fromNumber, string $message, array $extra = [], string $automation = 'owner_service_request_sms'): void
     {
         $conversation = Conversation::create([
             'message' => $message,
@@ -171,12 +193,28 @@ class OwnerServiceRequestNotificationService
         AutomatedMessageLogService::log(
             AutomatedMessageLogService::CHANNEL_SMS,
             'owner',
-            'owner_service_request_sms',
+            $automation,
             $ownerNumber,
             $workOrder,
             $message,
             ['owner_id' => $owner->id, 'conversation_id' => $conversation->id] + $extra,
         );
+    }
+
+    /**
+     * The confirmation when the tenant has been sent the easy-fix how-to:
+     * no estimate is being arranged yet, the tenant is trying the handbook
+     * fix first.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function easyFixConfirmation(WorkOrder $workOrder, string $address, array $item): string
+    {
+        return AutomatedMessageTemplates::text('owner_easy_fix_sms', [
+            'property' => $address === 'your property' ? 'your property' : "your property at {$address}",
+            'work_order_no' => (string) $workOrder->work_order_no,
+            'item_label' => (string) $item['label'],
+        ]);
     }
 
     /**

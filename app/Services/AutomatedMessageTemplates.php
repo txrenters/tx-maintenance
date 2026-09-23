@@ -273,6 +273,124 @@ class AutomatedMessageTemplates
                 ."{description_line}\n\n"
                 ."Our team will review the request and coordinate the necessary next steps. We'll keep you updated as the work progresses. Thank you!",
         ],
+        'tenant_easy_fix_sms' => [
+            // Sent INSTEAD of "Request received" when the request is one of
+            // the handbook's tenant easy fixes (config/tenant_easy_fix.php).
+            // Own gate, own ledger key.
+            'automation' => 'tenant_easy_fix_sms',
+            'label' => 'Tenant easy fix',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted to the tenant once, instead of "Request received", when their new request is one of the handbook\'s tenant easy fixes (a jammed garbage disposal, a light bulb, a smoke detector battery, a tripped breaker, a clogged drain...). Their photo link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => 'Opening line - "Hi <first name>," or "Hi," when no name is on file',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+                'video_link' => 'The handbook\'s how-to video link for the item',
+                'tip' => 'The one-line tip for the item from the handbook',
+            ],
+            'required' => ['video_link'],
+            'sample' => [
+                'greeting' => 'Hi Jane,',
+                'item_label' => 'garbage disposal',
+                'video_link' => 'https://youtu.be/example',
+                'tip' => 'With the switch off, press the red reset button on the bottom of the disposal, then run cold water and try it again.',
+            ],
+            'collapse' => true,
+            'default' => "{greeting}\n\n"
+                ."This is TexasRenters.com Maintenance. We received your request about the {item_label}. This is usually a quick fix tenants can take care of themselves, so we wanted to save you the wait (and a service call charge).\n\n"
+                ."Here is a short video that walks you through it: {video_link}\n\n"
+                ."{tip}\n\n"
+                .'If it still is not working after you try this, reply here or add a photo through your link below and we will take it from there.',
+        ],
+        // The three check-ins after the easy-fix text (the manual's "follow
+        // up with the tenant within 1 day"): one per weekday, different
+        // wording each day, stopping as soon as the tenant replies, adds a
+        // photo, a vendor is assigned or the work order moves on. They share
+        // one ledger key; the day picks the template.
+        'tenant_easy_fix_follow_up_1_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 1',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'Texted to the tenant one weekday after the easy-fix how-to, asking whether the video helped. Skipped once the tenant has replied or added a photo, a vendor is assigned, or the work order has moved on. Their portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}hope you are doing well. Just checking in on the {item_label}. Did the video help? Please let us know either way and we will go from there. Thank you!',
+        ],
+        'tenant_easy_fix_follow_up_2_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 2',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'The second check-in, one weekday after the first, when the tenant has not replied or added a photo yet.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}checking in again on the {item_label}. Were you able to give the video a try? If it did not work, please reply here and we will get a repair scheduled. Thank you!',
+        ],
+        'tenant_easy_fix_follow_up_3_sms' => [
+            'automation' => 'tenant_easy_fix_follow_up_sms',
+            'label' => 'Easy fix check-in, day 3 (last)',
+            'group' => 'tenant_easy_fix',
+            'channel' => 'sms',
+            'audience' => 'tenant',
+            'sends_when' => 'The third and last check-in, one weekday after the second, when the tenant has still not replied or added a photo. Nothing is sent after this one.',
+            'tokens' => [
+                'greeting' => 'Opening - "Hi <first name>, " or "Hi, " (keeps its trailing space; the sentence continues right after it)',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => [],
+            'sample' => [
+                'greeting' => 'Hi Jane, ',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => '{greeting}following up one last time on the {item_label}. If it is still giving you trouble, please reply here and we will arrange a repair. If it is working now, a quick reply lets us close it out. Thank you!',
+        ],
+        'owner_easy_fix_sms' => [
+            // Replaces the owner "Request received" confirmation when the
+            // tenant was sent the easy-fix how-to; the "Request details" text
+            // still follows it.
+            'automation' => 'owner_easy_fix_sms',
+            'label' => 'Tenant easy fix',
+            'group' => 'owner_service_request',
+            'channel' => 'sms',
+            'audience' => 'owner',
+            'sends_when' => 'Texted to each owner once, instead of "Request received", when the tenant\'s new request was one of the handbook\'s tenant easy fixes and the tenant has been sent the how-to video. The "Request details" text still follows. Their portal link and the sign-off are added automatically below this text.',
+            'tokens' => [
+                'property' => '"your property" or "your property at <street address>" when one is on file',
+                'work_order_no' => 'The work order number',
+                'item_label' => 'What the handbook calls the item, e.g. "garbage disposal"',
+            ],
+            'required' => ['work_order_no'],
+            'sample' => [
+                'property' => 'your property at 123 Main St',
+                'work_order_no' => '43361',
+                'item_label' => 'garbage disposal',
+            ],
+            'collapse' => false,
+            'default' => "Hello,\n\n"
+                ."TexasRenters.com has received a new service request for {property} (request #{work_order_no}).\n\n"
+                .'This one is normally a tenant easy fix ({item_label}), so instead of arranging an estimate we have sent the tenant a how-to video and asked them to try it first. If it does not resolve the issue we will arrange the repair as outlined in your property management agreement.',
+        ],
         'tenant_appointment_sms' => [
             'automation' => 'tenant_appointment_sms',
             'label' => 'Appointment scheduled',

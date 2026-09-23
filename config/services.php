@@ -139,6 +139,17 @@ return [
         // request comes in, carrying their no-login portal link. The SMS
         // counterpart of the intake email below.
         'tenant_intake_sms' => env('TENANT_INTAKE_SMS_ENABLED', true),
+        // Tenant easy fix: when a new request is one of the handbook's small
+        // tenant-handled repairs (garbage disposal jammed, light bulb, smoke
+        // detector battery, tripped breaker, clogged drain...), the intake
+        // text and email tell the tenant how to fix it themselves, with the
+        // handbook's how-to video, instead of "we received your request", the
+        // owner is told we did that instead of "we will arrange the
+        // estimate", the work order moves to "Checking for Tenant Easy Fix"
+        // in PropertyWare and the daily check-ins follow. Off by default
+        // until the wording is signed off; the verdict is still recorded on
+        // every new work order while off, so it can be watched.
+        'tenant_easy_fix_sms' => env('TENANT_EASY_FIX_SMS_ENABLED', false),
     ],
 
     'hoa' => [

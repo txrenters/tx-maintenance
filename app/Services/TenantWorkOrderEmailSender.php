@@ -25,6 +25,7 @@ class TenantWorkOrderEmailSender
     public function __construct(
         private TenantJobberEmailSender $tenantEmails,
         private TenantPortalLinkService $portalLinks,
+        private TenantEasyFixService $easyFix,
     ) {}
 
     /**
@@ -75,10 +76,29 @@ class TenantWorkOrderEmailSender
             $staffCreated = $workOrder->isStaffCreated();
             $requester = $workOrder->requested_by;
             $reference = $workOrder->work_order_no ?? $workOrder->id;
-            $subject = ($staffCreated
-                ? 'A work order has been created — Work Order #'
-                : 'We received your service request — Work Order #').$reference;
-            $portalLink = $this->portalLinks->link($workOrder);
+
+            // The email twin of the easy-fix text: the handbook's how-to
+            // video instead of "we received your request". Same verdict the
+            // text uses, same gate.
+            $verdict = $this->easyFix->assess($workOrder);
+            $easyFix = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabled()
+                ? [
+                    'key' => $verdict['key'],
+                    'label' => (string) $verdict['item']['label'],
+                    'video_url' => $verdict['item']['video_url'] ?? null,
+                    'tip' => TenantEasyFixService::tipSentence((string) ($verdict['item']['tip'] ?? '')),
+                ]
+                : null;
+
+            $subject = match (true) {
+                $staffCreated => 'A work order has been created — Work Order #',
+                $easyFix !== null => 'A quick fix for your '.$easyFix['label'].' — Work Order #',
+                default => 'We received your service request — Work Order #',
+            }.$reference;
+
+            $portalLink = $easyFix !== null
+                ? $this->portalLinks->urlFor($this->easyFix->openEasyFixToken($workOrder))
+                : $this->portalLinks->link($workOrder);
 
             foreach ($recipients as $tenant) {
                 $to = (string) $this->deliverableEmail($tenant->email);
@@ -86,6 +106,7 @@ class TenantWorkOrderEmailSender
                 $html = View::make('emails.tenant-work-order-intake', [
                     'workOrder' => $workOrder,
                     'staffCreated' => $staffCreated,
+                    'easyFix' => $easyFix,
                     'tenantName' => trim((string) ($tenant->first_name ?? '')),
                     'property' => $workOrder->propertyAddress() ?: $workOrder->building?->name,
                     'coordinator' => $workOrder->woc?->name,
@@ -108,6 +129,9 @@ class TenantWorkOrderEmailSender
 
                 if ($staffCreated) {
                     $ledgerExtra['variant'] = 'staff_created';
+                } elseif ($easyFix !== null) {
+                    $ledgerExtra['variant'] = 'easy_fix';
+                    $ledgerExtra['easy_fix_key'] = $easyFix['key'];
                 }
 
                 // Emailed from the lease roster because the Requested By

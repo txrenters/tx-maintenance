@@ -720,4 +720,53 @@ class TenantPortalTest extends TestCase
             'description' => 'The kitchen faucet has been dripping for three days.',
         ])->assertNotFound();
     }
+
+    // --- Tenant easy fix ---
+
+    public function test_the_portal_shows_the_how_to_for_a_request_judged_an_easy_fix(): void
+    {
+        $items = config('tenant_easy_fix.items');
+
+        foreach ($items as $index => $item) {
+            if ($item['key'] === 'disposal_jammed') {
+                $items[$index]['video_url'] = 'https://youtu.be/disposal';
+            }
+        }
+
+        config(['tenant_easy_fix.items' => $items]);
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->update(['easy_fix_key' => 'disposal_jammed']);
+        $token = $this->makeToken($workOrder);
+
+        $this->get(route('tenant.portal.show', $token->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('TenantPortal/Show')
+                ->where('easyFix.label', 'garbage disposal')
+                ->where('easyFix.video_url', 'https://youtu.be/disposal')
+                ->has('easyFix.tip'));
+    }
+
+    public function test_the_portal_shows_no_how_to_without_a_verdict_or_a_video(): void
+    {
+        $plain = $this->makeWorkOrder($this->makeTenant());
+        $this->get(route('tenant.portal.show', $this->makeToken($plain)->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));
+
+        // Judged an easy fix, but the handbook link is not filled in yet.
+        $noVideo = $this->makeWorkOrder($this->makeTenant());
+        $noVideo->update(['easy_fix_key' => 'water_heater_pilot']);
+        $this->get(route('tenant.portal.show', $this->makeToken($noVideo)->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));
+
+        // A key the library no longer knows (an old verdict) shows nothing.
+        $unknown = $this->makeWorkOrder($this->makeTenant());
+        $unknown->update(['easy_fix_key' => 'appliance_washer']);
+        $this->get(route('tenant.portal.show', $this->makeToken($unknown)->token))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));
+    }
 }

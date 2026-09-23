@@ -620,4 +620,152 @@ class OwnerServiceRequestNotificationTest extends TestCase
         Queue::assertNotPushed(SendConversationMessageJob::class);
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
     }
+
+    // --- Tenant easy fix ---
+
+    /**
+     * The easy-fix texts on, the disposal item given a video, and the tenant
+     * intake text on so the tenant counts as reachable.
+     */
+    private function enableEasyFix(): void
+    {
+        $this->enableGate();
+        config([
+            'services.twilio.tenant_intake_sms' => true,
+            'services.twilio.tenant_easy_fix_sms' => true,
+        ]);
+
+        $items = config('tenant_easy_fix.items');
+
+        foreach ($items as $index => $item) {
+            if ($item['key'] === 'disposal_jammed') {
+                $items[$index]['video_url'] = 'https://youtu.be/disposal';
+            }
+        }
+
+        config(['tenant_easy_fix.items' => $items]);
+    }
+
+    /**
+     * A tenant-portal disposal request with one owner and an address.
+     */
+    private function makeDisposalWorkOrder(?Tenants $tenant = null, array $attributes = [], ?array $includedAppliances = null): WorkOrder
+    {
+        $owner = $this->makeOwner('3466260693', 100);
+        $tenant ??= $this->makeTenant();
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-6341DM-'.uniqid(),
+            'name' => 'Del Monte',
+            'address' => '6341 Del Monte Dr',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+            'custom_fields' => $includedAppliances,
+        ]);
+        $workOrder = $this->makeWorkOrder($tenant, null, 'Garbage disposal is humming but not turning');
+        $workOrder->update(array_merge([
+            'building_id' => $building->propertyware_id,
+            'source' => 'Tenant Portal',
+            'propertyware_id' => 43361001,
+            'lease_id' => 555001,
+            'category' => 'Garbage Disposal',
+        ], $attributes));
+        $workOrder->owners()->attach($owner->id);
+
+        return $workOrder->fresh();
+    }
+
+    public function test_the_owner_is_told_the_tenant_got_the_how_to_instead_of_an_estimate(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $messages = $workOrder->owner_conversation()->orderBy('id')->get();
+        $this->assertCount(2, $messages);
+
+        $confirmation = $messages[0]->message;
+        $this->assertStringContainsString('received a new service request for your property at 6341 Del Monte Dr (request #43361)', $confirmation);
+        $this->assertStringContainsString('normally a tenant easy fix (garbage disposal)', $confirmation);
+        $this->assertStringContainsString('sent the tenant a how-to video and asked them to try it first', $confirmation);
+        $this->assertStringNotContainsString('take care of arranging the estimate', $confirmation);
+        $this->assertStringContainsString('(Ref: WO#43361)', $confirmation);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($confirmation));
+
+        // The description text still follows.
+        $this->assertStringContainsString('details of the request', $messages[1]->message);
+        $this->assertStringContainsString('humming but not turning', $messages[1]->message);
+
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'owner_easy_fix_sms')
+            ->firstOrFail();
+        $this->assertSame('disposal_jammed', $ledger->properties['easy_fix_key']);
+        $this->assertSame(1, Activity::query()->where('event', 'owner_service_request_sms')->count());
+    }
+
+    public function test_the_owner_keeps_the_estimate_wording_when_the_tenant_cannot_be_told(): void
+    {
+        $this->enableEasyFix();
+        Queue::fake();
+
+        // Easy-fix gate off: nothing was sent to the tenant.
+        config(['services.twilio.tenant_easy_fix_sms' => false]);
+        $gateOff = $this->makeDisposalWorkOrder();
+        app(OwnerServiceRequestNotificationService::class)->notify($gateOff);
+        $this->assertStringContainsString('take care of arranging the estimate', $gateOff->owner_conversation()->orderBy('id')->first()->message);
+        config(['services.twilio.tenant_easy_fix_sms' => true]);
+
+        // No way to reach the tenant: no phone, placeholder email.
+        $unreachable = Tenants::query()->create([
+            'first_name' => 'Terry',
+            'last_name' => 'Tenant',
+            'email' => 'placeholder@texasrenter.com',
+            'mobile_phone' => null,
+            'user_id' => User::factory()->create()->id,
+        ]);
+        $noPhone = $this->makeDisposalWorkOrder($unreachable);
+        app(OwnerServiceRequestNotificationService::class)->notify($noPhone);
+        $this->assertStringContainsString('take care of arranging the estimate', $noPhone->owner_conversation()->orderBy('id')->first()->message);
+
+        // Tenant automation muted on the work order.
+        $muted = $this->makeDisposalWorkOrder();
+        $muted->setAutomationPaused('tenant', true);
+        app(OwnerServiceRequestNotificationService::class)->notify($muted->fresh());
+        $this->assertStringContainsString('take care of arranging the estimate', $muted->owner_conversation()->orderBy('id')->first()->message);
+
+        $this->assertSame(0, Activity::query()->where('event', 'owner_easy_fix_sms')->count());
+    }
+
+    public function test_the_owner_is_told_the_dryer_video_went_out_like_any_other_easy_fix(): void
+    {
+        // An appliance request is an easy fix like any other row; whether it
+        // is a non-realty item under the lease is the WOC's call afterwards,
+        // by hand, so the owner hears nothing about it from the automation.
+        $this->enableEasyFix();
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder(
+            null,
+            ['description' => 'The dryer is not heating, clothes are still wet', 'category' => 'Dryer'],
+            [['fieldName' => 'Included Appliances', 'value' => 'refrigerator', 'dataType' => 'Text']],
+        );
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $messages = $workOrder->owner_conversation()->orderBy('id')->get();
+        $this->assertCount(2, $messages);
+
+        $confirmation = $messages[0]->message;
+        $this->assertStringContainsString('This one is normally a tenant easy fix (dryer)', $confirmation);
+        $this->assertStringNotContainsString('non-realty', $confirmation);
+        $this->assertStringNotContainsString('take care of arranging the estimate', $confirmation);
+        $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($confirmation));
+
+        $this->assertSame(1, Activity::query()->where('event', 'owner_easy_fix_sms')->count());
+    }
 }

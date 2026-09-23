@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Ai\TenantEasyFixCriteria;
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
+use App\Models\Tenants;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +13,8 @@ use Illuminate\Support\Str;
 
 class TenantPortalLinkService
 {
+    public function __construct(private TenantEasyFixService $easyFix) {}
+
     /**
      * Text the tenant a no-login portal link so they can upload photos of the
      * issue (tenant easy fix). Creates the token on first send; later calls
@@ -98,14 +102,21 @@ class TenantPortalLinkService
      */
     public function remind(TenantUploadToken $token): bool
     {
-        if (! $this->enabledFor($token->purpose)) {
-            return false;
-        }
-
         try {
             $workOrder = $token->work_order;
 
             if (! $workOrder || $token->isCompleted()) {
+                return false;
+            }
+
+            // A token opened by the easy-fix how-to text gets the "did the
+            // video help?" check-ins (own gate, own cadence) instead of the
+            // photo reminders.
+            if ($token->purpose === TenantUploadToken::PURPOSE_TENANT_EASY_FIX && $this->easyFix->tenantWasTexted($workOrder)) {
+                return $this->easyFixFollowUp($workOrder, $token);
+            }
+
+            if (! $this->enabledFor($token->purpose)) {
                 return false;
             }
 
@@ -126,6 +137,12 @@ class TenantPortalLinkService
             }
 
             if ($token->notified_count >= self::MAX_NOTIFICATIONS) {
+                return false;
+            }
+
+            // Two weekdays between photo reminders. (The command's query is
+            // wider than this so the daily easy-fix check-ins fit through it.)
+            if ($token->last_notified_at !== null && $token->last_notified_at->gt(now()->subWeekdays(2))) {
                 return false;
             }
 
@@ -164,6 +181,125 @@ class TenantPortalLinkService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * The check-in after the easy-fix how-to (the manual's "follow up with
+     * the tenant within 1 day"): one per weekday, a different wording each
+     * day, capped at TenantEasyFixService::FOLLOW_UP_DAYS, and stopped as
+     * soon as the tenant replies or adds a photo, a vendor is assigned, or a
+     * WOC moves the work order on. Texted to the same people the how-to went
+     * to. Gated by the easy-fix switch, not the photo-link one.
+     */
+    private function easyFixFollowUp(WorkOrder $workOrder, TenantUploadToken $token): bool
+    {
+        if (! $this->easyFix->enabled() || $workOrder->skipsAutomatedMessages()) {
+            return false;
+        }
+
+        if ($token->notified_count >= TenantEasyFixService::FOLLOW_UP_MAX_NOTIFICATIONS) {
+            return false;
+        }
+
+        if ($token->last_notified_at !== null && $token->last_notified_at->gt(now()->subWeekdays(1))) {
+            return false;
+        }
+
+        if ($this->easyFix->followUpClosed($workOrder, $token)) {
+            return false;
+        }
+
+        $item = TenantEasyFixCriteria::item($workOrder->easy_fix_key);
+
+        if ($item === null) {
+            return false;
+        }
+
+        // The how-to text is notification 1, so this check-in's day is the
+        // count itself; clamped so a late run still gets the last wording.
+        $day = min(max(1, (int) $token->notified_count), TenantEasyFixService::FOLLOW_UP_DAYS);
+
+        return $this->textIntakeRecipients($workOrder, $token, function (Tenants $tenant) use ($workOrder, $token, $item, $day): string {
+            $name = trim((string) ($tenant->first_name ?? ''));
+
+            $body = AutomatedMessageTemplates::text("tenant_easy_fix_follow_up_{$day}_sms", [
+                'greeting' => $name !== '' ? "Hi {$name}, " : 'Hi, ',
+                'item_label' => (string) $item['label'],
+            ]);
+
+            return TenantMessageFormatter::compose($body, $workOrder->work_order_no ?? $workOrder->id, $this->urlFor($token));
+        }, 'tenant_easy_fix_follow_up_sms');
+    }
+
+    /**
+     * Text every tenant the intake text reached (the requester when they are
+     * the tenant, else the lease roster; one text per line), record each on
+     * the ledger, then count the notification on the token once.
+     *
+     * @param  callable(Tenants): string  $message  builds the text for one tenant
+     */
+    private function textIntakeRecipients(WorkOrder $workOrder, TenantUploadToken $token, callable $message, string $automationKey): bool
+    {
+        if ($workOrder->automationPausedFor('tenant')) {
+            return false;
+        }
+
+        $workOrder->loadMissing(['requested_by', 'tenants', 'woc.wocNumber.twilioPhoneNumber']);
+
+        $recipients = $workOrder
+            ->tenantIntakeRecipients(fn (Tenants $tenant): bool => $workOrder->normalizedTenantPhone($tenant) !== null)
+            ->unique(fn (Tenants $tenant): string => (string) $workOrder->normalizedTenantPhone($tenant))
+            ->values();
+
+        $fromNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
+            ?: config('services.twilio.maintenance_from')
+            ?: config('services.twilio.from');
+
+        if ($recipients->isEmpty() || blank($fromNumber)) {
+            Log::warning('Automated tenant text skipped: no usable recipient or sender number.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'automation_key' => $automationKey,
+                'recipients' => $recipients->count(),
+                'has_from_number' => filled($fromNumber),
+            ]);
+
+            return false;
+        }
+
+        foreach ($recipients as $tenant) {
+            $tenantNumber = (string) $workOrder->normalizedTenantPhone($tenant);
+            $text = $message($tenant);
+
+            $conversation = Conversation::create([
+                'message' => $text,
+                'sender_number' => $fromNumber,
+                'receiver_number' => $tenantNumber,
+                'work_order_id' => $workOrder->id,
+                'conversation_type' => 'tenant',
+                'is_read' => true,
+                'is_mms' => false,
+            ]);
+
+            SendConversationMessageJob::dispatch($tenantNumber, $fromNumber, $text, null, $conversation->id);
+
+            AutomatedMessageLogService::log(
+                AutomatedMessageLogService::CHANNEL_SMS,
+                'tenant',
+                $automationKey,
+                $tenantNumber,
+                $workOrder,
+                $text,
+                ['tenant_upload_token_id' => $token->id, 'conversation_id' => $conversation->id, 'tenant_id' => $tenant->id, 'easy_fix_key' => $workOrder->easy_fix_key],
+            );
+        }
+
+        $token->update([
+            'last_notified_at' => now(),
+            'notified_count' => $token->notified_count + 1,
+        ]);
+
+        return true;
     }
 
     private function enabledFor(?string $purpose): bool

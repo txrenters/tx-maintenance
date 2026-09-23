@@ -6,6 +6,7 @@ use App\Models\Scopes\WorkOrderScope;
 use App\Models\ServiceStatus;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
+use App\Services\TenantEasyFixService;
 use App\Services\TenantPortalLinkService;
 use Illuminate\Console\Command;
 
@@ -48,12 +49,16 @@ class SendTenantPortalLinks extends Command
             $service->sendLink($workOrder);
         }
 
-        // 2) Reminders: links sent but not completed, capped, spaced 2+ days apart.
+        // 2) Reminders: links sent but not completed. The query is as wide as
+        // the widest cadence (the daily easy-fix check-ins, capped at
+        // TenantEasyFixService::FOLLOW_UP_MAX_NOTIFICATIONS); the service
+        // applies each token's own spacing and cap (photo reminders: two
+        // weekdays apart, MAX_NOTIFICATIONS).
         $tokens = TenantUploadToken::query()
             ->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)
             ->whereNull('completed_at')
-            ->where('notified_count', '<', TenantPortalLinkService::MAX_NOTIFICATIONS)
-            ->where('last_notified_at', '<=', now()->subWeekdays(2))
+            ->where('notified_count', '<', max(TenantPortalLinkService::MAX_NOTIFICATIONS, TenantEasyFixService::FOLLOW_UP_MAX_NOTIFICATIONS))
+            ->where('last_notified_at', '<=', now()->subWeekdays(1))
             ->get();
 
         foreach ($tokens as $token) {
