@@ -863,7 +863,7 @@
             installed in the pan, so that if water builds up in the pan, the HVAC systems will shut off and stop
             producing water. 2 HVAC inspection are $11.00 per month for the first HVAC and a additional $6.00 per month
             for each additional unit. The float switch will automatically be installed if not present at a cost of
-            $89.00. Please note your HVAC warranty does not cover this type of maintenance.
+            $99.00. Please note your HVAC warranty does not cover this type of maintenance.
         </div>
 
         <div class="alert alert-warning">

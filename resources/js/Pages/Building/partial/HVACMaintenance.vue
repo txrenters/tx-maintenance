@@ -146,7 +146,7 @@ const markSectionCompleted = (value) => {
                                     additional $6.00 per month for each
                                     additional unit. The float switch will
                                     automatically be installed if not present at
-                                    a cost of $89.00. Please note your HVAC
+                                    a cost of $99.00. Please note your HVAC
                                     warranty does not cover this type of
                                     maintenance.
                                 </p>
