@@ -52,8 +52,13 @@ const isDirty = computed(() => draft.value !== effectiveText());
 
 const isSms = computed(() => props.template.channel === "sms");
 
-const channelLabel = computed(() =>
-    props.template.channel === "sms_email" ? "Text + Email" : "Text (SMS)"
+const channelLabel = computed(
+    () =>
+        ({
+            sms: "Text (SMS)",
+            sms_email: "Text + Email",
+            email: "Email",
+        })[props.template.channel] ?? props.template.channel
 );
 
 const segmentEstimate = computed(() => {
