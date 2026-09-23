@@ -320,6 +320,7 @@ Route::middleware([
     // destroy archives rather than deletes; restore is office-only.
     Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('api.invoices.destroy');
     Route::post('/invoices/{invoice}/restore', [InvoiceController::class, 'restore'])->name('api.invoices.restore');
+    Route::post('/invoices/{invoice}/transfer', [InvoiceController::class, 'transfer'])->name('api.invoices.transfer');
 
     Route::get('/notes/{workOrder}/show', [WorkOrderNotesController::class, 'getNotes'])->name('api.work_order_notes.show');
     Route::post('/notes', [WorkOrderNotesController::class, 'store'])->name('api.work_order_notes.store');

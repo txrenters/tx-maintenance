@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import axios from "axios";
 import { useForm, usePage } from "@inertiajs/vue3";
-import { Loader2, File } from "lucide-vue-next";
+import { Loader2, File, Search } from "lucide-vue-next";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import FilesInvoice from "./FilesInvoice.vue";
 import ImageGalleryDialog from "@/Components/ImageGalleryDialog.vue";
@@ -188,6 +189,104 @@ const confirmArchiveInvoice = () => {
         },
     });
 };
+
+// Transferring moves an invoice that was uploaded against the wrong work
+// order. The office searches for the right one the same way the global
+// search does, picks it, and confirms.
+const transferOpen = ref(false);
+const transferring = ref(null);
+const transferQuery = ref("");
+const transferResults = ref([]);
+const transferSearching = ref(false);
+const transferTarget = ref(null);
+const transferForm = useForm({ work_order_id: null });
+let transferDebounce = null;
+
+const handleTransferInvoice = (invoice) => {
+    transferring.value = invoice;
+    transferQuery.value = "";
+    transferResults.value = [];
+    transferTarget.value = null;
+    transferForm.clearErrors();
+    transferOpen.value = true;
+};
+
+const searchTransferTargets = async () => {
+    if (transferQuery.value.trim().length < 2) {
+        transferResults.value = [];
+        return;
+    }
+
+    transferSearching.value = true;
+    try {
+        const response = await axios.get("/search", {
+            params: { query: transferQuery.value.trim() },
+        });
+        // The invoice is already on this work order, so it is not a target.
+        transferResults.value = (response.data.results || []).filter(
+            (result) => result.id !== props.workOrder.id,
+        );
+    } catch {
+        transferResults.value = [];
+    } finally {
+        transferSearching.value = false;
+    }
+};
+
+watch(transferQuery, () => {
+    clearTimeout(transferDebounce);
+    transferDebounce = setTimeout(searchTransferTargets, 300);
+});
+
+watch(transferOpen, (value) => {
+    if (!value) {
+        clearTimeout(transferDebounce);
+        transferring.value = null;
+        transferTarget.value = null;
+    }
+});
+
+const confirmTransferInvoice = () => {
+    if (!transferring.value || !transferTarget.value) {
+        return;
+    }
+
+    const target = transferTarget.value;
+    transferForm.work_order_id = target.id;
+
+    transferForm.post(route("api.invoices.transfer", transferring.value.id), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            const warning = usePage().props.flash?.warning;
+            toast({
+                title: "Invoice moved",
+                description: `"${transferring.value.title}" is now on WO #${target.work_order_no}.`,
+            });
+            if (warning) {
+                toast({
+                    variant: "destructive",
+                    title: "PropertyWare copy not sent",
+                    description: warning,
+                });
+            }
+            transferOpen.value = false;
+            handleFetchInvoices();
+        },
+        onError: (errors) => {
+            console.error("Invoice transfer error:", errors);
+            const errorMessage =
+                errors.error ||
+                Object.values(errors)[0] ||
+                "There was a problem moving the invoice. Please try again!";
+            toast({
+                variant: "destructive",
+                title: "Error moving invoice",
+                description: errorMessage,
+            });
+        },
+    });
+};
 </script>
 
 <template>
@@ -221,6 +320,7 @@ const confirmArchiveInvoice = () => {
                 @expandImage="handleExpandImage"
                 @updateInvoice="handleUpdateInvoice"
                 @archiveInvoice="handleArchiveInvoice"
+                @transferInvoice="handleTransferInvoice"
             />
         </div>
     </div>
@@ -391,6 +491,122 @@ const confirmArchiveInvoice = () => {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+    <Dialog v-model:open="transferOpen">
+        <DialogContent
+            class="sm:max-w-[560px] grid-rows-[auto_minmax(0,1fr)_auto] p-0 max-h-[95dvh]"
+        >
+            <DialogHeader class="p-6 pb-0 text-left">
+                <DialogTitle>Transfer invoice to another work order</DialogTitle>
+                <DialogDescription>
+                    "{{ transferring?.title }}" leaves WO #{{
+                        workOrder.work_order_no
+                    }}
+                    and is attached to the work order you pick. A copy of the
+                    file is sent to PropertyWare on the new work order; the
+                    copy already on this one stays there.
+                </DialogDescription>
+            </DialogHeader>
+            <Separator />
+            <div class="flex flex-col gap-3 px-6 overflow-y-auto">
+                <div class="relative">
+                    <Search
+                        class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                    />
+                    <Input
+                        type="text"
+                        class="pl-9"
+                        autocomplete="off"
+                        placeholder="Search by work order number, address or description"
+                        v-model="transferQuery"
+                    />
+                </div>
+                <div
+                    v-if="transferSearching"
+                    class="flex items-center gap-2 text-sm text-muted-foreground py-2"
+                >
+                    <Loader2 class="h-4 w-4 animate-spin" /> Searching...
+                </div>
+                <p
+                    v-else-if="
+                        transferQuery.trim().length >= 2 &&
+                        transferResults.length === 0
+                    "
+                    class="text-sm text-muted-foreground py-2"
+                >
+                    No other work orders match.
+                </p>
+                <ul
+                    v-else-if="transferResults.length"
+                    class="flex flex-col gap-1 max-h-[45vh] overflow-y-auto"
+                >
+                    <li
+                        v-for="result in transferResults"
+                        :key="result.id"
+                    >
+                        <button
+                            type="button"
+                            class="w-full text-left rounded-md border px-3 py-2 hover:bg-secondary transition-colors"
+                            :class="
+                                transferTarget?.id === result.id
+                                    ? 'border-primary bg-secondary'
+                                    : 'border-transparent'
+                            "
+                            @click="transferTarget = result"
+                        >
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold"
+                                    >#{{ result.work_order_no }}</span
+                                >
+                                <span
+                                    v-if="result.building_name"
+                                    class="text-sm truncate"
+                                    >{{ result.building_name }}</span
+                                >
+                                <Badge
+                                    v-if="result.service_status"
+                                    variant="outline"
+                                    class="ml-auto shrink-0"
+                                    >{{ result.service_status }}</Badge
+                                >
+                            </div>
+                            <p
+                                v-if="result.description"
+                                class="text-xs text-muted-foreground truncate"
+                            >
+                                {{ result.description }}
+                            </p>
+                        </button>
+                    </li>
+                </ul>
+                <p
+                    v-if="transferTarget"
+                    class="text-sm border-t pt-3"
+                >
+                    Moving to
+                    <span class="font-semibold"
+                        >WO #{{ transferTarget.work_order_no }}</span
+                    ><template v-if="transferTarget.building_name">
+                        at {{ transferTarget.building_name }}</template
+                    >.
+                </p>
+            </div>
+            <DialogFooter class="p-6 pt-3 gap-2">
+                <Button variant="outline" @click="transferOpen = false">
+                    Cancel
+                </Button>
+                <Button
+                    :disabled="!transferTarget || transferForm.processing"
+                    @click.prevent="confirmTransferInvoice"
+                >
+                    <Loader2
+                        v-if="transferForm.processing"
+                        class="mr-1 h-4 w-4 animate-spin"
+                    />
+                    Move invoice
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     <ImageGalleryDialog
         v-model:open="openGallery"
         v-model:index="galleryIndex"
