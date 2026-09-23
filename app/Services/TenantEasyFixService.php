@@ -16,22 +16,26 @@ use Spatie\Activitylog\Models\Activity;
 /**
  * Decides at intake whether a new work order is a tenant easy fix (a small
  * repair the handbook says the tenant handles, texted a how-to video instead
- * of the generic confirmation) or concerns a non-realty appliance (a washer,
- * dryer or refrigerator, the tenant's under the lease, texted that it is
- * their responsibility), and records that verdict once on the work order so
- * the tenant text, the owner text, the intake email and the board all agree.
+ * of the generic confirmation), and records that verdict once on the work
+ * order so the tenant text, the owner text, the intake email and the board
+ * all agree.
  *
  * The verdict is deterministic (App\Ai\TenantEasyFixCriteria over the
- * description, type and category) and is written whether or not the messaging gate is on, so the
- * verdicts can be watched in production before anyone is texted. The AI
- * classification never decides a send; it only surfaces what the keywords
- * missed.
+ * description, type and category) and is written whether or not the
+ * messaging gate is on, so the verdicts can be watched in production before
+ * anyone is texted. The AI classification never decides a send; it only
+ * surfaces what the keywords missed.
+ *
+ * Whether the item is a non-realty appliance under the lease (a washer,
+ * dryer or refrigerator provided as-is, the tenant's to repair) is not
+ * decided here: the tenant still gets the handbook video, and the WOC makes
+ * that call by hand from "Checking for Tenant Easy Fix", moving the work
+ * order to "Waiting Tenants Decision - Non Real Property Item" and messaging
+ * the tenant and owner themselves (Earl, 2026-09-23).
  */
 class TenantEasyFixService
 {
     public const EASY_FIX_STATUS = 'Checking for Tenant Easy Fix';
-
-    public const APPLIANCE_STATUS = 'Waiting Tenants Decision - Non Real Property Item';
 
     /**
      * How many check-ins follow the easy-fix text (the manual's "follow up
@@ -109,7 +113,7 @@ class TenantEasyFixService
      * stored on first call; later calls (the parallel owner and email jobs,
      * the portal, the board) read the stored verdict. Log-never-throw.
      *
-     * @return array{kind: string, key: string, item: array<string, mixed>, sendable: bool}|null
+     * @return array{key: string, item: array<string, mixed>, sendable: bool}|null
      */
     public function assess(WorkOrder $workOrder): ?array
     {
@@ -130,24 +134,21 @@ class TenantEasyFixService
     /**
      * The verdict for a stored key, without touching the database.
      *
-     * @return array{kind: string, key: string, item: array<string, mixed>, sendable: bool}|null
+     * @return array{key: string, item: array<string, mixed>, sendable: bool}|null
      */
     public function verdictFor(?string $key): ?array
     {
-        $kind = TenantEasyFixCriteria::kindOf($key);
         $item = TenantEasyFixCriteria::item($key);
 
-        if ($kind === null || $item === null) {
+        if ($item === null) {
             return null;
         }
 
         return [
-            'kind' => $kind,
             'key' => $key,
             'item' => $item,
-            // An appliance text needs no video; an easy-fix text is built
-            // around one.
-            'sendable' => $kind === TenantEasyFixCriteria::KIND_APPLIANCE || TenantEasyFixCriteria::isSendable($key),
+            // The easy-fix text is built around the how-to video.
+            'sendable' => TenantEasyFixCriteria::isSendable($key),
         ];
     }
 
@@ -160,31 +161,17 @@ class TenantEasyFixService
     }
 
     /**
-     * Whether the texts for a verdict of this kind are on: the easy-fix
-     * switch for the handbook rows, the separate appliance switch for the
-     * non-realty washer / dryer / refrigerator case.
-     */
-    public function enabledFor(?string $kind): bool
-    {
-        return match ($kind) {
-            TenantEasyFixCriteria::KIND_EASY_FIX => $this->enabled(),
-            TenantEasyFixCriteria::KIND_APPLIANCE => (bool) config('services.twilio.tenant_appliance_sms'),
-            default => false,
-        };
-    }
-
-    /**
      * Whether the tenant will actually be told (so the owner text can say
      * "we have sent the tenant a how-to video" truthfully): the gate is on,
      * the verdict is one we can message about, tenant automation is not
      * muted on this work order, and at least one tenant is reachable by text
      * or email through the same intake channels.
      *
-     * @param  array{kind: string, key: string, item: array<string, mixed>, sendable: bool}|null  $verdict
+     * @param  array{key: string, item: array<string, mixed>, sendable: bool}|null  $verdict
      */
     public function tenantWillBeTold(WorkOrder $workOrder, ?array $verdict): bool
     {
-        if ($verdict === null || ! $verdict['sendable'] || ! $this->enabledFor($verdict['kind'])) {
+        if ($verdict === null || ! $verdict['sendable'] || ! $this->enabled()) {
             return false;
         }
 
@@ -225,21 +212,21 @@ class TenantEasyFixService
     }
 
     /**
-     * Move the work order to the matching service status. PropertyWare is
+     * Move the work order to "Checking for Tenant Easy Fix". PropertyWare is
      * the source of truth for service status (the importers copy it back
      * every few minutes), so the status is pushed there first and written
      * locally only when PropertyWare accepted it; a local-only work order
      * (no PropertyWare id) is left alone. Log-never-throw, no task
      * regeneration - the same shape as the HOA intake.
      */
-    public function applyStatus(WorkOrder $workOrder, string $kind): void
+    public function applyStatus(WorkOrder $workOrder): void
     {
         try {
             if (blank($workOrder->propertyware_id)) {
                 return;
             }
 
-            $name = $kind === TenantEasyFixCriteria::KIND_APPLIANCE ? self::APPLIANCE_STATUS : self::EASY_FIX_STATUS;
+            $name = self::EASY_FIX_STATUS;
             $status = ServiceStatus::query()->where('name', $name)->first();
 
             if ($status === null) {
@@ -308,41 +295,30 @@ class TenantEasyFixService
      * plus why. Pure - used by the audit command and the classification
      * heuristic as well as by assess().
      *
-     * @return array{key: ?string, kind: ?string, reason: string, appliance: array{status: string, key: ?string, matched: array<int, string>, included_value: ?string}}
+     * @return array{key: ?string, reason: string}
      */
     public function judge(WorkOrder $workOrder): array
     {
-        $text = self::textOf($workOrder);
-        $appliance = TenantEasyFixCriteria::assessAppliance($text, $workOrder->building?->custom_fields);
-
         if ($workOrder->isHoaViolation()) {
-            return ['key' => null, 'kind' => null, 'reason' => 'hoa_violation', 'appliance' => $appliance];
+            return ['key' => null, 'reason' => 'hoa_violation'];
         }
 
         if ($workOrder->skipsAutomatedMessages()) {
-            return ['key' => null, 'kind' => null, 'reason' => 'automated_messages_skipped', 'appliance' => $appliance];
+            return ['key' => null, 'reason' => 'automated_messages_skipped'];
         }
 
         // Not cast on the model: 1/"1"/true all mean flagged.
         if ($workOrder->is_emergency !== null && (bool) $workOrder->is_emergency) {
-            return ['key' => null, 'kind' => null, 'reason' => 'marked_emergency', 'appliance' => $appliance];
+            return ['key' => null, 'reason' => 'marked_emergency'];
         }
 
-        // A washer, dryer or refrigerator is a non-realty item under the
-        // lease: the tenant's whatever the symptom and whoever provided it,
-        // so the responsibility text wins over the handbook's own rows for
-        // that appliance.
-        if ($appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NON_REALTY) {
-            return ['key' => $appliance['key'], 'kind' => TenantEasyFixCriteria::KIND_APPLIANCE, 'reason' => 'non_realty:'.implode(', ', $appliance['matched']), 'appliance' => $appliance];
-        }
-
-        $easyFix = TenantEasyFixCriteria::scan($text, $workOrder->category);
+        $easyFix = TenantEasyFixCriteria::scan(self::textOf($workOrder), $workOrder->category);
 
         if ($easyFix !== null) {
-            return ['key' => $easyFix['key'], 'kind' => TenantEasyFixCriteria::KIND_EASY_FIX, 'reason' => 'matched:'.implode(', ', $easyFix['matched']), 'appliance' => $appliance];
+            return ['key' => $easyFix['key'], 'reason' => 'matched:'.implode(', ', $easyFix['matched'])];
         }
 
-        return ['key' => null, 'kind' => null, 'reason' => 'no_match', 'appliance' => $appliance];
+        return ['key' => null, 'reason' => 'no_match'];
     }
 
     /**
@@ -366,7 +342,6 @@ class TenantEasyFixService
             return $stored->easy_fix_key;
         }
 
-        $workOrder->loadMissing('building');
         $key = $this->judge($workOrder)['key'];
 
         $claimed = DB::table('work_orders')

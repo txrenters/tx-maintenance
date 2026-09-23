@@ -143,13 +143,6 @@ return [
         // until the wording is signed off; the verdict is still recorded on
         // every new work order while off, so it can be watched.
         'tenant_easy_fix_sms' => env('TENANT_EASY_FIX_SMS_ENABLED', false),
-
-        // The non-realty appliance half of the same feature: a request about
-        // a washer, dryer or refrigerator tells the tenant it is theirs under
-        // the lease, asks the owner whether to cover it, and moves the work
-        // order to "Waiting Tenants Decision - Non Real Property Item". Its
-        // own switch so the easy-fix texts can go live first (Earl, 09-23).
-        'tenant_appliance_sms' => env('TENANT_APPLIANCE_SMS_ENABLED', false),
     ],
 
     'hoa' => [

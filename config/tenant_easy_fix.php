@@ -6,11 +6,12 @@
 |--------------------------------------------------------------------------
 |
 | The Maintenance handbook's "TENANT EASY-FIX" sheet (26 rows, 2026-09-23),
-| one entry per row, plus the tenant-owned appliances the landlord is not
-| responsible for. Read by App\Ai\TenantEasyFixCriteria, which decides at
+| one entry per row. Read by App\Ai\TenantEasyFixCriteria, which decides at
 | intake whether a new work order gets the "here is how to fix it yourself"
 | text (with the handbook's how-to video) instead of the generic "we received
-| your request".
+| your request". A washer, dryer or refrigerator request gets its handbook
+| video like any other row; whether it is a non-realty item under the lease
+| is the WOC's call afterwards, by hand.
 |
 | Matching is deliberately conservative: a work order must hit an item's
 | PropertyWare category or one of its keyword phrases, and must NOT contain
@@ -285,10 +286,7 @@ return [
             'tip' => 'Check flapper, flush chain and make sure handle isn\'t stuck',
         ],
         [
-            // Handbook row 20. At intake a refrigerator request is a non-realty
-            // appliance (the responsibility text wins); this row is reached only
-            // when the appliance keywords are excluded (an outlet, a breaker,
-            // "no power": the house's side) and serves the audit and the AI.
+            // Handbook row 20.
             'key' => 'refrigerator_not_cooling',
             'label' => 'refrigerator',
             'pw_categories' => [],
@@ -361,36 +359,6 @@ return [
             'exclude' => ['all burners', 'all the burners', 'none of the burners', 'no burners', 'oven', 'electric', 'glass top', 'coil', 'coils', 'element', 'smell', 'gas'],
             'video_url' => 'https://www.youtube.com/watch?v=6Mamw4pQGTk',
             'tip' => 'Check burner cap placement and clean food/debris around igniter',
-        ],
-    ],
-
-    /*
-    | Non-realty appliances. Under the lease a washer, dryer or refrigerator is
-    | a "non-realty property item" provided as-is, so a request about one is
-    | the tenant's responsibility whoever put it in the house (confirmed on
-    | WO#44011 and WO#44058, both owner-provided, both handled that way by the
-    | WOCs). PropertyWare's "Included Appliances" field does not change the
-    | verdict. The `exclude` lists keep the house's own parts (hookups,
-    | valves, vents, outlets, breakers) out of it.
-    */
-    'appliances' => [
-        [
-            'key' => 'appliance_washer',
-            'label' => 'washer',
-            'keywords' => ['washer', 'washers', 'washing machine', 'washing machines', 'clothes washer', 'laundry machine'],
-            'exclude' => ['hookup', 'hookups', 'hook up', 'hook-up', 'connection', 'connections', 'valve', 'valves', 'standpipe', 'drain pipe', 'drain line', 'water line', 'supply line', 'faucet', 'spigot', 'outlet', 'breaker', 'no power', 'behind the washer', 'wall behind', 'pressure washer', 'power washer', 'dishwasher'],
-        ],
-        [
-            'key' => 'appliance_dryer',
-            'label' => 'dryer',
-            'keywords' => ['dryer', 'dryers', 'clothes dryer', 'tumble dryer'],
-            'exclude' => ['vent', 'vents', 'venting', 'duct', 'ducts', 'ductwork', 'outlet', 'breaker', 'no power', 'gas line', 'gas', 'hookup', 'hookups', 'hook up', 'hook-up', 'connection', 'connections', 'hair dryer', 'behind the dryer', 'wall behind'],
-        ],
-        [
-            'key' => 'appliance_refrigerator',
-            'label' => 'refrigerator',
-            'keywords' => ['refrigerator', 'refrigerators', 'fridge', 'freezer', 'ice maker', 'icemaker'],
-            'exclude' => ['water line', 'supply line', 'outlet', 'breaker', 'no power', 'behind the fridge', 'behind the refrigerator', 'wall behind', 'wine fridge', 'mini fridge', 'garage fridge', 'garage refrigerator'],
         ],
     ],
 ];

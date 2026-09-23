@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Ai\TenantEasyFixCriteria;
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Conversation;
 use App\Models\Owner;
@@ -115,16 +114,13 @@ class OwnerServiceRequestNotificationService
         $staffCreated = $workOrder->isStaffCreated();
         $description = $staffCreated ? null : $this->descriptionMessage($workOrder);
 
-        // When the tenant is being sent the easy-fix how-to (or told their
-        // own appliance is their responsibility), the owner is told that
-        // instead of "we will arrange the estimate". Only when the tenant
-        // really is being told - the same gate, mute and reachability the
-        // tenant text itself checks - so the owner is never promised a text
-        // the tenant never got. The description text still follows.
+        // When the tenant is being sent the easy-fix how-to, the owner is
+        // told that instead of "we will arrange the estimate". Only when the
+        // tenant really is being told - the same gate, mute and reachability
+        // the tenant text itself checks - so the owner is never promised a
+        // text the tenant never got. The description text still follows.
         $verdict = $this->easyFix->assess($workOrder);
-        $easyFixKind = ! $staffCreated && $this->easyFix->tenantWillBeTold($workOrder, $verdict)
-            ? $verdict['kind']
-            : null;
+        $easyFix = ! $staffCreated && $this->easyFix->tenantWillBeTold($workOrder, $verdict);
 
         foreach ($owners as $owner) {
             $ownerNumber = $workOrder->normalizedOwnerPhone($owner);
@@ -150,11 +146,9 @@ class OwnerServiceRequestNotificationService
             }
 
             $confirmation = OwnerMessageFormatter::compose(
-                match ($easyFixKind) {
-                    TenantEasyFixCriteria::KIND_EASY_FIX => $this->easyFixConfirmation($workOrder, $address, $verdict['item']),
-                    TenantEasyFixCriteria::KIND_APPLIANCE => $this->applianceConfirmation($workOrder, $address, $verdict['item']),
-                    default => $this->confirmationMessage($workOrder, $address),
-                },
+                $easyFix
+                    ? $this->easyFixConfirmation($workOrder, $address, $verdict['item'])
+                    : $this->confirmationMessage($workOrder, $address),
                 $workOrder->work_order_no,
                 $link,
             );
@@ -165,12 +159,8 @@ class OwnerServiceRequestNotificationService
                 $ownerNumber,
                 $fromNumber,
                 $confirmation,
-                $easyFixKind !== null ? ['easy_fix_key' => $verdict['key']] : [],
-                match ($easyFixKind) {
-                    TenantEasyFixCriteria::KIND_EASY_FIX => 'owner_easy_fix_sms',
-                    TenantEasyFixCriteria::KIND_APPLIANCE => 'owner_appliance_responsibility_sms',
-                    default => 'owner_service_request_sms',
-                },
+                $easyFix ? ['easy_fix_key' => $verdict['key']] : [],
+                $easyFix ? 'owner_easy_fix_sms' : 'owner_service_request_sms',
             );
 
             if ($description !== null) {
@@ -224,21 +214,6 @@ class OwnerServiceRequestNotificationService
             'property' => $address === 'your property' ? 'your property' : "your property at {$address}",
             'work_order_no' => (string) $workOrder->work_order_no,
             'item_label' => (string) $item['label'],
-        ]);
-    }
-
-    /**
-     * The confirmation when the tenant has been told their own appliance is
-     * their responsibility.
-     *
-     * @param  array<string, mixed>  $item
-     */
-    private function applianceConfirmation(WorkOrder $workOrder, string $address, array $item): string
-    {
-        return AutomatedMessageTemplates::text('owner_appliance_responsibility_sms', [
-            'property' => $address === 'your property' ? 'your property' : "your property at {$address}",
-            'work_order_no' => (string) $workOrder->work_order_no,
-            'appliance_label' => (string) $item['label'],
         ]);
     }
 

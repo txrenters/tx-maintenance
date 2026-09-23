@@ -762,10 +762,10 @@ class TenantPortalTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));
 
-        // A tenant-owned appliance has no video either.
-        $appliance = $this->makeWorkOrder($this->makeTenant());
-        $appliance->update(['easy_fix_key' => 'appliance_washer']);
-        $this->get(route('tenant.portal.show', $this->makeToken($appliance)->token))
+        // A key the library no longer knows (an old verdict) shows nothing.
+        $unknown = $this->makeWorkOrder($this->makeTenant());
+        $unknown->update(['easy_fix_key' => 'appliance_washer']);
+        $this->get(route('tenant.portal.show', $this->makeToken($unknown)->token))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('easyFix', null));
     }

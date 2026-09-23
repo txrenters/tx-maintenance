@@ -50,7 +50,6 @@ class WorkOrderRecommendationAgent implements Agent, HasStructuredOutput
             'emergency_reason' => $schema->string()->required(),
             'is_tenant_easy_fix' => $schema->boolean()->required(),
             'easy_fix_key' => $schema->string()->nullable()->required(),
-            'tenant_responsibility_reason' => $schema->string()->nullable()->required(),
         ];
     }
 }

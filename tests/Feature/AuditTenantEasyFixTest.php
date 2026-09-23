@@ -27,7 +27,7 @@ class AuditTenantEasyFixTest extends TestCase
         ], $attributes));
     }
 
-    public function test_it_lists_the_easy_fixes_and_tenant_owned_appliances_without_writing_anything(): void
+    public function test_it_lists_the_easy_fixes_without_writing_anything(): void
     {
         Storage::fake('local');
 
@@ -41,7 +41,9 @@ class AuditTenantEasyFixTest extends TestCase
         ]);
 
         $disposal = $this->makeWorkOrder(['work_order_no' => 44001, 'description' => 'Garbage disposal is humming but not turning', 'category' => 'Garbage Disposal']);
-        $washer = $this->makeWorkOrder(['work_order_no' => 44002, 'description' => 'Our washing machine will not spin', 'category' => 'Washer', 'building_id' => $building->propertyware_id]);
+        // An appliance request is listed under its handbook row; the
+        // non-realty call is the WOC's, so the audit does not make it.
+        $dryer = $this->makeWorkOrder(['work_order_no' => 44002, 'description' => 'The dryer is not heating, clothes are still wet', 'category' => 'Dryer', 'building_id' => $building->propertyware_id]);
         $heater = $this->makeWorkOrder(['work_order_no' => 44003, 'description' => 'Water heater is leaking in the garage', 'category' => 'Plumbing']);
         $old = $this->makeWorkOrder(['work_order_no' => 44004, 'description' => 'Garbage disposal jammed', 'category' => 'Garbage Disposal', 'created_date' => now()->subDays(200)]);
 
@@ -55,7 +57,8 @@ class AuditTenantEasyFixTest extends TestCase
         $this->assertStringContainsString('44001,', $csv);
         $this->assertStringContainsString('easy_fix,disposal_jammed', $csv);
         $this->assertStringContainsString('44002,', $csv);
-        $this->assertStringContainsString('appliance,appliance_washer', $csv);
+        $this->assertStringContainsString('easy_fix,dryer_not_heating', $csv);
+        $this->assertStringNotContainsString('appliance', $csv);
         $this->assertStringNotContainsString('44003,', $csv);
         $this->assertStringNotContainsString('44004,', $csv);
 

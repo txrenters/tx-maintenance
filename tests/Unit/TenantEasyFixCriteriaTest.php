@@ -180,7 +180,7 @@ class TenantEasyFixCriteriaTest extends TestCase
 
         $this->assertGreaterThan(80, str_word_count($list));
         $this->assertNull($this->scan($list));
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance(strtolower($list.' The refrigerator is also warm.'), [['fieldName' => 'Included Appliances', 'value' => 'None']])['status']);
+        $this->assertNull($this->scan($list.' The refrigerator is also warm.'));
 
         // Under the cap, the same disposal wording matches.
         $this->assertSame('disposal_not_working', $this->scan('The garbage disposal is not working.'));
@@ -235,43 +235,25 @@ class TenantEasyFixCriteriaTest extends TestCase
         }
     }
 
-    public function test_a_washer_dryer_or_refrigerator_is_a_non_realty_appliance_whoever_provided_it(): void
+    public function test_a_washer_dryer_or_refrigerator_request_gets_its_handbook_row_like_any_other(): void
     {
-        // WO#44011 (washer listed as included) and WO#44058 (refrigerator
-        // listed as included) were both handled as the tenant's: under the
-        // lease these are non-realty items provided as-is.
-        $included = [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator, washer and dryer, dishwasher,disposer, microwave']];
+        // Whether the appliance is a non-realty item under the lease (WO#44011,
+        // WO#44058: both owner-provided, both handled as the tenant's) is the
+        // WOC's call by hand; the scan only asks whether the handbook has a
+        // video for the symptom.
+        $this->assertSame('washer_not_starting', $this->scan('Washer won\'t start, nothing happens when I press start'));
+        $this->assertSame('dryer_not_heating', $this->scan('The dryer is not heating, clothes are still wet'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Freezer isnt freezing food properly and ice maker not making ice'));
+        $this->assertSame('refrigerator_not_cooling', $this->scan('Refrigerator has no power, the outlet behind the fridge is dead'));
 
-        $result = TenantEasyFixCriteria::assessAppliance('washing machine will not spin', $included);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NON_REALTY, $result['status']);
-        $this->assertSame('appliance_washer', $result['key']);
-        $this->assertSame('Refrigerator, washer and dryer, dishwasher,disposer, microwave', $result['included_value']);
+        // A leak, or a symptom the handbook has no row for, matches nothing.
+        $this->assertNull($this->scan('My washer is leaking soap everywhere'));
+        $this->assertNull($this->scan('Washer hookup valve is leaking'));
+        $this->assertNull($this->scan('Dryer vent needs cleaning'));
 
-        $this->assertSame('appliance_dryer', TenantEasyFixCriteria::assessAppliance('the dryer is not heating', $included)['key']);
-        $this->assertSame('appliance_refrigerator', TenantEasyFixCriteria::assessAppliance('freezer isnt freezing food properly and ice maker not making ice', $included)['key']);
-
-        // The field's value, or its absence, changes nothing.
-        foreach ([null, [], [['fieldName' => 'Included Appliances', 'value' => 'None']], [['fieldName' => 'Included Appliances', 'value' => 'Not Completed']], [['fieldName' => 'Included Appliances', 'value' => 'refrigerator']]] as $fields) {
-            $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NON_REALTY, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', $fields)['status'], json_encode($fields));
-        }
-
-        $this->assertNull(TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [['fieldName' => 'Included Appliances', 'value' => '  ']])['included_value']);
-    }
-
-    public function test_a_leaking_appliance_is_never_texted(): void
-    {
-        // A leaking one might be the hookup or be damaging the floor: staff look, nobody is texted.
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('my washer is leaking soap everywhere', null)['status']);
-    }
-
-    public function test_a_hookup_or_a_dishwasher_is_not_a_non_realty_appliance(): void
-    {
-        $fields = [['fieldName' => 'Included Appliances', 'value' => 'None']];
-
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('washer hookup valve is leaking', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('dishwasher not draining', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('dryer vent needs cleaning', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('kitchen sink is clogged', $fields)['status']);
+        // WO#44011: a technician has already diagnosed the drum spider; a
+        // video would not help, the usual text goes out.
+        $this->assertNull($this->scan('Samsung washer has not been working since Friday and the drum is not rotating. Tenant had a technician inspect the unit, who advised the motor is functioning but the drum spider needs replacement; estimated repair cost was $600 for parts and labor.'));
     }
 
     public function test_keys_and_labels_from_the_ai_are_normalised(): void
@@ -279,7 +261,8 @@ class TenantEasyFixCriteriaTest extends TestCase
         $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey('disposal_jammed'));
         $this->assertSame('disposal_jammed', TenantEasyFixCriteria::normalizeKey(' Disposal-Jammed '));
         $this->assertSame('disposal_not_working', TenantEasyFixCriteria::normalizeKey('garbage disposal'));
-        $this->assertSame('appliance_washer', TenantEasyFixCriteria::normalizeKey('appliance washer'));
+        $this->assertSame('washer_not_starting', TenantEasyFixCriteria::normalizeKey('washer'));
+        $this->assertNull(TenantEasyFixCriteria::normalizeKey('appliance washer'));
         $this->assertNull(TenantEasyFixCriteria::normalizeKey('roof'));
         $this->assertNull(TenantEasyFixCriteria::normalizeKey(null));
     }
@@ -292,7 +275,7 @@ class TenantEasyFixCriteriaTest extends TestCase
             $this->assertStringContainsString($key, $instructions);
         }
 
-        $this->assertStringContainsString('appliance_washer', $instructions);
+        $this->assertStringNotContainsString('tenant_responsibility_reason', $instructions);
     }
 
     private function withVideo(string $key, string $url = 'https://youtu.be/example'): void

@@ -5,35 +5,25 @@ namespace App\Ai;
 use Illuminate\Support\Str;
 
 /**
- * Single source of truth for what counts as a tenant easy fix (a small
+ * Single source of truth for what counts as a tenant easy fix: a small
  * repair the Maintenance handbook says the tenant handles themselves, with a
- * how-to video) and a non-realty appliance (a washer, dryer or refrigerator:
- * under the lease these are "non-realty property items", provided as-is, so
- * their repair is the tenant's responsibility whoever put them in the house).
+ * how-to video. The library itself lives in config/tenant_easy_fix.php so
+ * the handbook's items, keywords and video links can be edited without
+ * touching this logic.
  *
- * The library itself lives in config/tenant_easy_fix.php so the handbook's
- * items, keywords and video links can be edited without touching this logic.
  * Shared by the intake automation (which decides deterministically, from
- * keywords and the PropertyWare category, whether the tenant gets the
- * how-to text instead of the generic confirmation), by the work order
- * classification agent (which surfaces the ones the keywords missed for
- * staff), and by the easy-fix audit command. Same shape as EmergencyCriteria.
+ * keywords and the PropertyWare category, whether the tenant gets the how-to
+ * text instead of the generic confirmation), by the work order classification
+ * agent (which surfaces the ones the keywords missed for staff), and by the
+ * easy-fix audit command. Same shape as EmergencyCriteria.
+ *
+ * Whether an item is the owner's to repair or a non-realty item under the
+ * lease (a washer, dryer or refrigerator provided as-is) is deliberately not
+ * judged here: the video goes out either way, and the WOC decides by hand
+ * from "Checking for Tenant Easy Fix" (Earl, 2026-09-23).
  */
 class TenantEasyFixCriteria
 {
-    public const KIND_EASY_FIX = 'easy_fix';
-
-    public const KIND_APPLIANCE = 'appliance';
-
-    /**
-     * The request is about a washer, dryer or refrigerator: a non-realty
-     * item under the lease, the tenant's responsibility.
-     */
-    public const APPLIANCE_NON_REALTY = 'non_realty';
-
-    /** The request is not about such an appliance at all. */
-    public const APPLIANCE_NONE = 'none';
-
     /**
      * The easy-fix items, keyed by their `key`.
      *
@@ -49,21 +39,7 @@ class TenantEasyFixCriteria
     }
 
     /**
-     * The non-realty appliance items, keyed by their `key`.
-     *
-     * @return array<string, array{key: string, label: string, keywords: array<int, string>, exclude: array<int, string>}>
-     */
-    public static function appliances(): array
-    {
-        return collect((array) config('tenant_easy_fix.appliances', []))
-            ->filter(fn ($item) => is_array($item) && filled($item['key'] ?? null))
-            ->keyBy('key')
-            ->map(fn (array $item) => $item + ['keywords' => [], 'exclude' => [], 'label' => $item['key']])
-            ->all();
-    }
-
-    /**
-     * One item (easy fix or appliance) by key, or null.
+     * One item by key, or null.
      *
      * @return array<string, mixed>|null
      */
@@ -73,27 +49,7 @@ class TenantEasyFixCriteria
             return null;
         }
 
-        return self::items()[$key] ?? self::appliances()[$key] ?? null;
-    }
-
-    /**
-     * Which kind of item a key names, or null for an unknown key.
-     */
-    public static function kindOf(?string $key): ?string
-    {
-        if (blank($key)) {
-            return null;
-        }
-
-        if (isset(self::items()[$key])) {
-            return self::KIND_EASY_FIX;
-        }
-
-        if (isset(self::appliances()[$key])) {
-            return self::KIND_APPLIANCE;
-        }
-
-        return null;
+        return self::items()[$key] ?? null;
     }
 
     /**
@@ -156,77 +112,6 @@ class TenantEasyFixCriteria
     }
 
     /**
-     * Whether the lowered text is about a non-realty appliance (washer,
-     * dryer, refrigerator). The lease makes these the tenant's whoever
-     * provided them, so PropertyWare's "Included Appliances" field does not
-     * change the verdict; its value is carried along for the audit and the
-     * Recommendation tab only. Same vetoes as the easy-fix scan: a long
-     * punch list, a leak or hazard, or an emergency is never texted.
-     *
-     * @param  array<int, mixed>|null  $customFields  the building's raw custom_fields ({fieldName, value} rows)
-     * @return array{status: string, key: ?string, matched: array<int, string>, included_value: ?string}
-     */
-    public static function assessAppliance(string $loweredText, ?array $customFields): array
-    {
-        $none = ['status' => self::APPLIANCE_NONE, 'key' => null, 'matched' => [], 'included_value' => null];
-
-        if (self::isTooLong($loweredText) || self::hasGlobalExclusion($loweredText) || EmergencyCriteria::scan($loweredText)['is_emergency']) {
-            return $none;
-        }
-
-        $hit = null;
-
-        foreach (self::appliances() as $key => $appliance) {
-            $matched = array_values(array_filter(
-                $appliance['keywords'],
-                fn (string $needle) => self::keywordMatches($loweredText, $needle)
-            ));
-
-            if ($matched === [] || self::anyMatches($loweredText, $appliance['exclude'])) {
-                continue;
-            }
-
-            if ($hit === null || count($matched) > count($hit['matched'])) {
-                $hit = ['key' => $key, 'matched' => $matched, 'appliance' => $appliance];
-            }
-        }
-
-        if ($hit === null) {
-            return $none;
-        }
-
-        return ['status' => self::APPLIANCE_NON_REALTY, 'key' => $hit['key'], 'matched' => $hit['matched'], 'included_value' => self::includedAppliancesValue($customFields)];
-    }
-
-    /**
-     * The property's "Included Appliances" value as PropertyWare holds it, or
-     * null when the field is absent or blank. Informational only (the audit
-     * CSV, the Recommendation tab): it does not decide responsibility.
-     *
-     * @param  array<int, mixed>|null  $customFields
-     */
-    public static function includedAppliancesValue(?array $customFields): ?string
-    {
-        foreach ((array) $customFields as $field) {
-            if (! is_array($field)) {
-                continue;
-            }
-
-            $name = Str::lower(trim((string) ($field['fieldName'] ?? $field['name'] ?? '')));
-
-            if ($name !== 'included appliances') {
-                continue;
-            }
-
-            $value = trim((string) ($field['value'] ?? ''));
-
-            return $value === '' ? null : $value;
-        }
-
-        return null;
-    }
-
-    /**
      * Instruction block for the work order classification agent.
      *
      * @return array<int, string>
@@ -244,7 +129,6 @@ class TenantEasyFixCriteria
 
         $lines[] = 'It is NOT an easy fix when the same symptom involves a leak, water damage, sparking, burning, a broken or missing part, a hazard, a whole-house outage, or when the tenant says they already tried the reset or fix. When in doubt, set is_tenant_easy_fix to false: a wrong easy-fix label leaves a real repair unattended.';
         $lines[] = 'Set easy_fix_key to the matching item key from the list above when is_tenant_easy_fix is true, otherwise null.';
-        $lines[] = 'Separately, if the request is about a washer, dryer or refrigerator (under the lease these are non-realty property items provided as-is, so their repair is the tenant\'s responsibility whoever provided them), set tenant_responsibility_reason to one short sentence saying so, using the keys '.implode(', ', array_keys(self::appliances())).' where relevant; otherwise null. A hookup, valve, vent, outlet or breaker for the appliance is part of the house, not the appliance.';
 
         return $lines;
     }
@@ -260,7 +144,7 @@ class TenantEasyFixCriteria
 
         $wanted = Str::of($key)->lower()->trim()->replace(['-', ' '], '_')->toString();
 
-        foreach (array_merge(array_keys(self::items()), array_keys(self::appliances())) as $canonical) {
+        foreach (array_keys(self::items()) as $canonical) {
             if ($canonical === $wanted) {
                 return $canonical;
             }

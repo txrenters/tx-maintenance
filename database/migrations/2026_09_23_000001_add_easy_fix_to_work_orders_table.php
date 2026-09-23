@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * The tenant easy-fix verdict recorded at intake (which handbook item or
-     * tenant-owned appliance the request was judged to be, or null for
+     * The tenant easy-fix verdict recorded at intake (which handbook item
+     * the request was judged to be, or null for
      * "assessed, not one"), so the tenant text, the owner text, the intake
      * email and the board all agree on it. Guarded so a re-run, or a database
      * that already has the columns, is a no-op instead of a failed deploy

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Ai\TenantEasyFixCriteria;
 use App\Models\TenantEmailNotification;
 use App\Models\Tenants;
 use App\Models\WorkOrder;
@@ -79,12 +78,11 @@ class TenantWorkOrderEmailSender
             $reference = $workOrder->work_order_no ?? $workOrder->id;
 
             // The email twin of the easy-fix text: the handbook's how-to
-            // video (or the tenant-owned appliance note) instead of "we
-            // received your request". Same verdict the text uses, same gate.
+            // video instead of "we received your request". Same verdict the
+            // text uses, same gate.
             $verdict = $this->easyFix->assess($workOrder);
-            $easyFix = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabledFor($verdict['kind'])
+            $easyFix = ! $staffCreated && $verdict !== null && $verdict['sendable'] && $this->easyFix->enabled()
                 ? [
-                    'kind' => $verdict['kind'],
                     'key' => $verdict['key'],
                     'label' => (string) $verdict['item']['label'],
                     'video_url' => $verdict['item']['video_url'] ?? null,
@@ -94,12 +92,11 @@ class TenantWorkOrderEmailSender
 
             $subject = match (true) {
                 $staffCreated => 'A work order has been created — Work Order #',
-                $easyFix !== null && $easyFix['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX => 'A quick fix for your '.$easyFix['label'].' — Work Order #',
-                $easyFix !== null => 'About your service request — Work Order #',
+                $easyFix !== null => 'A quick fix for your '.$easyFix['label'].' — Work Order #',
                 default => 'We received your service request — Work Order #',
             }.$reference;
 
-            $portalLink = $easyFix !== null && $easyFix['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX
+            $portalLink = $easyFix !== null
                 ? $this->portalLinks->urlFor($this->easyFix->openEasyFixToken($workOrder))
                 : $this->portalLinks->link($workOrder);
 
@@ -133,7 +130,7 @@ class TenantWorkOrderEmailSender
                 if ($staffCreated) {
                     $ledgerExtra['variant'] = 'staff_created';
                 } elseif ($easyFix !== null) {
-                    $ledgerExtra['variant'] = $easyFix['kind'];
+                    $ledgerExtra['variant'] = 'easy_fix';
                     $ledgerExtra['easy_fix_key'] = $easyFix['key'];
                 }
 

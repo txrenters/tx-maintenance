@@ -369,11 +369,11 @@ class WorkOrderRecommendationTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
             ->assertJsonPath('recommendation.classification.easy_fix_key', 'disposal_jammed')
-            ->assertJsonPath('recommendation.classification.tenant_responsibility_reason', null)
+            ->assertJsonMissingPath('recommendation.classification.tenant_responsibility_reason')
             ->assertJsonPath('recommendation.work_order.easy_fix_key', 'disposal_jammed');
     }
 
-    public function test_the_heuristic_classification_marks_a_refrigerator_as_a_non_realty_appliance(): void
+    public function test_the_heuristic_classification_treats_a_refrigerator_as_an_easy_fix_like_any_other_row(): void
     {
         $user = User::factory()->create();
         $serviceStatus = ServiceStatus::query()->create([
@@ -391,12 +391,11 @@ class WorkOrderRecommendationTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('work_orders.recommendation.generate', $workOrder));
 
-        // A refrigerator is a non-realty item under the lease: not an easy
-        // fix, the tenant's responsibility, whoever provided it.
+        // Whether the fridge is a non-realty item under the lease is the
+        // WOC's call by hand; the rules only see the handbook row.
         $response->assertOk()
-            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', false)
-            ->assertJsonPath('recommendation.classification.easy_fix_key', 'appliance_refrigerator');
-
-        $this->assertStringContainsString('non-realty item under the lease', $response->json('recommendation.classification.tenant_responsibility_reason'));
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'refrigerator_not_cooling')
+            ->assertJsonMissingPath('recommendation.classification.tenant_responsibility_reason');
     }
 }

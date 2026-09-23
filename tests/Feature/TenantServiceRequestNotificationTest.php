@@ -801,7 +801,6 @@ class TenantServiceRequestNotificationTest extends TestCase
         config([
             'services.twilio.tenant_intake_sms' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
-            'services.twilio.tenant_appliance_sms' => true,
         ]);
 
         $items = config('tenant_easy_fix.items');
@@ -815,10 +814,9 @@ class TenantServiceRequestNotificationTest extends TestCase
         config(['tenant_easy_fix.items' => $items]);
 
         // The factory takes the first status on file; keep the easy-fix
-        // statuses from being it so the status move is a real move.
+        // status from being it so the status move is a real move.
         ServiceStatus::query()->firstOrCreate(['name' => 'New'], ['description' => 'New']);
         ServiceStatus::query()->firstOrCreate(['name' => TenantEasyFixService::EASY_FIX_STATUS], ['description' => 'easy fix']);
-        ServiceStatus::query()->firstOrCreate(['name' => TenantEasyFixService::APPLIANCE_STATUS], ['description' => 'non real property']);
 
         $mock = Mockery::mock(PropertyWareService::class);
         $mock->shouldReceive('updateServiceStatus')->andReturn($propertyWareAccepts);
@@ -970,8 +968,14 @@ class TenantServiceRequestNotificationTest extends TestCase
         $this->assertStringNotContainsString('youtu.be', $text);
     }
 
-    public function test_a_washer_request_is_told_it_is_a_non_realty_item_and_the_tenant_s_responsibility(): void
+    public function test_an_appliance_request_gets_the_handbook_video_and_the_non_realty_call_stays_with_the_woc(): void
     {
+        // Earl, 09-23: whether a washer, dryer or refrigerator is a non-realty
+        // item under the lease needs a human (WO#44058 was owner-provided and
+        // still the tenant's), so the automation only ever sends the how-to
+        // video and moves the work order to "Checking for Tenant Easy Fix";
+        // the WOC moves it on to the non-realty status and messages both
+        // sides by hand. PropertyWare's Included Appliances plays no part.
         $this->enableEasyFix();
         Queue::fake();
 
@@ -981,76 +985,44 @@ class TenantServiceRequestNotificationTest extends TestCase
             'address' => '700 Oak St',
             'city' => 'Houston',
             'state_region' => 'TX',
-            'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'refrigerator', 'dataType' => 'Text']],
+            'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'refrigerator, washer and dryer', 'dataType' => 'Text']],
         ]);
         $workOrder = $this->makeDisposalWorkOrder([
-            'description' => 'Our washing machine will not spin',
-            'category' => 'Washer',
+            'description' => 'The dryer is not heating, clothes are still wet after a full cycle.',
+            'category' => 'Dryer',
             'building_id' => $building->propertyware_id,
         ]);
 
         $this->notify($workOrder);
 
         $text = $this->tenantMessage($workOrder)->message;
-        $this->assertStringContainsString('We received your request about the washer.', $text);
-        $this->assertStringContainsString('the washer is classified as a non-realty property item and is provided as-is', $text);
-        $this->assertStringContainsString("generally the tenant's responsibility", $text);
-        $this->assertStringContainsString('reach out to the owner to ask whether they would be willing to cover', $text);
-        $this->assertStringContainsString('let us know how you would like to proceed', $text);
+        $this->assertStringContainsString('We received your request about the dryer.', $text);
+        $this->assertStringContainsString('https://youtu.be/umSXSNeNPf0', $text);
+        $this->assertStringNotContainsString('non-realty', $text);
         $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
 
-        // General portal link, no easy-fix photo token.
-        $general = TenantUploadToken::query()->where('work_order_id', $workOrder->id)->where('purpose', TenantUploadToken::PURPOSE_WORK_ORDER)->firstOrFail();
-        $this->assertStringContainsString(route('tenant.portal.show', $general->token), $text);
-        $this->assertSame(0, TenantUploadToken::query()->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)->count());
+        // The easy-fix photo token, so the check-ins follow.
+        $this->assertSame(1, TenantUploadToken::query()->where('work_order_id', $workOrder->id)->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)->count());
 
         $fresh = $workOrder->fresh();
-        $this->assertSame('appliance_washer', $fresh->easy_fix_key);
+        $this->assertSame('dryer_not_heating', $fresh->easy_fix_key);
         $this->assertSame(
-            ServiceStatus::query()->where('name', TenantEasyFixService::APPLIANCE_STATUS)->value('id'),
+            ServiceStatus::query()->where('name', TenantEasyFixService::EASY_FIX_STATUS)->value('id'),
             $fresh->service_status_id,
         );
+        $this->assertSame(1, Activity::query()->where('event', 'tenant_easy_fix_sms')->count());
 
-        $this->assertSame(1, Activity::query()->where('event', 'tenant_appliance_responsibility_sms')->count());
-    }
-
-    public function test_the_appliance_texts_have_their_own_switch(): void
-    {
-        // Easy-fix texts on, appliance texts off (Earl 09-23: hold the
-        // non-realty half, ship the easy fixes): a washer request keeps the
-        // "request received" text, the verdict is still recorded, the
-        // status is left alone.
-        $this->enableEasyFix();
-        config(['services.twilio.tenant_appliance_sms' => false]);
-        Queue::fake();
-
-        $workOrder = $this->makeDisposalWorkOrder(['description' => 'Our washing machine will not spin', 'category' => 'Washer']);
-
-        $this->notify($workOrder);
-
-        $text = $this->tenantMessage($workOrder)->message;
-        $this->assertStringContainsString('we have received your service request', $text);
-        $this->assertStringNotContainsString('non-realty', $text);
-
-        $fresh = $workOrder->fresh();
-        $this->assertSame('appliance_washer', $fresh->easy_fix_key);
-        $this->assertNotSame(
-            ServiceStatus::query()->where('name', TenantEasyFixService::APPLIANCE_STATUS)->value('id'),
-            $fresh->service_status_id,
-        );
-        $this->assertSame(0, Activity::query()->where('event', 'tenant_appliance_responsibility_sms')->count());
-
-        // And the other way round: appliance on, easy fix off, a disposal
-        // request keeps "request received" while a washer gets its text.
-        config(['services.twilio.tenant_easy_fix_sms' => false, 'services.twilio.tenant_appliance_sms' => true]);
-
-        $disposal = $this->makeDisposalWorkOrder(['work_order_no' => 43901, 'propertyware_id' => 43900002]);
-        $this->notify($disposal);
-        $this->assertStringContainsString('we have received your service request', $this->tenantMessage($disposal)->message);
-
-        $washer = $this->makeDisposalWorkOrder(['work_order_no' => 43902, 'propertyware_id' => 43900003, 'description' => 'Our washing machine will not spin', 'category' => 'Washer']);
-        $this->notify($washer);
-        $this->assertStringContainsString('non-realty property item', $this->tenantMessage($washer)->message);
+        // WO#44011: a technician has already diagnosed the washer, so no
+        // video; the usual "request received" text, nothing recorded.
+        $diagnosed = $this->makeDisposalWorkOrder([
+            'work_order_no' => 43901,
+            'propertyware_id' => 43900002,
+            'description' => 'Samsung washer has not been working since Friday and the drum is not rotating. Tenant had a technician inspect the unit, who advised the motor is functioning but the drum spider needs replacement.',
+            'category' => 'Washer',
+        ]);
+        $this->notify($diagnosed);
+        $this->assertStringContainsString('we have received your service request', $this->tenantMessage($diagnosed)->message);
+        $this->assertNull($diagnosed->fresh()->easy_fix_key);
     }
 
     public function test_the_status_stays_put_when_propertyware_rejects_it_but_the_text_still_goes(): void

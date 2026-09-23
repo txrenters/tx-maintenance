@@ -964,7 +964,6 @@ class WorkOrderRecommendationService
                 'emergency_reason' => data_get($response, 'emergency_reason'),
                 'is_tenant_easy_fix' => (bool) data_get($response, 'is_tenant_easy_fix', false),
                 'easy_fix_key' => TenantEasyFixCriteria::normalizeKey(data_get($response, 'easy_fix_key')),
-                'tenant_responsibility_reason' => data_get($response, 'tenant_responsibility_reason') ?: null,
                 'source' => 'laravel_ai',
                 'model' => $this->aiModelName(),
                 'raw_response' => method_exists($response, 'toArray') ? $response->toArray() : (array) $response,
@@ -1021,7 +1020,6 @@ class WorkOrderRecommendationService
         // The same deterministic judgement the intake automation makes, so
         // the Recommendation tab shows what the tenant was (or would be) told.
         $judgement = app(TenantEasyFixService::class)->judge($workOrder);
-        $appliance = $judgement['appliance'];
 
         return [
             'issue_type' => $bestIssueType,
@@ -1037,12 +1035,8 @@ class WorkOrderRecommendationService
             'emergency_reason' => $emergency['is_emergency']
                 ? 'Matched emergency keywords: '.implode(', ', $emergency['matched'])
                 : 'No emergency indicators found in the work order text',
-            'is_tenant_easy_fix' => $judgement['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX,
+            'is_tenant_easy_fix' => $judgement['key'] !== null,
             'easy_fix_key' => $judgement['key'],
-            'tenant_responsibility_reason' => $appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NON_REALTY
-                ? 'The request concerns the '.TenantEasyFixCriteria::item($appliance['key'])['label'].', a non-realty item under the lease (provided as-is, the tenant\'s responsibility).'
-                    .($appliance['included_value'] !== null ? ' PropertyWare\'s Included Appliances: "'.$appliance['included_value'].'".' : '')
-                : null,
             'source' => 'heuristic',
             'model' => null,
             'raw_response' => null,

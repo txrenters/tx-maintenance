@@ -67,9 +67,7 @@ class AutomatedMessageLogService
         'tenant_tbp_visit_notice_sms' => 'Tenant: TBP visit notice (Send notification button)',
         'tenant_easy_fix_sms' => 'Tenant: easy fix how-to',
         'tenant_easy_fix_follow_up_sms' => 'Tenant: easy fix check-in',
-        'tenant_appliance_responsibility_sms' => 'Tenant: appliance is tenant responsibility',
         'owner_easy_fix_sms' => 'Owner: tenant easy fix',
-        'owner_appliance_responsibility_sms' => 'Owner: appliance is tenant responsibility',
     ];
 
     /**

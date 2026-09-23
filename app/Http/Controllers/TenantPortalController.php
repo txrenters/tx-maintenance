@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Ai\TenantEasyFixCriteria;
 use App\Jobs\GenerateThumbnail;
 use App\Jobs\UploadAttachment;
 use App\Models\Attachments;
@@ -89,7 +88,7 @@ class TenantPortalController extends Controller
         // The handbook how-to for a request judged a tenant easy fix at
         // intake, shown whichever link the tenant opened.
         $easyFix = app(TenantEasyFixService::class)->verdictFor($workOrder->easy_fix_key);
-        $easyFixCard = $easyFix !== null && $easyFix['sendable'] && $easyFix['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX
+        $easyFixCard = $easyFix !== null && $easyFix['sendable']
             ? [
                 'label' => $easyFix['item']['label'],
                 'video_url' => $easyFix['item']['video_url'],

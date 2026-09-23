@@ -358,7 +358,6 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         config([
             'services.work_order.tenant_intake_email' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
-            'services.twilio.tenant_appliance_sms' => true,
         ]);
 
         $items = config('tenant_easy_fix.items');
@@ -427,8 +426,10 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertStringNotContainsString('youtu.be', $captured->html);
     }
 
-    public function test_a_refrigerator_request_is_emailed_the_non_realty_note(): void
+    public function test_a_refrigerator_request_is_emailed_the_handbook_video_like_any_other_easy_fix(): void
     {
+        // Whether the fridge is a non-realty item under the lease is the
+        // WOC's call by hand; the automation only sends the how-to.
         $this->enableEasyFix();
         $captured = $this->fakeGraph();
 
@@ -451,10 +452,10 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
 
         $this->assertTrue($this->send($workOrder));
 
-        $this->assertStringContainsString('About your service request', $captured->subject);
-        $this->assertStringContainsString('as a non-realty property item and is provided as-is', $captured->html);
-        $this->assertStringContainsString("generally the tenant's responsibility", $captured->html);
-        $this->assertStringNotContainsString('Watch the how-to video', $captured->html);
-        $this->assertSame('appliance_refrigerator', $workOrder->fresh()->easy_fix_key);
+        $this->assertStringContainsString('A quick fix for your refrigerator', $captured->subject);
+        $this->assertStringContainsString('Watch the how-to video', $captured->html);
+        $this->assertStringContainsString('https://www.youtube.com/watch?v=Xj2jEaL_D_w', $captured->html);
+        $this->assertStringNotContainsString('non-realty', $captured->html);
+        $this->assertSame('refrigerator_not_cooling', $workOrder->fresh()->easy_fix_key);
     }
 }

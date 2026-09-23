@@ -165,7 +165,7 @@ const emergencyClassifiedBy = computed(() => {
         : "staff";
 });
 
-// --- Tenant easy fix / tenant-owned appliance ---
+// --- Tenant easy fix ---
 
 // What the AI (or the keyword fallback) thinks, and what the intake
 // automation actually decided (stored on the work order). Shown whenever
@@ -176,30 +176,17 @@ const aiEasyFixKey = computed(
 const aiSaysEasyFix = computed(() =>
     Boolean(props.recommendation?.classification?.is_tenant_easy_fix),
 );
-const tenantResponsibilityReason = computed(
-    () => props.recommendation?.classification?.tenant_responsibility_reason ?? null,
-);
 const intakeEasyFixKey = computed(
     () => props.recommendation?.work_order?.easy_fix_key ?? null,
 );
 const hasEasyFixAssessment = computed(
-    () =>
-        aiSaysEasyFix.value ||
-        Boolean(tenantResponsibilityReason.value) ||
-        Boolean(intakeEasyFixKey.value),
+    () => aiSaysEasyFix.value || Boolean(intakeEasyFixKey.value),
 );
-const humanizeKey = (key) =>
-    key
-        ? String(key)
-              .replace(/^appliance_/, "")
-              .replace(/_/g, " ")
-        : "";
+const humanizeKey = (key) => (key ? String(key).replace(/_/g, " ") : "");
 const intakeEasyFixLabel = computed(() => {
     const key = intakeEasyFixKey.value;
     if (!key) return null;
-    return String(key).startsWith("appliance_")
-        ? `Tenant-owned ${humanizeKey(key)}`
-        : `Tenant easy fix: ${humanizeKey(key)}`;
+    return `Tenant easy fix: ${humanizeKey(key)}`;
 });
 const easyFixDisagrees = computed(
     () =>
@@ -362,7 +349,7 @@ const formatDate = (date) => {
                     </CardContent>
                 </Card>
 
-                <!-- Tenant easy fix / tenant-owned appliance -->
+                <!-- Tenant easy fix -->
                 <Card
                     v-if="hasEasyFixAssessment"
                     class="overflow-hidden border-2 border-sky-500/50 bg-sky-500/5"
@@ -394,7 +381,8 @@ const formatDate = (date) => {
                             Decided at intake: the tenant was sent the handbook's
                             how-to instead of the usual "request received" text
                             (when the easy-fix texts are switched on), and the
-                            owner was told.
+                            owner was told. Whether the item is a non-realty
+                            appliance under the lease is your call from here.
                         </p>
                         <p
                             v-else-if="easyFixDisagrees"
@@ -403,13 +391,6 @@ const formatDate = (date) => {
                             AI suggests this is a tenant easy fix, but the intake
                             rules did not match it, so the tenant got the usual
                             text. Worth a look.
-                        </p>
-
-                        <p
-                            v-if="tenantResponsibilityReason"
-                            class="border-l-2 border-sky-500/40 pl-3 text-sm italic leading-6 text-muted-foreground"
-                        >
-                            {{ tenantResponsibilityReason }}
                         </p>
                     </CardContent>
                 </Card>

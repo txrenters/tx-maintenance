@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Ai\TenantEasyFixCriteria;
 use App\Models\Building;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
@@ -107,7 +106,6 @@ class TenantEasyFixServiceTest extends TestCase
 
         $verdict = $this->service()->assess($workOrder);
 
-        $this->assertSame('easy_fix', $verdict['kind']);
         $this->assertSame('disposal_jammed', $verdict['key']);
         $this->assertTrue($verdict['sendable']);
 
@@ -166,49 +164,36 @@ class TenantEasyFixServiceTest extends TestCase
         }
     }
 
-    public function test_a_washer_is_judged_a_non_realty_appliance_whatever_included_appliances_says(): void
+    public function test_an_appliance_request_gets_its_handbook_row_whatever_included_appliances_says(): void
     {
+        // Whether a washer, dryer or refrigerator is a non-realty item under
+        // the lease is the WOC's call by hand (Earl, 09-23); the automation
+        // sends the handbook video like any other row, and PropertyWare's
+        // Included Appliances field plays no part.
         foreach (['refrigerator', 'Refrigerator, washer and dryer', 'None', 'Not Completed', null] as $index => $includedAppliances) {
             $workOrder = $this->makeWorkOrder([
                 'work_order_no' => 43910 + $index,
-                'description' => 'Our washing machine will not spin',
-                'category' => 'Washer',
+                'description' => 'The dryer is not heating, clothes are still wet',
+                'category' => 'Dryer',
                 'building_id' => $this->makeBuilding($includedAppliances)->propertyware_id,
             ]);
 
             $verdict = $this->service()->assess($workOrder);
 
-            $this->assertSame('appliance', $verdict['kind'], (string) $includedAppliances);
-            $this->assertSame('appliance_washer', $verdict['key'], (string) $includedAppliances);
+            $this->assertSame('dryer_not_heating', $verdict['key'], (string) $includedAppliances);
             $this->assertTrue($verdict['sendable'], (string) $includedAppliances);
         }
-    }
 
-    public function test_a_refrigerator_request_gets_the_non_realty_text_not_the_handbook_row(): void
-    {
-        // WO#44058: fridge listed as included, still the tenant's under the lease.
-        $workOrder = $this->makeWorkOrder([
+        // WO#44058: the fridge listed as included, the freezer not freezing.
+        $fridge = $this->makeWorkOrder([
+            'work_order_no' => 43903,
             'description' => 'Refrigerator stopped cooling yesterday',
             'category' => 'Refrigerator',
             'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
         ]);
 
-        $verdict = $this->service()->assess($workOrder);
-
-        $this->assertSame('appliance', $verdict['kind']);
-        $this->assertSame('appliance_refrigerator', $verdict['key']);
-        $this->assertStringStartsWith('non_realty:', $this->service()->judge($workOrder)['reason']);
-
-        // The house's side of it (an outlet, a breaker) is not the appliance,
-        // so the handbook's "check power" row still applies there.
-        $house = $this->makeWorkOrder([
-            'work_order_no' => 43903,
-            'description' => 'Refrigerator has no power, the outlet behind the fridge is dead',
-            'category' => 'Refrigerator',
-            'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
-        ]);
-
-        $this->assertSame('refrigerator_not_cooling', $this->service()->assess($house)['key']);
+        $this->assertSame('refrigerator_not_cooling', $this->service()->assess($fridge)['key']);
+        $this->assertStringStartsWith('matched:', $this->service()->judge($fridge)['reason']);
     }
 
     public function test_the_tenant_will_be_told_only_when_gate_item_mute_and_reach_all_allow(): void
@@ -228,15 +213,6 @@ class TenantEasyFixServiceTest extends TestCase
         // Muted on this work order.
         $workOrder->setAutomationPaused('tenant', true);
         $this->assertFalse($this->service()->tenantWillBeTold($workOrder->fresh(), $verdict));
-
-        // An appliance verdict follows the appliance switch, not the easy-fix one.
-        $washer = $this->makeWorkOrder(['work_order_no' => 43904, 'description' => 'Our washing machine will not spin', 'category' => 'Washer']);
-        $applianceVerdict = $this->service()->assess($washer);
-        $this->assertSame('appliance', $applianceVerdict['kind']);
-        $this->assertFalse($this->service()->tenantWillBeTold($washer, $applianceVerdict));
-
-        config(['services.twilio.tenant_appliance_sms' => true]);
-        $this->assertTrue($this->service()->tenantWillBeTold($washer, $applianceVerdict));
     }
 
     public function test_the_tenant_counts_as_told_by_email_when_they_have_no_phone(): void
@@ -288,7 +264,7 @@ class TenantEasyFixServiceTest extends TestCase
         $this->mockPropertyWare(accepts: true);
         $workOrder = $this->makeWorkOrder();
 
-        $this->service()->applyStatus($workOrder, TenantEasyFixCriteria::KIND_EASY_FIX);
+        $this->service()->applyStatus($workOrder);
 
         $this->assertSame($status->id, $workOrder->fresh()->service_status_id);
     }
@@ -300,20 +276,9 @@ class TenantEasyFixServiceTest extends TestCase
         $workOrder = $this->makeWorkOrder();
         $before = $workOrder->service_status_id;
 
-        $this->service()->applyStatus($workOrder, TenantEasyFixCriteria::KIND_EASY_FIX);
+        $this->service()->applyStatus($workOrder);
 
         $this->assertSame($before, $workOrder->fresh()->service_status_id);
-    }
-
-    public function test_the_appliance_kind_uses_the_non_real_property_status(): void
-    {
-        $status = $this->serviceStatus(TenantEasyFixService::APPLIANCE_STATUS);
-        $this->mockPropertyWare(accepts: true);
-        $workOrder = $this->makeWorkOrder();
-
-        $this->service()->applyStatus($workOrder, TenantEasyFixCriteria::KIND_APPLIANCE);
-
-        $this->assertSame($status->id, $workOrder->fresh()->service_status_id);
     }
 
     public function test_a_local_only_work_order_or_a_missing_status_never_touches_propertyware(): void
@@ -323,13 +288,13 @@ class TenantEasyFixServiceTest extends TestCase
         $local = $this->makeWorkOrder(['propertyware_id' => null]);
         $before = $local->service_status_id;
         $this->serviceStatus(TenantEasyFixService::EASY_FIX_STATUS);
-        $this->service()->applyStatus($local, TenantEasyFixCriteria::KIND_EASY_FIX);
+        $this->service()->applyStatus($local);
         $this->assertSame($before, $local->fresh()->service_status_id);
 
         ServiceStatus::query()->where('name', TenantEasyFixService::EASY_FIX_STATUS)->delete();
         $remote = $this->makeWorkOrder(['work_order_no' => 43902]);
         $before = $remote->service_status_id;
-        $this->service()->applyStatus($remote, TenantEasyFixCriteria::KIND_EASY_FIX);
+        $this->service()->applyStatus($remote);
         $this->assertSame($before, $remote->fresh()->service_status_id);
     }
 }

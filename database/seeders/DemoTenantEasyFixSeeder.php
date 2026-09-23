@@ -26,7 +26,8 @@ use Illuminate\Support\Facades\Queue;
  *  - #990201 a humming garbage disposal   -> the easy-fix how-to text (handbook row 6), then the three check-ins
  *  - #990203 a garage door that won't open -> the easy-fix how-to text (row 23)
  *  - #990204 a burned-out light bulb       -> the easy-fix how-to text (row 3)
- *  - #990202 a washer that won't spin      -> the non-realty appliance texts (tenant + owner)
+ *  - #990202 a dryer that runs cold        -> the easy-fix how-to text (row 21): an appliance gets its
+ *                                             video like any other row, the non-realty call is the WOC's
  *
  * Each runs the real tenant and owner intake senders so the demo can never
  * drift from production wording. The work orders are local-only (no
@@ -48,7 +49,7 @@ class DemoTenantEasyFixSeeder extends Seeder
         ['no' => 990201, 'home' => 'DEMO-EASYFIX-1', 'description' => 'Garbage disposal is humming but not turning. Something might be stuck in it.', 'category' => 'Garbage Disposal'],
         ['no' => 990203, 'home' => 'DEMO-EASYFIX-1', 'description' => 'Garage door wont open', 'category' => 'General Maintenance'],
         ['no' => 990204, 'home' => 'DEMO-EASYFIX-1', 'description' => 'The light bulb in the hallway burned out and I cannot reach it without a ladder.', 'category' => 'Light Fixture'],
-        ['no' => 990202, 'home' => 'DEMO-EASYFIX-2', 'description' => 'Our washing machine will not spin, it fills up and then just stops.', 'category' => 'Washer'],
+        ['no' => 990202, 'home' => 'DEMO-EASYFIX-2', 'description' => 'The dryer is not heating, clothes are still wet after a full cycle.', 'category' => 'Dryer'],
     ];
 
     public function run(): void
@@ -76,8 +77,7 @@ class DemoTenantEasyFixSeeder extends Seeder
         );
 
         // Two homes so the board shows two addresses. Included Appliances is
-        // informational only: a washer is a non-realty item under the lease
-        // whether or not the owner provided it.
+        // shown on the property card only; it plays no part in the verdict.
         $homes = [
             'DEMO-EASYFIX-1' => Building::updateOrCreate(
                 ['propertyware_id' => 'DEMO-EASYFIX-1'],
@@ -85,7 +85,7 @@ class DemoTenantEasyFixSeeder extends Seeder
             ),
             'DEMO-EASYFIX-2' => Building::updateOrCreate(
                 ['propertyware_id' => 'DEMO-EASYFIX-2'],
-                ['name' => '125 Demo St (non-realty washer)', 'address' => '125 Demo St', 'city' => 'Houston', 'state_region' => 'TX', 'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator', 'dataType' => 'Text']]],
+                ['name' => '125 Demo St (dryer)', 'address' => '125 Demo St', 'city' => 'Houston', 'state_region' => 'TX', 'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator', 'dataType' => 'Text']]],
             ),
         ];
 
@@ -97,7 +97,6 @@ class DemoTenantEasyFixSeeder extends Seeder
             'services.twilio.tenant_intake_sms' => true,
             'services.twilio.owner_service_request_sms' => true,
             'services.twilio.tenant_easy_fix_sms' => true,
-            'services.twilio.tenant_appliance_sms' => true,
         ]);
         Queue::fake();
 

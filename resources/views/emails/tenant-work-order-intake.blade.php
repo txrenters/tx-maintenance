@@ -4,13 +4,11 @@
     // Our team entered the work order in PropertyWare, rather than the tenant
     // submitting it: say so instead of confirming a request they never sent.
     $staffCreated = $staffCreated ?? false;
-    // A tenant easy fix ({kind: easy_fix, label, video_url, tip}) or a
-    // tenant-owned appliance ({kind: appliance, label}): the how-to video or
-    // the responsibility note instead of "we received your request".
+    // A tenant easy fix ({label, video_url, tip}): the how-to video instead
+    // of "we received your request".
     $easyFix = $easyFix ?? null;
-    $isEasyFix = $easyFix !== null && ($easyFix['kind'] ?? null) === 'easy_fix';
-    $isAppliance = $easyFix !== null && ($easyFix['kind'] ?? null) === 'appliance';
-    $eyebrow = $staffCreated ? 'New Work Order' : ($isEasyFix ? 'A Quick Fix You Can Try' : ($isAppliance ? 'About Your Service Request' : 'Service Request Received'));
+    $isEasyFix = $easyFix !== null;
+    $eyebrow = $staffCreated ? 'New Work Order' : ($isEasyFix ? 'A Quick Fix You Can Try' : 'Service Request Received');
 @endphp
 <x-mail.branded :logo="$logoSrc" :eyebrow="$eyebrow" heading="Work Order #{{ $reference }}">
     <p style="margin:12px 0;">{{ $tenantName ? 'Hi '.$tenantName.',' : 'Hello,' }}</p>
@@ -52,21 +50,6 @@
     <p style="margin:12px 0;">
         If it still is not working after you try this, reply to this email or
         add a photo through your link below and we will take it from there.
-    </p>
-    @elseif($isAppliance)
-    <p style="margin:12px 0;">
-        This is TexasRenters.com Maintenance. We received your request about the
-        {{ $easyFix['label'] }}{{ $property ? ' at '.$property : '' }}. Under the
-        terms of your lease agreement, the {{ $easyFix['label'] }} is classified
-        as a non-realty property item and is provided as-is, so its repair,
-        maintenance or replacement is generally the tenant's responsibility.
-    </p>
-    <p style="margin:12px 0;">
-        That said, we will reach out to the owner to ask whether they would be
-        willing to cover the cost of the repair or replacement, and we will let
-        you know their answer. In the meantime, please reply to this email and
-        let us know how you would like to proceed. Thank you for your
-        understanding.
     </p>
     @else
     <p style="margin:12px 0;">
@@ -115,7 +98,7 @@
         If you have noticed the issue yourself, photos help us get the right
         person out the first time — you can add them through the link above.
     </p>
-    @elseif(!$isEasyFix && !$isAppliance)
+    @elseif(!$isEasyFix)
     <p style="margin:12px 0;">
         Photos of the issue help us get the right person out the first time, so
         please add them if you can.

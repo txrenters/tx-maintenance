@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Ai\TenantEasyFixCriteria;
 use App\Models\Scopes\WorkOrderScope;
 use App\Models\WorkOrder;
 use App\Services\TenantEasyFixService;
@@ -13,42 +12,37 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 #[Signature('easy-fix:audit {--days=90 : How many days of work orders to scan, by creation date} {--csv= : Also write the rows to this path on the local disk (e.g. easy-fix-audit.csv)} {--all : List every scanned work order, not only the matches}')]
-#[Description('List recent work orders the tenant easy-fix rules would have judged a tenant easy fix or a tenant-owned appliance, without changing data')]
+#[Description('List recent work orders the tenant easy-fix rules would have judged a tenant easy fix, without changing data')]
 class AuditTenantEasyFix extends Command
 {
     /**
      * A read-only pass over recent work orders with the same rules the intake
-     * automation uses, so operations can review which requests were really
-     * tenant responsibility (and which the rules miss or over-match) before
-     * the texts are switched on. Never writes a verdict.
+     * automation uses, so operations can review which requests would get the
+     * how-to video (and which the rules miss or over-match) before the texts
+     * are switched on. Never writes a verdict.
      */
     public function handle(TenantEasyFixService $service): int
     {
         $days = max(1, (int) $this->option('days'));
 
         $workOrders = WorkOrder::withoutGlobalScope(WorkOrderScope::class)
-            ->with(['building', 'vendors:vendors.id,vendors.name', 'service_status:id,name'])
+            ->with(['vendors:vendors.id,vendors.name', 'service_status:id,name'])
             ->where('created_date', '>=', now()->subDays($days))
             ->orderByDesc('created_date')
             ->get();
 
         $rows = [];
-        $counts = ['easy_fix' => 0, 'appliance' => 0, 'scanned' => $workOrders->count()];
+        $counts = ['easy_fix' => 0, 'scanned' => $workOrders->count()];
 
         foreach ($workOrders as $workOrder) {
             $judgement = $service->judge($workOrder);
-            $kind = $judgement['kind'];
-            $applianceStatus = $judgement['appliance']['status'];
+            $matched = $judgement['key'] !== null;
 
-            if ($kind === TenantEasyFixCriteria::KIND_EASY_FIX) {
+            if ($matched) {
                 $counts['easy_fix']++;
-            } elseif ($kind === TenantEasyFixCriteria::KIND_APPLIANCE) {
-                $counts['appliance']++;
             }
 
-            $interesting = $kind !== null || $applianceStatus !== TenantEasyFixCriteria::APPLIANCE_NONE;
-
-            if (! $interesting && ! $this->option('all')) {
+            if (! $matched && ! $this->option('all')) {
                 continue;
             }
 
@@ -57,10 +51,9 @@ class AuditTenantEasyFix extends Command
                 'created' => Str::limit((string) $workOrder->created_date, 10, ''),
                 'category' => (string) $workOrder->category,
                 'description' => Str::limit(trim((string) preg_replace('/\s+/', ' ', (string) $workOrder->description)), 200),
-                'verdict' => $kind ?? ($applianceStatus === TenantEasyFixCriteria::APPLIANCE_NONE ? '' : 'appliance_'.$applianceStatus),
-                'item' => $judgement['key'] ?? ($judgement['appliance']['key'] ?? ''),
+                'verdict' => $matched ? 'easy_fix' : '',
+                'item' => $judgement['key'] ?? '',
                 'reason' => $judgement['reason'],
-                'included_appliances' => (string) ($judgement['appliance']['included_value'] ?? ''),
                 'vendor' => $workOrder->vendors->pluck('name')->implode('; '),
                 'service_status' => (string) ($workOrder->service_status?->name ?? ''),
                 'status' => (string) $workOrder->status,
@@ -70,7 +63,6 @@ class AuditTenantEasyFix extends Command
         $this->table(['Metric', 'Count'], [
             ['Work orders scanned (last '.$days.' days)', $counts['scanned']],
             ['Would be texted the easy-fix how-to', $counts['easy_fix']],
-            ['Would be told the appliance is theirs (non-realty under the lease)', $counts['appliance']],
         ]);
 
         if ($rows !== []) {
@@ -105,7 +97,7 @@ class AuditTenantEasyFix extends Command
     private function csv(array $rows): string
     {
         $handle = fopen('php://temp', 'r+');
-        $headers = ['work_order_no', 'created', 'category', 'description', 'verdict', 'item', 'reason', 'included_appliances', 'vendor', 'service_status', 'status'];
+        $headers = ['work_order_no', 'created', 'category', 'description', 'verdict', 'item', 'reason', 'vendor', 'service_status', 'status'];
 
         fputcsv($handle, $headers, ',', '"', '\\');
 
