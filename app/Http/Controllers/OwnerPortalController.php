@@ -262,10 +262,16 @@ class OwnerPortalController extends Controller
 
     /**
      * The owner's approve/disapprove state for this work order: whether it is
-     * currently waiting on their approval (a brand-new work order), and any
-     * decision this owner already sent through the portal (latest wins, so an
-     * owner who calls the office to change their mind can be re-asked by
-     * simply moving the status back to New).
+     * currently waiting on their approval, and any decision this owner already
+     * sent through the portal (latest wins, so an owner who calls the office to
+     * change their mind can be re-asked by simply moving the status back to
+     * New).
+     *
+     * "Waiting on approval" is either a brand-new work order (so the owner can
+     * answer straight from the intake link) or one PropertyWare still holds as
+     * open and unapproved, whatever our service status says — the same rule the
+     * daily approval reminder sends on, so the buttons are there whenever a
+     * reminder pointed the owner here.
      *
      * @return array{requested: bool, decision: ?string, decided_at: ?string}
      */
@@ -279,10 +285,11 @@ class OwnerPortalController extends Controller
             ->latest('id')
             ->first();
 
+        $awaitingInPropertyWare = $workOrder->status === 'Open' && ! $workOrder->is_approved;
+
         return [
-            // Only brand-new work orders ask, so the owner approves or
-            // declines straight from the intake notification link.
-            'requested' => strtolower((string) $workOrder->service_status?->name) === 'new',
+            'requested' => strtolower((string) $workOrder->service_status?->name) === 'new'
+                || $awaitingInPropertyWare,
             'decision' => $latestDecision?->properties['decision'] ?? null,
             'decided_at' => $latestDecision?->created_at?->toDateTimeString(),
         ];

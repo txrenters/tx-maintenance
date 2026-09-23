@@ -58,6 +58,8 @@ class AutomatedMessageLogService
         'vendor_schedule_follow_up_sms' => 'Vendor: schedule follow-up',
         'tenant_vendor_contact_follow_up_sms' => 'Tenant: vendor contact follow-up',
         'owner_schedule_follow_up_sms' => 'Owner: schedule follow-up',
+        'owner_approval_nudge_sms' => 'Owner: approval reminder (text)',
+        'owner_approval_nudge_email' => 'Owner: approval reminder (email)',
         'tenant_schedule_follow_up_sms' => 'Tenant: schedule follow-up',
         'vendor_assignment_notification_email' => 'Vendor: auto-assign notification',
         'vendor_jobber_assignment_email' => 'Vendor: Jobber job assigned (email)',

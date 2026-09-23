@@ -23,6 +23,8 @@ class OwnerWorkOrderEmailSender
     /**
      * @param  array<int, array{name: string, contentType: string, bytes: string}>  $files
      * @param  array<string, mixed>  $metadata
+     * @param  string  $type  the owner_email_notifications.type to record: 'manual' for a
+     *                        staff send, or the automation that produced it
      */
     public function send(
         Owner $owner,
@@ -35,6 +37,7 @@ class OwnerWorkOrderEmailSender
         ?User $sentBy = null,
         bool $trustedHtml = false,
         array $metadata = [],
+        string $type = 'manual',
     ): OwnerEmailNotification {
         $tag = $workOrder
             ? 'TXO-'.$workOrder->work_order_no.'-'.$owner->id
@@ -52,12 +55,12 @@ class OwnerWorkOrderEmailSender
 
         $result = $this->graph->sendMail($to, [], $taggedSubject, $finalHtml, $graphAttachments, $mailbox);
 
-        return DB::transaction(function () use ($owner, $workOrder, $to, $taggedSubject, $finalHtml, $mailbox, $result, $storable, $sentBy, $metadata, $tag): OwnerEmailNotification {
+        return DB::transaction(function () use ($owner, $workOrder, $to, $taggedSubject, $finalHtml, $mailbox, $result, $storable, $sentBy, $metadata, $tag, $type): OwnerEmailNotification {
             $notification = OwnerEmailNotification::query()->create([
                 'work_order_id' => $workOrder?->id,
                 'owner_id' => $owner->id,
                 'vendor_id' => null,
-                'type' => 'manual',
+                'type' => $type,
                 'direction' => 'outbound',
                 'subject' => $taggedSubject,
                 'body_html' => $finalHtml,
