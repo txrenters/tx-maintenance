@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendOwnerServiceRequestNotificationJob;
 use App\Models\Building;
 use App\Models\Owner;
+use App\Models\OwnerEmailNotification;
 use App\Models\ServiceStatus;
 use App\Models\Tenants;
 use App\Models\TenantUploadToken;
@@ -15,8 +16,10 @@ use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
 use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerServiceRequestNotificationService;
+use App\Services\OwnerWorkOrderEmailSender;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Mockery\MockInterface;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
@@ -332,21 +335,270 @@ class OwnerServiceRequestNotificationTest extends TestCase
         Queue::assertPushed(SendConversationMessageJob::class, 2);
     }
 
-    public function test_an_owner_with_no_phone_is_not_texted(): void
+    // --- Email fallback for owners with no phone ---
+
+    private function enableEmailFallback(): void
     {
         $this->enableGate();
+        config([
+            'services.work_order.owner_intake_email' => true,
+            'services.microsoft.mailbox' => 'workorders@example.com',
+        ]);
+    }
+
+    private function expectNoEmail(): void
+    {
+        $this->mock(OwnerWorkOrderEmailSender::class, function (MockInterface $mock) {
+            $mock->shouldNotReceive('send');
+        });
+    }
+
+    /**
+     * Expect exactly one email and hand its arguments to $check.
+     *
+     * @param  callable(Owner, WorkOrder, string, string, string, string, array<string, mixed>, string): bool  $check  (owner, workOrder, to, mailbox, subject, html, metadata, type)
+     */
+    private function expectOneEmail(callable $check): void
+    {
+        $this->mock(OwnerWorkOrderEmailSender::class, function (MockInterface $mock) use ($check) {
+            $mock->shouldReceive('send')
+                ->once()
+                ->withArgs(function (Owner $owner, WorkOrder $workOrder, string $to, string $mailbox, string $subject, string $html, array $files, $sentBy, bool $trustedHtml, array $metadata, string $type) use ($check): bool {
+                    return $trustedHtml && $check($owner, $workOrder, $to, $mailbox, $subject, $html, $metadata, $type);
+                })
+                ->andReturn(new OwnerEmailNotification(['id' => 91]));
+        });
+    }
+
+    public function test_an_owner_with_no_phone_is_emailed_the_notice_instead(): void
+    {
+        $this->enableEmailFallback();
         Queue::fake();
 
         $owner = $this->makeOwner(null, 100);
+        $owner->update(['email' => 'Olivia@Example.com']);
         $tenant = $this->makeTenant();
+        $building = Building::query()->create([
+            'propertyware_id' => 'B-6341DM',
+            'name' => 'Del Monte',
+            'address' => '6341 Del Monte Dr',
+            'city' => 'Houston',
+            'state_region' => 'TX',
+        ]);
         $workOrder = $this->makeWorkOrder($tenant);
+        $workOrder->update(['building_id' => $building->propertyware_id]);
+        $workOrder->owners()->attach($owner->id);
+
+        $this->expectOneEmail(function (Owner $to, WorkOrder $about, string $address, string $mailbox, string $subject, string $html, array $metadata, string $type) use ($owner, $workOrder): bool {
+            return $to->is($owner)
+                && $about->is($workOrder)
+                && $address === 'olivia@example.com'
+                && $mailbox === 'workorders@example.com'
+                && str_contains($subject, 'New service request - Work Order #43361')
+                && str_contains($html, 'received a new service request for your property at 6341 Del Monte Dr (request #43361)')
+                && str_contains($html, 'Request Details')
+                && str_contains($html, 'water dripping from the roof')
+                && str_contains($html, 'View Work Order #43361')
+                && str_contains($html, '/owner-portal/')
+                && str_contains($html, '(Ref: WO#43361)')
+                && $metadata === ['automation' => 'owner_service_request_email']
+                && $type === 'service_request';
+        });
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        // Email only: nothing in the text thread, nothing queued for Twilio.
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        Queue::assertNotPushed(SendConversationMessageJob::class);
+        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
+
+        $ledger = Activity::query()
+            ->where('log_name', AutomatedMessageLogService::LOG_NAME)
+            ->where('event', 'owner_service_request_email')
+            ->firstOrFail();
+        $this->assertSame('olivia@example.com', $ledger->properties['recipient']);
+        $this->assertSame('email', $ledger->properties['channel']);
+        $this->assertSame(91, $ledger->properties['owner_email_notification_id']);
+        $this->assertSame(0, Activity::query()->where('event', 'owner_service_request_sms')->count());
+    }
+
+    public function test_an_owner_with_a_phone_is_texted_and_never_also_emailed(): void
+    {
+        $this->enableEmailFallback();
+        $this->expectNoEmail();
+        Queue::fake();
+
+        $owner = $this->makeOwner('3466260693', 100);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->owners()->attach($owner->id);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(2, $workOrder->owner_conversation()->count());
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+    }
+
+    public function test_a_couple_with_one_phone_between_them_gets_the_texts_and_one_email(): void
+    {
+        $this->enableEmailFallback();
+        Queue::fake();
+
+        $texted = $this->makeOwner('3466260693', 50);
+        $emailed = $this->makeOwner(null, 50);
+        $emailed->update(['email' => 'owen@example.com', 'first_name' => 'Owen']);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->owners()->attach([$texted->id, $emailed->id]);
+
+        $this->expectOneEmail(fn (Owner $to, WorkOrder $about, string $address): bool => $to->is($emailed) && $address === 'owen@example.com');
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $messages = $workOrder->owner_conversation()->get();
+        $this->assertCount(2, $messages);
+        $this->assertSame([$texted->id], $messages->pluck('owner_id')->unique()->all());
+        Queue::assertPushed(SendConversationMessageJob::class, 2);
+    }
+
+    public function test_two_phoneless_owners_sharing_one_inbox_get_a_single_email(): void
+    {
+        $this->enableEmailFallback();
+        Queue::fake();
+
+        $owner = $this->makeOwner(null, 50);
+        $spouse = $this->makeOwner(null, 50);
+        $owner->update(['email' => 'family@example.com']);
+        $spouse->update(['email' => 'Family@Example.com']);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->owners()->attach([$owner->id, $spouse->id]);
+
+        $this->expectOneEmail(fn (): bool => true);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $this->assertSame(1, Activity::query()->where('event', 'owner_service_request_email')->count());
+    }
+
+    public function test_a_work_order_our_team_entered_is_emailed_as_created_by_our_team(): void
+    {
+        $this->enableEmailFallback();
+        Queue::fake();
+
+        $owner = $this->makeOwner(null, 100);
+        $workOrder = $this->makeStaffCreatedWorkOrder($owner);
+
+        $this->expectOneEmail(function (Owner $to, WorkOrder $about, string $address, string $mailbox, string $subject, string $html, array $metadata): bool {
+            return str_contains($subject, 'A work order has been created - Work Order #43361')
+                && str_contains($html, 'Hi Olivia Owner, a new work order #43361 has been created for 6341 Del Monte Dr by our team.')
+                && str_contains($html, 'Work Order Description: There is water dripping from the roof down into the backyard')
+                // The wording carries the description already: no second box.
+                && ! str_contains($html, 'Request Details')
+                && ! str_contains($html, 'received a new service request')
+                && $metadata['variant'] === 'staff_created';
+        });
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+
+        $ledger = Activity::query()->where('event', 'owner_service_request_email')->firstOrFail();
+        $this->assertSame('staff_created', $ledger->properties['variant']);
+        $this->assertNotNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
+    public function test_the_email_says_the_tenant_got_the_how_to_when_that_is_what_happened(): void
+    {
+        $this->enableEasyFix();
+        config(['services.work_order.owner_intake_email' => true, 'services.microsoft.mailbox' => 'workorders@example.com']);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+        $owner = $workOrder->owners->first();
+        $owner->update(['mobile' => null, 'phone' => null]);
+
+        $this->expectOneEmail(function (Owner $to, WorkOrder $about, string $address, string $mailbox, string $subject, string $html, array $metadata): bool {
+            return str_contains($html, 'normally a tenant easy fix (garbage disposal)')
+                && str_contains($html, 'humming but not turning')
+                && ! str_contains($html, 'take care of arranging the estimate')
+                && $metadata['variant'] === 'easy_fix'
+                && $metadata['easy_fix_key'] === 'disposal_jammed';
+        });
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        $ledger = Activity::query()->where('event', 'owner_service_request_email')->firstOrFail();
+        $this->assertSame('disposal_jammed', $ledger->properties['easy_fix_key']);
+    }
+
+    public function test_an_owner_with_no_phone_is_left_alone_when_the_email_fallback_is_off(): void
+    {
+        $this->enableGate();
+        config(['services.work_order.owner_intake_email' => false]);
+        $this->expectNoEmail();
+        Queue::fake();
+
+        $owner = $this->makeOwner(null, 100);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
         $workOrder->owners()->attach($owner->id);
 
         app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
 
         $this->assertSame(0, $workOrder->owner_conversation()->count());
         Queue::assertNotPushed(SendConversationMessageJob::class);
+        // The stamp stays clear: nothing was sent, so nothing is owed twice.
         $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
+    public function test_an_owner_with_neither_phone_nor_a_real_email_gets_nothing(): void
+    {
+        $this->enableEmailFallback();
+        $this->expectNoEmail();
+        Queue::fake();
+
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+
+        foreach (['', 'none', 'n/a'] as $placeholder) {
+            $owner = $this->makeOwner(null, 100);
+            $owner->update(['email' => $placeholder]);
+            $workOrder->owners()->attach($owner->id);
+        }
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $this->assertSame(0, $workOrder->owner_conversation()->count());
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+        $this->assertSame(0, Activity::query()->where('log_name', AutomatedMessageLogService::LOG_NAME)->count());
+    }
+
+    public function test_the_email_fallback_is_muted_with_the_rest_of_the_owner_automation(): void
+    {
+        $this->enableEmailFallback();
+        $this->expectNoEmail();
+        Queue::fake();
+
+        $owner = $this->makeOwner(null, 100);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->owners()->attach($owner->id);
+        $workOrder->setAutomationPaused('owner', true);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $this->assertNull($workOrder->fresh()->owner_service_request_notified_at);
+    }
+
+    public function test_the_email_fallback_goes_out_once_per_work_order(): void
+    {
+        $this->enableEmailFallback();
+        Queue::fake();
+
+        $owner = $this->makeOwner(null, 100);
+        $workOrder = $this->makeWorkOrder($this->makeTenant());
+        $workOrder->owners()->attach($owner->id);
+
+        $this->expectOneEmail(fn (): bool => true);
+
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder);
+        app(OwnerServiceRequestNotificationService::class)->notify($workOrder->fresh());
+
+        $this->assertSame(1, Activity::query()->where('event', 'owner_service_request_email')->count());
     }
 
     public function test_it_uses_the_building_address_over_a_mismatched_tenant_contact_address(): void

@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-24',
+            'area' => 'Owner Portal',
+            'title' => 'An owner with no phone on file is emailed the new work order notice instead of hearing nothing',
+            'description' => 'When a new work order came in, every owner on it was texted the "new service request" notice (or the "created by our team" notice) with their no-login portal link - but only if PropertyWare had a phone for them, and more than half of owners have none, so those owners were never told. Now an owner with no phone but an email address gets the same notice as one email: the same wording, the request details under it, and the same View Work Order button to their portal. Owners with a phone still get the texts exactly as before, never both, and an owner with neither still gets nothing. The email goes out from the work orders mailbox, shows on the owner\'s email history, and is recorded on the Automated Messages page as "Owner: new service request (email)". The owner tab\'s mute switch and the "Send intake notice" button cover it the same way they cover the texts.',
+        ],
+        [
             'date' => '2026-09-23',
             'area' => 'Work Orders',
             'title' => 'A service schedule can name more than one technician',

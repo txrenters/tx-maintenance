@@ -47,6 +47,7 @@
         <env name="TENANT_SCHEDULE_SMS_ENABLED" value="false"/>
         <env name="TENANT_SCHEDULE_FOLLOWUP_SMS_ENABLED" value="false"/>
         <env name="TENANT_INTAKE_EMAIL_ENABLED" value="false"/>
+        <env name="OWNER_INTAKE_EMAIL_ENABLED" value="false"/>
         <env name="TENANT_INTAKE_SMS_ENABLED" value="false"/>
         <env name="TENANT_EASY_FIX_SMS_ENABLED" value="false"/>
         <env name="DESCRIPTION_CHANGE_SMS_ENABLED" value="false"/>

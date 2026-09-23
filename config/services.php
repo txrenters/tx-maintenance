@@ -109,8 +109,9 @@ return [
         // Fresh start: the deploy backfill stamps the existing backlog as
         // excluded. Off by default.
         'owner_approval_nudge' => env('OWNER_APPROVAL_NUDGE_ENABLED', false),
-        // Text the primary property owner via the owner<->WOC conversation when
-        // a new service request comes in (confirmation + description).
+        // Text every property owner via the owner<->WOC conversation when a
+        // new service request comes in (confirmation + description). Owners
+        // with no phone are emailed instead (work_order.owner_intake_email).
         'owner_service_request_sms' => env('OWNER_SERVICE_REQUEST_SMS_ENABLED', true),
         // Text the tenant a no-login portal link (photo upload) when their work
         // order is marked as a tenant easy fix, plus reminders until done.
@@ -213,6 +214,12 @@ return [
         // comes in, carrying the no-login portal link. Not a Twilio channel, so
         // it lives here rather than under `twilio`.
         'tenant_intake_email' => env('TENANT_INTAKE_EMAIL_ENABLED', true),
+        // The owner intake notice's email fallback: an owner with no phone on
+        // file is emailed the same "new service request" / "created by our
+        // team" notice, with their portal link, instead of being left silent.
+        // Rides the owner_service_request_sms gate above; this switch only
+        // turns the email half off.
+        'owner_intake_email' => env('OWNER_INTAKE_EMAIL_ENABLED', true),
         // Repeat work orders (same issue type + same building) no longer assign
         // the prior vendor automatically — they only surface that vendor as the
         // recommendation, for staff to assign by hand. Nothing reads this gate
