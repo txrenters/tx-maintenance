@@ -83,7 +83,17 @@ const clearAllFilters = () => {
          drops to a second line instead of the chips folding into a 2x2 block
          beside a centred search box. -->
     <div class="flex gap-3 flex-col sm:flex-row sm:flex-wrap items-center">
-        <SearchBar v-model="search" />
+        <!-- The search box is the one thing here that can give way: it is
+             laid out at 140px when the line is decided, then grows back to
+             220px with whatever room is left. A row that was ten pixels
+             short of fitting (the Active board at 1226px, 2026-09-24) keeps
+             one line with a slightly narrower search instead of dropping
+             the action cluster to a second line. -->
+        <SearchBar
+            v-model="search"
+            fluid
+            class="w-full sm:w-auto sm:flex-[1_1_140px] sm:max-w-[220px]"
+        />
 
         <div
             v-if="canFilter"
