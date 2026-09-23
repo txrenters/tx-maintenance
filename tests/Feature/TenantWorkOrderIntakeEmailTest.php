@@ -426,7 +426,7 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertStringNotContainsString('youtu.be', $captured->html);
     }
 
-    public function test_a_tenant_owned_refrigerator_is_emailed_the_responsibility_note(): void
+    public function test_a_refrigerator_request_is_emailed_the_non_realty_note(): void
     {
         $this->enableEasyFix();
         $captured = $this->fakeGraph();
@@ -451,7 +451,8 @@ class TenantWorkOrderIntakeEmailTest extends TestCase
         $this->assertTrue($this->send($workOrder));
 
         $this->assertStringContainsString('About your service request', $captured->subject);
-        $this->assertStringContainsString("the tenant's responsibility under the lease", $captured->html);
+        $this->assertStringContainsString('as a non-realty property item and is provided as-is', $captured->html);
+        $this->assertStringContainsString("generally the tenant's responsibility", $captured->html);
         $this->assertStringNotContainsString('Watch the how-to video', $captured->html);
         $this->assertSame('appliance_refrigerator', $workOrder->fresh()->easy_fix_key);
     }

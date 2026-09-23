@@ -23,10 +23,10 @@ use Illuminate\Support\Facades\Queue;
  * easy-fix text in its AFTER (feature on) state, so the wording can be
  * screenshotted for sign-off:
  *
- *  - #990201 a humming garbage disposal   -> the easy-fix how-to text (handbook row 6)
+ *  - #990201 a humming garbage disposal   -> the easy-fix how-to text (handbook row 6), then the three check-ins
  *  - #990203 a garage door that won't open -> the easy-fix how-to text (row 23)
- *  - #990204 a dryer not heating, dryer included with the home -> the handbook's dryer row (row 21)
- *  - #990202 a washer that won't spin, washer NOT included -> the tenant-responsibility text
+ *  - #990204 a burned-out light bulb       -> the easy-fix how-to text (row 3)
+ *  - #990202 a washer that won't spin      -> the non-realty appliance texts (tenant + owner)
  *
  * Each runs the real tenant and owner intake senders so the demo can never
  * drift from production wording. The work orders are local-only (no
@@ -47,7 +47,7 @@ class DemoTenantEasyFixSeeder extends Seeder
     private const WORK_ORDERS = [
         ['no' => 990201, 'home' => 'DEMO-EASYFIX-1', 'description' => 'Garbage disposal is humming but not turning. Something might be stuck in it.', 'category' => 'Garbage Disposal'],
         ['no' => 990203, 'home' => 'DEMO-EASYFIX-1', 'description' => 'Garage door wont open', 'category' => 'General Maintenance'],
-        ['no' => 990204, 'home' => 'DEMO-EASYFIX-1', 'description' => 'The dryer is not heating, clothes are still wet after a full cycle.', 'category' => 'Washer'],
+        ['no' => 990204, 'home' => 'DEMO-EASYFIX-1', 'description' => 'The light bulb in the hallway burned out and I cannot reach it without a ladder.', 'category' => 'Light Fixture'],
         ['no' => 990202, 'home' => 'DEMO-EASYFIX-2', 'description' => 'Our washing machine will not spin, it fills up and then just stops.', 'category' => 'Washer'],
     ];
 
@@ -75,9 +75,9 @@ class DemoTenantEasyFixSeeder extends Seeder
             ['first_name' => 'Dana', 'last_name' => 'Tenant', 'mobile_phone' => '5125550102', 'address' => '123 Demo St', 'user_id' => $tenantUser->id],
         );
 
-        // Home 1 provides every appliance, so a dryer request gets the
-        // handbook's dryer row; home 2 provides only a refrigerator, so a
-        // washer request is the tenant's responsibility.
+        // Two homes so the board shows two addresses. Included Appliances is
+        // informational only: a washer is a non-realty item under the lease
+        // whether or not the owner provided it.
         $homes = [
             'DEMO-EASYFIX-1' => Building::updateOrCreate(
                 ['propertyware_id' => 'DEMO-EASYFIX-1'],
@@ -85,7 +85,7 @@ class DemoTenantEasyFixSeeder extends Seeder
             ),
             'DEMO-EASYFIX-2' => Building::updateOrCreate(
                 ['propertyware_id' => 'DEMO-EASYFIX-2'],
-                ['name' => '125 Demo St (tenant washer)', 'address' => '125 Demo St', 'city' => 'Houston', 'state_region' => 'TX', 'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator', 'dataType' => 'Text']]],
+                ['name' => '125 Demo St (non-realty washer)', 'address' => '125 Demo St', 'city' => 'Houston', 'state_region' => 'TX', 'custom_fields' => [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator', 'dataType' => 'Text']]],
             ),
         ];
 

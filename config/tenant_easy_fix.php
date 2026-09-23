@@ -285,8 +285,10 @@ return [
             'tip' => 'Check flapper, flush chain and make sure handle isn\'t stuck',
         ],
         [
-            // Handbook row 20 - only reached when the refrigerator is
-            // property-provided (a tenant-owned one gets the responsibility text).
+            // Handbook row 20. At intake a refrigerator request is a non-realty
+            // appliance (the responsibility text wins); this row is reached only
+            // when the appliance keywords are excluded (an outlet, a breaker,
+            // "no power": the house's side) and serves the audit and the AI.
             'key' => 'refrigerator_not_cooling',
             'label' => 'refrigerator',
             'pw_categories' => [],
@@ -363,13 +365,13 @@ return [
     ],
 
     /*
-    | Tenant-owned appliances. A request about one of these is the tenant's
-    | responsibility when the property's PropertyWare "Included Appliances"
-    | field is filled in and does NOT list it; when it is listed (or the field
-    | is blank), the request falls through to the handbook rows above (rows
-    | 20-22). `included_needles` are matched against that field after any
-    | "connections/hookups" wording is stripped, so "washer/dryer connections"
-    | never reads as a washer being included.
+    | Non-realty appliances. Under the lease a washer, dryer or refrigerator is
+    | a "non-realty property item" provided as-is, so a request about one is
+    | the tenant's responsibility whoever put it in the house (confirmed on
+    | WO#44011 and WO#44058, both owner-provided, both handled that way by the
+    | WOCs). PropertyWare's "Included Appliances" field does not change the
+    | verdict. The `exclude` lists keep the house's own parts (hookups,
+    | valves, vents, outlets, breakers) out of it.
     */
     'appliances' => [
         [
@@ -377,35 +379,18 @@ return [
             'label' => 'washer',
             'keywords' => ['washer', 'washers', 'washing machine', 'washing machines', 'clothes washer', 'laundry machine'],
             'exclude' => ['hookup', 'hookups', 'hook up', 'hook-up', 'connection', 'connections', 'valve', 'valves', 'standpipe', 'drain pipe', 'drain line', 'water line', 'supply line', 'faucet', 'spigot', 'outlet', 'breaker', 'no power', 'behind the washer', 'wall behind', 'pressure washer', 'power washer', 'dishwasher'],
-            'included_needles' => ['washer', 'washing machine', 'washer and dryer', 'washer/dryer', 'w/d'],
         ],
         [
             'key' => 'appliance_dryer',
             'label' => 'dryer',
             'keywords' => ['dryer', 'dryers', 'clothes dryer', 'tumble dryer'],
             'exclude' => ['vent', 'vents', 'venting', 'duct', 'ducts', 'ductwork', 'outlet', 'breaker', 'no power', 'gas line', 'gas', 'hookup', 'hookups', 'hook up', 'hook-up', 'connection', 'connections', 'hair dryer', 'behind the dryer', 'wall behind'],
-            'included_needles' => ['dryer', 'washer and dryer', 'washer/dryer', 'w/d'],
         ],
         [
             'key' => 'appliance_refrigerator',
             'label' => 'refrigerator',
             'keywords' => ['refrigerator', 'refrigerators', 'fridge', 'freezer', 'ice maker', 'icemaker'],
             'exclude' => ['water line', 'supply line', 'outlet', 'breaker', 'no power', 'behind the fridge', 'behind the refrigerator', 'wall behind', 'wine fridge', 'mini fridge', 'garage fridge', 'garage refrigerator'],
-            'included_needles' => ['refrigerator', 'fridge', 'refrig'],
         ],
     ],
-
-    /*
-    | "Included Appliances" values that mean the property provides nothing.
-    */
-    'no_appliances_values' => ['none', 'n/a', 'na', 'no', 'not applicable', 'nothing', '-'],
-
-    /*
-    | "Included Appliances" values that are placeholders, not an answer:
-    | PropertyWare's default "Not Completed" is the single most common value
-    | (218 of the buildings synced locally), and "Yes" says nothing. They are
-    | treated the same as a blank field: ownership unknown, nobody is told
-    | the appliance is theirs.
-    */
-    'unknown_appliances_values' => ['not completed', 'not complete', 'incomplete', 'yes', 'tbd', 'to be determined', 'unknown', 'update', 'pending', 'see lease', 'per lease', '?', '—'],
 ];

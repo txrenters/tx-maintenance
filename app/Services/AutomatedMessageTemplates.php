@@ -366,15 +366,16 @@ class AutomatedMessageTemplates
             'default' => '{greeting}following up one last time on the {item_label}. If it is still giving you trouble, please reply here and we will arrange a repair. If it is working now, a quick reply lets us close it out. Thank you!',
         ],
         'tenant_appliance_responsibility_sms' => [
-            // Sent INSTEAD of "Request received" when the request is about
-            // the tenant's own washer, dryer or refrigerator (the property's
-            // "Included Appliances" field does not list it).
+            // Sent INSTEAD of "Request received" when the request is about a
+            // washer, dryer or refrigerator: a non-realty item under the
+            // lease, the tenant's whoever provided it. Wording follows the
+            // texts the WOCs already send by hand (WO#44011).
             'automation' => 'tenant_appliance_responsibility_sms',
-            'label' => 'Tenant-owned appliance',
+            'label' => 'Non-realty appliance (washer, dryer, refrigerator)',
             'group' => 'tenant_easy_fix',
             'channel' => 'sms',
             'audience' => 'tenant',
-            'sends_when' => 'Texted to the tenant once, instead of "Request received", when their new request is about a washer, dryer or refrigerator the property does not provide (PropertyWare\'s Included Appliances field for the home is filled in and does not list it). Their portal link and the sign-off are added automatically below this text.',
+            'sends_when' => 'Texted to the tenant once, instead of "Request received", when their new request is about a washer, dryer or refrigerator. Under the lease these are non-realty property items provided as-is, so the repair is the tenant\'s responsibility whoever provided the appliance. Their portal link and the sign-off are added automatically below this text.',
             'tokens' => [
                 'greeting' => 'Opening line - "Hi <first name>," or "Hi," when no name is on file',
                 'appliance_label' => 'The appliance, e.g. "washer"',
@@ -386,8 +387,9 @@ class AutomatedMessageTemplates
             ],
             'collapse' => false,
             'default' => "{greeting}\n\n"
-                ."This is TexasRenters.com Maintenance. We received your request about the {appliance_label}. Our records show it is not a property-provided appliance, so its repair or replacement is the tenant's responsibility under the lease.\n\n"
-                .'If you believe this is incorrect, reply here and we will double-check.',
+                ."This is TexasRenters.com Maintenance. We received your request about the {appliance_label}. Under the terms of your lease agreement, the {appliance_label} is classified as a non-realty property item and is provided as-is, so its repair, maintenance or replacement is generally the tenant's responsibility.\n\n"
+                ."That said, we will reach out to the owner to ask whether they would be willing to cover the cost of the repair or replacement, and we will let you know their answer.\n\n"
+                .'In the meantime, please reply here and let us know how you would like to proceed. Thank you for your understanding.',
         ],
         'owner_easy_fix_sms' => [
             // Replaces the owner "Request received" confirmation when the
@@ -417,14 +419,15 @@ class AutomatedMessageTemplates
         ],
         'owner_appliance_responsibility_sms' => [
             // Replaces the owner "Request received" confirmation when the
-            // tenant was told their own appliance is their responsibility;
-            // the "Request details" text still follows it.
+            // tenant was told the appliance is a non-realty item and theirs;
+            // asks the owner whether they want to cover it anyway, as the
+            // WOCs do by hand. The "Request details" text still follows it.
             'automation' => 'owner_appliance_responsibility_sms',
-            'label' => 'Tenant-owned appliance',
+            'label' => 'Non-realty appliance (washer, dryer, refrigerator)',
             'group' => 'owner_service_request',
             'channel' => 'sms',
             'audience' => 'owner',
-            'sends_when' => 'Texted to each owner once, instead of "Request received", when the tenant\'s new request was about a washer, dryer or refrigerator the property does not provide and the tenant has been told it is their responsibility. The "Request details" text still follows. Their portal link and the sign-off are added automatically below this text.',
+            'sends_when' => 'Texted to each owner once, instead of "Request received", when the tenant\'s new request was about a washer, dryer or refrigerator (a non-realty item under the lease) and the tenant has been told it is their responsibility. Asks the owner whether they want to cover it anyway. The "Request details" text still follows. Their portal link and the sign-off are added automatically below this text.',
             'tokens' => [
                 'property' => '"your property" or "your property at <street address>" when one is on file',
                 'work_order_no' => 'The work order number',
@@ -439,7 +442,8 @@ class AutomatedMessageTemplates
             'collapse' => false,
             'default' => "Hello,\n\n"
                 ."TexasRenters.com has received a new service request for {property} (request #{work_order_no}).\n\n"
-                .'It concerns the tenant\'s own {appliance_label}, which is not a property-provided appliance, so we have let the tenant know it is their responsibility and no estimate will be arranged. Reply here if you would like us to handle it anyway.',
+                ."It concerns the {appliance_label}. Under the lease the {appliance_label} is a non-realty property item provided as-is, so its repair or replacement is the tenant's responsibility, and we have let the tenant know.\n\n"
+                .'Some owners choose to cover this anyway. Reply YES if you would like us to arrange the repair or replacement at your cost, or NO to leave it with the tenant. We will pass your answer on to them.',
         ],
         'tenant_appointment_sms' => [
             'automation' => 'tenant_appointment_sms',

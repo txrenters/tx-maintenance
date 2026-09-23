@@ -741,7 +741,7 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertSame(0, Activity::query()->where('event', 'owner_easy_fix_sms')->count());
     }
 
-    public function test_the_owner_is_told_the_tenant_s_own_washer_is_their_responsibility(): void
+    public function test_the_owner_is_told_the_washer_is_a_non_realty_item_and_asked_whether_to_cover_it(): void
     {
         $this->enableEasyFix();
         Queue::fake();
@@ -758,8 +758,8 @@ class OwnerServiceRequestNotificationTest extends TestCase
         $this->assertCount(2, $messages);
 
         $confirmation = $messages[0]->message;
-        $this->assertStringContainsString("It concerns the tenant's own washer", $confirmation);
-        $this->assertStringContainsString('no estimate will be arranged', $confirmation);
+        $this->assertStringContainsString('It concerns the washer. Under the lease the washer is a non-realty property item provided as-is', $confirmation);
+        $this->assertStringContainsString('Reply YES if you would like us to arrange the repair or replacement at your cost, or NO to leave it with the tenant', $confirmation);
         $this->assertStringNotContainsString('take care of arranging the estimate', $confirmation);
         $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($confirmation));
 

@@ -166,63 +166,49 @@ class TenantEasyFixServiceTest extends TestCase
         }
     }
 
-    public function test_a_tenant_owned_washer_is_judged_an_appliance(): void
+    public function test_a_washer_is_judged_a_non_realty_appliance_whatever_included_appliances_says(): void
     {
-        $building = $this->makeBuilding('refrigerator');
+        foreach (['refrigerator', 'Refrigerator, washer and dryer', 'None', 'Not Completed', null] as $index => $includedAppliances) {
+            $workOrder = $this->makeWorkOrder([
+                'work_order_no' => 43910 + $index,
+                'description' => 'Our washing machine will not spin',
+                'category' => 'Washer',
+                'building_id' => $this->makeBuilding($includedAppliances)->propertyware_id,
+            ]);
+
+            $verdict = $this->service()->assess($workOrder);
+
+            $this->assertSame('appliance', $verdict['kind'], (string) $includedAppliances);
+            $this->assertSame('appliance_washer', $verdict['key'], (string) $includedAppliances);
+            $this->assertTrue($verdict['sendable'], (string) $includedAppliances);
+        }
+    }
+
+    public function test_a_refrigerator_request_gets_the_non_realty_text_not_the_handbook_row(): void
+    {
+        // WO#44058: fridge listed as included, still the tenant's under the lease.
         $workOrder = $this->makeWorkOrder([
-            'description' => 'Our washing machine will not spin',
-            'category' => 'Washer',
-            'building_id' => $building->propertyware_id,
+            'description' => 'Refrigerator stopped cooling yesterday',
+            'category' => 'Refrigerator',
+            'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
         ]);
 
         $verdict = $this->service()->assess($workOrder);
 
         $this->assertSame('appliance', $verdict['kind']);
-        $this->assertSame('appliance_washer', $verdict['key']);
-        $this->assertTrue($verdict['sendable']);
-    }
+        $this->assertSame('appliance_refrigerator', $verdict['key']);
+        $this->assertStringStartsWith('non_realty:', $this->service()->judge($workOrder)['reason']);
 
-    public function test_a_property_provided_refrigerator_gets_the_handbook_s_check_first_row(): void
-    {
-        $workOrder = $this->makeWorkOrder([
-            'description' => 'Refrigerator stopped cooling yesterday',
-            'category' => 'Refrigerator',
-            'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
-        ]);
-
-        $verdict = $this->service()->assess($workOrder);
-
-        $this->assertSame('easy_fix', $verdict['kind']);
-        $this->assertSame('refrigerator_not_cooling', $verdict['key']);
-        $this->assertTrue($verdict['sendable']);
-
-        // The same request on a tenant-owned refrigerator is the tenant's.
-        $tenantOwned = $this->makeWorkOrder([
+        // The house's side of it (an outlet, a breaker) is not the appliance,
+        // so the handbook's "check power" row still applies there.
+        $house = $this->makeWorkOrder([
             'work_order_no' => 43903,
-            'description' => 'Refrigerator stopped cooling yesterday',
+            'description' => 'Refrigerator has no power, the outlet behind the fridge is dead',
             'category' => 'Refrigerator',
-            'building_id' => $this->makeBuilding('None')->propertyware_id,
-        ]);
-
-        $this->assertSame('appliance_refrigerator', $this->service()->assess($tenantOwned)['key']);
-    }
-
-    public function test_an_included_or_unknown_appliance_is_left_alone(): void
-    {
-        $included = $this->makeWorkOrder([
-            'description' => 'Our washing machine will not spin',
-            'category' => 'Washer',
             'building_id' => $this->makeBuilding('Refrigerator, washer and dryer')->propertyware_id,
         ]);
-        $this->assertNull($this->service()->assess($included));
 
-        $unknown = $this->makeWorkOrder([
-            'description' => 'Our washing machine will not spin',
-            'category' => 'Washer',
-            'building_id' => $this->makeBuilding(null)->propertyware_id,
-        ]);
-        $this->assertNull($this->service()->assess($unknown));
-        $this->assertSame('appliance_ownership_unknown', $this->service()->judge($unknown)['reason']);
+        $this->assertSame('refrigerator_not_cooling', $this->service()->assess($house)['key']);
     }
 
     public function test_the_tenant_will_be_told_only_when_gate_item_mute_and_reach_all_allow(): void

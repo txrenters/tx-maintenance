@@ -969,7 +969,7 @@ class TenantServiceRequestNotificationTest extends TestCase
         $this->assertStringNotContainsString('youtu.be', $text);
     }
 
-    public function test_a_tenant_owned_washer_is_told_it_is_their_responsibility(): void
+    public function test_a_washer_request_is_told_it_is_a_non_realty_item_and_the_tenant_s_responsibility(): void
     {
         $this->enableEasyFix();
         Queue::fake();
@@ -992,8 +992,10 @@ class TenantServiceRequestNotificationTest extends TestCase
 
         $text = $this->tenantMessage($workOrder)->message;
         $this->assertStringContainsString('We received your request about the washer.', $text);
-        $this->assertStringContainsString("the tenant's responsibility under the lease", $text);
-        $this->assertStringContainsString('reply here and we will double-check', $text);
+        $this->assertStringContainsString('the washer is classified as a non-realty property item and is provided as-is', $text);
+        $this->assertStringContainsString("generally the tenant's responsibility", $text);
+        $this->assertStringContainsString('reach out to the owner to ask whether they would be willing to cover', $text);
+        $this->assertStringContainsString('let us know how you would like to proceed', $text);
         $this->assertSame([], AutomatedMessageTemplates::nonGsmCharacters($text));
 
         // General portal link, no easy-fix photo token.

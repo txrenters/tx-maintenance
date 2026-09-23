@@ -7,8 +7,9 @@ use Illuminate\Support\Str;
 /**
  * Single source of truth for what counts as a tenant easy fix (a small
  * repair the Maintenance handbook says the tenant handles themselves, with a
- * how-to video) and a tenant-owned appliance (washer, dryer, refrigerator the
- * property does not provide, so the landlord is not responsible).
+ * how-to video) and a non-realty appliance (a washer, dryer or refrigerator:
+ * under the lease these are "non-realty property items", provided as-is, so
+ * their repair is the tenant's responsibility whoever put them in the house).
  *
  * The library itself lives in config/tenant_easy_fix.php so the handbook's
  * items, keywords and video links can be edited without touching this logic.
@@ -24,16 +25,13 @@ class TenantEasyFixCriteria
 
     public const KIND_APPLIANCE = 'appliance';
 
-    /** "Included Appliances" says the property provides the appliance. */
-    public const APPLIANCE_INCLUDED = 'included';
+    /**
+     * The request is about a washer, dryer or refrigerator: a non-realty
+     * item under the lease, the tenant's responsibility.
+     */
+    public const APPLIANCE_NON_REALTY = 'non_realty';
 
-    /** "Included Appliances" is filled in and does not list the appliance. */
-    public const APPLIANCE_TENANT_OWNED = 'tenant_owned';
-
-    /** No "Included Appliances" value on file for the property. */
-    public const APPLIANCE_UNKNOWN = 'unknown';
-
-    /** The request is not about an appliance at all. */
+    /** The request is not about such an appliance at all. */
     public const APPLIANCE_NONE = 'none';
 
     /**
@@ -51,16 +49,16 @@ class TenantEasyFixCriteria
     }
 
     /**
-     * The tenant-owned appliance items, keyed by their `key`.
+     * The non-realty appliance items, keyed by their `key`.
      *
-     * @return array<string, array{key: string, label: string, keywords: array<int, string>, exclude: array<int, string>, included_needles: array<int, string>}>
+     * @return array<string, array{key: string, label: string, keywords: array<int, string>, exclude: array<int, string>}>
      */
     public static function appliances(): array
     {
         return collect((array) config('tenant_easy_fix.appliances', []))
             ->filter(fn ($item) => is_array($item) && filled($item['key'] ?? null))
             ->keyBy('key')
-            ->map(fn (array $item) => $item + ['keywords' => [], 'exclude' => [], 'included_needles' => [], 'label' => $item['key']])
+            ->map(fn (array $item) => $item + ['keywords' => [], 'exclude' => [], 'label' => $item['key']])
             ->all();
     }
 
@@ -158,8 +156,12 @@ class TenantEasyFixCriteria
     }
 
     /**
-     * Whether the lowered text is about a tenant-owned appliance, judged
-     * against the property's PropertyWare "Included Appliances" custom field.
+     * Whether the lowered text is about a non-realty appliance (washer,
+     * dryer, refrigerator). The lease makes these the tenant's whoever
+     * provided them, so PropertyWare's "Included Appliances" field does not
+     * change the verdict; its value is carried along for the audit and the
+     * Recommendation tab only. Same vetoes as the easy-fix scan: a long
+     * punch list, a leak or hazard, or an emergency is never texted.
      *
      * @param  array<int, mixed>|null  $customFields  the building's raw custom_fields ({fieldName, value} rows)
      * @return array{status: string, key: ?string, matched: array<int, string>, included_value: ?string}
@@ -193,24 +195,13 @@ class TenantEasyFixCriteria
             return $none;
         }
 
-        $includedValue = self::includedAppliancesValue($customFields);
-
-        if ($includedValue === null) {
-            return ['status' => self::APPLIANCE_UNKNOWN, 'key' => $hit['key'], 'matched' => $hit['matched'], 'included_value' => null];
-        }
-
-        $status = self::includedListsAppliance($includedValue, $hit['appliance']['included_needles'])
-            ? self::APPLIANCE_INCLUDED
-            : self::APPLIANCE_TENANT_OWNED;
-
-        return ['status' => $status, 'key' => $hit['key'], 'matched' => $hit['matched'], 'included_value' => $includedValue];
+        return ['status' => self::APPLIANCE_NON_REALTY, 'key' => $hit['key'], 'matched' => $hit['matched'], 'included_value' => self::includedAppliancesValue($customFields)];
     }
 
     /**
-     * The property's "Included Appliances" value, or null when the field is
-     * absent, blank, or still PropertyWare's "Not Completed" placeholder (or
-     * another value that answers nothing, see
-     * config tenant_easy_fix.unknown_appliances_values).
+     * The property's "Included Appliances" value as PropertyWare holds it, or
+     * null when the field is absent or blank. Informational only (the audit
+     * CSV, the Recommendation tab): it does not decide responsibility.
      *
      * @param  array<int, mixed>|null  $customFields
      */
@@ -229,54 +220,10 @@ class TenantEasyFixCriteria
 
             $value = trim((string) ($field['value'] ?? ''));
 
-            if ($value === '' || self::isPlaceholderValue($value)) {
-                return null;
-            }
-
-            return $value;
+            return $value === '' ? null : $value;
         }
 
         return null;
-    }
-
-    /**
-     * Whether an "Included Appliances" value is a placeholder rather than an
-     * answer ("Not Completed", "Yes", "TBD").
-     */
-    public static function isPlaceholderValue(string $value): bool
-    {
-        $value = trim(Str::lower($value), " .\t");
-
-        return in_array($value, (array) config('tenant_easy_fix.unknown_appliances_values', []), true);
-    }
-
-    /**
-     * Whether an "Included Appliances" value names the appliance. The value
-     * is free text from PropertyWare ("Refrigerator, washer and dryer,
-     * dishwasher,disposer, microwave"); "washer/dryer connections" is a
-     * hookup, not an appliance, so that wording is stripped first, and a
-     * "None"-style value provides nothing.
-     *
-     * @param  array<int, string>  $needles
-     */
-    public static function includedListsAppliance(string $includedValue, array $needles): bool
-    {
-        $value = Str::lower($includedValue);
-
-        if (in_array(trim($value, " .\t"), (array) config('tenant_easy_fix.no_appliances_values', []), true)) {
-            return false;
-        }
-
-        $value = (string) preg_replace('/\b(washer\s*(and|&|\/)\s*dryer|w\/d|washer|dryer)\s*(connections?|hook-?ups?)\b/i', '', $value);
-        $value = (string) preg_replace('/\b(connections?|hook-?ups?)\b/i', '', $value);
-
-        foreach ($needles as $needle) {
-            if (self::keywordMatches($value, $needle)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -297,7 +244,7 @@ class TenantEasyFixCriteria
 
         $lines[] = 'It is NOT an easy fix when the same symptom involves a leak, water damage, sparking, burning, a broken or missing part, a hazard, a whole-house outage, or when the tenant says they already tried the reset or fix. When in doubt, set is_tenant_easy_fix to false: a wrong easy-fix label leaves a real repair unattended.';
         $lines[] = 'Set easy_fix_key to the matching item key from the list above when is_tenant_easy_fix is true, otherwise null.';
-        $lines[] = 'Separately, if the request is about the tenant\'s own washer, dryer or refrigerator (an appliance the property does not provide), set tenant_responsibility_reason to one short sentence saying so, using the keys '.implode(', ', array_keys(self::appliances())).' where relevant; otherwise null. You cannot see which appliances the property includes, so only note that the request concerns such an appliance.';
+        $lines[] = 'Separately, if the request is about a washer, dryer or refrigerator (under the lease these are non-realty property items provided as-is, so their repair is the tenant\'s responsibility whoever provided them), set tenant_responsibility_reason to one short sentence saying so, using the keys '.implode(', ', array_keys(self::appliances())).' where relevant; otherwise null. A hookup, valve, vent, outlet or breaker for the appliance is part of the house, not the appliance.';
 
         return $lines;
     }

@@ -33,7 +33,7 @@ class AuditTenantEasyFix extends Command
             ->get();
 
         $rows = [];
-        $counts = ['easy_fix' => 0, 'appliance' => 0, 'appliance_unknown' => 0, 'scanned' => $workOrders->count()];
+        $counts = ['easy_fix' => 0, 'appliance' => 0, 'scanned' => $workOrders->count()];
 
         foreach ($workOrders as $workOrder) {
             $judgement = $service->judge($workOrder);
@@ -44,8 +44,6 @@ class AuditTenantEasyFix extends Command
                 $counts['easy_fix']++;
             } elseif ($kind === TenantEasyFixCriteria::KIND_APPLIANCE) {
                 $counts['appliance']++;
-            } elseif ($applianceStatus === TenantEasyFixCriteria::APPLIANCE_UNKNOWN) {
-                $counts['appliance_unknown']++;
             }
 
             $interesting = $kind !== null || $applianceStatus !== TenantEasyFixCriteria::APPLIANCE_NONE;
@@ -72,8 +70,7 @@ class AuditTenantEasyFix extends Command
         $this->table(['Metric', 'Count'], [
             ['Work orders scanned (last '.$days.' days)', $counts['scanned']],
             ['Would be texted the easy-fix how-to', $counts['easy_fix']],
-            ['Would be told the appliance is theirs', $counts['appliance']],
-            ['Appliance request, ownership unknown (no Included Appliances on file)', $counts['appliance_unknown']],
+            ['Would be told the appliance is theirs (non-realty under the lease)', $counts['appliance']],
         ]);
 
         if ($rows !== []) {

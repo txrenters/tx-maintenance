@@ -1039,13 +1039,10 @@ class WorkOrderRecommendationService
                 : 'No emergency indicators found in the work order text',
             'is_tenant_easy_fix' => $judgement['kind'] === TenantEasyFixCriteria::KIND_EASY_FIX,
             'easy_fix_key' => $judgement['key'],
-            'tenant_responsibility_reason' => $appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NONE
-                ? null
-                : match ($appliance['status']) {
-                    TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED => 'The request concerns the tenant\'s own '.TenantEasyFixCriteria::item($appliance['key'])['label'].': the property\'s Included Appliances ("'.$appliance['included_value'].'") does not list it.',
-                    TenantEasyFixCriteria::APPLIANCE_INCLUDED => 'The request concerns the '.TenantEasyFixCriteria::item($appliance['key'])['label'].', which the property provides ("'.$appliance['included_value'].'").',
-                    default => 'The request concerns a '.TenantEasyFixCriteria::item($appliance['key'])['label'].'; the property has no Included Appliances on file, so ownership is unknown.',
-                },
+            'tenant_responsibility_reason' => $appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NON_REALTY
+                ? 'The request concerns the '.TenantEasyFixCriteria::item($appliance['key'])['label'].', a non-realty item under the lease (provided as-is, the tenant\'s responsibility).'
+                    .($appliance['included_value'] !== null ? ' PropertyWare\'s Included Appliances: "'.$appliance['included_value'].'".' : '')
+                : null,
             'source' => 'heuristic',
             'model' => null,
             'raw_response' => null,

@@ -235,68 +235,36 @@ class TenantEasyFixCriteriaTest extends TestCase
         }
     }
 
-    public function test_a_tenant_owned_washer_is_flagged_when_the_property_lists_only_a_fridge(): void
+    public function test_a_washer_dryer_or_refrigerator_is_a_non_realty_appliance_whoever_provided_it(): void
     {
-        $fields = [['fieldName' => 'Included Appliances', 'value' => 'refrigerator', 'dataType' => 'Text']];
+        // WO#44011 (washer listed as included) and WO#44058 (refrigerator
+        // listed as included) were both handled as the tenant's: under the
+        // lease these are non-realty items provided as-is.
+        $included = [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator, washer and dryer, dishwasher,disposer, microwave']];
 
-        $result = TenantEasyFixCriteria::assessAppliance('washing machine will not spin', $fields);
-
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED, $result['status']);
+        $result = TenantEasyFixCriteria::assessAppliance('washing machine will not spin', $included);
+        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NON_REALTY, $result['status']);
         $this->assertSame('appliance_washer', $result['key']);
-        $this->assertSame('refrigerator', $result['included_value']);
-    }
+        $this->assertSame('Refrigerator, washer and dryer, dishwasher,disposer, microwave', $result['included_value']);
 
-    public function test_an_included_appliance_stays_the_property_s_problem(): void
-    {
-        $fields = [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator, washer and dryer, dishwasher,disposer, microwave']];
+        $this->assertSame('appliance_dryer', TenantEasyFixCriteria::assessAppliance('the dryer is not heating', $included)['key']);
+        $this->assertSame('appliance_refrigerator', TenantEasyFixCriteria::assessAppliance('freezer isnt freezing food properly and ice maker not making ice', $included)['key']);
 
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_INCLUDED, TenantEasyFixCriteria::assessAppliance('washer not spinning', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_INCLUDED, TenantEasyFixCriteria::assessAppliance('the dryer is not heating', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_INCLUDED, TenantEasyFixCriteria::assessAppliance('fridge not cooling', $fields)['status']);
-    }
-
-    public function test_washer_dryer_connections_do_not_count_as_an_included_washer(): void
-    {
-        $fields = [['fieldName' => 'Included Appliances', 'value' => 'Refrigerator, washer/dryer connections']];
-
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED, TenantEasyFixCriteria::assessAppliance('my washer is not spinning', $fields)['status']);
-        // A leaking one might be the hookup or be damaging the floor: staff look, nobody is texted.
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('my washer is leaking soap everywhere', $fields)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED, TenantEasyFixCriteria::assessAppliance('dryer stopped heating', $fields)['status']);
-    }
-
-    public function test_a_none_value_means_every_appliance_is_the_tenant_s(): void
-    {
-        $fields = [['fieldName' => 'Included Appliances', 'value' => 'None']];
-
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', $fields)['status']);
-    }
-
-    public function test_a_missing_or_blank_field_leaves_ownership_unknown(): void
-    {
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', null)['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [])['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [['fieldName' => 'Included Appliances', 'value' => '  ']])['status']);
-        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [['fieldName' => 'Paint Color', 'value' => 'Agreeable Gray']])['status']);
-    }
-
-    public function test_a_placeholder_value_leaves_ownership_unknown(): void
-    {
-        // PropertyWare's default "Not Completed" is the most common value on
-        // file; it must never read as "the refrigerator is not included".
-        foreach (['Not Completed', 'not completed.', 'Yes', 'TBD', 'Unknown', 'UPDATE'] as $value) {
-            $result = TenantEasyFixCriteria::assessAppliance('our refrigerator has a extremely slow stream', [['fieldName' => 'Included Appliances', 'value' => $value]]);
-
-            $this->assertSame(TenantEasyFixCriteria::APPLIANCE_UNKNOWN, $result['status'], $value);
-            $this->assertNull($result['included_value'], $value);
+        // The field's value, or its absence, changes nothing.
+        foreach ([null, [], [['fieldName' => 'Included Appliances', 'value' => 'None']], [['fieldName' => 'Included Appliances', 'value' => 'Not Completed']], [['fieldName' => 'Included Appliances', 'value' => 'refrigerator']]] as $fields) {
+            $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NON_REALTY, TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', $fields)['status'], json_encode($fields));
         }
 
-        // "None" is an answer, not a placeholder.
-        $this->assertFalse(TenantEasyFixCriteria::isPlaceholderValue('None'));
-        $this->assertTrue(TenantEasyFixCriteria::isPlaceholderValue(' Not Completed '));
+        $this->assertNull(TenantEasyFixCriteria::assessAppliance('refrigerator not cooling', [['fieldName' => 'Included Appliances', 'value' => '  ']])['included_value']);
     }
 
-    public function test_a_hookup_or_a_dishwasher_is_not_a_tenant_appliance(): void
+    public function test_a_leaking_appliance_is_never_texted(): void
+    {
+        // A leaking one might be the hookup or be damaging the floor: staff look, nobody is texted.
+        $this->assertSame(TenantEasyFixCriteria::APPLIANCE_NONE, TenantEasyFixCriteria::assessAppliance('my washer is leaking soap everywhere', null)['status']);
+    }
+
+    public function test_a_hookup_or_a_dishwasher_is_not_a_non_realty_appliance(): void
     {
         $fields = [['fieldName' => 'Included Appliances', 'value' => 'None']];
 

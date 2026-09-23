@@ -56,13 +56,17 @@
     @elseif($isAppliance)
     <p style="margin:12px 0;">
         This is TexasRenters.com Maintenance. We received your request about the
-        {{ $easyFix['label'] }}{{ $property ? ' at '.$property : '' }}. Our
-        records show it is not a property-provided appliance, so its repair or
-        replacement is the tenant's responsibility under the lease.
+        {{ $easyFix['label'] }}{{ $property ? ' at '.$property : '' }}. Under the
+        terms of your lease agreement, the {{ $easyFix['label'] }} is classified
+        as a non-realty property item and is provided as-is, so its repair,
+        maintenance or replacement is generally the tenant's responsibility.
     </p>
     <p style="margin:12px 0;">
-        If you believe this is incorrect, reply to this email and we will
-        double-check.
+        That said, we will reach out to the owner to ask whether they would be
+        willing to cover the cost of the repair or replacement, and we will let
+        you know their answer. In the meantime, please reply to this email and
+        let us know how you would like to proceed. Thank you for your
+        understanding.
     </p>
     @else
     <p style="margin:12px 0;">

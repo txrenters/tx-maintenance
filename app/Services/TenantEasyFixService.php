@@ -16,14 +16,13 @@ use Spatie\Activitylog\Models\Activity;
 /**
  * Decides at intake whether a new work order is a tenant easy fix (a small
  * repair the handbook says the tenant handles, texted a how-to video instead
- * of the generic confirmation) or concerns a tenant-owned appliance (texted
- * that it is the tenant's responsibility), and records that verdict once on
- * the work order so the tenant text, the owner text, the intake email and the
- * board all agree.
+ * of the generic confirmation) or concerns a non-realty appliance (a washer,
+ * dryer or refrigerator, the tenant's under the lease, texted that it is
+ * their responsibility), and records that verdict once on the work order so
+ * the tenant text, the owner text, the intake email and the board all agree.
  *
  * The verdict is deterministic (App\Ai\TenantEasyFixCriteria over the
- * description, type and category, plus the property's "Included Appliances"
- * field) and is written whether or not the messaging gate is on, so the
+ * description, type and category) and is written whether or not the messaging gate is on, so the
  * verdicts can be watched in production before anyone is texted. The AI
  * classification never decides a send; it only surfaces what the keywords
  * missed.
@@ -315,11 +314,12 @@ class TenantEasyFixService
             return ['key' => null, 'kind' => null, 'reason' => 'marked_emergency', 'appliance' => $appliance];
         }
 
-        // A tenant-owned appliance is the tenant's whatever the symptom; a
-        // property-provided (or unknown) one falls through to the handbook's
-        // own rows for that appliance (check the plug, the breaker...).
-        if ($appliance['status'] === TenantEasyFixCriteria::APPLIANCE_TENANT_OWNED) {
-            return ['key' => $appliance['key'], 'kind' => TenantEasyFixCriteria::KIND_APPLIANCE, 'reason' => 'tenant_owned:'.implode(', ', $appliance['matched']), 'appliance' => $appliance];
+        // A washer, dryer or refrigerator is a non-realty item under the
+        // lease: the tenant's whatever the symptom and whoever provided it,
+        // so the responsibility text wins over the handbook's own rows for
+        // that appliance.
+        if ($appliance['status'] === TenantEasyFixCriteria::APPLIANCE_NON_REALTY) {
+            return ['key' => $appliance['key'], 'kind' => TenantEasyFixCriteria::KIND_APPLIANCE, 'reason' => 'non_realty:'.implode(', ', $appliance['matched']), 'appliance' => $appliance];
         }
 
         $easyFix = TenantEasyFixCriteria::scan($text, $workOrder->category);
@@ -328,11 +328,7 @@ class TenantEasyFixService
             return ['key' => $easyFix['key'], 'kind' => TenantEasyFixCriteria::KIND_EASY_FIX, 'reason' => 'matched:'.implode(', ', $easyFix['matched']), 'appliance' => $appliance];
         }
 
-        return ['key' => null, 'kind' => null, 'reason' => match ($appliance['status']) {
-            TenantEasyFixCriteria::APPLIANCE_INCLUDED => 'appliance_included',
-            TenantEasyFixCriteria::APPLIANCE_UNKNOWN => 'appliance_ownership_unknown',
-            default => 'no_match',
-        }, 'appliance' => $appliance];
+        return ['key' => null, 'kind' => null, 'reason' => 'no_match', 'appliance' => $appliance];
     }
 
     /**

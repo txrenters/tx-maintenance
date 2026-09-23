@@ -373,7 +373,7 @@ class WorkOrderRecommendationTest extends TestCase
             ->assertJsonPath('recommendation.work_order.easy_fix_key', 'disposal_jammed');
     }
 
-    public function test_the_heuristic_classification_follows_the_handbook_for_an_appliance_of_unknown_ownership(): void
+    public function test_the_heuristic_classification_marks_a_refrigerator_as_a_non_realty_appliance(): void
     {
         $user = User::factory()->create();
         $serviceStatus = ServiceStatus::query()->create([
@@ -391,12 +391,12 @@ class WorkOrderRecommendationTest extends TestCase
         $response = $this->actingAs($user)
             ->post(route('work_orders.recommendation.generate', $workOrder));
 
-        // Ownership unknown => not the tenant's problem by default, so the
-        // handbook's "check power, plug, breaker" row applies.
+        // A refrigerator is a non-realty item under the lease: not an easy
+        // fix, the tenant's responsibility, whoever provided it.
         $response->assertOk()
-            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', true)
-            ->assertJsonPath('recommendation.classification.easy_fix_key', 'refrigerator_not_cooling');
+            ->assertJsonPath('recommendation.classification.is_tenant_easy_fix', false)
+            ->assertJsonPath('recommendation.classification.easy_fix_key', 'appliance_refrigerator');
 
-        $this->assertStringContainsString('ownership is unknown', $response->json('recommendation.classification.tenant_responsibility_reason'));
+        $this->assertStringContainsString('non-realty item under the lease', $response->json('recommendation.classification.tenant_responsibility_reason'));
     }
 }
