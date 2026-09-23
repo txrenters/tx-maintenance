@@ -27,17 +27,13 @@ class OwnerMessageFormatter
     /**
      * Assemble a message from its body, an optional portal link, and the
      * standard sign-off + reference footer.
-     *
-     * @param  string|null  $linkLead  a lead-in for the link other than the
-     *                                 default (an approval reminder points at
-     *                                 the Approve buttons, not "view or message")
      */
-    public static function compose(string $body, int|string|null $reference, ?string $link = null, ?string $linkLead = null): string
+    public static function compose(string $body, int|string|null $reference, ?string $link = null): string
     {
         $parts = [trim($body)];
 
         if (filled($link)) {
-            $parts[] = ($linkLead ?? self::LINK_LEAD).$link;
+            $parts[] = self::LINK_LEAD.$link;
         }
 
         $parts[] = $reference !== null

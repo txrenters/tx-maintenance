@@ -2,13 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\SendConversationMessageJob;
-use App\Models\Conversation;
 use App\Models\Owner;
 use App\Models\WorkOrder;
 use App\Services\AutomatedMessageLogService;
 use App\Services\AutomatedMessageTemplates;
-use App\Services\OwnerMessageFormatter;
 use App\Services\OwnerPortalLinkService;
 use App\Services\OwnerWorkOrderEmailSender;
 use Carbon\Carbon;
@@ -23,29 +20,23 @@ use Spatie\Activitylog\Models\Activity;
  *
  * PropertyWare emails an owner once a day, every day, while a work order is
  * open and unapproved, and that email sends them into the PropertyWare owner
- * portal. This command sends the same daily reminder from here instead, with
+ * portal. This command sends the same daily email from here instead, with
  * the owner's no-login portal link, so the only screen an owner ever uses is
- * ours. It copies PropertyWare's mechanism on purpose: daily, no cap, and it
- * stops only when the approval resolves.
+ * ours. It copies PropertyWare's mechanism on purpose: email only, daily, no
+ * cap, and it stops only when the approval resolves.
  */
 class NudgeOwnerApproval extends Command
 {
     protected $signature = 'owners:nudge-approval
         {--dry-run : List who would be reminded today without sending or recording anything}';
 
-    protected $description = 'Remind each owner once a day, by text or by email when they have no phone, that a work order is waiting on their approval, until they answer in the owner portal or PropertyWare shows it approved or closed.';
+    protected $description = 'Email each owner once a day that a work order is waiting on their approval, until they answer in the owner portal or PropertyWare shows it approved or closed.';
 
-    /**
-     * The link lead-in for this reminder: it points at the Approve buttons,
-     * not at "view or message us".
-     */
-    public const LINK_LEAD = 'Review and approve it here - no login needed: ';
-
-    public const SKIP_NO_CONTACT = 'no_owner_phone_or_email';
+    public const SKIP_NO_CONTACT = 'no_owner_email';
 
     private int $sent = 0;
 
-    /** @var list<array{work_order: string, owner: string, channel: string, to: string}> */
+    /** @var list<array{work_order: string, owner: string, to: string}> */
     private array $dryRunRows = [];
 
     /**
@@ -89,7 +80,7 @@ class NudgeOwnerApproval extends Command
 
         foreach ($workOrderIds as $workOrderId) {
             $workOrder = WorkOrder::query()
-                ->with(['owners', 'woc.wocNumber.twilioPhoneNumber', 'building'])
+                ->with(['owners', 'building'])
                 ->find($workOrderId);
 
             if (! $workOrder || $workOrder->status !== 'Open' || $workOrder->is_approved) {
@@ -112,26 +103,25 @@ class NudgeOwnerApproval extends Command
                 continue;
             }
 
-            foreach ($recipients as [$owner, $channel, $to]) {
+            foreach ($recipients as [$owner, $to]) {
                 if ($dryRun) {
                     $this->dryRunRows[] = [
                         'work_order' => '#'.($workOrder->work_order_no ?? $workOrder->id),
                         'owner' => $this->ownerName($owner),
-                        'channel' => $channel,
                         'to' => $to,
                     ];
 
                     continue;
                 }
 
-                if ($this->remind($workOrder, $owner, $channel, $to, $portalLinks, $emails, $startOfToday)) {
+                if ($this->remind($workOrder, $owner, $to, $portalLinks, $emails, $startOfToday)) {
                     $this->sent++;
                 }
             }
         }
 
         if ($dryRun) {
-            $this->table(['Work order', 'Owner', 'Channel', 'To'], $this->dryRunRows);
+            $this->table(['Work order', 'Owner', 'Email'], $this->dryRunRows);
             $this->info('Dry run: '.count($this->dryRunRows).' reminder(s) would go out today. Nothing was sent or recorded.');
 
             return self::SUCCESS;
@@ -168,12 +158,12 @@ class NudgeOwnerApproval extends Command
     }
 
     /**
-     * Every owner on the work order (any ownership percentage) with one channel
-     * each: their phone when they have one, else their email. A couple sharing
-     * one phone or one inbox gets a single reminder. Owners with neither are
-     * left out here and reported by the caller.
+     * Every owner on the work order (any ownership percentage) who has an
+     * email address. A couple sharing one inbox gets a single reminder. Owners
+     * with no email are left out here and reported by the caller: this
+     * reminder is email only, like the PropertyWare alert it replaces.
      *
-     * @return list<array{0: Owner, 1: string, 2: string}> [owner, 'sms'|'email', number-or-address]
+     * @return list<array{0: Owner, 1: string}> [owner, address]
      */
     private function recipients(WorkOrder $workOrder): array
     {
@@ -185,27 +175,14 @@ class NudgeOwnerApproval extends Command
             ->sortByDesc(fn (Owner $owner): float => (float) $owner->percentage_ownership);
 
         foreach ($owners as $owner) {
-            $phone = $workOrder->normalizedOwnerPhone($owner);
-
-            if ($phone !== null) {
-                if (isset($seen['sms:'.$phone])) {
-                    continue;
-                }
-
-                $seen['sms:'.$phone] = true;
-                $recipients[] = [$owner, AutomatedMessageLogService::CHANNEL_SMS, $phone];
-
-                continue;
-            }
-
             $email = $this->ownerEmail($owner);
 
-            if ($email === null || isset($seen['email:'.$email])) {
+            if ($email === null || isset($seen[$email])) {
                 continue;
             }
 
-            $seen['email:'.$email] = true;
-            $recipients[] = [$owner, AutomatedMessageLogService::CHANNEL_EMAIL, $email];
+            $seen[$email] = true;
+            $recipients[] = [$owner, $email];
         }
 
         return $recipients;
@@ -224,13 +201,12 @@ class NudgeOwnerApproval extends Command
     }
 
     /**
-     * Send one owner today's reminder on their channel, or skip them. Returns
-     * whether a reminder was actually sent.
+     * Send one owner today's reminder, or skip them. Returns whether a
+     * reminder was actually sent.
      */
     private function remind(
         WorkOrder $workOrder,
         Owner $owner,
-        string $channel,
         string $to,
         OwnerPortalLinkService $portalLinks,
         OwnerWorkOrderEmailSender $emails,
@@ -260,21 +236,13 @@ class NudgeOwnerApproval extends Command
         }
 
         try {
-            $link = $portalLinks->link($workOrder, $owner);
-            $body = $this->messageFor($workOrder);
-
-            if ($channel === AutomatedMessageLogService::CHANNEL_EMAIL) {
-                $this->email($workOrder, $owner, $to, $body, $link, $emails);
-            } else {
-                $this->text($workOrder, $owner, $to, $body, $link);
-            }
+            $this->email($workOrder, $owner, $to, $this->messageFor($workOrder), $portalLinks->link($workOrder, $owner), $emails);
 
             return true;
         } catch (\Throwable $exception) {
             Log::error('Owner approval reminder failed to send.', [
                 'work_order_id' => $workOrder->id,
                 'owner_id' => $owner->id,
-                'channel' => $channel,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -283,57 +251,9 @@ class NudgeOwnerApproval extends Command
     }
 
     /**
-     * Post the reminder into the owner<->WOC thread and text the owner, so it
-     * threads with the intake text and their portal.
-     */
-    private function text(WorkOrder $workOrder, Owner $owner, string $ownerNumber, string $body, ?string $link): void
-    {
-        // sender_number is the WOC/company number so the portal renders this as
-        // a message from the coordinator.
-        $fromNumber = $workOrder->woc?->wocNumber?->twilioPhoneNumber?->phone_number
-            ?: config('services.twilio.maintenance_number', env('MAINTENANC_TWILIO_PHONE_NUMBER', ''));
-
-        $message = OwnerMessageFormatter::compose(
-            $body,
-            $workOrder->work_order_no ?? $workOrder->id,
-            $link,
-            self::LINK_LEAD,
-        );
-
-        $conversation = Conversation::create([
-            'message' => $message,
-            'sender_number' => $fromNumber ?: null,
-            'receiver_number' => $ownerNumber,
-            'work_order_id' => $workOrder->id,
-            'owner_id' => $owner->id,
-            'conversation_type' => 'owner',
-            'is_read' => true,
-            'is_mms' => false,
-        ]);
-
-        // No sending number: the message is still in the owner's portal
-        // thread, but there is nothing to text from.
-        if (blank($fromNumber)) {
-            return;
-        }
-
-        SendConversationMessageJob::dispatch($ownerNumber, $fromNumber, $message, null, $conversation->id);
-
-        AutomatedMessageLogService::log(
-            AutomatedMessageLogService::CHANNEL_SMS,
-            'owner',
-            'owner_approval_nudge_sms',
-            $ownerNumber,
-            $workOrder,
-            $message,
-            ['owner_id' => $owner->id, 'conversation_id' => $conversation->id],
-        );
-    }
-
-    /**
-     * The email fallback for an owner with no phone on file: the same wording
-     * and the same portal link, from the work-orders mailbox, recorded on the
-     * owner's email history like the vendor-assignment email.
+     * The reminder email: the editable wording and the owner's portal link,
+     * from the work-orders mailbox, recorded on the owner's email history like
+     * the vendor-assignment email.
      */
     private function email(
         WorkOrder $workOrder,
@@ -376,17 +296,16 @@ class NudgeOwnerApproval extends Command
     }
 
     /**
-     * A work order nobody can be reminded about: every owner is missing both a
-     * phone and an email. Written to the ledger so a coordinator asking "why
-     * is this owner silent?" finds the answer where the sends are.
+     * A work order nobody can be reminded about: every owner is missing an
+     * email. Written to the ledger so a coordinator asking "why is this owner
+     * silent?" finds the answer where the sends are.
      */
     private function recordNobodyReachable(WorkOrder $workOrder, bool $dryRun): void
     {
         if ($dryRun) {
             $this->dryRunRows[] = [
                 'work_order' => '#'.($workOrder->work_order_no ?? $workOrder->id),
-                'owner' => '(no owner with a phone or email)',
-                'channel' => '-',
+                'owner' => '(no owner with an email)',
                 'to' => '-',
             ];
 
@@ -394,19 +313,19 @@ class NudgeOwnerApproval extends Command
         }
 
         AutomatedMessageLogService::log(
-            AutomatedMessageLogService::CHANNEL_SMS,
+            AutomatedMessageLogService::CHANNEL_EMAIL,
             'owner',
-            'owner_approval_nudge_sms',
+            'owner_approval_nudge_email',
             null,
             $workOrder,
-            'Not sent: no owner on this work order has a phone or an email on file.',
+            'Not sent: no owner on this work order has an email on file.',
             ['not_texted_reason' => self::SKIP_NO_CONTACT],
         );
     }
 
     /**
      * The reminder wording, editable from the Automated Messages page via the
-     * AutomatedMessageTemplates registry. Shared by the text and the email.
+     * AutomatedMessageTemplates registry.
      */
     private function messageFor(WorkOrder $workOrder): string
     {
