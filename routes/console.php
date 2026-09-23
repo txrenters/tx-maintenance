@@ -208,6 +208,14 @@ Schedule::command('tenant-emails:sync-replies')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Vendors who email an invoice to invoices@ get an automatic reply pointing at
+// their portal dashboard. Gated off by default (INVOICES_MAILBOX_AUTO_REPLY_ENABLED):
+// until that is on this is a no-op.
+Schedule::command('invoices:auto-reply')
+    ->everyThreeMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('owner-emails:sync-replies')
     ->everyThreeMinutes()
     ->withoutOverlapping()

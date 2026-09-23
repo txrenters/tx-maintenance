@@ -217,6 +217,17 @@ return [
         'mailbox' => env('MICROSOFT_MAILBOX', 'workorders@texasrenters.com'),
         'job_reminder_mailbox' => env('MICROSOFT_JOB_REMINDER_MAILBOX', 'service@txhomemp.com'),
         'turnover_mailbox' => env('MICROSOFT_TURNOVER_MAILBOX', 'thmp@texasrenters.com'),
+        'invoices_mailbox' => env('MICROSOFT_INVOICES_MAILBOX', 'invoices@texasrenters.com'),
+    ],
+
+    'invoices_mailbox' => [
+        // Vendors keep emailing invoices to invoices@ instead of uploading them
+        // in the portal. When this is on, every vendor-looking invoice email
+        // gets an automatic reply from that same mailbox pointing at the
+        // vendor's no-login portal dashboard. Off by default: the first run
+        // only looks back one hour, but the mailbox must be reachable by the
+        // Graph app registration before it is switched on.
+        'auto_reply_enabled' => env('INVOICES_MAILBOX_AUTO_REPLY_ENABLED', false),
     ],
 
     'operation_accounting' => [
