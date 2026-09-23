@@ -58,6 +58,11 @@ return [
         // vendor job whatever else the description mentions (a technician's
         // inspection note about AC ductwork also mentioned an exhaust fan).
         'damaged', 'damage to', 'hole in', 'holes in', 'needs to be repaired', 'needs to be replaced', 'needs repair', 'needs replacing', 'needs replacement', 'recommend assessing', 'recommend replacing',
+        // Water arriving from anywhere it should not, in any tense or
+        // spelling a tenant uses, and a repair already in progress (a tech,
+        // a contractor, a renovation) are never a self-serve fix.
+        'water coming', 'water was coming', 'water is coming', 'water came', 'coming down from', 'dripping from', 'leakage', 'leackage', 'leakages', 'leackages', 'water stain', 'water stains', 'brown marks', 'brown stain',
+        'the tech', 'the technician', 'technician', 'contractor', 'contractors', 'the workers', 'workers', 'renovation', 'remodel', 'construction', 'while they were working', 'days of work',
     ],
 
     /*

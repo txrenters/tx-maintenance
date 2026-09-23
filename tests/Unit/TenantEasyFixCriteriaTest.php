@@ -193,6 +193,12 @@ class TenantEasyFixCriteriaTest extends TestCase
             // mention the exhaust fan they were replacing (real WO, 09-22).
             'As I was replacing the exhaust fan in guest bathroom, I felt a cool wind draft behind me. Ends up being that the A.C. ducy has a significant hole in it. Recommend assessing all the AC ductwork and replacing as needed. Also the bottom step to the attic ladder is damaged and needs to be repaired.',
             'Bathroom exhaust fan is damaged and needs to be replaced',
+            // A short version of a real complaint (09-23): a dishwasher dead
+            // because a contractor's job cut the hot water, with water that
+            // came through a light. Neither "leaking" nor the emergency
+            // rules fire on that wording; the word cap alone had saved it.
+            'Dishwasher is not working since the tech removed the hot water from the kitchen, and one day water was coming down from the lamp',
+            'Dishwasher is not working, there are new leackages in the kitchen ceiling',
         ] as $text) {
             $this->assertNull($this->scan($text), $text);
         }
