@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-29',
+            'area' => 'Jobber',
+            'title' => 'Jobber jobs are no longer created as "Zone 0"',
+            'description' => 'When THMP is assigned, the Jobber job the system creates is titled with the property, the zone, the category and the work order number. PropertyWare\'s Zone field reads 0 until the coordinator fills it in, and THMP is usually assigned before that step, so many jobs — and the visits built from them on the Visits page — were titled "Zone 0". There is no zone 0. From now on a work order whose zone is still blank in PropertyWare takes the zone the same property\'s earlier work orders carry (the most common one), and only when the property has no zoned history at all does the title leave the zone out, so a title never reads "Zone 0" again. Jobs created before today keep the title they have in Jobber.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',
