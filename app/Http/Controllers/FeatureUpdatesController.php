@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-29',
+            'area' => 'Jobber',
+            'title' => 'Jobber jobs are no longer created as "Zone 0"',
+            'description' => 'When THMP is assigned, the Jobber job the system creates is titled with the property, the zone, the category and the work order number. PropertyWare\'s Zone field reads 0 until the coordinator fills it in, and THMP is usually assigned before that step, so many jobs — and the visits built from them on the Visits page — were titled "Zone 0". There is no zone 0. From now on a work order whose zone is still blank in PropertyWare takes the zone the same property\'s earlier work orders carry (the most common one), and only when the property has no zoned history at all does the title leave the zone out, so a title never reads "Zone 0" again. Jobs created before today keep the title they have in Jobber.',
+        ],
+        [
+            'date' => '2026-09-29',
             'area' => 'Automated Messages',
             'title' => 'TBP visit reminders now reach tenants whose property name is missing the street suffix',
             'description' => 'The automatic 14, 7, 3-day and day-before Tenant Benefit Package visit reminders found the tenant by comparing the Jobber client name with the PropertyWare building name letter for letter. Jobber says "418 Drennan St" and PropertyWare says "418 Drennan", so the reminders decided it was a different house and sent nothing - the same for roughly four in ten TBP properties, which is why some tenants only heard from us when staff texted by hand. The reminders now match the way the Send notification button already does: same street number and same street name, with or without the "St", "Ln", "Dr" at the end. A tenant who has given notice or gone month-to-month is still living there and is reminded too; draft and eviction leases are not. If a Jobber client ever lines up with two different PropertyWare buildings, the run writes a warning to the log naming both so the names can be corrected. Nothing changes for properties that already matched.',

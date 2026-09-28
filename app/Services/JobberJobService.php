@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\WorkOrder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,6 +17,9 @@ use Illuminate\Support\Facades\Log;
  */
 class JobberJobService
 {
+    /** The zones THMP works in, as PropertyWare's Zone field spells them. */
+    private const ZONES = ['1', '2', '3', '4', '5'];
+
     public function __construct(private JobberTokenService $tokens) {}
 
     /**
@@ -150,13 +154,72 @@ class JobberJobService
         return ['gid' => (string) $gid, 'web_uri' => (string) $webUri];
     }
 
+    /**
+     * "{building} - Zone N - {category} - #WO". The zone segment is dropped
+     * when no real zone is known, so a title never reads "Zone 0".
+     */
     private function jobTitle(WorkOrder $workOrder): string
     {
         $building = (string) ($workOrder->building?->name ?? '');
-        $zone = (string) ($workOrder->zone ?? '');
         $category = (string) ($workOrder->category ?? '');
+        $zone = $this->zoneForTitle($workOrder);
+        $zoneSegment = $zone === null ? '' : "Zone {$zone} - ";
 
-        return "{$building} - Zone {$zone} - {$category} - #{$workOrder->work_order_no}";
+        return "{$building} - {$zoneSegment}{$category} - #{$workOrder->work_order_no}";
+    }
+
+    /**
+     * The zone the title should carry: the work order's own when PropertyWare
+     * has a real one, otherwise the zone the building's other work orders
+     * carry most often (ties go to the newest). Null when neither says.
+     *
+     * PropertyWare's Zone custom field is a Number, so it reads "0" until the
+     * coordinator fills it in — and THMP is usually assigned (which creates
+     * the Jobber job) before that step, so the raw value would title the job
+     * "Zone 0". There is no zone 0; the building's history nearly always
+     * knows the real one.
+     */
+    private function zoneForTitle(WorkOrder $workOrder): ?string
+    {
+        $own = self::realZone($workOrder->zone);
+
+        if ($own !== null) {
+            return $own;
+        }
+
+        if (blank($workOrder->building_id)) {
+            return null;
+        }
+
+        $usual = WorkOrder::withoutGlobalScopes()
+            ->where('building_id', $workOrder->building_id)
+            ->whereKeyNot($workOrder->getKey())
+            ->whereIn('zone', self::ZONES)
+            ->select('zone', DB::raw('COUNT(*) as uses'), DB::raw('MAX(id) as newest'))
+            ->groupBy('zone')
+            ->orderByDesc('uses')
+            ->orderByDesc('newest')
+            ->value('zone');
+
+        if ($usual === null) {
+            Log::info('Jobber job: no zone known for the building; the title carries none.', [
+                'work_order_id' => $workOrder->id,
+                'building_id' => $workOrder->building_id,
+                'propertyware_zone' => $workOrder->zone,
+            ]);
+
+            return null;
+        }
+
+        return (string) $usual;
+    }
+
+    /** The zone as a digit 1–5, or null for PropertyWare's "0", blanks and stray numbers. */
+    private static function realZone(mixed $zone): ?string
+    {
+        $zone = trim((string) $zone);
+
+        return in_array($zone, self::ZONES, true) ? $zone : null;
     }
 
     /**
