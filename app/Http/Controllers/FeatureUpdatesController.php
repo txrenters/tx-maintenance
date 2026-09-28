@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-28',
+            'area' => 'Work Orders',
+            'title' => 'Setting a service schedule now asks whether to text the tenant',
+            'description' => 'When you press Create Schedule (or Update Schedule with a new date) on the work order\'s Service Schedule tab, a question comes up first: text the tenant about this appointment now? Yes saves the schedule and sends the tenant the usual appointment text - the THMP Technician Visit Reminder with the ticked technicians\' names and photos, or the standard appointment message. No saves the schedule without texting anyone. Each schedule card now says whether the tenant has been texted, and until they have, the card\'s three-dot menu has "Send tenant text" to send that same message when you are ready. The question is only asked of admins and work order coordinators; a vendor setting a schedule still texts the tenant automatically as before. Three fixes came with it: editing a schedule now opens on the schedule\'s own dates instead of today\'s, changing only the title or description no longer texts the tenant again, and the page no longer stops responding to clicks after a schedule is edited from its three-dot menu.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',

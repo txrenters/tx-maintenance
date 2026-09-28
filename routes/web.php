@@ -48,6 +48,7 @@ use App\Http\Controllers\OwnerPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ServiceScheduleTenantNoticeController;
 use App\Http\Controllers\ServiceStatusController;
 use App\Http\Controllers\Settings\DesktopNotificationController;
 use App\Http\Controllers\TaskController as ControllersTaskController;
@@ -268,6 +269,9 @@ Route::middleware([
     Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
     Route::post('/work_orders/{workOrder}/vendors/{vendor}/notify-assignment', [VendorAssignmentNotificationController::class, 'store'])->name('work_orders.vendor.notify_assignment');
     Route::post('/work_orders/{workOrder}/notify-intake/{audience}', [IntakeNotificationController::class, 'store'])->name('work_orders.notify_intake');
+    // The "Send tenant text" action on a service schedule card (staff only;
+    // the schedule routes themselves live in routes/api.php).
+    Route::post('/service-schedules/{serviceSchedule}/tenant-notice', [ServiceScheduleTenantNoticeController::class, 'store'])->name('service_schedule.tenant_notice.send');
 
     Route::get('/twilio-messages/search', [TwilioMessageSearchController::class, 'index'])->name('twilio_messages.search');
     Route::post('/twilio-messages/sync-status', [TwilioMessageSearchController::class, 'syncStatus'])->name('twilio_messages.sync_status');
