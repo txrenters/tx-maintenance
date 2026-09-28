@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\WorkOrderScope;
 use App\Services\PhoneFormatter;
+use App\Services\PropertyWareService;
 use Carbon\Carbon;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -92,6 +93,32 @@ class WorkOrder extends Model
             'tenant_contact_followup_last_sent_at' => 'datetime',
             'tenant_contact_followup_excluded_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The location to store for an imported work order.
+     *
+     * PropertyWare's SOAP API holds "PORTFOLIO | BUILDING" and validates every
+     * update against it, but its REST work order hands the same string back
+     * with the pipe collapsed to a space. Storing the REST copy made the next
+     * vendor push fail with "Location is invalid" (WO#40363), so a value in
+     * PropertyWare's own format is never replaced by one without it.
+     */
+    public static function importedLocation(mixed $incoming, mixed $current): ?string
+    {
+        $incoming = trim((string) ($incoming ?? ''));
+        $current = trim((string) ($current ?? ''));
+
+        if ($incoming === '') {
+            return $current === '' ? null : $current;
+        }
+
+        if (PropertyWareService::looksLikePropertyWareLocation($current)
+            && ! PropertyWareService::looksLikePropertyWareLocation($incoming)) {
+            return $current;
+        }
+
+        return $incoming;
     }
 
     /**

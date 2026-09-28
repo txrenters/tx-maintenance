@@ -67,7 +67,9 @@ class SyncWorkOrderDetails implements ShouldQueue
             'date_to_enter' => $this->parseDate($this->data['dateToEnter'] ?? null),
             'description' => $this->data['description'] ?? null,
             'hour_estimate' => $this->data['hourEstimate'] ?? null,
-            'location' => $this->data['location'] ?? null,
+            // PropertyWare's REST copy collapses the location's pipe to a
+            // space, and its SOAP rejects that shape outright.
+            'location' => WorkOrder::importedLocation($this->data['location'] ?? null, $workOrder->location),
             'priority' => $this->data['priority'] ?? false,
             'priority_as_int' => $this->data['priorityAsInt'] ?? null,
             'required_materials' => $this->data['requiredMaterials'] ?? null,

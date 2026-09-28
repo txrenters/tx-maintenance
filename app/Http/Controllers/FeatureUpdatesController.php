@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-09-29',
+            'area' => 'Work Orders',
+            'title' => 'Assigning a vendor no longer fails silently on older work orders',
+            'description' => 'On some work orders the vendor you assigned never reached PropertyWare. PropertyWare checks every update against its own property line for the work order, the one that reads like "PORTFOLIO | BUILDING", and refuses the whole update when what we send does not match it letter for letter. One of the two ways we read work orders from PropertyWare hands that line back with the divider missing, and work orders last read that way were sending the version PropertyWare will not take, so the save was rejected and the vendor stayed unassigned here. Every update now carries the exact line PropertyWare itself gave us a moment earlier, and stores it, so the work order is repaired the first time anyone saves it. If PropertyWare cannot be read at all, nothing is sent and you get an error asking you to try again, instead of the change quietly disappearing.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',
