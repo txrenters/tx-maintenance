@@ -12,6 +12,7 @@ use App\Services\AutomatedMessageTemplates;
 use App\Services\JobberAutomationSettings;
 use App\Services\MicrosoftGraphMailService;
 use App\Services\PhoneFormatter;
+use App\Services\PropertyWareTenantReport;
 use App\Services\TenantJobberEmailSender;
 use App\Services\TwilioService;
 use Carbon\Carbon;
@@ -491,6 +492,8 @@ class SendJobReminders extends Command
                 continue;
             }
 
+            $this->logBuildingCollision($visit, $client ?? '', $filtered->all());
+
             // Collect unique phone numbers and emails with their client names to prevent duplicate messages
             $uniqueRecipients = [];
             $uniqueEmails = [];
@@ -508,7 +511,7 @@ class SendJobReminders extends Command
                     'propertyware_address' => $record[4] ?? 'N/A',
                 ]);
 
-                if (strtolower($clientStatus) !== 'active') {
+                if (! $this->leaseIsOccupied((string) $clientStatus)) {
                     Log::info('Skipping inactive tenant', ['tenant_name' => $clientName, 'status' => $clientStatus]);
 
                     continue;
@@ -872,17 +875,61 @@ class SendJobReminders extends Command
         return PhoneFormatter::e164($number) ?? '+1'.$cleanedNumber;
     }
 
+    /**
+     * The same rule the Send notification button uses: identical names, or
+     * the same street number with the same street name whether or not either
+     * side carries the street suffix ("418 Drennan St" ~ "418 Drennan").
+     * Staff type the PropertyWare building name without the suffix on about
+     * four in ten buildings, and an exact comparison skipped every one.
+     */
     protected function buildingReferenceMatches(string $jobberClientName, string $propertywareClientReference): bool
     {
-        $normalizedJobberBuildingReference = $this->normalizeBaseBuildingReference($jobberClientName);
-        $normalizedPropertywareBuildingReference = $this->normalizeBaseBuildingReference($propertywareClientReference);
+        return PropertyWareTenantReport::looksLikeSameBuilding(
+            PropertyWareTenantReport::normalize($jobberClientName),
+            PropertyWareTenantReport::normalize($propertywareClientReference),
+        );
+    }
 
-        if ($normalizedJobberBuildingReference === '') {
-            return false;
+    /**
+     * A tenant still living in the house: on an active lease, one who has
+     * given notice, or one gone month-to-month. Draft and eviction leases are
+     * not reminded. Same reading as the Send notification button.
+     */
+    protected function leaseIsOccupied(string $leaseStatus): bool
+    {
+        $status = strtolower(trim($leaseStatus));
+
+        return str_starts_with($status, 'active') || str_starts_with($status, 'going mtm');
+    }
+
+    /**
+     * The loose match can, in principle, pair one Jobber client with two
+     * different PropertyWare buildings that share a number and street name.
+     * Nothing on the report does today; log it the day it happens so the
+     * names can be corrected before a stranger is texted twice.
+     *
+     * @param  array<int, array<int, mixed>>  $matchedRecords
+     */
+    protected function logBuildingCollision(JobberVisit $visit, string $jobberClientName, array $matchedRecords): void
+    {
+        $buildings = collect($matchedRecords)
+            ->map(fn (array $record): string => trim((string) ($record[4] ?? '')))
+            ->filter()
+            ->unique(fn (string $building): string => PropertyWareTenantReport::normalize($building))
+            ->values();
+
+        if ($buildings->count() <= 1) {
+            return;
         }
 
-        return $normalizedPropertywareBuildingReference !== ''
-            && $normalizedJobberBuildingReference === $normalizedPropertywareBuildingReference;
+        Log::warning('Jobber client matched more than one PropertyWare building', [
+            'jobber_client_name' => $jobberClientName,
+            'job_number' => $visit->job->job_number,
+            'visit_id' => $visit->id,
+            'propertyware_buildings' => $buildings->all(),
+        ]);
+
+        $this->warn('Jobber client "'.$jobberClientName.'" matched more than one PropertyWare building: '.$buildings->implode(', '));
     }
 
     protected function normalizeBuildingReference(string $value): string
