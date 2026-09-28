@@ -27,6 +27,12 @@ class FeatureUpdatesController extends Controller
             'description' => 'The automatic 14, 7, 3-day and day-before Tenant Benefit Package visit reminders found the tenant by comparing the Jobber client name with the PropertyWare building name letter for letter. Jobber says "418 Drennan St" and PropertyWare says "418 Drennan", so the reminders decided it was a different house and sent nothing - the same for roughly four in ten TBP properties, which is why some tenants only heard from us when staff texted by hand. The reminders now match the way the Send notification button already does: same street number and same street name, with or without the "St", "Ln", "Dr" at the end. A tenant who has given notice or gone month-to-month is still living there and is reminded too; draft and eviction leases are not. If a Jobber client ever lines up with two different PropertyWare buildings, the run writes a warning to the log naming both so the names can be corrected. Nothing changes for properties that already matched.',
         ],
         [
+            'date' => '2026-09-28',
+            'area' => 'Work Orders',
+            'title' => 'Setting a service schedule now asks whether to text the tenant',
+            'description' => 'When you press Create Schedule (or Update Schedule with a new date) on the work order\'s Service Schedule tab, a question comes up first: text the tenant about this appointment now? Yes saves the schedule and sends the tenant the usual appointment text - the THMP Technician Visit Reminder with the ticked technicians\' names and photos, or the standard appointment message. No saves the schedule without texting anyone. Each schedule card now says whether the tenant has been texted, and until they have, the card\'s three-dot menu has "Send tenant text" to send that same message when you are ready. The question is only asked of admins and work order coordinators; a vendor setting a schedule still texts the tenant automatically as before. Three fixes came with it: editing a schedule now opens on the schedule\'s own dates instead of today\'s, changing only the title or description no longer texts the tenant again, and the page no longer stops responding to clicks after a schedule is edited from its three-dot menu.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',

@@ -1,6 +1,6 @@
 <script setup>
-import { ref, watch, onMounted, nextTick } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { ref, watch, onMounted, nextTick, computed } from "vue";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import axios from "axios";
 import { Loader2, EllipsisVertical, CalendarPlus, Sparkles } from "lucide-vue-next";
 import { DateTime } from "luxon";
@@ -30,10 +30,23 @@ const serviceScheduleForm = useForm({
     work_order_id: props.workOrder.id,
 });
 
+// Admins and coordinators decide whether the tenant is texted; a vendor
+// setting a schedule keeps the automatic text.
+const page = usePage();
+const isStaff = computed(() =>
+    ["admin", "woc"].some((role) => page.props.auth.user?.roles?.includes(role)),
+);
+
+// The answer to "Text the tenant now?": true, false, or null when the
+// question was not asked (the server then texts as it always has). Kept out
+// of useForm so reset() never touches it.
+const notifyTenant = ref(null);
+
 // Ticked technicians go out as ids; an empty list means nobody.
 serviceScheduleForm.transform((data) => ({
     ...data,
     technician_ids: (data.technician_ids ?? []).map(Number),
+    ...(notifyTenant.value === null ? {} : { notify_tenant: notifyTenant.value }),
 }));
 const emit = defineEmits(["fetch-schedule"]);
 
@@ -68,9 +81,11 @@ const formatDate = (date) => {
 };
 
 // Set default dates when opening the service schedule dialog — unless the
-// form was just pre-filled from an AI suggestion.
+// form was just pre-filled from an AI suggestion, or Edit just filled in the
+// schedule's own dates (this runs after openEditMode and used to overwrite
+// them with today's).
 watch(openService, (newValue) => {
-    if (newValue && !acceptingSuggestionId.value) {
+    if (newValue && !acceptingSuggestionId.value && !isEditing.value) {
         const today = DateTime.now().toFormat("yyyy-MM-dd");
         const tomorrow = DateTime.now().plus({ days: 1 }).toFormat("yyyy-MM-dd");
 
@@ -101,6 +116,12 @@ const toggleTechnician = (technicianId, checked) => {
 
 const technicianNames = (schedule) =>
     (schedule.technicians ?? []).map((t) => t.name).join(", ");
+
+const chosenTechnicianNames = computed(() =>
+    technicianOptions.value
+        .filter((t) => serviceScheduleForm.technician_ids.includes(String(t.id)))
+        .map((t) => t.name),
+);
 
 const fetchTechnicianOptions = async () => {
     try {
@@ -216,6 +237,10 @@ const formatDateForInput = (date) => {
     return parsedDate.isValid ? parsedDate.toFormat("yyyy-MM-dd") : "";
 };
 
+// The date the schedule had when Edit was opened, so a save can tell a real
+// reschedule (which texts the tenant) from a title or description edit.
+const originalScheduledDate = ref("");
+
 const openEditMode = (schedule) => {
     isEditing.value = true;
     editingScheduleId.value = schedule.id;
@@ -223,6 +248,7 @@ const openEditMode = (schedule) => {
     serviceScheduleForm.title = schedule.title;
     serviceScheduleForm.description = schedule.description ?? "";
     serviceScheduleForm.date = formatDateForInput(schedule.scheduled_date);
+    originalScheduledDate.value = serviceScheduleForm.date;
     serviceScheduleForm.end_date = formatDateForInput(schedule.scheduled_end_date);
     serviceScheduleForm.vendor_id = String(schedule.vendor_id);
     serviceScheduleForm.tenant_id = schedule.tenant_id ? String(schedule.tenant_id) : "";
@@ -243,6 +269,28 @@ const openCreateMode = () => {
     openService.value = true;
 };
 
+// ---- "Text the tenant now?" ----
+// Saving a schedule texts the tenant the appointment (the THMP Technician
+// Visit Reminder when technicians are ticked). Staff are asked first: Yes
+// saves and texts, No saves only and the card then offers "Send tenant
+// text". A vendor is not asked. An edit only asks when the date actually
+// moved, since that is the only edit that texts.
+const confirmTenantTextOpen = ref(false);
+
+const dateChanged = computed(
+    () => serviceScheduleForm.date !== originalScheduledDate.value,
+);
+
+const asksAboutTenantText = computed(
+    () => isStaff.value && (!isEditing.value || dateChanged.value),
+);
+
+const answerTenantText = (sendNow) => {
+    notifyTenant.value = sendNow;
+    confirmTenantTextOpen.value = false;
+    submitSchedule();
+};
+
 const handleMeetingSubmit = () => {
     if (
         !serviceScheduleForm.title ||
@@ -258,6 +306,48 @@ const handleMeetingSubmit = () => {
         return;
     }
 
+    if (!isEditing.value && !serviceScheduleForm.work_order_id) {
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+                "Work order ID is missing.",
+        });
+        return;
+    }
+
+    if (asksAboutTenantText.value) {
+        confirmTenantTextOpen.value = true;
+        return;
+    }
+
+    notifyTenant.value = null;
+    submitSchedule();
+};
+
+const savedDescription = (verb) => {
+    if (notifyTenant.value === true) {
+        return "Schedule saved. Tenant text queued.";
+    }
+
+    if (notifyTenant.value === false) {
+        return "Schedule saved. The tenant was not texted.";
+    }
+
+    return `Service schedule has been ${verb} successfully!`;
+};
+
+const submitSchedule = () => {
+    const onError = () => {
+        notifyTenant.value = null;
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description:
+                "There was a problem with your request. Please try again!",
+        });
+    };
+
     if (isEditing.value && editingScheduleId.value) {
         // Update existing schedule
         serviceScheduleForm.put(route("work_order.service_schedule.update", editingScheduleId.value), {
@@ -266,43 +356,28 @@ const handleMeetingSubmit = () => {
             onSuccess: () => {
                 toast({
                     title: "Success",
-                    description: "Service schedule has been updated successfully!",
+                    description: savedDescription("updated"),
                 });
+                notifyTenant.value = null;
                 openService.value = false;
                 serviceScheduleForm.reset();
                 isEditing.value = false;
                 editingScheduleId.value = null;
                 emit("fetch-schedule");
             },
-            onError: () => {
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description:
-                        "There was a problem with your request. Please try again!",
-                });
-            },
+            onError,
         });
     } else {
         // Create new schedule
-        if (!serviceScheduleForm.work_order_id) {
-            toast({
-                variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description:
-                    "Work order ID is missing.",
-            });
-            return;
-        }
-
         serviceScheduleForm.post(route("work_order.service_schedule.create"), {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
                 toast({
                     title: "Success",
-                    description: "Service schedule has been created successfully!",
+                    description: savedDescription("created"),
                 });
+                notifyTenant.value = null;
                 if (acceptingSuggestionId.value) {
                     resolveSuggestion(acceptingSuggestionId.value, "accepted");
                 }
@@ -310,15 +385,59 @@ const handleMeetingSubmit = () => {
                 serviceScheduleForm.reset();
                 emit("fetch-schedule");
             },
-            onError: () => {
-                toast({
-                    variant: "destructive",
-                    title: "Uh oh! Something went wrong.",
-                    description:
-                        "There was a problem with your request. Please try again!",
-                });
-            },
+            onError,
         });
+    }
+};
+
+// ---- Send tenant text (later) ----
+// A schedule saved with "No" shows "Not sent yet" on its card and this menu
+// action sends the same appointment text when the coordinator is ready. The
+// server keeps the usual gates and says why when one is in the way.
+const sendingTenantTextId = ref(null);
+
+const scheduleIsPast = (schedule) => {
+    const ends = schedule.scheduled_end_date || schedule.scheduled_date;
+    if (!ends) return false;
+
+    const parsed = parseScheduleDate(String(ends));
+
+    return parsed.isValid && parsed.endOf("day") < DateTime.now();
+};
+
+const tenantTextPending = (schedule) =>
+    isStaff.value &&
+    !schedule.tenant_notified_at &&
+    !["completed", "cancelled"].includes(schedule.status) &&
+    !scheduleIsPast(schedule);
+
+const formatTenantTextedDate = (value) => {
+    const parsed = parseScheduleDate(String(value));
+
+    return parsed.isValid ? parsed.toLocal().toFormat("MMM d") : "";
+};
+
+const sendTenantText = async (schedule) => {
+    sendingTenantTextId.value = schedule.id;
+
+    try {
+        await axios.post(route("service_schedule.tenant_notice.send", schedule.id));
+        toast({
+            title: "Tenant text sent",
+            description: "The tenant has been texted about this appointment.",
+        });
+    } catch (error) {
+        // A refusal carries its reason; anything else (a 403 page, a network
+        // error) gets the generic line.
+        const reason = error?.response?.data?.error;
+        toast({
+            variant: "destructive",
+            title: "Tenant text not sent",
+            description: typeof reason === "string" ? reason : "Could not send the tenant text.",
+        });
+    } finally {
+        sendingTenantTextId.value = null;
+        emit("fetch-schedule");
     }
 };
 </script>
@@ -424,7 +543,12 @@ const handleMeetingSubmit = () => {
                             $page.props.auth.user.roles.includes('vendor')
                         "
                     >
-                        <DropdownMenu>
+                        <!-- Non-modal: a modal menu locks the page (pointer
+                             events, scroll) and, when Edit opens the dialog
+                             while the menu is still closing, that lock was
+                             never released, leaving the page dead until a
+                             reload. -->
+                        <DropdownMenu :modal="false">
                             <DropdownMenuTrigger as-child>
                                 <Button
                                     aria-haspopup="true"
@@ -442,6 +566,14 @@ const handleMeetingSubmit = () => {
                                     @click="() => openEditMode(schedule)"
                                 >
                                     Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    v-if="tenantTextPending(schedule)"
+                                    class="cursor-pointer hover:bg-secondary"
+                                    :disabled="sendingTenantTextId === schedule.id"
+                                    @click="() => sendTenantText(schedule)"
+                                >
+                                    Send tenant text
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuLabel>Mark as</DropdownMenuLabel>
@@ -528,6 +660,18 @@ const handleMeetingSubmit = () => {
                             <p>{{ schedule.technicians.length > 1 ? "Technicians" : "Technician" }}</p>
                             <p class="flex gap-1 items-center">
                                 {{ technicianNames(schedule) }}
+                            </p>
+                        </div>
+                        <!-- Whether the tenant has had the appointment text;
+                             "Send tenant text" in the menu covers "Not sent yet" -->
+                        <div v-if="isStaff" class="flex flex-col text-xs gap-1">
+                            <p>Tenant text</p>
+                            <p class="flex gap-1 items-center">
+                                {{
+                                    schedule.tenant_notified_at
+                                        ? `Sent ${formatTenantTextedDate(schedule.tenant_notified_at)}`
+                                        : "Not sent yet"
+                                }}
                             </p>
                         </div>
                     </div>
@@ -683,4 +827,43 @@ const handleMeetingSubmit = () => {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    <!-- Asked before a staff save that would text the tenant. Go back keeps
+         the form open; either answer saves the schedule. -->
+    <AlertDialog v-model:open="confirmTenantTextOpen">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>
+                    {{ isEditing ? "Text the tenant about the new date?" : "Text the tenant about this appointment?" }}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    <template v-if="chosenTechnicianNames.length">
+                        Yes sends the tenant the THMP Technician Visit Reminder
+                        naming {{ chosenTechnicianNames.join(", ") }}, with each
+                        photo on file attached.
+                    </template>
+                    <template v-else>
+                        Yes sends the tenant the standard appointment text.
+                    </template>
+                    The schedule is saved either way. If you choose No, you can
+                    send the text later from the schedule's menu.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Go back</AlertDialogCancel>
+                <AlertDialogCancel
+                    :disabled="serviceScheduleForm.processing"
+                    @click="answerTenantText(false)"
+                >
+                    No, save only
+                </AlertDialogCancel>
+                <AlertDialogAction
+                    :disabled="serviceScheduleForm.processing"
+                    @click="answerTenantText(true)"
+                >
+                    Yes, save and text
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 </template>

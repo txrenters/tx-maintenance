@@ -9,6 +9,7 @@ use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -36,6 +37,7 @@ class ServiceScheduleController extends Controller
             'technician_ids' => 'nullable|array',
             'technician_ids.*' => 'integer|distinct|exists:technicians,id',
             'work_order_id' => 'required|exists:work_orders,id',
+            'notify_tenant' => 'nullable|boolean',
         ]);
 
         try {
@@ -62,8 +64,13 @@ class ServiceScheduleController extends Controller
                 SendOwnerAppointmentNotificationJob::dispatch($serviceSchedule->id);
             }
 
-            // The tenant is told whoever set it: someone is coming to their home.
-            SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+            // The tenant is told whoever set it: someone is coming to their
+            // home — unless the staff dialog answered "No" to texting them now.
+            // The schedule is saved untexted and its card offers "Send tenant
+            // text" for later.
+            if ($this->shouldNotifyTenant($request)) {
+                SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+            }
 
             return redirect()->back()->with('success', 'Service scheduled successfully!');
         } catch (\Exception $e) {
@@ -92,6 +99,7 @@ class ServiceScheduleController extends Controller
             'tenant_id' => 'nullable|exists:tenants,id',
             'technician_ids' => 'sometimes|nullable|array',
             'technician_ids.*' => 'integer|distinct|exists:technicians,id',
+            'notify_tenant' => 'nullable|boolean',
         ]);
 
         try {
@@ -116,13 +124,16 @@ class ServiceScheduleController extends Controller
             // Sync to PropertyWare
             $this->syncScheduleToPropertyWare($serviceSchedule);
 
-            // A genuine reschedule is news the tenant needs, so clear the
-            // once-per-schedule claim and notify them again. Editing the title
-            // or description alone is not.
-            if ((string) $originalDate !== (string) $serviceSchedule->scheduled_date) {
+            // A genuine reschedule is news the tenant needs: the once-per-
+            // schedule claim described the old date, so it is cleared either
+            // way, and the tenant is texted again unless the staff dialog
+            // answered "No". Editing the title or description alone is not.
+            if ($this->dateChanged($originalDate, $serviceSchedule->scheduled_date)) {
                 $serviceSchedule->forceFill(['tenant_notified_at' => null])->save();
 
-                SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+                if ($this->shouldNotifyTenant($request)) {
+                    SendTenantAppointmentNotificationJob::dispatch($serviceSchedule->id);
+                }
             }
 
             // 303 so Inertia treats the follow-up request as a GET; these routes are
@@ -139,6 +150,31 @@ class ServiceScheduleController extends Controller
 
             return redirect()->back(303)->with('error', 'Failed to update service schedule. Please try again.');
         }
+    }
+
+    /**
+     * Whether to queue the tenant's appointment text. The staff dialog asks
+     * "Text the tenant now?" and sends the answer as notify_tenant; a form
+     * without the field (the vendor portal) keeps the automatic text.
+     */
+    private function shouldNotifyTenant(Request $request): bool
+    {
+        return $request->filled('notify_tenant') ? $request->boolean('notify_tenant') : true;
+    }
+
+    /**
+     * Whether the appointment actually moved. The stored value is a datetime
+     * ("2026-07-30 00:00:00") while the dialog sends a plain date
+     * ("2026-07-30"), so comparing the strings called every title edit a
+     * reschedule and texted the tenant again.
+     */
+    private function dateChanged(mixed $original, mixed $updated): bool
+    {
+        if (blank($original) || blank($updated)) {
+            return (string) $original !== (string) $updated;
+        }
+
+        return ! Carbon::parse((string) $original)->equalTo(Carbon::parse((string) $updated));
     }
 
     /**
