@@ -201,7 +201,9 @@ class ImportAllWorkOrdersCommand extends Command
             'date_to_enter' => $this->safeParseDate($data['dateToEnter'] ?? null, dateOnly: true),
             'description' => $data['description'] ?? null,
             'hour_estimate' => $data['hourEstimate'] ?? null,
-            'location' => $data['location'] ?? null,
+            // PropertyWare's REST copy collapses the location's pipe to a
+            // space; the first push after this repairs it from PropertyWare.
+            'location' => WorkOrder::importedLocation($data['location'] ?? null, null),
             'priority' => $data['priority'] ?? null,
             'priority_as_int' => 0,
             'required_materials' => $data['requiredMaterials'] ?? null,

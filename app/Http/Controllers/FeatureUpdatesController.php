@@ -22,6 +22,12 @@ class FeatureUpdatesController extends Controller
     private const UPDATES = [
         [
             'date' => '2026-09-29',
+            'area' => 'Work Orders',
+            'title' => 'Assigning a vendor no longer fails silently on older work orders',
+            'description' => 'On some work orders the vendor you assigned never reached PropertyWare. PropertyWare checks every update against its own property line for the work order, the one that reads like "PORTFOLIO | BUILDING", and refuses the whole update when what we send does not match it letter for letter. One of the two ways we read work orders from PropertyWare hands that line back with the divider missing, and work orders last read that way were sending the version PropertyWare will not take, so the save was rejected and the vendor stayed unassigned here. Every update now carries the exact line PropertyWare itself gave us a moment earlier, and stores it, so the work order is repaired the first time anyone saves it. If PropertyWare cannot be read at all, nothing is sent and you get an error asking you to try again, instead of the change quietly disappearing.',
+        ],
+        [
+            'date' => '2026-09-29',
             'area' => 'Jobber',
             'title' => 'Jobber jobs are no longer created as "Zone 0"',
             'description' => 'When THMP is assigned, the Jobber job the system creates is titled with the property, the zone, the category and the work order number. PropertyWare\'s Zone field reads 0 until the coordinator fills it in, and THMP is usually assigned before that step, so many jobs — and the visits built from them on the Visits page — were titled "Zone 0". There is no zone 0. From now on a work order whose zone is still blank in PropertyWare takes the zone the same property\'s earlier work orders carry (the most common one), and only when the property has no zoned history at all does the title leave the zone out, so a title never reads "Zone 0" again. Jobs created before today keep the title they have in Jobber.',
