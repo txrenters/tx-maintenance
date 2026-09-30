@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-01',
+            'area' => 'Automated Messages',
+            'title' => 'The second HOA reminder to tenants is worded more formally',
+            'description' => 'The automatic HOA follow-up a tenant gets on the second day used to say "If it works for you, go ahead and handle it, then snap a photo", which came across as too casual. It now uses the maintenance team\'s own wording: a friendly follow-up asking the tenant, at their convenience, to take care of the item and submit a photo through the link for verification, and noting that once the photo arrives we can update our records and close the request. It still greets the tenant by name, names the HOA item and ends with the work order number. The other HOA reminders, including the vendor heads-up on days four and five, are unchanged.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',

@@ -491,7 +491,11 @@ class TenantPortalLinkService
 
         return [
             "{$greeting}just checking in from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. Whenever you get a chance, please take care of it and send us a quick photo as proof using this secure link - no login needed: {$link}. Thanks so much for your help!",
-            "{$greeting}following up from TexasRenters.com Maintenance on the HOA notice for your home (WO#{$ref}){$about}. If it works for you, go ahead and handle it, then snap a photo through this link so we can confirm it - no login needed: {$link}. We really appreciate it!",
+            // Day 2, in the maintenance team's own wording (2026-10-01): the
+            // earlier "go ahead and handle it" read as too casual to tenants.
+            "{$greeting}this is a friendly follow-up from TexasRenters.com Maintenance regarding the HOA notice for your property (WO#{$ref})"
+                .(filled($summary) ? " concerning {$summary}" : '')
+                .". At your convenience, please take care of it and submit a photo using the link below for verification. No login is required.\n{$link}\nOnce we receive the photo, we can update our records and close the request. Thank you for your cooperation!",
             "{$greeting}TexasRenters.com Maintenance here, touching base again about the HOA notice for your home (WO#{$ref}){$about}. Once it's sorted, a quick photo through this secure link lets us close it out: {$link}. Thank you!",
             "{$greeting}checking in once more from TexasRenters.com Maintenance about the HOA notice for your home (WO#{$ref}){$about}. If you've already taken care of it, a quick photo through this secure link is all we need: {$link}. If it hasn't been handled yet, we'll need to send a vendor out to correct it. Thanks for your help!",
             "{$greeting}hope you're doing well - this is TexasRenters.com Maintenance with a last note on the HOA notice for your home (WO#{$ref}){$about}. If it's been taken care of, just send a photo through this secure link and we'll close it out: {$link}. If not, we'll be sending a vendor out to correct it so the notice gets resolved. Much appreciated!",
