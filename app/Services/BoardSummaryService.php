@@ -59,6 +59,7 @@ class BoardSummaryService
         'paid' => 'Paid Work Orders',
         'hoa' => 'HOA Violations',
         'hvac' => 'HVAC',
+        'easy_fix' => 'Tenant Easy Fix',
     ];
 
     public function __construct(

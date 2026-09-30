@@ -64,9 +64,10 @@ class HvacBoardActivityFeed
      *     status:?string, change:string, at:?string
      * }>
      */
-    public function for(User $user): array
+    public function for(User $user, string $board = ActivityBoards::HVAC): array
     {
-        $seenAt = $user->hvac_board_seen_at;
+        $definition = ActivityBoards::get($board);
+        $seenAt = ActivityBoards::seenAt($user, $board);
 
         if ($seenAt === null) {
             return [];
@@ -79,18 +80,12 @@ class HvacBoardActivityFeed
             ->select(['id', 'work_order_no', 'location', 'category', 'service_status_id', 'updated_at', 'last_change_summary'])
             ->with('service_status:id,name')
             ->where('status', 'Open')
-            ->hvac()
+            ->{$definition['scope']}()
             ->where('updated_at', '>', $seenAt)
             // Rows this user dismissed individually drop out, until the work
             // order moves again. Same predicate the badge count uses, so the
             // list and the number can never disagree.
-            ->whereNotExists(function ($q) use ($user) {
-                $q->selectRaw('1')
-                    ->from('hvac_board_reads')
-                    ->whereColumn('hvac_board_reads.work_order_id', 'work_orders.id')
-                    ->where('hvac_board_reads.user_id', $user->id)
-                    ->whereColumn('hvac_board_reads.dismissed_updated_at', '>=', 'work_orders.updated_at');
-            })
+            ->whereNotExists(fn ($q) => HvacBoardNewCounter::dismissedSince($q, $user->id, $definition['reads_table']))
             ->orderByDesc('updated_at')
             ->limit(self::MAX_ROWS)
             ->get();
@@ -134,11 +129,11 @@ class HvacBoardActivityFeed
      *
      * @return array<string, int>
      */
-    public function tabCountsFor(User $user, WorkOrder $workOrder): array
+    public function tabCountsFor(User $user, WorkOrder $workOrder, string $board = ActivityBoards::HVAC): array
     {
-        $seenAt = $user->hvac_board_seen_at;
+        $seenAt = ActivityBoards::seenAt($user, $board);
 
-        if ($seenAt === null || ! $user->seesHvacBoardActivity()) {
+        if ($seenAt === null || ! ActivityBoards::sees($user, $board)) {
             return [];
         }
 

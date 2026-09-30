@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-01',
+            'area' => 'Work Orders',
+            'title' => 'A Tenant Easy Fix board, and HVAC board updates for all staff',
+            'description' => 'Work Orders now has a Tenant Easy Fix board, laid out like the HVAC board. It lists every open work order the automation matched to a handbook item (garbage disposal, tripped breaker and so on) and every work order a coordinator has put in "Checking for Tenant Easy Fix", grouped by service status. Each card shows the handbook item (click it for the how-to video), whether it was matched automatically or set by a coordinator, whether the tenant was texted the how-to, how many of the three check-ins have gone out, and whether the tenant sent a photo or replied. The top of the board says whether the automatic easy-fix texts are switched on. Like the HVAC board it marks what moved since you last looked: a number beside it in the sidebar, "new" on the cards and columns, a bell listing what changed, and Mark all seen. Those HVAC counters, which only two logins had before, are now shown to every staff login too, starting from today so nobody opens either board to a wall of old changes.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',

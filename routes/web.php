@@ -138,6 +138,10 @@ Route::middleware([
     Route::post('/work_orders/hvac/seen', [WorkOrderController::class, 'hvac_mark_seen'])->name('work_orders.hvac.seen');
     Route::get('/work_orders/hvac/activity', [WorkOrderController::class, 'hvac_activity'])->name('work_orders.hvac.activity');
     Route::post('/work_orders/hvac/dismiss/{workOrder}', [WorkOrderController::class, 'hvac_dismiss'])->name('work_orders.hvac.dismiss');
+    Route::get('/work_orders/easy-fix/all', [WorkOrderController::class, 'easy_fix_work_orders'])->name('work_orders.easy_fix');
+    Route::post('/work_orders/easy-fix/seen', [WorkOrderController::class, 'easy_fix_mark_seen'])->name('work_orders.easy_fix.seen');
+    Route::get('/work_orders/easy-fix/activity', [WorkOrderController::class, 'easy_fix_activity'])->name('work_orders.easy_fix.activity');
+    Route::post('/work_orders/easy-fix/dismiss/{workOrder}', [WorkOrderController::class, 'easy_fix_dismiss'])->name('work_orders.easy_fix.dismiss');
     Route::get('/work_orders/vendor/all', [WorkOrderController::class, 'vendorWorkOrders'])->name('work_orders.vendor');
     Route::get('/work_orders/{workOrder}/details', [WorkOrderController::class, 'details'])->name('work_orders.details');
     Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
