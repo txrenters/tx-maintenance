@@ -374,6 +374,56 @@ class HoaViolationWorkflowTest extends TestCase
         Queue::assertNotPushed(SendConversationMessageJob::class);
     }
 
+    /**
+     * The team flagged the old day-2 wording ("go ahead and handle it") as too
+     * casual; this is their replacement, keeping the name, summary and ref.
+     */
+    public function test_the_second_day_message_uses_the_teams_formal_wording(): void
+    {
+        config(['services.twilio.hoa_violation_sms' => true]);
+        config(['services.twilio.maintenance_number' => '+12813787957']);
+        Queue::fake();
+        $this->travelTo(Carbon::parse('2026-07-22 10:00:00')); // Wednesday
+
+        $workOrder = $this->hoaWorkOrder($this->tenant());
+        // Only the intake text (day 1) has gone out, so today's is day 2.
+        $token = $this->hoaToken($workOrder, [
+            'notified_count' => 1,
+            'last_notified_at' => Carbon::parse('2026-07-21 10:00:00'),
+        ]);
+
+        $this->artisan('hoa:send-reminders')->assertSuccessful();
+
+        $message = $workOrder->tenant_conversation()->firstOrFail()->message;
+        $link = route('tenant.portal.show', $token->token);
+
+        $this->assertStringStartsWith('Hi ', $message);
+        $this->assertStringContainsString('this is a friendly follow-up from TexasRenters.com Maintenance regarding the HOA notice for your property (WO#'.$workOrder->work_order_no.')', $message);
+        $this->assertStringContainsString('At your convenience, please take care of it and submit a photo using the link below for verification. No login is required.', $message);
+        $this->assertStringContainsString("\n{$link}\n", $message);
+        $this->assertStringContainsString('Once we receive the photo, we can update our records and close the request. Thank you for your cooperation!', $message);
+        $this->assertStringEndsWith('(Ref: WO#'.$workOrder->work_order_no.')', $message);
+        $this->assertStringNotContainsString('go ahead and handle it', $message);
+        $this->assertStringNotContainsString('vendor', $message);
+        // GSM-7 only: one curly quote would switch the whole text to UCS-2.
+        $this->assertMatchesRegularExpression('/^[\x0A\x0D\x20-\x7E]*$/', $message);
+    }
+
+    public function test_the_second_day_message_names_the_items_when_the_notice_lists_them(): void
+    {
+        $variants = TenantPortalLinkService::hoaReminderVariants(
+            'Chloe',
+            44270,
+            'Trash/Recycle Bins - Please remove trash/recycle bins from public view',
+            'https://example.test/tenant-portal/abc',
+        );
+
+        $this->assertSame(
+            "Hi Chloe, this is a friendly follow-up from TexasRenters.com Maintenance regarding the HOA notice for your property (WO#44270) concerning Trash/Recycle Bins - Please remove trash/recycle bins from public view. At your convenience, please take care of it and submit a photo using the link below for verification. No login is required.\nhttps://example.test/tenant-portal/abc\nOnce we receive the photo, we can update our records and close the request. Thank you for your cooperation!",
+            $variants[1],
+        );
+    }
+
     public function test_the_fourth_day_message_warns_that_a_vendor_will_be_sent(): void
     {
         config(['services.twilio.hoa_violation_sms' => true]);
