@@ -13,6 +13,7 @@ use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -503,6 +504,54 @@ class PropertyWareService
         }
 
         return null;
+    }
+
+    /**
+     * The first phone number on a PropertyWare contact (REST: GET /contacts/{id}),
+     * mobile first. A portfolio owner's own phone fields are often blank while
+     * the contact carries the number. A successful answer is cached for a day,
+     * blank ones too, so the five-minute syncs do not ask again for an owner who
+     * has none; a failed call is not cached and is retried on the next sync.
+     */
+    public function getContactPhone(int|string $contactId): ?string
+    {
+        $cacheKey = 'pw-contact-phone:'.$contactId;
+
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey) ?: null;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/contacts/'.$contactId);
+        } catch (Throwable $e) {
+            Log::warning('PropertyWare getContactPhone failed: '.$e->getMessage(), ['contact_id' => $contactId]);
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::warning('Error retrieving contact from PropertyWare', [
+                'contact_id' => $contactId,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        $phone = '';
+
+        foreach (['mobilePhone', 'homePhone', 'workPhone', 'otherPhone'] as $field) {
+            if (filled($response->json($field))) {
+                $phone = trim((string) $response->json($field));
+
+                break;
+            }
+        }
+
+        Cache::put($cacheKey, $phone, now()->addDay());
+
+        return $phone ?: null;
     }
 
     public function getVendorsByName($vendorName)

@@ -27,6 +27,12 @@ class FeatureUpdatesController extends Controller
             'description' => 'The automatic HOA follow-up a tenant gets on the second day used to say "If it works for you, go ahead and handle it, then snap a photo", which came across as too casual. It now uses the maintenance team\'s own wording: a friendly follow-up asking the tenant, at their convenience, to take care of the item and submit a photo through the link for verification, and noting that once the photo arrives we can update our records and close the request. It still greets the tenant by name, names the HOA item and ends with the work order number. The other HOA reminders, including the vendor heads-up on days four and five, are unchanged.',
         ],
         [
+            'date' => '2026-09-30',
+            'area' => 'Work Orders',
+            'title' => 'The owner\'s phone number is picked up from their PropertyWare contact',
+            'description' => 'On the Owner tab of a work order, some owners showed with no phone number (for example "Luis Cuevas -" on #43819), so staff had to type the number in by hand and the automatic owner texts never reached them. PropertyWare had the number, but on the owner\'s contact record rather than on the owner record the sync reads. The sync now also checks the owner\'s mobile, home and work numbers and, when those are all blank, takes the number from their PropertyWare contact (mobile first, then home, work, other). A number found once is kept even if a later sync comes back blank. An owner with no number anywhere now shows "no phone on file" in the To list. Owners whose number is filled in this way are not texted about anything that already happened; they only hear from us about new events on their work orders.',
+        ],
+        [
             'date' => '2026-09-29',
             'area' => 'Work Orders',
             'title' => 'Assigning a vendor no longer fails silently on older work orders',
