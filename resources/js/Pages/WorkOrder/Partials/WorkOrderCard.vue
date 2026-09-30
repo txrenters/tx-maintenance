@@ -586,6 +586,67 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                         </span>
                                     </div>
                                 </template>
+
+                                <!-- Tenant Easy Fix details (easy-fix board only;
+                                     work_order.easy_fix is decorated server-side) -->
+                                <div
+                                    v-if="work_order.easy_fix"
+                                    class="mt-1 flex flex-wrap justify-center gap-1"
+                                    data-easy-fix-chips
+                                >
+                                    <a
+                                        v-if="work_order.easy_fix.item && work_order.easy_fix.video_url"
+                                        :href="work_order.easy_fix.video_url"
+                                        target="_blank"
+                                        rel="noopener"
+                                        title="Open the handbook how-to video"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold underline"
+                                        @click.stop
+                                    >
+                                        {{ work_order.easy_fix.item }}
+                                    </a>
+                                    <span
+                                        v-else-if="work_order.easy_fix.item"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                        {{ work_order.easy_fix.item }}
+                                    </span>
+                                    <span
+                                        :title="work_order.easy_fix.flagged && work_order.easy_fix.status_set
+                                            ? 'Matched by the automation and put in Checking for Tenant Easy Fix'
+                                            : work_order.easy_fix.flagged
+                                                ? 'Matched to a handbook item by the automation'
+                                                : 'Put in Checking for Tenant Easy Fix by a coordinator'"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                        {{ work_order.easy_fix.flagged ? "Auto" : "Set by WOC" }}
+                                    </span>
+                                    <span
+                                        class="inline-flex items-center rounded-full border border-white/50 px-2 py-0.5 text-[10px] font-semibold"
+                                        :class="work_order.easy_fix.texted ? 'bg-white/25' : 'bg-black/20'"
+                                    >
+                                        {{ work_order.easy_fix.texted ? "Texted" : "Not texted" }}
+                                    </span>
+                                    <span
+                                        v-if="work_order.easy_fix.texted"
+                                        :title="work_order.easy_fix.last_check_in_at ? `Last check-in ${work_order.easy_fix.last_check_in_at}` : 'No check-in sent yet'"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                        Check-ins {{ work_order.easy_fix.check_ins }}/{{ work_order.easy_fix.check_ins_max }}
+                                    </span>
+                                    <span
+                                        v-if="work_order.easy_fix.photo_uploaded"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                        Photo in
+                                    </span>
+                                    <span
+                                        v-if="work_order.easy_fix.tenant_replied"
+                                        class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                        Tenant replied
+                                    </span>
+                                </div>
                                 <p
                                     v-if="work_order.is_approved"
                                     class="text-xs text-gray-100 flex items-center gap-1 justify-center"

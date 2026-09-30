@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Scopes\WorkOrderScope;
 use App\Services\PhoneFormatter;
 use App\Services\PropertyWareService;
+use App\Services\TenantEasyFixService;
 use Carbon\Carbon;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
@@ -66,6 +67,7 @@ class WorkOrder extends Model
         'paid',
         'hoa',
         'hvac',
+        'easy_fix',
     ];
 
     /**
@@ -1140,6 +1142,35 @@ class WorkOrder extends Model
     }
 
     /**
+     * Tenant Easy Fix work: the ones the automation matched to a handbook item
+     * (easy_fix_key, written once at intake) or that a coordinator put in
+     * "Checking for Tenant Easy Fix" by hand. Either signal counts.
+     *
+     * The status branch is a whereIn on the tiny service_status table rather
+     * than a whereHas, so the count behind the sidebar badge stays a single
+     * pass over work_orders with no correlated join per row.
+     */
+    public function scopeTenantEasyFix($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNotNull('easy_fix_key')
+                ->orWhereIn('service_status_id', ServiceStatus::query()
+                    ->select('id')
+                    ->where('name', TenantEasyFixService::EASY_FIX_STATUS));
+        });
+    }
+
+    /**
+     * Whether this work order is on the Tenant Easy Fix board, from what is
+     * already loaded. The status name needs the service_status relation.
+     */
+    public function isTenantEasyFix(): bool
+    {
+        return $this->easy_fix_key !== null
+            || $this->service_status?->name === TenantEasyFixService::EASY_FIX_STATUS;
+    }
+
+    /**
      * Whether this work order is an HOA violation, without touching the
      * database when the category alone already answers it. Used to keep
      * tenant/owner repair automations off violation notices.
@@ -1254,6 +1285,9 @@ class WorkOrder extends Model
             // HVAC work orders deliberately stay on the main board too, the way
             // HOA violations do, so nobody loses sight of them.
             'hvac' => $query->hvac()->where('status', 'Open'),
+
+            // Same for Tenant Easy Fix: an extra view, not a move.
+            'easy_fix' => $query->tenantEasyFix()->where('status', 'Open'),
 
             default => $query,
         };

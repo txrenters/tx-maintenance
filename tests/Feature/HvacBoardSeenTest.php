@@ -9,6 +9,7 @@ use App\Services\HvacBoardActivityFeed;
 use App\Services\HvacBoardNewCounter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -25,12 +26,21 @@ class HvacBoardSeenTest extends TestCase
     {
         parent::setUp();
 
-        config(['services.hvac_board.badge_emails' => self::ALLOWED_EMAIL.',it@example.com']);
+        foreach ([...User::STAFF_ROLES, 'vendor'] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
     }
 
+    /** Every staff login gets the counters (Earl, 2026-10-01). */
     private function allowedUser(): User
     {
-        return User::factory()->create(['email' => self::ALLOWED_EMAIL]);
+        return User::factory()->create(['email' => self::ALLOWED_EMAIL])->assignRole('woc');
+    }
+
+    /** Someone outside the office: a vendor. */
+    private function outsider(array $attributes = []): User
+    {
+        return User::factory()->create(['email' => 'someone.else@example.com', ...$attributes])->assignRole('vendor');
     }
 
     /** The board page props, without the deferred board itself. */
@@ -46,27 +56,33 @@ class HvacBoardSeenTest extends TestCase
         return $response->json('props');
     }
 
-    public function test_an_allow_listed_user_gets_the_counters(): void
+    public function test_a_staff_user_gets_the_counters(): void
     {
         $this->assertTrue($this->boardProps($this->allowedUser())['shows_new_activity']);
     }
 
-    /**
-     * Several users hold the woc role; only the coordinator who works this board
-     * should see the counters, so the gate is the allow-list and not the role.
-     */
-    public function test_another_staff_user_does_not_get_the_counters(): void
+    /** All staff, not just the WOC: every in-office role gets them. */
+    public function test_every_staff_role_gets_the_counters(): void
     {
-        $other = User::factory()->create(['email' => 'someone.else@example.com']);
+        foreach (User::STAFF_ROLES as $role) {
+            $user = User::factory()->create()->assignRole($role);
 
-        $this->assertFalse($this->boardProps($other)['shows_new_activity']);
+            $this->assertTrue($user->seesHvacBoardActivity(), "{$role} should see the HVAC counters");
+        }
     }
 
-    public function test_the_allow_list_ignores_case_and_surrounding_space(): void
+    public function test_someone_outside_the_office_does_not_get_the_counters(): void
     {
-        config(['services.hvac_board.badge_emails' => '  COORDINATOR@Example.com , it@example.com ']);
+        $this->assertFalse($this->outsider()->seesHvacBoardActivity());
+        $this->assertFalse(User::factory()->create()->seesHvacBoardActivity());
+    }
 
-        $this->assertTrue($this->boardProps($this->allowedUser())['shows_new_activity']);
+    /** The App Setting that silences the counters for everyone without a deploy. */
+    public function test_the_switch_turns_the_counters_off_for_everyone(): void
+    {
+        config(['services.hvac_board.badges_enabled' => false]);
+
+        $this->assertFalse($this->boardProps($this->allowedUser())['shows_new_activity']);
     }
 
     /** The board marks what moved by comparing this against each card. */
@@ -79,16 +95,32 @@ class HvacBoardSeenTest extends TestCase
     }
 
     /**
-     * A user who has never marked the board seen gets a null mark, and the
-     * board treats that as "nothing is new" rather than "everything is" — the
-     * same reason the migration backfills existing users to now().
+     * A staff login created after the migration backfilled everyone has no mark
+     * of its own. It counts from when the account was made — not "everything is
+     * new", and not "nothing ever is", which left a new login with no badge and
+     * so no Mark all seen button to switch the counters on.
      */
-    public function test_a_user_who_never_marked_it_seen_gets_a_null_mark(): void
+    public function test_a_user_who_never_marked_it_seen_counts_from_account_creation(): void
     {
+        $this->travelTo(now()->subDays(3));
         $user = $this->allowedUser();
         $user->forceFill(['hvac_board_seen_at' => null])->save();
+        $this->travelBack();
 
-        $this->assertNull($this->boardProps($user)['board_seen_at']);
+        $this->assertSame($user->created_at->toJSON(), $this->boardProps($user->fresh())['board_seen_at']);
+
+        WorkOrder::query()->create([
+            'service_status_id' => ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'Scheduled'])->id,
+            'work_order_no' => 3099,
+            'category' => 'HVAC ',
+            'type' => 'Service Request',
+            'status' => 'Open',
+        ]);
+
+        // The page request above cached the sidebar count before this existed.
+        app(HvacBoardNewCounter::class)->forgetFor($user->id);
+
+        $this->assertSame(1, app(HvacBoardNewCounter::class)->cachedCountFor($user->fresh()));
     }
 
     /** Without updated_at on the cards the browser has nothing to compare. */
@@ -143,12 +175,9 @@ class HvacBoardSeenTest extends TestCase
      * Hiding the button is not authorization: the route itself has to refuse
      * anyone who has no counters to clear.
      */
-    public function test_a_user_off_the_allow_list_cannot_mark_the_board_seen(): void
+    public function test_a_user_outside_the_office_cannot_mark_the_board_seen(): void
     {
-        $other = User::factory()->create([
-            'email' => 'someone.else@example.com',
-            'hvac_board_seen_at' => null,
-        ]);
+        $other = $this->outsider(['hvac_board_seen_at' => null]);
 
         $this->actingAs($other)->post(route('work_orders.hvac.seen'))->assertForbidden();
 
@@ -164,7 +193,7 @@ class HvacBoardSeenTest extends TestCase
      * The sidebar number is what makes movement visible without opening the
      * board, so it has to be shared on an ordinary page, not just the board.
      */
-    public function test_the_sidebar_count_reaches_every_page_for_an_allow_listed_user(): void
+    public function test_the_sidebar_count_reaches_every_page_for_a_staff_user(): void
     {
         $user = $this->allowedUser();
         $user->forceFill(['hvac_board_seen_at' => now()->subDay()])->save();
@@ -193,10 +222,7 @@ class HvacBoardSeenTest extends TestCase
 
     public function test_the_sidebar_count_stays_zero_for_everyone_else(): void
     {
-        $other = User::factory()->create([
-            'email' => 'someone.else@example.com',
-            'hvac_board_seen_at' => now()->subDay(),
-        ]);
+        $other = $this->outsider(['hvac_board_seen_at' => now()->subDay()]);
 
         $serviceStatus = ServiceStatus::query()->create([
             'name' => 'Scheduled',
@@ -374,12 +400,9 @@ class HvacBoardSeenTest extends TestCase
     }
 
     /** Nobody else's modal grows badges from this feature. */
-    public function test_tab_counts_are_empty_for_users_off_the_allow_list(): void
+    public function test_tab_counts_are_empty_for_users_outside_the_office(): void
     {
-        $other = User::factory()->create([
-            'email' => 'someone.else@example.com',
-            'hvac_board_seen_at' => now()->subDay(),
-        ]);
+        $other = $this->outsider(['hvac_board_seen_at' => now()->subDay()]);
 
         $serviceStatus = ServiceStatus::query()->create([
             'name' => 'Scheduled',
@@ -759,9 +782,9 @@ class HvacBoardSeenTest extends TestCase
         $this->assertSame(1, $counter->cachedCountFor($colleague->fresh()));
     }
 
-    public function test_a_user_off_the_allow_list_cannot_dismiss(): void
+    public function test_a_user_outside_the_office_cannot_dismiss(): void
     {
-        $other = User::factory()->create(['email' => 'someone.else@example.com']);
+        $other = $this->outsider();
 
         $serviceStatus = ServiceStatus::query()->create([
             'name' => 'Scheduled',
@@ -783,9 +806,9 @@ class HvacBoardSeenTest extends TestCase
         $this->assertDatabaseCount('hvac_board_reads', 0);
     }
 
-    public function test_a_user_off_the_allow_list_cannot_read_the_activity_feed(): void
+    public function test_a_user_outside_the_office_cannot_read_the_activity_feed(): void
     {
-        $other = User::factory()->create(['email' => 'someone.else@example.com']);
+        $other = $this->outsider();
 
         $this->actingAs($other)->getJson(route('work_orders.hvac.activity'))->assertForbidden();
     }
