@@ -308,7 +308,7 @@ watch(
                                 >
                                     {{ owner.first_name }}
                                     {{ owner.last_name }} -
-                                    {{ owner?.phone }}
+                                    {{ owner?.phone || "no phone on file" }}
                                 </SelectItem>
                             </template>
                         </SelectGroup>
