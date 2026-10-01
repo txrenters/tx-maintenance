@@ -347,6 +347,13 @@ return [
 
         // On-demand "why is this stuck" summaries on the open-over-30 report.
         'stale_digest' => env('STALE_DIGEST_ENABLED', true),
+
+        // The AI confirms the keyword shortlist before a work order is tagged
+        // a tenant easy fix (and the tenant texted a how-to). Off = the
+        // keywords decide alone, the pre-2026-10-02 behavior. An AI error or a
+        // verdict below the confidence bar means "not an easy fix".
+        'easy_fix_judge' => env('TENANT_EASY_FIX_AI_JUDGE_ENABLED', true),
+        'easy_fix_min_confidence' => (int) env('TENANT_EASY_FIX_AI_MIN_CONFIDENCE', 70),
     ],
 
     'hvac_board' => [

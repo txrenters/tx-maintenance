@@ -612,14 +612,20 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                         {{ work_order.easy_fix.item }}
                                     </span>
                                     <span
-                                        :title="work_order.easy_fix.flagged && work_order.easy_fix.status_set
-                                            ? 'Matched by the automation and put in Checking for Tenant Easy Fix'
-                                            : work_order.easy_fix.flagged
-                                                ? 'Matched to a handbook item by the automation'
-                                                : 'Put in Checking for Tenant Easy Fix by a coordinator'"
+                                        :title="[
+                                            work_order.easy_fix.flagged && work_order.easy_fix.status_set
+                                                ? 'Matched by the automation and put in Checking for Tenant Easy Fix'
+                                                : work_order.easy_fix.flagged
+                                                    ? 'Matched to a handbook item by the automation'
+                                                    : work_order.easy_fix.hoa
+                                                        ? 'HOA violation: the HOA intake puts every violation in Checking for Tenant Easy Fix'
+                                                        : 'Put in Checking for Tenant Easy Fix by a coordinator',
+                                            work_order.easy_fix.verdict_reason,
+                                        ].filter(Boolean).join('\n')"
                                         class="inline-flex items-center rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold"
+                                        data-easy-fix-source
                                     >
-                                        {{ work_order.easy_fix.flagged ? "Auto" : "Set by WOC" }}
+                                        {{ work_order.easy_fix.flagged ? "Auto" : work_order.easy_fix.hoa ? "HOA" : "Set by WOC" }}
                                     </span>
                                     <span
                                         class="inline-flex items-center rounded-full border border-white/50 px-2 py-0.5 text-[10px] font-semibold"
