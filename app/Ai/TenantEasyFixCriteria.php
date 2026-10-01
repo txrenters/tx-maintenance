@@ -74,12 +74,26 @@ class TenantEasyFixCriteria
      */
     public static function scan(string $loweredText, ?string $category = null): ?array
     {
+        return self::candidates($loweredText, $category)[0] ?? null;
+    }
+
+    /**
+     * Every easy-fix item the text matches, most evidence first (ties keep
+     * library order). The keyword pass only shortlists: the AI judge picks
+     * from these or rejects them all, so a phrase that merely appears inside
+     * another one ("heater won't turn on" in "water heater won't turn on")
+     * never decides on its own.
+     *
+     * @return array<int, array{key: string, matched: array<int, string>}>
+     */
+    public static function candidates(string $loweredText, ?string $category = null): array
+    {
         if (self::isTooLong($loweredText) || self::hasGlobalExclusion($loweredText) || EmergencyCriteria::scan($loweredText)['is_emergency']) {
-            return null;
+            return [];
         }
 
         $normalizedCategory = self::normalize($category);
-        $best = null;
+        $candidates = [];
 
         foreach (self::items() as $key => $item) {
             $categoryHit = $normalizedCategory !== ''
@@ -102,13 +116,35 @@ class TenantEasyFixCriteria
                 array_unshift($matched, 'category:'.$category);
             }
 
-            // Most evidence wins; ties keep library order.
-            if ($best === null || count($matched) > count($best['matched'])) {
-                $best = ['key' => $key, 'matched' => $matched];
-            }
+            $candidates[] = ['key' => $key, 'matched' => $matched];
         }
 
-        return $best;
+        // Most evidence first; usort is stable, so ties keep library order.
+        usort($candidates, fn (array $a, array $b): int => count($b['matched']) <=> count($a['matched']));
+
+        return $candidates;
+    }
+
+    /**
+     * One handbook row as the AI judge reads it: what the item is, what the
+     * tenant can try, and the phrases that rule it out.
+     */
+    public static function describeForJudge(string $key): string
+    {
+        $item = self::item($key);
+
+        if ($item === null) {
+            return $key;
+        }
+
+        return sprintf(
+            '%s (%s). Tenant can try: %s. Typical wording: %s. Not this item if it mentions: %s.',
+            $key,
+            $item['label'],
+            $item['tip'] !== '' ? $item['tip'] : 'n/a',
+            implode('; ', array_slice($item['keywords'], 0, 12)),
+            $item['exclude'] === [] ? 'n/a' : implode('; ', $item['exclude']),
+        );
     }
 
     /**

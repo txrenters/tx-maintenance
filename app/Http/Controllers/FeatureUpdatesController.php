@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-02',
+            'area' => 'Work Orders',
+            'title' => 'AI double-checks every tenant easy fix',
+            'description' => 'A new request is only treated as a tenant easy fix when the handbook keywords match AND the AI agrees after reading the description. Matching words alone are no longer enough: "the water heater won\'t turn on" used to be tagged as a furnace because it contains "heater won\'t turn on"; now the AI sees it is a water heater and the tenant gets the normal "we received your request" text instead of a how-to. If the AI is unsure or unavailable, the request is treated as a normal repair. On the Tenant Easy Fix board, hover the "Auto" chip to read why the AI tagged it, and HOA violations now say "HOA" instead of "Set by WOC".',
+        ],
+        [
             'date' => '2026-10-01',
             'area' => 'Work Orders',
             'title' => 'A Tenant Easy Fix board, and HVAC board updates for all staff',

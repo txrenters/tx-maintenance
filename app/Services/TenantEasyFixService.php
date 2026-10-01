@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\Agents\TenantEasyFixJudgeAgent;
 use App\Ai\TenantEasyFixCriteria;
 use App\Models\Conversation;
 use App\Models\ServiceStatus;
@@ -20,11 +21,12 @@ use Spatie\Activitylog\Models\Activity;
  * order so the tenant text, the owner text, the intake email and the board
  * all agree.
  *
- * The verdict is deterministic (App\Ai\TenantEasyFixCriteria over the
- * description, type and category) and is written whether or not the
- * messaging gate is on, so the verdicts can be watched in production before
- * anyone is texted. The AI classification never decides a send; it only
- * surfaces what the keywords missed.
+ * The keywords (App\Ai\TenantEasyFixCriteria over the description, type and
+ * category) shortlist the handbook items a request might be, and the AI judge
+ * confirms one or rejects them all (Earl, 2026-10-02): a keyword hit alone no
+ * longer tags a work order, and the AI can never pick an item the keywords did
+ * not find. The verdict is written whether or not the messaging gate is on, so
+ * it can be watched in production before anyone is texted.
  *
  * Whether the item is a non-realty appliance under the lease (a washer,
  * dryer or refrigerator provided as-is, the tenant's to repair) is not
@@ -54,6 +56,17 @@ class TenantEasyFixService
      * trying the fix. Anything else means a WOC has moved it on.
      */
     private const FOLLOW_UP_STATUSES = [self::EASY_FIX_STATUS, 'New'];
+
+    /**
+     * The activity log the verdicts are written to, one row per assessment
+     * the keywords shortlisted; its description is the reason the board shows.
+     */
+    public const VERDICT_LOG = 'tenant_easy_fix';
+
+    /**
+     * judge() reasons that never reach the keywords or the AI.
+     */
+    private const SKIP_REASONS = ['hoa_violation', 'automated_messages_skipped', 'marked_emergency'];
 
     public function __construct(private PropertyWareService $propertyWare) {}
 
@@ -292,12 +305,13 @@ class TenantEasyFixService
 
     /**
      * A fresh, unstored judgement of the work order: the item key or null,
-     * plus why. Pure - used by the audit command and the classification
-     * heuristic as well as by assess().
+     * plus why. Writes nothing - used by the audit command as well as by
+     * assess(). $withAi false is the keywords alone (no AI call), for the
+     * classification heuristic's preview of a work order not yet assessed.
      *
      * @return array{key: ?string, reason: string}
      */
-    public function judge(WorkOrder $workOrder): array
+    public function judge(WorkOrder $workOrder, bool $withAi = true): array
     {
         if ($workOrder->isHoaViolation()) {
             return ['key' => null, 'reason' => 'hoa_violation'];
@@ -312,13 +326,86 @@ class TenantEasyFixService
             return ['key' => null, 'reason' => 'marked_emergency'];
         }
 
-        $easyFix = TenantEasyFixCriteria::scan(self::textOf($workOrder), $workOrder->category);
+        $candidates = TenantEasyFixCriteria::candidates(self::textOf($workOrder), $workOrder->category);
 
-        if ($easyFix !== null) {
-            return ['key' => $easyFix['key'], 'reason' => 'matched:'.implode(', ', $easyFix['matched'])];
+        if ($candidates === []) {
+            return ['key' => null, 'reason' => 'no_match'];
         }
 
-        return ['key' => null, 'reason' => 'no_match'];
+        $matched = 'matched:'.implode(', ', $candidates[0]['matched']);
+
+        if (! $withAi || ! $this->aiJudgeEnabled()) {
+            return ['key' => $candidates[0]['key'], 'reason' => $matched];
+        }
+
+        return $this->aiJudge($workOrder, $candidates);
+    }
+
+    /**
+     * Whether the AI confirms the keyword shortlist: switched on and a
+     * provider configured. Without one the keywords decide alone, exactly as
+     * before the judge existed.
+     */
+    public function aiJudgeEnabled(): bool
+    {
+        return (bool) config('services.ai.easy_fix_judge') && AiSettings::ready();
+    }
+
+    /**
+     * Ask the AI which shortlisted item the request really is, if any. Only a
+     * shortlisted key at or above the confidence bar tags the work order; a
+     * rejection, an unknown key, low confidence or an AI failure all mean
+     * "not an easy fix", because a wrong yes texts the tenant a how-to for a
+     * repair that needs a vendor.
+     *
+     * @param  array<int, array{key: string, matched: array<int, string>}>  $candidates
+     * @return array{key: ?string, reason: string}
+     */
+    private function aiJudge(WorkOrder $workOrder, array $candidates): array
+    {
+        $shortlist = array_column($candidates, 'key');
+
+        try {
+            $response = (new TenantEasyFixJudgeAgent)->prompt($this->judgePrompt($workOrder, $shortlist), timeout: 30);
+        } catch (\Throwable $exception) {
+            Log::warning('Tenant easy-fix AI judge failed; treating as not an easy fix.', [
+                'work_order_id' => $workOrder->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return ['key' => null, 'reason' => 'ai_unavailable'];
+        }
+
+        $key = TenantEasyFixCriteria::normalizeKey(data_get($response, 'easy_fix_key'));
+        $confidence = max(0, min(100, (int) data_get($response, 'confidence', 0)));
+        $why = Str::limit(trim((string) data_get($response, 'reason', '')), 200);
+        $minimum = (int) config('services.ai.easy_fix_min_confidence', 70);
+
+        if ($key === null || ! in_array($key, $shortlist, true)) {
+            return ['key' => null, 'reason' => 'ai_rejected: '.$why];
+        }
+
+        if ($confidence < $minimum) {
+            return ['key' => null, 'reason' => "ai_unsure ({$confidence}%): ".$why];
+        }
+
+        return ['key' => $key, 'reason' => "ai_confirmed ({$confidence}%): ".$why];
+    }
+
+    /**
+     * @param  array<int, string>  $shortlist
+     */
+    private function judgePrompt(WorkOrder $workOrder, array $shortlist): string
+    {
+        return implode("\n", [
+            'WORK ORDER',
+            'Description: '.Str::limit(trim((string) $workOrder->description), 1000),
+            'Type: '.($workOrder->type ?: 'n/a'),
+            'Category: '.($workOrder->category ?: 'n/a'),
+            '',
+            'SHORTLIST (handbook items the keywords matched):',
+            ...array_map(fn (string $key): string => '- '.TenantEasyFixCriteria::describeForJudge($key), $shortlist),
+        ]);
     }
 
     /**
@@ -342,7 +429,8 @@ class TenantEasyFixService
             return $stored->easy_fix_key;
         }
 
-        $key = $this->judge($workOrder)['key'];
+        $judgement = $this->judge($workOrder);
+        $key = $judgement['key'];
 
         $claimed = DB::table('work_orders')
             ->where('id', $workOrder->id)
@@ -355,7 +443,32 @@ class TenantEasyFixService
 
         $workOrder->setRawAttributes(['easy_fix_key' => $key] + $workOrder->getAttributes(), true);
 
+        // Only the verdicts the keywords shortlisted are worth a row: that is
+        // where the board shows a coordinator why the AI said yes or no.
+        if ($judgement['reason'] !== 'no_match' && ! in_array($judgement['reason'], self::SKIP_REASONS, true)) {
+            $this->recordVerdict($workOrder, $judgement);
+        }
+
         return $key;
+    }
+
+    /**
+     * @param  array{key: ?string, reason: string}  $judgement
+     */
+    private function recordVerdict(WorkOrder $workOrder, array $judgement): void
+    {
+        try {
+            activity(self::VERDICT_LOG)
+                ->performedOn($workOrder)
+                ->event($judgement['key'] !== null ? 'easy_fix_tagged' : 'easy_fix_rejected')
+                ->withProperties(['easy_fix_key' => $judgement['key']])
+                ->log(Str::limit($judgement['reason'], 250));
+        } catch (\Throwable $exception) {
+            Log::warning('Recording the tenant easy-fix verdict failed.', [
+                'work_order_id' => $workOrder->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     /**

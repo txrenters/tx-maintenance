@@ -24,7 +24,7 @@ class EasyFixBoardDetails
     /**
      * @param  array<int, int>  $workOrderIds
      * @return array<int, array{
-     *     item: ?string, video_url: ?string, flagged: bool, status_set: bool,
+     *     item: ?string, video_url: ?string, flagged: bool, hoa: bool, verdict_reason: ?string, status_set: bool,
      *     texted: bool, check_ins: int, check_ins_max: int, last_check_in_at: ?string,
      *     photo_uploaded: bool, tenant_replied: bool
      * }>
@@ -41,8 +41,26 @@ class EasyFixBoardDetails
 
         $workOrders = DB::table('work_orders')
             ->whereIn('id', $workOrderIds)
-            ->get(['id', 'easy_fix_key', 'service_status_id'])
+            ->get(['id', 'easy_fix_key', 'service_status_id', 'category'])
             ->keyBy('id');
+
+        // The HOA intake parks every violation in "Checking for Tenant Easy
+        // Fix"; same two signals as WorkOrder::isHoaViolation().
+        $hoaTokenIds = TenantUploadToken::query()
+            ->where('purpose', TenantUploadToken::PURPOSE_HOA_VIOLATION)
+            ->whereIn('work_order_id', $workOrderIds)
+            ->pluck('work_order_id')
+            ->flip();
+
+        // The AI judge's latest one-line reason per work order (the row's
+        // description), newest id last so keyBy keeps it.
+        $verdictReasons = DB::table('activity_log')
+            ->where('log_name', TenantEasyFixService::VERDICT_LOG)
+            ->where('subject_type', (new WorkOrder)->getMorphClass())
+            ->whereIn('subject_id', $workOrderIds)
+            ->orderBy('id')
+            ->get(['subject_id', 'description'])
+            ->keyBy('subject_id');
 
         $ledger = DB::table('activity_log')
             ->selectRaw('subject_id, event, COUNT(*) as sent, MAX(created_at) as last_at')
@@ -85,6 +103,8 @@ class EasyFixBoardDetails
                 'item' => $item['label'] ?? $workOrder?->easy_fix_key,
                 'video_url' => $item['video_url'] ?? null,
                 'flagged' => $workOrder?->easy_fix_key !== null,
+                'hoa' => $hoaTokenIds->has($id) || trim((string) $workOrder?->category) === WorkOrder::HOA_VIOLATION_CATEGORY,
+                'verdict_reason' => $verdictReasons->get($id)?->description,
                 'status_set' => $easyFixStatusId !== null && (int) $workOrder?->service_status_id === (int) $easyFixStatusId,
                 'texted' => $events->has('tenant_easy_fix_sms'),
                 'check_ins' => (int) ($checkIns->sent ?? 0),
