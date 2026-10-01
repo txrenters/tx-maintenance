@@ -232,6 +232,95 @@ class WorkOrderImportTimestampsTest extends TestCase
     }
 
     /**
+     * The same two feeds also spell "authorized to enter" differently — SOAP
+     * "Any Time", REST "ANYTIME" — and write a description's line breaks as
+     * "\n" and "\r\n" (WOs #44153/44229/44261/44262/44269, read live from both
+     * feeds 2026-10-02). The syncs took turns rewriting them, so those work
+     * orders came back on the Tenant Easy Fix board's "what moved" list after
+     * every Mark all seen.
+     */
+    public function test_the_rest_status_sync_ignores_the_feeds_spelling_of_the_same_entry_and_description(): void
+    {
+        Queue::fake();
+        Role::findOrCreate('woc', 'web');
+
+        Carbon::setTestNow(Carbon::parse(self::FIRST_RUN));
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 555003,
+            'status' => 'Open',
+            'description' => "Remove weeds from the driveway.\n\nClean mildew from the siding.",
+            'authorized_to_enter' => 'Any Time',
+            'category' => 'HOA Violation',
+            'priority' => 'Medium',
+            'is_approved' => false,
+            'total_cost' => 150,
+            'cost_estimate' => null,
+            'scheduled_end_date' => null,
+        ]);
+
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getWorkOrdersViaRestAPI')->andReturn([[
+            'id' => 555003,
+            'status' => 'Open',
+            'description' => "Remove weeds from the driveway.\r\n\r\nClean mildew from the siding.",
+            'authorizedToEnter' => 'ANYTIME',
+            'category' => 'HOA Violation',
+            'priority' => 'MEDIUM',
+            'approved' => false,
+            'actualCost' => 150.0,
+        ]]);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        $dirty = &$this->dirtyOnSave();
+        Carbon::setTestNow(Carbon::parse(self::SECOND_RUN));
+
+        $this->artisan('update:work-orders-status')->assertExitCode(0);
+
+        $this->assertSame([], array_filter($dirty), 'A spelling-only difference dirtied the work order: '.json_encode($dirty));
+        $fresh = $workOrder->fresh();
+        $this->assertSame('Any Time', $fresh->authorized_to_enter);
+        $this->assertTrue($fresh->updated_at->equalTo(Carbon::parse(self::FIRST_RUN)), 'updated_at moved on a spelling-only difference');
+    }
+
+    public function test_a_real_change_to_who_may_enter_or_the_description_is_still_written(): void
+    {
+        Queue::fake();
+        Role::findOrCreate('woc', 'web');
+
+        Carbon::setTestNow(Carbon::parse(self::FIRST_RUN));
+        $workOrder = WorkOrder::factory()->create([
+            'propertyware_id' => 555004,
+            'status' => 'Open',
+            'description' => 'Remove weeds from the driveway.',
+            'authorized_to_enter' => 'Any Time',
+            'category' => 'HOA Violation',
+            'priority' => 'Medium',
+            'is_approved' => false,
+        ]);
+
+        $mock = Mockery::mock(PropertyWareService::class);
+        $mock->shouldReceive('getWorkOrdersViaRestAPI')->andReturn([[
+            'id' => 555004,
+            'status' => 'Open',
+            'description' => "Remove weeds from the driveway.\r\nAlso clean the oil stain.",
+            'authorizedToEnter' => 'CALL_FIRST',
+            'category' => 'HOA Violation',
+            'priority' => 'MEDIUM',
+            'approved' => false,
+        ]]);
+        $this->app->instance(PropertyWareService::class, $mock);
+
+        Carbon::setTestNow(Carbon::parse(self::SECOND_RUN));
+
+        $this->artisan('update:work-orders-status')->assertExitCode(0);
+
+        $fresh = $workOrder->fresh();
+        $this->assertSame('CALL_FIRST', $fresh->authorized_to_enter);
+        $this->assertStringContainsString('Also clean the oil stain.', $fresh->description);
+        $this->assertTrue($fresh->updated_at->equalTo(Carbon::parse(self::SECOND_RUN)));
+    }
+
+    /**
      * The SOAP import writes `false` for a work order without a priority,
      * which the string column stores as ''. The next run must read that as
      * the same nothing rather than rewrite it every ten minutes.
