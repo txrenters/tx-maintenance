@@ -473,13 +473,23 @@ class WorkOrder extends Model
     public function importChanges(array $data): array
     {
         foreach ($data as $column => $incoming) {
-            if (self::sameStoredValue($incoming, $this->getRawOriginal($column))) {
+            if (self::sameStoredValue($incoming, $this->getRawOriginal($column), in_array($column, self::PICKLIST_COLUMNS, true))) {
                 unset($data[$column]);
             }
         }
 
         return $data;
     }
+
+    /**
+     * PropertyWare picklists whose two feeds spell the same entry with
+     * different spacing as well as case: SOAP "Any Time", REST "ANYTIME"
+     * (WOs #44153, #44229, #44261, #44262, read live from both 2026-10-02).
+     * Compared on letters and digits alone.
+     *
+     * @var array<int, string>
+     */
+    private const PICKLIST_COLUMNS = ['authorized_to_enter'];
 
     /**
      * Whether a payload value and a stored value mean the same thing once the
@@ -490,9 +500,11 @@ class WorkOrder extends Model
      * "MEDIUM", so the two scheduled syncs otherwise overwrite each other
      * every ten and fifteen minutes and every open work order reads as
      * "priority changed" all day (HVAC board, 2026-09-22). A picklist value
-     * that only changed case is not a change anyone needs to see.
+     * that only changed case is not a change anyone needs to see. Likewise
+     * line breaks: the REST feed writes a description's "\n" as "\r\n"
+     * (WO #44269, 2026-10-02), the same text either way.
      */
-    private static function sameStoredValue(mixed $incoming, mixed $stored): bool
+    private static function sameStoredValue(mixed $incoming, mixed $stored, bool $picklist = false): bool
     {
         if ($incoming instanceof \DateTimeInterface) {
             $incoming = $incoming->format('Y-m-d H:i:s');
@@ -522,7 +534,11 @@ class WorkOrder extends Model
             return (float) $incoming === (float) $stored;
         }
 
-        return strcasecmp(trim((string) $incoming), trim((string) $stored)) === 0;
+        $text = fn (mixed $value): string => $picklist
+            ? (string) preg_replace('/[^a-z0-9]/', '', strtolower((string) $value))
+            : trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+
+        return strcasecmp($text($incoming), $text($stored)) === 0;
     }
 
     /**
