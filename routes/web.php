@@ -45,6 +45,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OwnerController;
 use App\Http\Controllers\OwnerEmailController;
 use App\Http\Controllers\OwnerPortalController;
+use App\Http\Controllers\PortalLinkController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SearchController;
@@ -273,6 +274,9 @@ Route::middleware([
     Route::patch('/work_orders/{workOrder}/automation', [WorkOrderAutomationController::class, 'update'])->name('work_order.automation.toggle');
     Route::post('/work_orders/{workOrder}/vendors/{vendor}/notify-assignment', [VendorAssignmentNotificationController::class, 'store'])->name('work_orders.vendor.notify_assignment');
     Route::post('/work_orders/{workOrder}/notify-intake/{audience}', [IntakeNotificationController::class, 'store'])->name('work_orders.notify_intake');
+    // The "Portal link" button on the tenant and owner conversation tabs
+    // (staff only): a POST because the token is created on first use.
+    Route::post('/work_orders/{workOrder}/portal-links/{audience}', [PortalLinkController::class, 'store'])->name('work_orders.portal_links');
     // The "Send tenant text" action on a service schedule card (staff only;
     // the schedule routes themselves live in routes/api.php).
     Route::post('/service-schedules/{serviceSchedule}/tenant-notice', [ServiceScheduleTenantNoticeController::class, 'store'])->name('service_schedule.tenant_notice.send');

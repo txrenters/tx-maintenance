@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-06',
+            'area' => 'Work Orders',
+            'title' => 'Copy a tenant or owner portal link from the work order',
+            'description' => 'The Tenant and Owner conversation tabs on every work order now have a "Portal link" button. Click it to see the no-login portal link for that work order, then Copy and paste it into a text or email you send yourself; nothing is sent automatically. The portal links texted and emailed before we moved to the new web address still point at the old one, so use this whenever a tenant or owner says their link no longer opens. It is the same portal they had before (their messages and photos are all there), just on the new address. The Owner tab lists one link per owner on the work order, and an HOA violation also shows the HOA link the tenant was sent. Only office staff can see the button.',
+        ],
+        [
             'date' => '2026-10-01',
             'area' => 'Work Orders',
             'title' => 'A Tenant Easy Fix board, and HVAC board updates for all staff',

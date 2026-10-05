@@ -18,6 +18,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/Components/ui/avatar";
 import AutomationToggle from "@/Components/WorkOrder/AutomationToggle.vue";
 import IntakeNotifyButton from "@/Components/WorkOrder/IntakeNotifyButton.vue";
+import PortalLinkButton from "@/Components/WorkOrder/PortalLinkButton.vue";
 import AwaitingReplyBanner from "@/Components/WorkOrder/AwaitingReplyBanner.vue";
 import MessageComposer from "@/Components/WorkOrder/MessageComposer.vue";
 import { buildParticipants } from "@/utils/conversation";
@@ -197,7 +198,12 @@ watch(
                 <p class="text-xs font-semibold uppercase tracking-wide">
                     Tenant ↔ Coordinator
                 </p>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <PortalLinkButton
+                        v-if="workOrder?.id"
+                        :work-order-id="workOrder.id"
+                        audience="tenant"
+                    />
                     <IntakeNotifyButton
                         v-if="workOrder?.id"
                         :work-order-id="workOrder.id"
