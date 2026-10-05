@@ -35,6 +35,9 @@ class ChatbotWebhookRequest extends FormRequest
             'data' => ['required', 'array'],
             'data.thread' => ['required', 'array'],
             'data.thread.id' => ['required'],
+            'data.thread.work_order_id' => ['nullable', 'string'],
+            'data.thread.work_order_party' => ['nullable', 'string'],
+            'data.thread.phone' => ['nullable', 'string'],
             'data.message' => ['sometimes', 'array'],
         ];
     }

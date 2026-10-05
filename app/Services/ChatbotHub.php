@@ -72,7 +72,7 @@ class ChatbotHub
                     $partBody = trim($partBody."\n".$url);
                 }
 
-                $response = $this->client()->post('threads/'.$thread->hub_thread_id.'/messages', [
+                $message = [
                     'from' => $conversation->chatbot_direction === 'inbound' ? 'client' : 'staff',
                     'body' => $partBody,
                     'media_url' => $mms ? $url : null,
@@ -81,7 +81,18 @@ class ChatbotHub
                     'inbound_channel' => filled($conversation->twilio_sid) ? 'sms' : 'app',
                     'inbound_twilio_sid' => $conversation->chatbot_direction === 'inbound' && $index === 0 ? $conversation->twilio_sid : null,
                     'idempotency_key' => $key,
-                ])->throw()->json('data');
+                ];
+                $response = $this->client()->post('threads/'.$thread->hub_thread_id.'/messages', $message);
+
+                // The support app refuses a staff email it has no account for;
+                // the message still goes out, as the default staff account.
+                $defaultSender = (string) config('services.chatbot.default_sender_email');
+                if ($response->status() === 422 && $response->json('errors.sender_email') !== null
+                    && $defaultSender !== '' && strcasecmp((string) $message['sender_email'], $defaultSender) !== 0) {
+                    $response = $this->client()->post('threads/'.$thread->hub_thread_id.'/messages', ['sender_email' => $defaultSender] + $message);
+                }
+
+                $response = $response->throw()->json('data');
 
                 if (! is_array($response) || empty($response['id'])) {
                     throw new RuntimeException('Chatbot did not return a message ID.');
