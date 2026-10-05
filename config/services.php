@@ -16,6 +16,7 @@ return [
         // maintenance login, keyed by the maintenance email in lower case.
         'sender_email_aliases' => [
             'xservice@txhomemp.com' => 'service@txhomemp.com',
+            'woc@texasrenter.com' => 'woc@texasrenters.com',
         ],
         // Pre-production copies hold real tenant/owner numbers. In test mode
         // only the comma-separated allowlisted phones are sent to the support
