@@ -12,6 +12,12 @@ return [
         // The support app account staff messages are sent as when the sender's
         // own email has no staff account there.
         'default_sender_email' => env('CHATBOT_HUB_DEFAULT_SENDER_EMAIL', 'woc@texasrenters.com'),
+        // Staff whose support app account has a different email than their
+        // maintenance login, keyed by the maintenance email in lower case.
+        'sender_email_aliases' => [
+            'xservice@txhomemp.com' => 'service@txhomemp.com',
+            'woc@texasrenter.com' => 'woc@texasrenters.com',
+        ],
         // Pre-production copies hold real tenant/owner numbers. In test mode
         // only the comma-separated allowlisted phones are sent to the support
         // app; an empty allowlist sends nothing. Off in production.

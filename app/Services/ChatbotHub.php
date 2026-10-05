@@ -77,7 +77,7 @@ class ChatbotHub
                     'body' => $partBody,
                     'media_url' => $mms ? $url : null,
                     'sender_name' => $conversation->chatbot_sender_name ?: 'Maintenance automation',
-                    'sender_email' => $conversation->chatbot_sender_email,
+                    'sender_email' => $this->senderEmail($conversation->chatbot_sender_email),
                     'inbound_channel' => filled($conversation->twilio_sid) ? 'sms' : 'app',
                     'inbound_twilio_sid' => $conversation->chatbot_direction === 'inbound' && $index === 0 ? $conversation->twilio_sid : null,
                     'idempotency_key' => $key,
@@ -218,6 +218,18 @@ class ChatbotHub
 
             return DB::table('chatbot_threads')->where('local_key', $key)->first();
         });
+    }
+
+    /**
+     * The support app email for a maintenance sender.
+     */
+    private function senderEmail(?string $email): ?string
+    {
+        if ($email === null) {
+            return null;
+        }
+
+        return config('services.chatbot.sender_email_aliases', [])[mb_strtolower($email)] ?? $email;
     }
 
     private function client(): PendingRequest
