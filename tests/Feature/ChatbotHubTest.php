@@ -69,6 +69,22 @@ class ChatbotHubTest extends TestCase
         $this->assertSame('pending', $message->fresh()->twilio_status);
     }
 
+    public function test_a_sender_with_a_different_support_email_is_sent_as_that_account(): void
+    {
+        config(['services.chatbot.sender_email_aliases' => ['xservice@txhomemp.com' => 'service@txhomemp.com']]);
+        Http::fake([
+            'chatbot.test/api/v1/threads' => Http::response(['data' => ['id' => 42]], 201),
+            'chatbot.test/api/v1/threads/42/messages' => Http::response(['data' => ['id' => 91, 'status' => 'pending']], 202),
+        ]);
+        $message = $this->conversation();
+        $message->update(['chatbot_sender_email' => 'XService@txhomemp.com']);
+
+        app(ChatbotHub::class)->send($message, 'Hello');
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/messages') && $request['sender_email'] === 'service@txhomemp.com');
+        Http::assertSentCount(2);
+    }
+
     public function test_other_rejections_are_not_retried_as_the_default_staff_account(): void
     {
         Http::fake([
