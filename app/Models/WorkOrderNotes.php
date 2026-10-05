@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class WorkOrderNotes extends Model
 {
@@ -69,6 +70,34 @@ class WorkOrderNotes extends Model
     {
         return Schema::hasColumn('work_order_notes', 'technician_name')
             && Schema::hasColumn('work_order_notes', 'technician_id');
+    }
+
+    /**
+     * Whether this login has to say which technician is typing a note.
+     *
+     * True for a login a crew shares: the THMP vendor login, and the logins
+     * listed by email in services.work_order.note_technician_logins (THMP's
+     * crew works from a staff-type login no vendor rule can recognise). The
+     * one rule behind both the picker the dialog shows and the check the
+     * save makes, so a login is never asked for a name it was not shown.
+     */
+    public static function asksTechnicianOf(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $email = Str::lower(trim((string) $user->email));
+
+        $listed = $email !== '' && collect(explode(',', (string) config('services.work_order.note_technician_logins', '')))
+            ->map(fn (string $login): string => Str::lower(trim($login)))
+            ->contains($email);
+
+        if (! $listed && ! ($user->hasRole('vendor') && $user->vendor?->isThmp())) {
+            return false;
+        }
+
+        return self::recordsTechnician();
     }
 
     public function user(): BelongsTo

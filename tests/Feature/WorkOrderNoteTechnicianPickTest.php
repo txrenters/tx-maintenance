@@ -406,6 +406,104 @@ class WorkOrderNoteTechnicianPickTest extends TestCase
         }
     }
 
+    /**
+     * THMP's crew on production works from a staff-type login
+     * (thmp@texasrenters.com): no vendor role, no vendor record.
+     */
+    private function makeSharedStaffLogin(string $email = 'thmp@texasrenters.com'): User
+    {
+        $user = User::factory()->create(['name' => 'THMP', 'email' => $email]);
+        $user->assignRole('woc');
+
+        return $user;
+    }
+
+    public function test_the_shared_staff_type_thmp_login_is_sent_the_names_and_must_pick_one(): void
+    {
+        $shared = $this->makeSharedStaffLogin();
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        $kevin = Technician::factory()->create(['name' => 'Kevin Granados']);
+
+        $this->actingAs($shared)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('note_technicians', [
+                ['id' => $kevin->id, 'name' => 'Kevin Granados'],
+            ]));
+
+        $this->actingAs($shared)
+            ->post(route('api.work_order_notes.store'), $this->notePayload($workOrder))
+            ->assertSessionHasErrors(['technician_id' => 'Select your name before saving the note.']);
+
+        $this->assertDatabaseCount('work_order_notes', 0);
+
+        $this->actingAs($shared)
+            ->post(route('api.work_order_notes.store'), $this->notePayload($workOrder, ['technician_id' => $kevin->id]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('work_order_notes', [
+            'work_order_id' => $workOrder->id,
+            'user_id' => $shared->id,
+            'technician_id' => $kevin->id,
+            'technician_name' => 'Kevin Granados',
+        ]);
+
+        $this->assertSame('Kevin Granados', $this->fetchNotes($workOrder)[0]['technician_name']);
+    }
+
+    public function test_the_shared_login_list_ignores_case_and_spaces_and_can_be_changed(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        Technician::factory()->create(['name' => 'Kevin Granados']);
+
+        config(['services.work_order.note_technician_logins' => ' Crew@Example.com , thmp@texasrenters.com']);
+
+        $this->actingAs($this->makeSharedStaffLogin('crew@example.com'))
+            ->post(route('api.work_order_notes.store'), $this->notePayload($workOrder))
+            ->assertSessionHasErrors('technician_id');
+
+        // Blank list: the staff-type login is an ordinary coordinator again.
+        config(['services.work_order.note_technician_logins' => '']);
+
+        $shared = $this->makeSharedStaffLogin();
+
+        $this->actingAs($shared)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('note_technicians', []));
+
+        $this->actingAs($shared)
+            ->post(route('api.work_order_notes.store'), $this->notePayload($workOrder))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('work_order_notes', 1);
+    }
+
+    public function test_a_login_is_never_asked_for_a_name_it_was_not_shown(): void
+    {
+        // A staff login that happens to own the THMP vendor record, without
+        // the vendor role and not on the shared-login list.
+        $staff = User::factory()->create();
+        $staff->assignRole('woc');
+        Vendor::query()->create([
+            'propertyware_id' => 'V-'.$staff->id,
+            'name' => Vendor::THMP_NAME,
+            'vendor_type' => 'General',
+            'is_active' => true,
+            'user_id' => $staff->id,
+        ]);
+        $workOrder = WorkOrder::factory()->create(['propertyware_id' => 777001]);
+        Technician::factory()->create(['name' => 'Kevin Granados']);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('note_technicians', []));
+
+        $this->actingAs($staff)
+            ->post(route('api.work_order_notes.store'), $this->notePayload($workOrder))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('work_order_notes', 1);
+    }
+
     public function test_the_picker_stays_off_on_a_database_without_the_note_columns(): void
     {
         [$thmpUser, $vendor] = $this->makeVendorUser();

@@ -101,13 +101,12 @@ class HandleInertiaRequests extends Middleware
             'easy_fix_board_new_count' => fn () => $request->user()?->seesEasyFixBoardActivity()
                 ? app(HvacBoardNewCounter::class)->cachedCountFor($request->user(), ActivityBoards::EASY_FIX)
                 : 0,
-            // The names the note dialog makes the THMP login pick from before a
-            // note can be saved: the crew shares that one login, so the picked
-            // name is the only record of who typed it. Empty for everyone else
-            // (no picker), and until the note columns exist on this database.
-            'note_technicians' => fn () => $request->user()?->hasRole('vendor')
-                && $request->user()->vendor?->isThmp()
-                && WorkOrderNotes::recordsTechnician()
+            // The names the note dialog makes a shared crew login (THMP's) pick
+            // from before a note can be saved: the crew shares that one login,
+            // so the picked name is the only record of who typed it. Empty for
+            // everyone else (no picker), and until the note columns exist on
+            // this database.
+            'note_technicians' => fn () => WorkOrderNotes::asksTechnicianOf($request->user())
                 ? Technician::noteAuthorOptions()
                 : [],
         ]);

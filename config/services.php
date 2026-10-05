@@ -252,6 +252,12 @@ return [
         // any more; it is kept so an existing VENDOR_AUTO_ASSIGN_ENABLED in a
         // deployed .env stays harmless.
         'auto_assign_vendor' => false,
+        // Logins a whole crew shares, by email: the note dialog makes them
+        // pick their name from the technician roster before a note is saved,
+        // exactly as it does for the THMP vendor login. THMP's field crew
+        // works from a staff-type login, which no vendor rule can recognise.
+        // Comma-separated; case and surrounding spaces are ignored.
+        'note_technician_logins' => env('NOTE_TECHNICIAN_LOGINS', 'thmp@texasrenters.com'),
     ],
 
     'microsoft' => [

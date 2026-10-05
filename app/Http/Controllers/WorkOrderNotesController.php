@@ -302,14 +302,14 @@ class WorkOrderNotesController extends Controller
     /**
      * The technician a THMP note is signed with, as note columns.
      *
-     * THMP's field crew all type through one vendor login, so the login alone
+     * THMP's field crew all type through one shared login, so the login alone
      * cannot say who wrote a note. The note dialog makes them pick their name
      * from the active technician roster first; "not listed" is for THMP office
      * staff on the same login and signs the note with the login's own name.
      *
-     * Empty (nothing is asked, nothing is stored) for every other login, while
-     * the roster has no active technician, and on a database that does not
-     * have the columns yet.
+     * Empty (nothing is asked, nothing is stored) for every other login (see
+     * WorkOrderNotes::asksTechnicianOf()), while the roster has no active
+     * technician, and on a database that does not have the columns yet.
      *
      * @return array{technician_id?: int|null, technician_name?: string}
      */
@@ -317,7 +317,7 @@ class WorkOrderNotesController extends Controller
     {
         $user = $request->user();
 
-        if (! $user?->vendor?->isThmp() || ! WorkOrderNotes::recordsTechnician()) {
+        if (! WorkOrderNotes::asksTechnicianOf($user)) {
             return [];
         }
 
