@@ -1,0 +1,127 @@
+# Deploy tx-maintenance to the VPS that serves maintenance.texasrenters.com.
+#
+# Follows tx-chatbot's deploy-vps.yml. It does what the manual bin/push.sh in
+# tx-maintenance-vps does, minus the Docker files: rsync the tree to
+# /opt/tx-maintenance and run bin/deploy.sh there, which builds the images and
+# rolls app and web one replica at a time (old container keeps serving until
+# the new one is healthy), so a deploy has no downtime.
+#
+# The Docker files (Dockerfile, docker-compose.yml, docker/, bin/, host/) are
+# NOT in this repo -- they live in the tx-maintenance-vps folder and are already
+# on the server. The rsync below excludes them so they survive a deploy. If one
+# of them changes, it still needs a manual bin/push.sh from tx-maintenance-vps.
+#
+# Required repository secrets:
+#   VPS_SSH_KEY  private key whose public half is in the VPS's authorized_keys
+#   VPS_HOST     2.25.245.30
+#   VPS_USER     root
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Two deploys at once would race on the same directory and container set.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the deploy secrets exist
+        # Without this the failure is an opaque `ssh-keyscan ""` exit 1.
+        env:
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST: ${{ secrets.VPS_HOST }}
+          USER_: ${{ secrets.VPS_USER }}
+        run: |
+          missing=""
+          [ -n "$KEY" ]   || missing="$missing VPS_SSH_KEY"
+          [ -n "$HOST" ]  || missing="$missing VPS_HOST"
+          [ -n "$USER_" ] || missing="$missing VPS_USER"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            echo "  VPS_SSH_KEY  private key whose public half is in the VPS authorized_keys"
+            echo "  VPS_HOST     2.25.245.30"
+            echo "  VPS_USER     root"
+            exit 1
+          fi
+
+          # A secret pasted through a browser easily carries a trailing newline, a
+          # scheme, or a user@ prefix. ssh reports that only as "hostname contains
+          # invalid characters", so normalise here and say plainly what is wrong.
+          host=$(printf '%s' "$HOST" | tr -d '[:space:]' | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://##; s#/.*$##; s#^[^@]*@##; s#:[0-9]+$##')
+          user=$(printf '%s' "$USER_" | tr -d '[:space:]')
+
+          if ! printf '%s' "$host" | grep -qE '^[A-Za-z0-9._-]+$'; then
+            echo "::error::VPS_HOST is not a bare host after trimming (it became ${#host} chars). Set it to just 2.25.245.30 -- no scheme, no user@, no port, no path."
+            exit 1
+          fi
+          if ! printf '%s' "$user" | grep -qE '^[A-Za-z0-9._-]+$'; then
+            echo "::error::VPS_USER is not a bare username after trimming. Set it to just: root"
+            exit 1
+          fi
+          if ! printf '%s' "$KEY" | head -1 | grep -q 'BEGIN .*PRIVATE KEY'; then
+            echo "::error::VPS_SSH_KEY does not start with a PRIVATE KEY header. It must be the private half of the deploy key, not the .pub file and not a password."
+            exit 1
+          fi
+
+          echo "VPS_HOST_CLEAN=$host" >> "$GITHUB_ENV"
+          echo "VPS_USER_CLEAN=$user" >> "$GITHUB_ENV"
+
+      - name: Authorise against the VPS
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST_CLEAN" >> ~/.ssh/known_hosts
+
+      - name: Sync the app tree
+        # Exclusions mirror tx-maintenance-vps/bin/push.sh. --delete removes files
+        # deleted from the repo; everything excluded here is never deleted on the
+        # server, which is what protects the env files, the storage volume, the
+        # build output and the Docker files.
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            --exclude '/.git/' \
+            --exclude '/.github/' \
+            --exclude '/.claude/' \
+            --exclude '/node_modules/' \
+            --exclude '/vendor/' \
+            --exclude '/public/build/' \
+            --exclude '/public/hot' \
+            --exclude '/public/storage' \
+            --exclude '/storage/app/' \
+            --exclude '/storage/logs/' \
+            --exclude '/storage/framework/' \
+            --exclude '/bootstrap/cache/*.php' \
+            --exclude '/graphify-out/' \
+            --exclude '/.env' \
+            --exclude '/.env.*' \
+            --exclude '.DS_Store' \
+            --exclude '/database/database.sqlite' \
+            --exclude '/database.sqlite' \
+            --exclude '/*.log' \
+            --exclude '/*.sql' \
+            --exclude '/Dockerfile' \
+            --exclude '/docker-compose.yml' \
+            --exclude '/compose.yaml' \
+            --exclude '/.dockerignore' \
+            --exclude '/docker/' \
+            --exclude '/bin/' \
+            --exclude '/host/' \
+            ./ "$VPS_USER_CLEAN@$VPS_HOST_CLEAN:/opt/tx-maintenance/"
+
+      - name: Build and roll out
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes \
+            "$VPS_USER_CLEAN@$VPS_HOST_CLEAN" \
+            'cd /opt/tx-maintenance && ./bin/deploy.sh'
