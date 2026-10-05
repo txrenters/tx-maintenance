@@ -7,7 +7,8 @@ use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * How many HVAC work orders have moved since a user last marked the board seen.
+ * How many work orders on an activity board (HVAC, Tenant Easy Fix; see
+ * ActivityBoards) have moved since a user last marked that board seen.
  *
  * Drives the number beside HVAC in the sidebar, so the coordinator sees that
  * something moved without having to open the board first.
@@ -28,33 +29,36 @@ class HvacBoardNewCounter
      */
     private const CACHE_SECONDS = 60;
 
-    public function cachedCountFor(User $user): int
+    public function cachedCountFor(User $user, string $board = ActivityBoards::HVAC): int
     {
         return Cache::remember(
-            $this->cacheKey($user->id),
+            $this->cacheKey($user->id, $board),
             self::CACHE_SECONDS,
-            fn (): int => $this->countFor($user),
+            fn (): int => $this->countFor($user, $board),
         );
     }
 
-    public function forgetFor(int $userId): void
+    public function forgetFor(int $userId, string $board = ActivityBoards::HVAC): void
     {
-        Cache::forget($this->cacheKey($userId));
+        Cache::forget($this->cacheKey($userId, $board));
     }
 
-    private function countFor(User $user): int
+    private function countFor(User $user, string $board): int
     {
-        // Never marked seen: show nothing rather than every open work order,
-        // the same reason the migration backfills existing users to now().
-        if ($user->hvac_board_seen_at === null) {
+        $definition = ActivityBoards::get($board);
+        $seenAt = ActivityBoards::seenAt($user, $board);
+
+        // No mark and no account date: show nothing rather than every open
+        // work order, the same reason the migrations backfill users to now().
+        if ($seenAt === null) {
             return 0;
         }
 
         return WorkOrder::query()
             ->where('status', 'Open')
-            ->hvac()
-            ->where('updated_at', '>', $user->hvac_board_seen_at)
-            ->whereNotExists(fn ($q) => $this->dismissedSince($q, $user->id))
+            ->{$definition['scope']}()
+            ->where('updated_at', '>', $seenAt)
+            ->whereNotExists(fn ($q) => self::dismissedSince($q, $user->id, $definition['reads_table']))
             ->count();
     }
 
@@ -68,17 +72,17 @@ class HvacBoardNewCounter
      * Comparing against dismissed_at (rather than just "a row exists") is what
      * makes a work order come back when it changes again.
      */
-    private function dismissedSince($query, int $userId): void
+    public static function dismissedSince($query, int $userId, string $readsTable): void
     {
         $query->selectRaw('1')
-            ->from('hvac_board_reads')
-            ->whereColumn('hvac_board_reads.work_order_id', 'work_orders.id')
-            ->where('hvac_board_reads.user_id', $userId)
-            ->whereColumn('hvac_board_reads.dismissed_updated_at', '>=', 'work_orders.updated_at');
+            ->from($readsTable)
+            ->whereColumn("{$readsTable}.work_order_id", 'work_orders.id')
+            ->where("{$readsTable}.user_id", $userId)
+            ->whereColumn("{$readsTable}.dismissed_updated_at", '>=', 'work_orders.updated_at');
     }
 
-    private function cacheKey(int $userId): string
+    private function cacheKey(int $userId, string $board): string
     {
-        return "hvac_board_new_count.{$userId}";
+        return "{$board}_board_new_count.{$userId}";
     }
 }

@@ -126,6 +126,7 @@ const SUMMARY_BOARDS = [
     ["/work_orders/paid", "paid"],
     ["/work_orders/hoa", "hoa"],
     ["/work_orders/hvac", "hvac"],
+    ["/work_orders/easy-fix", "easy_fix"],
 ];
 
 // Only the staff who work the boards; the endpoint enforces this too.
@@ -178,14 +179,19 @@ const unreadThreadsBadge = computed(() => {
 
 // Count beside HVAC in the sidebar: work orders that moved since this user last
 // marked that board seen, so movement shows without opening the board. Server
-// sends 0 to everyone off the allow-list, which renders no badge at all.
-const hvacNewBadge = computed(() => {
-    const count = Number(page.props.hvac_board_new_count ?? 0);
+// sends 0 to vendors, tenants and owners, which renders no badge at all.
+const boardNewBadge = (count) => {
+    const number = Number(count ?? 0);
 
-    if (!count) return null;
+    if (!number) return null;
 
-    return count > 99 ? "99+" : String(count);
-});
+    return number > 99 ? "99+" : String(number);
+};
+
+const hvacNewBadge = computed(() => boardNewBadge(page.props.hvac_board_new_count));
+
+// The same count beside Tenant Easy Fix.
+const easyFixNewBadge = computed(() => boardNewBadge(page.props.easy_fix_board_new_count));
 
 // Count on the What's New nav, same look as the Messages badge: how many
 // updates shipped since this browser last opened the page. Last-seen is a
@@ -350,6 +356,14 @@ const navs = computed(() => {
                                   "/work_orders/hvac"
                               ),
                               badge: hvacNewBadge.value,
+                          },
+                          {
+                              title: "Tenant Easy Fix",
+                              url: route("work_orders.easy_fix"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/easy-fix"
+                              ),
+                              badge: easyFixNewBadge.value,
                           },
                           {
                               title: "Turnovers",

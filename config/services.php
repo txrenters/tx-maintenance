@@ -367,12 +367,16 @@ return [
     ],
 
     'hvac_board' => [
-        // Who sees the "new activity" counters on the HVAC board, comma
-        // separated. An allow-list rather than a role check on purpose: several
-        // users hold the woc role, and only the coordinator who actually works
-        // this board (plus IT) should get the counters. Configured by email so
-        // the list can change from an App Setting without a deploy.
-        'badge_emails' => env('HVAC_BOARD_BADGE_EMAILS', 'woc@texasrenter.com,admin@texasrenter.com'),
+        // The "new activity" counters on the HVAC board (badge, bell, dismiss,
+        // Mark all seen). Every staff login gets them since 2026-10-01; this
+        // switch turns them off for everyone without a deploy. Replaces the
+        // old HVAC_BOARD_BADGE_EMAILS allow-list, which is no longer read.
+        'badges_enabled' => (bool) env('HVAC_BOARD_BADGES_ENABLED', true),
+    ],
+
+    'easy_fix_board' => [
+        // The same counters on the Tenant Easy Fix board.
+        'badges_enabled' => (bool) env('EASY_FIX_BOARD_BADGES_ENABLED', true),
     ],
 
 ];

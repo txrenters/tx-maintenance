@@ -15,6 +15,14 @@ use Illuminate\Support\Facades\Storage;
 
 class TenantAppointmentNotificationService
 {
+    public const SKIP_GATE_OFF = 'gate_off';
+
+    public const SKIP_CANCELLED = 'cancelled';
+
+    public const SKIP_TENANT_MUTED = 'tenant_muted';
+
+    public const SKIP_AUTOMATED_MESSAGES = 'skips_automated_messages';
+
     public function __construct(private TenantPortalLinkService $portalLinks) {}
 
     /**
@@ -29,26 +37,7 @@ class TenantAppointmentNotificationService
      */
     public function notify(ServiceSchedule $serviceSchedule): void
     {
-        if (! config('services.twilio.tenant_schedule_sms')) {
-            return;
-        }
-
-        // A cancelled schedule is not an appointment worth announcing.
-        if ($serviceSchedule->status === 'cancelled') {
-            return;
-        }
-
-        // A WOC can mute this work order's tenant automation from the tenant
-        // conversation tab; manual sends are unaffected.
-        if ($serviceSchedule->work_order?->automationPausedFor('tenant')) {
-            return;
-        }
-
-        // Turnover/re-key/vacant homes and company-ordered refresh cleanings
-        // are opted out of automated tenant messages. Checked before the claim
-        // so the stamp stays clear and a re-categorized work order can still
-        // notify.
-        if ($serviceSchedule->work_order?->skipsAutomatedMessages()) {
+        if ($this->skipReason($serviceSchedule) !== null) {
             return;
         }
 
@@ -73,6 +62,40 @@ class TenantAppointmentNotificationService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Why the appointment text would stay silent for this schedule (one of
+     * the SKIP_* keys), or null when nothing stands in its way. Shared with
+     * the staff "Send tenant text" button so it can say why instead of
+     * quietly doing nothing. The once-per-schedule claim is separate.
+     */
+    public function skipReason(ServiceSchedule $serviceSchedule): ?string
+    {
+        if (! config('services.twilio.tenant_schedule_sms')) {
+            return self::SKIP_GATE_OFF;
+        }
+
+        // A cancelled schedule is not an appointment worth announcing.
+        if ($serviceSchedule->status === 'cancelled') {
+            return self::SKIP_CANCELLED;
+        }
+
+        // A WOC can mute this work order's tenant automation from the tenant
+        // conversation tab; manual sends are unaffected.
+        if ($serviceSchedule->work_order?->automationPausedFor('tenant')) {
+            return self::SKIP_TENANT_MUTED;
+        }
+
+        // Turnover/re-key/vacant homes, company-ordered refresh cleanings and
+        // homes with no lease on file are opted out of automated tenant
+        // messages. Checked before the claim so the stamp stays clear and a
+        // re-categorized work order can still notify.
+        if ($serviceSchedule->work_order?->skipsAutomatedMessages()) {
+            return self::SKIP_AUTOMATED_MESSAGES;
+        }
+
+        return null;
     }
 
     private function send(ServiceSchedule $serviceSchedule): void

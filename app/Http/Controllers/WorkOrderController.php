@@ -9,7 +9,6 @@ use App\Jobs\AdoptCategorizedHoaViolationJob;
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
-use App\Models\HvacBoardRead;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -17,11 +16,14 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
+use App\Services\ActivityBoards;
+use App\Services\EasyFixBoardDetails;
 use App\Services\EmergencyAlertService;
 use App\Services\HvacBoardActivityFeed;
 use App\Services\HvacBoardNewCounter;
 use App\Services\PropertyWareService;
 use App\Services\TaskService;
+use App\Services\TenantEasyFixService;
 use App\Services\VendorPortalLinkService;
 use App\Services\WorkOrderService;
 use Carbon\Carbon;
@@ -457,6 +459,16 @@ class WorkOrderController extends Controller
             'hvac_tab_counts',
             request()->user()
                 ? app(HvacBoardActivityFeed::class)->tabCountsFor(request()->user(), $workOrder)
+                : [],
+        );
+
+        // The same dots against the Tenant Easy Fix board's seen mark, for the
+        // modal opened from that board. Only for work orders on that board, so
+        // no other modal pays for the extra counts.
+        $workOrder->setAttribute(
+            'easy_fix_tab_counts',
+            request()->user() && $workOrder->isTenantEasyFix()
+                ? app(HvacBoardActivityFeed::class)->tabCountsFor(request()->user(), $workOrder, ActivityBoards::EASY_FIX)
                 : [],
         );
 
@@ -1038,8 +1050,8 @@ class WorkOrderController extends Controller
         return inertia('WorkOrder/Hvac', [
             'title' => 'HVAC Work Orders',
             'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
-            'shows_new_activity' => $this->showsHvacNewActivity($request->user()),
-            'board_seen_at' => $request->user()?->hvac_board_seen_at?->toJSON(),
+            'shows_new_activity' => ActivityBoards::sees($request->user(), ActivityBoards::HVAC),
+            'board_seen_at' => $request->user() ? ActivityBoards::seenAt($request->user(), ActivityBoards::HVAC)?->toJSON() : null,
             'service_status' => Inertia::defer(fn () => $this->hvacBoard($request)),
             'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
             'categories' => Inertia::defer(fn () => $this->cachedCategories()),
@@ -1059,15 +1071,20 @@ class WorkOrderController extends Controller
      */
     public function hvac_mark_seen(Request $request)
     {
-        // The hidden button is not the control — anyone off the allow-list has
-        // no counters to clear and has no business writing this column.
-        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+        return $this->markActivityBoardSeen($request, ActivityBoards::HVAC);
+    }
 
-        $request->user()->forceFill(['hvac_board_seen_at' => now()])->save();
+    private function markActivityBoardSeen(Request $request, string $board)
+    {
+        // The hidden button is not the control — anyone without the counters
+        // has nothing to clear and has no business writing this column.
+        abort_unless(ActivityBoards::sees($request->user(), $board), 403);
+
+        $request->user()->forceFill([ActivityBoards::get($board)['seen_column'] => now()])->save();
 
         // The sidebar number is cached per user, so clear it here rather than
         // leaving a count standing for up to a minute after it was cleared.
-        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id, $board);
 
         return back();
     }
@@ -1082,20 +1099,32 @@ class WorkOrderController extends Controller
      */
     public function hvac_dismiss(Request $request, WorkOrder $workOrder)
     {
-        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+        return $this->dismissFromActivityBoard($request, $workOrder, ActivityBoards::HVAC);
+    }
+
+    private function dismissFromActivityBoard(Request $request, WorkOrder $workOrder, string $board)
+    {
+        abort_unless(ActivityBoards::sees($request->user(), $board), 403);
 
         // Store the work order's own updated_at, not the clock: both columns are
         // second-precision, so a click landing in the same second as the change
         // would otherwise be indistinguishable from one landing after it.
-        HvacBoardRead::query()->updateOrCreate(
-            ['user_id' => $request->user()->id, 'work_order_id' => $workOrder->id],
-            ['dismissed_updated_at' => $workOrder->updated_at ?? now()],
+        DB::table(ActivityBoards::get($board)['reads_table'])->upsert(
+            [[
+                'user_id' => $request->user()->id,
+                'work_order_id' => $workOrder->id,
+                'dismissed_updated_at' => $workOrder->updated_at ?? now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]],
+            ['user_id', 'work_order_id'],
+            ['dismissed_updated_at', 'updated_at'],
         );
 
-        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id);
+        app(HvacBoardNewCounter::class)->forgetFor($request->user()->id, $board);
 
         return response()->json([
-            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user(), $board),
         ]);
     }
 
@@ -1109,23 +1138,77 @@ class WorkOrderController extends Controller
      */
     public function hvac_activity(Request $request)
     {
-        abort_unless($this->showsHvacNewActivity($request->user()), 403);
+        return $this->activityBoardFeed($request, ActivityBoards::HVAC);
+    }
+
+    private function activityBoardFeed(Request $request, string $board)
+    {
+        abort_unless(ActivityBoards::sees($request->user(), $board), 403);
 
         return response()->json([
-            'updates' => app(HvacBoardActivityFeed::class)->for($request->user()),
+            'updates' => app(HvacBoardActivityFeed::class)->for($request->user(), $board),
             // The same number the badge shows, so a caller refreshing the list
             // does not need a second request to keep the two in step.
-            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user()),
+            'new_count' => app(HvacBoardNewCounter::class)->cachedCountFor($request->user(), $board),
         ]);
     }
 
     /**
-     * Whether this user gets the "new activity" counters on the HVAC board.
-     * The rule lives on the user so the sidebar badge applies the same one.
+     * The Tenant Easy Fix board: open work orders the automation matched to a
+     * handbook item or a coordinator put in "Checking for Tenant Easy Fix",
+     * grouped by service status like the HVAC board, with the same counters.
      */
-    private function showsHvacNewActivity(?User $user): bool
+    public function easy_fix_work_orders(Request $request)
     {
-        return (bool) $user?->seesHvacBoardActivity();
+        return inertia('WorkOrder/EasyFix', [
+            'title' => 'Tenant Easy Fix Work Orders',
+            'vendor_filter_exclusions' => Vendor::thmpFilterExclusions(),
+            'shows_new_activity' => ActivityBoards::sees($request->user(), ActivityBoards::EASY_FIX),
+            'board_seen_at' => $request->user() ? ActivityBoards::seenAt($request->user(), ActivityBoards::EASY_FIX)?->toJSON() : null,
+            // Whether the automatic easy-fix texts are on, so an empty "texted"
+            // chip on every card reads as "switched off", not as a fault.
+            'easy_fix_texts_enabled' => app(TenantEasyFixService::class)->enabled(),
+            'service_status' => Inertia::defer(fn () => $this->easyFixBoard($request)),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+        ]);
+    }
+
+    public function easy_fix_mark_seen(Request $request)
+    {
+        return $this->markActivityBoardSeen($request, ActivityBoards::EASY_FIX);
+    }
+
+    public function easy_fix_dismiss(Request $request, WorkOrder $workOrder)
+    {
+        return $this->dismissFromActivityBoard($request, $workOrder, ActivityBoards::EASY_FIX);
+    }
+
+    public function easy_fix_activity(Request $request)
+    {
+        return $this->activityBoardFeed($request, ActivityBoards::EASY_FIX);
+    }
+
+    /**
+     * The easy-fix kanban: the HVAC board's shape, plus each card's easy-fix
+     * details (handbook item, texted, check-ins, photo, reply), built in a
+     * fixed number of queries for the whole board.
+     */
+    private function easyFixBoard(Request $request): Collection
+    {
+        $service_status = $this->activityBoard($request, 'tenantEasyFix');
+
+        $cards = $service_status->flatMap(fn ($status) => $status->work_orders);
+        $details = app(EasyFixBoardDetails::class)->for($cards->pluck('id')->unique()->values()->all());
+
+        foreach ($cards as $card) {
+            $card->setAttribute('easy_fix', $details[$card->id] ?? null);
+        }
+
+        return $service_status;
     }
 
     /**
@@ -1135,6 +1218,14 @@ class WorkOrderController extends Controller
      */
     private function hvacBoard(Request $request): Collection
     {
+        return $this->activityBoard($request, 'hvac');
+    }
+
+    /**
+     * One activity board (HVAC, Tenant Easy Fix), named by its WorkOrder scope.
+     */
+    private function activityBoard(Request $request, string $scope): Collection
+    {
         // updated_at rides along so the board can mark what moved since the
         // coordinator last looked. It is added here rather than to
         // BOARD_CARD_COLUMNS because that constant is shared by every board; a
@@ -1143,9 +1234,9 @@ class WorkOrderController extends Controller
         $columns = [...self::BOARD_CARD_COLUMNS, 'updated_at'];
 
         $query = ServiceStatus::with([
-            'work_orders' => function ($query) use ($columns) {
+            'work_orders' => function ($query) use ($columns, $scope) {
                 $this->applyBoardFilters($query->select($columns)->scoped())
-                    ->hvac()
+                    ->{$scope}()
                     ->where('status', 'Open');
             },
             ...$this->boardCardRelations('work_orders.'),
@@ -1174,7 +1265,7 @@ class WorkOrderController extends Controller
                     ->scoped()
                     ->with($this->boardCardRelations())
             )
-                ->hvac()
+                ->{$scope}()
                 ->whereNotNull('total_cost')
                 ->where('total_cost', '>', 0)
                 ->whereNotNull('completed_date')
@@ -1193,7 +1284,7 @@ class WorkOrderController extends Controller
                     ->scoped()
                     ->with($this->boardCardRelations())
             )
-                ->hvac()
+                ->{$scope}()
                 ->where('status', 'Closed')
                 ->whereNotNull('completed_date')
                 ->where('completed_date', '>=', now()->subDays(WorkOrder::COMPLETED_WINDOW_DAYS))

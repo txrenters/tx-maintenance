@@ -106,6 +106,9 @@ class WorkOrderApprovalPreservationTest extends TestCase
     {
         return array_merge([
             'number' => $number,
+            // PropertyWare always answers with its own location, and rejects
+            // the update when the envelope carries any other (WO#40363).
+            'location' => 'DEMO | 123DEMOST.',
             'approved' => true,
             'approvedBy' => ['ID' => (int) self::OWNER_ID],
             'approvedDate' => self::PW_APPROVED_DATE,

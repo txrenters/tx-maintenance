@@ -39,7 +39,10 @@ class JobberJobCreationTest extends TestCase
         ]);
     }
 
-    private function makeWorkOrder(string $buildingName = '6341 Del Monte Dr'): WorkOrder
+    /**
+     * @param  array<string, mixed>  $attributes  Overrides for the work order.
+     */
+    private function makeWorkOrder(string $buildingName = '6341 Del Monte Dr', array $attributes = []): WorkOrder
     {
         $building = Building::query()->create([
             'propertyware_id' => 'PW-BLDG-1',
@@ -55,14 +58,41 @@ class JobberJobCreationTest extends TestCase
             'user_id' => User::factory()->create()->id,
         ]);
 
-        return WorkOrder::factory()->create([
+        return WorkOrder::factory()->create(array_merge([
             'work_order_no' => 43361,
             'building_id' => 'PW-BLDG-1',
             'zone' => '2',
             'category' => 'Plumbing',
             'description' => "Water   dripping\nfrom the roof",
             'tenant_id' => $tenant->id,
+        ], $attributes));
+    }
+
+    /** An earlier work order on a building, carrying the zone the coordinator gave it. */
+    private function makeHistory(string $buildingId, ?string $zone): WorkOrder
+    {
+        return WorkOrder::factory()->create([
+            'building_id' => $buildingId,
+            'zone' => $zone,
         ]);
+    }
+
+    /** The title the jobCreate mutation carried, or null when none was sent. */
+    private function sentTitle(): ?string
+    {
+        $title = null;
+
+        Http::assertSent(function ($request) use (&$title) {
+            $body = (string) $request->body();
+            if (! str_contains($body, 'jobCreate')) {
+                return false;
+            }
+            $title = json_decode($body, true)['variables']['input']['title'] ?? null;
+
+            return true;
+        });
+
+        return $title;
     }
 
     /** Fake both Jobber calls: property search then the jobCreate mutation. */
@@ -265,5 +295,65 @@ class JobberJobCreationTest extends TestCase
         $this->assertSame(1, $oauthCalls);
         $this->assertSame(1, Activity::query()->where('event', 'jobber_reconnect_required')->count());
         $this->assertNull($workOrder->fresh()->jobber_job_gid);
+    }
+
+    public function test_a_zero_zone_borrows_the_zone_the_building_usually_has(): void
+    {
+        $this->fakeJobber();
+        // PropertyWare's Zone field is a number: it reads "0" until the
+        // coordinator fills it in, which is often after THMP is assigned.
+        $workOrder = $this->makeWorkOrder(attributes: ['zone' => '0']);
+        $this->makeHistory('PW-BLDG-1', '2');
+        $this->makeHistory('PW-BLDG-1', '1');
+        $this->makeHistory('PW-BLDG-1', '2');
+        $this->makeHistory('PW-BLDG-1', '969');
+        $this->makeHistory('PW-BLDG-1', '0');
+        $this->makeHistory('PW-BLDG-OTHER', '4');
+
+        CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+
+        $this->assertSame('6341 Del Monte Dr - Zone 2 - Plumbing - #43361', $this->sentTitle());
+    }
+
+    public function test_a_tie_in_the_buildings_history_goes_to_the_newest_work_order(): void
+    {
+        $this->fakeJobber();
+        $workOrder = $this->makeWorkOrder(attributes: ['zone' => '0']);
+        $this->makeHistory('PW-BLDG-1', '1');
+        $this->makeHistory('PW-BLDG-1', '4');
+
+        CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+
+        $this->assertSame('6341 Del Monte Dr - Zone 4 - Plumbing - #43361', $this->sentTitle());
+    }
+
+    public function test_the_work_orders_own_zone_wins_over_the_buildings_history(): void
+    {
+        $this->fakeJobber();
+        $workOrder = $this->makeWorkOrder(attributes: ['zone' => '3']);
+        $this->makeHistory('PW-BLDG-1', '2');
+        $this->makeHistory('PW-BLDG-1', '2');
+
+        CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+
+        $this->assertSame('6341 Del Monte Dr - Zone 3 - Plumbing - #43361', $this->sentTitle());
+    }
+
+    public function test_an_unknown_zone_with_no_history_is_left_out_of_the_title(): void
+    {
+        foreach (['0', '', null, ' 0 ', '77584'] as $zone) {
+            $this->fakeJobber();
+            WorkOrder::query()->delete();
+            Building::query()->delete();
+            $workOrder = $this->makeWorkOrder(attributes: ['zone' => $zone]);
+
+            CreateJobberJobForWorkOrder::dispatchSync($workOrder->id);
+
+            $this->assertSame(
+                '6341 Del Monte Dr - Plumbing - #43361',
+                $this->sentTitle(),
+                'Zone '.var_export($zone, true).' must never reach the title.'
+            );
+        }
     }
 }

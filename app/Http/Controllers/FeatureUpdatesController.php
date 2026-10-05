@@ -21,6 +21,48 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-01',
+            'area' => 'Work Orders',
+            'title' => 'A Tenant Easy Fix board, and HVAC board updates for all staff',
+            'description' => 'Work Orders now has a Tenant Easy Fix board, laid out like the HVAC board. It lists every open work order the automation matched to a handbook item (garbage disposal, tripped breaker and so on) and every work order a coordinator has put in "Checking for Tenant Easy Fix", grouped by service status. Each card shows the handbook item (click it for the how-to video), whether it was matched automatically or set by a coordinator, whether the tenant was texted the how-to, how many of the three check-ins have gone out, and whether the tenant sent a photo or replied. The top of the board says whether the automatic easy-fix texts are switched on. Like the HVAC board it marks what moved since you last looked: a number beside it in the sidebar, "new" on the cards and columns, a bell listing what changed, and Mark all seen. Those HVAC counters, which only two logins had before, are now shown to every staff login too, starting from today so nobody opens either board to a wall of old changes.',
+        ],
+        [
+            'date' => '2026-10-01',
+            'area' => 'Automated Messages',
+            'title' => 'The second HOA reminder to tenants is worded more formally',
+            'description' => 'The automatic HOA follow-up a tenant gets on the second day used to say "If it works for you, go ahead and handle it, then snap a photo", which came across as too casual. It now uses the maintenance team\'s own wording: a friendly follow-up asking the tenant, at their convenience, to take care of the item and submit a photo through the link for verification, and noting that once the photo arrives we can update our records and close the request. It still greets the tenant by name, names the HOA item and ends with the work order number. The other HOA reminders, including the vendor heads-up on days four and five, are unchanged.',
+        ],
+        [
+            'date' => '2026-09-30',
+            'area' => 'Work Orders',
+            'title' => 'The owner\'s phone number is picked up from their PropertyWare contact',
+            'description' => 'On the Owner tab of a work order, some owners showed with no phone number (for example "Luis Cuevas -" on #43819), so staff had to type the number in by hand and the automatic owner texts never reached them. PropertyWare had the number, but on the owner\'s contact record rather than on the owner record the sync reads. The sync now also checks the owner\'s mobile, home and work numbers and, when those are all blank, takes the number from their PropertyWare contact (mobile first, then home, work, other). A number found once is kept even if a later sync comes back blank. An owner with no number anywhere now shows "no phone on file" in the To list. Owners whose number is filled in this way are not texted about anything that already happened; they only hear from us about new events on their work orders.',
+        ],
+        [
+            'date' => '2026-09-29',
+            'area' => 'Work Orders',
+            'title' => 'Assigning a vendor no longer fails silently on older work orders',
+            'description' => 'On some work orders the vendor you assigned never reached PropertyWare. PropertyWare checks every update against its own property line for the work order, the one that reads like "PORTFOLIO | BUILDING", and refuses the whole update when what we send does not match it letter for letter. One of the two ways we read work orders from PropertyWare hands that line back with the divider missing, and work orders last read that way were sending the version PropertyWare will not take, so the save was rejected and the vendor stayed unassigned here. Every update now carries the exact line PropertyWare itself gave us a moment earlier, and stores it, so the work order is repaired the first time anyone saves it. If PropertyWare cannot be read at all, nothing is sent and you get an error asking you to try again, instead of the change quietly disappearing.',
+        ],
+        [
+            'date' => '2026-09-29',
+            'area' => 'Jobber',
+            'title' => 'Jobber jobs are no longer created as "Zone 0"',
+            'description' => 'When THMP is assigned, the Jobber job the system creates is titled with the property, the zone, the category and the work order number. PropertyWare\'s Zone field reads 0 until the coordinator fills it in, and THMP is usually assigned before that step, so many jobs — and the visits built from them on the Visits page — were titled "Zone 0". There is no zone 0. From now on a work order whose zone is still blank in PropertyWare takes the zone the same property\'s earlier work orders carry (the most common one), and only when the property has no zoned history at all does the title leave the zone out, so a title never reads "Zone 0" again. Jobs created before today keep the title they have in Jobber.',
+        ],
+        [
+            'date' => '2026-09-29',
+            'area' => 'Automated Messages',
+            'title' => 'TBP visit reminders now reach tenants whose property name is missing the street suffix',
+            'description' => 'The automatic 14, 7, 3-day and day-before Tenant Benefit Package visit reminders found the tenant by comparing the Jobber client name with the PropertyWare building name letter for letter. Jobber says "418 Drennan St" and PropertyWare says "418 Drennan", so the reminders decided it was a different house and sent nothing - the same for roughly four in ten TBP properties, which is why some tenants only heard from us when staff texted by hand. The reminders now match the way the Send notification button already does: same street number and same street name, with or without the "St", "Ln", "Dr" at the end. A tenant who has given notice or gone month-to-month is still living there and is reminded too; draft and eviction leases are not. If a Jobber client ever lines up with two different PropertyWare buildings, the run writes a warning to the log naming both so the names can be corrected. Nothing changes for properties that already matched.',
+        ],
+        [
+            'date' => '2026-09-28',
+            'area' => 'Work Orders',
+            'title' => 'Setting a service schedule now asks whether to text the tenant',
+            'description' => 'When you press Create Schedule (or Update Schedule with a new date) on the work order\'s Service Schedule tab, a question comes up first: text the tenant about this appointment now? Yes saves the schedule and sends the tenant the usual appointment text - the THMP Technician Visit Reminder with the ticked technicians\' names and photos, or the standard appointment message. No saves the schedule without texting anyone. Each schedule card now says whether the tenant has been texted, and until they have, the card\'s three-dot menu has "Send tenant text" to send that same message when you are ready. The question is only asked of admins and work order coordinators; a vendor setting a schedule still texts the tenant automatically as before. Three fixes came with it: editing a schedule now opens on the schedule\'s own dates instead of today\'s, changing only the title or description no longer texts the tenant again, and the page no longer stops responding to clicks after a schedule is edited from its three-dot menu.',
+        ],
+        [
             'date' => '2026-09-24',
             'area' => 'Invoices',
             'title' => 'An invoice uploaded on the wrong work order can be moved to the right one',

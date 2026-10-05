@@ -25,7 +25,9 @@ class WorkOrderFactory extends Factory
             ])->id,
             'work_order_no' => fake()->unique()->numberBetween(1000, 9999),
             'description' => fake()->sentence(),
-            'location' => fake()->streetAddress(),
+            // PropertyWare's own shape, "PORTFOLIO | BUILDING", which its SOAP
+            // validates every update against.
+            'location' => strtoupper(fake()->lastName()).' | '.strtoupper(str_replace(' ', '', fake()->streetAddress())),
             'status' => 'Open',
             'type' => 'Repair',
             'category' => 'Maintenance',

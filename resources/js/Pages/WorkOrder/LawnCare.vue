@@ -109,9 +109,19 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    // Which activity board the counters belong to ("hvac" or "easy_fix"): picks
+    // the seen/activity/dismiss routes, the sidebar count and the modal's tab
+    // dots. Only read when newActivity is on.
+    activityBoard: {
+        type: String,
+        default: "hvac",
+    },
 });
 
 const page = usePage();
+
+const activityRoute = (action, ...args) =>
+    route(`work_orders.${props.activityBoard}.${action}`, ...args);
 
 const url = ref(route(props.listRouteName));
 const search = ref(props.filter.search ?? "");
@@ -234,7 +244,7 @@ const loadActivity = async () => {
     const seq = dismissSeq.value;
 
     try {
-        const { data } = await axios.get(route("work_orders.hvac.activity"));
+        const { data } = await axios.get(activityRoute("activity"));
 
         // A dismissal landed while this was in flight; its answer is stale.
         if (seq !== dismissSeq.value) return;
@@ -285,7 +295,7 @@ const openUpdate = async (update) => {
 
     try {
         const { data } = await axios.post(
-            route("work_orders.hvac.dismiss", update.id),
+            activityRoute("dismiss", update.id),
         );
 
         if (typeof data.new_count === "number") {
@@ -294,7 +304,7 @@ const openUpdate = async (update) => {
 
             // The sidebar number is a shared Inertia prop, so it would otherwise
             // sit stale until the next navigation and disagree with the board.
-            if (page.props) page.props.hvac_board_new_count = data.new_count;
+            if (page.props) page.props[`${props.activityBoard}_board_new_count`] = data.new_count;
         }
     } catch {
         // The dismissal did not stick. Put the optimistic decrement back so the
@@ -313,7 +323,7 @@ const markBoardSeen = () => {
     markingSeen.value = true;
 
     router.post(
-        route("work_orders.hvac.seen"),
+        activityRoute("seen"),
         {},
         {
             preserveScroll: true,
@@ -339,7 +349,7 @@ watch(
         const seq = dismissSeq.value;
 
         try {
-            const { data } = await axios.get(route("work_orders.hvac.activity"));
+            const { data } = await axios.get(activityRoute("activity"));
 
             // A dismissal happened while this was in flight, so its answer
             // predates that click and would put the row back.
@@ -965,7 +975,7 @@ const handleWorkOrder = async (orderId, openOnTab = null) => {
         const order = response.data; // Assuming the API returns the work order details
 
         unseenAttachments.value = order.unseen_attachments_count ?? 0;
-        hvacTabCounts.value = order.hvac_tab_counts ?? {};
+        hvacTabCounts.value = order[`${props.activityBoard}_tab_counts`] ?? {};
 
         workOrderForm.id = order.id;
         workOrderForm.work_order_no = order.work_order_no;

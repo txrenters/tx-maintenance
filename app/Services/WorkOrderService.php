@@ -626,6 +626,8 @@ class WorkOrderService
             DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
             $work_order_owner_data = [];
 
+            $ownerPhoneResolver = app(OwnerPhoneResolver::class);
+
             foreach ($data['portfolio']['owners'] as $owner) {
                 $ownerEmail = $owner['email'] ?? $owner['ID'].'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
@@ -656,7 +658,7 @@ class WorkOrderService
                     'first_name' => $owner['firstName'] ?? null,
                     'last_name' => $owner['lastName'] ?? null,
                     'email' => $ownerEmail,
-                    'phone' => $owner['phone'] ?? null,
+                    'phone' => $ownerPhoneResolver->resolve($owner),
                     'home_phone' => $owner['homePhone'] ?? null,
                     'work_telephone' => $owner['workTelePhone'] ?? null,
                     'address' => $owner['address'] ?? null,

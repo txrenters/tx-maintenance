@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\ActivityBoards;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -65,6 +66,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'hvac_board_seen_at' => 'datetime',
+            'easy_fix_board_seen_at' => 'datetime',
         ];
     }
 
@@ -86,21 +88,19 @@ class User extends Authenticatable
 
     /**
      * Whether this user gets the "new activity" counters on the HVAC board and
-     * the matching number beside HVAC in the sidebar.
-     *
-     * An allow-list rather than a role check on purpose: several users hold the
-     * woc role, and only the coordinator who actually works this board (plus
-     * IT) should see the counters. Everyone else gets the board exactly as it
-     * was before the feature existed.
+     * the matching number beside HVAC in the sidebar: every staff login.
      */
     public function seesHvacBoardActivity(): bool
     {
-        $allowed = collect(explode(',', (string) config('services.hvac_board.badge_emails')))
-            ->map(fn (string $email): string => mb_strtolower(trim($email)))
-            ->filter()
-            ->all();
+        return ActivityBoards::sees($this, ActivityBoards::HVAC);
+    }
 
-        return in_array(mb_strtolower(trim((string) $this->email)), $allowed, true);
+    /**
+     * The same for the Tenant Easy Fix board.
+     */
+    public function seesEasyFixBoardActivity(): bool
+    {
+        return ActivityBoards::sees($this, ActivityBoards::EASY_FIX);
     }
 
     public function vendor(): HasOne

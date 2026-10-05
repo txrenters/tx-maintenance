@@ -6,6 +6,7 @@ use App\Models\Owner;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderDocuments;
+use App\Services\OwnerPhoneResolver;
 use App\Services\TaskService;
 use App\Services\WorkOrderNoteSyncService;
 use Carbon\Carbon;
@@ -304,7 +305,7 @@ class ImportWorkOrderJob implements ShouldQueue
             // date already on the row (or the closed board loses the card).
             $existingWorkOrder = DB::table('work_orders')
                 ->where('propertyware_id', $work_order_propertyware_id)
-                ->first(['status', 'completed_date', 'created_date', 'source']);
+                ->first(['status', 'completed_date', 'created_date', 'source', 'location']);
 
             $work_order_data['completed_date'] = WorkOrder::resolveImportCompletedDate(
                 $work_order_data['completed_date'],
@@ -312,6 +313,15 @@ class ImportWorkOrderJob implements ShouldQueue
                 $existingWorkOrder?->status,
                 $existingWorkOrder?->completed_date,
                 $work_order_data['created_date'] ?? $existingWorkOrder?->created_date,
+            );
+
+            // PropertyWare's REST copy collapses the location's pipe to a
+            // space, and its SOAP rejects that shape outright, so a stored
+            // location in PropertyWare's own format is never replaced by one
+            // without it (WO#40363).
+            $work_order_data['location'] = WorkOrder::importedLocation(
+                $work_order_data['location'] ?? null,
+                $existingWorkOrder?->location,
             );
 
             // The app stamps "Tenant Portal" on the work orders it creates for
@@ -602,6 +612,8 @@ class ImportWorkOrderJob implements ShouldQueue
             DB::table('work_order_owners')->where('work_order_id', $work_order)->delete();
             $work_order_owner_data = [];
 
+            $ownerPhoneResolver = app(OwnerPhoneResolver::class);
+
             foreach ($data['portfolio']['owners'] as $owner) {
                 $ownerEmail = $owner['email'] ?? $owner['ID'].'@texasrenter.com';
                 $address = trim(implode(' ', array_filter([
@@ -633,7 +645,7 @@ class ImportWorkOrderJob implements ShouldQueue
                     'first_name' => $owner['firstName'] ?? null,
                     'last_name' => $owner['lastName'] ?? null,
                     'email' => $ownerEmail,
-                    'phone' => $owner['phone'] ?? null,
+                    'phone' => $ownerPhoneResolver->resolve($owner),
                     'home_phone' => $owner['homePhone'] ?? null,
                     'work_telephone' => $owner['workTelePhone'] ?? null,
                     'address' => $owner['address'] ?? null,

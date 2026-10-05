@@ -13,6 +13,7 @@ use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -503,6 +504,54 @@ class PropertyWareService
         }
 
         return null;
+    }
+
+    /**
+     * The first phone number on a PropertyWare contact (REST: GET /contacts/{id}),
+     * mobile first. A portfolio owner's own phone fields are often blank while
+     * the contact carries the number. A successful answer is cached for a day,
+     * blank ones too, so the five-minute syncs do not ask again for an owner who
+     * has none; a failed call is not cached and is retried on the next sync.
+     */
+    public function getContactPhone(int|string $contactId): ?string
+    {
+        $cacheKey = 'pw-contact-phone:'.$contactId;
+
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey) ?: null;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->get('https://api.propertyware.com/pw/api/rest/v1/contacts/'.$contactId);
+        } catch (Throwable $e) {
+            Log::warning('PropertyWare getContactPhone failed: '.$e->getMessage(), ['contact_id' => $contactId]);
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            Log::warning('Error retrieving contact from PropertyWare', [
+                'contact_id' => $contactId,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        $phone = '';
+
+        foreach (['mobilePhone', 'homePhone', 'workPhone', 'otherPhone'] as $field) {
+            if (filled($response->json($field))) {
+                $phone = trim((string) $response->json($field));
+
+                break;
+            }
+        }
+
+        Cache::put($cacheKey, $phone, now()->addDay());
+
+        return $phone ?: null;
     }
 
     public function getVendorsByName($vendorName)
@@ -1094,10 +1143,7 @@ class PropertyWareService
         // and the local copy may be stale, so read the current values first.
         $approval = $this->approvalSnapshot($workOrder);
 
-        // Build SOAP payload without location field to avoid validation errors
-        // PropertyWare's REST API returns truncated locations (27 chars) but SOAP validates against full location
-
-        $location = $this->xmlText($workOrder->location);
+        $location = $this->xmlText($this->locationForPush($workOrder));
 
         $xmlPayload = '
                 <soapenv:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -1248,7 +1294,113 @@ class PropertyWareService
      *
      * @return array<string, mixed>|null
      */
+    /**
+     * PropertyWare's own SOAP rows, by work order number, for this instance.
+     *
+     * @var array<string, array<string, mixed>|null>
+     */
+    private array $soapWorkOrderRows = [];
+
+    /**
+     * The location a full-replace updateWorkOrder envelope must carry.
+     *
+     * PropertyWare validates this string against its own "PORTFOLIO | BUILDING"
+     * and rejects the entire call with "Location is invalid" when it differs —
+     * taking the vendor assignment down with it (WO#40363). Its REST work
+     * order hands the same location back with the pipe collapsed to a space
+     * ("BLACKBIRDLLC 7811BLACKBIR"), and the REST importers stored that, so
+     * every work order they last touched pushed a location PropertyWare would
+     * not take. Checked live on the demo work order 2026-09-29: PropertyWare
+     * refuses the mangled string AND an envelope with no location at all, and
+     * accepts only its own — so the only safe value is the one it just gave us.
+     *
+     * @throws Exception when nothing PropertyWare would accept is known, so the
+     *                   caller fails loudly instead of losing the change.
+     */
+    private function locationForPush($workOrder): string
+    {
+        $fromPropertyWare = $this->soapWorkOrderRow($workOrder->work_order_no)['location'] ?? null;
+
+        if (filled($fromPropertyWare)) {
+            $this->rememberLocation($workOrder, (string) $fromPropertyWare);
+
+            return (string) $fromPropertyWare;
+        }
+
+        // PropertyWare could not be read (or holds no location): a stored value
+        // in its own format is the next best thing, and the SOAP import writes
+        // exactly that shape.
+        if (self::looksLikePropertyWareLocation($workOrder->location)) {
+            return (string) $workOrder->location;
+        }
+
+        Log::error('No PropertyWare-valid location for the work order; the update was not sent (PropertyWare would reject it as "Location is invalid").', [
+            'work_order_no' => $workOrder->work_order_no ?? null,
+            'propertyware_id' => $workOrder->propertyware_id ?? null,
+            'stored_location' => $workOrder->location ?? null,
+        ]);
+
+        throw new Exception('PropertyWare did not give a location for work order '.($workOrder->work_order_no ?? '?').', and the stored one is not in its format; nothing was changed there. Please try again.');
+    }
+
+    /**
+     * "PORTFOLIO | BUILDING", the only shape PropertyWare's SOAP accepts. The
+     * REST API gives the same string with the pipe collapsed to a space, which
+     * is what this rejects.
+     */
+    public static function looksLikePropertyWareLocation(mixed $location): bool
+    {
+        $location = trim((string) $location);
+
+        if (! str_contains($location, '|')) {
+            return false;
+        }
+
+        [$portfolio, $building] = array_pad(explode('|', $location, 2), 2, '');
+
+        return trim($portfolio) !== '' && trim($building) !== '';
+    }
+
+    /** Keep PropertyWare's own location locally so the rest of the app stops carrying the mangled one. */
+    private function rememberLocation($workOrder, string $location): void
+    {
+        if ((string) $workOrder->location === $location) {
+            return;
+        }
+
+        try {
+            $workOrder->forceFill(['location' => $location])->save();
+
+            Log::info('Stored the location PropertyWare holds for the work order.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'location' => $location,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('Could not store the location read from PropertyWare; the push still uses it.', [
+                'work_order_no' => $workOrder->work_order_no ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function soapWorkOrderRow(int|string $workOrderNo): ?array
+    {
+        // The vendor push reads this row twice — once for the approval, once
+        // for the location — within a single save. Remember it so that costs
+        // one call, and keep the memo per instance so a later save re-reads.
+        if (array_key_exists((string) $workOrderNo, $this->soapWorkOrderRows)) {
+            return $this->soapWorkOrderRows[(string) $workOrderNo];
+        }
+
+        $this->soapWorkOrderRows[(string) $workOrderNo] = $this->readSoapWorkOrderRow($workOrderNo);
+
+        return $this->soapWorkOrderRows[(string) $workOrderNo];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function readSoapWorkOrderRow(int|string $workOrderNo): ?array
     {
         $result = $this->getWorkOrderByNumber($workOrderNo);
 
@@ -1779,34 +1931,13 @@ class PropertyWareService
 
             $workorderId = $workOrder->propertyware_id;
 
-            // Fetch current location from PropertyWare to ensure accuracy
-            $pwWorkOrder = $this->getWorkOrder($workorderId);
-
             // The full-replace envelope below must echo PropertyWare's
             // approval section back exactly (WO#44014, WO#43819).
             $approval = $this->approvalSnapshot($workOrder);
 
-            if ($pwWorkOrder && isset($pwWorkOrder['location']) && ! empty($pwWorkOrder['location'])) {
-                $location = $pwWorkOrder['location'];
-
-                // Update local database if different
-                if ($workOrder->location !== $location) {
-                    $workOrder->location = $location;
-                    $workOrder->save();
-
-                    Log::info('Synchronized work order location from PropertyWare', [
-                        'work_order_no' => $workOrder->work_order_no,
-                        'location' => $location,
-                    ]);
-                }
-            } elseif (! $workOrder->location || trim($workOrder->location) === '') {
-                Log::warning('Work order location is empty, skipping PropertyWare sync', [
-                    'work_order_no' => $workOrder->work_order_no,
-                    'work_order_id' => $workOrder->id,
-                ]);
-
-                return false;
-            }
+            // ...and carry PropertyWare's own location, never the REST copy,
+            // which it rejects as "Location is invalid".
+            $pushLocation = $this->locationForPush($workOrder);
 
             foreach ($workOrder->vendors as $vendor) {
                 $cost_etimate += $vendor->pivot->cost_estimate;
@@ -1821,7 +1952,7 @@ class PropertyWareService
                 }
             }
 
-            $location = $this->xmlText($workOrder->location);
+            $location = $this->xmlText($pushLocation);
             $category = $this->xmlText($workOrder->category);
             $description = $this->xmlText($workOrder->description);
             $type = $this->xmlText($workOrder->type);

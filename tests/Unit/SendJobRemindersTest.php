@@ -26,6 +26,27 @@ class SendJobRemindersTest extends TestCase
         $this->assertTrue($command->matches('789 Elm Rd.', '789 Elm Road'));
     }
 
+    public function test_it_matches_when_either_side_leaves_the_street_suffix_off(): void
+    {
+        $command = new class extends SendJobReminders
+        {
+            public function matches(string $jobberClientName, string $propertywareClientReference): bool
+            {
+                return $this->buildingReferenceMatches($jobberClientName, $propertywareClientReference);
+            }
+        };
+
+        // Real pairs from the report: Jobber carries the suffix, PropertyWare does not.
+        $this->assertTrue($command->matches('418 Drennan St', '418 Drennan'));
+        $this->assertTrue($command->matches('17710 Winnower Ln', '17710 Winnower'));
+        $this->assertTrue($command->matches('11203 Doric Ct', '11203 Doric'));
+        $this->assertTrue($command->matches('5703 S Braeswood Blvd', '5703 S Braeswood'));
+        // And the other way round.
+        $this->assertTrue($command->matches('17710 Winnower', '17710 Winnower Ln'));
+        // Spelling drift on the street type.
+        $this->assertTrue($command->matches('6510 Gardners Brk', '6510 Gardners Brook'));
+    }
+
     public function test_it_does_not_match_different_building_references(): void
     {
         $command = new class extends SendJobReminders
@@ -36,8 +57,16 @@ class SendJobRemindersTest extends TestCase
             }
         };
 
-        $this->assertFalse($command->matches('123 Main Drive', '123 Main Street'));
+        // A different street number is never the same house, nor is a
+        // different street name behind the same number.
         $this->assertFalse($command->matches('456 Sunset Lane', '789 Sunset Lane'));
+        $this->assertFalse($command->matches('17710 Winnower Ln', '17711 Winnower'));
+        $this->assertFalse($command->matches('3222 Hunterwood Dr', '3222 Cedar Knolls Dr'));
+        $this->assertFalse($command->matches('1122 Cascade Creek', '1122 Kinsey Wilderness'));
+        $this->assertFalse($command->matches('1515 Stoney Park', '1515 A'));
+        $this->assertFalse($command->matches('', '17307 Nordway'));
+        $this->assertFalse($command->matches('17307 Nordway Dr', ''));
+        $this->assertFalse($command->matches('No Number Here', 'No Number There'));
     }
 
     public function test_it_does_not_double_the_country_code_on_reminder_numbers(): void
