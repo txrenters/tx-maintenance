@@ -315,4 +315,45 @@ class JobberNotePhotoTest extends TestCase
 
         $this->assertNotNull(Attachments::withoutGlobalScopes()->value('filetype'));
     }
+
+    /**
+     * Jobber reports the size, so a file over the limit is never fetched:
+     * re-downloading a 100MB+ video on every sync is what took the worker
+     * past its memory limit.
+     */
+    public function test_a_file_jobber_reports_as_oversized_is_not_downloaded(): void
+    {
+        $workOrder = $this->linkedWorkOrder();
+
+        Http::fake([
+            self::PHOTO_URL => Http::response('binary-image', 200, ['Content-Type' => 'image/jpeg']),
+            self::GRAPHQL => Http::response($this->notesPageWithFile($this->fileNode(['fileSize' => 111_665_890]))),
+        ]);
+
+        $this->sync()->syncWorkOrder($workOrder);
+
+        Http::assertNotSent(fn ($request) => str_starts_with($request->url(), 'https://jobber-files.test/'));
+        $this->assertSame(0, Attachments::withoutGlobalScopes()->count());
+        $this->assertSame(1, WorkOrderJobberNote::query()->count());
+    }
+
+    /**
+     * When the reported size is wrong, the download itself stops at the limit
+     * instead of reading the whole body into memory, and the note still syncs.
+     */
+    public function test_a_body_larger_than_reported_is_refused(): void
+    {
+        $workOrder = $this->linkedWorkOrder();
+
+        Http::fake([
+            self::PHOTO_URL => Http::response(str_repeat('x', 21 * 1024 * 1024), 200, ['Content-Type' => 'image/jpeg']),
+            self::GRAPHQL => Http::response($this->notesPageWithFile($this->fileNode(['fileSize' => 12]))),
+        ]);
+
+        $this->sync()->syncWorkOrder($workOrder);
+
+        $this->assertSame(0, Attachments::withoutGlobalScopes()->count());
+        $this->assertSame(1, WorkOrderJobberNote::query()->count());
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
 }

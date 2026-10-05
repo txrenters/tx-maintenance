@@ -88,6 +88,22 @@ class JobberNotePhotoDownloader
         }
 
         $fileName = (string) ($file['fileName'] ?? '');
+
+        // Jobber reports the size up front, so an oversized file is refused
+        // without fetching it. Checked before every download because each sync
+        // retries what was not stored: a 100MB+ video on a note was re-fetched
+        // into memory on every run and took the worker past its memory limit.
+        $fileSize = $file['fileSize'] ?? null;
+
+        if (is_numeric($fileSize) && (int) $fileSize > self::MAX_BYTES) {
+            Log::info('Jobber note photo skipped: larger than the attachment limit', [
+                'work_order_jobber_note_id' => $note->id,
+                'file_gid' => $gid,
+                'bytes' => (int) $fileSize,
+            ]);
+
+            return null;
+        }
         $stored = $this->download($url, $fileName, $note->id);
 
         if ($stored === null) {
@@ -173,11 +189,17 @@ class JobberNotePhotoDownloader
 
     /**
      * Fetch the bytes and put them on the public disk, or null on any refusal.
+     *
+     * Streamed to a temporary file and cut off past MAX_BYTES, never read into
+     * memory whole: Jobber's fileSize can be missing or wrong, and one oversized
+     * body read with ->body() is enough to exhaust the worker's memory limit.
      */
     private function download(string $url, string $fileName, int $noteId): ?string
     {
+        $buffer = null;
+
         try {
-            $response = Http::timeout(30)->get($url);
+            $response = Http::timeout(30)->withOptions(['stream' => true])->get($url);
 
             if ($response->failed()) {
                 Log::warning('Jobber note photo download failed', [
@@ -188,20 +210,36 @@ class JobberNotePhotoDownloader
                 return null;
             }
 
-            $body = $response->body();
+            $declared = $response->header('Content-Length');
 
-            if ($body === '' || strlen($body) > self::MAX_BYTES) {
-                Log::warning('Jobber note photo was empty or too large', [
-                    'work_order_jobber_note_id' => $noteId,
-                    'bytes' => strlen($body),
-                ]);
-
-                return null;
+            if (is_numeric($declared) && (int) $declared > self::MAX_BYTES) {
+                return $this->refuseSize($noteId, (int) $declared);
             }
+
+            $body = $response->toPsrResponse()->getBody();
+            $buffer = fopen('php://temp', 'w+b');
+            $bytes = 0;
+
+            while (! $body->eof()) {
+                $chunk = $body->read(1024 * 1024);
+                $bytes += strlen($chunk);
+
+                if ($bytes > self::MAX_BYTES) {
+                    return $this->refuseSize($noteId, $bytes);
+                }
+
+                fwrite($buffer, $chunk);
+            }
+
+            if ($bytes === 0) {
+                return $this->refuseSize($noteId, 0);
+            }
+
+            rewind($buffer);
 
             $path = self::DIRECTORY.'/'.Str::uuid()->toString().$this->extension($fileName, $response->header('Content-Type'));
 
-            Storage::disk('public')->put($path, $body);
+            Storage::disk('public')->put($path, $buffer);
 
             return $path;
         } catch (\Throwable $e) {
@@ -211,7 +249,24 @@ class JobberNotePhotoDownloader
             ]);
 
             return null;
+        } finally {
+            if (is_resource($buffer)) {
+                fclose($buffer);
+            }
         }
+    }
+
+    /**
+     * Log a body that was empty or over the limit, and refuse it.
+     */
+    private function refuseSize(int $noteId, int $bytes): null
+    {
+        Log::warning('Jobber note photo was empty or too large', [
+            'work_order_jobber_note_id' => $noteId,
+            'bytes' => $bytes,
+        ]);
+
+        return null;
     }
 
     /**
