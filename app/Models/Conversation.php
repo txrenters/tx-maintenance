@@ -19,6 +19,15 @@ class Conversation extends Model
     protected $guarded = [];
 
     /**
+     * The thread types a message may be filed under. Rows predating this list
+     * are still read and displayed — see InboxController's party filters — but
+     * nothing new is written outside it.
+     *
+     * @var list<string>
+     */
+    public const PARTY_TYPES = ['tenant', 'owner', 'vendor', 'vendor_tenant', 'vendor_owner'];
+
+    /**
      * Any new or removed message can change which threads are awaiting a reply,
      * so drop the count behind the Messages badge. Hooking the model rather than
      * each caller covers the send endpoint, the inbound webhook and the importer

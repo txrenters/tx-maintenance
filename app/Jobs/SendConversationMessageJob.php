@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Conversation;
+use App\Services\ChatbotHub;
 use App\Services\TwilioService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,9 +36,22 @@ class SendConversationMessageJob implements ShouldQueue
 
     public function handle(): void
     {
-        $twilio = new TwilioService;
-
         try {
+            $conversation = $this->conversationId
+                ? Conversation::withoutGlobalScopes()->findOrFail($this->conversationId)
+                : null;
+
+            if ($conversation?->chatbot_thread_id && ! config('services.chatbot.enabled')) {
+                throw new \RuntimeException('Chatbot delivery is paused; this linked message cannot fall back to another number.');
+            }
+
+            if ($conversation && app(ChatbotHub::class)->handles($conversation)) {
+                app(ChatbotHub::class)->send($conversation, $this->message, $this->mediaUrl);
+
+                return;
+            }
+
+            $twilio = app(TwilioService::class);
             $twilioMessage = $twilio->sendMessage($this->to, $this->from, $this->message, $this->mediaUrl);
 
             if ($this->conversationId) {

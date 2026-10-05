@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TX Work Order is a Laravel-based work order management system designed for property management companies. It handles work orders, vendor management, tenant communications, and integrates with external services like Twilio (SMS), Asana (task management), and PropertyWare.
+TX Work Order is a Laravel-based work order management system designed for property management companies. It handles work orders, vendor management, tenant communications, and integrates with external services like Twilio (SMS), Jobber, and PropertyWare.
 
 ## Tech Stack
 
@@ -55,7 +55,7 @@ php artisan db:seed
 ### Directory Structure
 - `app/Http/Controllers/` - HTTP controllers organized by feature area
 - `app/Models/` - Eloquent models with relationships defined
-- `app/Services/` - Business logic services (Asana, Twilio, PropertyWare integrations)
+- `app/Services/` - Business logic services (Twilio, PropertyWare, Jobber integrations)
 - `resources/js/Pages/` - Vue.js page components for Inertia.js
 - `resources/js/Components/` - Reusable Vue components
 - `resources/js/Components/ui/` - UI components based on Radix Vue
@@ -66,12 +66,11 @@ php artisan db:seed
 - **WorkOrder** - Central entity, belongs to Building, has many Tasks
 - **Building** - Has many Units, WorkOrders, belongs to Owner
 - **User** - Can be Owner, Tenant, or Vendor (role-based)
-- **Task** - Belongs to WorkOrder, can sync with Asana
+- **Task** - Belongs to WorkOrder
 - **Vendor** - Handles work order assignments
 
 ### External Service Integrations
 - **Twilio** (`app/Services/TwilioService.php`) - SMS notifications
-- **Asana** (`app/Services/AsanaService.php`) - Task synchronization
 - **PropertyWare** (`app/Services/PropertyWareService.php`) - Property management sync
 
 ### Frontend Architecture

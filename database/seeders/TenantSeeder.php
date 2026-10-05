@@ -21,7 +21,7 @@ class TenantSeeder extends Seeder
         DB::connection()->unsetEventDispatcher();
         User::flushEventListeners();
         // Read CSV file
-        $csvFile = public_path('tenants.csv');
+        $csvFile = database_path('seeders/data/tenants.csv');
 
         if (! File::exists($csvFile)) {
             Log::error('CSV file not found: '.$csvFile);

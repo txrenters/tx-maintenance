@@ -79,7 +79,7 @@ class UpdateBuildingCustomFieldsRequest extends FormRequest
 
             // Sprinkler / Irrigation System - the answer is a "Yard Features" picklist option,
             // and Propertyware rejects the whole submission when it is not one of them
-            'formData.sprinklerSystem' => 'required|string|in:Sprinkler System,Lawn Irrigation,Not Applicable',
+            'formData.sprinklerSystem' => 'required|string|in:Lawn Irrigation,Not Applicable',
 
             // Utilities handled by the HOA (the list is stored as text in the "Utilities Handled by HOA" custom field)
             'formData.utilitiesHandledByHoa' => 'required|boolean',

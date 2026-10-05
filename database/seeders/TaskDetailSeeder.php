@@ -14,7 +14,7 @@ class TaskDetailSeeder extends Seeder
      */
     public function run(): void
     {
-        $json = File::get(public_path('task_details.json'));
+        $json = File::get(database_path('seeders/data/task_details.json'));
 
         $data = json_decode($json, true);
 

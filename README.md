@@ -105,7 +105,6 @@ Beyond the standard Laravel keys (`APP_*`, `DB_*`, `MAIL_*`, `SESSION_*`, `CACHE
 | **Twilio** | `TWILIO_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_STATUS_CALLBACK_URL`, `MAINTENANC_TWILIO_PHONE_NUMBER` |
 | **PropertyWare** | `PROPERTYWARE_URL` (SOAP WSDL base), `PROPERTYWARE_USERNAME`, `PROPERTYWARE_PASSWORD`, `PROPERTYWARE_CLIENT_ID`, `PROPERTYWARE_CLIENT_SECRET_KEY`, `PROPERTYWARE_SYSTEM_ID` |
 | **Jobber** | `JOBBER_CLIENT_ID`, `JOBBER_SECRET` (also the webhook HMAC key), `JOBBER_CALLBACK_URL`, `JOBBER_API_VERSION` |
-| **Asana** | `ASANA_ACCESS_TOKEN`, `ASANA_PROJECT_ID_L_ON_THE_MARKET`, `ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET` (others present but largely unused) |
 | **AWS S3 / SES** | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `FILESYSTEM_DISK` (set to `s3` to make S3 the default disk) |
 | **Reverb (WebSockets)** | `BROADCAST_CONNECTION=reverb`, `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`, plus `VITE_REVERB_*` (exposed to the frontend) |
 | **AI** | `AI_DEFAULT_PROVIDER` (auto-selects Azure if `AZURE_OPENAI_*` set, else OpenAI), `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-5.1-mini`), or `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_URL` + `AZURE_OPENAI_DEPLOYMENT` |
@@ -335,10 +334,6 @@ Data via GraphQL (`POST https://api.getjobber.com/api/graphql`, `X-JOBBER-GRAPHQ
 
 **`WorkOrderRecommendationService`** classifies a work order's issue and recommends a vendor (owner-preferred → building history → cross-site history → category → fallback). **Degrades gracefully**: if the AI provider isn't configured, it uses a deterministic keyword/heuristic engine. AI agents live in `app/Ai/Agents/`. Provider auto-selects Azure (if `AZURE_OPENAI_*` set) else OpenAI.
 
-### Asana (limited)
-
-A single console command `asana:set-dues` (`UpdateTaskDueDate`) sets due dates on subtasks in specific "lease on the market" Asana projects. No Asana webhook/route exists.
-
 ### AWS S3 & Reverb
 
 - **S3** is fully configured but the **default disk is `local`**; Twilio media goes to `local`, Jobber images to `public`. Set `FILESYSTEM_DISK=s3` to switch.
@@ -363,7 +358,7 @@ A single console command `asana:set-dues` (`UpdateTaskDueDate`) sets due dates o
 
 ### Console commands (`app/Console/Commands/`)
 
-`import:work-orders`, `import:all-work-orders`, `update:work-orders-status`, `import:all-vendors`, `import:buildings-from-work-orders`, `sync:building-details`, `sync:work-order-closing-comments`, `jobber:import-jobs`, `jobber:refresh-token`, `twilio:sync-phone-numbers`, `twilio:import-inbound-messages`, `jobs:send-reminders`, `asana:set-dues`.
+`import:work-orders`, `import:all-work-orders`, `update:work-orders-status`, `import:all-vendors`, `import:buildings-from-work-orders`, `sync:building-details`, `sync:work-order-closing-comments`, `jobber:import-jobs`, `jobber:refresh-token`, `twilio:sync-phone-numbers`, `twilio:import-inbound-messages`, `jobs:send-reminders`.
 
 ### Scheduler (`routes/console.php`) — requires system cron running `schedule:run`
 
@@ -377,7 +372,7 @@ A single console command `asana:set-dues` (`UpdateTaskDueDate`) sets due dates o
 | Daily 08:00 CT | `jobs:send-reminders --days=1` | Day-before "visit tomorrow" reminder for TBP visits. |
 | Daily 01:30 CT | `twilio:sync-phone-numbers` | Nightly Twilio number sync. |
 
-Manual/triggered: `import:all-work-orders`, `import:all-vendors`, `sync:building-details`, `sync:work-order-closing-comments`, `jobber:import-jobs`, `asana:set-dues`.
+Manual/triggered: `import:all-work-orders`, `import:all-vendors`, `sync:building-details`, `sync:work-order-closing-comments`, `jobber:import-jobs`.
 
 ---
 

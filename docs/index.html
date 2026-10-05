@@ -344,7 +344,6 @@ vendor/bin/sail bin pint                   # PHP code style (run before committi
           <tr><td><strong>Twilio</strong></td><td><code>TWILIO_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_PHONE_NUMBER</code>, <code>TWILIO_STATUS_CALLBACK_URL</code>, <code>MAINTENANC_TWILIO_PHONE_NUMBER</code></td></tr>
           <tr><td><strong>PropertyWare</strong></td><td><code>PROPERTYWARE_URL</code> (SOAP WSDL base), <code>PROPERTYWARE_USERNAME</code>, <code>PROPERTYWARE_PASSWORD</code>, <code>PROPERTYWARE_CLIENT_ID</code>, <code>PROPERTYWARE_CLIENT_SECRET_KEY</code>, <code>PROPERTYWARE_SYSTEM_ID</code></td></tr>
           <tr><td><strong>Jobber</strong></td><td><code>JOBBER_CLIENT_ID</code>, <code>JOBBER_SECRET</code> (also the webhook HMAC key), <code>JOBBER_CALLBACK_URL</code>, <code>JOBBER_API_VERSION</code></td></tr>
-          <tr><td><strong>Asana</strong></td><td><code>ASANA_ACCESS_TOKEN</code>, <code>ASANA_PROJECT_ID_L_ON_THE_MARKET</code>, <code>ASANA_PROJECT_ID_NEW_PM_LEASE_ON_THE_MARKET</code></td></tr>
           <tr><td><strong>AWS S3 / SES</strong></td><td><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_DEFAULT_REGION</code>, <code>AWS_BUCKET</code>, <code>FILESYSTEM_DISK</code> (set to <code>s3</code> to make S3 the default disk)</td></tr>
           <tr><td><strong>Reverb (WebSockets)</strong></td><td><code>BROADCAST_CONNECTION=reverb</code>, <code>REVERB_APP_ID</code>, <code>REVERB_APP_KEY</code>, <code>REVERB_APP_SECRET</code>, <code>REVERB_HOST</code>, <code>REVERB_PORT</code>, <code>REVERB_SCHEME</code>, plus <code>VITE_REVERB_*</code></td></tr>
           <tr><td><strong>AI</strong></td><td><code>AI_DEFAULT_PROVIDER</code> (auto-selects Azure if <code>AZURE_OPENAI_*</code> set, else OpenAI), <code>OPENAI_API_KEY</code>, <code>OPENAI_MODEL</code> (default <code>gpt-5.1-mini</code>), or <code>AZURE_OPENAI_API_KEY</code> + <code>AZURE_OPENAI_URL</code> + <code>AZURE_OPENAI_DEPLOYMENT</code></td></tr>
@@ -548,9 +547,8 @@ JobberToken (OAuth token storage)</code></pre>
       <h3>AI vendor recommendation (<code>laravel/ai</code>)</h3>
       <p><code>WorkOrderRecommendationService</code> classifies a work order's issue and recommends a vendor (owner-preferred → building history → cross-site history → category → fallback). <strong>Degrades gracefully</strong>: if no AI provider is configured, it falls back to a deterministic keyword/heuristic engine. Provider auto-selects Azure (if <code>AZURE_OPENAI_*</code> set) else OpenAI.</p>
 
-      <h3>Asana, S3 &amp; Reverb</h3>
+      <h3>S3 &amp; Reverb</h3>
       <ul>
-        <li><strong>Asana</strong> — a single command <code>asana:set-dues</code> sets due dates on subtasks in specific "lease on the market" projects. No webhook/route.</li>
         <li><strong>S3</strong> — fully configured but the default disk is <code>local</code>; Twilio media → <code>local</code>, Jobber images → <code>public</code>. Set <code>FILESYSTEM_DISK=s3</code> to switch.</li>
         <li><strong>Reverb</strong> — WebSocket broadcasting; frontend subscribes via Laravel Echo. Set <code>BROADCAST_CONNECTION=reverb</code> and run <code>reverb:start</code>.</li>
       </ul>
@@ -592,7 +590,7 @@ JobberToken (OAuth token storage)</code></pre>
         </tbody>
       </table>
       </div>
-      <p><strong>Manual / triggered:</strong> <code>import:all-work-orders</code>, <code>import:all-vendors</code>, <code>sync:building-details</code>, <code>sync:work-order-closing-comments</code>, <code>jobber:import-jobs</code>, <code>asana:set-dues</code>.</p>
+      <p><strong>Manual / triggered:</strong> <code>import:all-work-orders</code>, <code>import:all-vendors</code>, <code>sync:building-details</code>, <code>sync:work-order-closing-comments</code>, <code>jobber:import-jobs</code>.</p>
     </section>
 
     <!-- 10 -->

@@ -31,3 +31,11 @@ CLAUDE.md
 .env
 .env.*
 !.env.example
+
+# Personal data exports (tenants/owners/vendors) must never be committed or
+# placed in public/. TenantSeeder/OwnerSeeder/VendorSeeder read them from here
+# if supplied locally, and skip when absent.
+/database/seeders/data/tenants.*
+/database/seeders/data/owners.*
+/database/seeders/data/vendors.*
+/public/*.csv

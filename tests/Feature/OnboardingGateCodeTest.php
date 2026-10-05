@@ -6,6 +6,7 @@ use App\Http\Requests\UpdateBuildingCustomFieldsRequest;
 use App\Jobs\GenerateOnboardingPdfJob;
 use App\Jobs\GenerateW9PdfJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -52,6 +53,16 @@ class OnboardingGateCodeTest extends TestCase
         ]);
     }
 
+    /**
+     * setUp's always-200 custom-fields stub matches first and would shadow a
+     * test's own responses, so tests that need a rejection start from a clean fake.
+     */
+    private function resetHttpFakes(): void
+    {
+        Http::swap(new HttpFactory);
+        Http::preventStrayRequests();
+    }
+
     public function test_gate_and_sprinkler_answers_reach_propertyware_unchanged(): void
     {
         $this->postJson(self::ENDPOINT, $this->validPayload())
@@ -68,7 +79,7 @@ class OnboardingGateCodeTest extends TestCase
 
             // sanitizeCustomFieldValue() must leave the canonical values alone
             $this->assertSame('Yes - Gate code: #4321', $fields->firstWhere('name', self::GATE_FIELD)['value']);
-            $this->assertSame('Sprinkler System', $fields->firstWhere('name', self::SPRINKLER_FIELD)['value']);
+            $this->assertSame('Lawn Irrigation', $fields->firstWhere('name', self::SPRINKLER_FIELD)['value']);
 
             return true;
         });
@@ -76,7 +87,7 @@ class OnboardingGateCodeTest extends TestCase
         Bus::assertDispatched(GenerateOnboardingPdfJob::class, function (GenerateOnboardingPdfJob $job) {
             return ($job->formData['gatedCommunity'] ?? null) === 'Yes'
                 && ($job->formData['gateCode'] ?? null) === '#4321'
-                && ($job->formData['sprinklerSystem'] ?? null) === 'Sprinkler System';
+                && ($job->formData['sprinklerSystem'] ?? null) === 'Lawn Irrigation';
         });
     }
 
@@ -128,9 +139,10 @@ class OnboardingGateCodeTest extends TestCase
 
     public function test_an_answer_outside_the_yard_features_picklist_is_rejected_before_propertyware_sees_it(): void
     {
-        // "No Sprinkler System" is not one of the picklist's options; sending it made
-        // Propertyware reject the whole submission, so no owner could finish the form.
-        $this->postJson(self::ENDPOINT, $this->validPayload(['sprinklerSystem' => 'No Sprinkler System']))
+        // Neither "No Sprinkler System" nor "Sprinkler System" is one of the picklist's
+        // options; sending one made Propertyware reject the whole submission, so no owner
+        // could finish the form.
+        $this->postJson(self::ENDPOINT, $this->validPayload(['sprinklerSystem' => 'Sprinkler System']))
             ->assertStatus(422)
             ->assertJsonValidationErrors([
                 'formData.sprinklerSystem' => 'Please tell us whether the property has a sprinkler or irrigation system.',
@@ -163,6 +175,52 @@ class OnboardingGateCodeTest extends TestCase
             && collect($request->data()['fieldSetDTOS'])->contains(
                 fn (array $field) => $field['name'] === self::SPRINKLER_FIELD && $field['value'] === 'Lawn Irrigation'
             ));
+    }
+
+    public function test_a_field_propertyware_rejects_no_longer_costs_the_owner_the_whole_submission(): void
+    {
+        // One bad value used to throw out every other answer, the onboarding PDF and
+        // the W-9 with it, leaving the owner stuck part-way through the form.
+        $this->resetHttpFakes();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/buildings/customfields' => Http::sequence()
+                ->push(['errors' => [['key' => self::SPRINKLER_FIELD, 'message' => 'Lawn Irrigation is invalid option. Please check the field definition.']]], 400)
+                ->push(['success' => true], 200),
+            'api.propertyware.com/pw/api/rest/v1/buildings/*' => Http::response($this->buildingData(), 200),
+        ]);
+
+        $this->postJson(self::ENDPOINT, $this->validPayload())->assertOk();
+
+        // The retry keeps every field Propertyware did not name.
+        Http::assertSent(function (Request $request) {
+            if (! $this->isCustomFieldsPut($request)) {
+                return false;
+            }
+
+            $names = collect($request->data()['fieldSetDTOS'])->pluck('name');
+
+            return ! $names->contains(self::SPRINKLER_FIELD)
+                && $names->contains(self::GATE_FIELD)
+                && $names->contains(self::FIREPLACE_FIELD)
+                && $names->contains(self::HOA_UTILITIES_FIELD);
+        });
+
+        Bus::assertDispatched(GenerateOnboardingPdfJob::class);
+    }
+
+    public function test_a_rejection_that_names_nothing_still_fails_the_submission(): void
+    {
+        $this->resetHttpFakes();
+        Http::fake([
+            'api.propertyware.com/pw/api/rest/v1/buildings/customfields' => Http::response('Service Unavailable', 503),
+            'api.propertyware.com/pw/api/rest/v1/buildings/*' => Http::response($this->buildingData(), 200),
+        ]);
+
+        $this->postJson(self::ENDPOINT, $this->validPayload())
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'We were unable to save your property information. Please try again in a few minutes, and contact us if the problem continues.');
+
+        Bus::assertNotDispatched(GenerateOnboardingPdfJob::class);
     }
 
     public function test_fireplace_answer_reaches_propertyware_unchanged(): void
@@ -372,13 +430,13 @@ class OnboardingGateCodeTest extends TestCase
         $html = $this->renderOnboardingPdf([
             'gatedCommunity' => 'Yes',
             'gateCode' => '#4321',
-            'sprinklerSystem' => 'Sprinkler System',
+            'sprinklerSystem' => 'Lawn Irrigation',
             'fireplace' => 'Wood Burning Fireplace',
         ]);
 
         $this->assertMatchesRegularExpression('#<td>Gated Community</td>\s*<td>Yes</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Gate Code</td>\s*<td>\#4321</td>#', $html);
-        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Sprinkler System</td>#', $html);
+        $this->assertMatchesRegularExpression('#<td>Sprinkler / Irrigation System</td>\s*<td>Lawn Irrigation</td>#', $html);
         $this->assertMatchesRegularExpression('#<td>Fireplace</td>\s*<td>Wood Burning Fireplace</td>#', $html);
     }
 
@@ -463,7 +521,7 @@ class OnboardingGateCodeTest extends TestCase
             'mailboxKeyNo' => '2',
             'mailboxLocation' => 'Front door',
             // Sprinkler / Irrigation System
-            'sprinklerSystem' => 'Sprinkler System',
+            'sprinklerSystem' => 'Lawn Irrigation',
             // Utilities handled by the HOA
             'utilitiesHandledByHoa' => true,
             'hoaUtilities' => 'Water, Trash',
@@ -521,7 +579,7 @@ class OnboardingGateCodeTest extends TestCase
                 'entityId' => self::BUILDING_ID,
                 'fieldSetDTOS' => $fieldSetDTOS ?? [
                     ['name' => self::GATE_FIELD, 'value' => 'Yes - Gate code: #4321'],
-                    ['name' => self::SPRINKLER_FIELD, 'value' => 'Sprinkler System'],
+                    ['name' => self::SPRINKLER_FIELD, 'value' => 'Lawn Irrigation'],
                     ['name' => self::FIREPLACE_FIELD, 'value' => 'Gas Connections'],
                     ['name' => self::HOA_UTILITIES_FIELD, 'value' => 'Water, Trash'],
                 ],

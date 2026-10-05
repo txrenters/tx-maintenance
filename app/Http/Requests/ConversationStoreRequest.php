@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Conversation;
 use App\Rules\UploadedMediaFile;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ConversationStoreRequest extends FormRequest
 {
@@ -29,7 +31,7 @@ class ConversationStoreRequest extends FormRequest
             'sender_phone_number' => 'nullable|string',
             'receiver_phone_number' => 'nullable|string',
             'vendor_id' => 'nullable|integer|exists:vendors,id',
-            'conversation_type' => 'required|string|max:50',
+            'conversation_type' => ['required', 'string', Rule::in(Conversation::PARTY_TYPES)],
             'images' => 'nullable|array|max:10',
             // Any image or video plus PDFs are accepted. Recipients receive the
             // media as a link in the SMS body (not a true MMS attachment), so video

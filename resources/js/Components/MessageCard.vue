@@ -77,6 +77,9 @@ const formatDate = (date) => {
  * but never treat an unknown sender as ours when we have no number to compare.
  */
 const isOutbound = (msg) => {
+    if (msg?.chatbot_direction) {
+        return msg.chatbot_direction === "outbound";
+    }
     const ours = phoneKey(props.sender);
     const theirs = phoneKey(msg?.sender_number);
 
@@ -402,7 +405,7 @@ const resendMessage = async (msg) => {
                     class="text-xs"
                     :class="isOutbound(msg) ? 'text-white' : 'text-gray-500'"
                 >
-                    From: {{ msg.sender_number }}
+                    From: {{ msg.chatbot_sender_name || msg.sender_number }}
                 </p>
             </div>
             <p

@@ -5,6 +5,7 @@ use App\Http\Controllers\API\DesktopConnectionController;
 use App\Http\Controllers\API\ServiceScheduleController;
 use App\Http\Controllers\API\TaskController;
 use App\Http\Controllers\BuildingController;
+use App\Http\Controllers\ChatbotWebhookController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
@@ -13,6 +14,9 @@ use App\Http\Controllers\ResendTwilioMessageController;
 use App\Http\Controllers\TwilioWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/chatbot/events', ChatbotWebhookController::class)
+    ->middleware('throttle:240,1')->name('chatbot.events');
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -68,6 +72,7 @@ Route::put('/notifications/{activity}/mark-as-read', [NotificationController::cl
 Route::put('/notifications/{activity}/mark-as-unread', [NotificationController::class, 'markAsUnread']);
 
 Route::post('/conversations/{conversation}/resend', [ResendTwilioMessageController::class, 'conversation'])
+    ->middleware('web')
     ->name('api.conversations.resend');
 Route::post('/jobber-text-messages/{jobberTextMessage}/resend', [ResendTwilioMessageController::class, 'jobberTextMessage'])
     ->name('api.jobber-text-messages.resend');

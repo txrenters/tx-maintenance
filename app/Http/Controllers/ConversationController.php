@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMedia;
 use App\Models\JobberTextMessage;
 use App\Models\WorkOrder;
+use App\Services\ChatbotHub;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -39,6 +40,35 @@ class ConversationController extends Controller
         if ($user->hasRole('vendor') && $type !== 'vendor') {
             abort(403);
         }
+    }
+
+    /**
+     * A signed-in owner or tenant may only post to their own party's thread.
+     * Their message is carried to staff by the chatbot hub and the notification
+     * feed, never by SMS, so a message filed under any other thread type has no
+     * delivery path at all — and was answered with "sent" all the same.
+     */
+    private function assertCanSendAsParty(string $type): void
+    {
+        $user = auth()->user();
+
+        if (! $this->isPortalParty($user)) {
+            return;
+        }
+
+        abort_unless($type === ($user->hasRole('owner') ? 'owner' : 'tenant'), 403);
+    }
+
+    /**
+     * Whether this user writes as an outside party rather than as staff. A
+     * hybrid account — an owner or tenant record plus a coordinator role — works
+     * the queue like any coordinator, so its messages take the texting path.
+     */
+    private function isPortalParty(mixed $user): bool
+    {
+        return $user
+            && $user->hasAnyRole(['owner', 'tenant'])
+            && ! $user->hasAnyRole(['admin', 'woc', 'accounting']);
     }
 
     public function show(WorkOrder $workOrder)
@@ -186,6 +216,8 @@ class ConversationController extends Controller
         }
 
         $workOrder = WorkOrder::findOrFail($validatedData['work_order_id']);
+        $this->assertCanViewConversation($workOrder, $validatedData['conversation_type']);
+        $this->assertCanSendAsParty($validatedData['conversation_type']);
         $messageText = trim($validatedData['text'] ?? '');
         $isVendorMessage = $validatedData['conversation_type'] === 'vendor';
 
@@ -223,7 +255,8 @@ class ConversationController extends Controller
 
         $user = auth()->user();
 
-        if ($user->hasRole('owner') || $user->hasRole('tenant')) {
+        if ($this->isPortalParty($user)) {
+            app(ChatbotHub::class)->queueInboundMessage($conversation);
             $this->sendNotification($conversation, $validatedData, $workOrder);
 
             return redirect()->back()->with('success', 'Message sent successfully!');
@@ -233,6 +266,21 @@ class ConversationController extends Controller
         // and will appear in the vendor portal, but there is nothing to text.
         if (! $receiverNumber) {
             return redirect()->back()->with('success', 'Message saved. The vendor will see it in their portal.');
+        }
+
+        if (app(ChatbotHub::class)->handles($conversation)) {
+            $conversation->update([
+                'chatbot_direction' => 'outbound',
+                'chatbot_sender_name' => $user->name,
+                'chatbot_sender_email' => $user->email,
+                'twilio_status' => 'pending',
+            ]);
+
+            SendConversationMessageJob::dispatch(
+                $receiverNumber, $senderNumber ?? '', $messageText, $mediaUrls, $conversation->id,
+            )->afterCommit();
+
+            return redirect()->back()->with('success', 'Message queued for delivery.');
         }
 
         // Dispatch first job: carries the text message + first image (if any).

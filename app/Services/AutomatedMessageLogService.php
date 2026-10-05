@@ -70,6 +70,7 @@ class AutomatedMessageLogService
         'tenant_easy_fix_sms' => 'Tenant: easy fix how-to',
         'tenant_easy_fix_follow_up_sms' => 'Tenant: easy fix check-in',
         'owner_easy_fix_sms' => 'Owner: tenant easy fix',
+        'portal_domain_change_sms' => 'Portal link: new domain notice (one-time)',
     ];
 
     /**

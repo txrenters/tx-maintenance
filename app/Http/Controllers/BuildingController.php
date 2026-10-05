@@ -293,12 +293,7 @@ class BuildingController extends Controller
         }
 
         // Make API call to Propertyware
-        $response = Http::withHeaders([
-            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
-            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
-            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
-            'Content-Type' => 'application/json',
-        ])->put('https://api.propertyware.com/pw/api/rest/v1/buildings/customfields', $data);
+        $response = $this->sendCustomFieldsUpdate($data);
 
         if ($response->successful()) {
 
@@ -306,6 +301,36 @@ class BuildingController extends Controller
                 'success' => true,
                 'data' => $response->json(),
             ];
+        }
+
+        // Propertyware rejects the whole request over a single value it will not
+        // take - a picklist option that is not one of its own, say - so one bad
+        // field used to cost the owner everything: every other answer, the
+        // onboarding PDF and the W-9 went with it, and the form stopped part-way
+        // through with no way past it. Send the rest without the fields it named
+        // so their work is saved, and log the ones left behind for staff to set
+        // in Propertyware by hand.
+        $rejectedFields = $this->rejectedFieldNames($response->body());
+        $remainingFields = array_values(array_filter(
+            $data['fieldSetDTOS'] ?? [],
+            fn (array $field): bool => ! in_array($field['name'] ?? '', $rejectedFields, true),
+        ));
+
+        if ($rejectedFields !== [] && $remainingFields !== []) {
+            $retry = $this->sendCustomFieldsUpdate(array_merge($data, ['fieldSetDTOS' => $remainingFields]));
+
+            if ($retry->successful()) {
+                Log::warning('Propertyware rejected some custom fields; saved the rest', [
+                    'rejected_fields' => $rejectedFields,
+                    'body' => $response->body(),
+                ]);
+
+                return [
+                    'success' => true,
+                    'data' => $retry->json(),
+                    'rejected_fields' => $rejectedFields,
+                ];
+            }
         }
 
         Log::error('Propertyware API Error', [
@@ -318,6 +343,38 @@ class BuildingController extends Controller
             'error' => $response->body(),
             'message' => $this->friendlyPropertywareError($response->body()),
         ];
+    }
+
+    /**
+     * PUT the custom-field payload to Propertyware.
+     */
+    private function sendCustomFieldsUpdate(array $data): \Illuminate\Http\Client\Response
+    {
+        return Http::withHeaders([
+            'x-propertyware-client-id' => env('PROPERTYWARE_CLIENT_ID'),
+            'x-propertyware-client-secret' => env('PROPERTYWARE_CLIENT_SECRET_KEY'),
+            'x-propertyware-system-id' => env('PROPERTYWARE_SYSTEM_ID'),
+            'Content-Type' => 'application/json',
+        ])->put('https://api.propertyware.com/pw/api/rest/v1/buildings/customfields', $data);
+    }
+
+    /**
+     * The custom fields Propertyware named in a rejection, by field name.
+     *
+     * @return array<int, string>
+     */
+    private function rejectedFieldNames(?string $body): array
+    {
+        $decoded = json_decode((string) $body, true);
+
+        if (! is_array($decoded) || empty($decoded['errors']) || ! is_array($decoded['errors'])) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            fn ($error): string => is_array($error) ? (string) ($error['key'] ?? '') : '',
+            $decoded['errors'],
+        )));
     }
 
     /**

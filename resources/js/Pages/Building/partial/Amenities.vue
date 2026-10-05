@@ -973,13 +973,9 @@ const markSectionCompleted = (value) => {
                                         />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Sprinkler System"
-                                            >Yes - Has a sprinkler
-                                            system</SelectItem
-                                        >
                                         <SelectItem value="Lawn Irrigation"
-                                            >Yes - Has lawn
-                                            irrigation</SelectItem
+                                            >Yes - Has a sprinkler or
+                                            irrigation system</SelectItem
                                         >
                                         <SelectItem value="Not Applicable"
                                             >No sprinkler or irrigation

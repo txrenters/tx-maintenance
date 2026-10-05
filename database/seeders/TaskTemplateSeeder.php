@@ -14,7 +14,7 @@ class TaskTemplateSeeder extends Seeder
      */
     public function run(): void
     {
-        $json = File::get(public_path('task_templates.json'));
+        $json = File::get(database_path('seeders/data/task_templates.json'));
 
         $data = json_decode($json, true);
 
