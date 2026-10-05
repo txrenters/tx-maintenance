@@ -49,6 +49,43 @@ class ChatbotHubTest extends TestCase
         $this->assertSame('outbound', $message->fresh()->chatbot_direction);
     }
 
+    public function test_a_sender_without_a_support_account_is_sent_as_the_default_staff_account(): void
+    {
+        Http::fake([
+            'chatbot.test/api/v1/threads' => Http::response(['data' => ['id' => 42]], 201),
+            'chatbot.test/api/v1/threads/42/messages' => function ($request) {
+                return $request['sender_email'] === 'woc@texasrenters.com'
+                    ? Http::response(['data' => ['id' => 91, 'status' => 'pending']], 202)
+                    : Http::response(['message' => 'A unique chatbot staff account is required for this email.', 'errors' => ['sender_email' => ['A unique chatbot staff account is required for this email.']]], 422);
+            },
+        ]);
+        $message = $this->conversation();
+
+        app(ChatbotHub::class)->send($message, 'Hello');
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/messages') && $request['sender_email'] === 'staff@example.com');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/messages') && $request['sender_email'] === 'woc@texasrenters.com' && $request['sender_name'] === 'Staff');
+        $this->assertDatabaseHas('chatbot_message_deliveries', ['conversation_id' => $message->id, 'hub_message_id' => '91']);
+        $this->assertSame('pending', $message->fresh()->twilio_status);
+    }
+
+    public function test_other_rejections_are_not_retried_as_the_default_staff_account(): void
+    {
+        Http::fake([
+            'chatbot.test/api/v1/threads' => Http::response(['data' => ['id' => 42]], 201),
+            'chatbot.test/api/v1/threads/42/messages' => Http::response(['message' => 'The body field is required.', 'errors' => ['body' => ['The body field is required.']]], 422),
+        ]);
+
+        try {
+            app(ChatbotHub::class)->send($this->conversation(), '');
+            $this->fail('A rejected message was reported as sent.');
+        } catch (RequestException $e) {
+            $this->assertSame(422, $e->response->status());
+        }
+
+        Http::assertNotSent(fn ($request) => ($request->data()['sender_email'] ?? null) === 'woc@texasrenters.com');
+    }
+
     public function test_vendor_and_disabled_conversations_are_not_routed_to_chatbot(): void
     {
         $hub = app(ChatbotHub::class);
@@ -152,6 +189,49 @@ class ChatbotHubTest extends TestCase
         $this->event($this->payload('message.status', 'delivered', now()->toIso8601String()))->assertNoContent();
         $this->event($this->payload('message.status', 'sent', now()->subMinute()->toIso8601String()))->assertNoContent();
         $this->assertSame('delivered', $message->fresh()->twilio_status);
+        $this->assertDatabaseCount('work_order_conversations', 1);
+    }
+
+    public function test_a_follow_up_thread_for_a_closed_one_is_filed_on_the_same_work_order(): void
+    {
+        $original = $this->conversation();
+        $this->link($original);
+        $event = $this->payload('message.sent', 'sent', now()->toIso8601String());
+        $event['data']['thread'] = ['id' => '77', 'work_order_id' => 'tx-maintenance:'.$original->work_order_id, 'work_order_party' => 'tenant', 'phone' => '+1 (555) 111-1111'];
+        $event['data']['message']['body'] = 'We will be there tomorrow';
+
+        $this->event($event)->assertNoContent();
+
+        $this->assertDatabaseHas('work_order_conversations', ['message' => 'We will be there tomorrow', 'work_order_id' => $original->work_order_id, 'chatbot_thread_id' => '77', 'receiver_number' => '+15551111111']);
+        $this->assertDatabaseHas('chatbot_threads', ['hub_thread_id' => '77', 'work_order_id' => $original->work_order_id, 'party' => 'tenant', 'phone' => '+15551111111']);
+        $this->assertDatabaseHas('chatbot_threads', ['hub_thread_id' => '42']);
+    }
+
+    public function test_a_follow_up_thread_picks_the_closed_thread_with_the_same_number(): void
+    {
+        $original = $this->conversation();
+        $this->link($original);
+        DB::table('chatbot_threads')->insert(['local_key' => 'other', 'hub_thread_id' => '43', 'work_order_id' => $original->work_order_id, 'party' => 'owner', 'phone' => '+15553333333', 'owner_id' => 8, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('chatbot_threads')->insert(['local_key' => 'owner-two', 'hub_thread_id' => '44', 'work_order_id' => $original->work_order_id, 'party' => 'owner', 'phone' => '+15554444444', 'owner_id' => 9, 'created_at' => now(), 'updated_at' => now()]);
+        $event = $this->payload('message.received', 'received', now()->toIso8601String());
+        $event['data']['thread'] = ['id' => '78', 'work_order_id' => 'tx-maintenance:'.$original->work_order_id, 'work_order_party' => 'owner', 'phone' => '+15554444444'];
+        $event['data']['message']['direction'] = 'inbound';
+
+        $this->event($event)->assertNoContent();
+
+        $this->assertDatabaseHas('chatbot_threads', ['hub_thread_id' => '78', 'party' => 'owner', 'phone' => '+15554444444', 'owner_id' => 9]);
+        $this->assertDatabaseHas('work_order_conversations', ['chatbot_thread_id' => '78', 'conversation_type' => 'owner', 'owner_id' => 9, 'sender_number' => '+15554444444']);
+    }
+
+    public function test_an_unknown_thread_with_no_earlier_thread_on_the_work_order_is_still_refused(): void
+    {
+        $original = $this->conversation();
+        $event = $this->payload('message.sent', 'sent', now()->toIso8601String());
+        $event['data']['thread'] = ['id' => '77', 'work_order_id' => 'tx-maintenance:'.$original->work_order_id, 'work_order_party' => 'tenant', 'phone' => '+15551111111'];
+
+        $this->event($event)->assertStatus(409);
+
+        $this->assertDatabaseMissing('chatbot_threads', ['hub_thread_id' => '77']);
         $this->assertDatabaseCount('work_order_conversations', 1);
     }
 

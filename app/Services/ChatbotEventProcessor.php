@@ -6,6 +6,7 @@ use App\Jobs\ImportChatbotMedia;
 use App\Models\Conversation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ChatbotEventProcessor
 {
@@ -31,6 +32,7 @@ class ChatbotEventProcessor
             if (! $thread && ! str_starts_with((string) ($data['thread']['work_order_id'] ?? ''), 'tx-maintenance:')) {
                 return;
             }
+            $thread ??= $this->linkFollowUpThread($data['thread']);
             abort_unless($thread, 409, 'The maintenance thread has not been linked yet.');
 
             $delivery = DB::table('chatbot_message_deliveries')
@@ -101,6 +103,46 @@ class ChatbotEventProcessor
                     ->log('Work Order - New Message Received');
             }
         });
+    }
+
+    /**
+     * The support app opens a new thread when someone writes in a closed one,
+     * so a work order's thread can change id without maintenance opening it.
+     * The new thread takes over the closed thread's number and contact: the one
+     * on the same work order and party with the same number, or the only one.
+     *
+     * @param  array{id: mixed, work_order_id?: ?string, work_order_party?: ?string, phone?: ?string}  $hubThread
+     */
+    private function linkFollowUpThread(array $hubThread): ?object
+    {
+        $workOrderId = (int) Str::after((string) $hubThread['work_order_id'], 'tx-maintenance:');
+        $digits = Conversation::lastTenDigits($hubThread['phone'] ?? null);
+
+        $earlier = DB::table('chatbot_threads')
+            ->where('work_order_id', $workOrderId)
+            ->where('party', (string) ($hubThread['work_order_party'] ?? ''))
+            ->orderByDesc('id')
+            ->get();
+        $closed = $earlier->first(fn (object $thread): bool => $digits !== null && Conversation::lastTenDigits($thread->phone) === $digits)
+            ?? ($earlier->count() === 1 ? $earlier->first() : null);
+
+        if ($closed === null) {
+            return null;
+        }
+
+        $hubThreadId = (string) $hubThread['id'];
+        DB::table('chatbot_threads')->insertOrIgnore([
+            'local_key' => $closed->local_key.':'.$hubThreadId,
+            'hub_thread_id' => $hubThreadId,
+            'work_order_id' => $closed->work_order_id,
+            'party' => $closed->party,
+            'phone' => $closed->phone,
+            'owner_id' => $closed->owner_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return DB::table('chatbot_threads')->where('hub_thread_id', $hubThreadId)->lockForUpdate()->first();
     }
 
     public function refreshStatus(Conversation $conversation): void

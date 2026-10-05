@@ -9,6 +9,9 @@ return [
         'webhook_secret' => env('CHATBOT_HUB_WEBHOOK_SECRET'),
         'phone' => env('CHATBOT_HUB_PHONE'),
         'source' => 'tx-maintenance',
+        // The support app account staff messages are sent as when the sender's
+        // own email has no staff account there.
+        'default_sender_email' => env('CHATBOT_HUB_DEFAULT_SENDER_EMAIL', 'woc@texasrenters.com'),
         // Pre-production copies hold real tenant/owner numbers. In test mode
         // only the comma-separated allowlisted phones are sent to the support
         // app; an empty allowlist sends nothing. Off in production.
