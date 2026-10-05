@@ -1017,9 +1017,12 @@ class WorkOrderRecommendationService
 
         $emergency = EmergencyCriteria::scan($text);
 
-        // The same deterministic judgement the intake automation makes, so
-        // the Recommendation tab shows what the tenant was (or would be) told.
-        $judgement = app(TenantEasyFixService::class)->judge($workOrder);
+        // What the intake automation decided, so the Recommendation tab shows
+        // what the tenant was told; before intake has run, the keywords'
+        // preview (no second AI call from this fallback path).
+        $judgement = $workOrder->easy_fix_assessed_at !== null
+            ? ['key' => $workOrder->easy_fix_key]
+            : app(TenantEasyFixService::class)->judge($workOrder, withAi: false);
 
         return [
             'issue_type' => $bestIssueType,

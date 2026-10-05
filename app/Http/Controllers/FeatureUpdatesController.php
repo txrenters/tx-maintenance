@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-10-06',
             'area' => 'Work Orders',
+            'title' => 'AI double-checks every tenant easy fix',
+            'description' => 'A new request is only treated as a tenant easy fix when the handbook keywords match AND the AI agrees after reading the description. Matching words alone are no longer enough: "the water heater won\'t turn on" used to be tagged as a furnace because it contains "heater won\'t turn on"; now the AI sees it is a water heater and the tenant gets the normal "we received your request" text instead of a how-to. If the AI is unsure or unavailable, the request is treated as a normal repair. On the Tenant Easy Fix board, hover the "Auto" chip to read why the AI tagged it, and HOA violations now say "HOA" instead of "Set by WOC".',
+        ],
+        [
+            'date' => '2026-10-06',
+            'area' => 'Work Orders',
             'title' => 'Copy a tenant or owner portal link from the work order',
             'description' => 'The Tenant and Owner conversation tabs on every work order now have a "Portal link" button. Click it to see the no-login portal link for that work order, then Copy and paste it into a text or email you send yourself; nothing is sent automatically. The portal links texted and emailed before we moved to the new web address still point at the old one, so use this whenever a tenant or owner says their link no longer opens. It is the same portal they had before (their messages and photos are all there), just on the new address. The Owner tab lists one link per owner on the work order, and an HOA violation also shows the HOA link the tenant was sent. Only office staff can see the button.',
         ],

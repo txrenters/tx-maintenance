@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\TenantEasyFixJudgeAgent;
 use App\Jobs\SendConversationMessageJob;
 use App\Models\Building;
 use App\Models\Conversation;
@@ -884,6 +885,34 @@ class TenantServiceRequestNotificationTest extends TestCase
             ->firstOrFail();
         $this->assertSame('disposal_jammed', $ledger->properties['easy_fix_key']);
         $this->assertSame(0, Activity::query()->where('event', 'tenant_service_request_sms')->count());
+    }
+
+    public function test_a_keyword_hit_the_ai_judge_rejects_gets_request_received_and_stays_put(): void
+    {
+        $this->enableEasyFix();
+        config(['ai.providers.openai.key' => 'test-key', 'services.ai.easy_fix_judge' => true]);
+        TenantEasyFixJudgeAgent::fake([[
+            'easy_fix_key' => null,
+            'confidence' => 90,
+            'reason' => 'The disposal motor is dead, not jammed.',
+        ]]);
+        Queue::fake();
+
+        $workOrder = $this->makeDisposalWorkOrder();
+        $statusBefore = $workOrder->service_status_id;
+
+        $this->notify($workOrder);
+
+        $text = $this->tenantMessage($workOrder)->message;
+        $this->assertStringContainsString('we have received your service request', $text);
+        $this->assertStringNotContainsString('https://youtu.be/disposal', $text);
+
+        $fresh = $workOrder->fresh();
+        $this->assertNull($fresh->easy_fix_key);
+        $this->assertSame($statusBefore, $fresh->service_status_id);
+        $this->assertSame(0, Activity::query()->where('event', 'tenant_easy_fix_sms')->count());
+        $this->assertSame(1, Activity::query()->where('event', 'tenant_service_request_sms')->count());
+        $this->assertNull(TenantUploadToken::query()->where('purpose', TenantUploadToken::PURPOSE_TENANT_EASY_FIX)->first());
     }
 
     public function test_the_easy_fix_text_is_sent_once_and_the_portal_link_command_does_not_repeat_it(): void
