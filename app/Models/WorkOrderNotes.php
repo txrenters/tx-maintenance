@@ -7,10 +7,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class WorkOrderNotes extends Model
 {
     protected $table = 'work_order_notes';
+
+    /**
+     * What the note dialog's name picker sends when the person typing is not
+     * on the technician roster (THMP office staff on the shared login).
+     */
+    public const TECHNICIAN_NOT_LISTED = 'not_listed';
 
     protected $guarded = [];
 
@@ -51,6 +58,17 @@ class WorkOrderNotes extends Model
                 return $this->created_at?->utc()->toISOString();
             },
         );
+    }
+
+    /**
+     * Whether this database can keep the technician a THMP note was signed
+     * with. The name picker stays off until the columns exist, so the code can
+     * be live before its migration has run without failing a single note.
+     */
+    public static function recordsTechnician(): bool
+    {
+        return Schema::hasColumn('work_order_notes', 'technician_name')
+            && Schema::hasColumn('work_order_notes', 'technician_id');
     }
 
     public function user(): BelongsTo

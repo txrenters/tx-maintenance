@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-10-06',
             'area' => 'Work Orders',
+            'title' => 'THMP technicians pick their name when they add a note',
+            'description' => 'The Texas Home Maintenance Pros crew shares one login, so their notes could only guess who wrote them from the Jobber visit, and the guess was often the wrong person. Now, when that login adds a note, the first field is "Your name": the technician picks their name from the Technicians list, then writes the note and submits. The note is saved under the name they picked and shows it after the date. A note cannot be saved until a name is picked; "My name is not listed" is there for THMP office staff. The names come from People > Technicians (active ones only), so add or deactivate a technician there to change the list. Notes written before today keep showing the Jobber-assigned technician as before. Nothing changes for office staff or other vendors.',
+        ],
+        [
+            'date' => '2026-10-06',
+            'area' => 'Work Orders',
             'title' => 'AI double-checks every tenant easy fix',
             'description' => 'A new request is only treated as a tenant easy fix when the handbook keywords match AND the AI agrees after reading the description. Matching words alone are no longer enough: "the water heater won\'t turn on" used to be tagged as a furnace because it contains "heater won\'t turn on"; now the AI sees it is a water heater and the tenant gets the normal "we received your request" text instead of a how-to. If the AI is unsure or unavailable, the request is treated as a normal repair. On the Tenant Easy Fix board, hover the "Auto" chip to read why the AI tagged it, and HOA violations now say "HOA" instead of "Set by WOC".',
         ],

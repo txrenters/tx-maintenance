@@ -37,7 +37,36 @@ const notesForm = useForm({
     subject: "",
     body: "",
     work_order_id: props.workOrder.id,
+    technician_id: "",
 });
+
+// The THMP crew shares one login, so that login has to say who is typing
+// before a note can be saved. The server only sends these names to that
+// login; for everyone else the list is empty and the picker never shows.
+const NOT_LISTED = "not_listed";
+const noteTechnicians = computed(() => page.props.note_technicians ?? []);
+const mustPickTechnician = computed(() => noteTechnicians.value.length > 0);
+
+watch(
+    () => notesForm.technician_id,
+    () => notesForm.clearErrors("technician_id")
+);
+
+// The name an existing note was signed with, as a picker value. Blank when it
+// was never signed or the technician has since left the list; an edit that
+// leaves it blank keeps whatever the note already says.
+const signedTechnicianValue = (note) => {
+    if (note.technician_id) {
+        const id = String(note.technician_id);
+        return noteTechnicians.value.some(
+            (technician) => String(technician.id) === id
+        )
+            ? id
+            : "";
+    }
+
+    return note.technician_name ? NOT_LISTED : "";
+};
 
 const openCreateNote = () => {
     editingNoteId.value = null;
@@ -52,6 +81,7 @@ const openEditNote = (note) => {
     editingNoteId.value = note.id;
     notesForm.subject = note.subject ?? "";
     notesForm.body = note.body ?? "";
+    notesForm.technician_id = signedTechnicianValue(note);
     notesForm.clearErrors();
     openNoteModal.value = true;
 };
@@ -69,6 +99,19 @@ const handleFormSubmit = () => {
 
     if (editingNoteId.value !== null) {
         handleEditSubmit();
+        return;
+    }
+
+    if (mustPickTechnician.value && !notesForm.technician_id) {
+        notesForm.setError(
+            "technician_id",
+            "Select your name before saving the note."
+        );
+        toast({
+            variant: "destructive",
+            title: "Select your name",
+            description: "Pick your name from the list, then submit the note.",
+        });
         return;
     }
 
@@ -292,11 +335,14 @@ const formatAddedAt = (note) => {
 };
 
 // Who wrote the note. A THMP field note comes through the shared vendor
-// login, so the server swaps in the Jobber-assigned technician's name when it
-// can (jobber_technician). Otherwise: the dashboard user who typed it, or
-// "PropertyWare" for synced notes — PropertyWare never reports an author.
-// A Jobber note carries the name Jobber recorded against it.
+// login: the name the technician picked when saving it (technician_name)
+// wins, and a note from before the picker falls back to the Jobber-assigned
+// technician the server could work out (jobber_technician). Otherwise: the
+// dashboard user who typed it, or "PropertyWare" for synced notes —
+// PropertyWare never reports an author. A Jobber note carries the name Jobber
+// recorded against it.
 const noteAuthor = (note) =>
+    note.technician_name ||
     note.jobber_technician ||
     note.author_name ||
     note.user?.name ||
@@ -471,6 +517,37 @@ const handleFetchNotes = () => {
                 <div
                     class="flex flex-col flex-nowrap overflow-x-auto scrollbar-hide px-6"
                 >
+                    <div v-if="mustPickTechnician" class="mb-3">
+                        <Label>Your name</Label>
+                        <Select v-model="notesForm.technician_id">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select your name" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem
+                                        v-for="technician in noteTechnicians"
+                                        :key="technician.id"
+                                        :value="String(technician.id)"
+                                    >
+                                        {{ technician.name }}
+                                    </SelectItem>
+                                    <SelectItem :value="NOT_LISTED">
+                                        My name is not listed
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            v-if="notesForm.errors.technician_id"
+                            class="mt-1 text-xs text-red-600 dark:text-red-400"
+                        >
+                            {{ notesForm.errors.technician_id }}
+                        </p>
+                        <p v-else class="mt-1 text-xs text-muted-foreground">
+                            The note is saved under the name you pick.
+                        </p>
+                    </div>
                     <div class="mb-3">
                         <Label>Title</Label>
                         <Input

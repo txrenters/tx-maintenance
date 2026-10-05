@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SyncJobberJobNotesJob;
 use App\Models\Scopes\WorkOrderScope;
+use App\Models\Technician;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderNotes;
@@ -15,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class WorkOrderNotesController extends Controller
 {
@@ -35,12 +37,14 @@ class WorkOrderNotesController extends Controller
         // visit assignment names the actual technician, so the dashboard can
         // show a person instead of the company. Falls back to nothing (and the
         // UI to the vendor name) whenever the Jobber link or assignment is
-        // missing. The vendor relation was only loaded for this check — it is
+        // missing. A note the technician signed with their own name (the
+        // picker on the note dialog) is never second-guessed this way. The
+        // vendor relation was only loaded for this check — it is
         // dropped again so the payload stays what the page always received.
         // getRelation: work_orders also has a "notes" text column, which the
         // plain property accessor would return instead of the loaded rows.
         $workOrder->getRelation('notes')->each(function (WorkOrderNotes $note) use ($workOrder, $technicians) {
-            if ($note->user?->vendor?->isThmp()) {
+            if (blank($note->technician_name) && $note->user?->vendor?->isThmp()) {
                 $note->setAttribute('jobber_technician', $technicians->technicianForNote($workOrder, $note->created_at));
             }
 
@@ -130,6 +134,9 @@ class WorkOrderNotesController extends Controller
      * best effort — a rejected push is logged and reported back as a warning
      * instead of the old unconditional "Success". Every dashboard note goes to
      * PropertyWare as Private so tenants and owners never see internal notes.
+     *
+     * The THMP crew shares one login, so their note also has to say who is
+     * typing it (see signedTechnician()).
      */
     public function store(Request $request, PropertyWareService $propertyWare): RedirectResponse
     {
@@ -138,6 +145,8 @@ class WorkOrderNotesController extends Controller
             'body' => 'required|string',
             'work_order_id' => 'required|integer',
         ]);
+
+        $technician = $this->signedTechnician($request, true);
 
         // Scoped lookup: a vendor can only note a work order they can see.
         $workOrder = WorkOrder::query()->findOrFail($validated['work_order_id']);
@@ -148,7 +157,7 @@ class WorkOrderNotesController extends Controller
             'body' => $validated['body'],
             'user_id' => auth()->id(),
             'is_private' => true,
-        ]);
+        ] + $technician);
 
         try {
             $pushed = $propertyWare->addVendorNotes($note);
@@ -260,6 +269,10 @@ class WorkOrderNotesController extends Controller
             'body' => 'required|string',
         ]);
 
+        // An edit keeps the name the note was signed with unless the THMP
+        // login picks another one; staff editing a crew note never change it.
+        $technician = $this->signedTechnician($request, false);
+
         // A note with no PropertyWare id has not been taken yet; it is saved
         // here and notes:push-pending sends the corrected text on its own.
         if (! blank($note->propertyware_id)) {
@@ -281,8 +294,57 @@ class WorkOrderNotesController extends Controller
         $note->update([
             'subject' => $validated['subject'],
             'body' => $validated['body'],
-        ]);
+        ] + $technician);
 
         return back();
+    }
+
+    /**
+     * The technician a THMP note is signed with, as note columns.
+     *
+     * THMP's field crew all type through one vendor login, so the login alone
+     * cannot say who wrote a note. The note dialog makes them pick their name
+     * from the active technician roster first; "not listed" is for THMP office
+     * staff on the same login and signs the note with the login's own name.
+     *
+     * Empty (nothing is asked, nothing is stored) for every other login, while
+     * the roster has no active technician, and on a database that does not
+     * have the columns yet.
+     *
+     * @return array{technician_id?: int|null, technician_name?: string}
+     */
+    private function signedTechnician(Request $request, bool $required): array
+    {
+        $user = $request->user();
+
+        if (! $user?->vendor?->isThmp() || ! WorkOrderNotes::recordsTechnician()) {
+            return [];
+        }
+
+        $roster = Technician::noteAuthorOptions()->pluck('name', 'id');
+
+        if ($roster->isEmpty()) {
+            return [];
+        }
+
+        $picked = $request->validate([
+            'technician_id' => [
+                $required ? 'required' : 'nullable',
+                Rule::in([...$roster->keys()->map(fn (int $id): string => (string) $id), WorkOrderNotes::TECHNICIAN_NOT_LISTED]),
+            ],
+        ], [
+            'technician_id.required' => 'Select your name before saving the note.',
+            'technician_id.in' => 'Select your name from the list.',
+        ])['technician_id'] ?? null;
+
+        if (blank($picked)) {
+            return [];
+        }
+
+        if ($picked === WorkOrderNotes::TECHNICIAN_NOT_LISTED) {
+            return ['technician_id' => null, 'technician_name' => $user->name];
+        }
+
+        return ['technician_id' => (int) $picked, 'technician_name' => $roster[(int) $picked]];
     }
 }

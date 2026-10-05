@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
 
 /**
  * An in-house field technician's profile: who they are, what they do,
@@ -73,6 +74,25 @@ class Technician extends Model
     {
         return $this->belongsToMany(ServiceSchedule::class, 'service_schedule_technicians', 'technician_id', 'service_schedule_id')
             ->withTimestamps();
+    }
+
+    /**
+     * The active roster as the names a THMP field note can be signed with,
+     * in the order the note dialog lists them.
+     *
+     * @return Collection<int, array{id: int, name: string}>
+     */
+    public static function noteAuthorOptions(): Collection
+    {
+        return static::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Technician $technician): array => [
+                'id' => $technician->id,
+                'name' => $technician->name,
+            ])
+            ->values();
     }
 
     /**

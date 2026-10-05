@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\FeatureUpdatesController;
+use App\Models\Technician;
+use App\Models\WorkOrderNotes;
 use App\Services\ActivityBoards;
 use App\Services\HvacBoardNewCounter;
 use App\Services\UnreadThreadCounter;
@@ -99,6 +101,15 @@ class HandleInertiaRequests extends Middleware
             'easy_fix_board_new_count' => fn () => $request->user()?->seesEasyFixBoardActivity()
                 ? app(HvacBoardNewCounter::class)->cachedCountFor($request->user(), ActivityBoards::EASY_FIX)
                 : 0,
+            // The names the note dialog makes the THMP login pick from before a
+            // note can be saved: the crew shares that one login, so the picked
+            // name is the only record of who typed it. Empty for everyone else
+            // (no picker), and until the note columns exist on this database.
+            'note_technicians' => fn () => $request->user()?->hasRole('vendor')
+                && $request->user()->vendor?->isThmp()
+                && WorkOrderNotes::recordsTechnician()
+                ? Technician::noteAuthorOptions()
+                : [],
         ]);
     }
 }
