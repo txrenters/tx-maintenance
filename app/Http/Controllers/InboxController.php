@@ -40,7 +40,7 @@ class InboxController extends Controller
      * The conversation_type values threads are actually stored under. Anything
      * else is a legacy or unknown row and lands under 'all' only.
      */
-    private const PARTY_FILTERS = ['tenant', 'owner', 'vendor', 'vendor_tenant', 'vendor_owner'];
+    private const PARTY_FILTERS = Conversation::PARTY_TYPES;
 
     public function __construct(
         private ConversationParticipants $participants,

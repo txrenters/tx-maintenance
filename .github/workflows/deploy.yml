@@ -1,9 +1,11 @@
 name: Build and deploy Laravel app to Azure Web App - txrenters
 
+# The push trigger was removed when maintenance.texasrenters.com moved to the VPS
+# (2026-10-05); deploy-vps.yml deploys master now. Any merge to master would
+# otherwise redeploy Azure, whose startup.sh revives its queue worker and
+# scheduler against a database that no longer receives traffic -- duplicate
+# texts, emails and imports. Manual dispatch is kept as the rollback path.
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 # Runs queue one at a time. The build job deletes ALL repo artifacts, so two

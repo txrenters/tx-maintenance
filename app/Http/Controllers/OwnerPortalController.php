@@ -11,6 +11,7 @@ use App\Models\Owner;
 use App\Models\OwnerPortalToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
+use App\Services\ChatbotHub;
 use App\Services\PropertyWareService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -540,6 +541,7 @@ class OwnerPortalController extends Controller
                 ])
                 ->log('Work Order #'.$workOrder->work_order_no.' - New Owner Message');
 
+            app(ChatbotHub::class)->queueInboundMessage($conversation);
             DB::commit();
 
             // The owner has engaged: stop the schedule follow-up for them.

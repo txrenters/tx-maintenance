@@ -225,8 +225,61 @@ class TwilioService
         return $items;
     }
 
-    public function sendMessage($to, $from, $message, $mediaUrl = null): MessageInstance
+    /**
+     * May this deployment text this number?
+     *
+     * Public because it is a policy question a caller can ask before doing work it would
+     * only have to discard. Checked in order: SMS_ENABLED=false stops everything, then
+     * SMS_ALLOWLIST (when set) narrows sending to exactly those numbers.
+     *
+     * This sits ABOVE the per-feature flags in config/services.php. Those choose which
+     * texts a working deployment sends; this decides whether it may text anyone at all.
+     */
+    public function shouldSend(string $to): bool
     {
+        if (! config('services.twilio.outbound_enabled', true)) {
+            return false;
+        }
+
+        $allowlist = collect(explode(',', (string) config('services.twilio.allowlist', '')))
+            ->map(fn (string $number): string => $this->normalizeNumber($number))
+            ->filter();
+
+        if ($allowlist->isEmpty()) {
+            return true;
+        }
+
+        return $allowlist->contains($this->normalizeNumber($to));
+    }
+
+    /**
+     * Last ten digits, so +1 (555) 999-8888 and 5559998888 compare equal. An allowlist
+     * that fails on formatting silently blocks the one number you meant to test with.
+     */
+    private function normalizeNumber(string $number): string
+    {
+        $digits = preg_replace('/[^0-9]/', '', trim($number)) ?? '';
+
+        return strlen($digits) > 10 ? substr($digits, -10) : $digits;
+    }
+
+    public function sendMessage($to, $from, $message, $mediaUrl = null): ?MessageInstance
+    {
+        if (! $this->shouldSend((string) $to)) {
+            Log::warning('Outbound SMS suppressed before reaching Twilio', [
+                'to' => $to,
+                'from' => $from,
+                'body' => is_string($message) ? $message : null,
+                'reason' => config('services.twilio.outbound_enabled', true)
+                    ? 'not on SMS_ALLOWLIST'
+                    : 'SMS_ENABLED is false',
+            ]);
+
+            // Null, not an exception: the callers read the result with ?->sid and fall back
+            // to a "queued" status, so the surrounding flow still runs end to end.
+            return null;
+        }
+
         try {
             $messageData = [
                 'from' => $from,

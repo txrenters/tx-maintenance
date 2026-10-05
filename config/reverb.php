@@ -82,7 +82,12 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['txrenters.azurewebsites.net'],
+                // VPS overlay: the repo hardcodes the Azure host; the VPS adds its
+                // own through REVERB_ALLOWED_ORIGINS (comma-separated).
+                'allowed_origins' => array_values(array_filter(array_merge(
+                    ['txrenters.azurewebsites.net'],
+                    array_map('trim', explode(',', (string) env('REVERB_ALLOWED_ORIGINS', ''))),
+                ))),
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),

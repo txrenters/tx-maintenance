@@ -134,6 +134,8 @@ class InboundTwilioMessageProcessor
 
                 Log::info('Inbound work-order message stored.', ['conversation_id' => $conversation->id, 'sid' => $messageSid]);
 
+                app(ChatbotHub::class)->queueInboundMessage($conversation);
+
                 return 'work_order';
             } catch (\Throwable $e) {
                 // \Throwable, not Exception: a TypeError escaping here would

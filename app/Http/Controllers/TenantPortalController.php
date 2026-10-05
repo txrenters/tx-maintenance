@@ -10,6 +10,7 @@ use App\Models\ConversationMedia;
 use App\Models\TenantUploadToken;
 use App\Models\WorkOrder;
 use App\Rules\UploadedMediaFile;
+use App\Services\ChatbotHub;
 use App\Services\TenantEasyFixService;
 use App\Services\TenantPhotoMirrorService;
 use App\Services\TenantRequestIntakeService;
@@ -319,6 +320,7 @@ class TenantPortalController extends Controller
                 ])
                 ->log('Work Order #'.$workOrder->work_order_no.' - New Tenant Message');
 
+            app(ChatbotHub::class)->queueInboundMessage($conversation);
             DB::commit();
 
             // Photos sent through the portal chat belong on the staff

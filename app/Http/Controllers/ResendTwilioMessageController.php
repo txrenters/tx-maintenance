@@ -6,6 +6,7 @@ use App\Jobs\SendConversationMessageJob;
 use App\Jobs\SendJobberTextMessageJob;
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
+use App\Services\ChatbotHub;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
@@ -13,6 +14,10 @@ class ResendTwilioMessageController extends Controller
 {
     public function conversation(Conversation $conversation): JsonResponse
     {
+        $usesHub = app(ChatbotHub::class)->handles($conversation);
+        if ($usesHub) {
+            abort_unless(auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
+        }
         if (! $this->isFailureStatus($conversation->twilio_status)) {
             return response()->json([
                 'error' => 'Only failed or undelivered messages can be resent.',
@@ -33,6 +38,15 @@ class ResendTwilioMessageController extends Controller
             'work_order_id' => $conversation->work_order_id,
             'is_read' => true,
         ]);
+
+        if ($usesHub) {
+            $new->update([
+                'owner_id' => $conversation->owner_id,
+                'chatbot_direction' => 'outbound',
+                'chatbot_sender_name' => auth()->user()->name,
+                'chatbot_sender_email' => auth()->user()->email,
+            ]);
+        }
 
         SendConversationMessageJob::dispatch($to, $from, $body, $firstMediaUrl, $new->id);
 

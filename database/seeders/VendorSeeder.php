@@ -29,7 +29,7 @@ class VendorSeeder extends Seeder
 
     private function seedVendorTypes($now): void
     {
-        $csvPath = public_path('vendor_types.csv');
+        $csvPath = database_path('seeders/data/vendor_types.csv');
 
         if (! File::exists($csvPath)) {
             Log::error('CSV file not found: '.$csvPath);
@@ -75,7 +75,7 @@ class VendorSeeder extends Seeder
 
     private function seedVendors($now): void
     {
-        $csvPath = public_path('vendors.csv');
+        $csvPath = database_path('seeders/data/vendors.csv');
 
         if (! File::exists($csvPath)) {
             Log::error('CSV file not found: '.$csvPath);

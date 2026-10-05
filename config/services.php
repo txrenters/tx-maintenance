@@ -2,6 +2,20 @@
 
 return [
 
+    'chatbot' => [
+        'enabled' => env('CHATBOT_HUB_ENABLED', false),
+        'url' => env('CHATBOT_HUB_URL'),
+        'token' => env('CHATBOT_HUB_TOKEN'),
+        'webhook_secret' => env('CHATBOT_HUB_WEBHOOK_SECRET'),
+        'phone' => env('CHATBOT_HUB_PHONE'),
+        'source' => 'tx-maintenance',
+        // Pre-production copies hold real tenant/owner numbers. In test mode
+        // only the comma-separated allowlisted phones are sent to the support
+        // app; an empty allowlist sends nothing. Off in production.
+        'test_mode' => (bool) env('CHATBOT_HUB_TEST_MODE', false),
+        'allowed_phones' => (string) env('CHATBOT_HUB_ALLOWED_PHONES', ''),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -51,18 +65,21 @@ return [
         'owner_approval_push' => env('OWNER_APPROVAL_TO_PW_ENABLED', false),
     ],
 
-    'asana' => [
-        'token' => env('ASANA_ACCESS_TOKEN'),
-        'workspace_id' => env('ASANA_WORKSPACE_ID'),
-        'user_gid' => env('ASANA_USER_GID'), // Ensure this is in your .env
-        'base_url' => 'https://app.asana.com/api/1.0/',
-        'projects' => explode(',', env('ASANA_PROJECT_IDS')),
-        'webhook_url' => env('ASANA_WEBHOOK_URL'),
-    ],
-
     'twilio' => [
         'sid' => env('TWILIO_SID'),
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        // Master outbound guard, enforced at the single send point in TwilioService.
+        //
+        // The per-feature flags further down decide WHICH texts a working deployment
+        // sends; these two decide whether this deployment may text a real person AT ALL.
+        // Getting a dozen feature flags right is not a safety mechanism -- a deployment
+        // running a copy of production data needs one switch that cannot be missed.
+        //
+        // SMS_ENABLED=false stops everything regardless of any flag below.
+        // SMS_ALLOWLIST, when set, narrows sending to exactly those numbers, which is how
+        // you send yourself one real message to prove delivery without touching anyone else.
+        'outbound_enabled' => env('SMS_ENABLED', true),
+        'allowlist' => env('SMS_ALLOWLIST', ''),
         'status_callback_url' => env('TWILIO_STATUS_CALLBACK_URL'),
         // Sender numbers we own. `from` is the general line; `maintenance_from`
         // is the dedicated maintenance line.

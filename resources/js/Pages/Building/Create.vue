@@ -896,29 +896,38 @@ const parseGatedCommunityCustomField = () => {
 // The sprinkler answer goes to the Propertyware "Yard Features" picklist
 // (Property Information field set). A picklist only accepts its own options,
 // and anything else is rejected and takes the whole submission down with it,
-// so the form offers exactly those options and stores the option itself -
-// there is no wording of our own in between to get wrong. "Not Provided" is
-// the picklist default and is not offered; it pre-fills nothing.
+// so the form offers those options and stores the option itself - there is no
+// wording of our own in between to get wrong.
+//
+// Only two values are used anywhere in the Propertyware data - "Lawn
+// Irrigation" for a home that has a system and "Not Applicable" for one that
+// does not - so those are the two the form writes. "Sprinkler System" has
+// never been written to a single property and Propertyware rejects it, which
+// is what stopped owners submitting the form at all.
 const SPRINKLER_CUSTOM_FIELD = "Yard Features";
-const SPRINKLER_OPTIONS = [
-    "Sprinkler System",
-    "Lawn Irrigation",
-    "Not Applicable",
+const SPRINKLER_HAS_SYSTEM_OPTION = "Lawn Irrigation";
+const SPRINKLER_NO_SYSTEM_OPTION = "Not Applicable";
+const SPRINKLER_PICKLIST_OPTIONS = [
+    SPRINKLER_HAS_SYSTEM_OPTION,
+    SPRINKLER_NO_SYSTEM_OPTION,
 ];
 
 /**
  * Pick the "Yard Features" option for the sprinkler answer.
  *
- * @return {?string} Option value, or null when the owner has not answered
+ * @return {?string} Option value, or null when there is nothing to write -
+ *                   the owner has not answered, or said the home has no system
  */
 const buildSprinklerSystemValue = () => {
-    return SPRINKLER_OPTIONS.includes(form.sprinklerSystem)
+    return SPRINKLER_PICKLIST_OPTIONS.includes(form.sprinklerSystem)
         ? form.sprinklerSystem
         : null;
 };
 
 /**
  * Map a raw "Yard Features" option back to the form's answer.
+ * Anything that is not one of the picklist's options - "Not Provided", the
+ * picklist default, among them - leaves the answer as it is.
  *
  * @param {?string} rawValue
  * @return {?string} The matching option, or null when there is nothing to pre-fill
@@ -927,8 +936,9 @@ const parseSprinklerSystemValue = (rawValue) => {
     const value = String(rawValue ?? "").trim().toLowerCase();
 
     return (
-        SPRINKLER_OPTIONS.find((option) => option.toLowerCase() === value) ??
-        null
+        SPRINKLER_PICKLIST_OPTIONS.find(
+            (option) => option.toLowerCase() === value,
+        ) ?? null
     );
 };
 

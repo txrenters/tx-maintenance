@@ -23,7 +23,7 @@ class OwnerSeeder extends Seeder
         User::flushEventListeners();
 
         // Read CSV file
-        $csvFile = public_path('owners.csv');
+        $csvFile = database_path('seeders/data/owners.csv');
 
         if (! File::exists($csvFile)) {
             Log::error('CSV file not found: '.$csvFile);
