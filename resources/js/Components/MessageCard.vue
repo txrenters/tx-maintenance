@@ -435,17 +435,19 @@ const resendMessage = async (msg) => {
                     @click="openMedia(msg.image)"
                 />
             </div>
-            <div class="flex gap-20 items-center justify-between">
+            <div
+                class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1"
+            >
                 <div class="flex items-center gap-2">
                     <p
-                        class="text-xs"
+                        class="flex items-center gap-1 text-xs leading-4"
                         :class="
                             isOutbound(msg) ? 'text-white' : 'text-gray-500'
                         "
                     >
                         <span
                             v-if="msg.twilio_status"
-                            class="inline-flex items-center gap-1 font-semibold"
+                            class="flex items-center gap-1 font-semibold"
                             :class="
                                 getTwilioStatusTextClasses(msg.twilio_status)
                             "
@@ -460,15 +462,17 @@ const resendMessage = async (msg) => {
                         >
                             <component
                                 :is="getTwilioStatusIcon(msg.twilio_status)"
-                                class="h-3 w-3"
+                                class="h-3 w-3 shrink-0"
                             />
                             {{ getTwilioStatusLabel(msg.twilio_status) }} -
                         </span>
-                        {{ formatDate(msg.created_at) }}
+                        <span class="whitespace-nowrap">{{
+                            formatDate(msg.created_at)
+                        }}</span>
                     </p>
                 </div>
                 <p
-                    class="text-xs"
+                    class="text-xs leading-4"
                     :class="isOutbound(msg) ? 'text-white' : 'text-gray-500'"
                 >
                     From: {{ msg.chatbot_sender_name || msg.sender_number }}
