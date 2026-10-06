@@ -305,6 +305,7 @@ class WorkOrderController extends Controller
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
             'Completed - Verified - Waiting on Bill',
             'Approved - Waiting on Payment',
+            'Paid',
             'Closed',
         ]));
 
@@ -945,6 +946,7 @@ class WorkOrderController extends Controller
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
             'Completed - Verified - Waiting on Bill',
             'Approved - Waiting on Payment',
+            'Paid',
             'Closed',
         ]));
 
@@ -1253,6 +1255,7 @@ class WorkOrderController extends Controller
         $service_status = $service_status->reject(fn ($status) => in_array($status->name, [
             'Completed - Verified - Waiting on Bill',
             'Approved - Waiting on Payment',
+            'Paid',
             'Closed',
         ], true));
 
