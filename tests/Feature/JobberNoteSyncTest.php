@@ -6,9 +6,11 @@ use App\Models\Jobber;
 use App\Models\JobberClient;
 use App\Models\JobberProperty;
 use App\Models\JobberToken;
+use App\Models\JobberVisit;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderJobberNote;
 use App\Services\JobberNoteSyncService;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -348,5 +350,160 @@ class JobberNoteSyncTest extends TestCase
 
         $this->assertNull($result);
         $this->assertSame(1, WorkOrderJobberNote::query()->count());
+    }
+
+    /**
+     * A visit on a job, titled the way the office types it by hand.
+     */
+    private function makeVisit(Jobber $job, string $title): JobberVisit
+    {
+        return JobberVisit::query()->create([
+            'jobber_id' => 'visit-'.uniqid(),
+            'jobber_job_id' => $job->id,
+            'jobber_client_id' => $job->jobber_client_id,
+            'jobber_property_id' => $job->jobber_property_id,
+            'title' => $title,
+        ]);
+    }
+
+    /**
+     * Answer each job's note query with its own page: the sync interpolates
+     * the job id into the query, so the id is what tells the calls apart.
+     *
+     * A second Http::fake() merges behind the first rather than replacing
+     * it, so the fake is registered once and later calls only swap the
+     * answers it reads.
+     *
+     * @param  array<string, array<string, mixed>|PromiseInterface>  $byJobGid  a page, or a ready `Http::response(...)`
+     */
+    private function fakeNotesPerJob(array $byJobGid): void
+    {
+        $registered = $this->notesByJob !== null;
+        $this->notesByJob = $byJobGid;
+
+        if ($registered) {
+            return;
+        }
+
+        Http::fake(function ($request) {
+            $query = (string) ($request->data()['query'] ?? '');
+
+            foreach ($this->notesByJob ?? [] as $gid => $answer) {
+                if (str_contains($query, 'job(id: "'.$gid.'")')) {
+                    return $answer instanceof PromiseInterface
+                        ? $answer
+                        : Http::response($answer);
+                }
+            }
+
+            return Http::response('unexpected job', 500);
+        });
+    }
+
+    /** @var array<string, array<string, mixed>|PromiseInterface>|null */
+    private ?array $notesByJob = null;
+
+    /**
+     * The 2026-10-05 case (#44321): the office made a job by hand, blank
+     * title, work order number typed into the visit, and the crew worked and
+     * wrote their notes on that one. The app's own job, linked to the work
+     * order, was never scheduled and holds nothing. The notes must still
+     * arrive.
+     */
+    public function test_notes_on_a_hand_made_job_found_through_its_visit_are_read_too(): void
+    {
+        $workOrder = $this->linkedWorkOrder('job-gid-1', 44321);
+
+        $handMade = $this->makeJob('job-gid-2');
+        $handMade->update(['title' => '']);
+        $this->makeVisit($handMade, '151 Island Blvd - 151 Island Blvd - Zone 2 - General Maintenance - #44321');
+
+        $this->fakeNotesPerJob([
+            'job-gid-1' => $this->notesPage([]),
+            'job-gid-2' => $this->notesPage([
+                $this->noteNode('note-1', 'The ac line is freezing up.'),
+                $this->noteNode('note-2', 'Changed both air filters.'),
+            ]),
+        ]);
+
+        $count = $this->sync()->syncWorkOrder($workOrder);
+
+        $this->assertSame(2, $count);
+        $this->assertSame(2, WorkOrderJobberNote::query()->where('work_order_id', $workOrder->id)->count());
+        $this->assertSame(
+            ['job-gid-2', 'job-gid-2'],
+            WorkOrderJobberNote::query()->orderBy('jobber_note_gid')->pluck('jobber_job_gid')->all()
+        );
+    }
+
+    /**
+     * Notes from every matched job are kept side by side, and a re-run still
+     * doubles nothing.
+     */
+    public function test_notes_from_two_jobs_are_kept_together_and_not_doubled(): void
+    {
+        $workOrder = $this->linkedWorkOrder('job-gid-1', 44321);
+
+        $handMade = $this->makeJob('job-gid-2');
+        $this->makeVisit($handMade, 'Return trip - #44321');
+
+        $this->fakeNotesPerJob([
+            'job-gid-1' => $this->notesPage([$this->noteNode('note-1', 'Office note on the linked job.')]),
+            'job-gid-2' => $this->notesPage([$this->noteNode('note-2', 'Crew note on the hand-made job.')]),
+        ]);
+
+        $this->assertSame(2, $this->sync()->syncWorkOrder($workOrder));
+        $this->assertSame(2, $this->sync()->syncWorkOrder($workOrder));
+        $this->assertSame(2, WorkOrderJobberNote::query()->count());
+    }
+
+    /**
+     * One matched job failing to answer must not wipe the notes read from the
+     * other: a partial walk says nothing about what Jobber still holds.
+     */
+    public function test_a_failed_fetch_on_one_of_the_matched_jobs_deletes_nothing(): void
+    {
+        $workOrder = $this->linkedWorkOrder('job-gid-1', 44321);
+
+        $handMade = $this->makeJob('job-gid-2');
+        $this->makeVisit($handMade, 'Return trip - #44321');
+
+        $this->fakeNotesPerJob([
+            'job-gid-1' => $this->notesPage([$this->noteNode('note-1', 'Linked job note.')]),
+            'job-gid-2' => $this->notesPage([$this->noteNode('note-2', 'Hand-made job note.')]),
+        ]);
+        $this->assertSame(2, $this->sync()->syncWorkOrder($workOrder));
+
+        $this->fakeNotesPerJob([
+            'job-gid-1' => $this->notesPage([$this->noteNode('note-1', 'Linked job note.')]),
+            'job-gid-2' => Http::response('upstream is down', 500),
+        ]);
+
+        $this->assertNull($this->sync()->syncWorkOrder($workOrder));
+        $this->assertSame(2, WorkOrderJobberNote::query()->count());
+    }
+
+    /**
+     * A work order the app never linked, whose only Jobber trace is the
+     * number the office typed into a visit, is read as well.
+     */
+    public function test_a_work_order_linked_only_through_a_visit_title_is_read(): void
+    {
+        $handMade = $this->makeJob('job-gid-2');
+        $handMade->update(['title' => '']);
+        $this->makeVisit($handMade, 'Zone 2 - General Maintenance - #44001');
+
+        $workOrder = WorkOrder::factory()->create([
+            'work_order_no' => 44001,
+            'jobber_job_gid' => null,
+            'jobber_web_uri' => null,
+        ]);
+
+        $this->fakeNotesPerJob([
+            'job-gid-2' => $this->notesPage([$this->noteNode('note-1', 'Found through the visit.')]),
+        ]);
+
+        $this->assertSame(1, $this->sync()->syncWorkOrder($workOrder));
+        $this->assertSame('job-gid-2', WorkOrderJobberNote::query()->value('jobber_job_gid'));
     }
 }

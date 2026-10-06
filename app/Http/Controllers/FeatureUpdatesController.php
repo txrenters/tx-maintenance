@@ -21,6 +21,12 @@ class FeatureUpdatesController extends Controller
      */
     private const UPDATES = [
         [
+            'date' => '2026-10-07',
+            'area' => 'Work Orders',
+            'title' => 'Jobber notes are found even when the crew worked a hand-made job',
+            'description' => 'On #44321 the crew\'s Jobber notes never showed on the Notes tab. The office had created the Jobber job by hand, with no job title and the work order number typed into the visit, and scheduled the crew on it; minutes later, assigning THMP on the dashboard created the app\'s own job, and the work order was linked to that one, which nobody ever scheduled. The Notes tab only read the linked job, so it stayed empty. Now the Notes tab reads every Jobber job that is about the work order: the linked one, plus any job whose title or visit title ends with the work order number. Notes from all of them show in one list, and a note deleted in Jobber is still removed here. Nothing changes when there is only one job. For the office: when you make a Jobber job by hand, put the work order number at the end of the job or visit title ("... - #44321"), and prefer assigning THMP on the dashboard first so the app makes the job for you.',
+        ],
+        [
             'date' => '2026-10-06',
             'area' => 'Work Orders',
             'title' => 'THMP technicians pick their name when they add a note',

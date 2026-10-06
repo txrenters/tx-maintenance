@@ -46,10 +46,15 @@ class JobberNoteSyncService
     ) {}
 
     /**
-     * Pull the Jobber job's notes onto this work order.
+     * Pull the notes of every Jobber job about this work order onto it.
+     *
+     * Usually that is one job, the one the app created and linked. It is
+     * more when the office also made a job by hand and the crew worked that
+     * one (#44321, 2026-10-05): then the linked job holds nothing and the
+     * notes sit on the twin, so every job the locator finds is read.
      *
      * Returns the number of notes seen, or null when the work order has no
-     * Jobber job or the fetch failed — the two cases a caller must not read
+     * Jobber job or any fetch failed — the two cases a caller must not read
      * as "Jobber has no notes for this".
      */
     public function syncWorkOrder(WorkOrder $workOrder): ?int
@@ -58,25 +63,67 @@ class JobberNoteSyncService
             return null;
         }
 
-        $job = $this->jobs->forWorkOrder($workOrder);
+        $jobs = $this->jobs->allForWorkOrder($workOrder)
+            ->filter(fn ($job) => filled($job->jobber_id))
+            ->values();
 
-        if ($job === null || blank($job->jobber_id)) {
+        if ($jobs->isEmpty()) {
             return null;
         }
 
+        if ($jobs->count() > 1) {
+            Log::info('Jobber notes are read from more than one job for this work order', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'jobber_job_gids' => $jobs->pluck('jobber_id')->all(),
+            ]);
+        }
+
+        $seenGids = [];
+        $complete = true;
+
+        foreach ($jobs as $job) {
+            $gids = $this->walkJob($workOrder, (string) $job->jobber_id);
+
+            if ($gids === null) {
+                $complete = false;
+
+                continue;
+            }
+
+            $seenGids = array_merge($seenGids, $gids);
+        }
+
+        // Only a clean walk of every page of every job may delete: a
+        // throttled or errored fetch tells us nothing about what Jobber still
+        // holds, and treating it as "not reported" would wipe the crew's notes.
+        if ($complete) {
+            $this->deleteVanished($workOrder, $seenGids);
+        }
+
+        return $complete ? count($seenGids) : null;
+    }
+
+    /**
+     * Store every note on one Jobber job. Returns the Jobber ids of the notes
+     * seen, or null when the walk did not reach the last page.
+     *
+     * @return list<string>|null
+     */
+    private function walkJob(WorkOrder $workOrder, string $jobGid): ?array
+    {
         $optional = new JobberOptionalSelections;
         $cursor = null;
         $seenGids = [];
-        $complete = false;
 
         for ($page = 0; $page < self::MAX_PAGES; $page++) {
             $response = $this->client->post([
-                'query' => $this->query((string) $job->jobber_id, $optional),
+                'query' => $this->query($jobGid, $optional),
                 'variables' => ['cursor' => $cursor],
             ]);
 
             if ($response === null) {
-                break;
+                return null;
             }
 
             // An unknown optional field: drop it and ask for this same page
@@ -90,11 +137,11 @@ class JobberNoteSyncService
             if (isset($response['errors'])) {
                 Log::warning('Jobber refused the note query', [
                     'work_order_id' => $workOrder->id,
-                    'jobber_job_gid' => $job->jobber_id,
+                    'jobber_job_gid' => $jobGid,
                     'errors' => $response['errors'],
                 ]);
 
-                break;
+                return null;
             }
 
             $notes = $response['data']['job']['notes'] ?? null;
@@ -102,14 +149,14 @@ class JobberNoteSyncService
             if (! is_array($notes)) {
                 Log::warning('Jobber returned no notes block for the job', [
                     'work_order_id' => $workOrder->id,
-                    'jobber_job_gid' => $job->jobber_id,
+                    'jobber_job_gid' => $jobGid,
                 ]);
 
-                break;
+                return null;
             }
 
             foreach ($notes['nodes'] ?? [] as $node) {
-                $gid = $this->storeNote($workOrder, (string) $job->jobber_id, $node);
+                $gid = $this->storeNote($workOrder, $jobGid, $node);
 
                 if ($gid !== null) {
                     $seenGids[] = $gid;
@@ -117,26 +164,17 @@ class JobberNoteSyncService
             }
 
             if (! ($notes['pageInfo']['hasNextPage'] ?? false)) {
-                $complete = true;
-
-                break;
+                return $seenGids;
             }
 
             $cursor = $notes['pageInfo']['endCursor'] ?? null;
 
             if ($cursor === null) {
-                break;
+                return null;
             }
         }
 
-        // Only a clean walk of every page may delete: a throttled or errored
-        // fetch tells us nothing about what Jobber still holds, and treating
-        // it as "not reported" would wipe the crew's notes.
-        if ($complete) {
-            $this->deleteVanished($workOrder, $seenGids);
-        }
-
-        return $complete ? count($seenGids) : null;
+        return null;
     }
 
     /**
