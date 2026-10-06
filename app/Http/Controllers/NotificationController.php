@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\JobberTextMessage;
+use App\Models\JobberVisit;
 use Spatie\Activitylog\Models\Activity;
 
 class NotificationController extends Controller
@@ -73,7 +74,7 @@ class NotificationController extends Controller
                 'error_message' => $activity->properties['error_message'] ?? null,
                 'twilio_status' => $activity->properties['twilio_status'] ?? null,
                 'work_order_id' => $activity->properties['work_order_id'] ?? $activity->subject?->work_order_id ?? null,
-                'job_id' => $activity->properties['job_id'] ?? $activity->subject?->jobber_id ?? null,
+                'job_id' => $this->jobIdFor($activity),
                 'subject' => $this->subjectSummary($activity->subject),
                 'timestamp' => $activity->created_at->timestamp,
                 'read' => $activity->properties['read'] ?? false,
@@ -82,6 +83,22 @@ class NotificationController extends Controller
 
         return response()->json($result);
 
+    }
+
+    /**
+     * The jobbers.id the bell's Open button routes to (jobber.jobDetails).
+     *
+     * A visit's own jobber_id is Jobber's encoded visit id, not a job key —
+     * jobber_not_sent rows hang off the visit, so they resolve through
+     * jobber_job_id instead.
+     */
+    private function jobIdFor(Activity $activity): int|string|null
+    {
+        if ($activity->subject instanceof JobberVisit) {
+            return $activity->subject->jobber_job_id;
+        }
+
+        return $activity->properties['job_id'] ?? $activity->subject?->jobber_id ?? null;
     }
 
     /**

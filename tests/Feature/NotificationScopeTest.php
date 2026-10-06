@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\Jobber;
+use App\Models\JobberClient;
+use App\Models\JobberProperty;
+use App\Models\JobberVisit;
 use App\Models\ServiceStatus;
 use App\Models\User;
 use App\Models\Vendor;
@@ -120,6 +124,41 @@ class NotificationScopeTest extends TestCase
         // string flipped every minute and defeated the poll's change guard.
         $this->assertArrayNotHasKey('time', $row);
         $this->assertArrayHasKey('timestamp', $row);
+    }
+
+    public function test_a_failed_job_text_opens_the_job_not_the_visits_jobber_id(): void
+    {
+        Role::findOrCreate('admin', 'web');
+        $user = User::factory()->create()->assignRole('admin');
+
+        $client = JobberClient::query()->create([
+            'jobber_id' => 'client-1', 'name' => 'Tenant', 'jobber_web_uri' => 'https://example.test',
+        ]);
+        $property = JobberProperty::query()->create([
+            'jobber_id' => 'property-1', 'jobber_client_id' => $client->id,
+        ]);
+        $job = Jobber::query()->create([
+            'jobber_id' => 'Z2lkOi8vSm9iYmVyL0pvYi8x', 'job_number' => '20052', 'title' => 'TBP',
+            'job_status' => 'active', 'jobber_client_id' => $client->id, 'jobber_property_id' => $property->id,
+        ]);
+        $visit = JobberVisit::query()->create([
+            'jobber_id' => 'Z2lkOi8vSm9iYmVyL1Zpc2l0LzE=', 'jobber_job_id' => $job->id,
+            'jobber_client_id' => $client->id, 'jobber_property_id' => $property->id,
+        ]);
+
+        // SendJobReminders logs a missing tenant phone against the visit, whose
+        // jobber_id is Jobber's encoded id — not a key jobber.jobDetails binds.
+        $activity = Activity::create([
+            'log_name' => 'default', 'event' => 'jobber_not_sent',
+            'description' => 'Job #20052 - Text Message Failed',
+            'subject_type' => JobberVisit::class, 'subject_id' => $visit->id,
+            'properties' => ['jobber_error_message' => 'We could not find the phone number for tenant: Tenant'],
+        ]);
+
+        $row = collect($this->actingAs($user)->getJson('/notifications')->assertOk()->json())
+            ->firstWhere('id', $activity->id);
+
+        $this->assertSame($job->id, $row['job_id']);
     }
 
     public function test_the_automated_message_ledger_stays_out_of_the_bell(): void
