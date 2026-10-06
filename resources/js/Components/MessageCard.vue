@@ -28,7 +28,7 @@ const page = usePage();
 const props = defineProps({
     messages: Object,
     sender: String,
-    /** Accepted for API compatibility with the conversation tabs; unused. */
+    /** Names keyed by the last ten digits of a phone number. */
     participants: { type: Object, default: () => ({}) },
     showDelete: { type: Boolean, default: true },
     /** Accepted for API compatibility; the To/From numbers always render. */
@@ -89,6 +89,16 @@ const isOutbound = (msg) => {
     }
 
     return ours === theirs;
+};
+
+/** "Dana Tenant (Tenant)" for a known number, or null when we have no name. */
+const participantLabel = (number) => {
+    const participant = props.participants?.[phoneKey(number)];
+    if (!participant?.name) return null;
+
+    return participant.role
+        ? `${participant.name} (${participant.role})`
+        : participant.name;
 };
 
 const sourceMessages = computed(() =>
@@ -323,7 +333,20 @@ const resendMessage = async (msg) => {
                 class="text-xs mb-1"
                 :class="isOutbound(msg) ? 'text-white/70' : 'text-gray-500'"
             >
-                To: {{ msg.receiver_number }}
+                To:
+                <!-- A client's message goes to one of our numbers; name the
+                     role instead of printing which line it came in on. -->
+                <span
+                    v-if="!isOutbound(msg)"
+                    :title="msg.receiver_number"
+                    >Work Order Coordinator</span
+                >
+                <template v-else>
+                    <template v-if="participantLabel(msg.receiver_number)">
+                        {{ participantLabel(msg.receiver_number) }} ·
+                    </template>
+                    {{ msg.receiver_number }}
+                </template>
             </p>
             <span
                 v-if="!tapbackOf(msg)"
