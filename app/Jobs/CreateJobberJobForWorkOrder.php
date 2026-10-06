@@ -44,14 +44,19 @@ class CreateJobberJobForWorkOrder implements ShouldQueue
         }
 
         $workOrder = WorkOrder::withoutGlobalScopes()
-            ->with(['building', 'requested_by'])
+            ->with(['building', 'requested_by', 'outsideCustomer'])
             ->find($this->workOrderId);
 
         if (! $workOrder || filled($workOrder->jobber_job_gid)) {
             return;
         }
 
-        $result = $jobber->createJobForWorkOrder($workOrder);
+        // A Crystal Creek Air work order has no building and no tenant: its
+        // Jobber job goes on the customer's own property under the Crystal
+        // Creek Air client instead of a Texas Renters property.
+        $result = $workOrder->isCrystalCreek()
+            ? $jobber->createJobForOutsideCustomer($workOrder)
+            : $jobber->createJobForWorkOrder($workOrder);
 
         if ($result === null) {
             return;

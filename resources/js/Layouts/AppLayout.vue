@@ -127,6 +127,7 @@ const SUMMARY_BOARDS = [
     ["/work_orders/hoa", "hoa"],
     ["/work_orders/hvac", "hvac"],
     ["/work_orders/easy-fix", "easy_fix"],
+    ["/work_orders/crystal-creek", "crystal_creek"],
 ];
 
 // Only the staff who work the boards; the endpoint enforces this too.
@@ -378,6 +379,17 @@ const navs = computed(() => {
                               isActive: page.url.startsWith(
                                   "/work_orders/hoa"
                               ),
+                          },
+                          {
+                              // Outside customers (not Texas Renters
+                              // properties), worked by the THMP crew. Staff
+                              // only: there is no tenant or owner side.
+                              title: "Crystal Creek Air",
+                              url: route("work_orders.crystal_creek"),
+                              isActive: page.url.startsWith(
+                                  "/work_orders/crystal-creek"
+                              ),
+                              requires: ["admin", "woc"],
                           },
                           {
                               title: "Completed",

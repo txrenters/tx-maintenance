@@ -58,6 +58,7 @@ class BoardSummaryService
         'waiting_on_payment' => 'Waiting on Payment',
         'paid' => 'Paid Work Orders',
         'hoa' => 'HOA Violations',
+        'crystal_creek' => 'Crystal Creek Air',
         'hvac' => 'HVAC',
         'easy_fix' => 'Tenant Easy Fix',
     ];

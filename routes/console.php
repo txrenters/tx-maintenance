@@ -108,6 +108,14 @@ Schedule::command('jobber:sync-job-notes')
     ->withoutOverlapping(25)
     ->runInBackground();
 
+// Jobber jobs the office makes by hand under the Crystal Creek Air client
+// become work orders on the Crystal Creek Air board. Reads the jobber_jobs
+// mirror only (the webhooks keep it current), never calls Jobber.
+Schedule::command('crystal-creek:import-jobs')
+    ->hourly()
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
 // With no --days the command runs its defaults: the 3, 7, and 14-day tiers.
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')

@@ -96,6 +96,13 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    // Crystal Creek Air board: the cards carry a brand pill and show the
+    // outside customer (there is no tenant or owner). Harmless (false) for
+    // every other board.
+    crystalCreek: {
+        type: Boolean,
+        default: false,
+    },
     // HVAC board: count the work orders that moved since this user last marked
     // the board seen, mark them on the cards, and poll so the counts keep up
     // without a manual refresh. Harmless (false) for every other board that
@@ -417,6 +424,10 @@ const workOrderForm = useForm({
     owners: [],
     local_status: "",
     woc: "",
+    // The outside customer on a Crystal Creek Air work order.
+    service_request_contact_name: "",
+    service_request_contact_phone: "",
+    service_request_contact_email: "",
     building: null,
     propertyware_id: "",
     jobber_web_uri: "",
@@ -1029,6 +1040,9 @@ const handleWorkOrder = async (orderId, openOnTab = null) => {
         workOrderForm.building = order.building ?? null;
         workOrderForm.propertyware_id = order.propertyware_id;
         workOrderForm.jobber_web_uri = order.jobber_web_uri ?? "";
+        workOrderForm.service_request_contact_name = order.service_request_contact_name ?? "";
+        workOrderForm.service_request_contact_phone = order.service_request_contact_phone ?? "";
+        workOrderForm.service_request_contact_email = order.service_request_contact_email ?? "";
 
         // Reset close form
         closeWorkOrderForm.reset();
@@ -1361,6 +1375,7 @@ const date_range = ref({
             <WorkOrderCard
                 :service_status="service_status"
                 :hoa="hoa"
+                :crystal-creek="crystalCreek"
                 :new-activity="newActivity"
                 :board-seen-at="boardSeenAt"
                 :dismissed-ids="dismissedIds"

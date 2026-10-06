@@ -545,7 +545,26 @@ const handleCompleteSubmit = () => {
                     />
                 </div>
 
-                <div>
+                <!-- Crystal Creek Air: the outside customer stands where the
+                     tenant would. No PropertyWare, no tenant, no owner. -->
+                <div v-if="workOrder.source === 'Crystal Creek Air'">
+                    <Label for="message">Customer:</Label>
+                    <p>{{ workOrder.service_request_contact_name || "—" }}</p>
+                    <p v-if="workOrder.service_request_contact_phone" class="text-sm">
+                        <a :href="`tel:${workOrder.service_request_contact_phone}`" class="text-primary hover:underline">
+                            {{ workOrder.service_request_contact_phone }}
+                        </a>
+                    </p>
+                    <p v-if="workOrder.service_request_contact_email" class="text-sm">
+                        <a :href="`mailto:${workOrder.service_request_contact_email}`" class="text-primary hover:underline">
+                            {{ workOrder.service_request_contact_email }}
+                        </a>
+                    </p>
+                    <p class="text-xs text-muted-foreground mt-1">
+                        Crystal Creek Air customer — not a Texas Renters property, so nothing here goes to PropertyWare.
+                    </p>
+                </div>
+                <div v-else>
                     <Label for="message">Requested by:</Label>
                     <div class="flex gap-2 items-center">
                         <Avatar class="w-5 h-5" v-if="workOrder?.requested">

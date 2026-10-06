@@ -37,6 +37,12 @@ class IntakeNotificationController extends Controller
             return response()->json(['error' => 'Unknown audience.'], 422);
         }
 
+        if ($workOrder->isCrystalCreek()) {
+            return response()->json([
+                'error' => 'This is a Crystal Creek Air work order: there is no tenant or owner to notify.',
+            ], 422);
+        }
+
         if ($workOrder->automationPausedFor($audience)) {
             return response()->json([
                 'error' => ucfirst($audience).' automation is paused on this work order. Turn it back on to send.',

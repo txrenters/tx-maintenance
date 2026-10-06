@@ -23,6 +23,12 @@ class FeatureUpdatesController extends Controller
         [
             'date' => '2026-10-07',
             'area' => 'Work Orders',
+            'title' => 'Crystal Creek Air has its own board for outside customers',
+            'description' => 'Crystal Creek Air is our own repair brand, worked by the THMP crew, for people whose home is not a Texas Renters property. Those jobs used to exist only in Jobber. Now there is a Crystal Creek Air page under Work Orders with a Create Work Order button: type the caller\'s name, phone or email, address and what needs doing, and the work order is made with its own number (7000001 and up), THMP is put on it, and the Jobber job is created on its own under the Crystal Creek Air client in Jobber, ready for the crew to be scheduled. Nothing about these work orders goes to PropertyWare, and no tenant or owner is ever messaged, because there is none. They show on this page only, not on the Active, HVAC or other boards. The Jobber jobs the office already made by hand under the Crystal Creek Air client appear on the page too, and any new one made by hand in Jobber shows up within the hour. Searching by number finds these work orders like any other.',
+        ],
+        [
+            'date' => '2026-10-07',
+            'area' => 'Work Orders',
             'title' => 'Jobber notes are found even when the crew worked a hand-made job',
             'description' => 'On #44321 the crew\'s Jobber notes never showed on the Notes tab. The office had created the Jobber job by hand, with no job title and the work order number typed into the visit, and scheduled the crew on it; minutes later, assigning THMP on the dashboard created the app\'s own job, and the work order was linked to that one, which nobody ever scheduled. The Notes tab only read the linked job, so it stayed empty. Now the Notes tab reads every Jobber job that is about the work order: the linked one, plus any job whose title or visit title ends with the work order number. Notes from all of them show in one list, and a note deleted in Jobber is still removed here. Nothing changes when there is only one job. For the office: when you make a Jobber job by hand, put the work order number at the end of the job or visit title ("... - #44321"), and prefer assigning THMP on the dashboard first so the app makes the job for you.',
         ],
