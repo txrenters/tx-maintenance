@@ -66,6 +66,64 @@ class ResendTwilioMessageController extends Controller
         ]);
     }
 
+    /**
+     * When a tenant or owner message fails on the Chat Support number (they
+     * texted STOP, the hub is down, ...), staff can resend that one message
+     * from the Maintenance number, straight through Twilio instead of the hub.
+     */
+    public function conversationFromMaintenance(Conversation $conversation): JsonResponse
+    {
+        abort_unless(auth()->user()?->hasAnyRole(['admin', 'woc', 'accounting']), 403);
+
+        if (! in_array($conversation->conversation_type, ['tenant', 'owner'], true)) {
+            return response()->json(['error' => 'Only tenant and owner messages can be resent from the Maintenance number.'], 422);
+        }
+
+        if (! $this->isFailureStatus($conversation->twilio_status)) {
+            return response()->json(['error' => 'Only failed or undelivered messages can be resent.'], 422);
+        }
+
+        $from = (string) config('services.twilio.maintenance_from');
+        if ($from === '') {
+            return response()->json(['error' => 'The Maintenance number is not configured.'], 422);
+        }
+
+        $body = (string) ($conversation->message ?? '');
+        $to = (string) $conversation->receiver_number;
+        $firstMediaUrl = $conversation->media()->first()?->public_url;
+
+        $new = Conversation::create([
+            'message' => $body,
+            'is_mms' => (bool) $conversation->is_mms,
+            'conversation_type' => $conversation->conversation_type,
+            'sender_number' => $from,
+            'receiver_number' => $to,
+            'work_order_id' => $conversation->work_order_id,
+            'owner_id' => $conversation->owner_id,
+            'is_read' => true,
+            'chatbot_direction' => 'outbound',
+            'chatbot_sender_name' => auth()->user()->name.' (Maintenance number)',
+            'twilio_status' => 'pending',
+        ]);
+
+        SendConversationMessageJob::dispatch($to, $from, $body, $firstMediaUrl, $new->id, viaMaintenanceNumber: true);
+
+        Log::info('Failed conversation resent from the Maintenance number', [
+            'original_id' => $conversation->id,
+            'original_error' => $conversation->twilio_error_code ?: $conversation->twilio_error_message,
+            'new_id' => $new->id,
+            'to' => $to,
+            'from' => $from,
+            'user_id' => auth()->id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Message queued from the Maintenance number.',
+            'new_conversation_id' => $new->id,
+        ]);
+    }
+
     public function jobberTextMessage(JobberTextMessage $jobberTextMessage): JsonResponse
     {
         if (! $this->isFailureStatus($jobberTextMessage->twilio_status)) {

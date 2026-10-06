@@ -25,6 +25,11 @@ class SendConversationMessageJob implements ShouldQueue
      * @param  string|list<string>|null  $mediaUrl  one media link, or several (a
      *                                              schedule with two technicians
      *                                              sends both photos)
+     * @param  bool  $viaMaintenanceNumber  staff override: send straight
+     *                                      through Twilio from the
+     *                                      Maintenance number, never the hub
+     *                                      (the message failed on Chat
+     *                                      Support)
      */
     public function __construct(
         protected string $to,
@@ -32,6 +37,7 @@ class SendConversationMessageJob implements ShouldQueue
         protected string $message,
         protected string|array|null $mediaUrl = null,
         protected ?int $conversationId = null,
+        public bool $viaMaintenanceNumber = false,
     ) {}
 
     public function handle(): void
@@ -41,11 +47,11 @@ class SendConversationMessageJob implements ShouldQueue
                 ? Conversation::withoutGlobalScopes()->findOrFail($this->conversationId)
                 : null;
 
-            if ($conversation?->chatbot_thread_id && ! config('services.chatbot.enabled')) {
+            if (! $this->viaMaintenanceNumber && $conversation?->chatbot_thread_id && ! config('services.chatbot.enabled')) {
                 throw new \RuntimeException('Chatbot delivery is paused; this linked message cannot fall back to another number.');
             }
 
-            if ($conversation && app(ChatbotHub::class)->handles($conversation)) {
+            if (! $this->viaMaintenanceNumber && $conversation && app(ChatbotHub::class)->handles($conversation)) {
                 app(ChatbotHub::class)->send($conversation, $this->message, $this->mediaUrl);
 
                 return;

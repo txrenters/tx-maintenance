@@ -89,6 +89,14 @@ const NON_RETRYABLE_CODES = new Set([
 ]);
 
 /**
+ * Did the recipient opt out (texted STOP)? Twilio reports this as 21610; the
+ * Chat Support hub reports it only in the message text.
+ */
+export const isUnsubscribedTwilioError = (code, rawMessage) =>
+    String(code ?? '').trim() === '21610' ||
+    String(rawMessage ?? '').toLowerCase().includes('unsubscribed');
+
+/**
  * Should we offer a Retry button for a message that failed with this code?
  * Unknown codes default to retryable so the user always has an option.
  */

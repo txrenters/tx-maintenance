@@ -74,6 +74,9 @@ Route::put('/notifications/{activity}/mark-as-unread', [NotificationController::
 Route::post('/conversations/{conversation}/resend', [ResendTwilioMessageController::class, 'conversation'])
     ->middleware('web')
     ->name('api.conversations.resend');
+Route::post('/conversations/{conversation}/resend-from-maintenance', [ResendTwilioMessageController::class, 'conversationFromMaintenance'])
+    ->middleware('web')
+    ->name('api.conversations.resend-from-maintenance');
 Route::post('/jobber-text-messages/{jobberTextMessage}/resend', [ResendTwilioMessageController::class, 'jobberTextMessage'])
     ->name('api.jobber-text-messages.resend');
 

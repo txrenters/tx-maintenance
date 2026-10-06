@@ -17,6 +17,7 @@ import { useToast } from "./ui/toast";
 import {
     friendlyTwilioError,
     isRetryableTwilioError,
+    isUnsubscribedTwilioError,
 } from "@/utils/twilioErrorCatalog.js";
 import { linkifyParts } from "@/utils/linkify.js";
 import { detectTapback, quotedExcerpt } from "@/utils/tapback.js";
@@ -205,9 +206,51 @@ const resendingIds = ref(new Set());
 const canResend = (msg) => {
     if (!isFailedStatus(msg.twilio_status)) return false;
     if (!isRetryableTwilioError(msg.twilio_error_code)) return false;
+    if (isUnsubscribedTwilioError(msg.twilio_error_code, msg.twilio_error_message)) return false;
     // Only outbound (messages from "us") are eligible — we cannot resend
     // an inbound reply on the tenant's behalf.
     return isOutbound(msg);
+};
+
+const isStaff = computed(() =>
+    (page.props.auth?.user?.roles || []).some((role) =>
+        ["admin", "woc", "accounting"].includes(role),
+    ),
+);
+
+/**
+ * Any failed tenant or owner message can be resent once from the Maintenance
+ * number, by a staff member's deliberate choice.
+ */
+const canResendFromMaintenance = (msg) =>
+    isStaff.value &&
+    !!msg.work_order_id &&
+    ["tenant", "owner"].includes(msg.conversation_type) &&
+    isFailedStatus(msg.twilio_status) &&
+    isOutbound(msg);
+
+const resendFromMaintenance = async (msg) => {
+    if (!canResendFromMaintenance(msg) || resendingIds.value.has(msg.id)) return;
+
+    resendingIds.value.add(msg.id);
+    try {
+        await axios.post(`/api/conversations/${msg.id}/resend-from-maintenance`);
+        toast({
+            title: "Message queued",
+            description: "Sending from the Maintenance number.",
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Resend failed",
+            description:
+                error?.response?.data?.error ||
+                error?.response?.data?.message ||
+                "Could not resend. Please try again.",
+        });
+    } finally {
+        resendingIds.value.delete(msg.id);
+    }
 };
 
 const resendMessage = async (msg) => {
@@ -439,6 +482,25 @@ const resendMessage = async (msg) => {
                 />
                 <RotateCw v-else class="h-3 w-3" />
                 {{ resendingIds.has(msg.id) ? "Resending…" : "Retry" }}
+            </button>
+            <button
+                v-if="canResendFromMaintenance(msg)"
+                type="button"
+                :disabled="resendingIds.has(msg.id)"
+                class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 disabled:opacity-60"
+                title="Send this message once from the Maintenance number instead of Chat Support."
+                @click="resendFromMaintenance(msg)"
+            >
+                <Loader2
+                    v-if="resendingIds.has(msg.id)"
+                    class="h-3 w-3 animate-spin"
+                />
+                <RotateCw v-else class="h-3 w-3" />
+                {{
+                    resendingIds.has(msg.id)
+                        ? "Resending…"
+                        : "Resend from Maintenance number"
+                }}
             </button>
         </div>
     </div>
