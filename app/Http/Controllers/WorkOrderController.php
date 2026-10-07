@@ -1241,10 +1241,11 @@ class WorkOrderController extends Controller
     }
 
     /**
-     * The Crystal Creek Air board: work orders for outside customers (homes
-     * that are not Texas Renters properties), worked by the THMP crew through
-     * Jobber and never pushed to PropertyWare. These live here and on no
-     * other board. Staff only: there is no tenant or owner side to it.
+     * The Crystal Creek Air page: every Texas Renters work order assigned to
+     * the "Crystal Creek Air, LLC" vendor (also on its usual boards), plus
+     * work orders for outside customers (homes that are not Texas Renters
+     * properties, worked by the THMP crew through Jobber, never pushed to
+     * PropertyWare), which live here and on no other board. Staff only.
      */
     public function crystal_creek_work_orders(Request $request)
     {

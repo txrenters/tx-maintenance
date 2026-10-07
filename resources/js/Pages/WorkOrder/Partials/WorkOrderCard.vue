@@ -533,9 +533,11 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                             </div>
 
                             <!-- Crystal Creek Air: an outside customer's job,
-                                 not a Texas Renters property -->
+                                 not a Texas Renters property. A Texas Renters
+                                 work order assigned to the Crystal Creek Air
+                                 vendor shows its vendor line instead. -->
                             <div
-                                v-if="crystalCreek || work_order.source === 'Crystal Creek Air'"
+                                v-if="work_order.source === 'Crystal Creek Air'"
                                 class="mb-2 flex justify-center"
                             >
                                 <span

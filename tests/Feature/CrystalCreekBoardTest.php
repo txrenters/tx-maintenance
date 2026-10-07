@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\OutsideCustomer;
 use App\Models\ServiceStatus;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -90,6 +91,58 @@ class CrystalCreekBoardTest extends TestCase
         $this->texasRentersWorkOrder(44321);
 
         $this->assertSame([7000001], $this->boardWorkOrderNumbers('work_orders.crystal_creek', 'WorkOrder/CrystalCreek'));
+    }
+
+    private function vendor(string $name): Vendor
+    {
+        return Vendor::query()->create([
+            'propertyware_id' => (string) random_int(100000000, 999999999),
+            'name' => $name,
+            'is_active' => true,
+            'user_id' => User::factory()->create()->id,
+        ]);
+    }
+
+    /**
+     * Earl 10-07: "Crystal Creek Air, LLC" is a PropertyWare vendor on ordinary
+     * Texas Renters work orders; the page is for those, and they keep their
+     * place on every other board.
+     */
+    public function test_a_texas_renters_work_order_assigned_to_the_crystal_creek_vendor_is_listed_and_stays_on_its_boards(): void
+    {
+        $crystalCreekVendor = $this->vendor(Vendor::CRYSTAL_CREEK_NAME);
+        $otherVendor = $this->vendor('Austin Plumbing Co');
+
+        $assigned = $this->texasRentersWorkOrder(44313, 'HVAC');
+        $assigned->vendors()->attach([$crystalCreekVendor->id, $this->vendor(Vendor::THMP_NAME)->id]);
+
+        $notAssigned = $this->texasRentersWorkOrder(44300, 'HVAC');
+        $notAssigned->vendors()->attach([$otherVendor->id]);
+
+        $this->assertSame([44313], $this->boardWorkOrderNumbers('work_orders.crystal_creek', 'WorkOrder/CrystalCreek'));
+
+        $mainBoard = $this->boardWorkOrderNumbers('work_orders.index', 'WorkOrder/Index');
+        $this->assertContains(44313, $mainBoard);
+        $this->assertContains(44300, $mainBoard);
+        $this->assertContains(44313, $this->boardWorkOrderNumbers('work_orders.hvac', 'WorkOrder/Hvac'));
+
+        $this->assertFalse($assigned->fresh()->isCrystalCreek(), 'A Texas Renters work order keeps PropertyWare and its automations');
+        $this->assertSame([$assigned->id], WorkOrder::query()->forBoard('crystal_creek')->pluck('id')->all());
+    }
+
+    public function test_the_vendor_name_match_tolerates_case_suffix_and_whitespace(): void
+    {
+        foreach (['CRYSTAL CREEK AIR, LLC', 'Crystal Creek Air', ' Crystal Creek Air, LLC '] as $index => $name) {
+            $workOrder = $this->texasRentersWorkOrder(44400 + $index);
+            $workOrder->vendors()->attach([$this->vendor($name)->id]);
+        }
+
+        $decoy = $this->texasRentersWorkOrder(44499);
+        $decoy->vendors()->attach([$this->vendor('Crystal Clear Pools')->id]);
+
+        $this->assertSame([44400, 44401, 44402], collect($this->boardWorkOrderNumbers('work_orders.crystal_creek', 'WorkOrder/CrystalCreek'))->sort()->values()->all());
+        $this->assertTrue((new Vendor(['name' => 'crystal creek air']))->isCrystalCreek());
+        $this->assertFalse((new Vendor(['name' => 'Crystal Clear Pools']))->isCrystalCreek());
     }
 
     public function test_the_card_carries_the_customer_and_the_source(): void
