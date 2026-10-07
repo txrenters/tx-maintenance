@@ -57,6 +57,7 @@ class CrystalCreekJobberJobTest extends TestCase
             'source' => WorkOrder::CRYSTAL_CREEK_SOURCE,
             'outside_customer_id' => $customer->id,
             'category' => 'HVAC',
+            'type' => 'Capacitor Replacement',
             'description' => "AC not   cooling\nsince Monday",
             'location' => $customer->oneLineAddress(),
             'building_id' => null,
@@ -149,9 +150,9 @@ class CrystalCreekJobberJobTest extends TestCase
 
         $job = $this->sentVariables('jobCreate')['input'];
         $this->assertSame('GID-PROP-NEW', $job['propertyId']);
-        $this->assertSame('Pat Customer - 1234 Oak St - HVAC - #7', $job['title']);
+        $this->assertSame('Pat Customer - 1234 Oak St - Capacitor Replacement - #7', $job['title']);
         $this->assertSame(
-            'AC not cooling since Monday - Pat Customer - (512) 555-0100 - pat@example.com - 1234 Oak St, Cypress, TX 77429',
+            'HVAC - AC not cooling since Monday - Pat Customer - (512) 555-0100 - pat@example.com - 1234 Oak St, Cypress, TX 77429',
             $job['instructions']
         );
         $this->assertSame(['GID-THMP-USER'], $job['scheduling']['assignedTo']);

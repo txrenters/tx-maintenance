@@ -542,9 +542,9 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                             >
                                 <span
                                     class="inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                                    title="Crystal Creek Air customer, not a Texas Renters property"
+                                    title="Crystal Creek customer, not a Texas Renters property"
                                 >
-                                    Crystal Creek Air
+                                    Crystal Creek
                                 </span>
                             </div>
 

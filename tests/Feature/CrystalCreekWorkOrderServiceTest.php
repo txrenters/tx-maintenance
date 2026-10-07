@@ -49,7 +49,7 @@ class CrystalCreekWorkOrderServiceTest extends TestCase
             'state' => 'tx',
             'postal_code' => '77429',
             'category' => 'HVAC',
-            'type' => 'Repair',
+            'type' => 'Capacitor Replacement',
             'description' => "AC not   cooling\nsince Monday",
         ], $overrides);
     }

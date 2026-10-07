@@ -19,6 +19,7 @@ use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\ActivityBoards;
+use App\Services\CrystalCreekCatalog;
 use App\Services\CrystalCreekWorkOrderService;
 use App\Services\EasyFixBoardDetails;
 use App\Services\EmergencyAlertService;
@@ -1252,7 +1253,7 @@ class WorkOrderController extends Controller
         abort_unless($request->user()?->hasAnyRole(['admin', 'woc']), 403);
 
         return inertia('WorkOrder/CrystalCreek', [
-            'title' => 'Crystal Creek Air',
+            'title' => 'Crystal Creek',
             // The card shows who the customer is; a Texas Renters card shows
             // the tenant instead, so these columns are only loaded here.
             'service_status' => Inertia::defer(fn () => $this->activityBoard($request, 'crystalCreekPage', [
@@ -1265,12 +1266,26 @@ class WorkOrderController extends Controller
             'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
             'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
             'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+            // The coordinator's fixed Category + Scope of Work lists for the
+            // Create Work Order dialog.
+            'catalog' => CrystalCreekCatalog::forForm(),
         ]);
     }
 
     /**
-     * "Create Work Order" on the Crystal Creek Air board: the office types in
-     * the caller's details; the work order, the THMP assignment and the Jobber
+     * The same fixed lists as JSON, for the Details tab of a Crystal Creek
+     * work order opened from any board (its "Scope of Work" dropdown).
+     */
+    public function crystal_creek_catalog(Request $request)
+    {
+        abort_unless($request->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        return response()->json(CrystalCreekCatalog::forForm());
+    }
+
+    /**
+     * "Create Work Order" on the Crystal Creek page: the office types in the
+     * caller's details; the work order, the THMP assignment and the Jobber
      * job follow. PropertyWare is never touched.
      */
     public function crystal_creek_store(CrystalCreekWorkOrderRequest $request, CrystalCreekWorkOrderService $service)

@@ -208,7 +208,7 @@ class WorkOrderNotesController extends Controller
         $workOrder = WorkOrder::withoutGlobalScope(WorkOrderScope::class)->find($note->work_order_id);
 
         if ($workOrder?->isCrystalCreek()) {
-            return back()->with('warning', 'This is a Crystal Creek Air work order. It is not in PropertyWare, so there is nothing to send.');
+            return back()->with('warning', 'This is a Crystal Creek work order. It is not in PropertyWare, so there is nothing to send.');
         }
 
         if ($workOrder === null || blank($workOrder->propertyware_id)) {

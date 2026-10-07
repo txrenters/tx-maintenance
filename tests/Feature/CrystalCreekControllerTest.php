@@ -71,7 +71,7 @@ class CrystalCreekControllerTest extends TestCase
             'state' => 'TX',
             'postal_code' => '77429',
             'category' => 'HVAC',
-            'type' => 'Repair',
+            'type' => 'Capacitor Replacement',
             'description' => 'AC not cooling',
         ], $overrides);
     }
@@ -165,7 +165,7 @@ class CrystalCreekControllerTest extends TestCase
                 'work_order_no' => $workOrder->work_order_no,
                 'description' => 'AC not cooling, filter clogged',
                 'category' => 'HVAC',
-                'type' => 'Repair',
+                'type' => 'Capacitor Replacement',
                 'priority' => 'Medium',
             ])
             ->assertSessionHas('success', 'Work order updated.')
@@ -230,5 +230,71 @@ class CrystalCreekControllerTest extends TestCase
             ->assertJsonPath('source', WorkOrder::CRYSTAL_CREEK_SOURCE)
             ->assertJsonPath('outside_customer.id', $workOrder->outside_customer_id)
             ->assertJsonPath('jobber_web_uri', 'https://secure.getjobber.com/work_orders/1');
+    }
+
+    /** The coordinator's fixed lists (10-08): HVAC or Pest Control, and a scope from that category's list. */
+    public function test_the_category_must_be_hvac_or_pest_control(): void
+    {
+        Queue::fake();
+
+        $this->actingAs($this->staff())
+            ->post(route('work_orders.crystal_creek.store'), $this->payload(['category' => 'Plumbing', 'type' => 'Capacitor Replacement']))
+            ->assertSessionHasErrors(['category' => 'Choose HVAC or Pest Control.']);
+
+        $this->assertSame(0, WorkOrder::query()->count());
+    }
+
+    public function test_the_scope_of_work_is_required(): void
+    {
+        Queue::fake();
+
+        $this->actingAs($this->staff())
+            ->post(route('work_orders.crystal_creek.store'), $this->payload(['type' => null]))
+            ->assertSessionHasErrors(['type' => 'Pick a scope of work.']);
+
+        $this->assertSame(0, WorkOrder::query()->count());
+    }
+
+    public function test_the_scope_of_work_must_belong_to_the_chosen_category(): void
+    {
+        Queue::fake();
+
+        $this->actingAs($this->staff())
+            ->post(route('work_orders.crystal_creek.store'), $this->payload(['category' => 'HVAC', 'type' => 'Ant Treatment']))
+            ->assertSessionHasErrors(['type' => 'Pick a scope of work from the list for that category.']);
+
+        $this->actingAs($this->staff())
+            ->post(route('work_orders.crystal_creek.store'), $this->payload(['type' => 'Repair']))
+            ->assertSessionHasErrors('type');
+
+        $this->assertSame(0, WorkOrder::query()->count());
+    }
+
+    public function test_a_pest_control_work_order_is_created_with_its_scope(): void
+    {
+        Queue::fake();
+
+        $this->actingAs($this->staff())
+            ->post(route('work_orders.crystal_creek.store'), $this->payload(['category' => 'Pest Control', 'type' => 'Ant Treatment', 'description' => 'Ants in the kitchen']))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $workOrder = WorkOrder::query()->crystalCreek()->first();
+        $this->assertSame('Pest Control', $workOrder->category);
+        $this->assertSame('Ant Treatment', $workOrder->type);
+    }
+
+    public function test_the_catalog_endpoint_serves_the_lists_to_staff_only(): void
+    {
+        $this->actingAs($this->staff())
+            ->getJson(route('work_orders.crystal_creek.catalog'))
+            ->assertOk()
+            ->assertJsonPath('categories', ['HVAC', 'Pest Control'])
+            ->assertJsonPath('scopes.HVAC.0.label', 'Service')
+            ->assertJsonPath('scopes.Pest Control.0.items.4', 'Ant Treatment');
+
+        $this->actingAs($this->staff('vendor'))
+            ->getJson(route('work_orders.crystal_creek.catalog'))
+            ->assertForbidden();
     }
 }

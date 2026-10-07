@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useForm } from "@inertiajs/vue3";
 import { useToast } from "@/Components/ui/toast/use-toast";
 import { Input } from "@/Components/ui/input";
@@ -9,19 +9,26 @@ import {
     SelectContent,
     SelectGroup,
     SelectItem,
+    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from "@/Components/ui/select";
 import { PlusCircle, Loader2 } from "lucide-vue-next";
 
-// "Create Work Order" on the Crystal Creek Air board. The caller is not a
-// Texas Renters tenant, so there is nothing to look up: the office types in
-// who they are, where they are and what needs doing. The server makes the
-// work order, puts THMP on it and creates the Jobber job; PropertyWare is
-// never involved.
+// "Create Work Order" on the Crystal Creek page. The caller is not a Texas
+// Renters tenant, so there is nothing to look up: the office types in who
+// they are, where they are and what needs doing. The server makes the work
+// order, puts THMP on it and creates the Jobber job; PropertyWare is never
+// involved.
+//
+// `catalog` is the coordinator's fixed list (CrystalCreekCatalog::forForm()):
+// { categories: ["HVAC", "Pest Control"], scopes: { HVAC: [{label, items}…], … } }.
+// The Scope of Work dropdown follows the chosen category.
 const props = defineProps({
-    categories: { type: Array, default: () => [] },
-    types: { type: Array, default: () => [] },
+    catalog: {
+        type: Object,
+        default: () => ({ categories: [], scopes: {} }),
+    },
 });
 
 const { toast } = useToast();
@@ -86,6 +93,18 @@ watch(open, (isOpen) => {
         form.clearErrors();
     }
 });
+
+// The scope groups for the chosen category; a scope picked under one
+// category is never carried over to another.
+const scopeGroups = computed(() => props.catalog?.scopes?.[form.category] ?? []);
+
+watch(
+    () => form.category,
+    () => {
+        form.type = "";
+        form.clearErrors("type");
+    },
+);
 </script>
 
 <template>
@@ -93,7 +112,7 @@ watch(open, (isOpen) => {
         <DialogTrigger as-child>
             <Button
                 class="bg-primary px-3 py-3 rounded text-white hover:bg-primary/80 whitespace-nowrap"
-                title="Create a work order for a Crystal Creek Air customer"
+                title="Create a work order for a Crystal Creek customer"
             >
                 <PlusCircle class="w-4 h-4 mr-2" />
                 Create Work Order
@@ -102,7 +121,7 @@ watch(open, (isOpen) => {
 
         <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-                <DialogTitle>New Crystal Creek Air work order</DialogTitle>
+                <DialogTitle>New Crystal Creek work order</DialogTitle>
                 <DialogDescription>
                     For a customer whose home is not a Texas Renters property.
                     THMP is assigned and the Jobber job is created for you;
@@ -177,11 +196,11 @@ watch(open, (isOpen) => {
                         <SelectContent>
                             <SelectGroup>
                                 <SelectItem
-                                    v-for="category in categories"
-                                    :key="category.id ?? category.name ?? category"
-                                    :value="category.name ?? category"
+                                    v-for="category in catalog.categories"
+                                    :key="category"
+                                    :value="category"
                                 >
-                                    {{ category.name ?? category }}
+                                    {{ category }}
                                 </SelectItem>
                             </SelectGroup>
                         </SelectContent>
@@ -192,15 +211,31 @@ watch(open, (isOpen) => {
                 </div>
 
                 <div class="space-y-1">
-                    <Label>Type</Label>
-                    <Select v-model="form.type">
+                    <Label>Scope of Work</Label>
+                    <Select v-model="form.type" :disabled="!form.category">
                         <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Optional" />
+                            <SelectValue
+                                :placeholder="
+                                    form.category
+                                        ? 'Select the scope of work'
+                                        : 'Choose a category first'
+                                "
+                            />
                         </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem v-for="type in types" :key="type" :value="type">
-                                    {{ type }}
+                        <SelectContent class="max-h-72">
+                            <SelectGroup
+                                v-for="group in scopeGroups"
+                                :key="group.label || 'all'"
+                            >
+                                <SelectLabel v-if="group.label" class="text-xs font-semibold">
+                                    {{ group.label }}
+                                </SelectLabel>
+                                <SelectItem
+                                    v-for="scope in group.items"
+                                    :key="scope"
+                                    :value="scope"
+                                >
+                                    {{ scope }}
                                 </SelectItem>
                             </SelectGroup>
                         </SelectContent>
@@ -211,7 +246,7 @@ watch(open, (isOpen) => {
                 </div>
 
                 <div class="space-y-1 sm:col-span-2">
-                    <Label>What needs doing</Label>
+                    <Label>Work Description</Label>
                     <Textarea
                         v-model="form.description"
                         rows="4"

@@ -400,7 +400,7 @@ const navs = computed(() => {
                 // the THMP crew. Its own page, not a Work Orders board: no
                 // sub-items, so the sidebar renders it as a plain link. Staff
                 // only: there is no tenant or owner side.
-                title: "Crystal Creek Air",
+                title: "Crystal Creek",
                 url: route("work_orders.crystal_creek"),
                 icon: AirVent,
                 isActive: page.url.startsWith("/work_orders/crystal-creek"),

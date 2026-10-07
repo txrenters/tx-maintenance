@@ -15,6 +15,7 @@ const props = defineProps({
     vendors: Object,
     categories: Object,
     types: Array,
+    catalog: Object,
     users: Object,
     filter: Object,
 });
@@ -33,7 +34,7 @@ const props = defineProps({
         :crystal-creek="true"
     >
         <template #board-actions>
-            <CrystalCreekCreateDialog :categories="categories ?? []" :types="types ?? []" />
+            <CrystalCreekCreateDialog :catalog="catalog ?? { categories: [], scopes: {} }" />
         </template>
     </LawnCare>
 </template>

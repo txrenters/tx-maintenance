@@ -287,26 +287,33 @@ class JobberJobService
     }
 
     /**
-     * "{customer} - {street} - {category} - #WO". Ends in the work order
-     * number so the note sync and the job resolver tie the job back here.
+     * "{customer} - {street} - {scope of work} - #WO" (Earl 10-08: the crew
+     * sees the job at a glance). The scope is the work order's type; a row
+     * without one falls back to the category. Ends in the work order number
+     * so the note sync and the job resolver tie the job back here.
      */
     private function outsideJobTitle(WorkOrder $workOrder, OutsideCustomer $customer): string
     {
         $parts = array_filter([
             trim((string) $customer->name),
             trim((string) $customer->street),
-            trim((string) $workOrder->category),
+            trim((string) $workOrder->type) ?: trim((string) $workOrder->category),
         ], fn (string $part) => $part !== '');
 
         return implode(' - ', $parts)." - #{$workOrder->work_order_no}";
     }
 
-    /** Description, then how to reach the customer and where they are. */
+    /**
+     * Category first (HVAC or Pest Control, since the title now carries the
+     * scope instead), then the description, then how to reach the customer
+     * and where they are.
+     */
     private function outsideJobInstructions(WorkOrder $workOrder, OutsideCustomer $customer): string
     {
         $description = trim(preg_replace('/\s+/', ' ', (string) $workOrder->description));
 
         $parts = array_filter([
+            trim((string) $workOrder->category),
             $description,
             trim((string) $customer->name),
             PhoneFormatter::display($customer->phone),

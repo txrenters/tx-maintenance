@@ -349,10 +349,6 @@ return [
         // to process them and message the tenant, so only THMP's own login
         // (John Carlo) gets the trimmed view. Comma-separated; blank = nobody.
         'thmp_filter_users' => env('JOBBER_THMP_FILTER_USERS', 'xservice@txhomemp.com'),
-        // The Jobber client every Crystal Creek Air customer's property is
-        // filed under ("Crystal Creek Air, LLC"). Blank = look it up by name
-        // in the jobber_clients mirror the webhooks keep.
-        'crystal_creek_client_gid' => env('JOBBER_CRYSTAL_CREEK_CLIENT_GID'),
     ],
 
     'crystal_creek' => [
@@ -362,9 +358,6 @@ return [
         // The allocator steps over any number a PropertyWare work order
         // already holds, so the two series never share a number.
         'first_work_order_no' => (int) env('CRYSTAL_CREEK_FIRST_WORK_ORDER_NO', 1),
-        // The category a Jobber job made by hand under the Crystal Creek Air
-        // client gets when it is imported as a work order; staff can change it.
-        'default_category' => env('CRYSTAL_CREEK_DEFAULT_CATEGORY', 'HVAC'),
     ],
 
     'inbox' => [

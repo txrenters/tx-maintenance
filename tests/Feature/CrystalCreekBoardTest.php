@@ -219,7 +219,7 @@ class CrystalCreekBoardTest extends TestCase
         $this->actingAs($this->staff())
             ->getJson(route('work_orders.summary', ['board' => 'crystal_creek']))
             ->assertOk()
-            ->assertJsonPath('stats.board_label', 'Crystal Creek Air')
+            ->assertJsonPath('stats.board_label', 'Crystal Creek')
             ->assertJsonPath('stats.work_orders.total', 1);
     }
 

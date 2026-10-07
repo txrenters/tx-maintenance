@@ -39,7 +39,7 @@ class IntakeNotificationController extends Controller
 
         if ($workOrder->isCrystalCreek()) {
             return response()->json([
-                'error' => 'This is a Crystal Creek Air work order: there is no tenant or owner to notify.',
+                'error' => 'This is a Crystal Creek work order: there is no tenant or owner to notify.',
             ], 422);
         }
 
