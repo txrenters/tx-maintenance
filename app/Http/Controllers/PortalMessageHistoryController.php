@@ -14,7 +14,7 @@ class PortalMessageHistoryController extends Controller
     public function __invoke(PortalMessageHistoryRequest $request, PortalMessageHistory $history): JsonResponse
     {
         return response()->json([
-            'data' => $history->for($request->validated('contact'), $request->validated('party')),
+            'data' => $history->for($request->validated('contact'), $request->validated('party'), $request->validated('work_order')),
         ]);
     }
 }

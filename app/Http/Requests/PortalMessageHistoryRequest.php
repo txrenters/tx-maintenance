@@ -23,6 +23,8 @@ class PortalMessageHistoryRequest extends FormRequest
         return [
             'contact' => ['required', 'string', 'regex:/^\d{1,20}$/'],
             'party' => ['required', 'in:tenant,owner'],
+            // A PropertyWare work order id: everyone's texts on that work order's side.
+            'work_order' => ['nullable', 'string', 'regex:/^\d{1,20}$/'],
         ];
     }
 }

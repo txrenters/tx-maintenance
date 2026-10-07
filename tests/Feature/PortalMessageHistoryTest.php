@@ -55,6 +55,7 @@ class PortalMessageHistoryTest extends TestCase
             ->assertJsonCount(2, 'data.0.messages')
             ->assertJsonPath('data.0.messages.0.id', $toTenant->id)
             ->assertJsonPath('data.0.messages.0.from', 'staff')
+            ->assertJsonPath('data.0.messages.0.to_you', true)
             ->assertJsonPath('data.0.messages.1.id', $fromTenant->id)
             ->assertJsonPath('data.0.messages.1.from', 'client');
     }
@@ -101,6 +102,33 @@ class PortalMessageHistoryTest extends TestCase
             ->assertJsonPath('data.0.messages.0.id', $theirs->id);
     }
 
+    public function test_a_work_orders_page_shows_everyone_on_its_side_and_whose_each_text_was(): void
+    {
+        $this->message('tenant', self::OFFICE, '+15551110001', 'To the first tenant.', '2026-01-02 10:00:00');
+        $this->message('tenant', '+15551110002', self::OFFICE, 'From the co-tenant.', '2026-01-02 11:00:00');
+        $this->message('tenant', self::OFFICE, '+15551110002', 'To the co-tenant.', '2026-01-02 12:00:00');
+        $this->message('tenant', self::OFFICE, '+17135550123', 'To a number no one on the work order has.', '2026-01-02 13:00:00');
+        $this->message('owner', self::OFFICE, '+15552220001', 'Owner only.', '2026-01-02 14:00:00');
+        $this->message('vendor', self::OFFICE, '+15551110001', 'Vendor thread.', '2026-01-02 15:00:00');
+
+        $this->history('1001', 'tenant', '9001')
+            ->assertOk()
+            ->assertJsonCount(3, 'data.0.messages')
+            ->assertJsonPath('data.0.messages.0.from', 'staff')
+            ->assertJsonPath('data.0.messages.0.to_you', true)
+            ->assertJsonPath('data.0.messages.1.from', 'other')
+            ->assertJsonPath('data.0.messages.2.from', 'staff')
+            ->assertJsonPath('data.0.messages.2.to_you', false);
+    }
+
+    public function test_a_work_order_the_person_is_not_on_shows_nothing(): void
+    {
+        $other = WorkOrder::factory()->create(['propertyware_id' => '9002']);
+        Conversation::create(['work_order_id' => $other->id, 'conversation_type' => 'tenant', 'message' => 'Someone else.', 'sender_number' => self::OFFICE, 'receiver_number' => '+15551110001']);
+
+        $this->history('1001', 'tenant', '9002')->assertOk()->assertExactJson(['data' => []]);
+    }
+
     public function test_entry_codes_are_masked(): void
     {
         $this->message('tenant', self::OFFICE, '+15551110001', 'The lockbox code is 4821 and the gate is #1234.');
@@ -135,8 +163,10 @@ class PortalMessageHistoryTest extends TestCase
         return $message;
     }
 
-    private function history(string $contact, string $party): TestResponse
+    private function history(string $contact, string $party, ?string $workOrder = null): TestResponse
     {
-        return $this->getJson("/api/portal/v1/message-history?contact={$contact}&party={$party}", ['Authorization' => 'Bearer portal-token']);
+        $query = $workOrder === null ? '' : "&work_order={$workOrder}";
+
+        return $this->getJson("/api/portal/v1/message-history?contact={$contact}&party={$party}{$query}", ['Authorization' => 'Bearer portal-token']);
     }
 }
