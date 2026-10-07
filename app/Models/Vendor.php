@@ -36,12 +36,13 @@ class Vendor extends Model
      * Our own repair brand "Crystal Creek Air, LLC", the same crew as THMP,
      * as PropertyWare names the vendor. A Texas Renters work order assigned
      * to this vendor belongs on the Crystal Creek Air page. Matched by name
-     * prefix, case-insensitively, so "Crystal Creek Air" with or without the
-     * ", LLC" (or a trailing space from PropertyWare) still counts.
+     * prefix "Crystal Creek", case-insensitively, so the vendor still counts
+     * after the office shortens its PropertyWare name (MC 10-08: "crystal creek
+     * name only"), with or without "Air" / ", LLC" / a trailing space.
      */
     public const CRYSTAL_CREEK_NAME = 'Crystal Creek Air, LLC';
 
-    public const CRYSTAL_CREEK_NAME_PREFIX = 'crystal creek air';
+    public const CRYSTAL_CREEK_NAME_PREFIX = 'crystal creek';
 
     protected $fillable = [
         'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',

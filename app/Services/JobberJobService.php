@@ -2,13 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\JobberClient;
-use App\Models\JobberProperty;
 use App\Models\OutsideCustomer;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 /**
  * Creates the Jobber job for a THMP work order and returns its id + deep link.
@@ -59,13 +56,11 @@ class JobberJobService
 
     /**
      * Create the Jobber job for a Crystal Creek Air work order: an outside
-     * customer's home, filed as a property under the "Crystal Creek Air, LLC"
-     * client. A returning customer's property is reused (its id is kept on
-     * the customer); a new one is created from the typed address.
-     *
-     * A missing Crystal Creek Air client is configuration, not a one-off, so
-     * it throws: the queued job then retries and finally lands in failed_jobs
-     * where IT can see it, instead of returning null and going quiet.
+     * customer's home. Every Jobber job needs a client and a property, so the
+     * customer becomes their own Jobber client (name, phone, email) with their
+     * home as its property, created on the first job and remembered on the
+     * customer so a returning caller reuses both (Earl 10-08: "lets work with
+     * auto creation of job"; there is no umbrella client in Jobber).
      *
      * @return array{gid: string, web_uri: string}|null
      */
@@ -79,11 +74,10 @@ class JobberJobService
             return null;
         }
 
-        $clientGid = $this->crystalCreekClientGid($customer);
-        $propertyId = $this->outsideCustomerPropertyId($customer, $clientGid);
+        $propertyId = $this->outsideCustomerPropertyId($customer);
 
         if ($propertyId === null) {
-            Log::error('Jobber job: no Jobber property could be found or created for the Crystal Creek Air customer.', [
+            Log::error('Jobber job: no Jobber client/property could be found or created for the Crystal Creek Air customer.', [
                 'work_order_id' => $workOrder->id,
                 'outside_customer_id' => $customer->id,
             ]);
@@ -100,82 +94,155 @@ class JobberJobService
     }
 
     /**
-     * The Jobber client Crystal Creek Air customers' properties live under:
-     * configured, else the one the jobber_clients mirror knows by name.
+     * The customer's Jobber property: the one remembered on the customer;
+     * else, when their Jobber client is known but the property is not (a
+     * clientCreate that answered without one), a property created under it;
+     * else a brand-new client with the home as its property. Whatever is
+     * created is written back to the customer before the job is attempted,
+     * so a refused job never makes a second client on retry.
      */
-    private function crystalCreekClientGid(OutsideCustomer $customer): string
-    {
-        if (filled($customer->jobber_client_gid)) {
-            return (string) $customer->jobber_client_gid;
-        }
-
-        $gid = config('services.jobber.crystal_creek_client_gid');
-
-        if (blank($gid)) {
-            $gid = JobberClient::query()
-                ->where(function ($query) {
-                    $query->where('name', 'LIKE', WorkOrder::CRYSTAL_CREEK_SOURCE.'%')
-                        ->orWhere('company_name', 'LIKE', WorkOrder::CRYSTAL_CREEK_SOURCE.'%');
-                })
-                ->orderBy('id')
-                ->value('jobber_id');
-        }
-
-        if (blank($gid)) {
-            throw new RuntimeException('The Crystal Creek Air client is not known in Jobber: set JOBBER_CRYSTAL_CREEK_CLIENT_GID or import Jobber jobs so the client appears in jobber_clients.');
-        }
-
-        $customer->update(['jobber_client_gid' => (string) $gid]);
-
-        return (string) $gid;
-    }
-
-    /**
-     * The customer's Jobber property: the one remembered on the customer, else
-     * a hand-made one in the mirror at the same street + zip under the Crystal
-     * Creek Air client, else a new one created from the typed address.
-     */
-    private function outsideCustomerPropertyId(OutsideCustomer $customer, string $clientGid): ?string
+    private function outsideCustomerPropertyId(OutsideCustomer $customer): ?string
     {
         if (filled($customer->jobber_property_gid)) {
             return (string) $customer->jobber_property_gid;
         }
 
-        $propertyId = $this->mirroredPropertyId($customer, $clientGid) ?? $this->createProperty($customer, $clientGid);
+        if (filled($customer->jobber_client_gid)) {
+            $propertyId = $this->createProperty($customer, (string) $customer->jobber_client_gid);
 
-        if ($propertyId !== null) {
-            $customer->update(['jobber_property_gid' => $propertyId]);
+            if ($propertyId !== null) {
+                $customer->update(['jobber_property_gid' => $propertyId]);
+            }
+
+            return $propertyId;
         }
 
-        return $propertyId;
-    }
+        $ids = $this->createClient($customer);
 
-    private function mirroredPropertyId(OutsideCustomer $customer, string $clientGid): ?string
-    {
-        $street = mb_strtolower(trim((string) $customer->street));
-        $postalCode = trim((string) $customer->postal_code);
-
-        if ($street === '' || $postalCode === '') {
+        if ($ids === null) {
             return null;
         }
 
-        $clientRowId = JobberClient::query()->where('jobber_id', $clientGid)->value('id');
+        $customer->update([
+            'jobber_client_gid' => $ids['client'],
+            'jobber_property_gid' => $ids['property'],
+        ]);
 
-        if ($clientRowId === null) {
-            return null;
+        if ($ids['property'] === null) {
+            $propertyId = $this->createProperty($customer, $ids['client']);
+
+            if ($propertyId !== null) {
+                $customer->update(['jobber_property_gid' => $propertyId]);
+            }
+
+            return $propertyId;
         }
 
-        return JobberProperty::query()
-            ->where('jobber_client_id', $clientRowId)
-            ->whereRaw('LOWER(TRIM(street)) = ?', [$street])
-            ->where('postal_code', $postalCode)
-            ->orderBy('id')
-            ->value('jobber_id');
+        return $ids['property'];
     }
 
     /**
-     * propertyCreate under the Crystal Creek Air client. Address fields are
-     * GraphQL variables so a typed street can never break the query.
+     * clientCreate: the customer as a person (first and last name from the
+     * typed name), with their phone and email as the primary contacts and
+     * their home as the first property. Everything travels as GraphQL
+     * variables so typed text can never break the query.
+     *
+     * @return array{client: string, property: ?string}|null
+     */
+    private function createClient(OutsideCustomer $customer): ?array
+    {
+        [$firstName, $lastName] = $this->splitName((string) $customer->name);
+
+        $input = [
+            'firstName' => $firstName,
+            'properties' => [[
+                'address' => $this->propertyAddress($customer),
+            ]],
+        ];
+
+        if ($lastName !== '') {
+            $input['lastName'] = $lastName;
+        }
+
+        $phone = $customer->normalizedPhone() ?? trim((string) $customer->phone);
+
+        if ($phone !== '') {
+            $input['phones'] = [['description' => 'MAIN', 'primary' => true, 'number' => $phone]];
+        }
+
+        $email = trim((string) $customer->email);
+
+        if ($email !== '') {
+            $input['emails'] = [['description' => 'MAIN', 'primary' => true, 'address' => $email]];
+        }
+
+        $mutation = 'mutation ($input: ClientCreateInput!) {
+            clientCreate(input: $input) {
+                client { id properties { id } }
+                userErrors { message path }
+            }
+        }';
+
+        $response = $this->post(['query' => $mutation, 'variables' => ['input' => $input]]);
+
+        if ($response === null) {
+            return null;
+        }
+
+        $userErrors = data_get($response, 'data.clientCreate.userErrors', []);
+        $clientId = data_get($response, 'data.clientCreate.client.id');
+
+        if (! empty($userErrors) || isset($response['errors']) || blank($clientId)) {
+            Log::error('Jobber job: clientCreate was refused.', [
+                'outside_customer_id' => $customer->id,
+                'userErrors' => $userErrors,
+                'errors' => $response['errors'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $propertyId = data_get($response, 'data.clientCreate.client.properties.0.id');
+
+        return [
+            'client' => (string) $clientId,
+            'property' => blank($propertyId) ? null : (string) $propertyId,
+        ];
+    }
+
+    /**
+     * "Pat Customer" → ["Pat", "Customer"]; "Cher" → ["Cher", ""];
+     * "Mary Ann Lee" → ["Mary", "Ann Lee"].
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function splitName(string $name): array
+    {
+        $words = preg_split('/\s+/', trim($name)) ?: [];
+        $words = array_values(array_filter($words, fn ($word) => $word !== ''));
+
+        if ($words === []) {
+            return ['Customer', ''];
+        }
+
+        return [array_shift($words), implode(' ', $words)];
+    }
+
+    /** @return array<string, string> */
+    private function propertyAddress(OutsideCustomer $customer): array
+    {
+        return [
+            'street1' => (string) $customer->street,
+            'city' => (string) $customer->city,
+            'province' => (string) $customer->state,
+            'postalCode' => (string) $customer->postal_code,
+            'country' => 'US',
+        ];
+    }
+
+    /**
+     * propertyCreate under the customer's own Jobber client. Address fields
+     * are GraphQL variables so a typed street can never break the query.
      */
     private function createProperty(OutsideCustomer $customer, string $clientGid): ?string
     {
@@ -192,13 +259,7 @@ class JobberJobService
                 'clientId' => $clientGid,
                 'input' => [
                     'properties' => [[
-                        'address' => [
-                            'street1' => (string) $customer->street,
-                            'city' => (string) $customer->city,
-                            'province' => (string) $customer->state,
-                            'postalCode' => (string) $customer->postal_code,
-                            'country' => 'US',
-                        ],
+                        'address' => $this->propertyAddress($customer),
                     ]],
                 ],
             ],
