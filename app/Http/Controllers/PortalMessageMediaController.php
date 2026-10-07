@@ -14,6 +14,12 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class PortalMessageMediaController extends Controller
 {
+    /** Types named as themselves; anything else (SVG, HTML) goes out as plain bytes. */
+    private const SAFE_TYPES = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+        'application/pdf', 'video/mp4', 'video/3gpp', 'video/quicktime', 'audio/amr',
+    ];
+
     public function __invoke(PortalMessageHistoryRequest $request, int $media, PortalMessageHistory $history): BinaryFileResponse
     {
         $attachment = $history->attachment($request->validated('contact'), $request->validated('party'), $media);
@@ -21,9 +27,15 @@ class PortalMessageMediaController extends Controller
 
         abort_if($disk === null, 404);
 
+        $type = strtolower((string) $attachment->content_type);
+        $safe = in_array($type, self::SAFE_TYPES, true);
+
         return response()->file(Storage::disk($disk)->path($attachment->local_path), [
-            'Content-Type' => $attachment->content_type ?: 'application/octet-stream',
+            'Content-Type' => $safe ? $type : 'application/octet-stream',
+            'Content-Disposition' => $safe ? 'inline' : 'attachment',
             'Cache-Control' => 'private, max-age=300',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
         ]);
     }
 }

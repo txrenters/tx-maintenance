@@ -173,6 +173,19 @@ class PortalMessageHistoryTest extends TestCase
         $this->getJson("/api/portal/v1/message-media/{$mine->id}?contact=1001&party=tenant")->assertUnauthorized();
     }
 
+    public function test_a_file_that_could_run_in_a_browser_is_only_ever_sent_as_plain_bytes(): void
+    {
+        Storage::fake('local');
+        $svg = $this->attach($this->message('tenant', '+15551110001', self::OFFICE, 'Drawing.'), 'image/png', 'drawing.svg');
+        $svg->update(['content_type' => 'image/svg+xml']);
+
+        $this->file($svg, '1001')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/octet-stream')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Content-Disposition', 'attachment');
+    }
+
     public function test_entry_codes_are_masked(): void
     {
         $this->message('tenant', self::OFFICE, '+15551110001', 'The lockbox code is 4821 and the gate is #1234.');
