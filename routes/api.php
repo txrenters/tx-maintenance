@@ -10,6 +10,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PortalMessageHistoryController;
 use App\Http\Controllers\ResendTwilioMessageController;
 use App\Http\Controllers\TwilioWebhookController;
 use Illuminate\Http\Request;
@@ -91,6 +92,12 @@ Route::post('/buildings/{buildingId}/update-custom-fields', [BuildingController:
 // '/notification/messages' (get_conversation) moved to the authenticated web
 // group so a vendor cannot read another vendor's thread via notifications.
 Route::post('/notification/jobber/messages', [JobberTextMessageController::class, 'get_conversation']);
+
+// The client portal (tx-client): a tenant's or owner's earlier work order
+// texts, as closed history.
+Route::middleware(['portal.token', 'throttle:120,1'])->prefix('portal/v1')->group(function () {
+    Route::get('/message-history', PortalMessageHistoryController::class)->name('portal.message_history');
+});
 
 // TEX App API Routes
 Route::prefix('v1')->group(function () {

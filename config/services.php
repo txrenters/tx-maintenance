@@ -2,6 +2,12 @@
 
 return [
 
+    // The client portal (tx-client) reading a client's earlier work order
+    // texts from /api/portal/v1, with this bearer token.
+    'portal' => [
+        'token' => env('PORTAL_API_TOKEN'),
+    ],
+
     'chatbot' => [
         'enabled' => env('CHATBOT_HUB_ENABLED', false),
         'url' => env('CHATBOT_HUB_URL'),
