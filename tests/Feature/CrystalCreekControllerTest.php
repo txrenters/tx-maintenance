@@ -97,7 +97,7 @@ class CrystalCreekControllerTest extends TestCase
         $this->actingAs($this->staff())
             ->post(route('work_orders.crystal_creek.store'), $this->payload())
             ->assertRedirect()
-            ->assertSessionHas('success', fn (string $message) => str_contains($message, '#7000001') && str_contains($message, 'Pat Customer'));
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'Work order #1 created') && str_contains($message, 'Pat Customer'));
 
         $workOrder = WorkOrder::query()->crystalCreek()->first();
         $this->assertNotNull($workOrder);

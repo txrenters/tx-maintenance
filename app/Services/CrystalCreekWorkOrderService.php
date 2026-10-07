@@ -72,20 +72,32 @@ class CrystalCreekWorkOrderService
     }
 
     /**
-     * The next number in the Crystal Creek Air series. Serialized behind a
-     * cache lock because work_order_no has no unique index to catch a race.
+     * The next number in the Crystal Creek Air series: one past the highest
+     * outside-customer number so far (never below the configured floor),
+     * stepping over any number a PropertyWare work order already holds so a
+     * search by number can never find two different jobs. Serialized behind
+     * a cache lock because work_order_no has no unique index to catch a race.
      */
     public function allocateWorkOrderNo(): int
     {
         return Cache::lock('crystal-creek:allocate-work-order-no', 10)->block(5, function () {
-            $floor = (int) config('services.crystal_creek.first_work_order_no', 7000001);
+            $floor = max(1, (int) config('services.crystal_creek.first_work_order_no', 1));
 
+            // Source-marked only: a Texas Renters work order assigned to the
+            // Crystal Creek Air vendor keeps its PropertyWare number and must
+            // not drag the series up to PropertyWare's range.
             $highest = (int) WorkOrder::withoutGlobalScopes()
                 ->crystalCreek()
                 ->lockForUpdate()
                 ->max('work_order_no');
 
-            return max($floor, $highest + 1);
+            $next = max($floor, $highest + 1);
+
+            while (WorkOrder::withoutGlobalScopes()->where('work_order_no', $next)->exists()) {
+                $next++;
+            }
+
+            return $next;
         });
     }
 

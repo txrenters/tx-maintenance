@@ -96,7 +96,7 @@ class ImportCrystalCreekJobsTest extends TestCase
         $workOrder = WorkOrder::query()->crystalCreek()->first();
         $this->assertNotNull($workOrder);
         $this->assertSame(1, WorkOrder::query()->count());
-        $this->assertSame(7000001, (int) $workOrder->work_order_no);
+        $this->assertSame(1, (int) $workOrder->work_order_no);
         $this->assertSame('GID-JOB-1', $workOrder->jobber_job_gid);
         $this->assertSame($job->jobber_web_uri, $workOrder->jobber_web_uri);
         $this->assertSame('Unit froze over, check charge', $workOrder->description);
@@ -167,7 +167,7 @@ class ImportCrystalCreekJobsTest extends TestCase
         $this->artisan('crystal-creek:import-jobs')->assertSuccessful();
 
         $this->assertSame(1, OutsideCustomer::query()->count());
-        $this->assertSame([7000001, 7000002], WorkOrder::query()->orderBy('work_order_no')->pluck('work_order_no')->map(fn ($n) => (int) $n)->all());
+        $this->assertSame([1, 2], WorkOrder::query()->orderBy('work_order_no')->pluck('work_order_no')->map(fn ($n) => (int) $n)->all());
     }
 
     public function test_a_title_with_no_name_gets_a_placeholder_customer_name(): void

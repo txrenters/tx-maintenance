@@ -1255,7 +1255,7 @@ class WorkOrderController extends Controller
             'title' => 'Crystal Creek Air',
             // The card shows who the customer is; a Texas Renters card shows
             // the tenant instead, so these columns are only loaded here.
-            'service_status' => Inertia::defer(fn () => $this->activityBoard($request, 'crystalCreek', [
+            'service_status' => Inertia::defer(fn () => $this->activityBoard($request, 'crystalCreekPage', [
                 'source',
                 'service_request_contact_name',
                 'service_request_contact_phone',

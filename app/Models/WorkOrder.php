@@ -481,13 +481,24 @@ class WorkOrder extends Model
     }
 
     /**
-     * What the Crystal Creek Air page lists: outside customers' work orders
-     * (source-marked, see isCrystalCreek()) plus every Texas Renters work
-     * order whose assigned vendors include the "Crystal Creek Air, LLC"
-     * vendor from PropertyWare. The latter stay ordinary work orders on
-     * every other board; this is an extra view of them, the way HVAC is.
+     * Only outside customers' Crystal Creek Air work orders (source-marked,
+     * the same rule as isCrystalCreek()). This is the scope every "stand
+     * down, PropertyWare has never heard of it" rule uses; a Texas Renters
+     * work order assigned to the Crystal Creek Air vendor is NOT in it.
      */
     public function scopeCrystalCreek($query)
+    {
+        return $query->where('source', self::CRYSTAL_CREEK_SOURCE);
+    }
+
+    /**
+     * What the Crystal Creek Air page lists: outside customers' work orders
+     * plus every Texas Renters work order whose assigned vendors include the
+     * "Crystal Creek Air, LLC" vendor from PropertyWare. The latter stay
+     * ordinary work orders on every other board; this is an extra view of
+     * them, the way HVAC is. Page only: never use it to decide behaviour.
+     */
+    public function scopeCrystalCreekPage($query)
     {
         return $query->where(function ($q) {
             $q->where('source', self::CRYSTAL_CREEK_SOURCE)
@@ -1373,7 +1384,7 @@ class WorkOrder extends Model
             // else (every arm above carries notCrystalCreek()); Texas Renters
             // work orders assigned to the Crystal Creek Air vendor show here
             // AND on their usual boards.
-            'crystal_creek' => $query->crystalCreek()->where('status', 'Open'),
+            'crystal_creek' => $query->crystalCreekPage()->where('status', 'Open'),
 
             default => $query,
         };

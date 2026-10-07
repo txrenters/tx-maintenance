@@ -357,9 +357,11 @@ return [
 
     'crystal_creek' => [
         // Crystal Creek Air work orders (outside customers, never in
-        // PropertyWare) get their own number series, well above anything
-        // PropertyWare hands out, so the two can never collide.
-        'first_work_order_no' => (int) env('CRYSTAL_CREEK_FIRST_WORK_ORDER_NO', 7000001),
+        // PropertyWare) get their own number series, counting from 1 (Earl
+        // 10-08: "outside texasrenter property should start at 0 counter").
+        // The allocator steps over any number a PropertyWare work order
+        // already holds, so the two series never share a number.
+        'first_work_order_no' => (int) env('CRYSTAL_CREEK_FIRST_WORK_ORDER_NO', 1),
         // The category a Jobber job made by hand under the Crystal Creek Air
         // client gets when it is imported as a work order; staff can change it.
         'default_category' => env('CRYSTAL_CREEK_DEFAULT_CATEGORY', 'HVAC'),

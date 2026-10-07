@@ -67,7 +67,7 @@ class CrystalCreekWorkOrderServiceTest extends TestCase
 
         $workOrder = $this->service()->create($this->callerData(), User::factory()->create());
 
-        $this->assertSame(7000001, (int) $workOrder->work_order_no);
+        $this->assertSame(1, (int) $workOrder->work_order_no);
         $this->assertSame(WorkOrder::CRYSTAL_CREEK_SOURCE, $workOrder->source);
         $this->assertTrue($workOrder->isCrystalCreek());
         $this->assertNull($workOrder->propertyware_id);
@@ -88,8 +88,8 @@ class CrystalCreekWorkOrderServiceTest extends TestCase
         $first = $this->service()->create($this->callerData(), null);
         $second = $this->service()->create($this->callerData(['phone' => '(512) 555-0199', 'email' => 'other@example.com', 'street' => '9 Elm Ave']), null);
 
-        $this->assertSame(7000001, (int) $first->work_order_no);
-        $this->assertSame(7000002, (int) $second->work_order_no);
+        $this->assertSame(1, (int) $first->work_order_no);
+        $this->assertSame(2, (int) $second->work_order_no);
     }
 
     public function test_thmp_is_attached_without_a_portal_token_and_with_the_followup_opt_out(): void
@@ -172,6 +172,42 @@ class CrystalCreekWorkOrderServiceTest extends TestCase
         $workOrder = $this->service()->create($this->callerData(), null);
 
         $this->assertSame(0, $workOrder->vendors()->count());
-        $this->assertSame(7000001, (int) $workOrder->work_order_no);
+        $this->assertSame(1, (int) $workOrder->work_order_no);
+    }
+
+    /**
+     * Earl 10-07: "Crystal Creek Air, LLC" is also a PropertyWare vendor on
+     * ordinary Texas Renters work orders. Those keep PropertyWare's number
+     * and must not drag the outside-customer series up into its range.
+     */
+    public function test_a_texas_renters_work_order_assigned_to_the_crystal_creek_vendor_does_not_move_the_series(): void
+    {
+        Queue::fake();
+        $vendor = Vendor::query()->create([
+            'propertyware_id' => '999000001',
+            'name' => Vendor::CRYSTAL_CREEK_NAME,
+            'is_active' => true,
+            'user_id' => User::factory()->create()->id,
+        ]);
+        WorkOrder::factory()->create(['work_order_no' => 44313])->vendors()->attach([$vendor->id]);
+
+        $workOrder = $this->service()->create($this->callerData(), null);
+
+        $this->assertSame(1, (int) $workOrder->work_order_no);
+    }
+
+    /** A number PropertyWare already handed out is skipped, never shared. */
+    public function test_the_series_steps_over_numbers_propertyware_already_uses(): void
+    {
+        Queue::fake();
+        WorkOrder::factory()->create(['work_order_no' => 1]);
+        WorkOrder::factory()->create(['work_order_no' => 2]);
+
+        $first = $this->service()->create($this->callerData(), null);
+        $second = $this->service()->create($this->callerData(['phone' => '(512) 555-0199', 'email' => 'other@example.com', 'street' => '9 Elm Ave']), null);
+
+        $this->assertSame(3, (int) $first->work_order_no);
+        $this->assertSame(4, (int) $second->work_order_no);
+        $this->assertSame(4, WorkOrder::query()->count());
     }
 }

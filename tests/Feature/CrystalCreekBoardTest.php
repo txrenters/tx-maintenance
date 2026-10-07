@@ -128,6 +128,13 @@ class CrystalCreekBoardTest extends TestCase
 
         $this->assertFalse($assigned->fresh()->isCrystalCreek(), 'A Texas Renters work order keeps PropertyWare and its automations');
         $this->assertSame([$assigned->id], WorkOrder::query()->forBoard('crystal_creek')->pluck('id')->all());
+
+        // The page scope is the only place the vendor counts. The behaviour
+        // scope (PropertyWare stand-down, note push exclusion, the number
+        // series) must never pick a Texas Renters work order up by its vendor.
+        $this->assertSame([$assigned->id], WorkOrder::query()->crystalCreekPage()->pluck('id')->all());
+        $this->assertSame([], WorkOrder::query()->crystalCreek()->pluck('id')->all());
+        $this->assertContains($assigned->id, WorkOrder::query()->notCrystalCreek()->pluck('id')->all());
     }
 
     public function test_the_vendor_name_match_tolerates_case_suffix_and_whitespace(): void
