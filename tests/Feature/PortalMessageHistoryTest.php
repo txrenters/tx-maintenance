@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\Owner;
 use App\Models\Tenants;
 use App\Models\WorkOrder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -147,6 +149,30 @@ class PortalMessageHistoryTest extends TestCase
         $this->history('1001', 'tenant', '9002')->assertOk()->assertExactJson(['data' => []]);
     }
 
+    public function test_attachments_are_listed_by_name_and_type_and_served_only_to_whoever_may_see_their_text(): void
+    {
+        Storage::fake('local');
+        $reporter = Tenants::factory()->create(['propertyware_id' => '1003', 'mobile_phone' => '5551110003', 'home_phone' => null]);
+        $this->workOrder->update(['tenant_id' => $reporter->id]);
+
+        $mine = $this->attach($this->message('tenant', '+15551110001', self::OFFICE, 'My photo.'), 'image/jpeg', 'photo');
+        $household = $this->attach($this->message('tenant', '+15551110002', self::OFFICE, 'Co-tenant photo.'), 'application/pdf', 'invoice.pdf');
+        $outside = $this->attach($this->message('tenant', '+15551110003', self::OFFICE, 'Former tenant photo.'), 'image/png', 'old.png');
+
+        $this->history('1001', 'tenant')
+            ->assertOk()
+            ->assertJsonPath('data.0.messages.0.media.0.id', $mine->id)
+            ->assertJsonPath('data.0.messages.0.media.0.type', 'image/jpeg')
+            ->assertJsonPath('data.0.messages.0.media.0.name', 'photo.jpg');
+
+        $this->file($mine, '1001')->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->file($household, '1001')->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->file($outside, '1001')->assertNotFound();
+        $this->file($mine, '1003')->assertNotFound();
+        $this->file($mine, '9999')->assertNotFound();
+        $this->getJson("/api/portal/v1/message-media/{$mine->id}?contact=1001&party=tenant")->assertUnauthorized();
+    }
+
     public function test_entry_codes_are_masked(): void
     {
         $this->message('tenant', self::OFFICE, '+15551110001', 'The lockbox code is 4821 and the gate is #1234.');
@@ -179,6 +205,19 @@ class PortalMessageHistoryTest extends TestCase
         $message->forceFill(['created_at' => $at])->saveQuietly();
 
         return $message;
+    }
+
+    private function attach(Conversation $message, string $type, string $name): ConversationMedia
+    {
+        $path = 'message_media/'.$message->id.'/file-'.$message->id.'.'.(['image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf'][$type]);
+        Storage::disk('local')->put($path, 'contents');
+
+        return ConversationMedia::create(['message_id' => $message->id, 'local_path' => $path, 'content_type' => $type, 'file_name' => $name, 'original_url' => 'https://api.twilio.test/media/'.$message->id]);
+    }
+
+    private function file(ConversationMedia $media, string $contact): TestResponse
+    {
+        return $this->get("/api/portal/v1/message-media/{$media->id}?contact={$contact}&party=tenant", ['Authorization' => 'Bearer portal-token', 'Accept' => 'application/json']);
     }
 
     private function history(string $contact, string $party, ?string $workOrder = null): TestResponse

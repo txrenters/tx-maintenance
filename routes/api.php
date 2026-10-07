@@ -11,6 +11,7 @@ use App\Http\Controllers\JobberTextMessageController;
 use App\Http\Controllers\JobberWebhookController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PortalMessageHistoryController;
+use App\Http\Controllers\PortalMessageMediaController;
 use App\Http\Controllers\ResendTwilioMessageController;
 use App\Http\Controllers\TwilioWebhookController;
 use Illuminate\Http\Request;
@@ -97,6 +98,7 @@ Route::post('/notification/jobber/messages', [JobberTextMessageController::class
 // texts, as closed history.
 Route::middleware(['portal.token', 'throttle:120,1'])->prefix('portal/v1')->group(function () {
     Route::get('/message-history', PortalMessageHistoryController::class)->name('portal.message_history');
+    Route::get('/message-media/{media}', PortalMessageMediaController::class)->whereNumber('media')->name('portal.message_media');
 });
 
 // TEX App API Routes

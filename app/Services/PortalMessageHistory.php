@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Conversation;
+use App\Models\ConversationMedia;
 use App\Models\Owner;
 use App\Models\Tenants;
 use App\Models\WorkOrder;
@@ -41,7 +42,7 @@ class PortalMessageHistory
     /**
      * @param  'tenant'|'owner'  $party
      * @param  ?string  $workOrderId  A PropertyWare work order id, for everyone's texts on that one work order.
-     * @return list<array{work_order: array{id: int, propertyware_id: ?string, number: ?string, title: ?string, status: ?string}, messages: list<array{id: int, from: 'client'|'other'|'staff', to_you: bool, body: string, media: list<string>, sent_at: ?string}>}>
+     * @return list<array{work_order: array{id: int, propertyware_id: ?string, number: ?string, title: ?string, status: ?string}, messages: list<array{id: int, from: 'client'|'other'|'staff', to_you: bool, body: string, media: list<array{id: int, name: string, type: string}>, sent_at: ?string}>}>
      */
     public function for(string $contactId, string $party, ?string $workOrderId = null): array
     {
@@ -187,7 +188,7 @@ class PortalMessageHistory
      *
      * @param  Collection<int, string>  $mine
      * @param  Collection<int, string>  $others
-     * @return array{id: int, work_order_id: int, from: 'client'|'other'|'staff', to_you: bool, body: string, media: list<string>, sent_at: ?string}|null
+     * @return array{id: int, work_order_id: int, from: 'client'|'other'|'staff', to_you: bool, body: string, media: list<array{id: int, name: string, type: string}>, sent_at: ?string}|null
      */
     private function present(Conversation $message, Collection $mine, Collection $others): ?array
     {
@@ -212,9 +213,58 @@ class PortalMessageHistory
             'from' => $from,
             'to_you' => $toYou,
             'body' => self::maskCodes((string) $message->message),
-            'media' => $message->media->map(fn ($media): string => $media->public_url)->values()->all(),
+            'media' => $message->media->map(fn (ConversationMedia $media): array => [
+                'id' => $media->id,
+                'name' => self::fileName($media),
+                'type' => $media->content_type ?: 'application/octet-stream',
+            ])->values()->all(),
             'sent_at' => $message->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * A file attached to one of the texts the person may see: their own, or
+     * their household's on that file's work order. Null otherwise.
+     *
+     * @param  'tenant'|'owner'  $party
+     */
+    public function attachment(string $contactId, string $party, int $mediaId): ?ConversationMedia
+    {
+        $media = ConversationMedia::query()->find($mediaId);
+        $message = $media === null ? null : Conversation::query()->withoutGlobalScopes()->find($media->message_id);
+        $workOrder = $message === null ? null : WorkOrder::query()->withoutGlobalScopes()->find($message->work_order_id);
+
+        if ($workOrder === null) {
+            return null;
+        }
+
+        $visible = collect($this->for($contactId, $party, filled($workOrder->propertyware_id) ? (string) $workOrder->propertyware_id : null))
+            ->flatMap(fn (array $thread): array => $thread['messages'])
+            ->contains(fn (array $shown): bool => $shown['id'] === $message->id);
+
+        return $visible ? $media : null;
+    }
+
+    /**
+     * The attachment's name, always with an extension, so a client can tell a
+     * photo from a document by its name.
+     */
+    private static function fileName(ConversationMedia $media): string
+    {
+        $name = filled($media->file_name) ? basename((string) $media->file_name) : basename((string) $media->local_path);
+        $name = $name !== '' ? $name : 'attachment-'.$media->id;
+
+        if (pathinfo($name, PATHINFO_EXTENSION) !== '') {
+            return $name;
+        }
+
+        $extension = [
+            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
+            'video/mp4' => 'mp4', 'video/3gpp' => '3gp', 'video/quicktime' => 'mov',
+            'audio/amr' => 'amr', 'application/pdf' => 'pdf',
+        ][$media->content_type] ?? null;
+
+        return $extension === null ? $name : $name.'.'.$extension;
     }
 
     /**
