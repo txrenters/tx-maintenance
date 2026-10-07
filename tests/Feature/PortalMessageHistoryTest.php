@@ -121,6 +121,24 @@ class PortalMessageHistoryTest extends TestCase
             ->assertJsonPath('data.0.messages.2.to_you', false);
     }
 
+    public function test_a_reporter_outside_the_lease_household_and_the_household_never_see_each_others_texts(): void
+    {
+        $reporter = Tenants::factory()->create(['propertyware_id' => '1003', 'mobile_phone' => '5551110003', 'home_phone' => null]);
+        $this->workOrder->update(['tenant_id' => $reporter->id]);
+        $this->message('tenant', '+15551110003', self::OFFICE, 'From the former tenant.', '2026-01-02 10:00:00');
+        $this->message('tenant', '+15551110001', self::OFFICE, 'From the household.', '2026-01-02 11:00:00');
+
+        $this->history('1001', 'tenant', '9001')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.0.messages')
+            ->assertJsonPath('data.0.messages.0.body', 'From the household.');
+
+        $this->history('1003', 'tenant', '9001')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.0.messages')
+            ->assertJsonPath('data.0.messages.0.body', 'From the former tenant.');
+    }
+
     public function test_a_work_order_the_person_is_not_on_shows_nothing(): void
     {
         $other = WorkOrder::factory()->create(['propertyware_id' => '9002']);

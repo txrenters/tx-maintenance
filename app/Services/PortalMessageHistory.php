@@ -23,10 +23,12 @@ use Illuminate\Support\Collection;
  *  4. the message was sent to or from one of the numbers on their own record
  *     (and, for owners, names them when it records an owner at all).
  *
- * For one work order's page, rule 4 widens to everyone on that side of it:
- * the household on the work order's lease and whoever reported it, or the
- * property's owners. Each message says whether it was the person's own, and a
- * message no one on the work order can be matched to is still left out.
+ * For one work order's page, rule 4 widens to the person's household on it:
+ * the tenants on the work order's lease, when the person is one of them, or
+ * the property's owners. Whoever reported it from outside the lease is not
+ * part of that household (a former tenant, say), so neither side sees the
+ * other's texts. Each message says whether it was the person's own, and a
+ * message no one in the household can be matched to is still left out.
  *
  * Messages the support app already holds are left out, so the portal never
  * shows one twice.
@@ -58,10 +60,10 @@ class PortalMessageHistory
             return [];
         }
 
-        // Everyone else on that side of the one work order, by number.
+        // The rest of the person's household on the one work order, by number.
         $others = $workOrderId === null
             ? collect()
-            : $this->numbers($this->partiesOn($workOrderIds->first(), $party), $party)->diff($mine)->values();
+            : $this->numbers($this->householdOn($workOrderIds->first(), $party, $people->modelKeys()), $party)->diff($mine)->values();
 
         $messages = Conversation::query()
             ->withoutGlobalScopes()
@@ -137,25 +139,22 @@ class PortalMessageHistory
     }
 
     /**
-     * Everyone on one side of a work order: its lease household and whoever
-     * reported it, or the property's owners.
+     * The person's household on a work order: the property's owners, or the
+     * tenants on its lease when the person is one of them. Empty otherwise.
      *
+     * @param  list<int>  $personIds
      * @return Collection<int, Owner|Tenants>
      */
-    private function partiesOn(int $workOrderId, string $party): Collection
+    private function householdOn(int $workOrderId, string $party, array $personIds): Collection
     {
         $workOrder = WorkOrder::query()->withoutGlobalScopes()->find($workOrderId);
+        $household = match (true) {
+            $workOrder === null => collect(),
+            $party === 'owner' => $workOrder->owners()->get(),
+            default => $workOrder->tenants()->get(),
+        };
 
-        if ($workOrder === null) {
-            return collect();
-        }
-
-        if ($party === 'owner') {
-            return $workOrder->owners()->get();
-        }
-
-        return $workOrder->tenants()->get()
-            ->merge(Tenants::query()->whereKey($workOrder->tenant_id)->get());
+        return $household->contains(fn ($member): bool => in_array($member->id, $personIds, true)) ? $household : collect();
     }
 
     /**
