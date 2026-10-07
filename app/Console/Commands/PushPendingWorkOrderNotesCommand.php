@@ -50,6 +50,9 @@ class PushPendingWorkOrderNotesCommand extends Command
         $due = WorkOrderNotes::query()
             ->whereNotNull('user_id')
             ->whereNull('propertyware_id')
+            // A Crystal Creek Air work order is never in PropertyWare, so its
+            // notes are not waiting for anything.
+            ->whereNotIn('work_order_id', WorkOrder::withoutGlobalScope(WorkOrderScope::class)->crystalCreek()->select('id'))
             ->where('created_at', '<=', $now->copy()->subMinutes(WorkOrderNotePushService::GRACE_MINUTES))
             ->where('created_at', '>=', $now->copy()->subDays(WorkOrderNotePushService::GIVE_UP_DAYS))
             ->orderBy('id')

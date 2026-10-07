@@ -357,6 +357,15 @@ return [
         'thmp_filter_users' => env('JOBBER_THMP_FILTER_USERS', 'xservice@txhomemp.com'),
     ],
 
+    'crystal_creek' => [
+        // Crystal Creek Air work orders (outside customers, never in
+        // PropertyWare) get their own number series, counting from 1 (Earl
+        // 10-08: "outside texasrenter property should start at 0 counter").
+        // The allocator steps over any number a PropertyWare work order
+        // already holds, so the two series never share a number.
+        'first_work_order_no' => (int) env('CRYSTAL_CREEK_FIRST_WORK_ORDER_NO', 1),
+    ],
+
     'inbox' => [
         // AI filter that drops pure courtesy closers ("thank you", "ok
         // great") out of the awaiting-reply badge, Inbox counts, board

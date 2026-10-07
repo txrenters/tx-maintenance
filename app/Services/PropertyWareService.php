@@ -761,8 +761,32 @@ class PropertyWareService
         }
     }
 
+    /**
+     * Whether a work order exists in PropertyWare at all. A Crystal Creek Air
+     * work order (an outside customer, never imported) and a local-only HOA
+     * row have no PropertyWare id; pushing them would PATCH
+     * `/workorders/` with no id and fail. Every push below stands down.
+     */
+    private function pushable(?object $workOrder): bool
+    {
+        if ($workOrder === null || blank($workOrder->propertyware_id)) {
+            Log::info('PropertyWare push skipped: the work order has no PropertyWare record.', [
+                'work_order_id' => $workOrder?->id,
+                'work_order_no' => $workOrder?->work_order_no,
+            ]);
+
+            return false;
+        }
+
+        return true;
+    }
+
     public function updateWorkOrder($workOrder, array $changes = [])
     {
+        if (! $this->pushable($workOrder)) {
+            return ['ok' => false, 'status' => 0, 'message' => 'This work order is not in PropertyWare.'];
+        }
+
         // PropertyWare's updateWorkOrder endpoint uses JSON Merge Patch, so we send ONLY
         // the fields we intend to change (see buildWorkOrderPatchPayload). PropertyWare
         // rejects edits to work orders it considers closed with a 400 ("...already
@@ -892,6 +916,10 @@ class PropertyWareService
 
     public function updateServiceStatus(object $workOrder, object $service_status)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         try {
             $response = Http::withHeaders($this->headers)->put('https://api.propertyware.com/pw/api/rest/v1/workorders/customfields', [
                 'entityId' => $workOrder->propertyware_id,
@@ -932,6 +960,10 @@ class PropertyWareService
 
     public function closeWorkOrder(object $workOrder, $url)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         try {
             // Load vendors for time card entries
             $workOrder->load('vendors');
@@ -1053,6 +1085,10 @@ class PropertyWareService
 
     public function reOpenWorkOrder(object $workOrder)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         try {
             // Use REST API PATCH to update status and clear completion date
             $response = Http::withHeaders($this->headers)
@@ -1919,6 +1955,10 @@ class PropertyWareService
 
     public function updateWorkOrderDetails($workOrder)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         $cost_etimate = 0;
         $time_estimate = 0;
         $scheduled_end_date = null;
@@ -2020,6 +2060,10 @@ class PropertyWareService
 
     public function updateWorkOrderVendorEstimates($workOrder, $syncApproval = false)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         try {
             if (! $workOrder) {
                 throw new Exception('Work order not found.');
@@ -2085,6 +2129,10 @@ class PropertyWareService
 
     public function updateWorkOrderServiceSchedule($workOrder, $syncApproval = false)
     {
+        if (! $this->pushable($workOrder)) {
+            return false;
+        }
+
         try {
             if (! $workOrder) {
                 throw new Exception('Work order not found.');

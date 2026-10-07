@@ -101,6 +101,7 @@ import {
     VolumeX,
     Sparkles,
     BotMessageSquare,
+    AirVent,
 } from "lucide-vue-next";
 import { useMessageAlerts } from "@/composables/useMessageAlerts";
 import { useNotificationToasts } from "@/composables/useNotificationToasts";
@@ -127,6 +128,7 @@ const SUMMARY_BOARDS = [
     ["/work_orders/hoa", "hoa"],
     ["/work_orders/hvac", "hvac"],
     ["/work_orders/easy-fix", "easy_fix"],
+    ["/work_orders/crystal-creek", "crystal_creek"],
 ];
 
 // Only the staff who work the boards; the endpoint enforces this too.
@@ -308,7 +310,11 @@ const navs = computed(() => {
                 title: "Work Orders",
                 url: "#",
                 icon: Wrench,
-                isActive: page.url.startsWith("/work_orders"),
+                // Crystal Creek Air lives under /work_orders too but has its
+                // own top-level entry, so it must not light this group up.
+                isActive:
+                    page.url.startsWith("/work_orders") &&
+                    !page.url.startsWith("/work_orders/crystal-creek"),
                 items: isAccounting
                     ? [
                           {
@@ -388,6 +394,17 @@ const navs = computed(() => {
                 // Vendors get a single "Work Orders" link (in `menu`) instead of
                 // this split group, so they are intentionally excluded here.
                 requires: ["admin", "woc", "tenant", "owner", "accounting"],
+            },
+            {
+                // Outside customers (not Texas Renters properties), worked by
+                // the THMP crew. Its own page, not a Work Orders board: no
+                // sub-items, so the sidebar renders it as a plain link. Staff
+                // only: there is no tenant or owner side.
+                title: "Crystal Creek",
+                url: route("work_orders.crystal_creek"),
+                icon: AirVent,
+                isActive: page.url.startsWith("/work_orders/crystal-creek"),
+                requires: ["admin", "woc"],
             },
             {
                 title: "Jobs (Jobber)",
@@ -1190,8 +1207,31 @@ onUnmounted(() => {
                             v-for="item in navs.navMain"
                             :key="item?.title"
                         >
-                            <Collapsible
+                            <!-- An entry with no sub-items is its own page
+                                 (Crystal Creek Air): a plain link, no
+                                 collapsible group. -->
+                            <SidebarMenuItem
                                 v-if="
+                                    item &&
+                                    !item.items &&
+                                    (!item.requires || canAccess(item.requires))
+                                "
+                            >
+                                <SidebarMenuButton as-child :tooltip="item.title">
+                                    <Link
+                                        :href="item.url"
+                                        prefetch
+                                        :class="{
+                                            'font-bold border': item.isActive,
+                                        }"
+                                    >
+                                        <component :is="item.icon" />
+                                        <span>{{ item.title }}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <Collapsible
+                                v-else-if="
                                     item &&
                                     (!item.requires || canAccess(item.requires))
                                 "

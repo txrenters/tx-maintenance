@@ -40,8 +40,10 @@ class TaskController extends Controller
             TaskService::createTasksForWorkOrder($workOrder, $request->is_emergency == 'Emergency', $request->service_status_id);
         }
 
-        $propertyWare = new PropertyWareService;
-        $propertyWare->updateServiceStatus($workOrder, $service_status);
+        if (! $workOrder->isCrystalCreek()) {
+            $propertyWare = new PropertyWareService;
+            $propertyWare->updateServiceStatus($workOrder, $service_status);
+        }
 
         return redirect()->back();
     }
@@ -258,9 +260,11 @@ class TaskController extends Controller
 
             TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
 
-            $propertyWare = new PropertyWareService;
+            if (! $work_order->isCrystalCreek()) {
+                $propertyWare = new PropertyWareService;
 
-            $propertyWare->updateServiceStatus($work_order, $service_status);
+                $propertyWare->updateServiceStatus($work_order, $service_status);
+            }
         }
     }
 
@@ -285,10 +289,12 @@ class TaskController extends Controller
             ->where('status', '!=', 'completed')
             ->update(['status' => 'completed']);
 
-        $conversation_url = route('conversation.show', $work_order->id);
+        if (! $work_order->isCrystalCreek()) {
+            $conversation_url = route('conversation.show', $work_order->id);
 
-        $propertyWare = new PropertyWareService;
-        $propertyWare->closeWorkOrder($work_order, $conversation_url);
+            $propertyWare = new PropertyWareService;
+            $propertyWare->closeWorkOrder($work_order, $conversation_url);
+        }
 
         Log::info('Work order closed via task completion: ', ['work_order_id' => $work_order->id]);
     }

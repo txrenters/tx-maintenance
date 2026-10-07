@@ -35,6 +35,9 @@ const props = defineProps({
     // HOA board: render the HOA deadline + state pill on each card (data comes
     // from work_order.hoa, decorated server-side). No effect on other boards.
     hoa: { type: Boolean, default: false },
+    // Crystal Creek Air board: a brand pill on each card, and the outside
+    // customer's name and phone where a Texas Renters card shows the tenant.
+    crystalCreek: { type: Boolean, default: false },
     // HVAC board: count and mark the work orders that moved since this user
     // last marked the board seen. Off (false) for every other board, which
     // renders exactly as it did before this existed.
@@ -529,6 +532,22 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                 </p>
                             </div>
 
+                            <!-- Crystal Creek Air: an outside customer's job,
+                                 not a Texas Renters property. A Texas Renters
+                                 work order assigned to the Crystal Creek Air
+                                 vendor shows its vendor line instead. -->
+                            <div
+                                v-if="work_order.source === 'Crystal Creek Air'"
+                                class="mb-2 flex justify-center"
+                            >
+                                <span
+                                    class="inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    title="Crystal Creek customer, not a Texas Renters property"
+                                >
+                                    Crystal Creek
+                                </span>
+                            </div>
+
                             <!-- Repeat issue: this problem has come up before
                                  at this property -->
                             <div
@@ -675,6 +694,22 @@ const newCount = (status) => visibleWorkOrders(status).filter(isNew).length;
                                 <p class="text-xs text-gray-100 uppercase">
                                     {{ work_order.owners[0]?.first_name }}
                                     {{ work_order.owners[0]?.last_name }}
+                                </p>
+                            </div>
+                            <!-- Outside customer (Crystal Creek Air): no tenant
+                                 or owner, so the caller is the contact -->
+                            <div
+                                v-else-if="work_order.service_request_contact_name"
+                                class="flex text-left gap-1 mb-1 mt-2"
+                            >
+                                <UserRoundPen class="w-4 h-4 shrink-0" />
+                                <p class="text-xs text-gray-100 uppercase">
+                                    {{ work_order.service_request_contact_name }}
+                                    <span
+                                        v-if="work_order.service_request_contact_phone"
+                                        class="block normal-case"
+                                        >{{ work_order.service_request_contact_phone }}</span
+                                    >
                                 </p>
                             </div>
                             <p

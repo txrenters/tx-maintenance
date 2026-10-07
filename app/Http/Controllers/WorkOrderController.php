@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Events\WorkOrderUpdated;
 use App\Exports\WorkOrdersExport;
+use App\Http\Requests\CrystalCreekWorkOrderRequest;
 use App\Http\Requests\UpdateWorkOrderRequest;
 use App\Jobs\AdoptCategorizedHoaViolationJob;
+use App\Jobs\CreateJobberJobForWorkOrder;
 use App\Jobs\SendOwnerVendorAssignmentEmail;
 use App\Jobs\SendVendorWorkOrderInformation;
 use App\Jobs\UpdateWorkOrder;
@@ -17,6 +19,8 @@ use App\Models\WorkOrderCategory;
 use App\Models\WorkOrderTask;
 use App\Models\WorkOrderVendor;
 use App\Services\ActivityBoards;
+use App\Services\CrystalCreekCatalog;
+use App\Services\CrystalCreekWorkOrderService;
 use App\Services\EasyFixBoardDetails;
 use App\Services\EmergencyAlertService;
 use App\Services\HvacBoardActivityFeed;
@@ -276,6 +280,9 @@ class WorkOrderController extends Controller
                     })
                     ->emergencyFilter()
                     ->where('status', 'Open')
+                    // Outside customers' jobs live on the Crystal Creek Air
+                    // board only.
+                    ->notCrystalCreek()
                     // NULL NOT LIKE '%x%' evaluates to NULL in SQL, so without
                     // the whereNull branches a work order with a blank type or
                     // category would vanish from every board.
@@ -439,6 +446,7 @@ class WorkOrderController extends Controller
             'woc.wocNumber.twilioPhoneNumber',
             'owners',
             'building',
+            'outsideCustomer',
         ])->first();
 
         $this->hideBuildingMaintenanceFromNonStaff($workOrder);
@@ -716,6 +724,12 @@ class WorkOrderController extends Controller
         try {
             $workOrder->update($validatedData);
 
+            // A Crystal Creek Air work order is not in PropertyWare and never
+            // will be: the local save is the whole save.
+            if ($workOrder->isCrystalCreek()) {
+                return redirect()->back()->with('success', 'Work order updated.');
+            }
+
             // Run the PropertyWare sync inline so we can tell the user whether it
             // actually synced. PropertyWare refuses edits to closed work orders, so a
             // successful local save does not guarantee the change reached PropertyWare.
@@ -779,6 +793,7 @@ class WorkOrderController extends Controller
                         $q->where('status', 'Closed')
                             ->orWhere('status', 'Canceled By Tenant');
                     })
+                    ->notCrystalCreek()
                     ->orderBy('work_order_no', 'ASC')
                     ->limit(50);
             },
@@ -826,6 +841,7 @@ class WorkOrderController extends Controller
                         $q->whereBetween('created_date', [$start, $end]);
                     })
                     ->where('status', 'Open')
+                    ->notCrystalCreek()
                     ->orderBy('work_order_no', 'DESC');
             },
             ...$this->boardCardRelations('work_orders.'),
@@ -874,6 +890,7 @@ class WorkOrderController extends Controller
                         ->where('total_cost', '>', 0)
                         ->whereNotNull('completed_date')
                         ->where('completed_date', '>=', now()->subDays(30))
+                        ->notCrystalCreek()
                         ->orderBy('completed_date', 'DESC')
                         ->get();
 
@@ -930,6 +947,7 @@ class WorkOrderController extends Controller
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
                     ->where('category', 'LIKE', '%move out inspection%')
+                    ->notCrystalCreek()
                     ->where('status', 'Open');
             },
             ...$this->boardCardRelations('work_orders.'),
@@ -1224,16 +1242,73 @@ class WorkOrderController extends Controller
     }
 
     /**
-     * One activity board (HVAC, Tenant Easy Fix), named by its WorkOrder scope.
+     * The Crystal Creek Air page: every Texas Renters work order assigned to
+     * the "Crystal Creek Air, LLC" vendor (also on its usual boards), plus
+     * work orders for outside customers (homes that are not Texas Renters
+     * properties, worked by the THMP crew through Jobber, never pushed to
+     * PropertyWare), which live here and on no other board. Staff only.
      */
-    private function activityBoard(Request $request, string $scope): Collection
+    public function crystal_creek_work_orders(Request $request)
+    {
+        abort_unless($request->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        return inertia('WorkOrder/CrystalCreek', [
+            'title' => 'Crystal Creek',
+            // The card shows who the customer is; a Texas Renters card shows
+            // the tenant instead, so these columns are only loaded here.
+            'service_status' => Inertia::defer(fn () => $this->activityBoard($request, 'crystalCreekPage', [
+                'source',
+                'service_request_contact_name',
+                'service_request_contact_phone',
+            ])),
+            'vendors' => Inertia::defer(fn () => $this->cachedActiveVendors()),
+            'categories' => Inertia::defer(fn () => $this->cachedCategories()),
+            'types' => Inertia::defer(fn () => $this->workOrderTypeOptions()),
+            'users' => Inertia::defer(fn () => $this->cachedBoardUsers()),
+            'filter' => $request->only(['search', 'per_page', 'vendor', 'category']),
+            // The coordinator's fixed Category + Scope of Work lists for the
+            // Create Work Order dialog.
+            'catalog' => CrystalCreekCatalog::forForm(),
+        ]);
+    }
+
+    /**
+     * The same fixed lists as JSON, for the Details tab of a Crystal Creek
+     * work order opened from any board (its "Scope of Work" dropdown).
+     */
+    public function crystal_creek_catalog(Request $request)
+    {
+        abort_unless($request->user()?->hasAnyRole(['admin', 'woc']), 403);
+
+        return response()->json(CrystalCreekCatalog::forForm());
+    }
+
+    /**
+     * "Create Work Order" on the Crystal Creek page: the office types in the
+     * caller's details; the work order, the THMP assignment and the Jobber
+     * job follow. PropertyWare is never touched.
+     */
+    public function crystal_creek_store(CrystalCreekWorkOrderRequest $request, CrystalCreekWorkOrderService $service)
+    {
+        $workOrder = $service->create($request->validated(), $request->user());
+
+        return back()->with('success', "Work order #{$workOrder->work_order_no} created for {$workOrder->service_request_contact_name}. THMP is assigned and the Jobber job is being created.");
+    }
+
+    /**
+     * One activity board (HVAC, Tenant Easy Fix), named by its WorkOrder scope.
+     *
+     * @param  array<int, string>  $extraColumns  Card columns one board needs that the
+     *                                            others must not pay for.
+     */
+    private function activityBoard(Request $request, string $scope, array $extraColumns = []): Collection
     {
         // updated_at rides along so the board can mark what moved since the
         // coordinator last looked. It is added here rather than to
         // BOARD_CARD_COLUMNS because that constant is shared by every board; a
         // timestamp is 8 bytes and safe, but the payload that exhausted PHP's
         // memory in production is not a thing to widen casually.
-        $columns = [...self::BOARD_CARD_COLUMNS, 'updated_at'];
+        $columns = array_values(array_unique([...self::BOARD_CARD_COLUMNS, 'updated_at', ...$extraColumns]));
 
         $query = ServiceStatus::with([
             'work_orders' => function ($query) use ($columns, $scope) {
@@ -1372,6 +1447,7 @@ class WorkOrderController extends Controller
                         $q->where('category', 'LIKE', '%lawn service%')
                             ->orWhere('type', 'LIKE', '%biweekly lawn services%');
                     })
+                    ->notCrystalCreek()
                     ->where('status', 'Open');
             },
             ...$this->boardCardRelations('work_orders.'),
@@ -1426,6 +1502,7 @@ class WorkOrderController extends Controller
                         $q->whereBetween('created_date', [$start_date, $end_date]);
                     })
                     ->where('type', 'Turnover')
+                    ->notCrystalCreek()
                     ->where('status', 'Open');
             },
             ...$this->boardCardRelations('work_orders.'),
@@ -1459,6 +1536,10 @@ class WorkOrderController extends Controller
             'vendor_ids' => 'required|array',
             'vendor_ids.*' => 'integer|exists:vendors,id',
         ]);
+
+        if ($workOrder->isCrystalCreek()) {
+            return $this->changeCrystalCreekVendors($request, $workOrder);
+        }
 
         DB::beginTransaction();
 
@@ -1535,6 +1616,42 @@ class WorkOrderController extends Controller
 
     }
 
+    /**
+     * Vendor changes on a Crystal Creek Air work order: the pivot only.
+     *
+     * The normal path pushes the vendor list to PropertyWare (which throws for
+     * a work order PropertyWare has never heard of) and mails the vendor and
+     * the owner their assignment. An outside customer has no PropertyWare
+     * record and no owner, and the vendor here is our own crew, so none of
+     * that applies. Putting THMP on does still create the Jobber job.
+     */
+    private function changeCrystalCreekVendors(Request $request, WorkOrder $workOrder)
+    {
+        $vendorIds = collect($request->vendor_ids)->filter()->unique()->values()->all();
+
+        $changes = $workOrder->vendors()->sync($vendorIds);
+        $newVendorIds = $changes['attached'] ?? [];
+
+        if (! empty($newVendorIds)) {
+            // The crew works from Jobber, not from a vendor portal link, and
+            // vendors:followup-unscheduled must never nag THMP about these.
+            $workOrder->vendors()->newPivotStatement()
+                ->where('work_order_id', $workOrder->id)
+                ->whereIn('vendor_id', $newVendorIds)
+                ->update(['schedule_followup_sent_at' => now()]);
+
+            TaskService::backfillVendorTasks($workOrder, $newVendorIds);
+        }
+
+        $workOrder->update(['local_status' => 'Updated']);
+
+        if (Vendor::isThmpAssignedToWorkOrder($workOrder->id)) {
+            CreateJobberJobForWorkOrder::dispatch($workOrder->id);
+        }
+
+        return back()->with('success', 'Work order vendors updated successfully.');
+    }
+
     public function emergency_change(Request $request, WorkOrder $workOrder)
     {
         $request->validate([
@@ -1581,6 +1698,14 @@ class WorkOrderController extends Controller
             'completed_date' => null,
         ]);
 
+        // A Crystal Creek Air work order is not in PropertyWare; reopening is
+        // local, and it goes back to its own board. No broadcast: the
+        // WorkOrderUpdated event class is missing from the codebase, so the
+        // PropertyWare path below fatals on it too (an older, separate bug).
+        if ($workOrder->isCrystalCreek()) {
+            return redirect()->route('work_orders.crystal_creek');
+        }
+
         // Then sync to PropertyWare
         $openWorder = $this->propertyWareServices->reOpenWorkOrder($workOrder);
 
@@ -1606,8 +1731,11 @@ class WorkOrderController extends Controller
             'completed_date' => now()->toDateString(),
         ]);
 
-        // Then sync to PropertyWare with the completion date
-        $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
+        // Then sync to PropertyWare with the completion date. Not for a
+        // Crystal Creek Air work order: PropertyWare has never heard of it.
+        if (! $workOrder->isCrystalCreek()) {
+            $this->propertyWareServices->closeWorkOrder($workOrder, $conversation_url);
+        }
 
         // A closed work order's checklist is finished by definition: complete
         // (never delete — the rows are the audit trail) whatever is left. Bare

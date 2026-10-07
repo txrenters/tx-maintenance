@@ -42,6 +42,15 @@ class WorkOrder extends Model
     public const HOA_VIOLATION_CATEGORY = 'HOA Violation';
 
     /**
+     * The `source` of a work order for a Crystal Creek Air customer: someone
+     * whose home is not a Texas Renters property. These rows have no
+     * PropertyWare record (propertyware_id null, their own number series),
+     * are worked by the THMP crew through Jobber, and live on their own board
+     * only — every other board excludes them through notCrystalCreek().
+     */
+    public const CRYSTAL_CREEK_SOURCE = 'Crystal Creek Air';
+
+    /**
      * PropertyWare "Source" values that mean the tenant raised the work order
      * themselves: the tenant portal and the public website form. Every other
      * value PropertyWare emits ("None" when staff leave the picklist unset,
@@ -68,6 +77,7 @@ class WorkOrder extends Model
         'hoa',
         'hvac',
         'easy_fix',
+        'crystal_creek',
     ];
 
     /**
@@ -453,6 +463,62 @@ class WorkOrder extends Model
         $source = trim((string) $this->source);
 
         return $source !== '' && ! in_array($source, self::TENANT_ORIGIN_SOURCES, true);
+    }
+
+    /**
+     * Whether this is a Crystal Creek Air work order: an outside customer's
+     * home, never in PropertyWare. Every PropertyWare push and every tenant or
+     * owner automation must stand down for these.
+     */
+    public function isCrystalCreek(): bool
+    {
+        return trim((string) $this->source) === self::CRYSTAL_CREEK_SOURCE;
+    }
+
+    public function outsideCustomer(): BelongsTo
+    {
+        return $this->belongsTo(OutsideCustomer::class, 'outside_customer_id');
+    }
+
+    /**
+     * Only outside customers' Crystal Creek Air work orders (source-marked,
+     * the same rule as isCrystalCreek()). This is the scope every "stand
+     * down, PropertyWare has never heard of it" rule uses; a Texas Renters
+     * work order assigned to the Crystal Creek Air vendor is NOT in it.
+     */
+    public function scopeCrystalCreek($query)
+    {
+        return $query->where('source', self::CRYSTAL_CREEK_SOURCE);
+    }
+
+    /**
+     * What the Crystal Creek Air page lists: outside customers' work orders
+     * plus every Texas Renters work order whose assigned vendors include the
+     * "Crystal Creek Air, LLC" vendor from PropertyWare. The latter stay
+     * ordinary work orders on every other board; this is an extra view of
+     * them, the way HVAC is. Page only: never use it to decide behaviour.
+     */
+    public function scopeCrystalCreekPage($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('source', self::CRYSTAL_CREEK_SOURCE)
+                ->orWhereHas('vendors', fn ($vendors) => $vendors->crystalCreek());
+        });
+    }
+
+    /**
+     * Everything except outside customers' Crystal Creek Air work orders
+     * (source-marked only: a Texas Renters work order assigned to the Crystal
+     * Creek Air vendor is NOT excluded from the other boards). NULL-safe on
+     * purpose: `source <> x` alone drops every imported row whose source
+     * PropertyWare left blank.
+     */
+    public function scopeNotCrystalCreek($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('source')
+                ->orWhere('source', '<>', self::CRYSTAL_CREEK_SOURCE);
+        });
     }
 
     /**
@@ -1142,6 +1208,10 @@ class WorkOrder extends Model
     public function scopeHvac($query)
     {
         return $query
+            // An outside customer's HVAC job belongs to the Crystal Creek Air
+            // board alone; this scope also feeds the badge counters, so the
+            // exclusion lives here rather than in each caller.
+            ->notCrystalCreek()
             ->where(function ($q) {
                 $q->where('category', 'LIKE', '%hvac%')
                     ->orWhere('type', 'LIKE', '%hvac%')
@@ -1168,7 +1238,7 @@ class WorkOrder extends Model
      */
     public function scopeTenantEasyFix($query)
     {
-        return $query->where(function ($q) {
+        return $query->notCrystalCreek()->where(function ($q) {
             $q->whereNotNull('easy_fix_key')
                 ->orWhereIn('service_status_id', ServiceStatus::query()
                     ->select('id')
@@ -1260,6 +1330,7 @@ class WorkOrder extends Model
             // whereNull branches a work order imported with a blank type or
             // category would vanish from every board.
             'main' => $query->where('status', 'Open')
+                ->notCrystalCreek()
                 ->where(function ($q) {
                     $q->whereNull('category')
                         ->orWhere('category', 'NOT LIKE', '%move out inspection%');
@@ -1273,25 +1344,29 @@ class WorkOrder extends Model
                 }),
 
             'inspections' => $query->where('category', 'LIKE', '%move out inspection%')
+                ->notCrystalCreek()
                 ->where('status', 'Open'),
 
             'lawn_service' => $query->where(function ($q) {
                 $q->where('category', 'LIKE', '%lawn service%')
                     ->orWhere('type', 'LIKE', '%biweekly lawn services%');
-            })->where('status', 'Open'),
+            })->notCrystalCreek()->where('status', 'Open'),
 
             'turnovers' => $query->where('type', 'Turnover')
+                ->notCrystalCreek()
                 ->where('status', 'Open'),
 
             'closed' => $query->where(function ($q) {
                 $q->where('status', 'Closed')
                     ->orWhere('status', 'Canceled By Tenant');
-            }),
+            })->notCrystalCreek(),
 
             'waiting_on_payment' => $query->where('status', 'Open')
+                ->notCrystalCreek()
                 ->whereHas('service_status', fn ($q) => $q->where('name', self::WAITING_ON_PAYMENT_STATUS)),
 
             'paid' => $query->whereNotNull('total_cost')
+                ->notCrystalCreek()
                 ->where('total_cost', '>', 0)
                 ->whereNotNull('completed_date')
                 ->where('completed_date', '>=', now()->subDays(self::COMPLETED_WINDOW_DAYS)),
@@ -1304,6 +1379,12 @@ class WorkOrder extends Model
 
             // Same for Tenant Easy Fix: an extra view, not a move.
             'easy_fix' => $query->tenantEasyFix()->where('status', 'Open'),
+
+            // Crystal Creek Air: outside customers' jobs show here and nowhere
+            // else (every arm above carries notCrystalCreek()); Texas Renters
+            // work orders assigned to the Crystal Creek Air vendor show here
+            // AND on their usual boards.
+            'crystal_creek' => $query->crystalCreekPage()->where('status', 'Open'),
 
             default => $query,
         };

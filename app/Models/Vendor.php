@@ -32,6 +32,18 @@ class Vendor extends Model
      */
     public const THMP_PROPERTYWARE_ID = '246120584';
 
+    /**
+     * Our own repair brand "Crystal Creek Air, LLC", the same crew as THMP,
+     * as PropertyWare names the vendor. A Texas Renters work order assigned
+     * to this vendor belongs on the Crystal Creek Air page. Matched by name
+     * prefix "Crystal Creek", case-insensitively, so the vendor still counts
+     * after the office shortens its PropertyWare name (MC 10-08: "crystal creek
+     * name only"), with or without "Air" / ", LLC" / a trailing space.
+     */
+    public const CRYSTAL_CREEK_NAME = 'Crystal Creek Air, LLC';
+
+    public const CRYSTAL_CREEK_NAME_PREFIX = 'crystal creek';
+
     protected $fillable = [
         'propertyware_id', 'name', 'email', 'name_on_check', 'vendor_type', 'twilio_number', 'is_active', 'user_id', 'zones', 'portal_token',
     ];
@@ -89,6 +101,21 @@ class Vendor extends Model
      * Matches the same trimmed, case-insensitive rule as isThmp() so a vendor
      * record with stray whitespace or different casing is still detected.
      */
+    /** Whether this vendor is the Crystal Creek Air brand (see CRYSTAL_CREEK_NAME). */
+    public function isCrystalCreek(): bool
+    {
+        return Str::startsWith(Str::lower(trim((string) $this->name)), self::CRYSTAL_CREEK_NAME_PREFIX);
+    }
+
+    /**
+     * Narrow a vendors query to the Crystal Creek Air vendor row(s), by the
+     * same name rule as isCrystalCreek().
+     */
+    public function scopeCrystalCreek($query)
+    {
+        return $query->whereRaw('LOWER(TRIM(vendors.name)) LIKE ?', [self::CRYSTAL_CREEK_NAME_PREFIX.'%']);
+    }
+
     public static function isThmpAssignedToWorkOrder(int $workOrderId): bool
     {
         return DB::table('work_order_vendors')

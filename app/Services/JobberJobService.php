@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\OutsideCustomer;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -50,7 +51,277 @@ class JobberJobService
             return null;
         }
 
-        return $this->createJob($workOrder, $propertyId);
+        return $this->createJob($workOrder, $propertyId, $this->jobTitle($workOrder), $this->jobInstructions($workOrder));
+    }
+
+    /**
+     * Create the Jobber job for a Crystal Creek Air work order: an outside
+     * customer's home. Every Jobber job needs a client and a property, so the
+     * customer becomes their own Jobber client (name, phone, email) with their
+     * home as its property, created on the first job and remembered on the
+     * customer so a returning caller reuses both (Earl 10-08: "lets work with
+     * auto creation of job"; there is no umbrella client in Jobber).
+     *
+     * @return array{gid: string, web_uri: string}|null
+     */
+    public function createJobForOutsideCustomer(WorkOrder $workOrder): ?array
+    {
+        $customer = $workOrder->outsideCustomer;
+
+        if ($customer === null) {
+            Log::error('Jobber job: Crystal Creek Air work order has no customer.', ['work_order_id' => $workOrder->id]);
+
+            return null;
+        }
+
+        $propertyId = $this->outsideCustomerPropertyId($customer);
+
+        if ($propertyId === null) {
+            Log::error('Jobber job: no Jobber client/property could be found or created for the Crystal Creek Air customer.', [
+                'work_order_id' => $workOrder->id,
+                'outside_customer_id' => $customer->id,
+            ]);
+
+            return null;
+        }
+
+        return $this->createJob(
+            $workOrder,
+            $propertyId,
+            $this->outsideJobTitle($workOrder, $customer),
+            $this->outsideJobInstructions($workOrder, $customer),
+        );
+    }
+
+    /**
+     * The customer's Jobber property: the one remembered on the customer;
+     * else, when their Jobber client is known but the property is not (a
+     * clientCreate that answered without one), a property created under it;
+     * else a brand-new client with the home as its property. Whatever is
+     * created is written back to the customer before the job is attempted,
+     * so a refused job never makes a second client on retry.
+     */
+    private function outsideCustomerPropertyId(OutsideCustomer $customer): ?string
+    {
+        if (filled($customer->jobber_property_gid)) {
+            return (string) $customer->jobber_property_gid;
+        }
+
+        if (filled($customer->jobber_client_gid)) {
+            $propertyId = $this->createProperty($customer, (string) $customer->jobber_client_gid);
+
+            if ($propertyId !== null) {
+                $customer->update(['jobber_property_gid' => $propertyId]);
+            }
+
+            return $propertyId;
+        }
+
+        $ids = $this->createClient($customer);
+
+        if ($ids === null) {
+            return null;
+        }
+
+        $customer->update([
+            'jobber_client_gid' => $ids['client'],
+            'jobber_property_gid' => $ids['property'],
+        ]);
+
+        if ($ids['property'] === null) {
+            $propertyId = $this->createProperty($customer, $ids['client']);
+
+            if ($propertyId !== null) {
+                $customer->update(['jobber_property_gid' => $propertyId]);
+            }
+
+            return $propertyId;
+        }
+
+        return $ids['property'];
+    }
+
+    /**
+     * clientCreate: the customer as a person (first and last name from the
+     * typed name), with their phone and email as the primary contacts and
+     * their home as the first property. Everything travels as GraphQL
+     * variables so typed text can never break the query.
+     *
+     * @return array{client: string, property: ?string}|null
+     */
+    private function createClient(OutsideCustomer $customer): ?array
+    {
+        [$firstName, $lastName] = $this->splitName((string) $customer->name);
+
+        $input = [
+            'firstName' => $firstName,
+            'properties' => [[
+                'address' => $this->propertyAddress($customer),
+            ]],
+        ];
+
+        if ($lastName !== '') {
+            $input['lastName'] = $lastName;
+        }
+
+        $phone = $customer->normalizedPhone() ?? trim((string) $customer->phone);
+
+        if ($phone !== '') {
+            $input['phones'] = [['description' => 'MAIN', 'primary' => true, 'number' => $phone]];
+        }
+
+        $email = trim((string) $customer->email);
+
+        if ($email !== '') {
+            $input['emails'] = [['description' => 'MAIN', 'primary' => true, 'address' => $email]];
+        }
+
+        $mutation = 'mutation ($input: ClientCreateInput!) {
+            clientCreate(input: $input) {
+                client { id properties { id } }
+                userErrors { message path }
+            }
+        }';
+
+        $response = $this->post(['query' => $mutation, 'variables' => ['input' => $input]]);
+
+        if ($response === null) {
+            return null;
+        }
+
+        $userErrors = data_get($response, 'data.clientCreate.userErrors', []);
+        $clientId = data_get($response, 'data.clientCreate.client.id');
+
+        if (! empty($userErrors) || isset($response['errors']) || blank($clientId)) {
+            Log::error('Jobber job: clientCreate was refused.', [
+                'outside_customer_id' => $customer->id,
+                'userErrors' => $userErrors,
+                'errors' => $response['errors'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $propertyId = data_get($response, 'data.clientCreate.client.properties.0.id');
+
+        return [
+            'client' => (string) $clientId,
+            'property' => blank($propertyId) ? null : (string) $propertyId,
+        ];
+    }
+
+    /**
+     * "Pat Customer" → ["Pat", "Customer"]; "Cher" → ["Cher", ""];
+     * "Mary Ann Lee" → ["Mary", "Ann Lee"].
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function splitName(string $name): array
+    {
+        $words = preg_split('/\s+/', trim($name)) ?: [];
+        $words = array_values(array_filter($words, fn ($word) => $word !== ''));
+
+        if ($words === []) {
+            return ['Customer', ''];
+        }
+
+        return [array_shift($words), implode(' ', $words)];
+    }
+
+    /** @return array<string, string> */
+    private function propertyAddress(OutsideCustomer $customer): array
+    {
+        return [
+            'street1' => (string) $customer->street,
+            'city' => (string) $customer->city,
+            'province' => (string) $customer->state,
+            'postalCode' => (string) $customer->postal_code,
+            'country' => 'US',
+        ];
+    }
+
+    /**
+     * propertyCreate under the customer's own Jobber client. Address fields
+     * are GraphQL variables so a typed street can never break the query.
+     */
+    private function createProperty(OutsideCustomer $customer, string $clientGid): ?string
+    {
+        $mutation = 'mutation ($clientId: EncodedId!, $input: PropertyCreateInput!) {
+            propertyCreate(clientId: $clientId, input: $input) {
+                properties { id }
+                userErrors { message path }
+            }
+        }';
+
+        $response = $this->post([
+            'query' => $mutation,
+            'variables' => [
+                'clientId' => $clientGid,
+                'input' => [
+                    'properties' => [[
+                        'address' => $this->propertyAddress($customer),
+                    ]],
+                ],
+            ],
+        ]);
+
+        if ($response === null) {
+            return null;
+        }
+
+        $userErrors = data_get($response, 'data.propertyCreate.userErrors', []);
+
+        if (! empty($userErrors) || isset($response['errors'])) {
+            Log::error('Jobber job: propertyCreate was refused.', [
+                'outside_customer_id' => $customer->id,
+                'userErrors' => $userErrors,
+                'errors' => $response['errors'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $propertyId = data_get($response, 'data.propertyCreate.properties.0.id');
+
+        return blank($propertyId) ? null : (string) $propertyId;
+    }
+
+    /**
+     * "{customer} - {street} - {scope of work} - #WO" (Earl 10-08: the crew
+     * sees the job at a glance). The scope is the work order's type; a row
+     * without one falls back to the category. Ends in the work order number
+     * so the note sync and the job resolver tie the job back here.
+     */
+    private function outsideJobTitle(WorkOrder $workOrder, OutsideCustomer $customer): string
+    {
+        $parts = array_filter([
+            trim((string) $customer->name),
+            trim((string) $customer->street),
+            trim((string) $workOrder->type) ?: trim((string) $workOrder->category),
+        ], fn (string $part) => $part !== '');
+
+        return implode(' - ', $parts)." - #{$workOrder->work_order_no}";
+    }
+
+    /**
+     * Category first (HVAC or Pest Control, since the title now carries the
+     * scope instead), then the description, then how to reach the customer
+     * and where they are.
+     */
+    private function outsideJobInstructions(WorkOrder $workOrder, OutsideCustomer $customer): string
+    {
+        $description = trim(preg_replace('/\s+/', ' ', (string) $workOrder->description));
+
+        $parts = array_filter([
+            trim((string) $workOrder->category),
+            $description,
+            trim((string) $customer->name),
+            PhoneFormatter::display($customer->phone),
+            trim((string) $customer->email),
+            $customer->oneLineAddress(),
+        ], fn (?string $part) => filled($part));
+
+        return implode(' - ', $parts);
     }
 
     /**
@@ -94,7 +365,7 @@ class JobberJobService
      *
      * @return array{gid: string, web_uri: string}|null
      */
-    private function createJob(WorkOrder $workOrder, string $propertyId): ?array
+    private function createJob(WorkOrder $workOrder, string $propertyId, string $title, string $instructions): ?array
     {
         $mutation = 'mutation ($input: JobCreateAttributes!) {
             jobCreate(input: $input) {
@@ -105,8 +376,8 @@ class JobberJobService
 
         $input = [
             'propertyId' => $propertyId,
-            'title' => $this->jobTitle($workOrder),
-            'instructions' => $this->jobInstructions($workOrder),
+            'title' => $title,
+            'instructions' => $instructions,
             'invoicing' => [
                 'invoicingType' => 'FIXED_PRICE',
                 'invoicingSchedule' => 'ON_COMPLETION',

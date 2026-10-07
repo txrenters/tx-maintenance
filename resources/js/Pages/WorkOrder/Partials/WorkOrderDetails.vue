@@ -36,6 +36,40 @@ const props = defineProps({
     closeWorkOrderForm: Object,
 });
 
+// A Crystal Creek work order (an outside customer, never in PropertyWare)
+// edits its "Scope of Work" from the coordinator's fixed list for its
+// category. The list is fetched once per page and shared by every card.
+const isCrystalCreek = computed(
+    () => props.workOrder?.source === "Crystal Creek Air",
+);
+
+const crystalCreekCatalog = ref(null);
+
+const crystalCreekScopeGroups = computed(
+    () => crystalCreekCatalog.value?.scopes?.[props.workOrder?.category] ?? [],
+);
+
+watch(
+    isCrystalCreek,
+    (yes) => {
+        if (!yes || crystalCreekCatalog.value) {
+            return;
+        }
+
+        if (!window.__crystalCreekCatalog) {
+            window.__crystalCreekCatalog = axios
+                .get(route("work_orders.crystal_creek.catalog"))
+                .then((response) => response.data)
+                .catch(() => ({ categories: [], scopes: {} }));
+        }
+
+        window.__crystalCreekCatalog.then((catalog) => {
+            crystalCreekCatalog.value = catalog;
+        });
+    },
+    { immediate: true },
+);
+
 const emit = defineEmits(["save", "close", "delete", "update-workOrder"]);
 const page = usePage();
 
@@ -545,7 +579,26 @@ const handleCompleteSubmit = () => {
                     />
                 </div>
 
-                <div>
+                <!-- Crystal Creek Air: the outside customer stands where the
+                     tenant would. No PropertyWare, no tenant, no owner. -->
+                <div v-if="workOrder.source === 'Crystal Creek Air'">
+                    <Label for="message">Customer:</Label>
+                    <p>{{ workOrder.service_request_contact_name || "—" }}</p>
+                    <p v-if="workOrder.service_request_contact_phone" class="text-sm">
+                        <a :href="`tel:${workOrder.service_request_contact_phone}`" class="text-primary hover:underline">
+                            {{ workOrder.service_request_contact_phone }}
+                        </a>
+                    </p>
+                    <p v-if="workOrder.service_request_contact_email" class="text-sm">
+                        <a :href="`mailto:${workOrder.service_request_contact_email}`" class="text-primary hover:underline">
+                            {{ workOrder.service_request_contact_email }}
+                        </a>
+                    </p>
+                    <p class="text-xs text-muted-foreground mt-1">
+                        Crystal Creek customer — not a Texas Renters property, so nothing here goes to PropertyWare.
+                    </p>
+                </div>
+                <div v-else>
                     <Label for="message">Requested by:</Label>
                     <div class="flex gap-2 items-center">
                         <Avatar class="w-5 h-5" v-if="workOrder?.requested">
@@ -574,13 +627,34 @@ const handleCompleteSubmit = () => {
                         $page.props.auth.user.roles.includes('woc')
                     "
                 >
-                    <Label for="message">Type:</Label>
+                    <!-- A Crystal Creek work order's type is its "Scope of
+                         Work", picked from the coordinator's fixed list for
+                         its category; every other work order keeps the
+                         free Type list. -->
+                    <Label for="message">{{ isCrystalCreek ? "Scope of Work:" : "Type:" }}</Label>
                     <Select v-model="workOrder.type">
                         <SelectTrigger class="w-full">
-                            <SelectValue placeholder="Select a type" />
+                            <SelectValue :placeholder="isCrystalCreek ? 'Select the scope of work' : 'Select a type'" />
                         </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
+                        <SelectContent :class="{ 'max-h-72': isCrystalCreek }">
+                            <template v-if="isCrystalCreek">
+                                <SelectGroup
+                                    v-for="group in crystalCreekScopeGroups"
+                                    :key="group.label || 'all'"
+                                >
+                                    <SelectLabel v-if="group.label" class="text-xs font-semibold">
+                                        {{ group.label }}
+                                    </SelectLabel>
+                                    <SelectItem
+                                        v-for="scope in group.items"
+                                        :key="scope"
+                                        :value="scope"
+                                    >
+                                        {{ scope }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </template>
+                            <SelectGroup v-else>
                                 <SelectItem
                                     :value="type"
                                     v-for="type in types"
@@ -594,7 +668,7 @@ const handleCompleteSubmit = () => {
                 </div>
 
                 <div v-else>
-                    <Label for="message">Type:</Label>
+                    <Label for="message">{{ isCrystalCreek ? "Scope of Work:" : "Type:" }}</Label>
                     <p>{{ workOrder.type }}</p>
                 </div>
                 <div>

@@ -352,9 +352,12 @@ class ServiceScheduleController extends Controller
             // work order with no schedules left keeps its current due dates).
             TaskService::syncTaskDueDatesToSchedule($workOrder);
 
-            // Trigger PropertyWare sync
+            // Trigger PropertyWare sync (not for a Crystal Creek Air work
+            // order, which PropertyWare has never heard of)
             $propertyWareService = new PropertyWareService;
-            $syncResult = $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
+            $syncResult = $workOrder->isCrystalCreek()
+                ? false
+                : $propertyWareService->updateWorkOrderServiceSchedule($workOrder);
 
             if ($syncResult) {
                 Log::info('Work order synced to PropertyWare after schedule deletion', [

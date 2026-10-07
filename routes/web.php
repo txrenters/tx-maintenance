@@ -144,6 +144,9 @@ Route::middleware([
     Route::post('/work_orders/easy-fix/seen', [WorkOrderController::class, 'easy_fix_mark_seen'])->name('work_orders.easy_fix.seen');
     Route::get('/work_orders/easy-fix/activity', [WorkOrderController::class, 'easy_fix_activity'])->name('work_orders.easy_fix.activity');
     Route::post('/work_orders/easy-fix/dismiss/{workOrder}', [WorkOrderController::class, 'easy_fix_dismiss'])->name('work_orders.easy_fix.dismiss');
+    Route::get('/work_orders/crystal-creek/all', [WorkOrderController::class, 'crystal_creek_work_orders'])->name('work_orders.crystal_creek');
+    Route::post('/work_orders/crystal-creek/store', [WorkOrderController::class, 'crystal_creek_store'])->name('work_orders.crystal_creek.store');
+    Route::get('/work_orders/crystal-creek/catalog', [WorkOrderController::class, 'crystal_creek_catalog'])->name('work_orders.crystal_creek.catalog');
     Route::get('/work_orders/vendor/all', [WorkOrderController::class, 'vendorWorkOrders'])->name('work_orders.vendor');
     Route::get('/work_orders/{workOrder}/details', [WorkOrderController::class, 'details'])->name('work_orders.details');
     Route::get('/work_orders/{workOrder}/report', [WorkOrderController::class, 'report'])->name('work_orders.report');
