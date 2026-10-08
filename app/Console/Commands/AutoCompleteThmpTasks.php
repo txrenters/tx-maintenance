@@ -28,7 +28,7 @@ class AutoCompleteThmpTasks extends Command
         {--work-order= : One work order id, instead of every open THMP one}
         {--limit=500 : How many work orders to check in a run}';
 
-    protected $description = 'Tick THMP checklist tasks whose proof is in (schedule saved, tenant texted, Jobber job done, before/after photos). Never moves the service status.';
+    protected $description = 'Tick THMP checklist tasks whose proof is in (schedule saved, tenant texted, Jobber job done, before/after photos); a tick does what the task template says it does.';
 
     public function handle(TaskAutoCompleteService $service): int
     {

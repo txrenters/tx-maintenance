@@ -28,11 +28,14 @@ use Throwable;
  * trigger key (picked on the Task Templates page); this service checks the
  * proof for each key and ticks the box.
  *
- * It ticks the box and nothing more. Earl's rule: the work order's service
- * status never moves and nothing is pushed to PropertyWare, so the cascade
- * in API\TaskController is deliberately not called. A person still moves
- * the status. A task a person un-ticked keeps its auto_completed_at and is
- * never ticked again.
+ * A tick does what the template says it does (TaskCompletionService): a
+ * "Not Changed" line only gets ticked; a line whose Task Done Service Status
+ * names a status moves the work order there exactly as the crew's own tick
+ * would — PropertyWare told, the next status's tasks generated, a Yes
+ * clearing what is still pending. Lines that only tick go first and one
+ * status move is applied per pass, after which the work order is read again
+ * so the tasks the move generated get their turn. A task a person un-ticked
+ * keeps its auto_completed_at and is never ticked again.
  *
  * Scope is THMP work orders only: one with a Jobber job, or with THMP among
  * its vendors. The older `tasks:auto-complete` command keeps ticking the
@@ -53,6 +56,12 @@ class TaskAutoCompleteService
     public const AFTER_PHOTO_ADDED = 'after_photo_added';
 
     public const LOG_NAME = 'task_automation';
+
+    /**
+     * Passes per run: each status move generates new tasks that may already
+     * have their proof in, and this bounds how far one run may travel.
+     */
+    private const MAX_PASSES = 3;
 
     /**
      * Trigger key => the label the Task Templates dropdown and the task's
@@ -76,7 +85,10 @@ class TaskAutoCompleteService
      */
     private array $memo = [];
 
-    public function __construct(private JobberJobLocator $jobs) {}
+    public function __construct(
+        private JobberJobLocator $jobs,
+        private TaskCompletionService $completion,
+    ) {}
 
     /**
      * The dropdown's options.
@@ -150,48 +162,98 @@ class TaskAutoCompleteService
     }
 
     /**
-     * Tick every task whose proof is in. Returns how many were ticked.
+     * Tick every task whose proof is in, applying what the template says a
+     * tick does. Returns how many were ticked.
      */
     public function run(WorkOrder $workOrder): int
     {
         $ticked = 0;
 
-        foreach ($this->evaluate($workOrder) as $hit) {
-            /** @var WorkOrderTask $task */
-            $task = $hit['task'];
-
-            try {
-                $task->update([
-                    'status' => 'completed',
-                    'option' => $task->task->is_optional ? 'Yes' : $task->option,
-                    'auto_completed_at' => now(),
-                    'auto_complete_reason' => mb_substr($hit['reason'], 0, 255),
-                ]);
-
-                activity(self::LOG_NAME)
-                    ->performedOn($workOrder)
-                    ->event('task.auto_completed')
-                    ->withProperties([
-                        'work_order_id' => $workOrder->id,
-                        'work_order_no' => $workOrder->work_order_no,
-                        'work_order_task_id' => $task->id,
-                        'task' => $task->description,
-                        'trigger' => $hit['trigger'],
-                        'reason' => $hit['reason'],
-                    ])
-                    ->log('Ticked "'.$task->description.'": '.$hit['reason']);
-
-                $ticked++;
-            } catch (Throwable $e) {
-                Log::warning('Task auto-complete could not tick a task.', [
-                    'work_order_id' => $workOrder->id,
-                    'work_order_task_id' => $task->id,
-                    'error' => $e->getMessage(),
-                ]);
+        for ($pass = 1; $pass <= self::MAX_PASSES; $pass++) {
+            if ($pass > 1) {
+                $workOrder->refresh();
             }
+
+            $hits = $this->evaluate($workOrder);
+
+            if ($hits->isEmpty()) {
+                break;
+            }
+
+            // Mirrors bulkComplete: the lines that only tick go first, then a
+            // single status-moving line, because the move regenerates the
+            // checklist (and a Yes clears it) under the others' feet.
+            [$moving, $routine] = $hits->partition(
+                fn (array $hit) => $this->completion->changesServiceStatus($hit['task'], $this->optionFor($hit['task']))
+            );
+
+            foreach ($routine as $hit) {
+                $ticked += $this->tick($workOrder, $hit, false) ? 1 : 0;
+            }
+
+            $first = $moving->first();
+
+            if ($first === null || ! $this->tick($workOrder, $first, true)) {
+                break;
+            }
+
+            $ticked++;
         }
 
         return $ticked;
+    }
+
+    /**
+     * The answer a system tick gives a Yes/No line. The proof is always the
+     * "yes" of the question, so that is the branch the template takes.
+     */
+    private function optionFor(WorkOrderTask $task): ?string
+    {
+        return $task->task->is_optional ? 'Yes' : $task->option;
+    }
+
+    /**
+     * @param  array{task: WorkOrderTask, trigger: string, reason: string}  $hit
+     */
+    private function tick(WorkOrder $workOrder, array $hit, bool $applyTemplate): bool
+    {
+        $task = $hit['task'];
+        $option = $this->optionFor($task);
+
+        try {
+            $task->update([
+                'status' => 'completed',
+                'option' => $option,
+                'auto_completed_at' => now(),
+                'auto_complete_reason' => mb_substr($hit['reason'], 0, 255),
+            ]);
+
+            $movedTo = $applyTemplate ? $this->completion->applyCompletionEffects($task, $option) : null;
+
+            activity(self::LOG_NAME)
+                ->performedOn($workOrder)
+                ->event('task.auto_completed')
+                ->withProperties([
+                    'work_order_id' => $workOrder->id,
+                    'work_order_no' => $workOrder->work_order_no,
+                    'work_order_task_id' => $task->id,
+                    'task' => $task->description,
+                    'trigger' => $hit['trigger'],
+                    'reason' => $hit['reason'],
+                    'moved_to' => $movedTo?->name,
+                ])
+                ->log('Ticked "'.$task->description.'": '.$hit['reason'].($movedTo ? ' — moved to '.$movedTo->name : ''));
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Task auto-complete could not tick a task.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_task_id' => $task->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -204,7 +266,7 @@ class TaskAutoCompleteService
     private function candidates(WorkOrder $workOrder): Collection
     {
         return WorkOrderTask::withoutGlobalScope(TaskScope::class)
-            ->with('task')
+            ->with(['work_order', 'task.taskDetailYesOption', 'task.taskDetailNoOption'])
             ->where('work_order_id', $workOrder->id)
             ->where('status', '!=', 'completed')
             ->whereNull('auto_completed_at')

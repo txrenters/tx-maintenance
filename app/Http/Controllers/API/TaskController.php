@@ -7,6 +7,7 @@ use App\Models\ServiceStatus;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
+use App\Services\TaskCompletionService;
 use App\Services\TaskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -178,125 +179,23 @@ class TaskController extends Controller
     }
 
     /**
-     * Resolve the service status a completed task transitions the work order to,
-     * using the task template (and the Yes/No option for optional tasks).
-     *
-     * @return array{0: int|null, 1: bool|null} [next_service_status_id, is_emergency]
-     */
-    private function resolveNextStatus(WorkOrderTask $currentTask, ?string $option): array
-    {
-        if (! empty($option)) {
-            if ($option === 'Yes') {
-                return [
-                    $currentTask->task->taskDetailYesOption?->task_service_status_id,
-                    $currentTask->task->taskDetailYesOption?->is_task_service_status_emergency,
-                ];
-            }
-
-            return [
-                $currentTask->task->taskDetailNoOption?->task_service_status_id,
-                $currentTask->task->taskDetailNoOption?->is_task_service_status_emergency,
-            ];
-        }
-
-        return [
-            $currentTask->task->next_service_status_id,
-            $currentTask->task->is_emergency,
-        ];
-    }
-
-    /**
      * Whether completing this task (with the given option) moves the work order
      * to a different service status — i.e. it is not a "Not Changed" task.
      */
     private function changesServiceStatus(WorkOrderTask $currentTask, ?string $option): bool
     {
-        [$nextServiceId] = $this->resolveNextStatus($currentTask, $option);
-
-        $status = ServiceStatus::find($nextServiceId);
-
-        return $status !== null && $status->name !== 'Not Changed';
+        return app(TaskCompletionService::class)->changesServiceStatus($currentTask, $option);
     }
 
     /**
      * Apply the side effects of completing a task: transition the work order's
      * service status (which regenerates tasks and syncs PropertyWare) when the
-     * template calls for it. Optional "Yes" tasks first clear the remaining
-     * pending tasks, mirroring the manual completion flow.
+     * template calls for it. The rules live in TaskCompletionService so the
+     * system's own ticks (TaskAutoCompleteService) behave exactly like these.
      */
     private function applyTaskCompletionEffects(WorkOrderTask $currentTask, ?string $option): void
     {
-        [$nextServiceId, $isEmergency] = $this->resolveNextStatus($currentTask, $option);
-
-        if ($option === 'Yes') {
-            WorkOrderTask::where('work_order_id', $currentTask->work_order->id)
-                ->whereNot('status', 'completed')
-                ->delete();
-        }
-
-        $this->changeTaskStatus($currentTask->work_order, $nextServiceId, $isEmergency);
-    }
-
-    private function changeTaskStatus($work_order, $next_service_id, $is_emergency)
-    {
-        $service_status = ServiceStatus::find($next_service_id);
-
-        if (! $service_status) {
-            return;
-        }
-
-        if ($service_status->name === 'Closed') {
-            $this->closeWorkOrder($work_order, $service_status);
-
-            return;
-        }
-
-        $statusChanged = $service_status->name !== 'Not Changed';
-
-        if ($statusChanged) {
-            $work_order->update([
-                'is_emergency' => $is_emergency,
-            ]);
-
-            TaskService::createTasksForWorkOrder($work_order, $is_emergency, $next_service_id);
-
-            if (! $work_order->isCrystalCreek()) {
-                $propertyWare = new PropertyWareService;
-
-                $propertyWare->updateServiceStatus($work_order, $service_status);
-            }
-        }
-    }
-
-    /**
-     * Close the work order when a "Close Work Order" task is completed.
-     *
-     * This mirrors the manual close (status, service status and completion
-     * date) and syncs the closure to PropertyWare.
-     */
-    private function closeWorkOrder(WorkOrder $work_order, ServiceStatus $service_status): void
-    {
-        $work_order->update([
-            'status' => 'Closed',
-            'service_status_id' => $service_status->id,
-            'completed_date' => now()->toDateString(),
-        ]);
-
-        // A closed work order's checklist is finished by definition: complete
-        // (never delete — the rows are the audit trail) whatever is left. Bare
-        // query update so the completion cascade cannot re-enter.
-        WorkOrderTask::where('work_order_id', $work_order->id)
-            ->where('status', '!=', 'completed')
-            ->update(['status' => 'completed']);
-
-        if (! $work_order->isCrystalCreek()) {
-            $conversation_url = route('conversation.show', $work_order->id);
-
-            $propertyWare = new PropertyWareService;
-            $propertyWare->closeWorkOrder($work_order, $conversation_url);
-        }
-
-        Log::info('Work order closed via task completion: ', ['work_order_id' => $work_order->id]);
+        app(TaskCompletionService::class)->applyCompletionEffects($currentTask, $option);
     }
 
     public function undo(Request $request, WorkOrderTask $task)

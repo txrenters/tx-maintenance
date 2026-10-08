@@ -419,9 +419,10 @@ return [
     'tasks' => [
         // Ticks THMP checklist tasks whose proof is already in the database
         // (schedule saved, tenant texted, Jobber job done, before/after
-        // photos). It only ticks the box: the service status never moves and
-        // nothing goes to PropertyWare, so it is on by default. phpunit.xml
-        // pins it false; tests turn it on themselves.
+        // photos). A tick does what the task template says it does, so a line
+        // like "Fill in Projected Service End Date" moves the work order to
+        // Scheduled and tells PropertyWare, exactly as the crew's tick would.
+        // THMP work orders only. phpunit.xml pins it false; tests turn it on.
         'auto_complete_enabled' => (bool) env('TASK_AUTO_COMPLETE_ENABLED', true),
     ],
 

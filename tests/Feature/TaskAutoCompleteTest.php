@@ -11,6 +11,7 @@ use App\Models\JobberVisit;
 use App\Models\ServiceSchedule;
 use App\Models\ServiceStatus;
 use App\Models\Task;
+use App\Models\TaskDetail;
 use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Models\Vendor;
@@ -28,8 +29,9 @@ use Tests\TestCase;
 /**
  * Service THMP asked (2026-10-08) for six of their checklist tasks to be
  * ticked by the system once the thing they describe has happened. Earl's
- * rule: tick the box only — the work order's status never moves and nothing
- * is pushed to PropertyWare.
+ * rule (10-09): follow the task template — a "Not Changed" line only gets
+ * ticked; a line whose Task Done Service Status names a status moves the
+ * work order exactly as a manual tick would.
  */
 class TaskAutoCompleteTest extends TestCase
 {
@@ -39,6 +41,10 @@ class TaskAutoCompleteTest extends TestCase
 
     private ServiceStatus $scheduled;
 
+    private ServiceStatus $serviceCompleted;
+
+    private ServiceStatus $notChanged;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -47,15 +53,20 @@ class TaskAutoCompleteTest extends TestCase
 
         $this->waiting = ServiceStatus::query()->create(['name' => 'Assigned - Waiting on Scheduling', 'description' => 'x']);
         $this->scheduled = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'x']);
+        $this->serviceCompleted = ServiceStatus::query()->create(['name' => 'Service Completed - Call Tenant for Followup', 'description' => 'x']);
+        $this->notChanged = ServiceStatus::query()->create(['name' => 'Not Changed', 'description' => 'x']);
     }
 
+    /** THMP with a vendor-role login, which is what generated vendor tasks are assigned to. */
     private function thmpVendor(): Vendor
     {
+        Role::findOrCreate('vendor');
+
         return Vendor::query()->firstOrCreate(['propertyware_id' => 'V-THMP'], [
             'name' => Vendor::THMP_NAME,
             'vendor_type' => 'General',
             'is_active' => true,
-            'user_id' => User::factory()->create()->id,
+            'user_id' => User::factory()->create()->assignRole('vendor')->id,
         ]);
     }
 
@@ -80,16 +91,17 @@ class TaskAutoCompleteTest extends TestCase
      */
     private function templateTask(WorkOrder $workOrder, ?string $trigger, string $name = 'Fill in Scheduled Start Date', array $taskOverrides = []): WorkOrderTask
     {
-        $template = TaskTemplate::query()->create([
-            'name' => 'Template '.$name,
-            'current_service_status_id' => $workOrder->service_status_id,
-        ]);
+        $template = TaskTemplate::query()->firstOrCreate(
+            ['current_service_status_id' => $workOrder->service_status_id, 'is_current_service_status_emergency' => false],
+            ['name' => 'Template for status '.$workOrder->service_status_id],
+        );
 
         $task = Task::query()->create(array_merge([
             'name' => $name,
             'due_date' => 'same day',
             'type' => 'Vendor',
             'task_template_id' => $template->id,
+            'next_service_status_id' => $this->notChanged->id,
             'auto_complete_trigger' => $trigger,
         ], $taskOverrides));
 
@@ -184,6 +196,41 @@ class TaskAutoCompleteTest extends TestCase
         ]);
 
         return $attachment;
+    }
+
+    /**
+     * "Have you Completed the Repair" as the Scheduled template defines it:
+     * a Yes/No line whose Yes moves to Service Completed.
+     */
+    private function optionalRepairTask(WorkOrder $workOrder): WorkOrderTask
+    {
+        $row = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', [
+            'is_optional' => true,
+            'next_service_status_id' => null,
+        ]);
+
+        TaskDetail::query()->create(['task_id' => $row->task_id, 'task_for' => 'Yes', 'task_service_status_id' => $this->serviceCompleted->id, 'is_task_service_status_emergency' => false]);
+        TaskDetail::query()->create(['task_id' => $row->task_id, 'task_for' => 'No', 'task_service_status_id' => $this->notChanged->id, 'is_task_service_status_emergency' => false]);
+
+        return $row;
+    }
+
+    /** A line on the Scheduled template, generated when a work order moves there. */
+    private function scheduledTemplateLine(string $name, ?string $trigger = null): Task
+    {
+        $template = TaskTemplate::query()->firstOrCreate(
+            ['current_service_status_id' => $this->scheduled->id, 'is_current_service_status_emergency' => false],
+            ['name' => 'Scheduled - Non Emergency'],
+        );
+
+        return Task::query()->create([
+            'name' => $name,
+            'due_date' => 'same day',
+            'type' => 'Vendor',
+            'task_template_id' => $template->id,
+            'next_service_status_id' => $this->notChanged->id,
+            'auto_complete_trigger' => $trigger,
+        ]);
     }
 
     private function tick(WorkOrder $workOrder): int
@@ -320,7 +367,7 @@ class TaskAutoCompleteTest extends TestCase
     public function test_a_completed_jobber_job_ticks_the_repair_task_with_yes(): void
     {
         $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
-        $task = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', ['is_optional' => true]);
+        $task = $this->optionalRepairTask($workOrder);
         $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
 
         $this->tick($workOrder);
@@ -332,7 +379,7 @@ class TaskAutoCompleteTest extends TestCase
     public function test_a_completed_visit_counts_even_before_the_job_is_marked_done(): void
     {
         $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
-        $task = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', ['is_optional' => true]);
+        $task = $this->optionalRepairTask($workOrder);
         $job = $this->jobberJob($workOrder);
         $this->visit($job, ['completed_at' => now()->subHour()]);
 
@@ -344,7 +391,7 @@ class TaskAutoCompleteTest extends TestCase
     public function test_an_open_jobber_job_leaves_the_repair_task_alone(): void
     {
         $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
-        $task = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', ['is_optional' => true]);
+        $task = $this->optionalRepairTask($workOrder);
         $job = $this->jobberJob($workOrder);
         $this->visit($job);
 
@@ -422,23 +469,118 @@ class TaskAutoCompleteTest extends TestCase
 
     // --- guard rails -----------------------------------------------------
 
-    public function test_ticking_never_moves_the_status_or_touches_propertyware(): void
+    public function test_a_not_changed_line_only_ticks_the_box(): void
     {
         $this->mock(PropertyWareService::class)->shouldNotReceive('updateServiceStatus');
+
+        $workOrder = $this->thmpWorkOrder();
+        $start = $this->templateTask($workOrder, 'schedule_start_set');
+        $other = $this->templateTask($workOrder, null, 'Call the owner');
+        $this->schedule($workOrder);
+
+        $this->tick($workOrder);
+
+        $this->assertTicked($start, 'start date');
+        $this->assertUntouched($other);
+        $this->assertSame($this->waiting->id, $workOrder->fresh()->service_status_id);
+        $this->assertSame(2, WorkOrderTask::query()->where('work_order_id', $workOrder->id)->count());
+    }
+
+    /**
+     * The template line the crew ticks to reach Scheduled: the automation
+     * moves the work order the same way — status, PropertyWare, and the
+     * Scheduled template's tasks generated on top of the open ones.
+     */
+    public function test_a_line_that_moves_the_status_moves_it_like_a_manual_tick(): void
+    {
+        $this->mock(PropertyWareService::class)->shouldReceive('updateServiceStatus')->once()->andReturn(true);
 
         $workOrder = $this->thmpWorkOrder();
         $endTask = $this->templateTask($workOrder, 'schedule_end_set', 'Fill in Projected Service End Date', [
             'next_service_status_id' => $this->scheduled->id,
         ]);
         $other = $this->templateTask($workOrder, null, 'Call the owner');
+        $this->scheduledTemplateLine('Have you Completed the Repair');
         $this->schedule($workOrder, ['scheduled_end_date' => '2026-10-13 17:00:00']);
 
         $this->tick($workOrder);
 
         $this->assertTicked($endTask, 'end date');
         $this->assertUntouched($other);
-        $this->assertSame($this->waiting->id, $workOrder->fresh()->service_status_id);
-        $this->assertSame(2, WorkOrderTask::query()->where('work_order_id', $workOrder->id)->count());
+        $this->assertSame($this->scheduled->id, $workOrder->fresh()->service_status_id);
+        $this->assertDatabaseHas('work_order_tasks', [
+            'work_order_id' => $workOrder->id,
+            'description' => 'Have you Completed the Repair',
+            'status' => 'pending',
+        ]);
+
+        $row = Activity::query()->where('log_name', 'task_automation')->firstOrFail();
+        $this->assertSame('Scheduled', $row->properties['moved_to']);
+    }
+
+    public function test_the_repair_answered_yes_moves_on_and_clears_the_rest_like_a_manual_yes(): void
+    {
+        $this->mock(PropertyWareService::class)->shouldReceive('updateServiceStatus')->once()->andReturn(true);
+
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $repair = $this->optionalRepairTask($workOrder);
+        $leftover = $this->templateTask($workOrder, null, 'Call the owner');
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+
+        $this->tick($workOrder);
+
+        $this->assertTicked($repair, 'Jobber job completed');
+        $this->assertSame('Yes', $repair->fresh()->option);
+        $this->assertSame($this->serviceCompleted->id, $workOrder->fresh()->service_status_id);
+        $this->assertSoftDeleted('work_order_tasks', ['id' => $leftover->id]);
+    }
+
+    /**
+     * The photo lines sit beside the repair question on the Scheduled
+     * template. Its Yes clears whatever is still pending, so the photos
+     * must be ticked first or they would vanish instead.
+     */
+    public function test_photo_lines_are_ticked_before_the_repair_answer_clears_the_rest(): void
+    {
+        $this->mock(PropertyWareService::class)->shouldReceive('updateServiceStatus')->once()->andReturn(true);
+
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $repair = $this->optionalRepairTask($workOrder);
+        $before = $this->templateTask($workOrder, 'before_photo_added', 'Upload "before pictures of problem"');
+        $after = $this->templateTask($workOrder, 'after_photo_added', 'After Completing Service - take "After Photos in App"');
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->attachment($workOrder, 'before');
+        $this->attachment($workOrder, 'after');
+
+        $this->assertSame(3, $this->tick($workOrder));
+
+        $this->assertTicked($before, 'before photo');
+        $this->assertTicked($after, 'after photo');
+        $this->assertTicked($repair, 'Jobber job completed');
+        $this->assertSame($this->serviceCompleted->id, $workOrder->fresh()->service_status_id);
+    }
+
+    public function test_tasks_generated_by_a_status_move_are_checked_in_the_same_run(): void
+    {
+        $this->mock(PropertyWareService::class)->shouldReceive('updateServiceStatus')->once()->andReturn(true);
+
+        $workOrder = $this->thmpWorkOrder();
+        $endTask = $this->templateTask($workOrder, 'schedule_end_set', 'Fill in Projected Service End Date', [
+            'next_service_status_id' => $this->scheduled->id,
+        ]);
+        $this->scheduledTemplateLine('Upload "before pictures of problem"', 'before_photo_added');
+        $this->schedule($workOrder, ['scheduled_end_date' => '2026-10-13 17:00:00']);
+        $this->attachment($workOrder, 'before');
+
+        $this->assertSame(2, $this->tick($workOrder));
+
+        $this->assertTicked($endTask, 'end date');
+        $this->assertSame($this->scheduled->id, $workOrder->fresh()->service_status_id);
+        $this->assertDatabaseHas('work_order_tasks', [
+            'work_order_id' => $workOrder->id,
+            'description' => 'Upload "before pictures of problem"',
+            'status' => 'completed',
+        ]);
     }
 
     public function test_a_work_order_without_thmp_is_left_alone(): void
@@ -468,7 +610,7 @@ class TaskAutoCompleteTest extends TestCase
     {
         $workOrder = WorkOrder::factory()->create(['service_status_id' => $this->waiting->id, 'status' => 'Open', 'work_order_no' => 44501]);
         $this->jobberJob($workOrder, ['completed_at' => now()]);
-        $task = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', ['is_optional' => true]);
+        $task = $this->optionalRepairTask($workOrder);
 
         $this->assertSame(1, $this->tick($workOrder));
         $this->assertTicked($task, 'Jobber job completed');
