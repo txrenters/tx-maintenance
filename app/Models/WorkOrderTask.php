@@ -24,6 +24,14 @@ class WorkOrderTask extends Model
 
     protected $dates = ['deleted_at']; // Optional but recommended
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['auto_completed_at' => 'datetime'];
+    }
+
     public function assigned_user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_user_id');

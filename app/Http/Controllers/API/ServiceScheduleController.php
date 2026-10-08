@@ -8,6 +8,7 @@ use App\Jobs\SendTenantAppointmentNotificationJob;
 use App\Models\ServiceSchedule;
 use App\Models\WorkOrder;
 use App\Services\PropertyWareService;
+use App\Services\TaskAutoCompleteService;
 use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -208,6 +209,10 @@ class ServiceScheduleController extends Controller
             // Tasks generated before the vendor set (or moved) this schedule
             // still carry their generation-day due dates; re-anchor them.
             TaskService::syncTaskDueDatesToSchedule($workOrder);
+
+            // A saved schedule is the proof behind THMP's scheduling tasks;
+            // tick them now rather than on the next sweep.
+            app(TaskAutoCompleteService::class)->run($workOrder);
 
             // Validate work order has required data for PropertyWare sync
             if (! $workOrder->location || trim($workOrder->location) === '') {

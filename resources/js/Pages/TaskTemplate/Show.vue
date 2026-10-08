@@ -12,9 +12,12 @@ const props = defineProps({
   title: String,
   template: Object,
   statuses: Object,
+  autoCompleteTriggers: { type: Array, default: () => [] },
 });
 
-console.log(props.template);
+const triggerLabel = (value) =>
+  props.autoCompleteTriggers.find((trigger) => trigger.value === value)?.label ??
+  "Never";
 </script>
 
 <template>
@@ -68,6 +71,7 @@ console.log(props.template);
             <TableHead class="hidden md:table-cell"> Mandatory </TableHead>
             <TableHead class="hidden md:table-cell"> Task For </TableHead>
             <TableHead class="hidden md:table-cell"> Due Date </TableHead>
+            <TableHead class="hidden md:table-cell"> Auto-complete when </TableHead>
             <TableHead class="hidden md:table-cell"> Option </TableHead>
             <TableHead class="hidden md:table-cell"> Task Done Service Status </TableHead>
             <TableHead class="hidden md:table-cell"> Task Done Status type </TableHead>
@@ -86,6 +90,9 @@ console.log(props.template);
             </TableCell>
             <TableCell class="hidden md:table-cell">
               {{ task.due_date }}
+            </TableCell>
+            <TableCell class="hidden md:table-cell">
+              {{ triggerLabel(task.auto_complete_trigger) }}
             </TableCell>
             <TableCell class="hidden md:table-cell">
               <template v-if="task.is_optional">

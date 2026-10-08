@@ -115,6 +115,8 @@ class AutoCompleteVerifiedTasks extends Command
         $candidates = WorkOrderTask::withoutGlobalScopes()
             ->with('task')
             ->where('status', 'pending')
+            // A task a person un-ticked keeps its stamp: never tick it again.
+            ->whereNull('auto_completed_at')
             ->whereNotNull('task_id')
             ->when($targetWorkOrder, fn ($query) => $query->where('work_order_id', $targetWorkOrder->id))
             ->whereHas('task', function ($template) {
@@ -160,9 +162,17 @@ class AutoCompleteVerifiedTasks extends Command
         }
 
         if (! $dryRun && $completed !== []) {
-            WorkOrderTask::withoutGlobalScopes()
-                ->whereIn('id', array_column($completed, 'id'))
-                ->update(['status' => 'completed']);
+            // Stamped per reason so the task's "Auto" badge can say why; the
+            // stamp also keeps a later un-tick by a person from being undone.
+            foreach (collect($completed)->groupBy('reason') as $reason => $group) {
+                WorkOrderTask::withoutGlobalScopes()
+                    ->whereIn('id', $group->pluck('id'))
+                    ->update([
+                        'status' => 'completed',
+                        'auto_completed_at' => now(),
+                        'auto_complete_reason' => $reason,
+                    ]);
+            }
 
             // No completed_by column exists on work_order_tasks, so the log is
             // the attribution trail for these system completions.

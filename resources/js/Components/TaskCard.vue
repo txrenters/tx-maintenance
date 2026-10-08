@@ -450,6 +450,13 @@ const checkDueTask = (task) => {
                                     : formatDate(task.due_date) ?? "No due date"
                             }}
                         </p>
+                        <span
+                            v-if="task.status === 'completed' && task.auto_completed_at"
+                            :title="task.auto_complete_reason || 'Ticked by the system'"
+                            class="rounded border border-current/40 px-1 text-[10px] font-semibold uppercase tracking-wide"
+                        >
+                            Auto
+                        </span>
                         <button
                             v-if="
                                 task.status !== 'completed' &&

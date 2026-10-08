@@ -416,4 +416,13 @@ return [
         'badges_enabled' => (bool) env('EASY_FIX_BOARD_BADGES_ENABLED', true),
     ],
 
+    'tasks' => [
+        // Ticks THMP checklist tasks whose proof is already in the database
+        // (schedule saved, tenant texted, Jobber job done, before/after
+        // photos). It only ticks the box: the service status never moves and
+        // nothing goes to PropertyWare, so it is on by default. phpunit.xml
+        // pins it false; tests turn it on themselves.
+        'auto_complete_enabled' => (bool) env('TASK_AUTO_COMPLETE_ENABLED', true),
+    ],
+
 ];

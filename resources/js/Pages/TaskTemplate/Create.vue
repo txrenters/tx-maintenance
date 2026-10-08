@@ -12,6 +12,7 @@ const props = defineProps({
   title: String,
   statuses: Object,
   assignableUsers: { type: Array, default: () => [] },
+  autoCompleteTriggers: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -34,6 +35,7 @@ const tasks = reactive([
     task_for: "Woc",
     assigned_user_id: "",
     due_date: "same day",
+    auto_complete_trigger: "",
     task_service_status_id: "18",
     is_task_service_status_emergency: "Non-emergency",
     task_details: [
@@ -60,6 +62,7 @@ const addTask = () => {
     task_for: "Woc",
     assigned_user_id: "",
     due_date: "same day",
+    auto_complete_trigger: "",
     task_service_status_id: "18",
     is_task_service_status_emergency: "Non-emergency",
     task_details: [
@@ -324,6 +327,37 @@ const submitForm = () => {
               </Select>
               <Label class="mt-1 text-destructive text-xs">
                 {{ form.errors[`tasks.${index}.assigned_user_id`] }}
+              </Label>
+            </div>
+            <div class="mt-2 w-full flex flex-col gap-2">
+              <Label>Auto-complete when</Label>
+              <Select
+                :modelValue="task.auto_complete_trigger || '__never__'"
+                @update:modelValue="
+                  (v) => (task.auto_complete_trigger = v === '__never__' ? '' : v)
+                "
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Never (a person ticks it)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Ticked by the system when</SelectLabel>
+                    <SelectItem value="__never__">
+                      Never (a person ticks it)
+                    </SelectItem>
+                    <SelectItem
+                      v-for="trigger in autoCompleteTriggers"
+                      :key="trigger.value"
+                      :value="trigger.value"
+                    >
+                      {{ trigger.label }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Label class="mt-1 text-destructive text-xs">
+                {{ form.errors[`tasks.${index}.auto_complete_trigger`] }}
               </Label>
             </div>
             <div class="mt-2 w-full flex flex-col gap-2">

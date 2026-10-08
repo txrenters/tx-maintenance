@@ -205,4 +205,28 @@ class AutoCompleteVerifiedTasksTest extends TestCase
 
         $this->assertSame('pending', $task->fresh()->status);
     }
+
+    public function test_a_tick_is_stamped_with_when_and_why(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['start_date' => now()->toDateString()]);
+        $task = $this->pendingTask($workOrder, $this->template('Fill in scheduled date'));
+
+        $this->artisan('tasks:auto-complete')->assertSuccessful();
+
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+        $this->assertNotNull($task->auto_completed_at);
+        $this->assertSame('a scheduled date is on record', $task->auto_complete_reason);
+    }
+
+    public function test_a_task_a_person_un_ticked_is_never_ticked_again(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['start_date' => now()->toDateString()]);
+        $task = $this->pendingTask($workOrder, $this->template('Fill in scheduled date'));
+        $task->update(['auto_completed_at' => now()->subDay(), 'auto_complete_reason' => 'a scheduled date is on record']);
+
+        $this->artisan('tasks:auto-complete')->assertSuccessful();
+
+        $this->assertSame('pending', $task->fresh()->status);
+    }
 }

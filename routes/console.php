@@ -108,6 +108,15 @@ Schedule::command('jobber:sync-job-notes')
     ->withoutOverlapping(25)
     ->runInBackground();
 
+// THMP checklist tasks whose proof is in (schedule saved, tenant texted,
+// Jobber job done, before/after photos) get ticked here. Offset from the
+// :00/:10 PropertyWare ticks and run after the half-hourly note sync has had
+// a moment to land photos. Ticks the box only; never moves the status.
+Schedule::command('tasks:auto-complete-thmp')
+    ->cron('3-59/10 * * * *')
+    ->withoutOverlapping(8)
+    ->runInBackground();
+
 // With no --days the command runs its defaults: the 3, 7, and 14-day tiers.
 Schedule::command('jobs:send-reminders')
     ->timezone('America/Chicago')

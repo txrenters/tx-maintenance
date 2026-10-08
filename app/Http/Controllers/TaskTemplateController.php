@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Models\TaskDetail;
 use App\Models\TaskTemplate;
 use App\Models\User;
+use App\Services\TaskAutoCompleteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -64,6 +65,7 @@ class TaskTemplateController extends Controller
             'title' => 'Create Task Template',
             'statuses' => $statuses,
             'assignableUsers' => $this->assignableUsers(),
+            'autoCompleteTriggers' => TaskAutoCompleteService::options(),
         ]);
     }
 
@@ -110,6 +112,7 @@ class TaskTemplateController extends Controller
                     'due_date' => $task['due_date'],
                     'next_service_status_id' => $task['task_service_status_id'],
                     'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency' ? true : false,
+                    'auto_complete_trigger' => filled($task['auto_complete_trigger'] ?? null) ? $task['auto_complete_trigger'] : null,
                     'task_template_id' => $taskTemplate->id,
                 ];
 
@@ -159,6 +162,7 @@ class TaskTemplateController extends Controller
             'title' => 'Task Template',
             'template' => $taskTemplate,
             'statuses' => $statuses,
+            'autoCompleteTriggers' => TaskAutoCompleteService::options(),
         ]);
     }
 
@@ -178,6 +182,7 @@ class TaskTemplateController extends Controller
             'template' => $taskTemplate,
             'statuses' => $statuses,
             'assignableUsers' => $this->assignableUsers(),
+            'autoCompleteTriggers' => TaskAutoCompleteService::options(),
         ]);
     }
 
@@ -216,6 +221,7 @@ class TaskTemplateController extends Controller
                     'due_date' => $task['due_date'],
                     'next_service_status_id' => $task['task_service_status_id'] ?? null,
                     'is_emergency' => $task['is_task_service_status_emergency'] == 'Emergency',
+                    'auto_complete_trigger' => filled($task['auto_complete_trigger'] ?? null) ? $task['auto_complete_trigger'] : null,
                     'task_template_id' => $taskTemplate->id,
                 ];
 

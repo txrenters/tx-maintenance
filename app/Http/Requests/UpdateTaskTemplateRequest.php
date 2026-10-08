@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\Services\TaskAutoCompleteService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -44,6 +45,7 @@ class UpdateTaskTemplateRequest extends FormRequest
                 ),
             ],
             'tasks.*.due_date' => 'required|string',
+            'tasks.*.auto_complete_trigger' => ['nullable', 'string', Rule::in(array_keys(TaskAutoCompleteService::LABELS))],
             'tasks.*.task_service_status_id' => 'required_if:tasks.*.is_option,No',
             'tasks.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,No',
             'tasks.*.is_task_service_status_emergency' => 'required_if:tasks.*.is_option,No',
