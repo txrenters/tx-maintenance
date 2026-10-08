@@ -2,33 +2,32 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Services\TaskAutoCompleteService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 /**
- * The sweep behind TaskAutoCompleteService: every open THMP work order with
- * a pending task that carries a trigger. Runs every ten minutes, which is
- * how a Jobber completion webhook or a photo the note sync just pulled turns
- * into a tick without its own hook. A schedule saved in the app ticks at
- * once through ServiceScheduleController.
+ * The sweep behind TaskAutoCompleteService: every open work order with a
+ * vendor (or a Jobber job) and a pending task that carries a trigger. Runs
+ * every ten minutes, which is how a Jobber completion, a photo the note sync
+ * just pulled, or a portal upload turns into a tick without its own hook. A
+ * schedule saved in the app or the vendor portal ticks at once through
+ * ServiceScheduleController.
  *
  * --dry-run prints what would be ticked and writes nothing: the production
  * proof before the gate goes on. --work-order takes the LOCAL id.
  */
-class AutoCompleteThmpTasks extends Command
+class AutoCompleteTriggeredTasks extends Command
 {
-    protected $signature = 'tasks:auto-complete-thmp
+    protected $signature = 'tasks:auto-complete-triggers
         {--dry-run : Print what would be ticked and write nothing}
-        {--work-order= : One work order id, instead of every open THMP one}
+        {--work-order= : One work order id, instead of every open one}
         {--limit=500 : How many work orders to check in a run}';
 
-    protected $description = 'Tick THMP checklist tasks whose proof is in (schedule saved, tenant texted, Jobber job done, before/after photos); a tick does what the task template says it does.';
+    protected $description = 'Tick checklist tasks whose proof is in (schedule saved, tenant texted, repair finished, before/after photos); a tick does what the task template says it does.';
 
     public function handle(TaskAutoCompleteService $service): int
     {
@@ -71,16 +70,17 @@ class AutoCompleteThmpTasks extends Command
         $this->info($summary);
 
         if (! $dryRun) {
-            Log::info('THMP task auto-complete sweep finished.', ['tasks' => $tasks, 'work_orders' => $workOrders]);
+            Log::info('Task auto-complete sweep finished.', ['tasks' => $tasks, 'work_orders' => $workOrders]);
         }
 
         return self::SUCCESS;
     }
 
     /**
-     * Open THMP work orders holding a pending template task with a trigger
-     * that the system has not ticked before. Newest first, so a long backlog
-     * reaches the work orders people are looking at.
+     * Open work orders with a vendor or a Jobber job, holding a pending
+     * template task with a trigger that the system has not ticked before.
+     * Newest first, so a long backlog reaches the work orders people are
+     * looking at.
      *
      * @return Collection<int, WorkOrder>
      */
@@ -96,8 +96,7 @@ class AutoCompleteThmpTasks extends Command
             ->whereNotIn('status', WorkOrder::CLOSED_STATUSES)
             ->where(fn (Builder $query) => $query
                 ->whereNotNull('jobber_job_gid')
-                ->orWhereHas('vendors', fn (Builder $vendors) => $vendors
-                    ->whereRaw('LOWER(TRIM(vendors.name)) = ?', [Str::lower(trim(Vendor::THMP_NAME))])))
+                ->orWhereHas('vendors'))
             ->whereHas('tasks', fn (Builder $tasks) => $tasks
                 ->where('status', '!=', 'completed')
                 ->whereNull('auto_completed_at')

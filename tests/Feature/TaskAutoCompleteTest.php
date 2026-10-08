@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\RepairCompletionJudgeAgent;
+use App\Models\AiInsight;
 use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\Jobber;
@@ -74,6 +75,43 @@ class TaskAutoCompleteTest extends TestCase
             'vendor_type' => 'General',
             'is_active' => true,
             'user_id' => User::factory()->create()->assignRole('vendor')->id,
+        ]);
+    }
+
+    /** A work order assigned to an outside vendor, who only has the portal. */
+    private function outsideVendorWorkOrder(array $overrides = []): WorkOrder
+    {
+        Role::findOrCreate('vendor');
+
+        $vendor = Vendor::query()->firstOrCreate(['propertyware_id' => 'V-Acme'], [
+            'name' => 'Acme Plumbing',
+            'vendor_type' => 'General',
+            'is_active' => true,
+            'user_id' => User::factory()->create()->assignRole('vendor')->id,
+        ]);
+
+        $workOrder = WorkOrder::factory()->create(array_merge([
+            'service_status_id' => $this->waiting->id,
+            'work_order_no' => 44600,
+            'status' => 'Open',
+        ], $overrides));
+
+        $workOrder->vendors()->attach($vendor->id);
+
+        return $workOrder;
+    }
+
+    /** The existing vision review's verdict on an after photo. */
+    private function photoReview(Attachments $attachment, string $verdict): void
+    {
+        AiInsight::query()->create([
+            'type' => AiInsight::TYPE_PHOTO_REVIEW,
+            'subject_type' => Attachments::class,
+            'subject_id' => $attachment->id,
+            'work_order_id' => $attachment->work_order_id,
+            'status' => AiInsight::STATUS_OPEN,
+            'data' => ['verdict' => $verdict, 'note' => 'The dryer drum and belt are back in place.'],
+            'generated_at' => now(),
         ]);
     }
 
@@ -211,7 +249,7 @@ class TaskAutoCompleteTest extends TestCase
      */
     private function optionalRepairTask(WorkOrder $workOrder): WorkOrderTask
     {
-        $row = $this->templateTask($workOrder, 'jobber_job_completed', 'Have you Completed the Repair', [
+        $row = $this->templateTask($workOrder, 'repair_completed', 'Have you Completed the Repair', [
             'is_optional' => true,
             'next_service_status_id' => null,
         ]);
@@ -729,24 +767,74 @@ class TaskAutoCompleteTest extends TestCase
         ]);
     }
 
-    public function test_a_work_order_without_thmp_is_left_alone(): void
+    public function test_an_outside_vendors_portal_schedule_ticks_too(): void
     {
-        $vendor = Vendor::query()->create([
-            'propertyware_id' => 'V-Acme',
-            'name' => 'Acme Plumbing',
-            'vendor_type' => 'General',
-            'is_active' => true,
-            'user_id' => User::factory()->create()->id,
-        ]);
+        $workOrder = $this->outsideVendorWorkOrder();
+        $task = $this->templateTask($workOrder, 'schedule_start_set');
+        $this->schedule($workOrder);
+
+        $this->assertSame(1, $this->tick($workOrder));
+        $this->assertTicked($task, 'start date');
+    }
+
+    public function test_a_work_order_with_no_vendor_and_no_jobber_job_is_left_alone(): void
+    {
         $workOrder = WorkOrder::factory()->create(['service_status_id' => $this->waiting->id, 'status' => 'Open']);
-        $workOrder->vendors()->attach($vendor->id);
         $task = $this->templateTask($workOrder, 'schedule_start_set');
         ServiceSchedule::query()->create([
             'title' => 'Service Schedule',
             'scheduled_date' => '2026-10-12 09:00:00',
             'work_order_id' => $workOrder->id,
-            'vendor_id' => $vendor->id,
+            'vendor_id' => $this->thmpVendor()->id,
         ]);
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+    }
+
+    // --- the outside vendor's repair proof ------------------------------------
+
+    public function test_an_after_photo_that_passes_the_photo_check_ticks_the_outside_vendors_repair(): void
+    {
+        $this->mock(PropertyWareService::class)->shouldReceive('updateServiceStatus')->once()->andReturn(true);
+
+        $workOrder = $this->outsideVendorWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->photoReview($this->attachment($workOrder, 'after'), 'looks_resolved');
+
+        $this->assertSame(1, $this->tick($workOrder));
+        $this->assertTicked($task, 'After photo passed the AI photo check');
+        $this->assertSame('Yes', $task->fresh()->option);
+        $this->assertSame($this->serviceCompleted->id, $workOrder->fresh()->service_status_id);
+        RepairCompletionJudgeAgent::assertNeverPrompted();
+    }
+
+    public function test_an_after_photo_the_check_doubts_holds_the_outside_vendors_repair(): void
+    {
+        $workOrder = $this->outsideVendorWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->photoReview($this->attachment($workOrder, 'after'), 'mismatch');
+        $this->photoReview($this->attachment($workOrder, 'after'), 'unclear');
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+    }
+
+    public function test_an_after_photo_not_yet_reviewed_holds_the_outside_vendors_repair(): void
+    {
+        $workOrder = $this->outsideVendorWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->attachment($workOrder, 'after');
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+    }
+
+    public function test_a_before_photo_alone_never_counts_as_the_repair(): void
+    {
+        $workOrder = $this->outsideVendorWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->photoReview($this->attachment($workOrder, 'before'), 'looks_resolved');
 
         $this->assertSame(0, $this->tick($workOrder));
         $this->assertUntouched($task);
@@ -854,7 +942,7 @@ class TaskAutoCompleteTest extends TestCase
         $this->schedule($one);
         $this->schedule($two);
 
-        $this->artisan('tasks:auto-complete-thmp')
+        $this->artisan('tasks:auto-complete-triggers')
             ->expectsOutputToContain('2 task(s) ticked on 2 work order(s)')
             ->assertExitCode(0);
 
@@ -868,7 +956,7 @@ class TaskAutoCompleteTest extends TestCase
         $task = $this->templateTask($workOrder, 'schedule_start_set');
         $this->schedule($workOrder);
 
-        $this->artisan('tasks:auto-complete-thmp', ['--dry-run' => true])
+        $this->artisan('tasks:auto-complete-triggers', ['--dry-run' => true])
             ->expectsOutputToContain('#44500: would tick "Fill in Scheduled Start Date"')
             ->assertExitCode(0);
 
@@ -885,7 +973,7 @@ class TaskAutoCompleteTest extends TestCase
         $this->schedule($one);
         $this->schedule($two);
 
-        $this->artisan('tasks:auto-complete-thmp', ['--work-order' => $two->id])->assertExitCode(0);
+        $this->artisan('tasks:auto-complete-triggers', ['--work-order' => $two->id])->assertExitCode(0);
 
         $this->assertUntouched($taskOne);
         $this->assertTicked($taskTwo, 'start date');
@@ -895,7 +983,7 @@ class TaskAutoCompleteTest extends TestCase
     {
         config(['services.tasks.auto_complete_enabled' => false]);
 
-        $this->artisan('tasks:auto-complete-thmp')
+        $this->artisan('tasks:auto-complete-triggers')
             ->expectsOutputToContain('TASK_AUTO_COMPLETE_ENABLED')
             ->assertExitCode(0);
     }

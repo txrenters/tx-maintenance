@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\RepairCompletionJudgeAgent;
+use App\Models\AiInsight;
 use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\JobberVisit;
@@ -10,7 +11,6 @@ use App\Models\Scopes\AttachmentScope;
 use App\Models\Scopes\CalendarScope;
 use App\Models\Scopes\TaskScope;
 use App\Models\ServiceSchedule;
-use App\Models\Vendor;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderJobberNote;
 use App\Models\WorkOrderTask;
@@ -23,13 +23,14 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Ticks THMP checklist tasks the database already proves done.
+ * Ticks vendor checklist tasks the database already proves done.
  *
  * Service THMP asked (2026-10-08) for six of their tasks to stop waiting on
  * a tap in the field: the three scheduling tasks, "Have you Completed the
- * Repair", and the before/after photo uploads. Each template line carries a
- * trigger key (picked on the Task Templates page); this service checks the
- * proof for each key and ticks the box.
+ * Repair", and the before/after photo uploads; Earl widened it to every
+ * vendor on the portal the next day. Each template line carries a trigger
+ * key (picked on the Task Templates page); this service checks the proof
+ * for each key and ticks the box.
  *
  * A tick does what the template says it does (TaskCompletionService): a
  * "Not Changed" line only gets ticked; a line whose Task Done Service Status
@@ -40,9 +41,9 @@ use Throwable;
  * so the tasks the move generated get their turn. A task a person un-ticked
  * keeps its auto_completed_at and is never ticked again.
  *
- * Scope is THMP work orders only: one with a Jobber job, or with THMP among
- * its vendors. The older `tasks:auto-complete` command keeps ticking the
- * name-matched data-entry tasks for every vendor as before.
+ * Scope is any open work order with a vendor or a Jobber job. The older
+ * `tasks:auto-complete` command keeps ticking the name-matched data-entry
+ * tasks as before.
  */
 class TaskAutoCompleteService
 {
@@ -52,7 +53,7 @@ class TaskAutoCompleteService
 
     public const SCHEDULE_END_SET = 'schedule_end_set';
 
-    public const JOBBER_JOB_COMPLETED = 'jobber_job_completed';
+    public const REPAIR_COMPLETED = 'repair_completed';
 
     public const BEFORE_PHOTO_ADDED = 'before_photo_added';
 
@@ -76,7 +77,7 @@ class TaskAutoCompleteService
         self::TENANT_CONTACTED => 'Tenant texted about the appointment',
         self::SCHEDULE_START_SET => 'Service Schedule has a start date',
         self::SCHEDULE_END_SET => 'Service Schedule has an end date',
-        self::JOBBER_JOB_COMPLETED => 'Jobber job completed and the tech note says done',
+        self::REPAIR_COMPLETED => 'Repair finished (Jobber done + tech note, or an after photo passing the AI check)',
         self::BEFORE_PHOTO_ADDED => 'A before photo is on the work order',
         self::AFTER_PHOTO_ADDED => 'An after photo is on the work order',
     ];
@@ -113,7 +114,8 @@ class TaskAutoCompleteService
     }
 
     /**
-     * THMP work orders only: linked to a Jobber job, or THMP is a vendor.
+     * Any open work order with a vendor on it, or a Jobber job: those are the
+     * ones with a vendor checklist to tick.
      */
     public static function inScope(WorkOrder $workOrder): bool
     {
@@ -121,7 +123,7 @@ class TaskAutoCompleteService
             return false;
         }
 
-        return filled($workOrder->jobber_job_gid) || Vendor::isThmpAssignedToWorkOrder($workOrder->id);
+        return filled($workOrder->jobber_job_gid) || $workOrder->vendors()->exists();
     }
 
     /**
@@ -290,7 +292,7 @@ class TaskAutoCompleteService
             self::SCHEDULE_START_SET => $this->scheduleStart($workOrder),
             self::SCHEDULE_END_SET => $this->scheduleEnd($workOrder),
             self::TENANT_CONTACTED => $this->tenantContacted($workOrder, $task),
-            self::JOBBER_JOB_COMPLETED => $this->jobberJobCompleted($workOrder),
+            self::REPAIR_COMPLETED => $this->repairCompleted($workOrder),
             self::BEFORE_PHOTO_ADDED => $this->beforePhoto($workOrder),
             self::AFTER_PHOTO_ADDED => $this->afterPhoto($workOrder),
             default => null,
@@ -360,6 +362,55 @@ class TaskAutoCompleteService
         return $sent
             ? 'Tenant texted by staff ('.$this->day($sent->created_at).')'
             : null;
+    }
+
+    /**
+     * THMP (a Jobber job about the work order) proves the repair through
+     * Jobber plus the technician's note; an outside vendor, who only has the
+     * portal, through an after photo the vision review passed.
+     */
+    private function repairCompleted(WorkOrder $workOrder): ?string
+    {
+        return $this->jobs->allForWorkOrder($workOrder)->isNotEmpty()
+            ? $this->jobberJobCompleted($workOrder)
+            : $this->afterPhotoPassedReview($workOrder);
+    }
+
+    /**
+     * The outside vendor's proof: an "after" photo they uploaded that the
+     * existing completion-photo review (ReviewCompletionPhoto, an AI vision
+     * check) judged to plausibly show the problem fixed. A photo the review
+     * doubted, or has not looked at yet, holds the task for a coordinator.
+     */
+    private function afterPhotoPassedReview(WorkOrder $workOrder): ?string
+    {
+        $afterIds = $this->attachments($workOrder)->where('type', 'after')->pluck('id');
+
+        if ($afterIds->isEmpty()) {
+            return null;
+        }
+
+        $passed = AiInsight::query()
+            ->where('type', AiInsight::TYPE_PHOTO_REVIEW)
+            ->where('subject_type', Attachments::class)
+            ->whereIn('subject_id', $afterIds)
+            ->get()
+            ->first(fn (AiInsight $insight) => ($insight->data['verdict'] ?? null) === 'looks_resolved');
+
+        if (! $passed) {
+            Log::info('Repair tick held: no after photo has passed the photo review yet.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+                'after_photos' => $afterIds->count(),
+            ]);
+
+            return null;
+        }
+
+        $note = trim((string) ($passed->data['note'] ?? ''));
+
+        return 'After photo passed the AI photo check ('.$this->day($passed->generated_at ?? $passed->created_at).')'
+            .($note !== '' ? ': '.$note : '');
     }
 
     /**

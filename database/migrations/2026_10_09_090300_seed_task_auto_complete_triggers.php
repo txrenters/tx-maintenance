@@ -29,7 +29,7 @@ return new class extends Migration
         'tenant_contacted' => ['contact tenant to schedule appointment'],
         'schedule_start_set' => ['fill in scheduled date', 'fill in scheduled start date'],
         'schedule_end_set' => ['fill in projected service end date', 'fill in projected end date'],
-        'jobber_job_completed' => ['have you completed the repair'],
+        'repair_completed' => ['have you completed the repair'],
         'before_photo_added' => ['upload before pictures of problem', 'upload before pictures of the problem'],
         'after_photo_added' => ['after completing service - take after photos in app', 'after completing service - take after photos'],
     ];

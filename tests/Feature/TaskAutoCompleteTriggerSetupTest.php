@@ -155,7 +155,7 @@ class TaskAutoCompleteTriggerSetupTest extends TestCase
             'Fill in Scheduled Start Date' => 'schedule_start_set',
             'Fill in Projected Service End Date' => 'schedule_end_set',
             'Fill in Projected End Date' => 'schedule_end_set',
-            'Have you Completed the Repair' => 'jobber_job_completed',
+            'Have you Completed the Repair' => 'repair_completed',
             'Upload "before pictures of problem"' => 'before_photo_added',
             'Upload before pictures of the problem' => 'before_photo_added',
             'After Completing Service - take "After Photos in App"' => 'after_photo_added',

@@ -210,8 +210,8 @@ class ServiceScheduleController extends Controller
             // still carry their generation-day due dates; re-anchor them.
             TaskService::syncTaskDueDatesToSchedule($workOrder);
 
-            // A saved schedule is the proof behind THMP's scheduling tasks;
-            // tick them now rather than on the next sweep.
+            // A saved schedule is the proof behind the vendor's scheduling
+            // tasks; tick them now rather than on the next sweep.
             app(TaskAutoCompleteService::class)->run($workOrder);
 
             // Validate work order has required data for PropertyWare sync

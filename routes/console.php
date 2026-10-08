@@ -108,13 +108,13 @@ Schedule::command('jobber:sync-job-notes')
     ->withoutOverlapping(25)
     ->runInBackground();
 
-// THMP checklist tasks whose proof is in (schedule saved, tenant texted,
-// Jobber job done, before/after photos) get ticked here. Offset from the
+// Checklist tasks whose proof is in (schedule saved, tenant texted, repair
+// finished, before/after photos) get ticked here, for THMP and portal vendors. Offset from the
 // :00/:10 PropertyWare ticks and run after the half-hourly note sync has had
 // a moment to land photos. A tick does what the task template says: a
 // "Not Changed" line only ticks; a line that names a status moves the work
 // order there like the crew's own tick would.
-Schedule::command('tasks:auto-complete-thmp')
+Schedule::command('tasks:auto-complete-triggers')
     ->cron('3-59/10 * * * *')
     ->withoutOverlapping(8)
     ->runInBackground();

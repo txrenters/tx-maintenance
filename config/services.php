@@ -403,7 +403,8 @@ return [
         'easy_fix_min_confidence' => (int) env('TENANT_EASY_FIX_AI_MIN_CONFIDENCE', 70),
 
         // Before the system ticks "Have you Completed the Repair" on a THMP
-        // work order, the AI reads the technician's Jobber notes: a tapped
+        // work order (one with a Jobber job), the AI reads the technician's
+        // Jobber notes: a tapped
         // "complete" on a visit is not proof — the crew taps it on temporary
         // fixes and return trips too (Earl, 2026-10-09). No note yet, a note
         // that says more is owed, low confidence, no provider or an AI error
@@ -427,12 +428,13 @@ return [
     ],
 
     'tasks' => [
-        // Ticks THMP checklist tasks whose proof is already in the database
+        // Ticks vendor checklist tasks whose proof is already in the database
         // (schedule saved, tenant texted, Jobber job done, before/after
         // photos). A tick does what the task template says it does, so a line
         // like "Fill in Projected Service End Date" moves the work order to
-        // Scheduled and tells PropertyWare, exactly as the crew's tick would.
-        // THMP work orders only. phpunit.xml pins it false; tests turn it on.
+        // Scheduled and tells PropertyWare, exactly as the vendor's tick would.
+        // THMP and portal vendors alike. phpunit.xml pins it false; tests turn
+        // it on.
         'auto_complete_enabled' => (bool) env('TASK_AUTO_COMPLETE_ENABLED', true),
     ],
 
