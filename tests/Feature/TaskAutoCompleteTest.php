@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\RepairCompletionJudgeAgent;
 use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\Jobber;
@@ -22,6 +23,7 @@ use App\Models\WorkOrderTask;
 use App\Services\PropertyWareService;
 use App\Services\TaskAutoCompleteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -49,7 +51,12 @@ class TaskAutoCompleteTest extends TestCase
     {
         parent::setUp();
 
-        config(['services.tasks.auto_complete_enabled' => true]);
+        config([
+            'services.tasks.auto_complete_enabled' => true,
+            'services.ai.repair_judge' => true,
+            'services.ai.repair_min_confidence' => 80,
+            'ai.providers.openai.key' => 'test-key',
+        ]);
 
         $this->waiting = ServiceStatus::query()->create(['name' => 'Assigned - Waiting on Scheduling', 'description' => 'x']);
         $this->scheduled = ServiceStatus::query()->create(['name' => 'Scheduled', 'description' => 'x']);
@@ -233,6 +240,29 @@ class TaskAutoCompleteTest extends TestCase
         ]);
     }
 
+    /** A note the technician wrote in the Jobber app, as the note sync stores it. */
+    private function techNote(WorkOrder $workOrder, string $message, string $at = '2026-10-12 15:10:00'): WorkOrderJobberNote
+    {
+        return WorkOrderJobberNote::query()->create([
+            'work_order_id' => $workOrder->id,
+            'jobber_note_gid' => 'note-'.fake()->unique()->numberBetween(1, 9999),
+            'jobber_job_gid' => $workOrder->jobber_job_gid,
+            'message' => $message,
+            'author_name' => 'Emanuel Hall',
+            'jobber_created_at' => $at,
+        ]);
+    }
+
+    /** The judge reading that note as "finished". */
+    private function judgeSaysDone(int $confidence = 92): void
+    {
+        RepairCompletionJudgeAgent::fake([[
+            'completed' => true,
+            'confidence' => $confidence,
+            'reason' => 'The note says the unit is repaired and cooling.',
+        ]]);
+    }
+
     private function tick(WorkOrder $workOrder): int
     {
         return app(TaskAutoCompleteService::class)->run($workOrder->fresh());
@@ -369,11 +399,17 @@ class TaskAutoCompleteTest extends TestCase
         $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
         $task = $this->optionalRepairTask($workOrder);
         $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Replaced the capacitor, unit is cooling again. Job done.');
+        $this->judgeSaysDone();
 
         $this->tick($workOrder);
 
         $this->assertTicked($task, 'Jobber job completed');
+        $this->assertStringContainsString('tech note says done (92%)', $task->fresh()->auto_complete_reason);
         $this->assertSame('Yes', $task->fresh()->option);
+
+        RepairCompletionJudgeAgent::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Replaced the capacitor')
+            && str_contains($prompt->prompt, 'Emanuel Hall'));
     }
 
     public function test_a_completed_visit_counts_even_before_the_job_is_marked_done(): void
@@ -382,6 +418,8 @@ class TaskAutoCompleteTest extends TestCase
         $task = $this->optionalRepairTask($workOrder);
         $job = $this->jobberJob($workOrder);
         $this->visit($job, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Done, tested, all good.');
+        $this->judgeSaysDone();
 
         $this->tick($workOrder);
 
@@ -394,9 +432,113 @@ class TaskAutoCompleteTest extends TestCase
         $task = $this->optionalRepairTask($workOrder);
         $job = $this->jobberJob($workOrder);
         $this->visit($job);
+        $this->techNote($workOrder, 'Done, tested, all good.');
+        $this->judgeSaysDone();
 
         $this->assertSame(0, $this->tick($workOrder));
         $this->assertUntouched($task);
+        RepairCompletionJudgeAgent::assertNeverPrompted();
+    }
+
+    // --- the repair judge --------------------------------------------------
+
+    public function test_a_completed_job_with_no_tech_note_yet_is_left_for_a_person(): void
+    {
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->judgeSaysDone();
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+        RepairCompletionJudgeAgent::assertNeverPrompted();
+    }
+
+    public function test_a_note_saying_the_tech_must_return_holds_the_tick(): void
+    {
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Temporary fix, need to come back with the new motor next week.');
+        RepairCompletionJudgeAgent::fake([[
+            'completed' => false,
+            'confidence' => 95,
+            'reason' => 'The note says a return visit with a new motor is needed.',
+        ]]);
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+        $this->assertSame($this->scheduled->id, $workOrder->fresh()->service_status_id);
+    }
+
+    public function test_a_verdict_below_the_confidence_bar_holds_the_tick(): void
+    {
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Looked at it.');
+        $this->judgeSaysDone(60);
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+    }
+
+    public function test_an_ai_failure_holds_the_tick(): void
+    {
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Repair complete.');
+        RepairCompletionJudgeAgent::fake([fn () => throw new RuntimeException('provider timed out')]);
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+    }
+
+    public function test_no_ai_provider_holds_the_tick(): void
+    {
+        config(['ai.providers.openai.key' => null]);
+
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Repair complete.');
+        $this->judgeSaysDone();
+
+        $this->assertSame(0, $this->tick($workOrder));
+        $this->assertUntouched($task);
+        RepairCompletionJudgeAgent::assertNeverPrompted();
+    }
+
+    public function test_the_judge_reads_the_newest_notes_and_the_work_order(): void
+    {
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id, 'description' => 'AC not cooling upstairs']);
+        $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => '2026-10-12 15:00:00']);
+        $this->techNote($workOrder, 'Arrived, diagnosing.', '2026-10-12 13:00:00');
+        $this->techNote($workOrder, 'Capacitor replaced, cooling at 58F supply.', '2026-10-12 15:05:00');
+        $this->judgeSaysDone();
+
+        $this->tick($workOrder);
+
+        RepairCompletionJudgeAgent::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'AC not cooling upstairs')
+            && str_contains($prompt->prompt, 'Capacitor replaced')
+            && str_contains($prompt->prompt, 'Arrived, diagnosing')
+            && strpos($prompt->prompt, 'Capacitor replaced') < strpos($prompt->prompt, 'Arrived, diagnosing'));
+    }
+
+    public function test_with_the_judge_switched_off_the_jobber_completion_decides_alone(): void
+    {
+        config(['services.ai.repair_judge' => false]);
+
+        $workOrder = $this->thmpWorkOrder(['service_status_id' => $this->scheduled->id]);
+        $task = $this->optionalRepairTask($workOrder);
+        $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->judgeSaysDone();
+
+        $this->assertSame(1, $this->tick($workOrder));
+        $this->assertTicked($task, 'Jobber job completed');
+        RepairCompletionJudgeAgent::assertNeverPrompted();
     }
 
     // --- photos ----------------------------------------------------------
@@ -526,6 +668,8 @@ class TaskAutoCompleteTest extends TestCase
         $repair = $this->optionalRepairTask($workOrder);
         $leftover = $this->templateTask($workOrder, null, 'Call the owner');
         $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Repair complete.');
+        $this->judgeSaysDone();
 
         $this->tick($workOrder);
 
@@ -549,6 +693,8 @@ class TaskAutoCompleteTest extends TestCase
         $before = $this->templateTask($workOrder, 'before_photo_added', 'Upload "before pictures of problem"');
         $after = $this->templateTask($workOrder, 'after_photo_added', 'After Completing Service - take "After Photos in App"');
         $this->jobberJob($workOrder, ['completed_at' => now()->subHour()]);
+        $this->techNote($workOrder, 'Repair complete.');
+        $this->judgeSaysDone();
         $this->attachment($workOrder, 'before');
         $this->attachment($workOrder, 'after');
 
@@ -610,6 +756,8 @@ class TaskAutoCompleteTest extends TestCase
     {
         $workOrder = WorkOrder::factory()->create(['service_status_id' => $this->waiting->id, 'status' => 'Open', 'work_order_no' => 44501]);
         $this->jobberJob($workOrder, ['completed_at' => now()]);
+        $this->techNote($workOrder, 'Repair complete.');
+        $this->judgeSaysDone();
         $task = $this->optionalRepairTask($workOrder);
 
         $this->assertSame(1, $this->tick($workOrder));

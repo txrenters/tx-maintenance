@@ -401,6 +401,16 @@ return [
         // verdict below the confidence bar means "not an easy fix".
         'easy_fix_judge' => env('TENANT_EASY_FIX_AI_JUDGE_ENABLED', true),
         'easy_fix_min_confidence' => (int) env('TENANT_EASY_FIX_AI_MIN_CONFIDENCE', 70),
+
+        // Before the system ticks "Have you Completed the Repair" on a THMP
+        // work order, the AI reads the technician's Jobber notes: a tapped
+        // "complete" on a visit is not proof — the crew taps it on temporary
+        // fixes and return trips too (Earl, 2026-10-09). No note yet, a note
+        // that says more is owed, low confidence, no provider or an AI error
+        // all leave the task for a coordinator. Off = the Jobber completion
+        // decides alone.
+        'repair_judge' => env('REPAIR_COMPLETION_AI_JUDGE_ENABLED', true),
+        'repair_min_confidence' => (int) env('REPAIR_COMPLETION_AI_MIN_CONFIDENCE', 80),
     ],
 
     'hvac_board' => [

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\Agents\RepairCompletionJudgeAgent;
 use App\Models\Attachments;
 use App\Models\Conversation;
 use App\Models\JobberVisit;
@@ -16,7 +17,9 @@ use App\Models\WorkOrderTask;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -73,7 +76,7 @@ class TaskAutoCompleteService
         self::TENANT_CONTACTED => 'Tenant texted about the appointment',
         self::SCHEDULE_START_SET => 'Service Schedule has a start date',
         self::SCHEDULE_END_SET => 'Service Schedule has an end date',
-        self::JOBBER_JOB_COMPLETED => 'Jobber job completed',
+        self::JOBBER_JOB_COMPLETED => 'Jobber job completed and the tech note says done',
         self::BEFORE_PHOTO_ADDED => 'A before photo is on the work order',
         self::AFTER_PHOTO_ADDED => 'An after photo is on the work order',
     ];
@@ -143,6 +146,7 @@ class TaskAutoCompleteService
             try {
                 $reason = $this->proof($trigger, $workOrder, $task);
             } catch (Throwable $e) {
+                // Includes a repair-judge failure: the task is simply held.
                 Log::warning('Task auto-complete could not check a task.', [
                     'work_order_id' => $workOrder->id,
                     'work_order_task_id' => $task->id,
@@ -358,20 +362,136 @@ class TaskAutoCompleteService
             : null;
     }
 
+    /**
+     * A Jobber completion is half the proof: the crew taps Complete on
+     * temporary fixes and return trips too, so the technician's notes are
+     * read by RepairCompletionJudgeAgent and only a confident "finished"
+     * ticks the task. The judge switched off = the completion decides alone.
+     */
     private function jobberJobCompleted(WorkOrder $workOrder): ?string
     {
         $completedAt = $this->jobberCompletedAt($workOrder);
 
         if ($completedAt) {
-            return self::LABELS[self::JOBBER_JOB_COMPLETED].' ('.$this->day($completedAt).')';
+            $completion = 'Jobber job completed ('.$this->day($completedAt).')';
+        } else {
+            $closed = $this->jobs->allForWorkOrder($workOrder)
+                ->first(fn ($job) => mb_strtolower((string) $job->job_status) === 'closed');
+
+            if (! $closed) {
+                return null;
+            }
+
+            $completion = 'Jobber job closed';
         }
 
-        $closed = $this->jobs->allForWorkOrder($workOrder)
-            ->first(fn ($job) => mb_strtolower((string) $job->job_status) === 'closed');
+        if (! config('services.ai.repair_judge')) {
+            return $completion;
+        }
 
-        return $closed
-            ? self::LABELS[self::JOBBER_JOB_COMPLETED].' (job closed in Jobber)'
-            : null;
+        $verdict = $this->repairVerdict($workOrder, $completedAt);
+
+        return $verdict ? $completion.'; '.$verdict : null;
+    }
+
+    /**
+     * What the judge made of the technician's notes, as the sentence stored
+     * on the task when the repair is finished, else null. The verdict is
+     * cached against the newest note and the completion time so a held
+     * work order is not re-read every sweep until something changes.
+     */
+    private function repairVerdict(WorkOrder $workOrder, ?CarbonInterface $completedAt): ?string
+    {
+        $notes = WorkOrderJobberNote::query()
+            ->where('work_order_id', $workOrder->id)
+            ->whereNotNull('message')
+            ->where('message', '!=', '')
+            ->orderByDesc('jobber_created_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get();
+
+        if ($notes->isEmpty()) {
+            Log::info('Repair tick held: the Jobber job is complete but the technician has not written a note yet.', [
+                'work_order_id' => $workOrder->id,
+                'work_order_no' => $workOrder->work_order_no,
+            ]);
+
+            return null;
+        }
+
+        if (! AiSettings::ready()) {
+            Log::warning('Repair tick held: no AI provider is configured to read the technician note.', [
+                'work_order_id' => $workOrder->id,
+            ]);
+
+            return null;
+        }
+
+        $key = sprintf(
+            'task-auto-complete:repair-judge:%d:%s:%s',
+            $workOrder->id,
+            $notes->first()->jobber_note_gid,
+            $completedAt?->getTimestamp() ?? 'closed',
+        );
+
+        $verdict = Cache::remember($key, now()->addDay(), fn () => $this->askRepairJudge($workOrder, $notes));
+
+        if ($verdict['completed']) {
+            return "tech note says done ({$verdict['confidence']}%): {$verdict['reason']}";
+        }
+
+        Log::info('Repair tick held: the technician note does not say the repair is finished.', [
+            'work_order_id' => $workOrder->id,
+            'work_order_no' => $workOrder->work_order_no,
+            'verdict' => $verdict,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @param  Collection<int, WorkOrderJobberNote>  $notes
+     * @return array{completed: bool, confidence: int, reason: string}
+     */
+    private function askRepairJudge(WorkOrder $workOrder, Collection $notes): array
+    {
+        $prompt = implode("\n", [
+            'WORK ORDER #'.$workOrder->work_order_no,
+            'Description: '.Str::limit(trim((string) $workOrder->description), 1000),
+            'Category: '.($workOrder->category ?: 'n/a'),
+            '',
+            'JOBBER: the visit or job is marked complete.',
+            '',
+            'TECHNICIAN NOTES (newest first):',
+            ...$notes->map(fn (WorkOrderJobberNote $note) => sprintf(
+                '- [%s] %s: %s',
+                $note->jobber_created_at?->timezone('America/Chicago')->format('M j, Y g:i A') ?? 'undated',
+                $note->author_name ?: 'Technician',
+                Str::limit(trim((string) $note->message), 600),
+            ))->all(),
+        ]);
+
+        try {
+            $response = (new RepairCompletionJudgeAgent)->prompt($prompt, timeout: 30);
+        } catch (Throwable $exception) {
+            Log::warning('Repair judge failed; the repair tick is held.', [
+                'work_order_id' => $workOrder->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            // Not cached: the next sweep asks again.
+            throw $exception;
+        }
+
+        $confidence = max(0, min(100, (int) data_get($response, 'confidence', 0)));
+        $minimum = (int) config('services.ai.repair_min_confidence', 80);
+
+        return [
+            'completed' => (bool) data_get($response, 'completed', false) && $confidence >= $minimum,
+            'confidence' => $confidence,
+            'reason' => Str::limit(trim((string) data_get($response, 'reason', '')), 160),
+        ];
     }
 
     /**
